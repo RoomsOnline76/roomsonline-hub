@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2 } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ interface RatePlan {
   min_stay: number;
   requires_deposit: boolean;
   deposit_percentage: number | null;
+  base_rate: number | null;
 }
 
 interface RoomType {
@@ -44,17 +45,144 @@ export default function PMSRatePlans() {
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
   const [form, setForm] = useState({
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
+    base_rate: "",
     linkedRoomTypeIds: [] as string[],
   });
+
+  // Auto-sync rate plans from amenities.pms_rate_types on load
+  const syncFromAmenities = useCallback(async () => {
+    if (!propertyId) return;
+
+    const { data: property } = await supabase
+      .from("properties")
+      .select("amenities, is_rol_property")
+      .eq("id", propertyId)
+      .single();
+
+    if (!(property as any)?.is_rol_property) return;
+
+    const amenities = (property as any)?.amenities || {};
+    const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? amenities.pms_rate_types : [];
+    const roomTypesAmenities: any[] = Array.isArray(amenities.room_types) ? amenities.room_types : [];
+
+    if (pmsRateTypes.length === 0) return;
+
+    // Get existing plans
+    const { data: existingPlans } = await supabase
+      .from("rolos_rate_plans")
+      .select("id, code, name")
+      .eq("property_id", propertyId);
+
+    const existingCodes = new Set((existingPlans || []).map(p => p.code));
+    const existingNames = new Set((existingPlans || []).map(p => p.name.toLowerCase()));
+
+    const missingRates = pmsRateTypes.filter(rt => {
+      const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
+      return !existingCodes.has(code) && !existingNames.has((rt.name || '').toLowerCase());
+    });
+
+    if (missingRates.length > 0) {
+      const rows = missingRates.map(rt => ({
+        property_id: propertyId,
+        name: rt.name || 'Unnamed Rate',
+        code: typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id),
+        description: rt.description || null,
+        is_active: true,
+        min_stay: rt.minStayDays || 1,
+        requires_deposit: false,
+        base_rate: rt.baseRate || 0,
+      }));
+
+      const { error } = await supabase.from("rolos_rate_plans").insert(rows);
+      if (!error) {
+        toast.success(`Synced ${missingRates.length} rate plan${missingRates.length !== 1 ? 's' : ''} from Property Overview`);
+      }
+    }
+
+    // Update base_rate for existing plans that have 0 or null
+    for (const rt of pmsRateTypes) {
+      if (!rt.baseRate) continue;
+      const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
+      const matchingPlan = (existingPlans || []).find(
+        p => p.code === code || p.name.toLowerCase() === (rt.name || '').toLowerCase()
+      );
+      if (matchingPlan) {
+        await supabase
+          .from("rolos_rate_plans")
+          .update({ base_rate: rt.baseRate })
+          .eq("id", matchingPlan.id)
+          .or("base_rate.is.null,base_rate.eq.0");
+      }
+    }
+
+    // Auto-link rate plans to room types based on amenities linkedRateTypes / linkedRoomId
+    const { data: allPlans } = await supabase
+      .from("rolos_rate_plans")
+      .select("id, code, name")
+      .eq("property_id", propertyId);
+
+    const { data: allRolosRoomTypes } = await supabase
+      .from("rolos_room_types")
+      .select("id, name")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+
+    if (allPlans && allRolosRoomTypes) {
+      const planByCode = new Map(allPlans.map(p => [p.code, p.id]));
+      const rolosRtByName = new Map(allRolosRoomTypes.map(rt => [rt.name.toLowerCase(), rt.id]));
+
+      const linkRows: { rate_plan_id: string; room_type_id: string }[] = [];
+
+      // Match by linkedRoomId in pmsRateTypes
+      for (const rt of pmsRateTypes) {
+        const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
+        const planId = planByCode.get(code);
+        if (!planId) continue;
+
+        // Find linked room by linkedRoomId
+        if (rt.linkedRoomId) {
+          const room = roomTypesAmenities.find((r: any) => r.id === rt.linkedRoomId);
+          if (room) {
+            const rolosRtId = rolosRtByName.get((room.name || '').toLowerCase());
+            if (rolosRtId) {
+              linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
+
+              // Also update default_rate on room type if null
+              if (rt.baseRate) {
+                await supabase
+                  .from("rolos_room_types")
+                  .update({ default_rate: rt.baseRate })
+                  .eq("id", rolosRtId)
+                  .is("default_rate", null);
+              }
+            }
+          }
+        }
+      }
+
+      // Deduplicate and upsert
+      const uniqueLinks = Array.from(
+        new Map(linkRows.map(l => [`${l.rate_plan_id}-${l.room_type_id}`, l])).values()
+      );
+      if (uniqueLinks.length > 0) {
+        await supabase
+          .from("rolos_rate_plan_room_types")
+          .upsert(uniqueLinks, { onConflict: "rate_plan_id,room_type_id" });
+      }
+    }
+  }, [propertyId]);
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
 
+    // Auto-sync from amenities first
+    await syncFromAmenities();
+
     const [plansRes, roomTypesRes, linksRes] = await Promise.all([
       supabase
         .from("rolos_rate_plans")
-        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage")
+        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate")
         .eq("property_id", propertyId)
         .order("name"),
       supabase
@@ -67,7 +195,6 @@ export default function PMSRatePlans() {
         .from("rolos_rate_plan_room_types")
         .select("rate_plan_id, room_type_id")
         .in("rate_plan_id",
-          // We need to scope to this property's plans - fetch ids inline
           (await supabase.from("rolos_rate_plans").select("id").eq("property_id", propertyId)).data?.map(p => p.id) || []
         ),
     ]);
@@ -76,7 +203,7 @@ export default function PMSRatePlans() {
     setRoomTypes((roomTypesRes.data || []) as RoomType[]);
     setLinks((linksRes.data || []) as RatePlanRoomLink[]);
     setLoading(false);
-  }, [propertyId]);
+  }, [propertyId, syncFromAmenities]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -87,7 +214,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, linkedRoomTypeIds: [] });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", linkedRoomTypeIds: [] });
     setEditingPlan(null);
   };
 
@@ -100,6 +227,7 @@ export default function PMSRatePlans() {
         description: plan.description || "",
         min_stay: String(plan.min_stay || 1),
         requires_deposit: plan.requires_deposit,
+        base_rate: plan.base_rate ? String(plan.base_rate) : "",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
       });
     } else {
@@ -111,6 +239,8 @@ export default function PMSRatePlans() {
   const handleSave = async () => {
     if (!propertyId || !form.name) return;
 
+    const baseRate = form.base_rate ? parseFloat(form.base_rate) : 0;
+
     const payload = {
       property_id: propertyId,
       name: form.name,
@@ -118,6 +248,7 @@ export default function PMSRatePlans() {
       description: form.description || null,
       min_stay: parseInt(form.min_stay) || 1,
       requires_deposit: form.requires_deposit,
+      base_rate: baseRate,
     };
 
     let planId: string;
@@ -135,10 +266,7 @@ export default function PMSRatePlans() {
     if (error) { toast.error(error.message); return; }
 
     // Sync room type links
-    // Delete existing links for this plan
     await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", planId);
-
-    // Insert new links
     if (form.linkedRoomTypeIds.length > 0) {
       const linkRows = form.linkedRoomTypeIds.map(rtId => ({
         rate_plan_id: planId,
@@ -146,6 +274,37 @@ export default function PMSRatePlans() {
       }));
       const { error: linkError } = await supabase.from("rolos_rate_plan_room_types").insert(linkRows);
       if (linkError) { toast.error("Saved rate plan but failed to link room types: " + linkError.message); }
+    }
+
+    // Write-back to amenities.pms_rate_types (last save wins)
+    try {
+      const { data: property } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .single();
+
+      if (property) {
+        const amenities = (property as any).amenities || {};
+        const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
+
+        // Find matching rate type by code or name
+        const matchIdx = pmsRateTypes.findIndex((rt: any) => {
+          const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
+          return code === form.code || (rt.name || '').toLowerCase() === form.name.toLowerCase();
+        });
+
+        if (matchIdx >= 0) {
+          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name };
+        }
+
+        await supabase
+          .from("properties")
+          .update({ amenities: { ...amenities, pms_rate_types: pmsRateTypes } })
+          .eq("id", propertyId);
+      }
+    } catch (wbErr) {
+      console.warn("[PMSRatePlans] Write-back to amenities warning:", wbErr);
     }
 
     toast.success(editingPlan ? "Rate plan updated" : "Rate plan created");
@@ -182,7 +341,7 @@ export default function PMSRatePlans() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Rate Plans</h1>
             <p className="text-sm text-muted-foreground">
-              Create rate plans and link them to room types.
+              Create rate plans and link them to room types. Changes sync with Property Overview.
             </p>
           </div>
           <div className="flex gap-2">
@@ -199,7 +358,10 @@ export default function PMSRatePlans() {
                   <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
                   <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. BAR, PROMO" /></div>
                   <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
-                  <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><Label>Base Rate (ZAR)</Label><Input type="number" min={0} value={form.base_rate} onChange={e => setForm(p => ({ ...p, base_rate: e.target.value }))} placeholder="0.00" /></div>
+                    <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
+                  </div>
                   <div className="flex items-center gap-2"><Switch checked={form.requires_deposit} onCheckedChange={v => setForm(p => ({ ...p, requires_deposit: v }))} /><Label>Requires Deposit</Label></div>
 
                   {/* Room type linking */}
@@ -260,6 +422,14 @@ export default function PMSRatePlans() {
                   <CardContent>
                     {plan.description && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+                      {plan.base_rate && plan.base_rate > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground/60 italic">No base rate set</span>
+                      )}
                       <span>Min stay: {plan.min_stay}n</span>
                       {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
                     </div>

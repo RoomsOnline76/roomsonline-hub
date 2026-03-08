@@ -175,6 +175,50 @@ export default function PMSRoomTypes() {
       toast.error(error.message);
       return;
     }
+
+    // Write-back default_rate to amenities (last save wins)
+    if (payload.default_rate !== null) {
+      try {
+        const { data: property } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", propertyId)
+          .single();
+
+        if (property) {
+          const amenities = (property as any).amenities || {};
+          const roomTypesArr: any[] = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
+          const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
+
+          // Update matching room type baseRate
+          const rtIdx = roomTypesArr.findIndex((rt: any) =>
+            (rt.name || '').toLowerCase() === payload.name.toLowerCase()
+          );
+          if (rtIdx >= 0) {
+            roomTypesArr[rtIdx] = { ...roomTypesArr[rtIdx], baseRate: payload.default_rate };
+          }
+
+          // Update matching pms_rate_type baseRate (by linkedRoomId)
+          const roomId = rtIdx >= 0 ? roomTypesArr[rtIdx]?.id : null;
+          if (roomId) {
+            const rateIdx = pmsRateTypes.findIndex((rt: any) =>
+              rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+            );
+            if (rateIdx >= 0) {
+              pmsRateTypes[rateIdx] = { ...pmsRateTypes[rateIdx], baseRate: payload.default_rate };
+            }
+          }
+
+          await supabase
+            .from("properties")
+            .update({ amenities: { ...amenities, room_types: roomTypesArr, pms_rate_types: pmsRateTypes } })
+            .eq("id", propertyId);
+        }
+      } catch (wbErr) {
+        console.warn("[PMSRoomTypes] Write-back to amenities warning:", wbErr);
+      }
+    }
+
     toast.success(editingType ? "Room type updated — syncing to Property Overview" : "Room type created — syncing to Property Overview");
     setDialogOpen(false);
     resetForm();

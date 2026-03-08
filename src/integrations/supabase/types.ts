@@ -4550,6 +4550,7 @@ export type Database = {
       }
       rolos_rate_plans: {
         Row: {
+          base_rate: number | null
           closed_to_arrival: boolean[] | null
           closed_to_departure: boolean[] | null
           code: string | null
@@ -4568,6 +4569,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          base_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
           code?: string | null
@@ -4586,6 +4588,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          base_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
           code?: string | null
