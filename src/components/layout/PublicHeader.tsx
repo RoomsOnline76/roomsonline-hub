@@ -149,11 +149,11 @@ export function PublicHeader({
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="sm:hidden mt-4 pb-2 animate-fade-in bg-card/95 backdrop-blur-md rounded-lg border border-border shadow-lg">
+          <div className="sm:hidden mt-4 pb-2 animate-fade-in bg-background border border-border shadow-lg rounded-lg">
             <nav className="flex flex-col gap-1 p-2">
               <Link
                 to="/journals"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📖</span>
@@ -161,7 +161,7 @@ export function PublicHeader({
               </Link>
               <Link
                 to="/about"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">👥</span>
@@ -169,7 +169,7 @@ export function PublicHeader({
               </Link>
               <Link
                 to="/how-our-booking-engine-works"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔗</span>
@@ -177,7 +177,7 @@ export function PublicHeader({
               </Link>
               <Link
                 to="/privacy-policy"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔒</span>
@@ -185,7 +185,7 @@ export function PublicHeader({
               </Link>
               <Link
                 to="/terms-of-service"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📋</span>
@@ -193,7 +193,7 @@ export function PublicHeader({
               </Link>
               <Link
                 to="/contact"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground/80 hover:text-foreground hover:bg-muted"
+                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">✉️</span>
