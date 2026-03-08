@@ -109,14 +109,17 @@ export function InvitationMap({
         styles: mapStyles,
       });
 
-      // Property marker - distinctive pink ROL pin
+      // Property marker - use active theme primary color (supports branded showcase mode)
+      const primaryHsl = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+      const propertyPinColor = primaryHsl ? `hsl(${primaryHsl})` : '#E91E8C';
+
       new window.google.maps.Marker({
         position,
         map: mapInstanceRef.current,
         title: propertyName,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#E91E8C', // ROL pink
+          fillColor: propertyPinColor,
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 3,

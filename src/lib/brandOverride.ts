@@ -87,12 +87,19 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
 export function applyBrandToDocument(brand: PropertyBrand): () => void {
   const vars = buildBrandVarsMap(brand);
   const root = document.documentElement;
+  const body = document.body;
   const keys = Object.keys(vars);
 
-  keys.forEach((key) => root.style.setProperty(key, vars[key]));
+  keys.forEach((key) => {
+    root.style.setProperty(key, vars[key]);
+    body.style.setProperty(key, vars[key]);
+  });
 
   return () => {
-    keys.forEach((key) => root.style.removeProperty(key));
+    keys.forEach((key) => {
+      root.style.removeProperty(key);
+      body.style.removeProperty(key);
+    });
   };
 }
 

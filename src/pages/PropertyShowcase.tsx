@@ -518,12 +518,17 @@ export default function PropertyShowcase() {
 
   // Apply brand override to document root (affects ALL portals: calendar drawers, modals, etc.)
   const brandCleanupRef = useRef<(() => void) | null>(null);
+  const brandedMode = searchParams.get("branded") === "true";
+
   useEffect(() => {
     brandCleanupRef.current?.();
     brandCleanupRef.current = null;
-    // Apply brand if enabled in DB OR if ?branded=true query param is present
-    const brandedParam = new URLSearchParams(window.location.search).get("branded");
-    const shouldApplyBrand = (property?.brand_override_enabled || brandedParam === "true") && property?.brand_primary_color;
+
+    // Force brand in branded mode even if property-level toggle is off
+    const shouldApplyBrand = Boolean(
+      (property?.brand_override_enabled || brandedMode) && property?.brand_primary_color
+    );
+
     if (shouldApplyBrand) {
       const brand: PropertyBrand = {
         enabled: true,
@@ -538,11 +543,12 @@ export default function PropertyShowcase() {
     } else {
       clearBrandFromSession();
     }
+
     return () => {
       brandCleanupRef.current?.();
       clearBrandFromSession();
     };
-  }, [property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color]);
+  }, [brandedMode, property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color, property?.brand_logo_url]);
 
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
