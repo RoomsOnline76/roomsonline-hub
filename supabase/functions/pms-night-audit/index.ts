@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
               .from("rolos_folio_transactions")
               .select("id")
               .eq("folio_id", booking.rolos_folio_id)
-              .eq("type", "charge")
+              .eq("transaction_type", "charge")
               .like("description", `%Room charge%${auditDateStr}%`)
               .maybeSingle();
 
