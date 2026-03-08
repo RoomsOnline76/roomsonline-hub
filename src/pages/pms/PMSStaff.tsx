@@ -365,7 +365,7 @@ export default function PMSStaff() {
                   <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>Next →</Button>
                   {weekOffset !== 0 && <Button variant="ghost" size="sm" onClick={() => setWeekOffset(0)}>Today</Button>}
                 </div>
-                <Button size="sm" onClick={() => setShowShiftDialog(true)}>
+                <Button size="sm" onClick={openNewShiftDialog}>
                   <Clock className="h-4 w-4 mr-1.5" /> Add Shift
                 </Button>
               </div>
