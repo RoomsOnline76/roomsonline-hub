@@ -72,7 +72,7 @@ export function PublicHeader({
           {/* Right: Desktop Nav + Currency + Mobile Menu */}
           <div className="flex items-center gap-4">
             {/* Desktop navigation links */}
-            <nav className="hidden sm:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1">
               <Link
                 to="/journals"
                 className={cn(
