@@ -628,6 +628,22 @@ export default function PMSDashboard() {
             <span className="text-muted-foreground">Stop Sell</span>
           </div>
           <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/40" />
+            <span className="text-muted-foreground">Min Stay</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-pink-500/20 border border-pink-500/40" />
+            <span className="text-muted-foreground">Max Stay</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-yellow-500/20 border border-yellow-500/40" />
+            <span className="text-muted-foreground">Lead Advance</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-orange-500/20 border border-orange-500/40" />
+            <span className="text-muted-foreground">Lead Post</span>
+          </div>
+          <div className="flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-amber-500" />
             <span className="text-muted-foreground">Needs attention</span>
           </div>
