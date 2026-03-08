@@ -376,14 +376,25 @@ export default function PMSHousekeeping() {
             <h2 className="font-semibold text-emerald-700 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" /> Ready ({cleanRooms.length})
             </h2>
-            {cleanRooms.map(room => (
-              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
-                <CardContent className="py-3">
-                  <p className="font-bold">{room.room_number}</p>
-                  <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
-                </CardContent>
-              </Card>
-            ))}
+            {cleanRooms.map(room => {
+              const openDockets = openMaintenanceForRoom(room.id);
+              return (
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                  <CardContent className="py-3 space-y-1.5">
+                    <p className="font-bold">{room.room_number}</p>
+                    <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                    {openDockets.length > 0 && (
+                      <div className="flex items-center gap-1.5 mt-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                        <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                        <span className="text-xs text-amber-700 dark:text-amber-400">
+                          {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       </div>
