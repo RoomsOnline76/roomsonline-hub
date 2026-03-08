@@ -8,6 +8,7 @@ import {
   Sparkles,
   Code2,
   BarChart3,
+  CalendarDays,
   Palette,
   ChevronLeft,
   ChevronRight,
