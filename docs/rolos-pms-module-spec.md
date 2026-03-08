@@ -1,6 +1,6 @@
 # ROL'OS PMS Module — Technical Specification
 
-> **Version**: 2.0  
+> **Version**: 3.0  
 > **Last Updated**: 2026-03-08  
 > **Module Path**: `/pms/*`
 
@@ -19,15 +19,21 @@
 9. [Property Reports](#9-property-reports)
 10. [Branding](#10-branding)
 11. [Integrations](#11-integrations)
-12. [Edge Functions](#12-edge-functions)
-13. [Reservation Engine](#13-reservation-engine)
-14. [Inventory Calendar](#14-inventory-calendar)
-15. [Night Audit](#15-night-audit)
-16. [Commission System](#16-commission-system)
-17. [Revenue Pulse Integration](#17-revenue-pulse-integration)
-18. [Database Schema](#18-database-schema)
-19. [Security & RLS](#19-security--rls)
-20. [Pagination Strategy](#20-pagination-strategy)
+12. [Channel Manager](#12-channel-manager)
+13. [Group Bookings](#13-group-bookings)
+14. [Events & Function Spaces](#14-events--function-spaces)
+15. [Financial Engine](#15-financial-engine)
+16. [Staff Management](#16-staff-management)
+17. [Edge Functions](#17-edge-functions)
+18. [Reservation Engine](#18-reservation-engine)
+19. [Inventory Calendar](#19-inventory-calendar)
+20. [Night Audit](#20-night-audit)
+21. [Commission System](#21-commission-system)
+22. [Revenue Pulse Integration](#22-revenue-pulse-integration)
+23. [Database Schema](#23-database-schema)
+24. [Security & RLS](#24-security--rls)
+25. [Pagination Strategy](#25-pagination-strategy)
+26. [Permission Matrix](#26-permission-matrix)
 
 ---
 
@@ -36,7 +42,7 @@
 ### Layout
 
 - **`PMSLayout`** (`src/components/layout/PMSLayout.tsx`) — Wraps all PMS pages with sidebar navigation (desktop) and bottom navigation (mobile).
-- **`PMSSidebar`** — Left navigation with links to all 9 PMS sub-modules.
+- **`PMSSidebar`** — Left navigation with links to all 12 PMS sub-modules.
 - **`PMSBrandProvider`** — Applies property-specific branding (logo, colors) to the PMS shell.
 - **`HelpProvider` + `PMSHelpDrawer`** — Contextual help system with floating help button.
 
@@ -50,9 +56,13 @@
 | `/pms/rate-plans` | `PMSRatePlans` | Rate plan management + room type linking |
 | `/pms/guests` | `PMSGuests` | Guest CRM with booking history |
 | `/pms/housekeeping` | `PMSHousekeeping` | 3-column board + maintenance dockets |
+| `/pms/channels` | `PMSChannels` | OTA channel manager (connections, mappings, sync) |
+| `/pms/groups` | `PMSGroups` | Group/block booking management |
+| `/pms/events` | `PMSEvents` | Event & function space management |
 | `/pms/reports` | `PMSReports` | KPI dashboards + charts + CSV export |
 | `/pms/branding` | `PMSBranding` | Logo, colors, business identity |
 | `/pms/integrations` | `PMSIntegrations` | Website toolkit (widgets, API, embeds) |
+| `/pms/staff` | `PMSStaff` | Staff roster & shift management |
 
 ### Property Context
 
@@ -78,7 +88,7 @@ All PMS pages use the `usePmsPropertyId()` hook which resolves the active proper
 
 ## 3. Dashboard & Calendar
 
-**File**: `src/pages/pms/PMSDashboard.tsx` (~1790 lines)
+**File**: `src/pages/pms/PMSDashboard.tsx`
 
 ### Features
 
@@ -358,7 +368,177 @@ This data feeds into the dual commission system for PMS rate attribution.
 
 ---
 
-## 12. Edge Functions
+## 12. Channel Manager
+
+**File**: `src/pages/pms/PMSChannels.tsx`  
+**Hook**: `src/hooks/useChannelManager.ts`  
+**Components**: `src/components/pms/channels/`
+
+### Overview
+
+OTA channel management system for connecting to distribution channels, mapping internal room types and rate plans to external OTA identifiers, and monitoring synchronisation.
+
+### Supported Channels
+
+| Channel | Key | Description |
+|---|---|---|
+| Booking.com | `booking_com` | World's largest OTA — sync availability, rates & reservations |
+| Airbnb | `airbnb` | Vacation rental marketplace — manage listings & guest comms |
+| Expedia | `expedia` | Global travel platform — distribute inventory across Expedia Group brands |
+| Agoda | `agoda` | Asia-focused OTA — reach travellers across APAC markets |
+| Google Hotels | `google_hotels` | Surface rates on Google Search & Maps via Hotel Ads |
+
+### Tab 1: Connections
+
+- Grid of channel cards showing: branded logo, channel name, description, status badge (active/paused/error/disconnected), last sync time, room/rate mapping counts
+- **Connect**: Opens credential dialog for API key entry + settings configuration
+- **Actions** (dropdown): Sync Now, Pause, Resume, Disconnect
+- Status updates via `useUpdateConnectionStatus` mutation
+
+### Tab 2: Mappings
+
+- **Room Mappings**: Table linking internal `rolos_room_types` to external OTA room IDs
+- **Rate Mappings**: Table linking internal `rolos_rate_plans` to external OTA rate IDs
+- Inline edit for external IDs and names
+- Filtered by active connections
+
+### Tab 3: Sync Log
+
+- Table of recent sync operations: channel, type, status, records processed, duration, errors
+- Auto-refresh every 30 seconds via `refetchInterval`
+- "Sync Now" triggers `pms-channel-sync` edge function
+
+### Data Model
+
+| Table | Purpose |
+|---|---|
+| `rolos_channel_connections` | OTA connection config per property (credentials, settings, status) |
+| `rolos_channel_room_mapping` | Internal room type ↔ external OTA room ID |
+| `rolos_channel_rate_mapping` | Internal rate plan ↔ external OTA rate ID |
+| `rolos_channel_sync_log` | Audit trail for every sync operation (type, status, duration, errors) |
+| `rolos_channel_reservations` | Inbound OTA reservations staging (dedup via unique connection+external_id) |
+
+### Edge Function: `pms-channel-sync`
+
+Actions: `push_inventory`, `pull_reservations`, `manual_sync`  
+Currently stubbed — logs payloads for framework validation. Actual OTA API integration requires per-channel API credentials.
+
+---
+
+## 13. Group Bookings
+
+**File**: `src/pages/pms/PMSGroups.tsx`
+
+### Overview
+
+Manage group/block bookings for tour operators, corporate events, and large parties. Groups aggregate multiple rooms under a single master booking with shared billing.
+
+### Features
+
+- **Group List**: Filterable table of all group bookings with status, dates, room count, total revenue
+- **Status Badges**: confirmed (default), tentative (secondary), cancelled (destructive), checked_in (default), checked_out (outline)
+- **Group Detail Sheet**: Side panel with full group info, room allocation breakdown, contact details, notes
+- **Create/Edit Dialog**: Group name, contact info, date range, room count, total amount, status, notes
+- **Actions**: Create new group, edit existing, view details
+
+### Data Model
+
+| Table | Purpose |
+|---|---|
+| `rolos_groups` | Master group record (name, contact, dates, rooms, amount, status, notes) |
+| `rolos_group_rooms` | Individual room allocations within a group (room type, count, rate) |
+| `rolos_group_billing` | Group billing/payment tracking |
+
+### Hook
+
+`usePmsFinancial.ts` provides `useGroups`, `useCreateGroup`, `useUpdateGroup` mutations with TanStack Query.
+
+---
+
+## 14. Events & Function Spaces
+
+**File**: `src/pages/pms/PMSEvents.tsx`
+
+### Overview
+
+Manage event spaces, function rooms, and event bookings. Supports weddings, conferences, banquets, and other property events.
+
+### Features
+
+- **Two Tabs**: Spaces (venue inventory) and Bookings (event reservations)
+- **Event Spaces**: Cards showing space name, type, capacity, hourly rate, status, amenities
+  - Create/edit with name, type (ballroom, conference_room, garden, restaurant, rooftop, other), capacity, hourly rate, amenities list
+- **Event Bookings**: Table of all event reservations with status, space, dates, attendees, revenue
+  - Create/edit with event name, space selection, date/time, attendees, total amount, contact info, status, notes
+- **Status Badges**: confirmed (default), tentative (secondary), cancelled (destructive), completed (outline)
+
+### Data Model
+
+| Table | Purpose |
+|---|---|
+| `rolos_event_spaces` | Function space inventory (name, type, capacity, rate, amenities, status) |
+| `rolos_events` | Event booking records (name, space, dates, attendees, amount, contact, status) |
+| `rolos_event_requirements` | Per-event requirements (AV, catering, setup) |
+
+### Hook
+
+`usePmsFinancial.ts` provides `useEventSpaces`, `useEvents`, `useCreateEventSpace`, `useCreateEvent`, `useUpdateEvent` mutations.
+
+---
+
+## 15. Financial Engine
+
+### Overview
+
+Comprehensive payment, invoicing, and tax management system. Supports multiple payment methods, refund workflows, and configurable tax rules.
+
+### Data Model
+
+| Table | Purpose |
+|---|---|
+| `rolos_payments` | Payment records (booking, amount, method, status, reference, gateway response) |
+| `rolos_invoices` | Invoice records (booking, guest, line items, tax, total, status, due date) |
+| `rolos_tax_rules` | Property-scoped tax configurations (name, rate, type, applicability) |
+| `rolos_staff_shifts` | Staff shift records for scheduling (staff, start/end, type, notes) |
+| `rolos_waitlist` | Booking waitlist for sold-out dates (guest, dates, room type, priority) |
+
+### Edge Function: `pms-financial`
+
+Actions:
+- `record_payment` — Creates payment record, updates booking payment status
+- `process_refund` — Creates refund record linked to original payment
+- `generate_invoice` — Generates invoice with line items and tax calculation
+
+### Hook
+
+`usePmsFinancial.ts` provides queries and mutations for:
+- Payments (`usePayments`, `useRecordPayment`)
+- Invoices (`useInvoices`, `useGenerateInvoice`)
+- Tax rules (`useTaxRules`, `useCreateTaxRule`)
+- Staff shifts (`useStaffShifts`, `useCreateShift`)
+- Waitlist (`useWaitlist`, `useAddToWaitlist`)
+- Groups and Events (see sections 13 & 14)
+
+---
+
+## 16. Staff Management
+
+**File**: `src/pages/pms/PMSStaff.tsx`
+
+### Overview
+
+Staff roster management with role assignment, linked to property-level access control.
+
+### Features
+
+- Staff member CRUD with name, email, role, department
+- Role assignment from PMS permission matrix roles
+- Shift scheduling via `rolos_staff_shifts`
+- Integration with `property_staff` table for RLS-based access
+
+---
+
+## 17. Edge Functions
 
 ### `roomsonline-pms-api`
 
@@ -387,9 +567,24 @@ Central PMS API edge function (~1800+ lines) handling 30+ action types:
 **Pagination Envelope:**
 All list endpoints return `{ items: [...], total_count, has_more }` with `limit` (default 100, max 500) and `offset` parameters.
 
+### `pms-channel-sync`
+
+OTA channel synchronisation orchestrator:
+- `push_inventory` — Reads inventory calendar, formats for target OTA (stubbed)
+- `pull_reservations` — Fetches from OTA API, deduplicates, creates bookings (stubbed)
+- `manual_sync` — Triggers push + pull for a connection
+- Logs all operations to `rolos_channel_sync_log`
+
+### `pms-financial`
+
+Financial transaction processing:
+- `record_payment` — Creates payment, updates booking payment status
+- `process_refund` — Refund workflow linked to original payment
+- `generate_invoice` — Invoice generation with tax calculation
+
 ### `push-booking`
 
-Booking ingestion from external PMS systems. **Now detects `is_rol_property`** and triggers `roomsonline-pms-api/create_reservation` for ROL properties, ensuring bookings flow into the operational reservation tables.
+Booking ingestion from external PMS systems. Detects `is_rol_property` and triggers `roomsonline-pms-api/create_reservation` for ROL properties.
 
 ### `calculate-commission`
 
@@ -397,30 +592,26 @@ Dual-rate commission calculation:
 - Resolves `commission_type` (listing vs pms) from `integration_type` and `booking_channel`
 - Queries `property_commercial_terms` filtered by resolved type
 - Falls back to defaults: 10% listing, 2% PMS
-- Stores `commission_type` and `calculated_commission` on booking
 
 ### `revenue-pulse-api`
 
-Admin revenue reporting:
-- Splits ROL revenue into `listingRevenue` and `pmsRevenue` streams
-- Aggregates by property, channel, and commission type
-- Period filtering (30d, 90d, 1y, custom)
+Admin revenue reporting with listing/PMS revenue split.
 
 ### `pms-night-audit`
 
-Scheduled daily cron (02:00 SAST / 00:00 UTC). See [Night Audit](#15-night-audit).
+Scheduled daily cron (02:00 SAST / 00:00 UTC). See [Night Audit](#20-night-audit).
 
 ### `sync-rolos-room-types`
 
-Daily safety-net cron ensuring parity between `rolos_room_types` ↔ `hostfully_room_types` and auto-creating missing physical rooms in `rolos_rooms`.
+Daily safety-net cron ensuring parity between `rolos_room_types` ↔ `hostfully_room_types`.
 
 ### `cancel-booking`
 
-Cancellation endpoint with `getClaims(token)` validation for secure token-based auth (verify_jwt = false).
+Cancellation endpoint with `getClaims(token)` validation.
 
 ---
 
-## 13. Reservation Engine
+## 18. Reservation Engine
 
 ### Overview
 
@@ -434,16 +625,6 @@ The reservation engine provides an operational layer on top of the `bookings` ta
 | `rolos_reservation_rooms` | Per-reservation room assignments with rate tracking |
 | `rolos_reservation_status_history` | Full audit trail of status transitions |
 
-### Reservation Schema
-
-```
-rolos_reservations:
-  id, property_id, booking_id (FK), status, check_in, check_out,
-  guest_id (FK → rolos_guest_profiles), created_by,
-  confirmation_number, total_amount, currency, special_requests,
-  created_at, updated_at
-```
-
 ### Status Flow
 
 ```
@@ -454,25 +635,13 @@ pending → confirmed → checked_in → checked_out
 
 Every status change is logged to `rolos_reservation_status_history` with the old/new status, changed_by user, reason, and timestamp.
 
-### Room Assignments
-
-```
-rolos_reservation_rooms:
-  reservation_id (FK), room_type_id (FK), room_id (FK, nullable),
-  adults, children, teens, infants, rate_charged
-```
-
 ### Integration with `push-booking`
 
 When a booking is pushed for an `is_rol_property`, the system automatically creates the corresponding `rolos_reservations` entry, room assignments, and status history via the `roomsonline-pms-api/create_reservation` action.
 
 ---
 
-## 14. Inventory Calendar
-
-### Overview
-
-Real-time inventory tracking per room type per date, enabling accurate availability queries and overbooking prevention.
+## 19. Inventory Calendar
 
 ### Table
 
@@ -499,11 +668,7 @@ UNIQUE INDEX: (property_id, room_type_id, date)
 
 ---
 
-## 15. Night Audit
-
-### Overview
-
-Automated daily process that closes the previous business day and prepares for the next.
+## 20. Night Audit
 
 ### Schedule
 
@@ -530,11 +695,9 @@ Processes all properties where `is_rol_property = true`.
 
 ---
 
-## 16. Commission System
+## 21. Commission System
 
 ### Dual Rate Architecture
-
-Each property can have **two active commission rates**:
 
 | Type | Description | Default | Applied When |
 |---|---|---|---|
@@ -555,19 +718,18 @@ ELSE
 ### Storage
 
 - `property_commercial_terms`: Stores rates with `commission_type` column
-  - Unique index: `(property_id, commission_type, effective_from)`
 - `bookings`: Stores `commission_type` for audit trail
 
 ### Contract Integration
 
-Contract templates support two dynamic variables:
+Contract templates support dynamic variables:
 - `{{listing_commission_percentage}}` — e.g., "ten percent (10%)"
 - `{{pms_commission_percentage}}` — e.g., "two percent (2%)"
 - `{{commission_percentage}}` — Backward compatible, resolves to listing rate
 
 ---
 
-## 17. Revenue Pulse Integration
+## 22. Revenue Pulse Integration
 
 ### Data Flow
 
@@ -593,7 +755,7 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 
 ---
 
-## 18. Database Schema
+## 23. Database Schema
 
 ### Core PMS Tables
 
@@ -617,7 +779,7 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_brand_config` | Property business stationery config |
 | `rolos_booking_room_assignments` | Booking ↔ room assignment tracking |
 
-### Reservation Engine Tables (v2.0)
+### Reservation Engine Tables
 
 | Table | Purpose |
 |---|---|
@@ -625,6 +787,37 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_reservation_rooms` | Per-reservation room & rate assignments |
 | `rolos_reservation_status_history` | Full status change audit trail |
 | `rolos_inventory_calendar` | Per-date per-type inventory tracking with generated `available_units` |
+
+### Channel Manager Tables
+
+| Table | Purpose |
+|---|---|
+| `rolos_channel_connections` | OTA connection configs (credentials, settings, status) |
+| `rolos_channel_room_mapping` | Internal room type ↔ external OTA room ID |
+| `rolos_channel_rate_mapping` | Internal rate plan ↔ external OTA rate ID |
+| `rolos_channel_sync_log` | Sync operation audit trail (type, status, duration, errors) |
+| `rolos_channel_reservations` | Inbound OTA reservation staging with dedup |
+
+### Financial & Operations Tables
+
+| Table | Purpose |
+|---|---|
+| `rolos_payments` | Payment records (amount, method, status, gateway response) |
+| `rolos_invoices` | Invoice records (line items, tax, totals, status) |
+| `rolos_tax_rules` | Property-scoped tax configurations |
+| `rolos_staff_shifts` | Staff shift scheduling records |
+| `rolos_waitlist` | Booking waitlist for sold-out dates |
+
+### Group & Event Tables
+
+| Table | Purpose |
+|---|---|
+| `rolos_groups` | Master group booking records |
+| `rolos_group_rooms` | Room allocations within groups |
+| `rolos_group_billing` | Group billing/payment tracking |
+| `rolos_event_spaces` | Function space inventory |
+| `rolos_events` | Event booking records |
+| `rolos_event_requirements` | Per-event requirements (AV, catering, setup) |
 
 ### Supporting Tables
 
@@ -641,10 +834,12 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 - `bookings(property_id, check_in_date)`
 - `rolos_reservations(property_id, check_in)`
 - `rolos_inventory_calendar(property_id, room_type_id, date)` (unique)
+- `rolos_channel_connections(property_id, channel_name)`
+- `rolos_channel_reservations(connection_id, external_reservation_id)` (unique)
 
 ---
 
-## 19. Security & RLS
+## 24. Security & RLS
 
 ### Row-Level Security
 
@@ -653,20 +848,19 @@ All `rolos_*` tables have RLS policies ensuring:
 - **Admins/Devs**: Full access across all properties
 - **Guests**: No direct table access (all guest-facing via edge functions)
 
-### Role Resolution
+### Helper Functions
 
-Uses `has_role(user_id, role)` security definer function to check roles without recursive RLS issues.
-
-### Property Ownership Verification
-
-Two functions validate property access:
-- `is_property_owner(property_id, user_id)` — Checks `owner_email` match via profiles
-- `is_linked_owner(property_id, user_id)` — Checks `property_owners` junction table
+| Function | Purpose |
+|---|---|
+| `has_role(user_id, role)` | Security definer role check without recursive RLS |
+| `is_property_owner(property_id, user_id)` | Checks `owner_email` match via profiles |
+| `is_linked_owner(property_id, user_id)` | Checks `property_owners` junction table |
+| `can_access_channel_property(property_id)` | Channel manager access via admin/dev role or property ownership |
+| `can_access_property(property_id)` | General property access check for financial/group/event tables |
 
 ### Edge Function Authentication
 
-- PMS API edge functions use `verify_jwt = false` with custom token validation via `getClaims(token)` for the signing-keys system
-- `cancel-booking` and `modify-booking` use `getClaims(token)` for secure validation without JWT verification
+- PMS API edge functions use `verify_jwt = false` with custom token validation via `getClaims(token)`
 - All destructive operations are logged to `audit_logs`
 
 ### Audit Trail
@@ -679,7 +873,7 @@ All changes to PMS tables are logged via the `log_audit_change()` trigger, captu
 
 ---
 
-## 20. Pagination Strategy
+## 25. Pagination Strategy
 
 ### Problem
 
@@ -687,28 +881,34 @@ Supabase has a default 1000-row limit per query. High-volume properties can exce
 
 ### Solution
 
-All high-volume queries now use pagination:
-
 | Component | Pattern | Page Size | Behavior |
 |---|---|---|---|
-| **PMSDashboard** (bookings) | `useInfiniteQuery` + auto-fetch | 500 | Auto-fetches all pages silently (calendar needs complete data) |
-| **PMSReports** (bookings) | `useInfiniteQuery` + Load More | 500 | "Load more" button; KPIs aggregate across all fetched pages |
-| **Edge Function APIs** | `limit`/`offset` params | 100 (default, max 500) | Returns `{ items, total_count, has_more }` envelope |
+| **PMSDashboard** (bookings) | `useInfiniteQuery` + auto-fetch | 500 | Auto-fetches all pages silently |
+| **PMSReports** (bookings) | `useInfiniteQuery` + Load More | 500 | "Load more" button; KPIs aggregate across pages |
+| **PMSChannels** (sync logs) | `useQuery` + limit | 100 | Latest 100 logs with 30s auto-refresh |
+| **Edge Function APIs** | `limit`/`offset` params | 100 (max 500) | Returns `{ items, total_count, has_more }` envelope |
 
-### Edge Function Pagination Envelope
+---
 
-```json
-{
-  "success": true,
-  "data": {
-    "reservations": [...],
-    "total_count": 1247,
-    "has_more": true
-  }
-}
-```
+## 26. Permission Matrix
 
-Paginated endpoints: `get_reservations`, `get_guest_profiles`, `get_housekeeping_board`, `get_daily_metrics`.
+### Modules (12)
+
+`dashboard`, `rooms`, `rate-plans`, `guests`, `housekeeping`, `channels`, `groups`, `events`, `reports`, `branding`, `integrations`, `staff`
+
+### Role Access
+
+| Role | Full Access | Read-Only | No Access |
+|---|---|---|---|
+| **Property Owner** | All 12 modules | — | — |
+| **General Manager** | All 12 modules | — | — |
+| **Front Desk** | dashboard, guests, calendar | rooms, housekeeping, channels, groups, events | rate-plans, reports, branding, integrations, staff |
+| **Housekeeping** | housekeeping | rooms | All others |
+| **Maintenance** | — | housekeeping | All others |
+| **Accountant** | reports | guests, groups | All others |
+| **Auditor** | — | All except integrations, staff | integrations, staff |
+
+Platform admins/devs bypass the permission matrix entirely (full access to all modules).
 
 ---
 
@@ -725,3 +925,7 @@ Paginated endpoints: `get_reservations`, `get_guest_profiles`, `get_housekeeping
 4. **Night audit timing**: Runs at 00:00 UTC (02:00 SAST). Properties in significantly different timezones may see metrics attributed to slightly offset dates.
 
 5. **Inventory calendar backfill**: The `rolos_inventory_calendar` table must be initialized from existing room type counts. The `sync-rolos-room-types` cron handles initial population; manual corrections may be needed for historical data.
+
+6. **Channel Manager stubs**: OTA API integrations (`push_inventory`, `pull_reservations`) are currently stubbed — the framework is in place but actual API calls require per-channel credentials and endpoint implementations.
+
+7. **Financial edge function**: Payment gateway integrations (Stripe, PayGate, etc.) are not yet wired — `pms-financial` handles internal record-keeping and status management.
