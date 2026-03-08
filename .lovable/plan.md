@@ -1,78 +1,60 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+# Plan: Fix Departure/Arrival Counters, Enhance Housekeeping with Maintenance Dockets
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+## Issues Identified
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+1. **Departures counter** queries `["confirmed", "checked_in"]` — this is correct (shows guests due to depart who haven't checked out). After checkout, status becomes `checked_out` and they correctly disappear. The query invalidation on `onSaved` already covers `pms-arrivals` and `pms-departures`. **No bug here.**
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+2. **Housekeeping page** is basic — only shows dirty/maintenance/clean rooms with a "Done" button. Missing: maintenance docket creation, completion feedback, room-ready confirmation checkbox, and the page doesn't auto-update when rooms change via check-in/out.
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+## Implementation
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+### 1. Housekeeping Page Rewrite (`PMSHousekeeping.tsx`)
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+Replace current minimal page with a full housekeeping management board:
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+**Columns remain**: Needs Cleaning, Maintenance, Ready — but enhanced:
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+- **Needs Cleaning cards**: Show task details, completion notes textarea, "Mark Done" button
+- **Maintenance column**: 
+  - "Create Maintenance Docket" button that opens a dialog
+  - Docket form: room selector, issue type (plumbing/electrical/hvac/furniture/appliance/structural/other), priority, description, estimated cost
+  - Each maintenance card shows: issue, priority badge, status, completion feedback textarea
+  - **"Room Ready" checkbox** — only appears on resolved maintenance items. If checked → room becomes `available`. If not checked → room stays `out_of_order`
+  - "Mark Resolved" button with required completion notes
+- **Ready column**: Shows available rooms (no change)
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+**Data fetching**: Switch from edge function to direct Supabase queries for rooms + housekeeping tasks + maintenance requests. This allows real-time reactivity and avoids the edge function limitation. Add a refresh button + auto-refresh interval.
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+### 2. Maintenance Docket Dialog (inline in `PMSHousekeeping.tsx`)
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+- Dialog with form fields matching `rolos_maintenance_requests` schema
+- Room selector from `rolos_rooms` 
+- On create: inserts into `rolos_maintenance_requests` and sets room status to `maintenance`
+- On resolve: updates request status to `resolved`, adds completion notes
+- On "Room Ready" checkbox toggle: if checked, sets room to `available`; if unchecked after resolve, sets room to `out_of_order`
+
+### 3. Edge Function Update (`roomsonline-pms-api`)
+
+- `complete_housekeeping_task`: Currently auto-sets room to `available` for clean tasks. Change: for maintenance tasks, do NOT auto-set to available — leave as `maintenance` until the room-ready checkbox is confirmed on the frontend.
+
+### 4. Add `completion_notes` and `room_ready_confirmed` to maintenance requests
+
+**Migration**: Add two columns to `rolos_maintenance_requests`:
+```sql
+ALTER TABLE public.rolos_maintenance_requests 
+  ADD COLUMN completion_notes text,
+  ADD COLUMN room_ready_confirmed boolean DEFAULT false;
+```
+
+Also update the validation trigger to allow a new status `'closed'` for fully confirmed maintenance.
+
+## Files Modified
+
+| File | Change |
+|---|---|
+| **DB Migration** | Add `completion_notes`, `room_ready_confirmed` to `rolos_maintenance_requests` |
+| `PMSHousekeeping.tsx` | Full rewrite with maintenance dockets, completion feedback, room-ready checkbox |
+| `roomsonline-pms-api/index.ts` | Update `complete_housekeeping_task` to not auto-set room available for maintenance tasks |
+
