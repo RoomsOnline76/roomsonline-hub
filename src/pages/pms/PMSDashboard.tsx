@@ -1147,7 +1147,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
           const { booked, avail } = getAvail(date);
           return (
             <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
+              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
               <div className="text-[8px] mt-0.5">
                 {booked > 0 && <span className="text-amber-600">{booked}b</span>}
                 {booked > 0 && " · "}
