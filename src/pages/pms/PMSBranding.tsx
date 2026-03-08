@@ -38,6 +38,8 @@ const defaultConfig: BrandConfig = {
   business_name: "",
   business_address: {},
   vat_number: "",
+  is_vat_registered: false,
+  vat_rate: 15,
   email_footer_text: "",
   custom_tagline: "",
   favicon_url: "",
