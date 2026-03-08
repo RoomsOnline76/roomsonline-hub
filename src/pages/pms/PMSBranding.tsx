@@ -138,6 +138,8 @@ export default function PMSBranding() {
           business_name: d.business_name || "",
           business_address: d.business_address || {},
           vat_number: d.vat_number || "",
+          is_vat_registered: d.is_vat_registered ?? false,
+          vat_rate: d.vat_rate ?? 15,
           email_footer_text: d.email_footer_text || "",
           custom_tagline: d.custom_tagline || "",
           favicon_url: d.favicon_url || "",
