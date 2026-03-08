@@ -34,6 +34,7 @@ const pmsNavItems: NavItem[] = [
   { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
   { title: "Reports", icon: BarChart3, href: "/pms/reports" },
   { title: "Branding", icon: Palette, href: "/pms/branding" },
+  { title: "Integrations", icon: Code2, href: "/pms/integrations" },
 ];
 
 export function PMSSidebar() {
