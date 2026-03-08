@@ -118,7 +118,8 @@ export default function PMSHousekeeping() {
     const roomsQ = supabase.from("rolos_rooms").select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
     const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId);
     const tasksQ = supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
-    const maintQ = supabase.from("rolos_maintenance_requests").select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
+    // Use type assertion to avoid TS2589 on deeply chained maintenance request query
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
