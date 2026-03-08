@@ -47,6 +47,7 @@ interface Property {
   siteminder_property_code: string | null;
   hotelbeds_hotel_code: string | null;
   hostfully_property_uid: string | null;
+  is_rol_property?: boolean | null;
   property_type?: string | null;
 }
 
@@ -288,6 +289,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
     if (!property?.external_system) return null;
     switch (property.external_system) {
+      case "roomsonline": return property.id; // Native PMS uses internal property UUID
       case "benson": return property.benson_property_code;
       case "checkfront": return property.checkfront_property_code;
       case "siteminder": return property.siteminder_property_code;
@@ -302,6 +304,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   }, []);
 
   const isPmsProperty = !!selectedPropertyData?.external_system;
+  const isNativeRolosProperty = selectedPropertyData?.external_system === "roomsonline" && !!selectedPropertyData?.is_rol_property;
   const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
   const hasPmsPropertyCode = !!pmsPropertyCode;
 
@@ -472,9 +475,12 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         body: {
           action: "fetch_availability",
           property_id: selectedPropertyData.id,
+          propertyId: selectedPropertyData.id,
           propertyUid: pmsPropertyCode,
           startDate: startDateStr,
           endDate: endDateStr,
+          start_date: startDateStr,
+          end_date: endDateStr,
         },
       });
 
@@ -829,12 +835,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     if (!propertyData) return;
     
     const isPms = !!propertyData.external_system && propertyData.external_system !== 'none';
+    const isNativeRolos = propertyData.external_system === 'roomsonline' && !!propertyData.is_rol_property;
     
-    if (isPms) {
-      // Always fetch on property change - the function will handle caching
+    if (isPms && !isNativeRolos) {
+      // External PMS properties fetch from adapter/cache
       fetchPmsAvailability(false);
     } else {
-      // Generate synthetic PMS data from wizard configuration
+      // ROL'OS native + manual properties use property overview data
       generateManualPropertyData(propertyData);
     }
   }, [selectedProperty, properties, fetchPmsAvailability, generateManualPropertyData, currentDate, viewMode]);
@@ -881,7 +888,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, listing_status")
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, is_rol_property, listing_status")
         .eq("is_active", true)
         .neq("listing_status", "inactive");
 
@@ -1798,8 +1805,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 variant="default" 
                 className="gap-1 h-8 text-xs px-2"
                 onClick={() => {
-                  if (isPmsProperty) {
+                  if (isPmsProperty && !isNativeRolosProperty) {
                     fetchPmsAvailability(true);
+                  } else if (selectedPropertyData) {
+                    generateManualPropertyData(selectedPropertyData);
                   }
                 }}
                 disabled={pmsSyncStatus === "loading"}
@@ -1809,7 +1818,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 ) : (
                   <RefreshCw className="h-3 w-3" />
                 )}
-                {isPmsProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
+                {isPmsProperty && !isNativeRolosProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
 
               <div className="ml-auto flex gap-1">
