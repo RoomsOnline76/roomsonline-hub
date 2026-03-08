@@ -113,7 +113,7 @@ interface BookingRow {
   teens: number | null;
   total_price: number;
   special_requests: string | null;
-  special_requests_parsed: any;
+  special_requests_parsed: Record<string, unknown> | null;
   requires_intervention: boolean | null;
   booking_channel: string | null;
   payment_status: string | null;
@@ -122,7 +122,7 @@ interface BookingRow {
   rolos_check_out_time: string | null;
   rolos_room_ids: string[] | null;
   rolos_rate_plan_id: string | null;
-  modification_notes: any;
+  modification_notes: Record<string, unknown>[] | null;
   room_type_id: string | null;
   rolos_guest_id: string | null;
 }
