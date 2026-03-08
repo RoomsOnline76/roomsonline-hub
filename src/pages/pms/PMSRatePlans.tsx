@@ -55,6 +55,7 @@ export default function PMSRatePlans() {
   const [form, setForm] = useState({
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
     base_rate: "",
+    pricing_model: "per_room",
     linkedRoomTypeIds: [] as string[],
   });
 
