@@ -105,11 +105,13 @@ function PMSMessaging() {
   };
 
   return (
-    <HelpProvider>
-      <div className="flex min-h-screen bg-background">
-        <PMSSidebar />
-        <main className="flex-1 p-6 overflow-auto">
-          <div className="flex items-center justify-between mb-6">
+    <PMSLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
+            <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
+          </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
               <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
