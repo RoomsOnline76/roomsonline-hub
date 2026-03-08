@@ -208,7 +208,7 @@ export default function PMSRatePlans() {
     const [plansRes, roomTypesRes, linksRes] = await Promise.all([
       supabase
         .from("rolos_rate_plans")
-        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate")
+        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
         .eq("property_id", propertyId)
         .order("name"),
       supabase
