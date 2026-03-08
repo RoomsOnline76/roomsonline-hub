@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Palette, Save, Eye, Upload, Loader2, X, Type, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Palette, Save, Eye, Upload, Loader2, X, Type, ShieldCheck, AlertTriangle, ExternalLink, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
@@ -28,6 +28,7 @@ interface VisualBrand {
   brand_primary_color: string;
   brand_secondary_color: string;
   brand_font_color: string;
+  brand_accent_color: string;
   brand_override_enabled: boolean;
 }
 
@@ -45,6 +46,7 @@ const defaultVisual: VisualBrand = {
   brand_primary_color: "",
   brand_secondary_color: "",
   brand_font_color: "",
+  brand_accent_color: "",
   brand_override_enabled: false,
 };
 
@@ -110,7 +112,8 @@ function ColorField({ label, description, value, onChange }: { label: string; de
 
 export default function PMSBranding() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
-  const { propertyName } = usePMSBrand();
+  const { propertyName, propertySlug } = usePMSBrand();
+  const [propertySlugLocal, setPropertySlugLocal] = useState<string | null>(null);
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
   const [visual, setVisual] = useState<VisualBrand>(defaultVisual);
   const [saving, setSaving] = useState(false);
@@ -123,7 +126,7 @@ export default function PMSBranding() {
     (async () => {
       const [stationeryRes, propertyRes] = await Promise.all([
         supabase.from("rolos_brand_config" as any).select("*").eq("property_id", propertyId).maybeSingle(),
-        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_override_enabled").eq("id", propertyId).single(),
+        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug").eq("id", propertyId).single(),
       ]);
       if (stationeryRes.data) {
         const d = stationeryRes.data as any;
@@ -143,8 +146,10 @@ export default function PMSBranding() {
           brand_primary_color: p.brand_primary_color || "",
           brand_secondary_color: p.brand_secondary_color || "",
           brand_font_color: p.brand_font_color || "",
+          brand_accent_color: p.brand_accent_color || "",
           brand_override_enabled: p.brand_override_enabled ?? false,
         });
+        setPropertySlugLocal(p.slug || null);
       }
       setLoaded(true);
     })();
@@ -191,8 +196,9 @@ export default function PMSBranding() {
         brand_primary_color: visual.brand_primary_color || null,
         brand_secondary_color: visual.brand_secondary_color || null,
         brand_font_color: visual.brand_font_color || null,
+        brand_accent_color: visual.brand_accent_color || null,
         brand_override_enabled: visual.brand_override_enabled,
-      }).eq("id", propertyId);
+      } as any).eq("id", propertyId);
       if (prErr) throw prErr;
 
       toast.success("Branding & stationery saved");
@@ -268,6 +274,8 @@ export default function PMSBranding() {
                 <ColorField label="Primary Colour" description="Buttons, headers, and accents" value={visual.brand_primary_color} onChange={v => setVisual(p => ({ ...p, brand_primary_color: v }))} />
                 <ColorField label="Secondary Colour" description="Backgrounds, highlights, and secondary elements" value={visual.brand_secondary_color} onChange={v => setVisual(p => ({ ...p, brand_secondary_color: v }))} />
                 <ColorField label="Font Colour" description="Primary text colour for headings and body" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
+                <Separator />
+                <ColorField label="Menu / Accent Colour" description="Sidebar active menu item highlight and hover background in the PMS interface" value={visual.brand_accent_color} onChange={v => setVisual(p => ({ ...p, brand_accent_color: v }))} />
               </CardContent>
             </Card>
 
@@ -363,6 +371,45 @@ export default function PMSBranding() {
               </CardContent>
             </Card>
 
+            {/* ─── Showcase Links ─── */}
+            {(propertySlug || propertySlugLocal) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Globe className="h-4 w-4 text-primary" /> Showcase Pages</CardTitle>
+                  <CardDescription>View your property's public-facing pages on the booking platform.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Sleep in Africa Showcase</p>
+                      <p className="text-xs text-muted-foreground truncate">Default SLP layout with RoomsOnline branding</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" asChild>
+                      <a href={`https://book.sleepinafrica.roomsonline.co.za/property/${propertySlug || propertySlugLocal}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View
+                      </a>
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Branded Showcase Page</p>
+                      <p className="text-xs text-muted-foreground truncate">Your property colours, logo & brand identity</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" asChild>
+                      <a href={`https://book.sleepinafrica.roomsonline.co.za/property/${propertySlug || propertySlugLocal}?branded=true`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View
+                      </a>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Both pages use the SLP showcase layout and booking workflow. The branded version applies your colours and logo configured above.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save Branding & Stationery"}
             </Button>
@@ -401,6 +448,19 @@ export default function PMSBranding() {
                   <div className="flex gap-2">
                     <button className="px-3 py-1.5 rounded-md text-xs font-medium text-white" style={{ backgroundColor: visual.brand_primary_color }}>Book Now</button>
                     <button className="px-3 py-1.5 rounded-md text-xs font-medium border" style={{ borderColor: visual.brand_primary_color, color: visual.brand_primary_color }}>View Rooms</button>
+                  </div>
+                )}
+
+                {/* Menu accent preview */}
+                {visual.brand_accent_color && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Menu Accent Preview</p>
+                    <div className="flex gap-2 items-center">
+                      <div className="px-3 py-1.5 rounded-md text-xs font-medium" style={{ backgroundColor: visual.brand_accent_color, color: visual.brand_font_color || '#000' }}>
+                        Active Menu
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">Sidebar highlight</span>
+                    </div>
                   </div>
                 )}
 

@@ -9,10 +9,12 @@ import {
 
 interface PMSBrandData {
   propertyName: string;
+  propertySlug: string | null;
   logoUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
   fontColor: string | null;
+  accentColor: string | null;
   tagline: string | null;
   brandEnabled: boolean;
   loading: boolean;
@@ -20,10 +22,12 @@ interface PMSBrandData {
 
 const defaultBrand: PMSBrandData = {
   propertyName: "",
+  propertySlug: null,
   logoUrl: null,
   primaryColor: null,
   secondaryColor: null,
   fontColor: null,
+  accentColor: null,
   tagline: null,
   brandEnabled: false,
   loading: true,
@@ -40,7 +44,7 @@ export function usePMSBrand() {
  * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
  * This makes the property feel like it has its own custom software.
  */
-function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null): () => void {
+function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null): () => void {
   const root = document.documentElement;
   const applied: string[] = [];
 
@@ -55,7 +59,6 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--primary", hsl);
       set("--primary-foreground", autoForeground(primary));
       set("--ring", hsl);
-      // Chart colour 1
       set("--chart-1", hsl);
     }
   }
@@ -76,6 +79,17 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--foreground", hsl);
       set("--card-foreground", hsl);
       set("--popover-foreground", hsl);
+    }
+  }
+
+  // Menu/sidebar accent colour
+  if (accent) {
+    const hsl = hexToHsl(accent);
+    if (hsl) {
+      set("--accent", hsl);
+      set("--accent-foreground", autoForeground(accent));
+      set("--sidebar-accent", hsl);
+      set("--sidebar-accent-foreground", autoForeground(accent));
     }
   }
 
@@ -101,7 +115,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
     async function fetchBrand() {
       const { data } = await supabase
         .from("properties")
-        .select("name, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url")
+        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url")
         .eq("id", propertyId!)
         .single();
 
@@ -123,10 +137,12 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
 
       setBrand({
         propertyName: data.name,
+        propertySlug: (data as any).slug || null,
         logoUrl: data.brand_logo_url,
         primaryColor: data.brand_primary_color,
         secondaryColor: data.brand_secondary_color,
         fontColor: data.brand_font_color,
+        accentColor: (data as any).brand_accent_color || null,
         tagline: (brandConfig as any)?.custom_tagline || null,
         brandEnabled: hasColors,
         loading: false,
@@ -139,6 +155,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
           data.brand_primary_color,
           data.brand_secondary_color,
           data.brand_font_color,
+          (data as any).brand_accent_color,
         );
       }
     }
