@@ -85,9 +85,9 @@ function PMSMessaging() {
   const handleProcessQueue = async () => {
     try {
       const result = await processQueue.mutateAsync();
-      toast.success(`Processed: ${(result as any)?.sent || 0} sent, ${(result as any)?.failed || 0} failed`);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to process queue");
+      toast.success(`Processed: ${result?.sent || 0} sent, ${result?.failed || 0} failed`);
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to process queue");
     }
   };
 
