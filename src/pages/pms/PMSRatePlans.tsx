@@ -254,6 +254,7 @@ export default function PMSRatePlans() {
         min_stay: String(plan.min_stay || 1),
         requires_deposit: plan.requires_deposit,
         base_rate: plan.base_rate ? String(plan.base_rate) : "",
+        pricing_model: plan.pricing_model || "per_room",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
       });
     } else {
