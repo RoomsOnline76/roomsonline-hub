@@ -302,11 +302,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium">⚡ Per-person rate — price multiplied by guest count</p>
               )}
             </div>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
           {/* Guest Counts */}
           <div className="space-y-2">
