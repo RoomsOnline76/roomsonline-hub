@@ -91,12 +91,14 @@ export default function PMSDashboard() {
     { label: "Maintenance", value: stats.maintenance, icon: AlertTriangle, color: "text-destructive" },
   ];
 
+  const displayName = brandName || propertyName;
+
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">{propertyName}</h1>
-          <Badge variant="outline" className="text-primary border-primary">ROL'OS PMS</Badge>
+          <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+          <Badge variant="outline" className="text-primary border-primary">Dashboard</Badge>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
