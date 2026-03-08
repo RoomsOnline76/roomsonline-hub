@@ -528,6 +528,7 @@ function HomeContent() {
           </Link>
         )}
 
+        <CategoryBanner
           onSegmentClick={handleSegmentClick}
           heroRef={heroRef}
           selectedProperty={selectedProperty ?? null}
