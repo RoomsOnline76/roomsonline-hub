@@ -22,10 +22,10 @@ interface PMSTobiAssistantProps {
 const PMS_SUGGESTED_PROMPTS = [
   "What's happening today?",
   "Show occupancy & revenue",
-  "How do I connect an OTA?",
+  "How do I send a guest message?",
   "Walk me through group bookings",
   "What can my front desk staff see?",
-  "Navigate to housekeeping",
+  "How do I check revenue forecasts?",
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/help-assistant`;
@@ -203,7 +203,9 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
     { label: "Rooms", path: "/pms/rooms" },
     { label: "Guests", path: "/pms/guests" },
     { label: "Rates", path: "/pms/rate-plans" },
+    { label: "Revenue", path: "/pms/revenue" },
     { label: "Channels", path: "/pms/channels" },
+    { label: "Messaging", path: "/pms/messaging" },
     { label: "Reports", path: "/pms/reports" },
     { label: "Staff", path: "/pms/staff" },
   ];

@@ -40,14 +40,18 @@ NAVIGATION GUIDE — OPERATIONS:
 
 NAVIGATION GUIDE — REVENUE:
 - "Rate Plans" (/pms/rate-plans) — Pricing strategies: base rates, seasonal pricing with day-of-week multipliers, minimum/maximum stay rules, and rate codes
+- "Revenue Mgmt" (/pms/revenue) — Revenue management with 14-day demand forecasting and historical performance analysis (GBV, ADR, channel mix) for 30/60/90 day periods
 - "Channels" (/pms/channels) — OTA Channel Manager: connect/disconnect Booking.com, Airbnb, Expedia, Google Hotels, etc. Manage rate parity, availability sync, and commission tracking
 - "Groups" (/pms/groups) — Group & block bookings: create group reservations, manage rooming lists, track group billing, and handle allotments with cutoff dates
 - "Events" (/pms/events) — Function spaces & event booking: manage venues/spaces, create event bookings with catering and setup requirements, track event revenue
 
 NAVIGATION GUIDE — MANAGEMENT:
+- "Portfolio" (/pms/portfolio) — Multi-property portfolio overview with aggregated KPIs across all managed properties
+- "Night Audit" (/pms/night-audit) — Nightly audit controls: roll housekeeping, finalize occupancy, calculate ADR/RevPAR metrics, close folios. Runs automatically at 02:00 SAST
+- "Messaging" (/pms/messaging) — Guest messaging: 7 auto-seeded email templates (booking confirmation, pre-arrival, check-in, check-out, payment request, cancellation, manual), message queue with scheduling, delivery log via Resend. Supports placeholders like {{guest_name}}, {{property_name}}, {{check_in}}
 - "Reports" (/pms/reports) — Analytics: ADR, RevPAR, occupancy rates, revenue breakdown, channel performance, guest demographics, and financial summaries
-- "Staff" (/pms/staff) — Staff management: invite team members, assign roles (General Manager, Front Desk, Housekeeping, Maintenance, Accountant, Auditor), manage shifts and schedules
-- "Branding" (/pms/branding) — White-label identity: customize logo, primary/secondary/font colors, preview branded guest-facing pages
+- "Staff" (/pms/staff) — Staff management: invite team members, assign roles (General Manager, Front Desk, Housekeeping, Maintenance, Accountant, Auditor), manage shifts and schedules. Staff must change password on first login
+- "Branding" (/pms/branding) — White-label identity: customize logo, primary/secondary/font colors, business stationery (VAT, tagline, favicon). Bidirectionally synced with Property Overview
 - "Integrations" (/pms/integrations) — Website widgets, booking engine embeds, direct booking links, and third-party connections
 
 COMMON TASKS:
@@ -61,8 +65,11 @@ COMMON TASKS:
 - Book an event space → "Go to **Events**, select a function space, and create a booking with date, setup style, and catering requirements."
 - Invite a staff member → "Go to **Staff** and click 'Invite'. Enter their email and select a role — they'll get access based on their role permissions."
 - Check financial reports → "Go to **Reports** for ADR, RevPAR, occupancy, and channel revenue breakdowns."
-- Update branding → "Go to **Branding** to set your logo, primary color, secondary color, and font color."
+- Check revenue forecasts → "Go to **Revenue Mgmt** for 14-day demand forecasting and historical performance data."
+- Update branding → "Go to **Branding** to set your logo, primary color, secondary color, and font color. Changes sync to the Property Overview automatically."
 - Manage housekeeping → "Go to **Housekeeping** to view the task board, assign rooms to staff, and track cleaning status."
+- Send a guest message → "Go to **Messaging** to manage email templates, queue messages, or send a manual message. Templates support placeholders like {{guest_name}}."
+- Run night audit → "Go to **Night Audit** to manually trigger the nightly audit or view past audit logs. It runs automatically at 02:00 SAST."
 - Record a payment → "Payments are tracked per folio. Each guest's charges and payments flow through the folio system."
 - Check guest history → "Go to **Guests** and search by name or email. Their profile shows all past stays, preferences, and total spend."
 

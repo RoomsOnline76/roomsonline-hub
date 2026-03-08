@@ -1,6 +1,6 @@
 # ROL'OS PMS Module — Technical Specification
 
-> **Version**: 3.0  
+> **Version**: 4.0  
 > **Last Updated**: 2026-03-08  
 > **Module Path**: `/pms/*`
 
@@ -24,16 +24,21 @@
 14. [Events & Function Spaces](#14-events--function-spaces)
 15. [Financial Engine](#15-financial-engine)
 16. [Staff Management](#16-staff-management)
-17. [Edge Functions](#17-edge-functions)
-18. [Reservation Engine](#18-reservation-engine)
-19. [Inventory Calendar](#19-inventory-calendar)
-20. [Night Audit](#20-night-audit)
-21. [Commission System](#21-commission-system)
-22. [Revenue Pulse Integration](#22-revenue-pulse-integration)
-23. [Database Schema](#23-database-schema)
-24. [Security & RLS](#24-security--rls)
-25. [Pagination Strategy](#25-pagination-strategy)
-26. [Permission Matrix](#26-permission-matrix)
+17. [Messaging & Templates](#17-messaging--templates)
+18. [Revenue Management](#18-revenue-management)
+19. [Portfolio View](#19-portfolio-view)
+20. [Edge Functions](#20-edge-functions)
+21. [Reservation Engine](#21-reservation-engine)
+22. [Inventory Calendar](#22-inventory-calendar)
+23. [Night Audit](#23-night-audit)
+24. [Commission System](#24-commission-system)
+25. [Revenue Pulse Integration](#25-revenue-pulse-integration)
+26. [Bidirectional Sync Architecture](#26-bidirectional-sync-architecture)
+27. [TOBI AI Assistant](#27-tobi-ai-assistant)
+28. [Database Schema](#28-database-schema)
+29. [Security & RLS](#29-security--rls)
+30. [Pagination Strategy](#30-pagination-strategy)
+31. [Permission Matrix](#31-permission-matrix)
 
 ---
 
@@ -42,9 +47,10 @@
 ### Layout
 
 - **`PMSLayout`** (`src/components/layout/PMSLayout.tsx`) — Wraps all PMS pages with sidebar navigation (desktop) and bottom navigation (mobile).
-- **`PMSSidebar`** — Left navigation with links to all 12 PMS sub-modules.
-- **`PMSBrandProvider`** — Applies property-specific branding (logo, colors) to the PMS shell.
-- **`HelpProvider` + `PMSHelpDrawer`** — Contextual help system with floating help button.
+- **`PMSSidebar`** — Left navigation with 3 groups: Operations (4), Revenue (5), Management (7) = 16 total nav items.
+- **`PMSBrandProvider`** — Applies property-specific branding (logo, colors) to the PMS shell via CSS variables.
+- **`HelpProvider` + `PMSHelpDrawer`** — Contextual help system with floating help button and TOBI AI assistant.
+- **`ForcePasswordChangeModal`** — Enforces first-login password change for staff members.
 
 ### Routing
 
@@ -59,6 +65,10 @@
 | `/pms/channels` | `PMSChannels` | OTA channel manager (connections, mappings, sync) |
 | `/pms/groups` | `PMSGroups` | Group/block booking management |
 | `/pms/events` | `PMSEvents` | Event & function space management |
+| `/pms/revenue` | `PMSRevenue` | Revenue management with forecasting + performance history |
+| `/pms/portfolio` | `PMSPortfolio` | Multi-property portfolio overview |
+| `/pms/night-audit` | `PMSNightAudit` | Night audit controls and logs |
+| `/pms/messaging` | `PMSMessaging` | Message templates, queue, and log |
 | `/pms/reports` | `PMSReports` | KPI dashboards + charts + CSV export |
 | `/pms/branding` | `PMSBranding` | Logo, colors, business identity |
 | `/pms/integrations` | `PMSIntegrations` | Website toolkit (widgets, API, embeds) |
@@ -70,6 +80,10 @@ All PMS pages use the `usePmsPropertyId()` hook which resolves the active proper
 1. `?property=` URL parameter (highest priority)
 2. First available ROL property for Admins/Devs
 3. Owner-linked properties via `property_owners` table or `owner_email` match
+
+### Staff Login
+
+Properties have a dedicated staff login URL: `/{domain}/staff-login?property={slug}`. This renders a branded login page using the property's logo and colors from the `properties` table.
 
 ---
 
@@ -209,9 +223,14 @@ Table: `rolos_rate_seasons` with GiST-enforced overlap prevention
 - Season name, date range, rate multiplier
 - Day-of-week multipliers for dynamic pricing
 
-### Auto-sync from Amenities
+### Bidirectional Sync with Admin
 
-Rate plans auto-sync from `properties.amenities.room_types` for ROL properties, creating default plans linked to room types.
+Rate plans sync with `properties.amenities.pms_rate_types` JSONB via database triggers:
+
+- **PMS → Overview**: `sync_rolos_rates_to_overview()` — On insert/update/delete of `rolos_rate_plans`, rebuilds the `amenities.pms_rate_types` JSONB array
+- **Overview → PMS**: `sync_overview_rates_to_rolos()` — On update of `properties.amenities`, upserts matching `rolos_rate_plans` rows
+
+Both use `app.syncing_rate_plans` session variable to prevent recursion.
 
 ---
 
@@ -317,10 +336,6 @@ CSV export with columns: Date, Bookings, Revenue, Occupancy %, ADR
 - Periods ≤45 days: Daily buckets
 - Periods >45 days: Monthly buckets
 
-### Pagination
-
-Uses `useInfiniteQuery` with `PAGE_SIZE=500` and `.range()` pagination. All pages are aggregated into KPI calculations and chart data. A "Load more" button appears when additional pages are available.
-
 ---
 
 ## 10. Branding
@@ -338,8 +353,12 @@ Uses `useInfiniteQuery` with `PAGE_SIZE=500` and `.range()` pagination. All page
 
 ### Data Storage
 
-- **Visual branding** (logo, colors): Stored on `properties` table for cross-system sync
+- **Visual branding** (logo, colors): Stored on `properties` table for cross-system sync — shared with Admin Property Edit
 - **Stationery config** (business name, VAT, tagline): Stored in `rolos_brand_config` table
+
+### Bidirectional Sync
+
+Both Admin Property Edit "Branding" tab and PMS Branding page read/write the same `properties.brand_*` columns. Changes in either are immediately reflected in the other.
 
 ---
 
@@ -446,12 +465,8 @@ Manage group/block bookings for tour operators, corporate events, and large part
 | Table | Purpose |
 |---|---|
 | `rolos_groups` | Master group record (name, contact, dates, rooms, amount, status, notes) |
-| `rolos_group_rooms` | Individual room allocations within a group (room type, count, rate) |
-| `rolos_group_billing` | Group billing/payment tracking |
-
-### Hook
-
-`usePmsFinancial.ts` provides `useGroups`, `useCreateGroup`, `useUpdateGroup` mutations with TanStack Query.
+| `rolos_group_room_blocks` | Room block allocations within a group |
+| `rolos_group_reservations` | Individual reservations linked to a group |
 
 ---
 
@@ -478,11 +493,7 @@ Manage event spaces, function rooms, and event bookings. Supports weddings, conf
 |---|---|
 | `rolos_event_spaces` | Function space inventory (name, type, capacity, rate, amenities, status) |
 | `rolos_events` | Event booking records (name, space, dates, attendees, amount, contact, status) |
-| `rolos_event_requirements` | Per-event requirements (AV, catering, setup) |
-
-### Hook
-
-`usePmsFinancial.ts` provides `useEventSpaces`, `useEvents`, `useCreateEventSpace`, `useCreateEvent`, `useUpdateEvent` mutations.
+| `rolos_event_reservations` | Per-event room reservations |
 
 ---
 
@@ -497,10 +508,12 @@ Comprehensive payment, invoicing, and tax management system. Supports multiple p
 | Table | Purpose |
 |---|---|
 | `rolos_payments` | Payment records (booking, amount, method, status, reference, gateway response) |
+| `rolos_payment_allocations` | Allocations of payments to specific folios/invoices |
 | `rolos_invoices` | Invoice records (booking, guest, line items, tax, total, status, due date) |
+| `rolos_refunds` | Refund records linked to original payments |
 | `rolos_tax_rules` | Property-scoped tax configurations (name, rate, type, applicability) |
-| `rolos_staff_shifts` | Staff shift records for scheduling (staff, start/end, type, notes) |
-| `rolos_waitlist` | Booking waitlist for sold-out dates (guest, dates, room type, priority) |
+| `rolos_deposit_schedules` | Deposit payment schedules and due dates |
+| `rolos_pricing_rules` | Dynamic pricing rules and overrides |
 
 ### Edge Function: `pms-financial`
 
@@ -508,16 +521,6 @@ Actions:
 - `record_payment` — Creates payment record, updates booking payment status
 - `process_refund` — Creates refund record linked to original payment
 - `generate_invoice` — Generates invoice with line items and tax calculation
-
-### Hook
-
-`usePmsFinancial.ts` provides queries and mutations for:
-- Payments (`usePayments`, `useRecordPayment`)
-- Invoices (`useInvoices`, `useGenerateInvoice`)
-- Tax rules (`useTaxRules`, `useCreateTaxRule`)
-- Staff shifts (`useStaffShifts`, `useCreateShift`)
-- Waitlist (`useWaitlist`, `useAddToWaitlist`)
-- Groups and Events (see sections 13 & 14)
 
 ---
 
@@ -534,11 +537,106 @@ Staff roster management with role assignment, linked to property-level access co
 - Staff member CRUD with name, email, role, department
 - Role assignment from PMS permission matrix roles
 - Shift scheduling via `rolos_staff_shifts`
+- Activity logging via `rolos_staff_activity_log`
 - Integration with `property_staff` table for RLS-based access
+- Force password change on first login
 
 ---
 
-## 17. Edge Functions
+## 17. Messaging & Templates
+
+**File**: `src/pages/pms/PMSMessaging.tsx`  
+**Hook**: `src/hooks/usePmsMessaging.ts`  
+**Edge Function**: `pms-message-dispatcher`
+
+### Overview
+
+Automated guest messaging system with template management, queue processing, and delivery tracking via Resend.
+
+### Features
+
+- **Template Management**: Create, edit, delete message templates per property
+- **Trigger Events**: booking_confirmed, pre_arrival, check_in, check_out, payment_request, cancellation, manual
+- **Placeholder System**: `{{guest_name}}`, `{{guest_first_name}}`, `{{guest_email}}`, `{{property_name}}`, `{{check_in}}`, `{{check_out}}`, `{{confirmation_number}}`, `{{total_amount}}`, `{{nights}}`
+- **Message Queue**: Schedule messages for future delivery with status tracking (pending → processing → sent/failed)
+- **Message Log**: Full audit trail of all sent messages with status and error tracking
+- **Manual Send**: Send immediate messages to specific recipients
+- **Queue Processing**: Manual trigger or scheduled cron to process pending messages
+
+### Auto-seeding
+
+When a property is set as `is_rol_property = true`, the database trigger `seed_default_message_templates()` automatically creates 7 default templates:
+1. Booking Confirmation
+2. Pre-Arrival (24h before check-in)
+3. Check-In Welcome
+4. Check-Out Thank You
+5. Payment Request
+6. Cancellation Confirmation
+7. Manual / Custom Message
+
+### Bidirectional Sync with Admin
+
+Message templates sync with `properties.amenities.templates` JSONB via database triggers:
+
+- **PMS → Overview**: `sync_rolos_templates_to_overview()` — Maps booking_confirmed body → template_content, pre_arrival offset → pre_mailer timing, check_out offset → post_mailer timing
+- **Overview → PMS**: `sync_overview_templates_to_rolos()` — Reverse mapping on amenities.templates change
+
+### Data Model
+
+| Table | Purpose |
+|---|---|
+| `rolos_message_templates` | Template definitions (name, trigger, subject, body, channel, offset) |
+| `rolos_message_queue` | Queued messages awaiting delivery |
+| `rolos_message_log` | Delivery audit trail (status, errors, timestamps) |
+
+### Edge Function: `pms-message-dispatcher`
+
+Actions: `list_templates`, `upsert_template`, `delete_template`, `queue_message`, `send_message`, `process_queue`, `get_message_log`, `get_queue`
+
+Email delivery via Resend using `noreply@notify.roomsonline.co.za` with property name as sender.
+
+---
+
+## 18. Revenue Management
+
+**File**: `src/pages/pms/PMSRevenue.tsx`
+
+### Overview
+
+Property-level revenue management with demand forecasting, performance analytics, and historical trend analysis.
+
+### Tabs
+
+| Tab | Content |
+|---|---|
+| **Forecast** | 14-day occupancy forecast, demand signals, revenue projections |
+| **Performance** | Historical GBV, ADR, booking counts for 30/60/90 day periods |
+
+### Performance Tab
+
+- **KPI Cards**: Historical GBV, Total Bookings, ADR, Average Nights
+- **Revenue Timeline**: Monthly bar chart of GBV over the selected period
+- **Channel Mix**: Donut chart showing booking distribution by channel
+- **Data Source**: `bookings` table filtered to exclude cancelled/failed, scoped by property and date range
+
+### Forecast Tab
+
+- Demand forecasting based on current bookings and inventory
+- Daily occupancy projections with revenue estimates
+
+---
+
+## 19. Portfolio View
+
+**File**: `src/pages/pms/PMSPortfolio.tsx`
+
+### Overview
+
+Multi-property dashboard for owners and managers with properties across the ROL'OS portfolio. Provides aggregated KPIs and per-property drill-down.
+
+---
+
+## 20. Edge Functions
 
 ### `roomsonline-pms-api`
 
@@ -567,20 +665,21 @@ Central PMS API edge function (~1800+ lines) handling 30+ action types:
 **Pagination Envelope:**
 All list endpoints return `{ items: [...], total_count, has_more }` with `limit` (default 100, max 500) and `offset` parameters.
 
+### `pms-message-dispatcher`
+
+Guest messaging system (see [Section 17](#17-messaging--templates)).
+
 ### `pms-channel-sync`
 
-OTA channel synchronisation orchestrator:
-- `push_inventory` — Reads inventory calendar, formats for target OTA (stubbed)
-- `pull_reservations` — Fetches from OTA API, deduplicates, creates bookings (stubbed)
-- `manual_sync` — Triggers push + pull for a connection
-- Logs all operations to `rolos_channel_sync_log`
+OTA channel synchronisation orchestrator (see [Section 12](#12-channel-manager)).
 
 ### `pms-financial`
 
-Financial transaction processing:
-- `record_payment` — Creates payment, updates booking payment status
-- `process_refund` — Refund workflow linked to original payment
-- `generate_invoice` — Invoice generation with tax calculation
+Financial transaction processing (see [Section 15](#15-financial-engine)).
+
+### `pms-night-audit`
+
+Scheduled daily cron. See [Night Audit](#23-night-audit).
 
 ### `push-booking`
 
@@ -588,18 +687,11 @@ Booking ingestion from external PMS systems. Detects `is_rol_property` and trigg
 
 ### `calculate-commission`
 
-Dual-rate commission calculation:
-- Resolves `commission_type` (listing vs pms) from `integration_type` and `booking_channel`
-- Queries `property_commercial_terms` filtered by resolved type
-- Falls back to defaults: 10% listing, 2% PMS
+Dual-rate commission calculation (see [Section 24](#24-commission-system)).
 
 ### `revenue-pulse-api`
 
 Admin revenue reporting with listing/PMS revenue split.
-
-### `pms-night-audit`
-
-Scheduled daily cron (02:00 SAST / 00:00 UTC). See [Night Audit](#20-night-audit).
 
 ### `sync-rolos-room-types`
 
@@ -609,9 +701,13 @@ Daily safety-net cron ensuring parity between `rolos_room_types` ↔ `hostfully_
 
 Cancellation endpoint with `getClaims(token)` validation.
 
+### `help-assistant`
+
+TOBI AI assistant (see [Section 27](#27-tobi-ai-assistant)).
+
 ---
 
-## 18. Reservation Engine
+## 21. Reservation Engine
 
 ### Overview
 
@@ -635,13 +731,9 @@ pending → confirmed → checked_in → checked_out
 
 Every status change is logged to `rolos_reservation_status_history` with the old/new status, changed_by user, reason, and timestamp.
 
-### Integration with `push-booking`
-
-When a booking is pushed for an `is_rol_property`, the system automatically creates the corresponding `rolos_reservations` entry, room assignments, and status history via the `roomsonline-pms-api/create_reservation` action.
-
 ---
 
-## 19. Inventory Calendar
+## 22. Inventory Calendar
 
 ### Table
 
@@ -668,7 +760,7 @@ UNIQUE INDEX: (property_id, room_type_id, date)
 
 ---
 
-## 20. Night Audit
+## 23. Night Audit
 
 ### Schedule
 
@@ -680,6 +772,10 @@ Cron: `0 0 * * *` UTC (02:00 SAST) via `pms-night-audit` edge function.
 2. **Finalize Occupancy**: Count checked-in reservations for the previous day
 3. **Calculate Metrics**: Compute ADR, RevPAR, total revenue → upsert into `rolos_daily_metrics`
 4. **Close Folios**: Folios with `checkout_date = yesterday` and `balance = 0` → set status to `closed`
+
+### Audit Log
+
+Table: `rolos_night_audit_log` — Records each audit run with status, metrics computed, and errors.
 
 ### Metrics Calculation
 
@@ -695,7 +791,7 @@ Processes all properties where `is_rol_property = true`.
 
 ---
 
-## 21. Commission System
+## 24. Commission System
 
 ### Dual Rate Architecture
 
@@ -720,16 +816,9 @@ ELSE
 - `property_commercial_terms`: Stores rates with `commission_type` column
 - `bookings`: Stores `commission_type` for audit trail
 
-### Contract Integration
-
-Contract templates support dynamic variables:
-- `{{listing_commission_percentage}}` — e.g., "ten percent (10%)"
-- `{{pms_commission_percentage}}` — e.g., "two percent (2%)"
-- `{{commission_percentage}}` — Backward compatible, resolves to listing rate
-
 ---
 
-## 22. Revenue Pulse Integration
+## 25. Revenue Pulse Integration
 
 ### Data Flow
 
@@ -748,6 +837,7 @@ The Revenue Pulse dashboard (`/pulse`) displays:
 - **Listing Revenue**: Income from marketplace bookings
 - **PMS Revenue**: Income from integration/direct bookings
 - **Per-property breakdown** with commission type indicators
+- **Portfolio Demand Forecast**: Aggregated 14-day occupancy and revenue forecast across all PMS-managed properties
 
 ### Access Control
 
@@ -755,9 +845,90 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 
 ---
 
-## 23. Database Schema
+## 26. Bidirectional Sync Architecture
 
-### Core PMS Tables
+### Overview
+
+For ROL'OS properties (`is_rol_property = true`), data surfaces that overlap between Admin Property Edit (`/admin/property/{id}`) and PMS pages (`/pms/*`) are kept in bidirectional sync via database triggers. Last write wins.
+
+### Sync Map
+
+| Data Surface | Admin Location | PMS Location | Sync Mechanism |
+|---|---|---|---|
+| **Room Types** | Rooms tab (amenities.room_types) | /pms/rooms, /pms/room-types | `sync_overview_to_rolos_room_types` ↔ `sync_rolos_to_overview_room_types` triggers on `hostfully_room_types` / `rolos_room_types` |
+| **Rate Plans** | Rates tab (amenities.pms_rate_types) | /pms/rate-plans | `sync_overview_rates_to_rolos` ↔ `sync_rolos_rates_to_overview` triggers on `properties` / `rolos_rate_plans` |
+| **Branding** | Branding tab (properties.brand_*) | /pms/branding | Shared DB columns — no trigger needed |
+| **Message Templates** | Templates tab (amenities.templates) | /pms/messaging | `sync_overview_templates_to_rolos` ↔ `sync_rolos_templates_to_overview` triggers on `properties` / `rolos_message_templates` |
+
+### Template Mapping
+
+| Admin Templates Tab | PMS Messaging trigger_event |
+|---|---|
+| confirmation-mailer (body) | `booking_confirmed` (body) |
+| pre-mailer (timing) | `pre_arrival` (send_offset_hours) |
+| post-mailer (timing) | `check_out` (send_offset_hours) |
+
+### Recursion Prevention
+
+All sync triggers use transaction-scoped session variables (`set_config('app.syncing_*', 'true', true)`) to prevent infinite loops when both sides fire triggers.
+
+### Auto-seeding on Property Activation
+
+When `is_rol_property` is set to `true`, the `seed_default_message_templates()` trigger auto-creates 7 default templates if none exist.
+
+---
+
+## 27. TOBI AI Assistant
+
+### Overview
+
+TOBI is the property-specific AI assistant embedded in the ROL'OS PMS via the `PMSHelpDrawer`. It provides context-aware operational guidance using real-time property data.
+
+### Architecture
+
+- **Frontend**: `PMSTobiAssistant` component with streaming chat UI
+- **Backend**: `help-assistant` edge function using Lovable AI gateway (model: `google/gemini-3-flash-preview`)
+- **Data Fetching**: 13 parallel queries fetch property context (rooms, rates, bookings, arrivals, departures, channels, groups, events, staff, housekeeping, guests)
+
+### Modes
+
+| Mode | Trigger | System Prompt | Data Context |
+|---|---|---|---|
+| **Generic** | No propertyId | GENERIC_SYSTEM_PROMPT | Help articles from `help_articles` table |
+| **PMS** | propertyId provided | PMS_SYSTEM_PROMPT | Full property operational data |
+
+### PMS Context Data
+
+- Property info (name, location, type)
+- Room types with rates and occupancy
+- Physical rooms with status counts
+- Rate plans with min stay and active status
+- Today's arrivals and departures (with guest names)
+- Housekeeping task summary
+- Guest database count
+- Channel connections with sync status
+- Upcoming groups and events
+- Active staff roster
+- Recent bookings (last 10)
+
+### Quick Navigation
+
+7 shortcut buttons: Dashboard, Rooms, Guests, Rates, Channels, Reports, Staff — all append `?property={id}` to preserve context.
+
+### Suggested Prompts
+
+- "What's happening today?"
+- "Show occupancy & revenue"
+- "How do I connect an OTA?"
+- "Walk me through group bookings"
+- "What can my front desk staff see?"
+- "Navigate to housekeeping"
+
+---
+
+## 28. Database Schema
+
+### Core PMS Tables (45 total)
 
 | Table | Purpose |
 |---|---|
@@ -767,6 +938,7 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_rate_plan_room_types` | Rate plan ↔ room type junction |
 | `rolos_rate_seasons` | Seasonal rate multipliers |
 | `rolos_rate_prices` | Day-of-week rate pricing |
+| `rolos_pricing_rules` | Dynamic pricing rules and overrides |
 | `rolos_guest_profiles` | Guest CRM profiles |
 | `rolos_guest_comments` | Guest comment threads |
 | `rolos_housekeeping_tasks` | Cleaning task queue |
@@ -777,7 +949,7 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_restrictions` | Stop sell, min/max stay rules |
 | `rolos_daily_metrics` | Auto-computed ADR, RevPAR, occupancy |
 | `rolos_brand_config` | Property business stationery config |
-| `rolos_booking_room_assignments` | Booking ↔ room assignment tracking |
+| `rolos_booking_rooms` | Booking ↔ room assignment tracking |
 
 ### Reservation Engine Tables
 
@@ -795,29 +967,42 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_channel_connections` | OTA connection configs (credentials, settings, status) |
 | `rolos_channel_room_mapping` | Internal room type ↔ external OTA room ID |
 | `rolos_channel_rate_mapping` | Internal rate plan ↔ external OTA rate ID |
-| `rolos_channel_sync_log` | Sync operation audit trail (type, status, duration, errors) |
+| `rolos_channel_sync_log` | Sync operation audit trail |
 | `rolos_channel_reservations` | Inbound OTA reservation staging with dedup |
+
+### Messaging Tables
+
+| Table | Purpose |
+|---|---|
+| `rolos_message_templates` | Email template definitions (trigger, subject, body, timing) |
+| `rolos_message_queue` | Queued messages awaiting delivery |
+| `rolos_message_log` | Delivery audit trail (status, errors) |
 
 ### Financial & Operations Tables
 
 | Table | Purpose |
 |---|---|
 | `rolos_payments` | Payment records (amount, method, status, gateway response) |
+| `rolos_payment_allocations` | Payment-to-folio/invoice allocations |
+| `rolos_refunds` | Refund records linked to original payments |
 | `rolos_invoices` | Invoice records (line items, tax, totals, status) |
 | `rolos_tax_rules` | Property-scoped tax configurations |
+| `rolos_deposit_schedules` | Deposit payment schedules |
 | `rolos_staff_shifts` | Staff shift scheduling records |
+| `rolos_staff_activity_log` | Staff activity audit trail |
 | `rolos_waitlist` | Booking waitlist for sold-out dates |
+| `rolos_night_audit_log` | Night audit run records |
 
 ### Group & Event Tables
 
 | Table | Purpose |
 |---|---|
 | `rolos_groups` | Master group booking records |
-| `rolos_group_rooms` | Room allocations within groups |
-| `rolos_group_billing` | Group billing/payment tracking |
+| `rolos_group_room_blocks` | Room block allocations within groups |
+| `rolos_group_reservations` | Individual reservations linked to groups |
 | `rolos_event_spaces` | Function space inventory |
 | `rolos_events` | Event booking records |
-| `rolos_event_requirements` | Per-event requirements (AV, catering, setup) |
+| `rolos_event_reservations` | Per-event room reservations |
 
 ### Supporting Tables
 
@@ -829,22 +1014,15 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `properties` | Master property record with `is_rol_property` flag |
 | `property_staff` | Staff members linked to properties |
 
-### Performance Indexes
-
-- `bookings(property_id, check_in_date)`
-- `rolos_reservations(property_id, check_in)`
-- `rolos_inventory_calendar(property_id, room_type_id, date)` (unique)
-- `rolos_channel_connections(property_id, channel_name)`
-- `rolos_channel_reservations(connection_id, external_reservation_id)` (unique)
-
 ---
 
-## 24. Security & RLS
+## 29. Security & RLS
 
 ### Row-Level Security
 
 All `rolos_*` tables have RLS policies ensuring:
 - **Owners**: Can only access data for their linked properties
+- **Staff**: Access scoped by role and property via `property_staff`
 - **Admins/Devs**: Full access across all properties
 - **Guests**: No direct table access (all guest-facing via edge functions)
 
@@ -855,8 +1033,8 @@ All `rolos_*` tables have RLS policies ensuring:
 | `has_role(user_id, role)` | Security definer role check without recursive RLS |
 | `is_property_owner(property_id, user_id)` | Checks `owner_email` match via profiles |
 | `is_linked_owner(property_id, user_id)` | Checks `property_owners` junction table |
-| `can_access_channel_property(property_id)` | Channel manager access via admin/dev role or property ownership |
-| `can_access_property(property_id)` | General property access check for financial/group/event tables |
+| `can_access_channel_property(property_id)` | Channel manager access via admin/dev/owner/staff role |
+| `can_access_property(property_id)` | General property access check including staff roles |
 
 ### Edge Function Authentication
 
@@ -873,7 +1051,7 @@ All changes to PMS tables are logged via the `log_audit_change()` trigger, captu
 
 ---
 
-## 25. Pagination Strategy
+## 30. Pagination Strategy
 
 ### Problem
 
@@ -890,22 +1068,22 @@ Supabase has a default 1000-row limit per query. High-volume properties can exce
 
 ---
 
-## 26. Permission Matrix
+## 31. Permission Matrix
 
-### Modules (12)
+### Modules (17)
 
-`dashboard`, `rooms`, `rate-plans`, `guests`, `housekeeping`, `channels`, `groups`, `events`, `reports`, `branding`, `integrations`, `staff`
+`dashboard`, `rooms`, `room-types`, `rate-plans`, `guests`, `housekeeping`, `channels`, `groups`, `events`, `revenue`, `portfolio`, `night-audit`, `messaging`, `reports`, `branding`, `integrations`, `staff`
 
 ### Role Access
 
 | Role | Full Access | Read-Only | No Access |
 |---|---|---|---|
-| **Property Owner** | All 12 modules | — | — |
-| **General Manager** | All 12 modules | — | — |
-| **Front Desk** | dashboard, guests, calendar | rooms, housekeeping, channels, groups, events | rate-plans, reports, branding, integrations, staff |
+| **Property Owner** | All 17 modules | — | — |
+| **General Manager** | All 17 modules | — | — |
+| **Front Desk** | dashboard, guests, messaging, calendar | rooms, housekeeping, channels, groups, events | rate-plans, revenue, reports, branding, integrations, staff, portfolio, night-audit |
 | **Housekeeping** | housekeeping | rooms | All others |
 | **Maintenance** | — | housekeeping | All others |
-| **Accountant** | reports | guests, groups | All others |
+| **Accountant** | reports, revenue | guests, groups | All others |
 | **Auditor** | — | All except integrations, staff | integrations, staff |
 
 Platform admins/devs bypass the permission matrix entirely (full access to all modules).
@@ -929,3 +1107,5 @@ Platform admins/devs bypass the permission matrix entirely (full access to all m
 6. **Channel Manager stubs**: OTA API integrations (`push_inventory`, `pull_reservations`) are currently stubbed — the framework is in place but actual API calls require per-channel credentials and endpoint implementations.
 
 7. **Financial edge function**: Payment gateway integrations (Stripe, PayGate, etc.) are not yet wired — `pms-financial` handles internal record-keeping and status management.
+
+8. **Message delivery**: Email delivery via Resend requires `RESEND_API_KEY` secret to be configured. Queue processing can be triggered manually or via scheduled cron.
