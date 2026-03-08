@@ -14,6 +14,13 @@ import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+const PRICING_MODELS = [
+  { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
+  { value: "per_person", label: "Per Person", suffix: "/pp", desc: "Rate × guests × nights" },
+  { value: "per_person_sharing", label: "Per Person Sharing", suffix: "/pps", desc: "Base for 2 guests, extra per additional" },
+  { value: "per_unit", label: "Per Unit", suffix: "/unit", desc: "Rate × units × nights" },
+] as const;
+
 interface RatePlan {
   id: string;
   name: string;
@@ -24,6 +31,7 @@ interface RatePlan {
   requires_deposit: boolean;
   deposit_percentage: number | null;
   base_rate: number | null;
+  pricing_model: string;
 }
 
 interface RoomType {
