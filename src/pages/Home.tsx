@@ -342,6 +342,7 @@ function HomeContent() {
             name: selectedProperty.name,
             city: selectedProperty.city,
             country: selectedProperty.country,
+            slug: selectedProperty.slug || "",
           });
         }
       } else if (!isAISearchActive) {
