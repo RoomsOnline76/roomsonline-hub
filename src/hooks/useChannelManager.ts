@@ -48,6 +48,8 @@ interface ChannelSyncLog {
   completed_at: string | null;
   records_processed: number | null;
   error_message: string | null;
+  errors: unknown;
+  duration_ms: number | null;
   connection?: { channel_name: string; property_id: string } | null;
   channel_name?: string;
 }
