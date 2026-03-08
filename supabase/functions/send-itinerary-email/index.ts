@@ -50,16 +50,33 @@ interface Stay {
   country?: string;
 }
 
-function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
+// Resolve branding for itinerary emails — same logic as booking emails
+function resolveItineraryBranding(property: any | null): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; fontColor: string } {
+  if (!property) return { accentColor: "#e91e8c", logoUrl: "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png", senderName: "Sleep in Africa by RoomsOnline", isBranded: false, fontColor: "#333333" };
+  const isRol = !!property.is_rol_property;
+  const hasColors = !!property.brand_primary_color;
+  const isBranded = isRol ? hasColors : (!!property.brand_override_enabled && hasColors);
+  return {
+    isBranded,
+    accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
+    logoUrl: (isBranded && property.brand_logo_url) ? property.brand_logo_url : "https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png",
+    senderName: isBranded ? property.name : "Sleep in Africa by RoomsOnline",
+    fontColor: (isBranded && property.brand_font_color) ? property.brand_font_color : "#333333",
+  };
+}
+
+function generateItineraryEmail(itinerary: any, stays: Stay[], brand: ReturnType<typeof resolveItineraryBranding>): string {
+  const accent = brand.accentColor;
+
   const staysHTML = stays.map((stay, index) => `
     <tr>
       <td style="padding: 16px; border-bottom: 1px solid #eee;">
-        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%); border-radius: 8px; padding: 16px; border-left: 4px solid #e91e8c;">
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%); border-radius: 8px; padding: 16px; border-left: 4px solid ${accent};">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
             <span style="background: #1a1a1a; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;">Stay ${index + 1}</span>
             <span style="color: #666; font-size: 12px;">${formatShortDate(stay.checkIn)} – ${formatShortDate(stay.checkOut)}</span>
           </div>
-          <h3 style="margin: 0 0 4px; font-size: 18px; color: #333; font-family: Georgia, serif;">${stay.propertyName}</h3>
+          <h3 style="margin: 0 0 4px; font-size: 18px; color: ${brand.fontColor}; font-family: Georgia, serif;">${stay.propertyName}</h3>
           ${stay.city ? `<p style="margin: 0 0 12px; color: #666; font-size: 13px;">${stay.city}${stay.country ? `, ${stay.country}` : ''}</p>` : ''}
           <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <tr>
@@ -78,13 +95,52 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
             </tr>
             <tr>
               <td style="padding: 8px 0 0; color: #666; border-top: 1px solid #eee;">Price</td>
-              <td style="padding: 8px 0 0; text-align: right; font-weight: 600; color: #e91e8c; font-size: 15px; border-top: 1px solid #eee;">${formatCurrency(stay.price, itinerary.currency || 'ZAR')}</td>
+              <td style="padding: 8px 0 0; text-align: right; font-weight: 600; color: ${accent}; font-size: 15px; border-top: 1px solid #eee;">${formatCurrency(stay.price, itinerary.currency || 'ZAR')}</td>
             </tr>
           </table>
         </div>
       </td>
     </tr>
   `).join('');
+
+  // Header: branded or default
+  const headerHtml = brand.isBranded
+    ? `<tr>
+        <td style="padding: 40px 40px 20px; text-align: center; background-color: ${accent}; border-radius: 8px 8px 0 0;">
+          <img src="${brand.logoUrl}" alt="${brand.senderName}" style="max-width: 200px; max-height: 80px; height: auto; margin-bottom: 16px;" />
+          <h1 style="margin: 0; font-size: 28px; color: #ffffff; font-weight: 600; font-family: Georgia, serif;">Your Journey Awaits</h1>
+          <p style="margin: 12px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+        </td>
+      </tr>`
+    : `<tr>
+        <td style="padding: 40px 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <img src="${brand.logoUrl}" alt="RoomsOnline" style="max-width: 160px; height: auto; margin-bottom: 16px;" />
+          <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600; font-family: Georgia, serif;">Your Journey Awaits</h1>
+          <p style="margin: 12px 0 0; color: #666; font-size: 14px;">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
+        </td>
+      </tr>`;
+
+  // Footer: branded or default
+  const footerHtml = brand.isBranded
+    ? `<tr>
+        <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Kind regards</p>
+          <p style="margin: 0 0 15px; color: #333; font-size: 14px; font-weight: 600;">${brand.senderName}</p>
+          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+            <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
+          </div>
+        </td>
+      </tr>`
+    : `<tr>
+        <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
+          <p style="margin: 0 0 16px; color: #666; font-size: 13px;">We hope you have an unforgettable journey!</p>
+          <p style="margin: 0 0 8px; color: #999; font-size: 12px;">
+            Questions? Contact us at <a href="mailto:info@roomsonline.co.za" style="color: ${accent};">info@roomsonline.co.za</a>
+          </p>
+          <p style="margin: 16px 0 0; color: #999; font-size: 11px;">Sleep in Africa by RoomsOnline</p>
+        </td>
+      </tr>`;
 
   return `
 <!DOCTYPE html>
@@ -101,13 +157,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
           
           <!-- Header -->
-          <tr>
-            <td style="padding: 40px 40px 20px; text-align: center; border-radius: 8px 8px 0 0;">
-              <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="max-width: 160px; height: auto; margin-bottom: 16px;" />
-              <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600; font-family: Georgia, serif;">Your Journey Awaits</h1>
-              <p style="margin: 12px 0 0; color: #666; font-size: 14px;">${itinerary.total_nights} nights across ${stays.length} destination${stays.length > 1 ? 's' : ''}</p>
-            </td>
-          </tr>
+          ${headerHtml}
 
           <!-- Success Badge -->
           <tr>
@@ -123,7 +173,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
             <td style="padding: 20px 40px;">
               <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center;">
                 <p style="margin: 0 0 5px; color: #666; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Journey Reference</p>
-                <p style="margin: 0; color: #333; font-size: 22px; font-weight: 600; font-family: monospace;">${itinerary.id.substring(0, 8).toUpperCase()}</p>
+                <p style="margin: 0; color: ${brand.fontColor}; font-size: 22px; font-weight: 600; font-family: monospace;">${itinerary.id.substring(0, 8).toUpperCase()}</p>
               </div>
             </td>
           </tr>
@@ -131,7 +181,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- Guest Info -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 12px; font-size: 16px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 8px;">Guest Details</h2>
+              <h2 style="margin: 0 0 12px; font-size: 16px; color: ${brand.fontColor}; border-bottom: 2px solid ${accent}; padding-bottom: 8px;">Guest Details</h2>
               <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                 <tr>
                   <td style="padding: 6px 0; color: #666;">Name</td>
@@ -154,7 +204,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- Itinerary -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 16px; font-size: 16px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 8px;">Your Itinerary</h2>
+              <h2 style="margin: 0 0 16px; font-size: 16px; color: ${brand.fontColor}; border-bottom: 2px solid ${accent}; padding-bottom: 8px;">Your Itinerary</h2>
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 ${staysHTML}
               </table>
@@ -168,18 +218,18 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="color: #666; font-size: 14px;">Total Nights</td>
-                    <td style="color: #333; font-size: 14px; text-align: right; font-weight: 500;">${itinerary.total_nights}</td>
+                    <td style="color: ${brand.fontColor}; font-size: 14px; text-align: right; font-weight: 500;">${itinerary.total_nights}</td>
                   </tr>
                   <tr>
                     <td style="color: #666; font-size: 14px; padding-top: 8px;">Properties</td>
-                    <td style="color: #333; font-size: 14px; text-align: right; font-weight: 500; padding-top: 8px;">${stays.length}</td>
+                    <td style="color: ${brand.fontColor}; font-size: 14px; text-align: right; font-weight: 500; padding-top: 8px;">${stays.length}</td>
                   </tr>
                   <tr>
                     <td colspan="2" style="border-top: 1px solid #ddd; padding-top: 16px; margin-top: 12px;"></td>
                   </tr>
                   <tr>
-                    <td style="color: #333; font-size: 18px; font-weight: 600; font-family: Georgia, serif;">Total Amount</td>
-                    <td style="color: #e91e8c; font-size: 26px; font-weight: 700; text-align: right;">${formatCurrency(itinerary.total_price, itinerary.currency || 'ZAR')}</td>
+                    <td style="color: ${brand.fontColor}; font-size: 18px; font-weight: 600; font-family: Georgia, serif;">Total Amount</td>
+                    <td style="color: ${accent}; font-size: 26px; font-weight: 700; text-align: right;">${formatCurrency(itinerary.total_price, itinerary.currency || 'ZAR')}</td>
                   </tr>
                 </table>
               </div>
@@ -201,7 +251,7 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- Special Requests -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <h2 style="margin: 0 0 12px; font-size: 16px; color: #333; border-bottom: 2px solid #e91e8c; padding-bottom: 8px;">Special Requests</h2>
+              <h2 style="margin: 0 0 12px; font-size: 16px; color: ${brand.fontColor}; border-bottom: 2px solid ${accent}; padding-bottom: 8px;">Special Requests</h2>
               <p style="margin: 0; color: #666; font-style: italic; font-size: 14px;">"${itinerary.special_requests}"</p>
             </td>
           </tr>
@@ -210,25 +260,14 @@ function generateItineraryEmail(itinerary: any, stays: Stay[]): string {
           <!-- CTA -->
           <tr>
             <td style="padding: 0 40px 30px; text-align: center;">
-              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}?action=download" style="display: inline-block; background: linear-gradient(135deg, #e91e8c 0%, #c91a76 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">Download Your Journey Brochure</a>
+              <a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}?action=download" style="display: inline-block; background: ${accent}; color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 14px;">Download Your Journey Brochure</a>
               <p style="margin: 12px 0 0; color: #666; font-size: 12px;">Your personalized PDF brochure will open automatically</p>
-              <p style="margin: 8px 0 0;"><a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="color: #e91e8c; font-size: 12px;">Or view your confirmation details online</a></p>
+              <p style="margin: 8px 0 0;"><a href="https://sleepinafrica.roomsonline.co.za/journey/confirmation/${itinerary.id}" style="color: ${accent}; font-size: 12px;">Or view your confirmation details online</a></p>
             </td>
           </tr>
 
           <!-- Footer -->
-          <tr>
-            <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-              <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Sleep in Africa like never before</p>
-              <p style="margin: 0 0 16px; color: #666; font-size: 13px;">We hope you have an unforgettable journey!</p>
-              <p style="margin: 0 0 8px; color: #999; font-size: 12px;">
-                Questions? Contact us at <a href="mailto:info@roomsonline.co.za" style="color: #e91e8c;">info@roomsonline.co.za</a>
-              </p>
-              <p style="margin: 16px 0 0; color: #999; font-size: 11px;">
-                Sleep in Africa by RoomsOnline
-              </p>
-            </td>
-          </tr>
+          ${footerHtml}
           
         </table>
       </td>
