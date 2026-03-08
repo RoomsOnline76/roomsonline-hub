@@ -3,7 +3,7 @@ import { PMSLayout } from "@/components/layout/PMSLayout";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInDays, isToday, parseISO } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, differenceInDays, isToday, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -43,6 +43,7 @@ import {
   CalendarCheck,
   Sparkles,
   Settings2,
+  TrendingUp,
 } from "lucide-react";
 
 type ViewMode = "week" | "month";
@@ -148,7 +149,6 @@ export default function PMSDashboard() {
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Restriction dialogs
   const [stopSellOpen, setStopSellOpen] = useState(false);
@@ -164,7 +164,7 @@ export default function PMSDashboard() {
       const end = endOfWeek(anchorDate, { weekStartsOn: 1 });
       return { start, end };
     }
-    // Month view: start from anchorDate (today by default), show 30 days
+    // Month view: start from anchorDate, show 30 days
     const start = anchorDate;
     const end = addDays(anchorDate, 30);
     return { start, end };
@@ -179,6 +179,16 @@ export default function PMSDashboard() {
     }
     return days;
   }, [dateRange]);
+
+  // For month view, chunk dates into weeks of 7 days
+  const weekChunks = useMemo(() => {
+    if (viewMode === "week") return [dates];
+    const chunks: Date[][] = [];
+    for (let i = 0; i < dates.length; i += 7) {
+      chunks.push(dates.slice(i, i + 7));
+    }
+    return chunks;
+  }, [dates, viewMode]);
 
   // Fetch property name
   const { data: propertyData } = useQuery({
@@ -239,7 +249,7 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch today's arrivals & departures for dashboard stats
+  // Fetch today's arrivals & departures
   const today = format(new Date(), "yyyy-MM-dd");
   const { data: todayArrivals = [] } = useQuery({
     queryKey: ["pms-arrivals", propertyId, today],
@@ -308,7 +318,7 @@ export default function PMSDashboard() {
     enabled: rateSeasons.length > 0,
   });
 
-  // Fetch availability overrides (restrictions)
+  // Fetch availability overrides
   const { data: availOverrides = [], refetch: refetchOverrides } = useQuery({
     queryKey: ["pms-cal-overrides", propertyId, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
@@ -342,15 +352,28 @@ export default function PMSDashboard() {
     return map;
   }, [rooms]);
 
-  // Room stats
-  const roomStats = useMemo(() => {
-    const totalRooms = rooms.length;
-    const occupied = rooms.filter(r => r.status === "occupied").length;
+  // Dynamic stats based on actual bookings for today
+  const dynamicStats = useMemo(() => {
+    const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
+    // Count rooms occupied today based on active bookings
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const activeBookingsToday = bookings.filter(b =>
+      todayStr >= b.check_in_date && todayStr < b.check_out_date &&
+      !["cancelled", "no_show"].includes(b.status)
+    );
+    // Count unique rooms occupied
+    const occupiedRoomIds = new Set<string>();
+    activeBookingsToday.forEach(b => {
+      b.rolos_room_ids?.forEach(rid => occupiedRoomIds.add(rid));
+    });
+    const occupied = occupiedRoomIds.size;
+    const available = Math.max(0, totalRooms - occupied);
+    const occupancyPct = totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0;
     const dirty = rooms.filter(r => r.status === "dirty").length;
     const maintenance = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
-    const available = rooms.filter(r => r.status === "available").length;
-    return { totalRooms, occupied, dirty, maintenance, available };
-  }, [rooms]);
+
+    return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
+  }, [rooms, bookings]);
 
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
@@ -376,28 +399,11 @@ export default function PMSDashboard() {
     return overrideMap.get(`${roomTypeName}-${format(date, "yyyy-MM-dd")}`);
   };
 
-  // Compute daily occupancy
-  const dailyOccupancy = useMemo(() => {
-    const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
-    if (!totalRooms) return dates.map(() => 0);
-    return dates.map(date => {
-      const dateStr = format(date, "yyyy-MM-dd");
-      const occupied = bookings.filter(b => dateStr >= b.check_in_date && dateStr < b.check_out_date).length;
-      return Math.round((occupied / totalRooms) * 100);
-    });
-  }, [dates, bookings, rooms]);
-
   // Navigation
   const navigateBy = (dir: number) => {
     setAnchorDate(prev => addDays(prev, dir * (viewMode === "week" ? 7 : 30)));
   };
   const goToToday = () => setAnchorDate(new Date());
-
-  const hasSpecialIndicator = (b: BookingRow) =>
-    b.requires_intervention || b.special_requests || (b.special_requests_parsed && Object.keys(b.special_requests_parsed).length > 0);
-
-  const CELL_W = "w-[100px] min-w-[100px]";
-  const LABEL_W = "w-[180px] min-w-[180px]";
 
   // Room types for restriction dialogs
   const dialogRoomTypes = useMemo(() =>
@@ -441,11 +447,11 @@ export default function PMSDashboard() {
   }
 
   const statCards = [
-    { label: "Rooms", value: roomStats.totalRooms, icon: Building2, color: "text-foreground" },
-    { label: "Available", value: roomStats.available, icon: BedDouble, color: "text-emerald-600" },
-    { label: "Occupied", value: roomStats.occupied, icon: Users, color: "text-blue-600" },
-    { label: "Arrivals", value: todayArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
-    { label: "Departures", value: todayDepartures.length, icon: AlertTriangle, color: "text-destructive" },
+    { label: "Total Rooms", value: dynamicStats.totalRooms, icon: Building2, color: "text-foreground" },
+    { label: "Available", value: dynamicStats.available, icon: BedDouble, color: "text-emerald-600" },
+    { label: "Occupied", value: `${dynamicStats.occupied} (${dynamicStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
+    { label: "Arrivals Today", value: todayArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
+    { label: "Departures Today", value: todayDepartures.length, icon: TrendingUp, color: "text-purple-600" },
   ];
 
   return (
@@ -591,196 +597,38 @@ export default function PMSDashboard() {
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="border border-border rounded-lg bg-card overflow-hidden">
-          <ScrollArea className="w-full" ref={scrollRef}>
-            <div className="min-w-max">
-              {/* Occupancy bar */}
-              <div className="flex border-b border-border bg-muted/30">
-                <div className={cn(LABEL_W, "shrink-0 px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border flex items-center")}>
-                  Occupancy
-                </div>
-                {dates.map((date, i) => {
-                  const occ = dailyOccupancy[i];
-                  return (
-                    <div key={i} className={cn(CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0")}>
-                      <div className="w-full bg-muted rounded-full h-2 mb-1">
-                        <div
-                          className={cn(
-                            "h-2 rounded-full transition-all",
-                            occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/30"
-                          )}
-                          style={{ width: `${Math.min(occ, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">{occ}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Date header */}
-              <div className="flex border-b border-border bg-muted/50 sticky top-0 z-10">
-                <div className={cn(LABEL_W, "shrink-0 px-3 py-2 text-xs font-semibold text-foreground border-r border-border")}>
-                  Room
-                </div>
-                {dates.map((date, i) => {
-                  const season = getSeasonForDate(date);
-                  return (
-                    <div
-                      key={i}
-                      className={cn(
-                        CELL_W,
-                        "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0",
-                        isToday(date) && "bg-primary/10",
-                        season?.is_peak && "bg-amber-500/5"
-                      )}
-                    >
-                      <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
-                      <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>
-                        {format(date, "d")}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
-                      {season?.is_peak && (
-                        <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Room type rows */}
-              {roomTypes.map((rt) => {
-                const typeRooms = roomsByType.get(rt.id) || [];
-                const unassignedBookings = bookings.filter(
-                  b => b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0)
-                );
-
-                return (
-                  <div key={rt.id}>
-                    {/* Room type header row with rates + restrictions */}
-                    <div className="flex border-b border-border bg-muted/20">
-                      <div className={cn(LABEL_W, "shrink-0 px-3 py-2 border-r border-border flex items-center gap-2")}>
-                        <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs font-semibold text-foreground">{rt.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
-                        </div>
-                      </div>
-                      {dates.map((date, i) => {
-                        const rate = getRateForDate(rt.id, date);
-                        const restriction = getRestriction(rt.name, date);
-                        const isStopSell = restriction?.is_stop_sell;
-                        return (
-                          <div key={i} className={cn(
-                            CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0",
-                            isToday(date) && "bg-primary/5",
-                            isStopSell && "bg-red-500/10"
-                          )}>
-                            {rate != null ? (
-                              <span className="text-[10px] font-medium text-muted-foreground">
-                                R{rate.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/50">—</span>
-                            )}
-                            {/* Restriction indicators */}
-                            <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                              {isStopSell && (
-                                <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>
-                              )}
-                              {restriction?.minimum_stay != null && (
-                                <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>
-                              )}
-                              {restriction?.maximum_stay != null && (
-                                <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>
-                              )}
-                              {restriction?.lead_days_advance != null && (
-                                <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>
-                              )}
-                              {restriction?.lead_days_post != null && (
-                                <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Individual room rows */}
-                    {typeRooms.map((room) => (
-                      <RoomRow
-                        key={room.id}
-                        room={room}
-                        dates={dates}
-                        bookings={bookings}
-                        onSelectBooking={setSelectedBooking}
-                        cellW={CELL_W}
-                        labelW={LABEL_W}
-                      />
-                    ))}
-
-                    {/* Unassigned bookings row */}
-                    {unassignedBookings.length > 0 && (
-                      <div className="flex border-b border-border bg-amber-500/5">
-                        <div className={cn(LABEL_W, "shrink-0 px-3 py-1.5 border-r border-border flex items-center")}>
-                          <span className="text-[10px] text-amber-600 italic ml-4">Unassigned</span>
-                        </div>
-                        {dates.map((date, i) => {
-                          const dateStr = format(date, "yyyy-MM-dd");
-                          const dayBookings = bookings.filter(b => {
-                            if (b.rolos_room_ids && b.rolos_room_ids.length > 0) return false;
-                            if (b.room_type_id !== rt.id) return false;
-                            return dateStr >= b.check_in_date && dateStr < b.check_out_date;
-                          });
-                          return (
-                            <div key={i} className={cn(CELL_W, "shrink-0 border-r border-border last:border-r-0 relative h-8")}>
-                              {dayBookings.map(b => {
-                                const colors = getStatusColor(b.status);
-                                const isStart = b.check_in_date === dateStr;
-                                return (
-                                  <button
-                                    key={b.id}
-                                    onClick={() => setSelectedBooking(b)}
-                                    className={cn(
-                                      "absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity",
-                                      colors.bg, colors.border
-                                    )}
-                                  >
-                                    {isStart && (
-                                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>
-                                        {b.guest_name.split(" ")[0]}
-                                      </span>
-                                    )}
-                                    {hasSpecialIndicator(b) && isStart && (
-                                      <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Empty state */}
-              {roomTypes.length === 0 && !bookingsLoading && (
-                <div className="flex items-center justify-center py-16 text-muted-foreground">
-                  <div className="text-center space-y-2">
-                    <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
-                    <p className="text-sm">No room types configured</p>
-                    <p className="text-xs">Add room types in the Rooms section to get started</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </div>
+        {/* Calendar Grid — week view: horizontal scroll; month view: stacked weekly rows */}
+        {viewMode === "week" ? (
+          <WeekCalendarGrid
+            dates={dates}
+            roomTypes={roomTypes}
+            roomsByType={roomsByType}
+            bookings={bookings}
+            rateSeasons={rateSeasons}
+            ratePrices={ratePrices}
+            rooms={rooms}
+            overrideMap={overrideMap}
+            getRateForDate={getRateForDate}
+            getSeasonForDate={getSeasonForDate}
+            getRestriction={getRestriction}
+            onSelectBooking={setSelectedBooking}
+            bookingsLoading={bookingsLoading}
+          />
+        ) : (
+          <MonthCalendarGrid
+            weekChunks={weekChunks}
+            roomTypes={roomTypes}
+            roomsByType={roomsByType}
+            bookings={bookings}
+            rooms={rooms}
+            overrideMap={overrideMap}
+            getRateForDate={getRateForDate}
+            getSeasonForDate={getSeasonForDate}
+            getRestriction={getRestriction}
+            onSelectBooking={setSelectedBooking}
+            bookingsLoading={bookingsLoading}
+          />
+        )}
 
         {/* Today's Arrivals & Departures */}
         {(todayArrivals.length > 0 || todayDepartures.length > 0) && (
@@ -790,18 +638,12 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Arrivals ({todayArrivals.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayArrivals.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">No arrivals today</p>
-                ) : (
-                  <div className="space-y-2">
-                    {todayArrivals.map((b: any) => (
-                      <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                        <p className="text-sm font-medium">{b.guest_name}</p>
-                        <Badge variant="outline" className="text-xs">{b.status}</Badge>
-                      </div>
-                    ))}
+                {todayArrivals.map((b: any) => (
+                  <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                    <p className="text-sm font-medium">{b.guest_name}</p>
+                    <Badge variant="outline" className="text-xs">{b.status}</Badge>
                   </div>
-                )}
+                ))}
               </CardContent>
             </Card>
             <Card>
@@ -809,18 +651,12 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Departures ({todayDepartures.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayDepartures.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">No departures today</p>
-                ) : (
-                  <div className="space-y-2">
-                    {todayDepartures.map((b: any) => (
-                      <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                        <p className="text-sm font-medium">{b.guest_name}</p>
-                        <Badge variant="outline" className="text-xs">{b.status}</Badge>
-                      </div>
-                    ))}
+                {todayDepartures.map((b: any) => (
+                  <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
+                    <p className="text-sm font-medium">{b.guest_name}</p>
+                    <Badge variant="outline" className="text-xs">{b.status}</Badge>
                   </div>
-                )}
+                ))}
               </CardContent>
             </Card>
           </div>
@@ -835,59 +671,341 @@ export default function PMSDashboard() {
       </Sheet>
 
       {/* Restriction Dialogs */}
-      <BulkStopSellDialog
-        open={stopSellOpen}
-        onOpenChange={setStopSellOpen}
-        propertyId={propertyId || undefined}
-        propertyName={displayName}
-        roomTypes={dialogRoomTypes}
-        onRuleCreated={handleRuleCreated}
-      />
-      <BulkMinimumStayDialog
-        open={minStayOpen}
-        onOpenChange={setMinStayOpen}
-        propertyId={propertyId || undefined}
-        propertyName={displayName}
-        roomTypes={dialogRoomTypes}
-        onRuleCreated={handleRuleCreated}
-      />
-      <BulkMaximumStayDialog
-        open={maxStayOpen}
-        onOpenChange={setMaxStayOpen}
-        propertyId={propertyId || undefined}
-        propertyName={displayName}
-        roomTypes={dialogRoomTypes}
-        onRuleCreated={handleRuleCreated}
-      />
-      <BulkLeadDaysAdvanceDialog
-        open={leadDaysAdvanceOpen}
-        onOpenChange={setLeadDaysAdvanceOpen}
-        propertyId={propertyId || undefined}
-        propertyName={displayName}
-        roomTypes={dialogRoomTypes}
-        onRuleCreated={handleRuleCreated}
-      />
-      <BulkLeadDaysPostDialog
-        open={leadDaysPostOpen}
-        onOpenChange={setLeadDaysPostOpen}
-        propertyId={propertyId || undefined}
-        propertyName={displayName}
-        roomTypes={dialogRoomTypes}
-        onRuleCreated={handleRuleCreated}
-      />
+      <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
+      <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
+      <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
+      <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
+      <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
     </PMSLayout>
   );
 }
 
-// ──────────── Room Row Component ────────────
-function RoomRow({
-  room,
-  dates,
-  bookings,
-  onSelectBooking,
-  cellW,
-  labelW,
-}: {
+// ──────────── Week Calendar (horizontal scroll, original layout) ────────────
+interface CalendarGridProps {
+  dates?: Date[];
+  weekChunks?: Date[][];
+  roomTypes: RoomType[];
+  roomsByType: Map<string, Room[]>;
+  bookings: BookingRow[];
+  rooms: Room[];
+  rateSeasons?: RateSeason[];
+  ratePrices?: RatePrice[];
+  overrideMap: Map<string, AvailabilityOverride>;
+  getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getSeasonForDate: (date: Date) => RateSeason | null;
+  getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
+  onSelectBooking: (b: BookingRow) => void;
+  bookingsLoading: boolean;
+}
+
+const WEEK_CELL_W = "w-[100px] min-w-[100px]";
+const WEEK_LABEL_W = "w-[180px] min-w-[180px]";
+
+function WeekCalendarGrid(props: CalendarGridProps) {
+  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+
+  const dailyOccupancy = useMemo(() => {
+    const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
+    if (!totalRooms) return dates.map(() => 0);
+    return dates.map(date => {
+      const dateStr = format(date, "yyyy-MM-dd");
+      const occupied = bookings.filter(b => dateStr >= b.check_in_date && dateStr < b.check_out_date).length;
+      return Math.round((occupied / totalRooms) * 100);
+    });
+  }, [dates, bookings, rooms]);
+
+  return (
+    <div className="border border-border rounded-lg bg-card overflow-hidden">
+      <ScrollArea className="w-full">
+        <div className="min-w-max">
+          {/* Occupancy bar */}
+          <div className="flex border-b border-border bg-muted/30">
+            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border flex items-center")}>Occupancy</div>
+            {dates.map((date, i) => {
+              const occ = dailyOccupancy[i];
+              return (
+                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0")}>
+                  <div className="w-full bg-muted rounded-full h-2 mb-1">
+                    <div className={cn("h-2 rounded-full", occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.min(occ, 100)}%` }} />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{occ}%</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Date header */}
+          <div className="flex border-b border-border bg-muted/50 sticky top-0 z-10">
+            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-semibold text-foreground border-r border-border")}>Room</div>
+            {dates.map((date, i) => {
+              const season = getSeasonForDate(date);
+              return (
+                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
+                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
+                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
+                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
+                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Room type rows */}
+          {roomTypes.map((rt) => (
+            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+          ))}
+
+          {roomTypes.length === 0 && !bookingsLoading && (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <div className="text-center space-y-2">
+                <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
+                <p className="text-sm">No room types configured</p>
+              </div>
+            </div>
+          )}
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+    </div>
+  );
+}
+
+// ──────────── Month Calendar (stacked weekly rows, no horizontal scroll) ────────────
+function MonthCalendarGrid(props: CalendarGridProps) {
+  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+
+  // 7 columns for days + 1 for label. Use CSS grid with equal columns.
+  return (
+    <div className="space-y-4">
+      {weekChunks.map((weekDates, weekIdx) => (
+        <div key={weekIdx} className="border border-border rounded-lg bg-card overflow-hidden">
+          {/* Date header row */}
+          <div className="grid border-b border-border bg-muted/50" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
+            <div className="px-3 py-2 text-xs font-semibold text-foreground border-r border-border">Room</div>
+            {weekDates.map((date, i) => {
+              const season = getSeasonForDate(date);
+              return (
+                <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
+                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
+                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
+                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
+                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Room type rows */}
+          {roomTypes.map((rt) => {
+            const typeRooms = roomsByType.get(rt.id) || [];
+            return (
+              <div key={rt.id}>
+                {/* Room type header with rates + restrictions */}
+                <div className="grid border-b border-border bg-muted/20" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
+                  <div className="px-3 py-2 border-r border-border flex items-center gap-2">
+                    <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-foreground truncate">{rt.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+                    </div>
+                  </div>
+                  {weekDates.map((date, i) => {
+                    const rate = getRateForDate(rt.id, date);
+                    const restriction = getRestriction(rt.name, date);
+                    const isStopSell = restriction?.is_stop_sell;
+                    return (
+                      <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+                        {rate != null ? (
+                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/50">—</span>
+                        )}
+                        <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
+                          {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
+                          {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
+                          {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
+                          {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
+                          {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Individual room rows */}
+                {typeRooms.map((room) => (
+                  <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} colCount={weekDates.length} />
+                ))}
+
+                {/* Unassigned bookings */}
+                {(() => {
+                  const unassigned = bookings.filter(b =>
+                    b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                    weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
+                  );
+                  if (!unassigned.length) return null;
+                  return (
+                    <div className="grid border-b border-border bg-amber-500/5" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
+                      <div className="px-3 py-1.5 border-r border-border flex items-center">
+                        <span className="text-[10px] text-amber-600 italic ml-4">Unassigned</span>
+                      </div>
+                      {weekDates.map((date, i) => {
+                        const dateStr = format(date, "yyyy-MM-dd");
+                        const dayBookings = bookings.filter(b =>
+                          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                          dateStr >= b.check_in_date && dateStr < b.check_out_date
+                        );
+                        return (
+                          <div key={i} className="border-r border-border last:border-r-0 relative h-8">
+                            {dayBookings.map(b => {
+                              const colors = getStatusColor(b.status);
+                              const isStart = b.check_in_date === dateStr;
+                              return (
+                                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
+                                  {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })}
+
+          {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <div className="text-center space-y-2">
+                <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
+                <p className="text-sm">No room types configured</p>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ──────────── Month Room Row (CSS Grid) ────────────
+function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
+  room: Room;
+  dates: Date[];
+  bookings: BookingRow[];
+  onSelectBooking: (b: BookingRow) => void;
+  colCount: number;
+}) {
+  const isOOS = room.status === "out_of_service";
+
+  return (
+    <div className={cn("grid border-b border-border", isOOS && "opacity-50")} style={{ gridTemplateColumns: `160px repeat(${colCount}, 1fr)` }}>
+      <div className="px-3 py-1.5 border-r border-border flex items-center gap-2">
+        <span className="text-xs text-foreground/80 ml-4">{room.room_number}</span>
+        {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
+        {isOOS && <Badge variant="outline" className="text-[8px] px-1 py-0">OOS</Badge>}
+      </div>
+      {dates.map((date, i) => {
+        const dateStr = format(date, "yyyy-MM-dd");
+
+        if (isOOS) {
+          return (
+            <div key={i} className="border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center">
+              <Ban className="h-3 w-3 text-muted-foreground/40" />
+            </div>
+          );
+        }
+
+        const dayBookings = bookings.filter(b => {
+          if (!b.rolos_room_ids?.includes(room.id)) return false;
+          return dateStr >= b.check_in_date && dateStr < b.check_out_date;
+        });
+
+        return (
+          <div key={i} className={cn("border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
+            {dayBookings.map(b => {
+              const colors = getStatusColor(b.status);
+              const isStart = b.check_in_date === dateStr;
+              const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+              return (
+                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                  "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
+                  colors.bg, colors.border,
+                  isStart ? "left-0.5 rounded-l-sm" : "left-0",
+                  isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                )}>
+                  {isStart && (
+                    <>
+                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ──────────── Room Type Section (for week view) ────────────
+function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getRestriction, onSelectBooking, cellW, labelW }: {
+  rt: RoomType;
+  dates: Date[];
+  roomsByType: Map<string, Room[]>;
+  bookings: BookingRow[];
+  getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
+  onSelectBooking: (b: BookingRow) => void;
+  cellW: string;
+  labelW: string;
+}) {
+  const typeRooms = roomsByType.get(rt.id) || [];
+
+  return (
+    <div>
+      {/* Room type header row */}
+      <div className="flex border-b border-border bg-muted/20">
+        <div className={cn(labelW, "shrink-0 px-3 py-2 border-r border-border flex items-center gap-2")}>
+          <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
+          <div>
+            <div className="text-xs font-semibold text-foreground">{rt.name}</div>
+            <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+          </div>
+        </div>
+        {dates.map((date, i) => {
+          const rate = getRateForDate(rt.id, date);
+          const restriction = getRestriction(rt.name, date);
+          const isStopSell = restriction?.is_stop_sell;
+          return (
+            <div key={i} className={cn(cellW, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
+              <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
+                {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
+                {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
+                {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
+                {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
+                {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Individual room rows */}
+      {typeRooms.map((room) => (
+        <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} cellW={cellW} labelW={labelW} />
+      ))}
+    </div>
+  );
+}
+
+// ──────────── Week Room Row (flex) ────────────
+function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
@@ -906,21 +1024,10 @@ function RoomRow({
       </div>
       {dates.map((date, i) => {
         const dateStr = format(date, "yyyy-MM-dd");
-        const dayBookings = bookings.filter(b => {
-          if (!b.rolos_room_ids?.includes(room.id)) return false;
-          return dateStr >= b.check_in_date && dateStr < b.check_out_date;
-        });
-
         if (isOOS) {
-          return (
-            <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 h-8 bg-muted/30")}>
-              <div className="h-full flex items-center justify-center">
-                <Ban className="h-3 w-3 text-muted-foreground/40" />
-              </div>
-            </div>
-          );
+          return <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center")}><Ban className="h-3 w-3 text-muted-foreground/40" /></div>;
         }
-
+        const dayBookings = bookings.filter(b => b.rolos_room_ids?.includes(room.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date);
         return (
           <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
             {dayBookings.map(b => {
@@ -928,24 +1035,16 @@ function RoomRow({
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button
-                  key={b.id}
-                  onClick={() => onSelectBooking(b)}
-                  className={cn(
-                    "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity z-[1]",
-                    colors.bg, colors.border,
-                    isStart ? "left-0.5 rounded-l-sm" : "left-0",
-                    isEnd ? "right-0.5 rounded-r-sm" : "right-0"
-                  )}
-                >
+                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                  "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
+                  colors.bg, colors.border,
+                  isStart ? "left-0.5 rounded-l-sm" : "left-0",
+                  isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                )}>
                   {isStart && (
                     <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>
-                        {b.guest_name.split(" ")[0]}
-                      </span>
-                      {hasSpecialIndicator(b) && (
-                        <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />
-                      )}
+                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
                     </>
                   )}
                 </button>
@@ -971,108 +1070,57 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
           <User className="h-4 w-4" />
           {b.guest_name}
         </SheetTitle>
-        <SheetDescription>
-          Booking #{b.id.slice(0, 8)}
-        </SheetDescription>
+        <SheetDescription>Booking #{b.id.slice(0, 8)}</SheetDescription>
       </SheetHeader>
       <div className="space-y-5 mt-4">
         <div className="flex items-center gap-2">
-          <Badge variant={STATUS_BADGE_VARIANT[b.status] || "secondary"} className="capitalize">
-            {b.status.replace("_", " ")}
-          </Badge>
-          {b.requires_intervention && (
-            <Badge variant="destructive" className="gap-1">
-              <AlertTriangle className="h-3 w-3" />
-              Needs Attention
-            </Badge>
-          )}
+          <Badge variant={STATUS_BADGE_VARIANT[b.status] || "secondary"} className="capitalize">{b.status.replace("_", " ")}</Badge>
+          {b.requires_intervention && <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Needs Attention</Badge>}
         </div>
-
         <Separator />
-
         <div className="space-y-3">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stay Details</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-muted-foreground text-xs">Check-in</span>
               <p className="font-medium">{format(parseISO(b.check_in_date), "d MMM yyyy")}</p>
-              {b.rolos_check_in_time && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3 w-3" />{b.rolos_check_in_time}
-                </p>
-              )}
+              {b.rolos_check_in_time && <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{b.rolos_check_in_time}</p>}
             </div>
             <div>
               <span className="text-muted-foreground text-xs">Check-out</span>
               <p className="font-medium">{format(parseISO(b.check_out_date), "d MMM yyyy")}</p>
-              {b.rolos_check_out_time && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3 w-3" />{b.rolos_check_out_time}
-                </p>
-              )}
+              {b.rolos_check_out_time && <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{b.rolos_check_out_time}</p>}
             </div>
           </div>
           <div className="text-sm text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</div>
         </div>
-
         <Separator />
-
         <div className="space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
           <div className="space-y-1.5 text-sm">
-            <div className="flex items-center gap-2">
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>{b.guest_email}</span>
-            </div>
-            {b.guest_phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>{b.guest_phone}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" /><span>{b.guest_email}</span></div>
+            {b.guest_phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" /><span>{b.guest_phone}</span></div>}
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="outline" className="text-xs gap-1">
-              <User className="h-3 w-3" />{b.adults} Adult{b.adults !== 1 ? "s" : ""}
-            </Badge>
-            {(b.children ?? 0) > 0 && (
-              <Badge variant="outline" className="text-xs">{b.children} Child{(b.children ?? 0) !== 1 ? "ren" : ""}</Badge>
-            )}
-            {(b.teens ?? 0) > 0 && (
-              <Badge variant="outline" className="text-xs">{b.teens} Teen{(b.teens ?? 0) !== 1 ? "s" : ""}</Badge>
-            )}
-            {(b.infants ?? 0) > 0 && (
-              <Badge variant="outline" className="text-xs gap-1">
-                <Baby className="h-3 w-3" />{b.infants} Infant{(b.infants ?? 0) !== 1 ? "s" : ""}
-              </Badge>
-            )}
-            {(b.pets ?? 0) > 0 && (
-              <Badge variant="outline" className="text-xs gap-1">
-                <PawPrint className="h-3 w-3" />{b.pets} Pet{(b.pets ?? 0) !== 1 ? "s" : ""}
-              </Badge>
-            )}
+            <Badge variant="outline" className="text-xs gap-1"><User className="h-3 w-3" />{b.adults} Adult{b.adults !== 1 ? "s" : ""}</Badge>
+            {(b.children ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.children} Child{(b.children ?? 0) !== 1 ? "ren" : ""}</Badge>}
+            {(b.teens ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.teens} Teen{(b.teens ?? 0) !== 1 ? "s" : ""}</Badge>}
+            {(b.infants ?? 0) > 0 && <Badge variant="outline" className="text-xs gap-1"><Baby className="h-3 w-3" />{b.infants} Infant{(b.infants ?? 0) !== 1 ? "s" : ""}</Badge>}
+            {(b.pets ?? 0) > 0 && <Badge variant="outline" className="text-xs gap-1"><PawPrint className="h-3 w-3" />{b.pets} Pet{(b.pets ?? 0) !== 1 ? "s" : ""}</Badge>}
           </div>
         </div>
-
         <Separator />
-
         {assignedRooms.length > 0 && (
           <>
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Room Assignment</h4>
               <div className="flex flex-wrap gap-2">
-                {assignedRooms.map(r => (
-                  <Badge key={r.id} variant="secondary">
-                    <BedDouble className="h-3 w-3 mr-1" />
-                    {r.room_number}{r.room_name ? ` (${r.room_name})` : ""}
-                  </Badge>
-                ))}
+                {assignedRooms.map(r => <Badge key={r.id} variant="secondary"><BedDouble className="h-3 w-3 mr-1" />{r.room_number}{r.room_name ? ` (${r.room_name})` : ""}</Badge>)}
               </div>
             </div>
             <Separator />
           </>
         )}
-
         <div className="space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</h4>
           <div className="flex items-center justify-between text-sm">
@@ -1085,7 +1133,6 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
             {b.payment_method && <span>· {b.payment_method}</span>}
           </div>
         </div>
-
         {b.booking_channel && (
           <>
             <Separator />
@@ -1096,18 +1143,12 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
             </div>
           </>
         )}
-
         {(b.special_requests || (b.special_requests_parsed && Object.keys(b.special_requests_parsed).length > 0)) && (
           <>
             <Separator />
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" />
-                Special Requests
-              </h4>
-              {b.special_requests && (
-                <p className="text-sm bg-amber-500/10 p-3 rounded-md border border-amber-500/20">{b.special_requests}</p>
-              )}
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 flex items-center gap-1"><MessageSquare className="h-3 w-3" />Special Requests</h4>
+              {b.special_requests && <p className="text-sm bg-amber-500/10 p-3 rounded-md border border-amber-500/20">{b.special_requests}</p>}
               {b.special_requests_parsed && typeof b.special_requests_parsed === "object" && Object.entries(b.special_requests_parsed).length > 0 && (
                 <div className="space-y-1">
                   {Object.entries(b.special_requests_parsed).map(([key, val]) => (
@@ -1121,7 +1162,6 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
             </div>
           </>
         )}
-
         {b.modification_notes && Array.isArray(b.modification_notes) && b.modification_notes.length > 0 && (
           <>
             <Separator />
@@ -1135,9 +1175,7 @@ function BookingDetail({ booking, rooms }: { booking: BookingRow; rooms: Room[] 
                       <span className="text-muted-foreground">{note.timestamp ? format(new Date(note.timestamp), "d MMM HH:mm") : ""}</span>
                     </div>
                     {note.changes && Object.entries(note.changes).map(([k, v]) => (
-                      <div key={k} className="text-muted-foreground">
-                        {k.replace(/_/g, " ")}: {String(v)}
-                      </div>
+                      <div key={k} className="text-muted-foreground">{k.replace(/_/g, " ")}: {String(v)}</div>
                     ))}
                   </div>
                 ))}
