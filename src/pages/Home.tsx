@@ -311,6 +311,7 @@ function HomeContent() {
               setHeroImage(aiImage);
               setHeroVideoUrl(aiProperty.hero_video_url || null);
               setHeroProperty({
+                id: aiProperty.id,
                 name: aiProperty.name,
                 city: aiProperty.city,
                 country: aiProperty.country,
