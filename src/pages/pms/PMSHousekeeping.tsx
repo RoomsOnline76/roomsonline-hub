@@ -65,6 +65,9 @@ const ISSUE_TYPES = [
   "plumbing", "electrical", "hvac", "furniture", "appliance", "structural", "other",
 ];
 
+const PRIORITIES = ["low", "normal", "high", "emergency"];
+const STATUSES_OPEN = ["reported", "assigned", "in_progress"];
+
 const PRIORITY_BADGE: Record<string, string> = {
   urgent: "bg-destructive text-destructive-foreground",
   high: "bg-destructive/80 text-destructive-foreground",
