@@ -21,6 +21,7 @@ const SAMPLE_DATA: Record<string, string> = {
   owner_email: "owner@example.com",
   owner_name: "John Smith",
   commission_rate: "10%",
+  commission_percentage: "ten percent (10%)",
   effective_date: new Date().toLocaleDateString(),
 };
 

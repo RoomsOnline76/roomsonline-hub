@@ -194,7 +194,7 @@ export default function ContractSign() {
         owner_physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
         owner_postal_address: propertyDetails?.postalAddress || 'N/A',
         owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
-        commission_percentage: 'ten percent (10%)',
+        commission_percentage: commissionText,
         covered_properties_list: propertiesListHtml,
       };
 
