@@ -1078,6 +1078,19 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   labelW: string;
 }) {
   const typeRooms = roomsByType.get(rt.id) || [];
+  const totalUnits = typeRooms.length || 1; // At least 1 bookable unit per type
+
+  // Compute per-day availability
+  const getAvail = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const booked = bookings.filter(b => {
+      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+        return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+      }
+      return false;
+    }).length;
+    return { booked, avail: Math.max(0, totalUnits - booked) };
+  };
 
   return (
     <div>
