@@ -1,78 +1,70 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+# Plan: Fix Rate Plan Descriptions, Calendar Availability Counts & Manual Booking
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+## Issues Identified
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+1. **Rate Plans "configure rate amount" text**: The `description` field on rate plans was set during initial creation with stale placeholder text. The actual `base_rate` values (R2,650 and R650) are correctly stored and displayed. Fix: clean up descriptions during sync, and stop showing misleading description text when a rate exists.
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+2. **Calendar missing availability counts**: The calendar shows room type headers with "X rooms" but doesn't show per-day availability breakdown (total vs booked vs remaining).
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+3. **No manual booking creation**: Users need to create bookings directly from the PMS calendar.
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+## Implementation
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+### 1. Fix Rate Plan Description Display (PMSRatePlans.tsx)
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+- In the `syncFromAmenities` function, when upserting rate plans, update stale descriptions that contain "configure rate amount" if the plan now has a `base_rate > 0`.
+- In the card UI: if `base_rate > 0`, don't display a description that says "configure rate amount" — replace with a meaningful fallback or hide it.
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+### 2. Calendar Availability Counts (PMSDashboard.tsx)
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+Add an availability summary row within each room type header cell showing:
+- **Total rooms** of that type
+- **Booked** count for that date (active bookings occupying rooms of this type)
+- **Available** remaining count
+- Format: e.g. `2/3 avail` or `1 booked · 2 avail`
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+Both `WeekCalendarGrid` (RoomTypeSection) and `MonthCalendarGrid` room type header rows need this. Compute per room-type per-date: count bookings where `room_type_id` matches or `rolos_room_ids` includes rooms of that type, subtract from total rooms of that type.
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+### 3. Manual Booking Dialog (PMSDashboard.tsx)
+
+Add a "New Booking" button in the calendar header area. Opens a Dialog/Sheet with form fields aligned to the bookings table:
+
+**Required fields:**
+- Guest name, email, phone
+- Check-in / Check-out dates (date pickers)
+- Room type (select from `rolos_room_types`)
+- Room assignment (select from `rolos_rooms` filtered by type)
+- Rate plan (select from `rolos_rate_plans`)
+- Adults count
+- Total price (auto-calculated from rate × nights, editable)
+
+**Optional fields:**
+- Children, teens, infants, pets counts
+- Special requests (textarea)
+- Payment status (unpaid/partial/paid) 
+- Payment method (cash/card/eft/other)
+- Booking status (pending/confirmed)
+- Booking channel (default: "direct/walk-in")
+
+**On save:**
+- Insert into `bookings` table with `property_id`, `booking_channel: 'direct'`, `integration_type: 'rolos'`
+- Set `rolos_room_ids` from selected rooms
+- Set `rolos_rate_plan_id` from selected rate plan
+- Auto-calculate price: `base_rate × nights` as default, allow manual override
+- Invalidate calendar queries to refresh
+- Create stop-sell/availability update if needed
+
+### 4. Fix PropertyForm Stale Descriptions
+
+In `PropertyForm.tsx`, when creating rate types with no baseRate, use a cleaner default description (empty string or the rate type name) instead of "Configure rate amount".
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/pages/pms/PMSRatePlans.tsx` | Clean stale descriptions during sync; hide "configure" text in UI when rate exists |
+| `src/pages/pms/PMSDashboard.tsx` | Add per-day availability counts in room type headers; add manual booking dialog with full form |
+| `src/pages/PropertyForm.tsx` | Stop setting "Configure rate amount" as default description |
+
