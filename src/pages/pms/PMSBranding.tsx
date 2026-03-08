@@ -112,7 +112,8 @@ function ColorField({ label, description, value, onChange }: { label: string; de
 
 export default function PMSBranding() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
-  const { propertyName } = usePMSBrand();
+  const { propertyName, propertySlug } = usePMSBrand();
+  const [propertySlugLocal, setPropertySlugLocal] = useState<string | null>(null);
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
   const [visual, setVisual] = useState<VisualBrand>(defaultVisual);
   const [saving, setSaving] = useState(false);
