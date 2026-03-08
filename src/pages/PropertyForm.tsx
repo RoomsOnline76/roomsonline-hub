@@ -3930,7 +3930,46 @@ export default function PropertyForm() {
           console.warn("Room types sync warning:", syncErr);
           // Don't fail the save, just warn
         }
-      }
+        }
+
+        // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
+        if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+          try {
+            for (const rateType of pmsRateTypes) {
+              const ratePlanData = {
+                property_id: savedPropertyId,
+                name: rateType.name || 'Unnamed Rate',
+                code: typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id),
+                description: rateType.description || null,
+                is_active: true,
+                min_stay: rateType.minStayDays || 1,
+                requires_deposit: false,
+              };
+
+              // Check if a rate plan with this code already exists
+              const { data: existingPlan } = await supabase
+                .from("rolos_rate_plans")
+                .select("id")
+                .eq("property_id", savedPropertyId)
+                .eq("code", ratePlanData.code)
+                .maybeSingle();
+
+              if (existingPlan) {
+                await supabase
+                  .from("rolos_rate_plans")
+                  .update(ratePlanData)
+                  .eq("id", existingPlan.id);
+              } else {
+                await supabase
+                  .from("rolos_rate_plans")
+                  .insert(ratePlanData);
+              }
+            }
+            console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
+          } catch (syncErr) {
+            console.warn("Rate plans sync warning:", syncErr);
+          }
+        }
 
       // Trigger geocoding if coordinates are missing and we have address data
       if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
