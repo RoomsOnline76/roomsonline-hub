@@ -6,6 +6,14 @@ import { ChannelLogo, getChannelLabel } from "./ChannelLogo";
 import { MoreHorizontal, Plug, Pause, Play, Unplug, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
+const CHANNEL_DESCRIPTIONS: Record<string, string> = {
+  booking_com: "World's largest OTA — sync availability, rates & reservations.",
+  airbnb: "Vacation rental marketplace — manage listings & guest comms.",
+  expedia: "Global travel platform — distribute inventory across Expedia Group brands.",
+  agoda: "Asia-focused OTA — reach travellers across APAC markets.",
+  google_hotels: "Surface rates on Google Search & Maps via Hotel Ads.",
+};
+
 interface ChannelConnection {
   id: string;
   channel_name: string;
@@ -25,6 +33,7 @@ const STATUS_BADGES: Record<string, { variant: "default" | "secondary" | "destru
 
 export function ChannelCard({
   connection,
+  channelName: channelNameProp,
   onConnect,
   onPause,
   onResume,
@@ -43,7 +52,7 @@ export function ChannelCard({
   isConnected: boolean;
   readOnly?: boolean;
 }) {
-  const channelName = connection?.channel_name ?? "";
+  const channelName = connection?.channel_name || channelNameProp || "";
   const status = connection?.status ?? "disconnected";
   const badge = STATUS_BADGES[status] ?? STATUS_BADGES.disconnected;
 
