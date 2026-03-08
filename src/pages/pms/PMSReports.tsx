@@ -153,7 +153,7 @@ export default function PMSReports() {
     const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     return days.map(d => {
       const dStr = format(d, "yyyy-MM-dd");
-      const dBookings = active.filter((b: any) => b.created_at?.startsWith(dStr));
+      const dBookings = active.filter((b: any) => b.check_in_date?.startsWith(dStr));
       const rev = dBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
       const nights = dBookings.reduce((s: number, b: any) => {
         if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));

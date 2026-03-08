@@ -296,7 +296,17 @@ export default function PMSHousekeeping() {
                       </div>
                     ))}
                     {tasks.length === 0 && (
-                      <p className="text-xs text-muted-foreground italic">No active task — room marked dirty</p>
+                      <div className="flex items-center justify-between pt-1 border-t border-border">
+                        <p className="text-xs text-muted-foreground italic">No active task — room marked dirty</p>
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          const { error } = await supabase.from("rolos_rooms" as any).update({ status: "available" }).eq("id", room.id);
+                          if (error) { toast.error(error.message); return; }
+                          toast.success("Room marked clean");
+                          fetchAll();
+                        }}>
+                          <CheckCircle className="h-3 w-3 mr-1" />Mark Clean
+                        </Button>
+                      </div>
                     )}
                     {/* Open maintenance dockets on dirty rooms */}
                     {openDockets.map(req => (
