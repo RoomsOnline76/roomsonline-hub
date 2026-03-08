@@ -1,6 +1,6 @@
 # ROL'OS PMS Module — Technical Specification
 
-> **Version**: 1.0  
+> **Version**: 2.0  
 > **Last Updated**: 2026-03-08  
 > **Module Path**: `/pms/*`
 
@@ -20,10 +20,14 @@
 10. [Branding](#10-branding)
 11. [Integrations](#11-integrations)
 12. [Edge Functions](#12-edge-functions)
-13. [Commission System](#13-commission-system)
-14. [Revenue Pulse Integration](#14-revenue-pulse-integration)
-15. [Database Schema](#15-database-schema)
-16. [Security & RLS](#16-security--rls)
+13. [Reservation Engine](#13-reservation-engine)
+14. [Inventory Calendar](#14-inventory-calendar)
+15. [Night Audit](#15-night-audit)
+16. [Commission System](#16-commission-system)
+17. [Revenue Pulse Integration](#17-revenue-pulse-integration)
+18. [Database Schema](#18-database-schema)
+19. [Security & RLS](#19-security--rls)
+20. [Pagination Strategy](#20-pagination-strategy)
 
 ---
 
@@ -74,7 +78,7 @@ All PMS pages use the `usePmsPropertyId()` hook which resolves the active proper
 
 ## 3. Dashboard & Calendar
 
-**File**: `src/pages/pms/PMSDashboard.tsx` (~1627 lines)
+**File**: `src/pages/pms/PMSDashboard.tsx` (~1790 lines)
 
 ### Features
 
@@ -96,10 +100,14 @@ All PMS pages use the `usePmsPropertyId()` hook which resolves the active proper
 
 ### Data Sources
 
-- `bookings` table filtered by property_id and date range
+- `bookings` table filtered by property_id and date range (paginated via `useInfiniteQuery`, auto-fetches all pages)
 - `rolos_rooms` for physical room grid
 - `rolos_room_types` for type labels
 - `rolos_restrictions` for stop-sell/min-stay markers
+
+### Pagination
+
+Bookings query uses `useInfiniteQuery` with `PAGE_SIZE=500` and `.range()` pagination. A `useEffect` auto-triggers `fetchNextPage` when `hasNextPage` is true, ensuring the calendar always has complete data even for high-volume properties.
 
 ---
 
@@ -205,9 +213,10 @@ Rate plans auto-sync from `properties.amenities.room_types` for ROL properties, 
 
 - **Guest Profiles**: Name, email, phone, nationality, preferences, notes, VIP flag
 - **Booking History**: All bookings for each guest with status, dates, revenue
-- **Search & Filter**: By name, email, phone
+- **Search & Filter**: By name, email, phone (debounced 400ms)
 - **Detail Sheet**: Side panel with full guest profile and booking timeline
-- **Complaint Tracking**: Guest complaints linked to profiles
+- **Complaint Tracking**: Guest complaints linked to profiles with resolution status
+- **Tags & Blacklisting**: Guest tagging and blacklist flag
 
 ### Data Source
 
@@ -226,6 +235,10 @@ Table: `rolos_guest_profiles` scoped to `property_id`
 | **Dirty Rooms** | Rooms with `status = 'dirty'`, active cleaning tasks, maintenance dockets |
 | **In Progress** | Rooms with active `rolos_housekeeping_tasks` in `in_progress` status |
 | **Clean / Ready** | Rooms with `status = 'available'` |
+
+### Fallback Mode
+
+When no physical rooms exist in `rolos_rooms`, the board derives synthetic rooms from `rolos_room_types` (room_number = type name). An info banner is displayed: *"No physical rooms configured. Showing room types as fallback."*
 
 ### Cleaning Tasks
 
@@ -294,6 +307,10 @@ CSV export with columns: Date, Bookings, Revenue, Occupancy %, ADR
 - Periods ≤45 days: Daily buckets
 - Periods >45 days: Monthly buckets
 
+### Pagination
+
+Uses `useInfiniteQuery` with `PAGE_SIZE=500` and `.range()` pagination. All pages are aggregated into KPI calculations and chart data. A "Load more" button appears when additional pages are available.
+
 ---
 
 ## 10. Branding
@@ -303,11 +320,16 @@ CSV export with columns: Date, Bookings, Revenue, Occupancy %, ADR
 ### Features
 
 - Property logo upload (stored in Supabase Storage)
-- Brand colors (primary, secondary, accent)
-- Business identity: Legal name, trading name, registration number
-- VAT number and tax settings
-- Stationery: Invoice header, footer text
+- Brand colors (primary, secondary, accent, font)
+- Business identity: Name, address, VAT number
+- VAT registration toggle with configurable rate
+- Stationery: Email footer text, custom tagline, favicon
 - Brand preview showing how branding appears on guest-facing documents
+
+### Data Storage
+
+- **Visual branding** (logo, colors): Stored on `properties` table for cross-system sync
+- **Stationery config** (business name, VAT, tagline): Stored in `rolos_brand_config` table
 
 ---
 
@@ -340,13 +362,34 @@ This data feeds into the dual commission system for PMS rate attribution.
 
 ### `roomsonline-pms-api`
 
-Central PMS API edge function handling:
+Central PMS API edge function (~1800+ lines) handling 30+ action types:
+
+**Booking Lifecycle:**
+- `create_reservation` — Creates booking + inserts into `rolos_reservations` + `rolos_reservation_rooms` + status history + updates inventory calendar
+- `modify_reservation` — Date/room/guest changes + updates `rolos_reservations` + status history + inventory recalculation
+- `cancel_reservation` — Cancellation with reason + status history + inventory release
 - `check_in` — Validates room readiness, updates booking status
 - `check_out` — Updates booking, triggers housekeeping (sets rooms to dirty)
-- `create_booking` — Creates booking with room assignment
-- `modify_booking` — Date/room/guest changes
-- `cancel_booking` — Cancellation with reason tracking
+
+**Availability & Inventory:**
 - `get_availability` — Room availability for date range
+- `update_inventory` — Upsert rows in `rolos_inventory_calendar`
+- `check_inventory` — Query available units for date range
+
+**Guest CRM:**
+- `get_guest_profiles` — Paginated guest search (limit/offset)
+- `create_guest_profile` — New guest with property scoping
+
+**Housekeeping & Folios:**
+- `get_housekeeping_board` — Paginated housekeeping tasks
+- `get_daily_metrics` — Paginated metrics retrieval
+
+**Pagination Envelope:**
+All list endpoints return `{ items: [...], total_count, has_more }` with `limit` (default 100, max 500) and `offset` parameters.
+
+### `push-booking`
+
+Booking ingestion from external PMS systems. **Now detects `is_rol_property`** and triggers `roomsonline-pms-api/create_reservation` for ROL properties, ensuring bookings flow into the operational reservation tables.
 
 ### `calculate-commission`
 
@@ -363,9 +406,131 @@ Admin revenue reporting:
 - Aggregates by property, channel, and commission type
 - Period filtering (30d, 90d, 1y, custom)
 
+### `pms-night-audit`
+
+Scheduled daily cron (02:00 SAST / 00:00 UTC). See [Night Audit](#15-night-audit).
+
+### `sync-rolos-room-types`
+
+Daily safety-net cron ensuring parity between `rolos_room_types` ↔ `hostfully_room_types` and auto-creating missing physical rooms in `rolos_rooms`.
+
+### `cancel-booking`
+
+Cancellation endpoint with `getClaims(token)` validation for secure token-based auth (verify_jwt = false).
+
 ---
 
-## 13. Commission System
+## 13. Reservation Engine
+
+### Overview
+
+The reservation engine provides an operational layer on top of the `bookings` table, enabling status tracking, room assignment history, and audit trails for the full reservation lifecycle.
+
+### Tables
+
+| Table | Purpose |
+|---|---|
+| `rolos_reservations` | Operational reservation records linked to bookings |
+| `rolos_reservation_rooms` | Per-reservation room assignments with rate tracking |
+| `rolos_reservation_status_history` | Full audit trail of status transitions |
+
+### Reservation Schema
+
+```
+rolos_reservations:
+  id, property_id, booking_id (FK), status, check_in, check_out,
+  guest_id (FK → rolos_guest_profiles), created_by,
+  confirmation_number, total_amount, currency, special_requests,
+  created_at, updated_at
+```
+
+### Status Flow
+
+```
+pending → confirmed → checked_in → checked_out
+                   ↘ cancelled
+                   ↘ no_show
+```
+
+Every status change is logged to `rolos_reservation_status_history` with the old/new status, changed_by user, reason, and timestamp.
+
+### Room Assignments
+
+```
+rolos_reservation_rooms:
+  reservation_id (FK), room_type_id (FK), room_id (FK, nullable),
+  adults, children, teens, infants, rate_charged
+```
+
+### Integration with `push-booking`
+
+When a booking is pushed for an `is_rol_property`, the system automatically creates the corresponding `rolos_reservations` entry, room assignments, and status history via the `roomsonline-pms-api/create_reservation` action.
+
+---
+
+## 14. Inventory Calendar
+
+### Overview
+
+Real-time inventory tracking per room type per date, enabling accurate availability queries and overbooking prevention.
+
+### Table
+
+```
+rolos_inventory_calendar:
+  property_id, room_type_id, date,
+  total_units, booked_units, blocked_units,
+  available_units (generated: total_units - booked_units - blocked_units),
+  restrictions (JSONB),
+  created_at, updated_at
+
+UNIQUE INDEX: (property_id, room_type_id, date)
+```
+
+### Automatic Updates
+
+- **Reservation creation**: Increments `booked_units` for each date in the stay
+- **Reservation modification**: Recalculates units for old and new date ranges
+- **Reservation cancellation**: Decrements `booked_units` to release inventory
+
+### Available Units
+
+`available_units` is a **generated column**: `total_units - booked_units - blocked_units`, always consistent without application logic.
+
+---
+
+## 15. Night Audit
+
+### Overview
+
+Automated daily process that closes the previous business day and prepares for the next.
+
+### Schedule
+
+Cron: `0 0 * * *` UTC (02:00 SAST) via `pms-night-audit` edge function.
+
+### Tasks
+
+1. **Roll Housekeeping**: Rooms with `status = 'occupied'` → create `dirty` housekeeping task for next day
+2. **Finalize Occupancy**: Count checked-in reservations for the previous day
+3. **Calculate Metrics**: Compute ADR, RevPAR, total revenue → upsert into `rolos_daily_metrics`
+4. **Close Folios**: Folios with `checkout_date = yesterday` and `balance = 0` → set status to `closed`
+
+### Metrics Calculation
+
+```
+ADR = Total Revenue / Occupied Rooms
+RevPAR = Total Revenue / Total Available Rooms
+Occupancy = Occupied Rooms / Total Available Rooms × 100
+```
+
+### Scope
+
+Processes all properties where `is_rol_property = true`.
+
+---
+
+## 16. Commission System
 
 ### Dual Rate Architecture
 
@@ -402,7 +567,7 @@ Contract templates support two dynamic variables:
 
 ---
 
-## 14. Revenue Pulse Integration
+## 17. Revenue Pulse Integration
 
 ### Data Flow
 
@@ -428,7 +593,7 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 
 ---
 
-## 15. Database Schema
+## 18. Database Schema
 
 ### Core PMS Tables
 
@@ -439,12 +604,27 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `rolos_rate_plans` | Pricing plans with models |
 | `rolos_rate_plan_room_types` | Rate plan ↔ room type junction |
 | `rolos_rate_seasons` | Seasonal rate multipliers |
+| `rolos_rate_prices` | Day-of-week rate pricing |
 | `rolos_guest_profiles` | Guest CRM profiles |
+| `rolos_guest_comments` | Guest comment threads |
 | `rolos_housekeeping_tasks` | Cleaning task queue |
+| `rolos_housekeeping_schedules` | Recurring cleaning schedules |
 | `rolos_maintenance_requests` | Maintenance docket tracking |
-| `rolos_folios` | Financial folio/transaction tracking |
+| `rolos_folios` | Financial folio headers |
+| `rolos_folio_transactions` | Individual folio line items |
 | `rolos_restrictions` | Stop sell, min/max stay rules |
 | `rolos_daily_metrics` | Auto-computed ADR, RevPAR, occupancy |
+| `rolos_brand_config` | Property business stationery config |
+| `rolos_booking_room_assignments` | Booking ↔ room assignment tracking |
+
+### Reservation Engine Tables (v2.0)
+
+| Table | Purpose |
+|---|---|
+| `rolos_reservations` | Operational reservation records with lifecycle status |
+| `rolos_reservation_rooms` | Per-reservation room & rate assignments |
+| `rolos_reservation_status_history` | Full status change audit trail |
+| `rolos_inventory_calendar` | Per-date per-type inventory tracking with generated `available_units` |
 
 ### Supporting Tables
 
@@ -454,10 +634,17 @@ Revenue Pulse is restricted to `admin` and `dev` roles via `can_view_rol_pulse()
 | `property_commercial_terms` | Commission rates with `commission_type` |
 | `hostfully_room_types` | Property Overview room types (sync source) |
 | `properties` | Master property record with `is_rol_property` flag |
+| `property_staff` | Staff members linked to properties |
+
+### Performance Indexes
+
+- `bookings(property_id, check_in_date)`
+- `rolos_reservations(property_id, check_in)`
+- `rolos_inventory_calendar(property_id, room_type_id, date)` (unique)
 
 ---
 
-## 16. Security & RLS
+## 19. Security & RLS
 
 ### Row-Level Security
 
@@ -478,7 +665,9 @@ Two functions validate property access:
 
 ### Edge Function Authentication
 
-PMS API edge functions use `verify_jwt = false` with custom token validation via `getClaims(token)` for the signing-keys system (see memory: pms-adapter-interop-and-security).
+- PMS API edge functions use `verify_jwt = false` with custom token validation via `getClaims(token)` for the signing-keys system
+- `cancel-booking` and `modify-booking` use `getClaims(token)` for secure validation without JWT verification
+- All destructive operations are logged to `audit_logs`
 
 ### Audit Trail
 
@@ -490,12 +679,49 @@ All changes to PMS tables are logged via the `log_audit_change()` trigger, captu
 
 ---
 
+## 20. Pagination Strategy
+
+### Problem
+
+Supabase has a default 1000-row limit per query. High-volume properties can exceed this for bookings, guest profiles, and metrics.
+
+### Solution
+
+All high-volume queries now use pagination:
+
+| Component | Pattern | Page Size | Behavior |
+|---|---|---|---|
+| **PMSDashboard** (bookings) | `useInfiniteQuery` + auto-fetch | 500 | Auto-fetches all pages silently (calendar needs complete data) |
+| **PMSReports** (bookings) | `useInfiniteQuery` + Load More | 500 | "Load more" button; KPIs aggregate across all fetched pages |
+| **Edge Function APIs** | `limit`/`offset` params | 100 (default, max 500) | Returns `{ items, total_count, has_more }` envelope |
+
+### Edge Function Pagination Envelope
+
+```json
+{
+  "success": true,
+  "data": {
+    "reservations": [...],
+    "total_count": 1247,
+    "has_more": true
+  }
+}
+```
+
+Paginated endpoints: `get_reservations`, `get_guest_profiles`, `get_housekeeping_board`, `get_daily_metrics`.
+
+---
+
 ## Appendix: Known Constraints
 
-1. **Housekeeping counts require physical rooms**: Dirty/maintenance indicators on the dashboard only function when physical rooms exist in `rolos_rooms`. Properties with only room types configured will show 0 for these metrics.
+1. **Housekeeping fallback mode**: When no physical rooms exist in `rolos_rooms`, the board derives synthetic rooms from `rolos_room_types`. Dashboard dirty/maintenance indicators show 0 in this state.
 
-2. **Room type sync is one-directional at page load**: While database triggers handle bidirectional sync, the PMSRooms page also runs a one-time sync on load to catch any gaps.
+2. **Room type sync is one-directional at page load**: While database triggers handle bidirectional sync, the PMSRooms page also runs a one-time sync on load to catch any gaps. A daily `sync-rolos-room-types` cron provides an additional safety net.
 
-3. **Supabase 1000-row limit**: Queries to `bookings` and other tables are subject to the default 1000-row limit. For properties with high booking volumes, pagination should be considered.
+3. **Structural `as any` casts**: Some PMS pages retain `as any` casts for two reasons:
+   - **Json columns**: Supabase types `amenities`, `complaints`, etc. as `Json | null` (generic). Casts to specific interfaces are structurally necessary.
+   - **TS2589 deep instantiation**: Complex chained Supabase queries on tables with many columns can trigger TypeScript's recursion limit. Workaround: cast the query builder to `any`.
 
-4. **`as any` type casts**: Several PMS pages use `as any` casts on Supabase table references (`rolos_rooms`, `rolos_housekeeping_tasks`, etc.) because the auto-generated types file may lag behind migrations. These are functional but suppress type checking.
+4. **Night audit timing**: Runs at 00:00 UTC (02:00 SAST). Properties in significantly different timezones may see metrics attributed to slightly offset dates.
+
+5. **Inventory calendar backfill**: The `rolos_inventory_calendar` table must be initialized from existing room type counts. The `sync-rolos-room-types` cron handles initial population; manual corrections may be needed for historical data.
