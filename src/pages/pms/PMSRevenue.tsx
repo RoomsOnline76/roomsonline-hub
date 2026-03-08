@@ -156,7 +156,7 @@ export default function PMSRevenue() {
 
     // Channel breakdown
     const channels: Record<string, { count: number; revenue: number }> = {};
-    paid.forEach((b: any) => {
+    active.forEach((b: any) => {
       const ch = b.booking_channel || "Direct";
       if (!channels[ch]) channels[ch] = { count: 0, revenue: 0 };
       channels[ch].count += 1;
@@ -168,7 +168,7 @@ export default function PMSRevenue() {
 
     // Monthly timeline
     const monthly: Record<string, { date: string; revenue: number; bookings: number }> = {};
-    paid.forEach((b: any) => {
+    active.forEach((b: any) => {
       const mo = (b.check_in_date as string)?.slice(0, 7) || "unknown";
       if (!monthly[mo]) monthly[mo] = { date: mo, revenue: 0, bookings: 0 };
       monthly[mo].revenue += Number(b.total_price || 0);
@@ -176,7 +176,7 @@ export default function PMSRevenue() {
     });
     const timeline = Object.values(monthly).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { gbv, commission, avgAdr, totalBookings: paid.length, channelBreakdown, timeline };
+    return { gbv, commission, avgAdr, totalBookings: active.length, channelBreakdown, timeline };
   }, [historyBookings]);
 
   // Generate daily forecast
