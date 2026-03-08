@@ -1124,8 +1124,9 @@ Deno.serve(async (req) => {
 
     const defaultFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
     
-    // Use property name as sender when branding is enabled
-    const fromEmail = (property.brand_override_enabled && property.name)
+    // Use property name as sender when branding is active (ROL'OS auto, others via toggle)
+    const brand = resolveBranding(property);
+    const fromEmail = brand.isBranded
       ? `${property.name} <noreply@notify.roomsonline.co.za>`
       : defaultFromEmail;
 
