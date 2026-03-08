@@ -101,13 +101,14 @@ function HomeContent() {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
-  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
+  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string; slug: string } | null>(null);
   const [originalHeroImage, setOriginalHeroImage] = useState<string>(heroFallback);
   const [originalHeroVideoUrl, setOriginalHeroVideoUrl] = useState<string | null>(null);
   const [originalHeroProperty, setOriginalHeroProperty] = useState<{
     name: string;
     city: string;
     country: string;
+    slug: string;
   } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
