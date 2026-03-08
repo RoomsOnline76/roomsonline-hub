@@ -840,8 +840,134 @@ interface CalendarGridProps {
   bookingsLoading: boolean;
 }
 
-const WEEK_CELL_W = "w-[100px] min-w-[100px]";
-const WEEK_LABEL_W = "w-[180px] min-w-[180px]";
+const WEEK_CELL_W = "w-[80px] min-w-[80px]";
+const WEEK_LABEL_W = "w-[160px] min-w-[160px]";
+
+// ──────────── Shared: Date header cell ────────────
+function DateHeaderCell({ date, season, className: extraClass }: { date: Date; season?: RateSeason | null; className?: string }) {
+  const holiday = getHolidayName(date);
+  const weekend = isWeekendDay(date);
+  const today = isToday(date);
+
+  const cellContent = (
+    <div className={cn(
+      "px-0.5 py-1.5 text-center",
+      today ? "bg-primary/15 ring-1 ring-inset ring-primary/40" : holiday ? "bg-green-50 dark:bg-green-950/20" : weekend ? "bg-red-50/60 dark:bg-red-950/15" : "",
+      extraClass,
+    )}>
+      <div className={cn("text-[10px] font-semibold uppercase", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+        {format(date, "EEE")}
+      </div>
+      <div className={cn("text-sm font-bold", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-foreground")}>
+        {format(date, "d")}
+      </div>
+      <div className={cn("text-[9px]", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+        {format(date, "MMM")}
+      </div>
+      {today && <div className="text-[7px] font-bold text-primary mt-0.5">TODAY</div>}
+      {season?.is_peak && !today && <div className="text-[7px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+    </div>
+  );
+
+  if (holiday) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{cellContent}</TooltipTrigger>
+        <TooltipContent><p className="font-semibold text-xs">{holiday}</p><p className="text-[10px] text-muted-foreground">SA Public Holiday</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  return cellContent;
+}
+
+// ──────────── Shared: Restriction colored lines ────────────
+function RestrictionLines({ restriction, prevRestriction, nextRestriction }: {
+  restriction: AvailabilityOverride | undefined;
+  prevRestriction?: AvailabilityOverride | undefined;
+  nextRestriction?: AvailabilityOverride | undefined;
+}) {
+  if (!restriction) return null;
+  const lines: JSX.Element[] = [];
+
+  const getLineClass = (hasPrev: boolean, hasNext: boolean, baseColor: string) => {
+    const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
+    return `h-1 flex-1 ${baseColor} ${rounded}`;
+  };
+
+  if (restriction.is_stop_sell) {
+    lines.push(
+      <Tooltip key="ss">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(!!prevRestriction?.is_stop_sell, !!nextRestriction?.is_stop_sell, "bg-red-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Stop Sell Active</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.minimum_stay != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.minimum_stay === restriction.minimum_stay;
+    lines.push(
+      <Tooltip key="min">
+        <TooltipTrigger asChild>
+          <div className={cn(getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-blue-500"), "flex items-center justify-center")}>
+            <span className="text-[7px] text-white font-bold leading-none">{restriction.minimum_stay}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Min Stay: {restriction.minimum_stay} nights</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.maximum_stay != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.maximum_stay === restriction.maximum_stay;
+    lines.push(
+      <Tooltip key="max">
+        <TooltipTrigger asChild>
+          <div className={cn(getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-pink-500"), "flex items-center justify-center")}>
+            <span className="text-[7px] text-white font-bold leading-none">{restriction.maximum_stay}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Max Stay: {restriction.maximum_stay} nights</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.lead_days_advance != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.lead_days_advance === restriction.lead_days_advance;
+    lines.push(
+      <Tooltip key="adv">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-yellow-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Lead Advance: {restriction.lead_days_advance} days</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.lead_days_post != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.lead_days_post === restriction.lead_days_post;
+    lines.push(
+      <Tooltip key="post">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-orange-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Lead Post: {restriction.lead_days_post} days</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (lines.length === 0) return null;
+  return <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">{lines}</div>;
+}
+
+// ──────────── Shared: day cell background helper ────────────
+function dateCellBg(date: Date, extraStop?: boolean) {
+  const today = isToday(date);
+  const holiday = !!getHolidayName(date);
+  const weekend = isWeekendDay(date);
+  if (today) return "bg-primary/5";
+  if (extraStop) return "bg-red-500/5";
+  if (holiday) return "bg-green-50/50 dark:bg-green-950/10";
+  if (weekend) return "bg-red-50/30 dark:bg-red-950/10";
+  return "";
+}
 
 function WeekCalendarGrid(props: CalendarGridProps) {
   const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
@@ -857,46 +983,45 @@ function WeekCalendarGrid(props: CalendarGridProps) {
   }, [dates, bookings, rooms]);
 
   return (
-    <div className="border border-border rounded-lg bg-card overflow-hidden">
-      <ScrollArea className="w-full">
-        <div className="min-w-max">
-          {/* Occupancy bar */}
-          <div className="flex border-b border-border bg-muted/30">
-            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border flex items-center")}>Occupancy</div>
-            {dates.map((date, i) => {
-              const occ = dailyOccupancy[i];
-              return (
-                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0")}>
-                  <div className="w-full bg-muted rounded-full h-2 mb-1">
-                    <div className={cn("h-2 rounded-full", occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.min(occ, 100)}%` }} />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{occ}%</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Date header */}
-          <div className="flex border-b border-border bg-muted/50 sticky top-0 z-10">
-            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-semibold text-foreground border-r border-border")}>Room</div>
-            {dates.map((date, i) => {
-              const season = getSeasonForDate(date);
-              return (
-                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
-                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
-                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
-                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
-                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Room type rows */}
-          {roomTypes.map((rt) => (
-            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
-          ))}
-
+    <TooltipProvider>
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="w-full">
+          <table className="w-full border-collapse min-w-[800px]">
+            <thead>
+              {/* Occupancy row */}
+              <tr className="bg-muted/30">
+                <th className="border p-1 min-w-[160px] sticky left-0 bg-muted/30 z-10 text-xs font-medium text-muted-foreground text-left px-3">Occupancy</th>
+                {dates.map((date, i) => {
+                  const occ = dailyOccupancy[i];
+                  return (
+                    <th key={i} className="border p-1 min-w-[80px]">
+                      <div className="w-full bg-muted rounded-full h-1.5 mb-0.5">
+                        <div className={cn("h-1.5 rounded-full transition-all", occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/20")} style={{ width: `${Math.min(occ, 100)}%` }} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-normal">{occ}%</span>
+                    </th>
+                  );
+                })}
+              </tr>
+              {/* Date header row */}
+              <tr>
+                <th className="border bg-muted/50 p-1 min-w-[160px] sticky left-0 bg-background z-10" />
+                {dates.map((date, i) => {
+                  const season = getSeasonForDate(date);
+                  return (
+                    <th key={i} className="border p-0 min-w-[80px]">
+                      <DateHeaderCell date={date} season={season} />
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {roomTypes.map((rt) => (
+                <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+              ))}
+            </tbody>
+          </table>
           {roomTypes.length === 0 && !bookingsLoading && (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               <div className="text-center space-y-2">
@@ -905,187 +1030,205 @@ function WeekCalendarGrid(props: CalendarGridProps) {
               </div>
             </div>
           )}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+    </TooltipProvider>
   );
 }
 
-// ──────────── Month Calendar (stacked weekly rows, no horizontal scroll) ────────────
+// ──────────── Month Calendar (stacked weekly rows) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
   const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
-  // 7 columns for days + 1 for label. Use CSS grid with equal columns.
   return (
-    <div className="space-y-4">
-      {weekChunks.map((weekDates, weekIdx) => (
-        <div key={weekIdx} className="border border-border rounded-lg bg-card overflow-hidden">
-          {/* Date header row */}
-          <div className="grid border-b border-border bg-muted/50" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-            <div className="px-3 py-2 text-xs font-semibold text-foreground border-r border-border">Room</div>
-            {weekDates.map((date, i) => {
-              const season = getSeasonForDate(date);
-              return (
-                <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
-                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
-                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
-                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
-                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Room type rows */}
-          {roomTypes.map((rt) => {
-            const typeRooms = roomsByType.get(rt.id) || [];
-            const totalUnits = typeRooms.length || 1;
-
-            const getMonthAvail = (date: Date) => {
-              const dateStr = format(date, "yyyy-MM-dd");
-              const booked = bookings.filter(b => {
-                if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
-                  return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
-                }
-                return false;
-              }).length;
-              return { booked, avail: Math.max(0, totalUnits - booked) };
-            };
-
-            return (
-              <div key={rt.id}>
-                {/* Room type header with rates + restrictions + availability */}
-                <div className="grid border-b border-border bg-muted/20" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-                  <div className="px-3 py-2 border-r border-border flex items-center gap-2">
-                    <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-foreground truncate">{rt.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
-                    </div>
-                  </div>
+    <TooltipProvider>
+      <div className="space-y-3">
+        {weekChunks.map((weekDates, weekIdx) => (
+          <div key={weekIdx} className="border rounded-lg overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="border bg-muted/50 p-1 min-w-[150px] w-[150px] sticky left-0 bg-background z-10" />
                   {weekDates.map((date, i) => {
-                    const rate = getRateForDate(rt.id, date);
-                    const restriction = getRestriction(rt.name, date);
-                    const isStopSell = restriction?.is_stop_sell;
-                    const { booked, avail } = getMonthAvail(date);
+                    const season = getSeasonForDate(date);
                     return (
-                      <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-                        {rate != null ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/50">—</span>
-                        )}
-                        <div className="text-[8px] mt-0.5">
-                          {booked > 0 && <span className="text-amber-600">{booked}b</span>}
-                          {booked > 0 && " · "}
-                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                          {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
-                          {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
-                          {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
-                          {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
-                          {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
-                        </div>
-                      </div>
+                      <th key={i} className="border p-0">
+                        <DateHeaderCell date={date} season={season} />
+                      </th>
                     );
                   })}
-                </div>
+                </tr>
+              </thead>
+              <tbody>
+                {roomTypes.map((rt) => {
+                  const typeRooms = roomsByType.get(rt.id) || [];
+                  const totalUnits = typeRooms.length || 1;
 
-                {/* Individual room rows */}
-                {typeRooms.map((room) => (
-                  <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} colCount={weekDates.length} />
-                ))}
+                  const getMonthAvail = (date: Date) => {
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    const booked = bookings.filter(b => {
+                      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                        return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+                      }
+                      return false;
+                    }).length;
+                    return { booked, avail: Math.max(0, totalUnits - booked) };
+                  };
 
-                {/* Unassigned bookings */}
-                {(() => {
-                  const unassigned = bookings.filter(b =>
-                    b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
-                    weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
-                  );
-                  if (!unassigned.length) return null;
                   return (
-                    <div className="grid border-b border-border bg-amber-500/5" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-                      <div className="px-3 py-1.5 border-r border-border flex items-center">
-                        <span className="text-[10px] text-amber-600 italic ml-4">Unassigned</span>
-                      </div>
-                      {weekDates.map((date, i) => {
-                        const dateStr = format(date, "yyyy-MM-dd");
-                        const dayBookings = bookings.filter(b =>
-                          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
-                          dateStr >= b.check_in_date && dateStr < b.check_out_date
-                        );
-                        return (
-                          <div key={i} className="border-r border-border last:border-r-0 relative h-8">
-                            {dayBookings.map(b => {
-                              const colors = getStatusColor(b.status);
-                              const isStart = b.check_in_date === dateStr;
-                              return (
-                                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
-                                  {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <MonthRoomTypeRows
+                      key={rt.id}
+                      rt={rt}
+                      weekDates={weekDates}
+                      typeRooms={typeRooms}
+                      bookings={bookings}
+                      getRateForDate={getRateForDate}
+                      getPricingSuffix={getPricingSuffix}
+                      getRestriction={getRestriction}
+                      getMonthAvail={getMonthAvail}
+                      onSelectBooking={onSelectBooking}
+                    />
                   );
-                })()}
-              </div>
-            );
-          })}
+                })}
+              </tbody>
+            </table>
 
-          {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="text-center space-y-2">
-                <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
-                <p className="text-sm">No room types configured</p>
+            {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <div className="text-center space-y-2">
+                  <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
+                  <p className="text-sm">No room types configured</p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </TooltipProvider>
   );
 }
 
-// ──────────── Month Room Row (CSS Grid) ────────────
-function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
+// ──────────── Month: Room type rows block (header + rooms + unassigned) ────────────
+function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate, getPricingSuffix, getRestriction, getMonthAvail, onSelectBooking }: {
+  rt: RoomType;
+  weekDates: Date[];
+  typeRooms: Room[];
+  bookings: BookingRow[];
+  getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
+  getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
+  getMonthAvail: (date: Date) => { booked: number; avail: number };
+  onSelectBooking: (b: BookingRow) => void;
+}) {
+  return (
+    <>
+      {/* Room type header row */}
+      <tr className="bg-slate-100 dark:bg-slate-800">
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+          <div className="flex items-center gap-1.5 px-1">
+            <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <div className="truncate">{rt.name}</div>
+              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+            </div>
+          </div>
+        </td>
+        {weekDates.map((date, i) => {
+          const rate = getRateForDate(rt.id, date);
+          const restriction = getRestriction(rt.name, date);
+          const prevRestriction = i > 0 ? getRestriction(rt.name, weekDates[i - 1]) : undefined;
+          const nextRestriction = i < weekDates.length - 1 ? getRestriction(rt.name, weekDates[i + 1]) : undefined;
+          const { booked, avail } = getMonthAvail(date);
+          return (
+            <td key={i} className={cn("border p-1 text-center", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              <div className="flex flex-col items-center">
+                {rate != null ? (
+                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                )}
+                <div className="text-[8px] font-semibold mt-0.5">
+                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                </div>
+                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+
+      {/* Individual room rows */}
+      {typeRooms.map((room) => (
+        <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} />
+      ))}
+
+      {/* Unassigned bookings */}
+      {(() => {
+        const unassigned = bookings.filter(b =>
+          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+          weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
+        );
+        if (!unassigned.length) return null;
+        return (
+          <tr className="bg-amber-50/50 dark:bg-amber-950/10">
+            <td className="border p-1 sticky left-0 bg-amber-50/50 dark:bg-amber-950/10 z-10">
+              <span className="text-[10px] text-amber-600 italic pl-5">Unassigned</span>
+            </td>
+            {weekDates.map((date, i) => {
+              const dateStr = format(date, "yyyy-MM-dd");
+              const dayBookings = bookings.filter(b =>
+                b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                dateStr >= b.check_in_date && dateStr < b.check_out_date
+              );
+              return (
+                <td key={i} className="border p-0 relative h-8">
+                  {dayBookings.map(b => {
+                    const colors = getStatusColor(b.status);
+                    const isStart = b.check_in_date === dateStr;
+                    return (
+                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
+                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
+                      </button>
+                    );
+                  })}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })()}
+    </>
+  );
+}
+
+// ──────────── Month Room Row (table row) ────────────
+function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
   onSelectBooking: (b: BookingRow) => void;
-  colCount: number;
 }) {
   const isOOS = room.status === "out_of_service";
 
   return (
-    <div className={cn("grid border-b border-border", isOOS && "opacity-50")} style={{ gridTemplateColumns: `160px repeat(${colCount}, 1fr)` }}>
-      <div className="px-3 py-1.5 border-r border-border flex items-center gap-2">
-        <span className="text-xs text-foreground/80 ml-4">{room.room_number}</span>
-        {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
-        {isOOS && <Badge variant="outline" className="text-[8px] px-1 py-0">OOS</Badge>}
-      </div>
+    <tr className={cn(isOOS && "opacity-50")}>
+      <td className="border p-1 sticky left-0 bg-background z-10">
+        <div className="flex items-center gap-1 pl-5">
+          <span className="text-xs text-foreground/80">{room.room_number}</span>
+          {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
+          {isOOS && <Badge variant="outline" className="text-[7px] px-1 py-0 leading-none">OOS</Badge>}
+        </div>
+      </td>
       {dates.map((date, i) => {
         const dateStr = format(date, "yyyy-MM-dd");
-
         if (isOOS) {
-          return (
-            <div key={i} className="border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center">
-              <Ban className="h-3 w-3 text-muted-foreground/40" />
-            </div>
-          );
+          return <td key={i} className="border h-8 bg-muted/20"><div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div></td>;
         }
-
-        const dayBookings = bookings.filter(b => {
-          if (!b.rolos_room_ids?.includes(room.id)) return false;
-          return dateStr >= b.check_in_date && dateStr < b.check_out_date;
-        });
-
+        const dayBookings = bookings.filter(b => b.rolos_room_ids?.includes(room.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date);
         return (
-          <div key={i} className={cn("border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
+          <td key={i} className={cn("border p-0 relative h-8", dateCellBg(date))}>
             {dayBookings.map(b => {
               const colors = getStatusColor(b.status);
               const isStart = b.check_in_date === dateStr;
@@ -1106,14 +1249,14 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
                 </button>
               );
             })}
-          </div>
+          </td>
         );
       })}
-    </div>
+    </tr>
   );
 }
 
-// ──────────── Room Type Section (for week view) ────────────
+// ──────────── Room Type Section (for week view — table rows) ────────────
 function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, cellW, labelW }: {
   rt: RoomType;
   dates: Date[];
@@ -1127,9 +1270,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   labelW: string;
 }) {
   const typeRooms = roomsByType.get(rt.id) || [];
-  const totalUnits = typeRooms.length || 1; // At least 1 bookable unit per type
+  const totalUnits = typeRooms.length || 1;
 
-  // Compute per-day availability
   const getAvail = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     const booked = bookings.filter(b => {
@@ -1142,75 +1284,77 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   };
 
   return (
-    <div>
+    <>
       {/* Room type header row */}
-      <div className="flex border-b border-border bg-muted/20">
-        <div className={cn(labelW, "shrink-0 px-3 py-2 border-r border-border flex items-center gap-2")}>
-          <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-          <div>
-            <div className="text-xs font-semibold text-foreground">{rt.name}</div>
-            <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+      <tr className="bg-slate-100 dark:bg-slate-800">
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px]">
+          <div className="flex items-center gap-1.5 px-1">
+            <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <div className="truncate">{rt.name}</div>
+              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+            </div>
           </div>
-        </div>
+        </td>
         {dates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
-          const isStopSell = restriction?.is_stop_sell;
+          const prevRestriction = i > 0 ? getRestriction(rt.name, dates[i - 1]) : undefined;
+          const nextRestriction = i < dates.length - 1 ? getRestriction(rt.name, dates[i + 1]) : undefined;
           const { booked, avail } = getAvail(date);
           return (
-            <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
-              <div className="text-[8px] mt-0.5">
-                {booked > 0 && <span className="text-amber-600">{booked}b</span>}
-                {booked > 0 && " · "}
-                <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+            <td key={i} className={cn("border p-1 text-center min-w-[80px]", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              <div className="flex flex-col items-center">
+                {rate != null ? (
+                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                )}
+                <div className="text-[8px] font-semibold mt-0.5">
+                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                </div>
+                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
               </div>
-              <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
-                {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
-                {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
-                {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
-                {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
-              </div>
-            </div>
+            </td>
           );
         })}
-      </div>
+      </tr>
 
       {/* Individual room rows */}
       {typeRooms.map((room) => (
-        <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} cellW={cellW} labelW={labelW} />
+        <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} />
       ))}
-    </div>
+    </>
   );
 }
 
-// ──────────── Week Room Row (flex) ────────────
-function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: {
+// ──────────── Week Room Row (table row) ────────────
+function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
   onSelectBooking: (b: BookingRow) => void;
-  cellW: string;
-  labelW: string;
 }) {
   const isOOS = room.status === "out_of_service";
 
   return (
-    <div className={cn("flex border-b border-border", isOOS && "opacity-50")}>
-      <div className={cn(labelW, "shrink-0 px-3 py-1.5 border-r border-border flex items-center gap-2")}>
-        <span className="text-xs text-foreground/80 ml-4">{room.room_number}</span>
-        {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
-        {isOOS && <Badge variant="outline" className="text-[8px] px-1 py-0">OOS</Badge>}
-      </div>
+    <tr className={cn(isOOS && "opacity-50")}>
+      <td className="border p-1 sticky left-0 bg-background z-10 min-w-[160px]">
+        <div className="flex items-center gap-1 pl-5">
+          <span className="text-xs text-foreground/80">{room.room_number}</span>
+          {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
+          {isOOS && <Badge variant="outline" className="text-[7px] px-1 py-0 leading-none">OOS</Badge>}
+        </div>
+      </td>
       {dates.map((date, i) => {
         const dateStr = format(date, "yyyy-MM-dd");
         if (isOOS) {
-          return <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center")}><Ban className="h-3 w-3 text-muted-foreground/40" /></div>;
+          return <td key={i} className="border h-8 min-w-[80px] bg-muted/20"><div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div></td>;
         }
         const dayBookings = bookings.filter(b => b.rolos_room_ids?.includes(room.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date);
         return (
-          <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
+          <td key={i} className={cn("border p-0 relative h-8 min-w-[80px]", dateCellBg(date))}>
             {dayBookings.map(b => {
               const colors = getStatusColor(b.status);
               const isStart = b.check_in_date === dateStr;
@@ -1231,10 +1375,10 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: 
                 </button>
               );
             })}
-          </div>
+          </td>
         );
       })}
-    </div>
+    </tr>
   );
 }
 
