@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   AreaChart, Area, BarChart, Bar, Legend,
@@ -16,21 +16,24 @@ import {
   differenceInDays, parseISO, eachDayOfInterval, eachMonthOfInterval,
 } from "date-fns";
 
+// ── Types ────────────────────────────────────────────────────────────────
+
+interface ReportBooking {
+  id: string;
+  check_in_date: string;
+  check_out_date: string;
+  total_price: number;
+  status: string;
+  created_at: string | null;
+  room_type_id: string | null;
+  booking_channel: string | null;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
-const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 
-function YoYBadge({ value }: { value: number }) {
-  if (value === 0) return null;
-  const positive = value > 0;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${positive ? "text-emerald-600" : "text-destructive"}`}>
-      {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {fmtPct(value)}
-    </span>
-  );
-}
+const PAGE_SIZE = 500;
 
 // ── Component ────────────────────────────────────────────────────────────
 
@@ -55,34 +58,54 @@ export default function PMSReports() {
   const fromStr = format(dateRange.from, "yyyy-MM-dd");
   const toStr = format(dateRange.to, "yyyy-MM-dd");
 
-  // ── Fetch bookings (same approach as Property Pulse) ──────────────────
+  // ── Fetch bookings with infinite scroll pagination ────────────────────
 
-  const { data: bookings = [], isLoading } = useQuery({
+  const {
+    data: bookingsPages,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["pms-reports-bookings", propertyId, fromStr, toStr],
-    queryFn: async () => {
-      if (!propertyId) return [];
-      const { data } = await supabase
+    queryFn: async ({ pageParam = 0 }) => {
+      if (!propertyId) return { items: [] as ReportBooking[], nextOffset: null };
+      const { data, count } = await supabase
         .from("bookings")
-        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel")
+        .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel", { count: "exact" })
         .eq("property_id", propertyId)
         .gte("check_in_date", fromStr)
-        .lte("check_in_date", toStr);
-      return data || [];
+        .lte("check_in_date", toStr)
+        .order("check_in_date", { ascending: true })
+        .range(pageParam, pageParam + PAGE_SIZE - 1);
+
+      const items = (data || []) as ReportBooking[];
+      const total = count || 0;
+      const nextOffset = pageParam + PAGE_SIZE < total ? pageParam + PAGE_SIZE : null;
+      return { items, nextOffset };
     },
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
+    initialPageParam: 0,
     enabled: !!propertyId,
-    refetchOnMount: "always",
     staleTime: 0,
   });
+
+  // Flatten all pages into single array
+  const bookings = useMemo(() => {
+    if (!bookingsPages) return [];
+    return bookingsPages.pages.flatMap(p => p.items);
+  }, [bookingsPages]);
 
   // Fetch rooms count for occupancy calculation
   const { data: rooms = [] } = useQuery({
     queryKey: ["pms-reports-rooms", propertyId],
     queryFn: async () => {
       if (!propertyId) return [];
-      const { data } = await (supabase.from("rolos_rooms" as any)
+      const { data } = await supabase
+        .from("rolos_rooms")
         .select("id")
-        .eq("property_id", propertyId));
-      return (data as any[]) || [];
+        .eq("property_id", propertyId);
+      return data || [];
     },
     enabled: !!propertyId,
   });
@@ -90,13 +113,13 @@ export default function PMSReports() {
   const totalRooms = Math.max(1, rooms.length);
   const daysInPeriod = Math.max(1, differenceInDays(dateRange.to, dateRange.from) + 1);
 
-  // ── Compute KPIs (mirrors Property Pulse logic) ───────────────────────
+  // ── Compute KPIs ──────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
-    const active = bookings.filter((b: any) => b.status !== "cancelled" && b.status !== "failed");
-    const cancelled = bookings.filter((b: any) => b.status === "cancelled");
-    const totalRevenue = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
-    const bookedNights = active.reduce((s: number, b: any) => {
+    const active = bookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
+    const cancelled = bookings.filter(b => b.status === "cancelled");
+    const totalRevenue = active.reduce((s, b) => s + Number(b.total_price || 0), 0);
+    const bookedNights = active.reduce((s, b) => {
       if (b.check_in_date && b.check_out_date) {
         return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
       }
@@ -126,15 +149,15 @@ export default function PMSReports() {
   const shouldAggregate = daysInPeriod > 45;
 
   const chartData = useMemo(() => {
-    const active = bookings.filter((b: any) => b.status !== "cancelled" && b.status !== "failed");
+    const active = bookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
 
     if (shouldAggregate) {
       const months = eachMonthOfInterval({ start: dateRange.from, end: dateRange.to });
       return months.map(m => {
         const mStr = format(m, "yyyy-MM");
-        const mBookings = active.filter((b: any) => b.check_in_date?.startsWith(mStr));
-        const rev = mBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
-        const nights = mBookings.reduce((s: number, b: any) => {
+        const mBookings = active.filter(b => b.check_in_date?.startsWith(mStr));
+        const rev = mBookings.reduce((s, b) => s + Number(b.total_price || 0), 0);
+        const nights = mBookings.reduce((s, b) => {
           if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
           return s + 1;
         }, 0);
@@ -153,9 +176,9 @@ export default function PMSReports() {
     const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
     return days.map(d => {
       const dStr = format(d, "yyyy-MM-dd");
-      const dBookings = active.filter((b: any) => b.check_in_date?.startsWith(dStr));
-      const rev = dBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
-      const nights = dBookings.reduce((s: number, b: any) => {
+      const dBookings = active.filter(b => b.check_in_date?.startsWith(dStr));
+      const rev = dBookings.reduce((s, b) => s + Number(b.total_price || 0), 0);
+      const nights = dBookings.reduce((s, b) => {
         if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
         return s + 1;
       }, 0);
@@ -172,9 +195,9 @@ export default function PMSReports() {
   // ── Channel breakdown ─────────────────────────────────────────────────
 
   const channelData = useMemo(() => {
-    const active = bookings.filter((b: any) => b.status !== "cancelled" && b.status !== "failed");
+    const active = bookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
     const map = new Map<string, { count: number; revenue: number }>();
-    active.forEach((b: any) => {
+    active.forEach(b => {
       const ch = b.booking_channel || "Direct";
       const entry = map.get(ch) || { count: 0, revenue: 0 };
       entry.count++;
@@ -231,6 +254,13 @@ export default function PMSReports() {
             </Button>
           </div>
         </div>
+
+        {/* Load more indicator */}
+        {hasNextPage && (
+          <Button variant="outline" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage} className="w-full">
+            {isFetchingNextPage ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Loading more…</> : `Load more bookings (${bookings.length} loaded)`}
+          </Button>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

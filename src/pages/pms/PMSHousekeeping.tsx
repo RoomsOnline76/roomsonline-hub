@@ -330,7 +330,7 @@ export default function PMSHousekeeping() {
                       <div className="flex items-center justify-between pt-1 border-t border-border">
                         <p className="text-xs text-muted-foreground italic">No active task — room marked dirty</p>
                         <Button size="sm" variant="outline" onClick={async () => {
-                          const { error } = await supabase.from("rolos_rooms" as any).update({ status: "available" }).eq("id", room.id);
+                          const { error } = await supabase.from("rolos_rooms").update({ status: "available" }).eq("id", room.id);
                           if (error) { toast.error(error.message); return; }
                           toast.success("Room marked clean");
                           fetchAll();
