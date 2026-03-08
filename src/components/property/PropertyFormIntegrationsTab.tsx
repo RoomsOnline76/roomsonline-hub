@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -11,6 +11,7 @@ import { FullEmbedTab } from "@/components/integrations/FullEmbedTab";
 import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
+import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
@@ -54,7 +55,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
       {/* Integration Tabs */}
       <Tabs defaultValue="direct" className="space-y-4">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="direct" className="gap-1.5 text-xs">
             <Link2 className="h-3.5 w-3.5" />
             Direct Link
@@ -70,6 +71,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           <TabsTrigger value="full" className="gap-1.5 text-xs">
             <Globe className="h-3.5 w-3.5" />
             Full Embed
+          </TabsTrigger>
+          <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
+            <Sparkles className="h-3.5 w-3.5" />
+            Smart Button
           </TabsTrigger>
           <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
             <Puzzle className="h-3.5 w-3.5" />
@@ -99,6 +104,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
         <TabsContent value="full" className="space-y-4">
           <FullEmbedTab property={property} />
           <IntegrationDocumentation type="full_embed" />
+        </TabsContent>
+
+        <TabsContent value="smart_button" className="space-y-4">
+          <SmartBookButtonGenerator property={property} />
         </TabsContent>
 
         <TabsContent value="wordpress" className="space-y-4">

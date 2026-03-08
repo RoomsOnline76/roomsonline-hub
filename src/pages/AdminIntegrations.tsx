@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3 } from "lucide-react";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -15,6 +15,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
+import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 
 interface Property {
   id: string;
@@ -114,7 +115,7 @@ export default function AdminIntegrations() {
 
             {/* Integration tabs */}
             <Tabs defaultValue="direct" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
                   <Link2 className="h-3.5 w-3.5" /> Direct Link
                 </TabsTrigger>
@@ -126,6 +127,9 @@ export default function AdminIntegrations() {
                 </TabsTrigger>
                 <TabsTrigger value="full_embed" className="flex items-center gap-1.5 text-xs">
                   <Globe className="h-3.5 w-3.5" /> Full Embed
+                </TabsTrigger>
+                <TabsTrigger value="smart_button" className="flex items-center gap-1.5 text-xs">
+                  <Sparkles className="h-3.5 w-3.5" /> Smart Button
                 </TabsTrigger>
                 <TabsTrigger value="wordpress" className="flex items-center gap-1.5 text-xs">
                   <Puzzle className="h-3.5 w-3.5" /> WordPress
@@ -155,6 +159,9 @@ export default function AdminIntegrations() {
                   <FullEmbedTab property={currentProperty} />
                   <DomainWhitelist propertyId={selectedProperty} integrationType="full_embed" />
                 </div>
+              </TabsContent>
+              <TabsContent value="smart_button">
+                <SmartBookButtonGenerator property={currentProperty} />
               </TabsContent>
               <TabsContent value="wordpress">
                 <WordPressTab property={currentProperty} />

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles } from "lucide-react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
@@ -12,6 +12,7 @@ import { FullEmbedTab } from "@/components/integrations/FullEmbedTab";
 import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
+import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -106,7 +107,7 @@ export default function PMSIntegrations() {
 
         {/* Integration Tabs */}
         <Tabs defaultValue="direct" className="space-y-4">
-          <TabsList className="grid grid-cols-6 w-full max-w-3xl">
+          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
             <TabsTrigger value="direct" className="gap-1.5 text-xs">
               <Link2 className="h-3.5 w-3.5" />
               Direct Link
@@ -122,6 +123,10 @@ export default function PMSIntegrations() {
             <TabsTrigger value="full" className="gap-1.5 text-xs">
               <Globe className="h-3.5 w-3.5" />
               Full Embed
+            </TabsTrigger>
+            <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              Smart Button
             </TabsTrigger>
             <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
               <Puzzle className="h-3.5 w-3.5" />
@@ -151,6 +156,10 @@ export default function PMSIntegrations() {
           <TabsContent value="full" className="space-y-4">
             <FullEmbedTab property={property} />
             <IntegrationDocumentation type="full_embed" />
+          </TabsContent>
+
+          <TabsContent value="smart_button" className="space-y-4">
+            <SmartBookButtonGenerator property={property} />
           </TabsContent>
 
           <TabsContent value="wordpress" className="space-y-4">
