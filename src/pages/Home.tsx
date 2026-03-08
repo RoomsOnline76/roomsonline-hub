@@ -101,13 +101,14 @@ function HomeContent() {
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);
   const [heroVideoUrl, setHeroVideoUrl] = useState<string | null>(null);
-  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string } | null>(null);
+  const [heroProperty, setHeroProperty] = useState<{ name: string; city: string; country: string; slug: string } | null>(null);
   const [originalHeroImage, setOriginalHeroImage] = useState<string>(heroFallback);
   const [originalHeroVideoUrl, setOriginalHeroVideoUrl] = useState<string | null>(null);
   const [originalHeroProperty, setOriginalHeroProperty] = useState<{
     name: string;
     city: string;
     country: string;
+    slug: string;
   } | null>(null);
   const [isLoadingHero, setIsLoadingHero] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -241,7 +242,7 @@ function HomeContent() {
       try {
         const { data: heroProperties } = await supabase
           .from("properties")
-          .select("images, hero_video_url, name, city, country")
+          .select("images, hero_video_url, name, city, country, slug")
           .eq("hero_listing", true)
           .eq("is_active", true)
           .eq("show_on_website", true);
@@ -253,6 +254,7 @@ function HomeContent() {
             name: string;
             city: string;
             country: string;
+            slug: string;
           }[] = [];
           for (const prop of heroProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
@@ -263,6 +265,7 @@ function HomeContent() {
                 name: prop.name,
                 city: prop.city,
                 country: prop.country,
+                slug: prop.slug || "",
               });
             }
           }
@@ -272,10 +275,10 @@ function HomeContent() {
             const selected = validProperties[randomIndex];
             setHeroImage(selected.imageUrl);
             setHeroVideoUrl(selected.videoUrl);
-            setHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
+            setHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
             setOriginalHeroImage(selected.imageUrl);
             setOriginalHeroVideoUrl(selected.videoUrl);
-            setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country });
+            setOriginalHeroProperty({ name: selected.name, city: selected.city, country: selected.country, slug: selected.slug });
           }
         }
       } catch (error) {
@@ -308,6 +311,7 @@ function HomeContent() {
                 name: aiProperty.name,
                 city: aiProperty.city,
                 country: aiProperty.country,
+                slug: aiProperty.slug || "",
               });
             }
 
@@ -338,6 +342,7 @@ function HomeContent() {
             name: selectedProperty.name,
             city: selectedProperty.city,
             country: selectedProperty.country,
+            slug: selectedProperty.slug || "",
           });
         }
       } else if (!isAISearchActive) {
@@ -510,6 +515,18 @@ function HomeContent() {
         <div className="absolute bottom-24 sm:bottom-28 left-0 right-0 z-20">
           <AISearchInput />
         </div>
+
+        {/* Hero property credit overlay */}
+        {heroProperty && heroProperty.slug && (
+          <Link
+            to={`/property/${heroProperty.slug}`}
+            className="absolute bottom-16 sm:bottom-20 right-4 sm:right-8 z-20 text-white/70 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-md flex items-center gap-1.5"
+          >
+            <span className="font-medium">{heroProperty.name}</span>
+            <span className="text-white/50">•</span>
+            <span>{heroProperty.city}</span>
+          </Link>
+        )}
 
         <CategoryBanner
           onSegmentClick={handleSegmentClick}
