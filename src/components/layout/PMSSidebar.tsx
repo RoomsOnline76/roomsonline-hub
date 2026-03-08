@@ -102,7 +102,7 @@ export function PMSSidebar() {
       {/* Header — property logo or fallback */}
       <div className={cn("flex flex-col gap-2 p-4 border-b border-border", collapsed && "items-center")}>
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-          {brandEnabled && logoUrl ? (
+          {logoUrl ? (
             <img src={logoUrl} alt={propertyName} className="h-8 w-8 object-contain rounded" />
           ) : (
             <img src={rolLogo} alt="ROL'OS" className="h-8 w-8 object-contain" />

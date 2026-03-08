@@ -326,7 +326,40 @@ export default function PMSBranding() {
               <CardHeader><CardTitle>Communications</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div><Label>Email Footer Text</Label><Textarea value={config.email_footer_text} onChange={e => setConfig(p => ({ ...p, email_footer_text: e.target.value }))} placeholder="Custom text at the bottom of guest emails" rows={3} /></div>
-                <div><Label>Favicon URL</Label><Input value={config.favicon_url} onChange={e => setConfig(p => ({ ...p, favicon_url: e.target.value }))} placeholder="https://..." /></div>
+                <div>
+                  <Label>Favicon</Label>
+                  <p className="text-xs text-muted-foreground mb-2">Upload an image or paste a URL for your browser tab icon.</p>
+                  {config.favicon_url && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <img src={config.favicon_url} alt="Favicon" className="h-6 w-6 object-contain rounded border border-border" />
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{config.favicon_url}</span>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5" onClick={() => setConfig(p => ({ ...p, favicon_url: "" }))}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium hover:bg-accent transition-colors">
+                      <Upload className="h-3 w-3" />
+                      Upload
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        if (f.size > 2 * 1024 * 1024) { toast.error("Max 2MB"); return; }
+                        try {
+                          const folder = propertyId || "new";
+                          const fileName = `${folder}/favicon-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+                          const { data: upData, error: upErr } = await supabase.storage.from("property-images").upload(fileName, f, { cacheControl: "3600", upsert: false });
+                          if (upErr) throw upErr;
+                          const { data: urlData } = supabase.storage.from("property-images").getPublicUrl(upData.path);
+                          setConfig(p => ({ ...p, favicon_url: urlData.publicUrl }));
+                          toast.success("Favicon uploaded");
+                        } catch (err: any) { toast.error(err.message || "Upload failed"); }
+                      }} />
+                    </label>
+                    <Input type="url" value={config.favicon_url} onChange={e => setConfig(p => ({ ...p, favicon_url: e.target.value }))} placeholder="https://example.com/favicon.ico" className="text-xs flex-1" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
