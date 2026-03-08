@@ -15,6 +15,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
+import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 
 interface Property {
   id: string;
