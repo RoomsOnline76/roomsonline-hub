@@ -66,8 +66,8 @@ function PMSMessaging() {
     try {
       await deleteTemplate.mutateAsync(id);
       toast.success("Template deleted");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to delete");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to delete");
     }
   };
 
