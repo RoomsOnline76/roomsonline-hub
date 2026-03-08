@@ -46,7 +46,9 @@ import {
   Settings2,
   TrendingUp,
   Plus,
+  Pencil,
 } from "lucide-react";
+import { toast } from "sonner";
 
 type ViewMode = "week" | "month";
 
