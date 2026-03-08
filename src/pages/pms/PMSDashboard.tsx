@@ -6,6 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Building2, BedDouble, Users, CalendarCheck, AlertTriangle, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { format } from "date-fns";
+
+interface ArrivalDeparture {
+  id: string;
+  guest_name: string;
+  check_in_date: string;
+  check_out_date: string;
+  status: string;
+  rooms: any;
+}
 
 export default function PMSDashboard() {
   const { user } = useAuth();
@@ -13,17 +23,37 @@ export default function PMSDashboard() {
   const propertyId = searchParams.get("property");
   const [stats, setStats] = useState({ totalRooms: 0, occupied: 0, dirty: 0, maintenance: 0, available: 0 });
   const [propertyName, setPropertyName] = useState("");
+  const [arrivals, setArrivals] = useState<ArrivalDeparture[]>([]);
+  const [departures, setDepartures] = useState<ArrivalDeparture[]>([]);
 
   useEffect(() => {
     if (!propertyId) return;
 
-    const fetchStats = async () => {
-      const [{ data: rooms }, { data: prop }] = await Promise.all([
+    const fetchData = async () => {
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      const [{ data: rooms }, { data: prop }, { data: arrivalsData }, { data: departuresData }] = await Promise.all([
         supabase.from("rolos_rooms").select("status").eq("property_id", propertyId),
         supabase.from("properties").select("name").eq("id", propertyId).single(),
+        supabase
+          .from("bookings")
+          .select("id, guest_name, check_in_date, check_out_date, status, rooms")
+          .eq("property_id", propertyId)
+          .eq("check_in_date", today)
+          .in("status", ["confirmed", "pending"])
+          .limit(20),
+        supabase
+          .from("bookings")
+          .select("id, guest_name, check_in_date, check_out_date, status, rooms")
+          .eq("property_id", propertyId)
+          .eq("check_out_date", today)
+          .in("status", ["confirmed", "checked_in"])
+          .limit(20),
       ]);
 
       if (prop) setPropertyName(prop.name);
+      if (arrivalsData) setArrivals(arrivalsData);
+      if (departuresData) setDepartures(departuresData);
       if (rooms) {
         setStats({
           totalRooms: rooms.length,
@@ -34,7 +64,7 @@ export default function PMSDashboard() {
         });
       }
     };
-    fetchStats();
+    fetchData();
   }, [propertyId]);
 
   if (!propertyId) {
@@ -86,18 +116,50 @@ export default function PMSDashboard() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Today's Arrivals</CardTitle>
+              <CardTitle className="text-lg">Today's Arrivals ({arrivals.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-sm">No arrivals today</p>
+              {arrivals.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No arrivals today</p>
+              ) : (
+                <div className="space-y-3">
+                  {arrivals.map((booking) => (
+                    <div key={booking.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <div>
+                        <p className="font-medium text-sm">{booking.guest_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(booking.check_in_date), "MMM d")} → {format(new Date(booking.check_out_date), "MMM d")}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{booking.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Today's Departures</CardTitle>
+              <CardTitle className="text-lg">Today's Departures ({departures.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-sm">No departures today</p>
+              {departures.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No departures today</p>
+              ) : (
+                <div className="space-y-3">
+                  {departures.map((booking) => (
+                    <div key={booking.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <div>
+                        <p className="font-medium text-sm">{booking.guest_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(booking.check_in_date), "MMM d")} → {format(new Date(booking.check_out_date), "MMM d")}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">{booking.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

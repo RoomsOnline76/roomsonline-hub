@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,20 +29,27 @@ export default function PMSGuests() {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "" });
 
-  const fetchGuests = async () => {
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const fetchGuests = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
     try {
-      const res = await callPmsApi<{ guests: Guest[] }>("get_guest_profiles", { propertyId, search: search || undefined, limit: 100 });
+      const res = await callPmsApi<{ guests: Guest[] }>("get_guest_profiles", { propertyId, search: debouncedSearch || undefined, limit: 100 });
       if (res.success) setGuests(res.data?.guests || []);
     } catch { /* ignore */ }
     setLoading(false);
-  };
+  }, [propertyId, debouncedSearch]);
 
-  useEffect(() => { fetchGuests(); }, [propertyId, search]);
+  useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
   const handleCreate = async () => {
     if (!propertyId || !form.full_name) return;

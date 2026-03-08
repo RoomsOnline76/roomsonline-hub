@@ -20,6 +20,11 @@ const STATUS_COLORS: Record<string, string> = {
   out_of_order: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
+interface RoomType {
+  id: string;
+  name: string;
+}
+
 interface Room {
   id: string;
   room_number: string;
@@ -34,16 +39,21 @@ export default function PMSRooms() {
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newRoom, setNewRoom] = useState({ room_number: "", room_name: "", floor: "" });
+  const [newRoom, setNewRoom] = useState({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
 
   const fetchRooms = async () => {
     if (!propertyId) return;
     setLoading(true);
     try {
-      const res = await callPmsApi<{ rooms: Room[] }>("get_physical_rooms", { propertyId });
-      if (res.success) setRooms(res.data?.rooms || []);
+      const [roomsRes, typesRes] = await Promise.all([
+        callPmsApi<{ rooms: Room[] }>("get_physical_rooms", { propertyId }),
+        callPmsApi<{ room_types: RoomType[] }>("get_rolos_room_types", { propertyId }),
+      ]);
+      if (roomsRes.success) setRooms(roomsRes.data?.rooms || []);
+      if (typesRes.success) setRoomTypes(typesRes.data?.room_types || []);
     } catch { /* ignore */ }
     setLoading(false);
   };
@@ -58,11 +68,13 @@ export default function PMSRooms() {
         room_number: newRoom.room_number,
         room_name: newRoom.room_name || null,
         floor: newRoom.floor ? parseInt(newRoom.floor) : null,
+        room_type_id: newRoom.room_type_id || null,
+        max_occupancy: newRoom.max_occupancy ? parseInt(newRoom.max_occupancy) : null,
       });
       if (res.success) {
         toast.success("Room created");
         setDialogOpen(false);
-        setNewRoom({ room_number: "", room_name: "", floor: "" });
+        setNewRoom({ room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" });
         fetchRooms();
       }
     } catch (e: any) {
@@ -94,9 +106,25 @@ export default function PMSRooms() {
             <DialogContent>
               <DialogHeader><DialogTitle>Add Physical Room</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div><Label>Room Number *</Label><Input value={newRoom.room_number} onChange={e => setNewRoom(p => ({ ...p, room_number: e.target.value }))} /></div>
-                <div><Label>Room Name</Label><Input value={newRoom.room_name} onChange={e => setNewRoom(p => ({ ...p, room_name: e.target.value }))} /></div>
-                <div><Label>Floor</Label><Input type="number" value={newRoom.floor} onChange={e => setNewRoom(p => ({ ...p, floor: e.target.value }))} /></div>
+                <div><Label>Room Number *</Label><Input value={newRoom.room_number} onChange={e => setNewRoom(p => ({ ...p, room_number: e.target.value }))} placeholder="e.g. 101" /></div>
+                <div><Label>Room Name</Label><Input value={newRoom.room_name} onChange={e => setNewRoom(p => ({ ...p, room_name: e.target.value }))} placeholder="e.g. Ocean Suite" /></div>
+                <div>
+                  <Label>Room Type</Label>
+                  <Select value={newRoom.room_type_id} onValueChange={v => setNewRoom(p => ({ ...p, room_type_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+                    <SelectContent>
+                      {roomTypes.length === 0 ? (
+                        <SelectItem value="none" disabled>No room types configured</SelectItem>
+                      ) : (
+                        roomTypes.map(rt => <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>)
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Floor</Label><Input type="number" value={newRoom.floor} onChange={e => setNewRoom(p => ({ ...p, floor: e.target.value }))} /></div>
+                  <div><Label>Max Occupancy</Label><Input type="number" value={newRoom.max_occupancy} onChange={e => setNewRoom(p => ({ ...p, max_occupancy: e.target.value }))} /></div>
+                </div>
                 <Button onClick={handleCreate} className="w-full">Create Room</Button>
               </div>
             </DialogContent>
@@ -106,7 +134,7 @@ export default function PMSRooms() {
         {loading ? (
           <p className="text-muted-foreground">Loading rooms...</p>
         ) : rooms.length === 0 ? (
-          <Card><CardContent className="py-12 text-center"><BedDouble className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No rooms configured yet.</p></CardContent></Card>
+          <Card><CardContent className="py-12 text-center"><BedDouble className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No rooms configured yet. Add your first room to get started.</p></CardContent></Card>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             {rooms.map((room) => (
