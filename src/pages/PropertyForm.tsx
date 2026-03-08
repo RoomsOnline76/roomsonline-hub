@@ -5996,7 +5996,7 @@ export default function PropertyForm() {
                           </div>
                         </div>
                       </div>
-                      {selectedPMS && (
+                      {selectedPMS && !isRolProperty && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
