@@ -1102,12 +1102,13 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
 }
 
 // ──────────── Room Type Section (for week view) ────────────
-function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getRestriction, onSelectBooking, cellW, labelW }: {
+function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, cellW, labelW }: {
   rt: RoomType;
   dates: Date[];
   roomsByType: Map<string, Room[]>;
   bookings: BookingRow[];
   getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow) => void;
   cellW: string;
