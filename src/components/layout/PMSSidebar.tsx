@@ -51,6 +51,8 @@ export function PMSSidebar() {
   const propertyId = searchParams.get("property");
   const { signOut } = useAuth();
   const { propertyName, logoUrl, brandEnabled } = usePMSBrand();
+  const { staffRole } = usePmsStaffRole(propertyId);
+  const visibleModules = getVisibleModules(staffRole);
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("pms-sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
