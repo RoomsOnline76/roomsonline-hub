@@ -327,7 +327,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div>
                 <Label>Total Price (ZAR)</Label>
                 <Input type="number" min={0} value={form.total_price} onChange={e => update("total_price", e.target.value)} placeholder={autoPrice ? `Auto: R${autoPrice.toLocaleString()}` : "0.00"} />
-                {autoPrice && !form.total_price && <p className="text-[10px] text-muted-foreground mt-0.5">Auto-calculated: R{autoPrice.toLocaleString()}</p>}
+                {autoPrice && !form.total_price && (
+                  <div className="mt-0.5">
+                    <p className="text-[10px] text-muted-foreground">Auto: R{autoPrice.toLocaleString()}</p>
+                    {priceBreakdown && <p className="text-[10px] text-muted-foreground/70">{priceBreakdown}</p>}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Payment Status</Label>
