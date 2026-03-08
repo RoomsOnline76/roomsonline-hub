@@ -301,7 +301,41 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch rate seasons & prices
+  // Fetch rate seasons & prices & rate plan base rates
+  const { data: ratePlansWithRate = [] } = useQuery({
+    queryKey: ["pms-cal-rate-plans", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      const { data } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, base_rate")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+      return (data || []) as { id: string; base_rate: number | null }[];
+    },
+    enabled: !!propertyId,
+  });
+
+  // Fetch rate plan → room type links
+  const { data: ratePlanRoomLinks = [] } = useQuery({
+    queryKey: ["pms-cal-rate-plan-links", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      const { data: plans } = await supabase
+        .from("rolos_rate_plans")
+        .select("id")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+      if (!plans?.length) return [];
+      const { data } = await supabase
+        .from("rolos_rate_plan_room_types")
+        .select("rate_plan_id, room_type_id")
+        .in("rate_plan_id", plans.map(p => p.id));
+      return (data || []) as { rate_plan_id: string; room_type_id: string }[];
+    },
+    enabled: !!propertyId,
+  });
+
   const { data: rateSeasons = [] } = useQuery({
     queryKey: ["pms-cal-seasons", propertyId],
     queryFn: async () => {
@@ -411,12 +445,22 @@ export default function PMSDashboard() {
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
+    // 1. Check seasonal prices first
     for (const season of rateSeasons) {
       if (dateStr >= season.start_date && dateStr <= season.end_date) {
         const price = ratePrices.find(p => p.season_id === season.id && p.room_type_id === roomTypeId);
         if (price) return price.base_rate;
       }
     }
+    // 2. Check linked rate plan base_rate
+    const linkedPlanIds = ratePlanRoomLinks
+      .filter(l => l.room_type_id === roomTypeId)
+      .map(l => l.rate_plan_id);
+    for (const planId of linkedPlanIds) {
+      const plan = ratePlansWithRate.find(p => p.id === planId);
+      if (plan?.base_rate && plan.base_rate > 0) return plan.base_rate;
+    }
+    // 3. Fallback to room type default_rate
     const rt = roomTypes.find(t => t.id === roomTypeId);
     return rt?.default_rate || null;
   };

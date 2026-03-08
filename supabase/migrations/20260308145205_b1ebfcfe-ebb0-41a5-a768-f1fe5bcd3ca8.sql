@@ -1,0 +1,1 @@
+ALTER TABLE public.rolos_rate_plans ADD COLUMN IF NOT EXISTS base_rate numeric DEFAULT 0;
