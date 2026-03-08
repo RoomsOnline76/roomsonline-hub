@@ -174,13 +174,27 @@ Deno.serve(async (req) => {
     const tokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(); // 7 days
 
     // Fetch the active contract template version
-    const { data: activeTemplate } = await supabase
+    // If template_id is provided, use that specific template
+    // Otherwise, fall back to the default active template
+    let activeTemplateQuery = supabase
       .from("contract_template_versions")
-      .select("id")
+      .select("id, template_id")
       .eq("status", "active")
       .order("version_number", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+
+    // If a specific template is requested, filter by it
+    if (template_id) {
+      activeTemplateQuery = activeTemplateQuery.eq("template_id", template_id);
+    } else if (contract_type === "rolos") {
+      // ROL'OS PMS template ID
+      activeTemplateQuery = activeTemplateQuery.eq("template_id", "b2c3d4e5-f6a7-4890-bcde-f12345678901");
+    } else {
+      // Default standard template ID
+      activeTemplateQuery = activeTemplateQuery.eq("template_id", "f47ac10b-58cc-4372-a567-0e02b2c3d479");
+    }
+
+    const { data: activeTemplate } = await activeTemplateQuery.single();
 
     console.log("Active template version:", activeTemplate?.id || "none found");
     console.log("Is new owner:", isNewOwner);
