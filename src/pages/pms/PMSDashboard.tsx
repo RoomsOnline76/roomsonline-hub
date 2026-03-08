@@ -812,7 +812,7 @@ export default function PMSDashboard() {
         roomTypes={roomTypes}
         rooms={rooms}
         ratePlans={ratePlansWithRate}
-        onCreated={() => queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] })}
+        onCreated={() => { queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }}
       />
 
       {/* Restriction Dialogs */}
