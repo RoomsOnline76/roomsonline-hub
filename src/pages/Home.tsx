@@ -387,7 +387,7 @@ function HomeContent() {
     <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
-        {/* Background media */}
+        {/* Background media - clickable to property */}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
         >
@@ -407,6 +407,14 @@ function HomeContent() {
           )}
           {/* Refined gradient overlay - 35% for elegance */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/40" />
+          {/* Clickable hero overlay to property page */}
+          {heroProperty && (
+            <Link
+              to={`/property/${heroProperty.slug || heroProperty.id}`}
+              className="absolute inset-0 z-[1]"
+              aria-label={`View ${heroProperty.name}`}
+            />
+          )}
         </div>
 
         {/* Navigation Header */}
