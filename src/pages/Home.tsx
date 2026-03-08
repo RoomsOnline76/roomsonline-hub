@@ -237,18 +237,31 @@ function HomeContent() {
     }
   }, [selectedSegment]);
 
-  // Fetch random hero image/video from hero properties
+  // Fetch random hero image from public properties (with hero-listing fallback)
   useEffect(() => {
     async function fetchHeroMedia() {
       try {
-        const { data: heroProperties } = await supabase
-          .from("properties")
-          .select("id, images, hero_video_url, name, city, country, slug")
-          .eq("hero_listing", true)
-          .eq("is_active", true)
-          .eq("show_on_website", true);
+        const heroSelect = "id, images, name, city, country, slug, hero_listing";
 
-        if (heroProperties && heroProperties.length > 0) {
+        const { data: heroListedProperties } = await supabase
+          .from("public_properties")
+          .select(heroSelect)
+          .eq("is_active", true)
+          .eq("hero_listing", true);
+
+        const { data: fallbackProperties } = !heroListedProperties || heroListedProperties.length === 0
+          ? await supabase
+              .from("public_properties")
+              .select("id, images, name, city, country, slug")
+              .eq("is_active", true)
+          : { data: null };
+
+        const sourceProperties =
+          heroListedProperties && heroListedProperties.length > 0
+            ? heroListedProperties
+            : fallbackProperties || [];
+
+        if (sourceProperties.length > 0) {
           const validProperties: {
             id: string;
             imageUrl: string;
@@ -258,13 +271,14 @@ function HomeContent() {
             country: string;
             slug: string;
           }[] = [];
-          for (const prop of heroProperties) {
+
+          for (const prop of sourceProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
               validProperties.push({
                 id: prop.id,
                 imageUrl,
-                videoUrl: prop.hero_video_url || null,
+                videoUrl: null,
                 name: prop.name,
                 city: prop.city,
                 country: prop.country,
@@ -499,7 +513,7 @@ function HomeContent() {
 
         {/* Hero Text */}
         <div
-          className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 transition-opacity duration-500 ${isAISearchActive ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+          className={`absolute inset-0 flex items-start pt-32 sm:pt-40 landscape:pt-24 z-10 pointer-events-none transition-opacity duration-500 ${isAISearchActive ? "opacity-0" : "opacity-100"}`}
         >
           <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
             <h2 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
