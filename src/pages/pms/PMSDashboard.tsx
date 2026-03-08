@@ -91,6 +91,7 @@ interface BookingRow {
   rolos_rate_plan_id: string | null;
   modification_notes: any;
   room_type_id: string | null;
+  rolos_guest_id: string | null;
 }
 
 interface RoomType {
