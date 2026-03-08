@@ -70,7 +70,7 @@ export default function PMSRatePlans() {
     // Get existing plans
     const { data: existingPlans } = await supabase
       .from("rolos_rate_plans")
-      .select("id, code, name")
+      .select("id, code, name, description")
       .eq("property_id", propertyId);
 
     const existingCodes = new Set((existingPlans || []).map(p => p.code));
@@ -82,20 +82,35 @@ export default function PMSRatePlans() {
     });
 
     if (missingRates.length > 0) {
-      const rows = missingRates.map(rt => ({
-        property_id: propertyId,
-        name: rt.name || 'Unnamed Rate',
-        code: typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id),
-        description: rt.description || null,
-        is_active: true,
-        min_stay: rt.minStayDays || 1,
-        requires_deposit: false,
-        base_rate: rt.baseRate || 0,
-      }));
+      const rows = missingRates.map(rt => {
+        const desc = rt.description || '';
+        const cleanDesc = desc.toLowerCase().includes('configure rate amount') ? '' : desc;
+        return {
+          property_id: propertyId,
+          name: rt.name || 'Unnamed Rate',
+          code: typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id),
+          description: cleanDesc || null,
+          is_active: true,
+          min_stay: rt.minStayDays || 1,
+          requires_deposit: false,
+          base_rate: rt.baseRate || 0,
+        };
+      });
 
       const { error } = await supabase.from("rolos_rate_plans").insert(rows);
       if (!error) {
         toast.success(`Synced ${missingRates.length} rate plan${missingRates.length !== 1 ? 's' : ''} from Property Overview`);
+      }
+    }
+
+    // Clean stale "configure rate amount" descriptions on existing plans
+    for (const plan of (existingPlans || [])) {
+      const planAny = plan as any;
+      if (planAny.description && typeof planAny.description === 'string' && planAny.description.toLowerCase().includes('configure rate amount')) {
+        await supabase
+          .from("rolos_rate_plans")
+          .update({ description: null })
+          .eq("id", plan.id);
       }
     }
 
@@ -420,7 +435,7 @@ export default function PMSRatePlans() {
                     {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
                   </CardHeader>
                   <CardContent>
-                    {plan.description && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
+                    {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
                       {plan.base_rate && plan.base_rate > 0 ? (
                         <div className="flex items-center gap-1">

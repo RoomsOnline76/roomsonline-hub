@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { PMSLayout } from "@/components/layout/PMSLayout";
+import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -44,6 +45,7 @@ import {
   Sparkles,
   Settings2,
   TrendingUp,
+  Plus,
 } from "lucide-react";
 
 type ViewMode = "week" | "month";
@@ -158,6 +160,7 @@ export default function PMSDashboard() {
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
+  const [manualBookingOpen, setManualBookingOpen] = useState(false);
 
   // Compute date range
   const dateRange = useMemo(() => {
@@ -308,10 +311,10 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("rolos_rate_plans")
-        .select("id, base_rate")
+        .select("id, name, base_rate")
         .eq("property_id", propertyId)
         .eq("is_active", true);
-      return (data || []) as { id: string; base_rate: number | null }[];
+      return (data || []) as { id: string; name: string; base_rate: number | null }[];
     },
     enabled: !!propertyId,
   });
@@ -576,6 +579,12 @@ export default function PMSDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {/* New Booking */}
+            <Button size="sm" onClick={() => setManualBookingOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Booking
+            </Button>
+
             {/* Restrictions dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -763,6 +772,17 @@ export default function PMSDashboard() {
         </SheetContent>
       </Sheet>
 
+      {/* Manual Booking Dialog */}
+      <ManualBookingDialog
+        open={manualBookingOpen}
+        onOpenChange={setManualBookingOpen}
+        propertyId={propertyId || ""}
+        roomTypes={roomTypes}
+        rooms={rooms}
+        ratePlans={ratePlansWithRate}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] })}
+      />
+
       {/* Restriction Dialogs */}
       <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
@@ -891,9 +911,22 @@ function MonthCalendarGrid(props: CalendarGridProps) {
           {/* Room type rows */}
           {roomTypes.map((rt) => {
             const typeRooms = roomsByType.get(rt.id) || [];
+            const totalUnits = typeRooms.length || 1;
+
+            const getMonthAvail = (date: Date) => {
+              const dateStr = format(date, "yyyy-MM-dd");
+              const booked = bookings.filter(b => {
+                if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                  return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+                }
+                return false;
+              }).length;
+              return { booked, avail: Math.max(0, totalUnits - booked) };
+            };
+
             return (
               <div key={rt.id}>
-                {/* Room type header with rates + restrictions */}
+                {/* Room type header with rates + restrictions + availability */}
                 <div className="grid border-b border-border bg-muted/20" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
                   <div className="px-3 py-2 border-r border-border flex items-center gap-2">
                     <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -906,13 +939,19 @@ function MonthCalendarGrid(props: CalendarGridProps) {
                     const rate = getRateForDate(rt.id, date);
                     const restriction = getRestriction(rt.name, date);
                     const isStopSell = restriction?.is_stop_sell;
+                    const { booked, avail } = getMonthAvail(date);
                     return (
-                      <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+                      <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
                         {rate != null ? (
                           <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground/50">—</span>
                         )}
+                        <div className="text-[8px] mt-0.5">
+                          {booked > 0 && <span className="text-amber-600">{booked}b</span>}
+                          {booked > 0 && " · "}
+                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+                        </div>
                         <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                           {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
                           {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
@@ -1058,6 +1097,19 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   labelW: string;
 }) {
   const typeRooms = roomsByType.get(rt.id) || [];
+  const totalUnits = typeRooms.length || 1; // At least 1 bookable unit per type
+
+  // Compute per-day availability
+  const getAvail = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const booked = bookings.filter(b => {
+      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+        return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+      }
+      return false;
+    }).length;
+    return { booked, avail: Math.max(0, totalUnits - booked) };
+  };
 
   return (
     <div>
@@ -1074,9 +1126,15 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
           const isStopSell = restriction?.is_stop_sell;
+          const { booked, avail } = getAvail(date);
           return (
-            <div key={i} className={cn(cellW, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+            <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
               {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
+              <div className="text-[8px] mt-0.5">
+                {booked > 0 && <span className="text-amber-600">{booked}b</span>}
+                {booked > 0 && " · "}
+                <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+              </div>
               <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                 {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
                 {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
