@@ -54,8 +54,16 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
       </Card>
 
       {/* Integration Tabs */}
-      <Tabs defaultValue="direct" className="space-y-4">
+      <Tabs defaultValue="smart_button" className="space-y-4">
         <TabsList className="grid grid-cols-7 w-full">
+          <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative">
+            <Sparkles className="h-3.5 w-3.5" />
+            Smart Button
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary" />
+            </span>
+          </TabsTrigger>
           <TabsTrigger value="direct" className="gap-1.5 text-xs">
             <Link2 className="h-3.5 w-3.5" />
             Direct Link
@@ -72,10 +80,6 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
             <Globe className="h-3.5 w-3.5" />
             Full Embed
           </TabsTrigger>
-          <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
-            <Sparkles className="h-3.5 w-3.5" />
-            Smart Button
-          </TabsTrigger>
           <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
             <Puzzle className="h-3.5 w-3.5" />
             WordPress
@@ -85,6 +89,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
             API
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="smart_button" className="space-y-4">
+          <SmartBookButtonGenerator property={property} />
+        </TabsContent>
 
         <TabsContent value="direct" className="space-y-4">
           <DirectLinkTab property={property} />
