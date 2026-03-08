@@ -143,6 +143,7 @@ serve(async (req) => {
           user_id: userId,
           staff_role: staffRole,
           display_name: displayName,
+          email: email,
           must_change_password: true,
           invited_by: caller.id,
         })

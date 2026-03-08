@@ -76,7 +76,7 @@ export default function PMSStaff() {
     setLoading(true);
     const { data, error } = await supabase
       .from("property_staff")
-      .select("*, profiles:user_id(email)")
+      .select("*")
       .eq("property_id", propertyId)
       .order("created_at", { ascending: false });
 
