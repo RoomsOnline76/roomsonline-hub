@@ -152,7 +152,7 @@ export function useCreateTaxRule(propertyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (params: { name: string; rate: number; applies_to: string }) => {
-      const { error } = await supabase.from("rolos_tax_rules" as "bookings").insert({ property_id: propertyId, ...params } as Record<string, unknown>);
+      const { error } = await supabase.from("rolos_tax_rules" as never).insert({ property_id: propertyId, ...params } as never);
       if (error) throw error;
     },
     onSuccess: () => {
