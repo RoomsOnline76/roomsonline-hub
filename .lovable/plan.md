@@ -1,62 +1,46 @@
 
-# Reinstate Journey Brochure Generation
+# ROL'OS Native PMS Enterprise Implementation — COMPLETED
 
-## Problem Summary
+## What Was Delivered
 
-The travel brochure (powered by AI -- Lovable AI for poems and xAI for dining recommendations via the enrichment pipeline) is not being generated or delivered. Investigation reveals **three root causes**:
+### Phase 1: Database Schema ✅
+14 new `rolos_` tables created via migration:
+- **Core Inventory**: `rolos_rooms`, `rolos_room_types`, `rolos_rate_plans`
+- **Pricing Engine**: `rolos_rate_seasons` (GiST exclusion for overlap prevention), `rolos_rate_prices`
+- **Guest Management**: `rolos_guest_profiles`, `rolos_guest_comments`
+- **Reservation Extensions**: `rolos_booking_rooms` + ALTER `bookings` (6 new columns)
+- **Financial**: `rolos_folios`, `rolos_folio_transactions` (auto-balance recalc trigger)
+- **Operations**: `rolos_housekeeping_tasks`, `rolos_housekeeping_schedules`, `rolos_maintenance_requests`
+- **Analytics**: `rolos_daily_metrics` (generated ADR/RevPAR/occupancy columns)
 
-1. **Wrong AI Gateway URL**: The `generate-itinerary-pdf` function calls `https://api.lovable.dev/v1/chat/completions` (non-existent) instead of the correct `https://ai.gateway.lovable.dev/v1/chat/completions`. This silently fails all AI-powered content (poems, tone-adaptive copy).
+All tables have RLS policies, `updated_at` triggers, and validation triggers.
 
-2. **No proactive brochure generation**: The journey confirmation email (`send-itinerary-email`) only includes a "Download Your Journey Brochure" link pointing to the confirmation page. The brochure is generated lazily on-demand when the guest clicks. This means:
-   - The guest experience depends on them clicking a link
-   - The brochure is never pre-generated and attached to the email
-   - If the guest's browser blocks popups, they get nothing
+### Phase 2: Edge Function Extensions ✅
+Extended `roomsonline-pms-api` with 20+ new actions:
+- Room management: `get_physical_rooms`, `create_physical_room`, `update_room_status`
+- Room types: `get_rolos_room_types`, `create_rolos_room_type`, `update_rolos_room_type`
+- Rate plans: `get_rate_plans`, `create_rate_plan`, `get_rate_seasons`, `create_rate_season`, `set_rate_prices`
+- Guest CRM: `get_guest_profiles`, `get_guest_profile`, `create_guest_profile`, `update_guest_profile`
+- Front desk: `check_in` (marks rooms occupied), `check_out` (releases rooms, creates cleaning tasks, closes folio)
+- Financial: `get_folio`, `add_folio_charge`, `process_folio_payment`
+- Operations: `get_housekeeping_board`, `assign_housekeeping_task`, `complete_housekeeping_task`
+- Reporting: `get_daily_metrics`
 
-3. **xAI dining enrichment is separate**: The `enrich-property-experiences` function (which uses xAI/Grok for dining recommendations) runs independently and is not triggered as part of the booking confirmation flow. Properties without pre-enriched experiences get empty dining sections in brochures.
+### Phase 3: Frontend Module ✅
+6 new pages under `/pms`:
+- `/pms` — Dashboard with room status summary
+- `/pms/rooms` — Physical room inventory grid with status management
+- `/pms/rate-plans` — Rate plan configuration
+- `/pms/guests` — Guest CRM with search
+- `/pms/housekeeping` — Kanban-style task board
+- `/pms/reports` — ADR/RevPAR/occupancy charts
 
-## Plan
+### Phase 4: Navigation ✅
+- New "ROL'OS PMS" section added to sidebar navigation (collapsible, visible to all owners)
+- Routes protected via `ProtectedRoute`
 
-### Step 1: Fix the Lovable AI Gateway URL
-**File:** `supabase/functions/generate-itinerary-pdf/index.ts`
-- Change line 240 from `https://api.lovable.dev/v1/chat/completions` to `https://ai.gateway.lovable.dev/v1/chat/completions`
-- This restores AI poem generation for brochures
-
-### Step 2: Auto-generate brochure on journey confirmation
-**File:** `supabase/functions/send-itinerary-email/index.ts`
-- Before sending the email, call `generate-itinerary-pdf` to pre-generate the brochure
-- Attach the brochure HTML as an email attachment (already implemented in `send-booking-email` as a pattern)
-- This ensures the brochure is delivered proactively with the confirmation email, not just as a link
-
-### Step 3: Trigger experience enrichment before brochure generation
-**File:** `supabase/functions/send-itinerary-email/index.ts`
-- Before calling `generate-itinerary-pdf`, check if properties have local experiences
-- If sparse (fewer than 3), call `enrich-property-experiences` for each property and wait briefly
-- This ensures xAI dining recommendations and Lovable AI activity suggestions are available when the brochure renders
-
-### Step 4: Deploy and verify
-- Deploy all three modified edge functions
-- Trigger a test for an existing confirmed itinerary to verify:
-  - AI poem is generated (Lovable AI credits consumed)
-  - Dining recommendations are present (xAI or fallback)
-  - Brochure HTML is attached to the email
-  - Brochure is stored in the `documents` bucket
-
-## Technical Details
-
-### Files Modified
-- `supabase/functions/generate-itinerary-pdf/index.ts` -- Fix AI gateway URL
-- `supabase/functions/send-itinerary-email/index.ts` -- Add brochure generation + enrichment trigger + attachment
-
-### Key Architecture
-```text
-multi-push-booking (on success)
-  --> send-itinerary-email
-        --> enrich-property-experiences (if needed, per property)
-        --> generate-itinerary-pdf (AI poem + weather + voucher + dining)
-        --> Attach brochure HTML to email
-        --> Send via Resend
-```
-
-### AI Credits Impact
-- Lovable AI: ~1 call per brochure (poem generation, ~200 tokens)
-- xAI: Only used by `enrich-property-experiences` when dining data is missing (called once per property, cached in `local_experiences` table thereafter)
+## Architecture Preserved
+- Adapter contract compliance maintained (all existing actions untouched)
+- `NO_BOOKING_FROM_CACHE` rule enforced
+- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
+- `rolos_` table prefix for clean separation
