@@ -169,7 +169,7 @@ export default function PMSHousekeeping() {
         priority: docketPriority,
         description: docketDescription.trim(),
         estimated_cost: docketEstCost ? parseFloat(docketEstCost) : null,
-        status: "open",
+        status: "reported",
       });
       if (error) throw error;
       // Set room to maintenance
