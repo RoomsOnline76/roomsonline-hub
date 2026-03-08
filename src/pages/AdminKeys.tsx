@@ -4100,20 +4100,44 @@ export default function AdminKeys() {
                 <p className="text-sm text-muted-foreground">
                   ROL'OS — RoomsOnline's proprietary operating system for direct property management.
                   <strong>
-                    {" "}This will become the primary interface for properties not using third-party PMS systems.
+                    {" "}The primary interface for properties not using third-party PMS systems.
                   </strong>
                 </p>
-                <div className="p-4 rounded-lg border bg-background text-center space-y-2">
-                  <p className="text-sm font-medium">Planned Capabilities</p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    <Badge variant="secondary">Direct Availability</Badge>
-                    <Badge variant="secondary">Native Rate Management</Badge>
-                    <Badge variant="secondary">Booking Engine</Badge>
-                    <Badge variant="secondary">Channel Manager</Badge>
+
+                {/* Current Capabilities - Deployed */}
+                <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Deployed Capabilities</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Development in progress. This API will follow the standardized adapter contract.
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Room Inventory</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Rate Management</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Season Pricing</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Guest CRM</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Folio System</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Housekeeping</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Maintenance</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Analytics (ADR/RevPAR)</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">White-Label Branding</Badge>
+                  </div>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                    14 dedicated database tables • Bi-directional sync with Property Overview
                   </p>
+                </div>
+
+                {/* Planned Capabilities */}
+                <div className="p-4 rounded-lg border bg-background space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Planned / In Progress</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <Badge variant="secondary">Booking Engine Widget</Badge>
+                    <Badge variant="secondary">Channel Manager</Badge>
+                    <Badge variant="secondary">Payment Integration</Badge>
+                    <Badge variant="secondary">Multi-Property Dashboard</Badge>
+                  </div>
                 </div>
 
                 <PMSProgressToggles
