@@ -66,7 +66,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = getSupabase(req.headers.get("Authorization") || undefined);
+    // Authenticate
+    let userId: string;
+    try {
+      userId = await authenticateRequest(req);
+    } catch {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = getServiceSupabase();
     const body = await req.json();
     const { action, property_id } = body;
 
