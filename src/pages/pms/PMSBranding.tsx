@@ -145,6 +145,7 @@ export default function PMSBranding() {
           brand_primary_color: p.brand_primary_color || "",
           brand_secondary_color: p.brand_secondary_color || "",
           brand_font_color: p.brand_font_color || "",
+          brand_accent_color: p.brand_accent_color || "",
           brand_override_enabled: p.brand_override_enabled ?? false,
         });
       }
