@@ -174,6 +174,24 @@ export function AppSidebar() {
     }
   }, [isAdmin]);
 
+  // Check if user has access to any ROL properties
+  useEffect(() => {
+    const checkRolProperties = async () => {
+      if (!user) return;
+      if (isDev || isAdmin) {
+        // Admins/devs always see PMS
+        setHasRolProperties(true);
+        return;
+      }
+      const { count } = await supabase
+        .from("properties")
+        .select("id", { count: "exact", head: true })
+        .eq("is_rol_property", true);
+      setHasRolProperties((count || 0) > 0);
+    };
+    checkRolProperties();
+  }, [user, isDev, isAdmin]);
+
   const loadPendingRequests = async () => {
     const { count } = await supabase
       .from("access_requests")
