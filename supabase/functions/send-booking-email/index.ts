@@ -107,8 +107,6 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
 
 // Strip any hardcoded ROL footer/branding from custom template content
 function stripRolBrandingFromCustomContent(content: string): string {
-  // Remove the hardcoded ROL footer block that custom templates may include
-  // Pattern: a div with "Kind regards" + "RoomsOnline on behalf of" + ROL logo
   const footerPatterns = [
     // Full footer div block with ROL logo
     /<div[^>]*style="[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?RoomsOnline[\s\S]*?<\/div>\s*$/i,
@@ -116,6 +114,12 @@ function stripRolBrandingFromCustomContent(content: string): string {
     /<div[^>]*>[\s\S]*?RoomsOnline on behalf of[\s\S]*?rol-logo[\s\S]*?<\/div>\s*$/i,
     // Any trailing section with the ROL logo image
     /<div[^>]*style="[^"]*padding:\s*30px[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?<img[^>]*rol-logo[^>]*>[\s\S]*?<\/div>\s*$/i,
+    // ROL logo image tags
+    /<img[^>]*rol-logo[^>]*>/gi,
+    // "Kind regards" standalone paragraphs (not inside property footer)
+    /<p[^>]*>[\s]*Kind regards[\s]*<\/p>/gi,
+    // "RoomsOnline on behalf of" paragraphs
+    /<p[^>]*>[\s\S]*?RoomsOnline on behalf of[\s\S]*?<\/p>/gi,
   ];
   
   let cleaned = content;
@@ -123,7 +127,6 @@ function stripRolBrandingFromCustomContent(content: string): string {
     cleaned = cleaned.replace(pattern, '');
   }
   
-  // Also replace hardcoded #e91e8c accent color with property brand color if needed
   return cleaned;
 }
 
