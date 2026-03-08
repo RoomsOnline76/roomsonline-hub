@@ -106,8 +106,20 @@ export default function PMSDashboard() {
   return (
     <PMSLayout>
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
+          {properties.length > 1 && (
+            <Select value={propertyId || ""} onValueChange={switchProperty}>
+              <SelectTrigger className="w-[220px] h-8 text-sm">
+                <SelectValue placeholder="Switch property" />
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Badge variant="outline" className="text-primary border-primary">Dashboard</Badge>
         </div>
 
