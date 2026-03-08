@@ -236,7 +236,7 @@ export default function PMSStaff() {
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">{member.display_name}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {(member.profiles as any)?.email || "—"}
+                        {member.email || "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
