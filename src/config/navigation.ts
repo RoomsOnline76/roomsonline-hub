@@ -28,6 +28,7 @@ import {
   ClipboardCheck,
   FlaskConical,
   BedDouble,
+  Code2,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
