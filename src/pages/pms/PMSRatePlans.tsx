@@ -61,7 +61,7 @@ export default function PMSRatePlans() {
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Rate Plans</h1>
