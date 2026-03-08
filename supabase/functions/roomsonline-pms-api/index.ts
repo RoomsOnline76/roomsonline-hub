@@ -102,8 +102,15 @@ const baseRequestSchema = z.object({
     "assign_housekeeping_task",
     "complete_housekeeping_task",
     "get_daily_metrics",
+    // Phase 1: Inventory Calendar
+    "update_inventory",
+    "check_inventory",
+    "backfill_inventory",
   ]),
   propertyId: z.string().uuid().optional(),
+  // Pagination params
+  limit: z.number().int().min(1).max(500).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
