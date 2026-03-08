@@ -194,6 +194,7 @@ export default function PMSNightAudit() {
           </Table>
         </CardContent>
       </Card>
-    </PMSPageWrapper>
+      </div>
+    </PMSLayout>
   );
 }
