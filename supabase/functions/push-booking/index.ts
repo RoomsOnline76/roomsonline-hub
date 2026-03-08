@@ -8,6 +8,8 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   booking_id: z.string().uuid({ message: 'Invalid booking ID format' }),
+  integration_type: z.string().optional(),
+  source_url: z.string().optional(),
 });
 
 // Map country names to ISO 2-letter codes for Hostfully API
@@ -111,7 +113,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { booking_id } = validationResult.data;
+    const { booking_id, integration_type, source_url } = validationResult.data;
+
+    // Persist integration tracking metadata if provided
+    if (integration_type || source_url) {
+      const trackingUpdate: Record<string, string> = {};
+      if (integration_type) trackingUpdate.integration_type = integration_type;
+      if (source_url) trackingUpdate.source_url = source_url;
+      await supabaseClient
+        .from('bookings')
+        .update(trackingUpdate)
+        .eq('id', booking_id);
+      console.log(`Integration tracking set: type=${integration_type}, source=${source_url}`);
+    }
 
     console.log(`Pushing booking ${booking_id} to external systems`);
 

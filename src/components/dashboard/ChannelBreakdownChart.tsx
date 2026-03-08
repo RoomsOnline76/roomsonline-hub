@@ -39,8 +39,13 @@ const formatChannelName = (channel: string) => {
     nightsbridge: "NightsBridge",
     hostfully: "Hostfully",
     benson: "Benson",
-    direct: "Direct",
-    Direct: "Direct",
+    direct: "Direct Link",
+    Direct: "Direct Link",
+    widget: "Widget",
+    booking_bar: "Booking Bar",
+    full_embed: "Full Embed",
+    wordpress: "WordPress",
+    api: "API",
   };
   return channelMap[channel.toLowerCase()] || channel;
 };
