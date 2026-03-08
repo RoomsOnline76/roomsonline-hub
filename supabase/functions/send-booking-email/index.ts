@@ -582,7 +582,8 @@ function generateFailureEmail(booking: any, property: any, errorMessage?: string
 
 // Generate property owner notification email for non-PMS properties
 function generatePropertyNotificationEmail(booking: any, property: any): string {
-  const accentColor = (property.brand_override_enabled && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c";
+  const brand = resolveBranding(property);
+  const accentColor = brand.accentColor;
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
