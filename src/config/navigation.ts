@@ -156,6 +156,7 @@ const pmsSection: NavSection = {
     { id: 'pms-guests', title: 'Guests', icon: Users, href: '/pms/guests', minRole: 'owner', description: 'Guest CRM' },
     { id: 'pms-housekeeping', title: 'Housekeeping', icon: Sparkles, href: '/pms/housekeeping', minRole: 'owner', description: 'Task board' },
     { id: 'pms-reports', title: 'Reports', icon: BarChart3, href: '/pms/reports', minRole: 'owner', description: 'ADR, RevPAR, occupancy' },
+    { id: 'pms-integrations', title: 'Integrations', icon: Code2, href: '/pms/integrations', minRole: 'owner', description: 'Website widgets & embeds' },
   ],
 };
 

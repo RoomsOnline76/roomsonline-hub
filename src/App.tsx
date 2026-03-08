@@ -75,7 +75,7 @@ import DevTaskTracker from "./pages/DevTaskTracker";
 import PMSComparison from "./pages/PMSComparison";
 import AdminIntegrations from "./pages/AdminIntegrations";
 import EmbedProperty from "./pages/EmbedProperty";
-import { PMSDashboard, PMSRooms, PMSRoomTypes, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding } from "./pages/pms";
+import { PMSDashboard, PMSRooms, PMSRoomTypes, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding, PMSIntegrations } from "./pages/pms";
 import { PMSBrandProvider } from "./contexts/PMSBrandContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
@@ -518,6 +518,7 @@ const App = () => (
             <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSBrandProvider><PMSHousekeeping /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/reports" element={<ProtectedRoute><PMSBrandProvider><PMSReports /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/branding" element={<ProtectedRoute><PMSBrandProvider><PMSBranding /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/integrations" element={<ProtectedRoute><PMSBrandProvider><PMSIntegrations /></PMSBrandProvider></ProtectedRoute>} />
             {/* Integration toolkit */}
             <Route
               path="/admin/integrations"

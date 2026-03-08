@@ -92,6 +92,7 @@ import { ContractManagementPanel } from "@/components/contract";
 import { PropertyOnboardingWizard } from "@/components/onboarding";
 import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
+import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -4211,11 +4212,14 @@ export default function PropertyForm() {
                 { value: "specials", icon: Calendar, label: "Specials", highlight: false },
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
+                { value: "integrations", icon: Link, label: "Integrations", highlight: false, rolOnly: true },
               ]
                 .filter(
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
+                    // Hide integrations tab for non-ROL properties
+                    if ((tab as any).rolOnly && !isRolProperty) return false;
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
@@ -10663,6 +10667,20 @@ export default function PropertyForm() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Integrations Tab - Only for ROL Properties */}
+            {isRolProperty && propertyId && (
+              <TabsContent value="integrations" className="space-y-2">
+                <PropertyFormIntegrationsTab 
+                  property={{ 
+                    id: propertyId, 
+                    name: formData.name || "", 
+                    slug: propertySlug || propertyId,
+                    brand_primary_color: brandingData.brand_primary_color || null
+                  }} 
+                />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
 
