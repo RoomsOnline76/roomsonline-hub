@@ -1317,7 +1317,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
   const b = booking;
   const nights = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
   const assignedRooms = rooms.filter(r => b.rolos_room_ids?.includes(r.id));
-  const guestId = (b as any).rolos_guest_id || null;
+  const guestId = b.rolos_guest_id || null;
 
   // Lifecycle buttons based on status
   const renderLifecycleActions = () => {
