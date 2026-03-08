@@ -107,8 +107,6 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
 
 // Strip any hardcoded ROL footer/branding from custom template content
 function stripRolBrandingFromCustomContent(content: string): string {
-  // Remove the hardcoded ROL footer block that custom templates may include
-  // Pattern: a div with "Kind regards" + "RoomsOnline on behalf of" + ROL logo
   const footerPatterns = [
     // Full footer div block with ROL logo
     /<div[^>]*style="[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?RoomsOnline[\s\S]*?<\/div>\s*$/i,
@@ -116,6 +114,12 @@ function stripRolBrandingFromCustomContent(content: string): string {
     /<div[^>]*>[\s\S]*?RoomsOnline on behalf of[\s\S]*?rol-logo[\s\S]*?<\/div>\s*$/i,
     // Any trailing section with the ROL logo image
     /<div[^>]*style="[^"]*padding:\s*30px[^"]*background-color:\s*#fafafa[^"]*"[^>]*>[\s\S]*?<img[^>]*rol-logo[^>]*>[\s\S]*?<\/div>\s*$/i,
+    // ROL logo image tags
+    /<img[^>]*rol-logo[^>]*>/gi,
+    // "Kind regards" standalone paragraphs (not inside property footer)
+    /<p[^>]*>[\s]*Kind regards[\s]*<\/p>/gi,
+    // "RoomsOnline on behalf of" paragraphs
+    /<p[^>]*>[\s\S]*?RoomsOnline on behalf of[\s\S]*?<\/p>/gi,
   ];
   
   let cleaned = content;
@@ -123,7 +127,6 @@ function stripRolBrandingFromCustomContent(content: string): string {
     cleaned = cleaned.replace(pattern, '');
   }
   
-  // Also replace hardcoded #e91e8c accent color with property brand color if needed
   return cleaned;
 }
 
@@ -209,12 +212,11 @@ function generateEmailHeader(brand: ReturnType<typeof resolveBranding>, property
 // Helper: generate the email footer row
 function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property: any): string {
   if (brand.isBranded) {
+    // For branded/ROL'OS properties: only the subtle "Powered by" line — no ROL logo, no "Kind regards"
     return `
       <tr>
-        <td style="padding: 30px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
-          <p style="margin: 0 0 8px; font-family: Georgia, serif; font-style: italic; color: #666; font-size: 14px;">Kind regards</p>
-          <p style="margin: 0 0 15px; color: #333; font-size: 14px; font-weight: 600;">${property.name}</p>
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px; margin-top: 10px;">
+        <td style="padding: 20px 40px; background-color: #fafafa; border-radius: 0 0 8px 8px; text-align: center;">
+          <div style="border-top: 1px solid #e5e5e5; padding-top: 15px;">
             <p style="margin: 0; color: #aaa; font-size: 11px;">Powered by <a href="https://roomsonline.co.za" style="color: #aaa; text-decoration: none;">RoomsOnline</a> · Rooms Done Right</p>
           </div>
         </td>
