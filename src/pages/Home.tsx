@@ -516,7 +516,18 @@ function HomeContent() {
           <AISearchInput />
         </div>
 
-        <CategoryBanner
+        {/* Hero property credit overlay */}
+        {heroProperty && heroProperty.slug && (
+          <Link
+            to={`/property/${heroProperty.slug}`}
+            className="absolute bottom-16 sm:bottom-20 right-4 sm:right-8 z-20 text-white/70 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-md flex items-center gap-1.5"
+          >
+            <span className="font-medium">{heroProperty.name}</span>
+            <span className="text-white/50">•</span>
+            <span>{heroProperty.city}</span>
+          </Link>
+        )}
+
           onSegmentClick={handleSegmentClick}
           heroRef={heroRef}
           selectedProperty={selectedProperty ?? null}
