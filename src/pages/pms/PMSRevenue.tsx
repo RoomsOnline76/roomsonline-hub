@@ -350,6 +350,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
 }
 
 export default function PMSRevenue() {
+  const { propertyId, loading: propLoading } = usePmsPropertyId();
   const [forecastDays] = useState(14);
   const [historyDays, setHistoryDays] = useState(30);
 
