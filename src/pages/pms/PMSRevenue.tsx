@@ -108,7 +108,7 @@ export default function PMSRevenue() {
     enabled: !!propertyId,
   });
 
-  // === NEW: Historical revenue & channel data ===
+  // === Historical revenue & channel data ===
   const { data: historyBookings = [], isLoading: historyLoading } = useQuery({
     queryKey: ["rev-history", propertyId, historyStart, today],
     queryFn: async () => {
@@ -118,8 +118,7 @@ export default function PMSRevenue() {
         .eq("property_id", propertyId!)
         .gte("check_in_date", historyStart)
         .lte("check_in_date", today)
-        .in("status", ["confirmed", "completed"])
-        .neq("status", "cancelled");
+        .not("status", "in", '("cancelled","failed")');
       return data || [];
     },
     enabled: !!propertyId,
@@ -148,16 +147,16 @@ export default function PMSRevenue() {
     return totalRev / pastBookings.length;
   }, [pastBookings]);
 
-  // === Historical metrics ===
+  // === Historical metrics (include all non-cancelled/failed bookings, not just paid) ===
   const historyMetrics = useMemo(() => {
-    const paid = historyBookings.filter((b: any) => b.payment_status === "paid");
-    const gbv = paid.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
-    const commission = paid.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
-    const avgAdr = paid.length > 0 ? gbv / paid.length : 0;
+    const active = historyBookings; // already filtered to exclude cancelled/failed
+    const gbv = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
+    const commission = active.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
+    const avgAdr = active.length > 0 ? gbv / active.length : 0;
 
     // Channel breakdown
     const channels: Record<string, { count: number; revenue: number }> = {};
-    paid.forEach((b: any) => {
+    active.forEach((b: any) => {
       const ch = b.booking_channel || "Direct";
       if (!channels[ch]) channels[ch] = { count: 0, revenue: 0 };
       channels[ch].count += 1;
@@ -169,7 +168,7 @@ export default function PMSRevenue() {
 
     // Monthly timeline
     const monthly: Record<string, { date: string; revenue: number; bookings: number }> = {};
-    paid.forEach((b: any) => {
+    active.forEach((b: any) => {
       const mo = (b.check_in_date as string)?.slice(0, 7) || "unknown";
       if (!monthly[mo]) monthly[mo] = { date: mo, revenue: 0, bookings: 0 };
       monthly[mo].revenue += Number(b.total_price || 0);
@@ -177,7 +176,7 @@ export default function PMSRevenue() {
     });
     const timeline = Object.values(monthly).sort((a, b) => a.date.localeCompare(b.date));
 
-    return { gbv, commission, avgAdr, totalBookings: paid.length, channelBreakdown, timeline };
+    return { gbv, commission, avgAdr, totalBookings: active.length, channelBreakdown, timeline };
   }, [historyBookings]);
 
   // Generate daily forecast
