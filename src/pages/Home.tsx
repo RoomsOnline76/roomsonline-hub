@@ -522,13 +522,13 @@ function HomeContent() {
         </div>
 
         {/* Hero property credit overlay */}
-        {heroProperty && heroProperty.slug && (
+        {heroProperty && (
           <Link
-            to={`/property/${heroProperty.slug}`}
-            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-20 text-white/80 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5"
+            to={`/property/${heroProperty.slug || heroProperty.id}`}
+            className="absolute bottom-36 sm:bottom-40 right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-colors drop-shadow-lg flex items-center gap-1.5 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1.5"
           >
             <span className="font-medium">{heroProperty.name}</span>
-            <span className="text-white/50">•</span>
+            <span className="text-white/60">•</span>
             <span>{heroProperty.city}</span>
           </Link>
         )}
