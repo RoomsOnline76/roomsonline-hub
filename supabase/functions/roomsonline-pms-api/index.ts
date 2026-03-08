@@ -1031,6 +1031,25 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Also update rolos_reservations if exists
+  const { data: rolosRes } = await supabase.from("rolos_reservations")
+    .select("id, status")
+    .eq("property_id", propertyId)
+    .eq("confirmation_number", reservation_id)
+    .maybeSingle();
+  if (rolosRes) {
+    await supabase.from("rolos_reservations").update({
+      check_in: finalArrival,
+      check_out: finalDeparture,
+    }).eq("id", rolosRes.id);
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      old_status: rolosRes.status,
+      new_status: rolosRes.status,
+      reason: `Dates modified: ${finalArrival} to ${finalDeparture}`,
+    });
+  }
+
   console.log(`[roomsonline-pms-api] Reservation modified successfully: ${reservation_id}`);
 
   return new Response(
