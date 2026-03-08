@@ -236,7 +236,7 @@ export function useAddToWaitlist(propertyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (params: { guest_name: string; guest_email: string; guest_phone?: string; room_type_id?: string; start_date: string; end_date: string; notes?: string }) => {
-      const { error } = await supabase.from("rolos_waitlist" as "bookings").insert({ property_id: propertyId, ...params } as Record<string, unknown>);
+      const { error } = await supabase.from("rolos_waitlist" as never).insert({ property_id: propertyId, ...params } as never);
       if (error) throw error;
     },
     onSuccess: () => {
