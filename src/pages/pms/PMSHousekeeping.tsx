@@ -240,7 +240,7 @@ export default function PMSHousekeeping() {
 
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
-    maintenanceReqs.filter(m => m.room_id === roomId && m.status !== "resolved" || (m.status === "resolved" && !m.room_ready_confirmed));
+    maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
 
   // ── Render ────────────────────────────────────────────────────────────
 
