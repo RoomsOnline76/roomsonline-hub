@@ -56,7 +56,7 @@ export function usePmsStaffRole(propertyId: string | null): PmsStaffRoleResult {
     };
 
     fetch();
-  }, [user, propertyId, isDev, isAdmin]);
+  }, [user, propertyId, isDev, isAdmin, isFearlessLeader]);
 
   return { staffRole, mustChangePassword, loading };
 }
