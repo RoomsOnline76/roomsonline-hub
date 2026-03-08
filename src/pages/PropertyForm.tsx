@@ -9158,7 +9158,7 @@ export default function PropertyForm() {
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
-                        {room.pms_synced && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
+                        {room.pms_synced && !isRolProperty && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
                       <div className="flex gap-0.5">
                         {selectedPMS !== "nightsbridge" && (
