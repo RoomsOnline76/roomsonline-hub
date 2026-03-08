@@ -1,78 +1,72 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+# Plan: Rate Pricing Model Types for ROL'OS PMS
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+## Problem
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+The Dungeon rate is "per person" but the system treats all rates as "per room" (base_rate × nights). There is no way to define HOW a rate should be calculated. The hospitality industry uses several pricing models that fundamentally change billing math.
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+## Design
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+### Pricing Models to Support
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+| Model | Calculation | Example |
+|-------|------------|---------|
+| `per_room` | base_rate × nights | R2,650/night for whole house |
+| `per_person` | base_rate × guests × nights | R650/person/night |
+| `per_person_sharing` | base_rate × nights (2 guests included), extra guests at extra rate | R1,200/night sharing, +R400/extra |
+| `per_unit` | base_rate × units × nights | R500/unit/night |
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+### Implementation
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+#### 1. Database Migration
+Add `pricing_model` column to `rolos_rate_plans`:
+```sql
+ALTER TABLE public.rolos_rate_plans 
+  ADD COLUMN pricing_model text NOT NULL DEFAULT 'per_room';
+```
+No enum needed — text with application-level validation keeps it flexible.
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+#### 2. PMSRatePlans.tsx — Add Pricing Model Dropdown
+- Add `pricing_model` to the `RatePlan` interface and form state
+- Add a Select dropdown in the create/edit dialog with options: Per Room, Per Person, Per Person Sharing, Per Unit
+- Display the pricing model as a badge on rate plan cards
+- Sync `pricing_model` to `amenities.pms_rate_types` as `pricingModel`
+- Read `pricingModel` from amenities during auto-sync
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+#### 3. ManualBookingDialog.tsx — Dynamic Guest Count Pricing
+- Fetch `pricing_model` alongside rate plan data
+- When a rate plan with `per_person` model is selected, highlight that total = rate × guests × nights
+- Update `autoPrice` calculation:
+  - `per_room`: base_rate × nights (current behavior)
+  - `per_person`: base_rate × total_guests × nights
+  - `per_person_sharing`: base_rate × nights + extra_person_rate × extra_guests × nights
+  - `per_unit`: base_rate × units × nights
+- Show a clear breakdown label: "R650 × 3 guests × 2 nights = R3,900"
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+#### 4. PMSDashboard.tsx — Calendar Rate Display
+- Update `getRateForDate` to factor in pricing model when displaying rates
+- For `per_person` rates, show "R650/pp" instead of just "R650"
+- Append pricing model suffix to rate display
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+#### 5. PropertyForm.tsx — Sync pricing_model
+- When syncing rate types to `rolos_rate_plans`, include `pricingModel` from amenities data
+- When writing back from PMS, include `pricing_model` in amenities
+
+#### 6. Booking.tsx — ROL'OS Per-Person Calculation
+- When building availability data for wizard/manual properties, set `price_type` based on the rate plan's `pricing_model`:
+  - `per_room` → `'PER ROOM'`
+  - `per_person` → `'PER PERSON'` (triggers existing per-person calculation logic)
+- The existing `calculateCost` already handles per-person math with adult/teen/child amounts — wire the ROL'OS rate into this path
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| **DB Migration** | Add `pricing_model` text column to `rolos_rate_plans` |
+| `src/pages/pms/PMSRatePlans.tsx` | Pricing model dropdown in dialog, badge on cards, sync to/from amenities |
+| `src/components/pms/ManualBookingDialog.tsx` | Model-aware auto price calculation with breakdown display |
+| `src/pages/pms/PMSDashboard.tsx` | Show "/pp" suffix for per-person rates in calendar |
+| `src/pages/PropertyForm.tsx` | Include `pricingModel` in rate plan sync |
+| `src/pages/Booking.tsx` | Map `pricing_model` to `price_type` for ROL'OS properties |
+
