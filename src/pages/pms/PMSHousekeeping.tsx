@@ -173,8 +173,10 @@ export default function PMSHousekeeping() {
         status: "reported",
       });
       if (error) throw error;
-      // Set room to maintenance
-      await supabase.from("rolos_rooms").update({ status: "maintenance" }).eq("id", docketRoomId);
+      // Only set room to maintenance/out_of_order if user opted to mark unavailable
+      if (docketMarkUnavailable) {
+        await supabase.from("rolos_rooms").update({ status: "maintenance" }).eq("id", docketRoomId);
+      }
       toast.success("Maintenance docket created");
       setShowCreateDocket(false);
       resetDocketForm();
