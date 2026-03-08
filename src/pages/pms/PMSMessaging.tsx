@@ -331,10 +331,9 @@ function PMSMessaging() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </main>
-        <PMSHelpDrawer />
+        </div>
       </div>
-    </HelpProvider>
+    </PMSLayout>
   );
 }
 
