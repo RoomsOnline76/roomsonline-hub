@@ -1,78 +1,69 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
+# ROL'OS PMS Module Completion — Implementation Progress
 
-## What Was Delivered
+## Phase 1 — Night Audit Enhancement & Financial Auto-Posting ✅ COMPLETED
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+### Database
+- ✅ Added `timezone` column to `properties` table (default `'Africa/Johannesburg'`)
+- ✅ Created `rolos_night_audit_log` table with RLS policies (property access + service role)
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+### Edge Function: `pms-night-audit` v2.0
+- ✅ Timezone-aware scheduling — only audits properties when local midnight has passed
+- ✅ Auto-posts room charges to `rolos_folio_transactions` (nightly rate from booking)
+- ✅ Auto-posts tax charges using active `rolos_tax_rules`
+- ✅ Rolls housekeeping states (occupied → dirty) with auto-task creation
+- ✅ Calculates daily metrics (ADR, RevPAR, Occupancy) → `rolos_daily_metrics`
+- ✅ Closes balanced folios for checked-out bookings
+- ✅ Writes full results to `rolos_night_audit_log`
+- ✅ Supports manual trigger with `property_id` + `force` params
+- ✅ Idempotent — skips already-audited dates unless forced
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+### UI: `/pms/night-audit`
+- ✅ New page with summary cards (Last Revenue, Charges, Rooms Rolled, Folios Closed)
+- ✅ Expandable audit history table with task-level detail
+- ✅ Manual trigger button for owners/admins
+- ✅ Added to PMS sidebar under Management group
+- ✅ Permission matrix updated — owner/GM full, accountant/auditor RO, others no access
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+### Files Created/Modified
+- `supabase/functions/pms-night-audit/index.ts` — Enhanced v2.0
+- `src/hooks/useNightAuditLog.ts` — New hooks
+- `src/pages/pms/PMSNightAudit.tsx` — New page
+- `src/pages/pms/index.ts` — Export added
+- `src/App.tsx` — Route registered
+- `src/components/layout/PMSSidebar.tsx` — Night Audit sidebar item
+- `src/lib/pmsPermissions.ts` — `night-audit` module added to matrix
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+---
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+## Phase 2 — Financial Engine: Invoice PDF & Payment Gateway Hooks
+**Status:** Next up
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+### Invoice PDF Generation
+- Enhance `pms-financial` edge function `generate_invoice` action with PDF
+- Upload PDF to storage bucket, store URL in `rolos_invoices.pdf_url`
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+### Payment Gateway Integration
+- Extend with `process_gateway_payment` action + adapter pattern
+- Webhook handler for gateway callbacks
+- Create `rolos_deposit_schedules` table
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+---
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+## Phase 3 — Messaging Engine
+**Status:** Planned
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+## Phase 4 — Group Bookings & Events Completion
+**Status:** Planned
+
+## Phase 5 — Staff Shifts & Activity Log UI
+**Status:** Planned
+
+## Phase 6 — Security Hardening
+**Status:** Planned
+
+## Phase 7 — Revenue Management UI & Multi-Property Dashboard
+**Status:** Planned
+
+## Phase 8 — TypeScript Cleanup & Data Warehouse
+**Status:** Planned
