@@ -181,10 +181,51 @@ export default function PMSStaff() {
         end_time: shiftForm.end_time,
         notes: shiftForm.notes || undefined,
       });
-      toast.success("Shift created");
       setShowShiftDialog(false);
       setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleEditShift = (shift: any) => {
+    setEditingShift(shift);
+    setShiftForm({
+      staff_id: shift.staff_id,
+      shift_type: shift.shift_type,
+      start_time: shift.start_time ? format(parseISO(shift.start_time), "yyyy-MM-dd'T'HH:mm") : "",
+      end_time: shift.end_time ? format(parseISO(shift.end_time), "yyyy-MM-dd'T'HH:mm") : "",
+      notes: shift.notes || "",
+    });
+    setShowShiftDialog(true);
+  };
+
+  const handleUpdateShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingShift) return;
+    try {
+      await updateShift.mutateAsync({
+        id: editingShift.id,
+        staff_id: shiftForm.staff_id,
+        shift_type: shiftForm.shift_type,
+        start_time: shiftForm.start_time,
+        end_time: shiftForm.end_time,
+        notes: shiftForm.notes || undefined,
+      });
+      setShowShiftDialog(false);
+      setEditingShift(null);
+      setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleDeleteShift = async (shiftId: string) => {
+    try {
+      await deleteShift.mutateAsync(shiftId);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const openNewShiftDialog = () => {
+    setEditingShift(null);
+    setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
+    setShowShiftDialog(true);
   };
 
   const getShiftsForStaffDay = (staffId: string, day: Date) => {
