@@ -10090,7 +10090,7 @@ export default function PropertyForm() {
                             {availableRateTypesForRoom.length === 0 ? (
                               <div className="border rounded-md p-4 text-center text-muted-foreground">
                                 <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                                <p className="text-xs">No rate types available. Sync with PMS to load.</p>
+                                <p className="text-xs">No rate types available. Create rate types in the Rates tab first.</p>
                               </div>
                             ) : (
                               <div className="space-y-1">
