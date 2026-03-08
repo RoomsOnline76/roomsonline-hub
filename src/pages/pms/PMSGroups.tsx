@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { UsersRound, Plus, UserPlus, CalendarRange, MoreHorizontal, Building2 } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { UsersRound, Plus, MoreHorizontal, BedDouble, CalendarRange, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 
@@ -34,7 +35,10 @@ export default function PMSGroups() {
   const readOnly = access.readOnly;
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "" });
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [blockForm, setBlockForm] = useState({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
+  const [form, setForm] = useState({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["pms-groups", propertyId],
@@ -44,6 +48,48 @@ export default function PMSGroups() {
         .from("rolos_groups" as any)
         .select("*")
         .eq("property_id", propertyId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const { data: roomTypes = [] } = useQuery({
+    queryKey: ["pms-room-types", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_room_types")
+        .select("id, name, default_rate")
+        .eq("property_id", propertyId!)
+        .eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: blocks = [], refetch: refetchBlocks } = useQuery({
+    queryKey: ["pms-group-blocks", selectedGroup?.id],
+    enabled: !!selectedGroup?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_group_room_blocks" as any)
+        .select("*, room_type:rolos_room_types!room_type_id(name)")
+        .eq("group_id", selectedGroup.id)
+        .order("start_date");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const { data: groupReservations = [], refetch: refetchReservations } = useQuery({
+    queryKey: ["pms-group-reservations", selectedGroup?.id],
+    enabled: !!selectedGroup?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_group_reservations" as any)
+        .select("*")
+        .eq("group_id", selectedGroup.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as any[];
@@ -63,6 +109,8 @@ export default function PMSGroups() {
         notes: form.notes || null,
         check_in_date: form.check_in_date || null,
         check_out_date: form.check_out_date || null,
+        attrition_rate: parseFloat(form.attrition_rate) || 0,
+        release_date: form.release_date || null,
       });
       if (error) throw error;
     },
@@ -70,7 +118,7 @@ export default function PMSGroups() {
       qc.invalidateQueries({ queryKey: ["pms-groups", propertyId] });
       toast.success("Group created");
       setShowCreate(false);
-      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "" });
+      setForm({ name: "", group_type: "corporate", contact_name: "", contact_email: "", contact_phone: "", total_rooms: "1", notes: "", check_in_date: "", check_out_date: "", attrition_rate: "0", release_date: "" });
     },
     onError: (err: any) => toast.error("Failed to create group", { description: err.message }),
   });
@@ -85,6 +133,51 @@ export default function PMSGroups() {
       toast.success("Status updated");
     },
   });
+
+  const addBlock = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("rolos_group_room_blocks" as any).insert({
+        group_id: selectedGroup.id,
+        room_type_id: blockForm.room_type_id,
+        blocked_count: parseInt(blockForm.blocked_count) || 1,
+        rate_override: blockForm.rate_override ? parseFloat(blockForm.rate_override) : null,
+        start_date: blockForm.start_date || selectedGroup.check_in_date,
+        end_date: blockForm.end_date || selectedGroup.check_out_date,
+        release_date: blockForm.release_date || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchBlocks();
+      toast.success("Room block added");
+      setShowBlockDialog(false);
+      setBlockForm({ room_type_id: "", blocked_count: "1", rate_override: "", start_date: "", end_date: "", release_date: "" });
+    },
+    onError: (err: any) => toast.error("Failed to add block", { description: err.message }),
+  });
+
+  const releaseBlock = useMutation({
+    mutationFn: async (blockId: string) => {
+      const { error } = await supabase.from("rolos_group_room_blocks" as any).update({ status: "released" }).eq("id", blockId);
+      if (error) throw error;
+    },
+    onSuccess: () => { refetchBlocks(); toast.success("Block released"); },
+  });
+
+  const addGroupReservation = useMutation({
+    mutationFn: async (guestName: string) => {
+      const { error } = await supabase.from("rolos_group_reservations" as any).insert({
+        group_id: selectedGroup.id,
+        guest_name: guestName,
+        status: "pending",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => { refetchReservations(); toast.success("Reservation added to group"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const [newGuestName, setNewGuestName] = useState("");
 
   return (
     <PMSLayout>
@@ -120,7 +213,6 @@ export default function PMSGroups() {
           <Card><CardContent className="py-12 text-center text-muted-foreground">
             <UsersRound className="h-10 w-10 mx-auto mb-3 opacity-40" />
             <p>No group bookings yet</p>
-            <p className="text-xs mt-1">Create a group for weddings, corporate events, or tour groups.</p>
           </CardContent></Card>
         ) : (
           <div className="border rounded-lg">
@@ -132,13 +224,14 @@ export default function PMSGroups() {
                   <TableHead>Contact</TableHead>
                   <TableHead>Dates</TableHead>
                   <TableHead>Rooms</TableHead>
+                  <TableHead>Release</TableHead>
                   <TableHead>Status</TableHead>
                   {!readOnly && <TableHead className="w-12" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {groups.map((g: any) => (
-                  <TableRow key={g.id}>
+                  <TableRow key={g.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedGroup(g)}>
                     <TableCell className="font-medium">{g.name}</TableCell>
                     <TableCell className="text-xs capitalize">{g.group_type}</TableCell>
                     <TableCell className="text-xs">
@@ -151,25 +244,20 @@ export default function PMSGroups() {
                         : "TBD"}
                     </TableCell>
                     <TableCell className="text-sm">{g.total_rooms}</TableCell>
+                    <TableCell className="text-xs">{g.release_date ? format(new Date(g.release_date), "MMM d") : "—"}</TableCell>
                     <TableCell>
                       <Badge variant={STATUS_BADGES[g.status] ?? "outline"} className="text-[10px] capitalize">{g.status}</Badge>
                     </TableCell>
                     {!readOnly && (
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {g.status === "inquiry" && (
-                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: g.id, status: "tentative" })}>Mark Tentative</DropdownMenuItem>
-                            )}
-                            {(g.status === "inquiry" || g.status === "tentative") && (
-                              <DropdownMenuItem onClick={() => updateStatus.mutate({ id: g.id, status: "confirmed" })}>Confirm</DropdownMenuItem>
-                            )}
-                            {g.status !== "cancelled" && (
-                              <DropdownMenuItem className="text-destructive" onClick={() => updateStatus.mutate({ id: g.id, status: "cancelled" })}>Cancel</DropdownMenuItem>
-                            )}
+                            {g.status === "inquiry" && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: g.id, status: "tentative" })}>Mark Tentative</DropdownMenuItem>}
+                            {["inquiry", "tentative"].includes(g.status) && <DropdownMenuItem onClick={() => updateStatus.mutate({ id: g.id, status: "confirmed" })}>Confirm</DropdownMenuItem>}
+                            {g.status !== "cancelled" && <DropdownMenuItem className="text-destructive" onClick={() => updateStatus.mutate({ id: g.id, status: "cancelled" })}>Cancel</DropdownMenuItem>}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -181,6 +269,156 @@ export default function PMSGroups() {
           </div>
         )}
       </div>
+
+      {/* Group Detail Sheet */}
+      <Sheet open={!!selectedGroup} onOpenChange={(o) => !o && setSelectedGroup(null)}>
+        <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
+          {selectedGroup && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <UsersRound className="h-5 w-5" /> {selectedGroup.name}
+                </SheetTitle>
+              </SheetHeader>
+
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge variant={STATUS_BADGES[selectedGroup.status] ?? "outline"} className="capitalize text-xs">{selectedGroup.status}</Badge></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="capitalize">{selectedGroup.group_type}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Dates</span><span>{selectedGroup.check_in_date && selectedGroup.check_out_date ? `${format(new Date(selectedGroup.check_in_date), "MMM d")} – ${format(new Date(selectedGroup.check_out_date), "MMM d, yyyy")}` : "TBD"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Total Rooms</span><span>{selectedGroup.total_rooms}</span></div>
+                {selectedGroup.attrition_rate > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Attrition Rate</span><span>{selectedGroup.attrition_rate}%</span></div>}
+                {selectedGroup.release_date && <div className="flex justify-between"><span className="text-muted-foreground">Release Date</span><span>{format(new Date(selectedGroup.release_date), "MMM d, yyyy")}</span></div>}
+              </div>
+
+              <Tabs defaultValue="blocks" className="mt-6">
+                <TabsList className="w-full">
+                  <TabsTrigger value="blocks" className="flex-1">Room Blocks ({blocks.length})</TabsTrigger>
+                  <TabsTrigger value="reservations" className="flex-1">Reservations ({groupReservations.length})</TabsTrigger>
+                </TabsList>
+
+                {/* Room Blocks */}
+                <TabsContent value="blocks" className="space-y-3 mt-3">
+                  {!readOnly && (
+                    <Button size="sm" variant="outline" onClick={() => setShowBlockDialog(true)}>
+                      <BedDouble className="h-4 w-4 mr-1" /> Add Room Block
+                    </Button>
+                  )}
+                  {blocks.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No room blocks allocated</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {blocks.map((b: any) => (
+                        <Card key={b.id}>
+                          <CardContent className="p-3 flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">{b.room_type?.name || "Room Type"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {b.blocked_count} rooms · {format(new Date(b.start_date), "MMM d")} – {format(new Date(b.end_date), "MMM d")}
+                                {b.rate_override && ` · R${b.rate_override}/night`}
+                              </p>
+                              {b.release_date && <p className="text-xs text-muted-foreground">Release: {format(new Date(b.release_date), "MMM d")}</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={b.status === "blocked" ? "default" : b.status === "released" ? "secondary" : "outline"} className="text-[10px] capitalize">{b.status}</Badge>
+                              {!readOnly && b.status === "blocked" && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => releaseBlock.mutate(b.id)}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Linked Reservations */}
+                <TabsContent value="reservations" className="space-y-3 mt-3">
+                  {!readOnly && (
+                    <div className="flex gap-2">
+                      <Input placeholder="Guest name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)} className="flex-1" />
+                      <Button size="sm" disabled={!newGuestName.trim()} onClick={() => { addGroupReservation.mutate(newGuestName.trim()); setNewGuestName(""); }}>
+                        <Plus className="h-4 w-4 mr-1" /> Add
+                      </Button>
+                    </div>
+                  )}
+                  {groupReservations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No linked reservations</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Guest</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {groupReservations.map((r: any) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-sm">{r.guest_name || "—"}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px] capitalize">{r.status}</Badge></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Add Room Block Dialog */}
+      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Room Block</DialogTitle>
+            <DialogDescription>Allocate rooms for this group.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => { e.preventDefault(); addBlock.mutate(); }} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Room Type</Label>
+              <Select value={blockForm.room_type_id} onValueChange={(v) => setBlockForm((f) => ({ ...f, room_type_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+                <SelectContent>
+                  {roomTypes.map((rt: any) => (
+                    <SelectItem key={rt.id} value={rt.id}>{rt.name} (R{rt.default_rate})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Rooms</Label>
+                <Input type="number" min="1" value={blockForm.blocked_count} onChange={(e) => setBlockForm((f) => ({ ...f, blocked_count: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Rate Override</Label>
+                <Input type="number" step="0.01" placeholder="Default rate" value={blockForm.rate_override} onChange={(e) => setBlockForm((f) => ({ ...f, rate_override: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Start Date</Label>
+                <Input type="date" value={blockForm.start_date || selectedGroup?.check_in_date || ""} onChange={(e) => setBlockForm((f) => ({ ...f, start_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>End Date</Label>
+                <Input type="date" value={blockForm.end_date || selectedGroup?.check_out_date || ""} onChange={(e) => setBlockForm((f) => ({ ...f, end_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Release Date (optional)</Label>
+              <Input type="date" value={blockForm.release_date} onChange={(e) => setBlockForm((f) => ({ ...f, release_date: e.target.value }))} />
+              <p className="text-xs text-muted-foreground">Unsold rooms are released back to inventory after this date.</p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowBlockDialog(false)}>Cancel</Button>
+              <Button type="submit" disabled={addBlock.isPending || !blockForm.room_type_id}>{addBlock.isPending ? "Adding…" : "Add Block"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Group Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -221,6 +459,14 @@ export default function PMSGroups() {
               <div className="space-y-1.5">
                 <Label>Contact Email</Label>
                 <Input type="email" value={form.contact_email} onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Attrition Rate %</Label>
+                <Input type="number" min="0" max="100" value={form.attrition_rate} onChange={(e) => setForm((f) => ({ ...f, attrition_rate: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Release Date</Label>
+                <Input type="date" value={form.release_date} onChange={(e) => setForm((f) => ({ ...f, release_date: e.target.value }))} />
               </div>
             </div>
             <DialogFooter>

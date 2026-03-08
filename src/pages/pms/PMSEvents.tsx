@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
@@ -16,9 +16,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { CalendarHeart, Plus, MoreHorizontal, MapPin } from "lucide-react";
+import { CalendarHeart, Plus, MoreHorizontal, MapPin, Clock, AlertTriangle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { format } from "date-fns";
+import { format, addMinutes, isWithinInterval, parseISO, addDays, startOfDay, differenceInDays } from "date-fns";
 
 const EVENT_TYPES = ["conference", "wedding", "meeting", "workshop", "gala", "private_dining", "other"];
 const STATUS_BADGES: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -62,8 +62,39 @@ export default function PMSEvents() {
     },
   });
 
-  const [eventForm, setEventForm] = useState({ name: "", event_type: "conference", space_id: "", contact_name: "", contact_email: "", contact_phone: "", start_at: "", end_at: "", expected_attendees: "", notes: "" });
+  // Groups (for linking)
+  const { data: groups = [] } = useQuery({
+    queryKey: ["pms-groups", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("rolos_groups" as any).select("id, name, status").eq("property_id", propertyId!).neq("status", "cancelled");
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  const [eventForm, setEventForm] = useState({ name: "", event_type: "conference", space_id: "", contact_name: "", contact_email: "", contact_phone: "", start_at: "", end_at: "", expected_attendees: "", notes: "", setup_minutes: "30", teardown_minutes: "30", linked_group_id: "" });
   const [spaceForm, setSpaceForm] = useState({ name: "", description: "", capacity_min: "", capacity_max: "", hourly_rate: "", daily_rate: "" });
+
+  // Check space availability with setup/teardown
+  const conflictWarning = useMemo(() => {
+    if (!eventForm.space_id || !eventForm.start_at || !eventForm.end_at) return null;
+    const setupMin = parseInt(eventForm.setup_minutes) || 0;
+    const teardownMin = parseInt(eventForm.teardown_minutes) || 0;
+    const effectiveStart = addMinutes(new Date(eventForm.start_at), -setupMin);
+    const effectiveEnd = addMinutes(new Date(eventForm.end_at), teardownMin);
+
+    const conflicting = events.filter((ev: any) => {
+      if (ev.space_id !== eventForm.space_id || ["cancelled", "completed"].includes(ev.status)) return false;
+      const evSetup = ev.setup_minutes || 0;
+      const evTeardown = ev.teardown_minutes || 0;
+      const evStart = addMinutes(parseISO(ev.start_at), -evSetup);
+      const evEnd = addMinutes(parseISO(ev.end_at), evTeardown);
+      return effectiveStart < evEnd && effectiveEnd > evStart;
+    });
+
+    return conflicting.length > 0 ? `Conflicts with ${conflicting.map((c: any) => c.name).join(", ")}` : null;
+  }, [eventForm.space_id, eventForm.start_at, eventForm.end_at, eventForm.setup_minutes, eventForm.teardown_minutes, events]);
 
   const createEvent = useMutation({
     mutationFn: async () => {
@@ -79,6 +110,9 @@ export default function PMSEvents() {
         end_at: eventForm.end_at,
         expected_attendees: eventForm.expected_attendees ? parseInt(eventForm.expected_attendees) : null,
         notes: eventForm.notes || null,
+        setup_minutes: parseInt(eventForm.setup_minutes) || 0,
+        teardown_minutes: parseInt(eventForm.teardown_minutes) || 0,
+        linked_group_id: eventForm.linked_group_id || null,
       });
       if (error) throw error;
     },
@@ -123,6 +157,22 @@ export default function PMSEvents() {
     },
   });
 
+  // Space Calendar - 14-day view
+  const calendarDays = useMemo(() => {
+    const today = startOfDay(new Date());
+    return Array.from({ length: 14 }, (_, i) => addDays(today, i));
+  }, []);
+
+  const getSpaceEventsForDay = (spaceId: string, day: Date) => {
+    const dayEnd = addDays(day, 1);
+    return events.filter((ev: any) => {
+      if (ev.space_id !== spaceId || ev.status === "cancelled") return false;
+      const evStart = parseISO(ev.start_at);
+      const evEnd = parseISO(ev.end_at);
+      return evStart < dayEnd && evEnd > day;
+    });
+  };
+
   return (
     <PMSLayout>
       <div className="space-y-6">
@@ -138,6 +188,7 @@ export default function PMSEvents() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="events">Events</TabsTrigger>
+            <TabsTrigger value="calendar">Space Calendar</TabsTrigger>
             <TabsTrigger value="spaces">Spaces</TabsTrigger>
           </TabsList>
 
@@ -162,6 +213,7 @@ export default function PMSEvents() {
                       <TableHead>Type</TableHead>
                       <TableHead>Space</TableHead>
                       <TableHead>Date & Time</TableHead>
+                      <TableHead>Setup / Teardown</TableHead>
                       <TableHead>Attendees</TableHead>
                       <TableHead>Status</TableHead>
                       {!readOnly && <TableHead className="w-12" />}
@@ -179,9 +231,12 @@ export default function PMSEvents() {
                         <TableCell className="text-xs whitespace-nowrap">
                           {format(new Date(ev.start_at), "MMM d, HH:mm")} – {format(new Date(ev.end_at), "HH:mm")}
                         </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {ev.setup_minutes || 0}m / {ev.teardown_minutes || 0}m
+                        </TableCell>
                         <TableCell className="text-sm">{ev.expected_attendees ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={STATUS_BADGES[ev.status] ?? "outline"} className="text-[10px] capitalize">{ev.status.replace("_", " ")}</Badge>
+                          <Badge variant={STATUS_BADGES[ev.status] ?? "outline"} className="text-[10px] capitalize">{ev.status?.replace("_", " ")}</Badge>
                         </TableCell>
                         {!readOnly && (
                           <TableCell>
@@ -198,6 +253,57 @@ export default function PMSEvents() {
                             </DropdownMenu>
                           </TableCell>
                         )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Space Calendar Tab */}
+          <TabsContent value="calendar">
+            {spaces.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">
+                <MapPin className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                <p>Add event spaces first to see the calendar</p>
+              </CardContent></Card>
+            ) : (
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background z-10 min-w-[120px]">Space</TableHead>
+                      {calendarDays.map((d) => (
+                        <TableHead key={d.toISOString()} className="text-center min-w-[80px] text-xs">
+                          <div>{format(d, "EEE")}</div>
+                          <div className="text-muted-foreground">{format(d, "d MMM")}</div>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {spaces.map((s: any) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="sticky left-0 bg-background z-10 font-medium text-sm">{s.name}</TableCell>
+                        {calendarDays.map((d) => {
+                          const dayEvents = getSpaceEventsForDay(s.id, d);
+                          return (
+                            <TableCell key={d.toISOString()} className="text-center p-1">
+                              {dayEvents.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  {dayEvents.map((ev: any) => (
+                                    <div key={ev.id} className="bg-primary/10 text-primary rounded px-1 py-0.5 text-[10px] truncate" title={ev.name}>
+                                      {ev.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground/30 text-xs">—</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -240,7 +346,7 @@ export default function PMSEvents() {
 
       {/* Create Event Dialog */}
       <Dialog open={showCreateEvent} onOpenChange={setShowCreateEvent}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Event</DialogTitle>
             <DialogDescription>Schedule a conference, wedding, or special event.</DialogDescription>
@@ -274,6 +380,14 @@ export default function PMSEvents() {
                 <Input type="datetime-local" value={eventForm.end_at} onChange={(e) => setEventForm((f) => ({ ...f, end_at: e.target.value }))} required />
               </div>
               <div className="space-y-1.5">
+                <Label>Setup (min)</Label>
+                <Input type="number" min="0" value={eventForm.setup_minutes} onChange={(e) => setEventForm((f) => ({ ...f, setup_minutes: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Teardown (min)</Label>
+                <Input type="number" min="0" value={eventForm.teardown_minutes} onChange={(e) => setEventForm((f) => ({ ...f, teardown_minutes: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
                 <Label>Contact Name</Label>
                 <Input value={eventForm.contact_name} onChange={(e) => setEventForm((f) => ({ ...f, contact_name: e.target.value }))} />
               </div>
@@ -281,7 +395,24 @@ export default function PMSEvents() {
                 <Label>Attendees</Label>
                 <Input type="number" value={eventForm.expected_attendees} onChange={(e) => setEventForm((f) => ({ ...f, expected_attendees: e.target.value }))} />
               </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label>Link to Group (optional)</Label>
+                <Select value={eventForm.linked_group_id} onValueChange={(v) => setEventForm((f) => ({ ...f, linked_group_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="No group linked" /></SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.name} ({g.status})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {conflictWarning && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>{conflictWarning}</span>
+              </div>
+            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowCreateEvent(false)}>Cancel</Button>
               <Button type="submit" disabled={createEvent.isPending}>{createEvent.isPending ? "Creating…" : "Create Event"}</Button>
