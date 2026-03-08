@@ -262,6 +262,7 @@ function HomeContent() {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
               validProperties.push({
+                id: prop.id,
                 imageUrl,
                 videoUrl: prop.hero_video_url || null,
                 name: prop.name,
