@@ -77,8 +77,8 @@ function PMSMessaging() {
       toast.success("Message sent");
       setSendOpen(false);
       setSendForm({ recipient_email: "", subject: "", body: "" });
-    } catch (e: any) {
-      toast.error(e.message || "Failed to send");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to send");
     }
   };
 
