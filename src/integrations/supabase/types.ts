@@ -3807,6 +3807,60 @@ export type Database = {
           },
         ]
       }
+      rolos_brand_config: {
+        Row: {
+          business_address: Json | null
+          business_name: string | null
+          created_at: string | null
+          custom_tagline: string | null
+          email_footer_text: string | null
+          favicon_url: string | null
+          id: string
+          property_id: string
+          updated_at: string | null
+          vat_number: string | null
+        }
+        Insert: {
+          business_address?: Json | null
+          business_name?: string | null
+          created_at?: string | null
+          custom_tagline?: string | null
+          email_footer_text?: string | null
+          favicon_url?: string | null
+          id?: string
+          property_id: string
+          updated_at?: string | null
+          vat_number?: string | null
+        }
+        Update: {
+          business_address?: Json | null
+          business_name?: string | null
+          created_at?: string | null
+          custom_tagline?: string | null
+          email_footer_text?: string | null
+          favicon_url?: string | null
+          id?: string
+          property_id?: string
+          updated_at?: string | null
+          vat_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_brand_config_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_brand_config_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_daily_metrics: {
         Row: {
           adr: number | null
