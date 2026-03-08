@@ -203,18 +203,34 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch room types
+  // Fetch room types (with linked overview data for unit counts)
   const { data: roomTypes = [] } = useQuery({
     queryKey: ["pms-cal-room-types", propertyId],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("rolos_room_types")
-        .select("id, name, default_rate, is_active")
+        .select("id, name, default_rate, is_active, max_occupancy, linked_overview_id")
         .eq("property_id", propertyId)
         .eq("is_active", true)
         .order("name");
-      return (data || []) as RoomType[];
+
+      // Fetch overview room types for unit/property_type info
+      const { data: overviewData } = await supabase
+        .from("hostfully_room_types")
+        .select("id, property_type, max_guests")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+
+      const overviewMap = new Map((overviewData || []).map(o => [o.id, o]));
+
+      return (data || []).map(rt => {
+        const overview = overviewMap.get((rt as any).linked_overview_id);
+        return {
+          ...rt,
+          property_type: overview?.property_type || null,
+        } as RoomType;
+      });
     },
     enabled: !!propertyId,
   });
