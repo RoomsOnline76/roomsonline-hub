@@ -2753,6 +2753,7 @@ export type Database = {
           show_on_website: boolean | null
           siteminder_property_code: string | null
           slug: string | null
+          timezone: string
           updated_at: string | null
           what_its_really_like: string | null
           who_its_not_for: string | null
@@ -2822,6 +2823,7 @@ export type Database = {
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
+          timezone?: string
           updated_at?: string | null
           what_its_really_like?: string | null
           who_its_not_for?: string | null
@@ -2891,6 +2893,7 @@ export type Database = {
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
           slug?: string | null
+          timezone?: string
           updated_at?: string | null
           what_its_really_like?: string | null
           who_its_not_for?: string | null
@@ -5355,6 +5358,72 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rolos_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_night_audit_log: {
+        Row: {
+          audit_date: string
+          charges_posted: number | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          folios_closed: number | null
+          id: string
+          property_id: string
+          revenue_total: number | null
+          rooms_rolled: number | null
+          started_at: string
+          status: string
+          tasks_json: Json | null
+          tax_posted: number | null
+        }
+        Insert: {
+          audit_date: string
+          charges_posted?: number | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          folios_closed?: number | null
+          id?: string
+          property_id: string
+          revenue_total?: number | null
+          rooms_rolled?: number | null
+          started_at?: string
+          status?: string
+          tasks_json?: Json | null
+          tax_posted?: number | null
+        }
+        Update: {
+          audit_date?: string
+          charges_posted?: number | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          folios_closed?: number | null
+          id?: string
+          property_id?: string
+          revenue_total?: number | null
+          rooms_rolled?: number | null
+          started_at?: string
+          status?: string
+          tasks_json?: Json | null
+          tax_posted?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_night_audit_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_night_audit_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]

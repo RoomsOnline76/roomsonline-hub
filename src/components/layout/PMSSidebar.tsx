@@ -19,6 +19,7 @@ import {
   Radio,
   UsersRound,
   CalendarHeart,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -65,6 +66,7 @@ const pmsNavGroups: NavGroup[] = [
   {
     label: "Management",
     items: [
+      { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
       { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
       { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
