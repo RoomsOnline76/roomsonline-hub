@@ -102,6 +102,7 @@ export default function ContractSign() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [contract, setContract] = useState<ContractData | null>(null);
   const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
+  const [commissionText, setCommissionText] = useState('ten percent (10%)');
   const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
