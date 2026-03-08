@@ -22,6 +22,7 @@ export default function PMSDashboard() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
+  const { propertyName: brandName } = usePMSBrand();
   const [stats, setStats] = useState({ totalRooms: 0, occupied: 0, dirty: 0, maintenance: 0, available: 0 });
   const [propertyName, setPropertyName] = useState("");
   const [arrivals, setArrivals] = useState<ArrivalDeparture[]>([]);
