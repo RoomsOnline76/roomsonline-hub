@@ -1,78 +1,48 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+## Plan: Dynamic Commission Rate — Configurable, Contract-Integrated, Calculation-Linked
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+### Problem
+1. Commission rate is **hardcoded as "ten percent (10%)"** in `ContractSign.tsx` — not pulled from the property's actual commercial terms
+2. There is **no UI** in the Property Form to configure the commission rate per property
+3. The `property_commercial_terms` table exists but has no frontend management interface
+4. The contract template variable `{{commission_percentage}}` resolves to a static string
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+### What Changes
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+**1. Add Commission Configuration UI to Property Form (Rates tab)**
+- Add a new "Commission" sub-tab alongside Rate Types, Seasons, Charges, etc. in the Rates tab
+- Show the current active commission rate for the property (from `property_commercial_terms`)
+- Allow admins to set/update the `revenue_share_percent` (default 10%) with effective date
+- Display history of past commercial terms
+- Only visible to admin/dev/fearless_leader roles
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+**2. Dynamic Commission in Contract Signing**
+- In `ContractSign.tsx`, fetch the active `property_commercial_terms` for the contract's covered properties
+- Replace hardcoded `'ten percent (10%)'` with the actual rate from the database
+- Format as "X percent (X%)" for contract readability
+- Fall back to "ten percent (10%)" if no commercial term exists
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+**3. Contract Preview also uses dynamic data**
+- Update `ContractPreviewPane.tsx` sample data to note that commission_rate is "sourced from property"
+- When issuing contracts from Admin, resolve `{{commission_percentage}}` dynamically
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+**4. Ensure calculate-commission edge function alignment**
+- Already reads from `property_commercial_terms` — no changes needed there
+- The UI will now let admins manage what that function reads
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+### Technical Details
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+**Files to modify:**
+- `src/pages/PropertyForm.tsx` — Add "Commission" sub-tab in Rates tab with CRUD for `property_commercial_terms`
+- `src/pages/ContractSign.tsx` — Fetch active commercial term and resolve `commission_percentage` dynamically
+- `src/components/contract-editor/ContractPreviewPane.tsx` — Update sample data comment
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+**No database changes needed** — `property_commercial_terms` table already has the correct schema with `revenue_share_percent`, `effective_from`, `effective_to`, `contract_status`, and property FK.
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+**Commission sub-tab UI:**
+- Current rate display (large number with badge showing source)
+- Form: revenue_share_percent (number input, 0-100), effective_from (date), notes
+- Table of historical terms with status badges
+- Default 10% shown when no terms exist
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
