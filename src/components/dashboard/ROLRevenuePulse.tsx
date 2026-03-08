@@ -281,6 +281,29 @@ export function ROLRevenuePulse() {
         </CardContent>
       </Card>
 
+      {/* Revenue Split: Listing vs PMS */}
+      {data && (data.tier1.listingRevenue > 0 || data.tier1.pmsRevenue > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Revenue by Commission Type</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-lg border bg-sky-500/5 border-sky-500/20">
+                <p className="text-xs text-muted-foreground mb-1">Listing Revenue</p>
+                <p className="text-2xl font-bold tabular-nums">{formatCompactCurrency(data.tier1.listingRevenue)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Sleep in Africa marketplace</p>
+              </div>
+              <div className="p-4 rounded-lg border bg-violet-500/5 border-violet-500/20">
+                <p className="text-xs text-muted-foreground mb-1">PMS Revenue</p>
+                <p className="text-2xl font-bold tabular-nums">{formatCompactCurrency(data.tier1.pmsRevenue)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">ROL'OS integrations</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Tier 2: Split View */}
       <div className="grid lg:grid-cols-2 gap-4 xl:gap-6">
         <ChannelBreakdownChart

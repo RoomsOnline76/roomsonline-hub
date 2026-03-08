@@ -6,6 +6,8 @@ export interface ROLPulseData {
   tier1: {
     gbv: number;
     rolRevenue: number;
+    listingRevenue: number;
+    pmsRevenue: number;
     avgCommissionRate: number;
     netBookings: number;
   };

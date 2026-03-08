@@ -116,7 +116,8 @@ export default function ContractSign() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [contract, setContract] = useState<ContractData | null>(null);
   const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
-  const [commissionText, setCommissionText] = useState('ten percent (10%)');
+   const [commissionText, setCommissionText] = useState('ten percent (10%)');
+   const [pmsCommissionText, setPmsCommissionText] = useState('two percent (2%)');
   const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
@@ -210,6 +211,8 @@ export default function ContractSign() {
         owner_postal_address: propertyDetails?.postalAddress || 'N/A',
         owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
         commission_percentage: commissionText,
+        listing_commission_percentage: commissionText,
+        pms_commission_percentage: pmsCommissionText,
         covered_properties_list: propertiesListHtml,
       };
 
@@ -451,19 +454,38 @@ export default function ContractSign() {
         }
         if (propertyIds.length > 0) {
           const now = new Date().toISOString().split("T")[0];
-          const { data: termsData } = await supabase
+          // Fetch listing commission
+          const { data: listingTerms } = await supabase
             .from("property_commercial_terms")
-            .select("revenue_share_percent")
+            .select("revenue_share_percent, commission_type")
             .in("property_id", propertyIds)
+            .eq("commission_type", "listing")
             .lte("effective_from", now)
             .or(`effective_to.is.null,effective_to.gte.${now}`)
             .order("effective_from", { ascending: false })
             .limit(1);
           
-          if (termsData && termsData.length > 0) {
-            const rate = termsData[0].revenue_share_percent;
+          if (listingTerms && listingTerms.length > 0) {
+            const rate = listingTerms[0].revenue_share_percent;
             const words = numberToWords(rate);
             setCommissionText(`${words} percent (${rate}%)`);
+          }
+
+          // Fetch PMS commission
+          const { data: pmsTerms } = await supabase
+            .from("property_commercial_terms")
+            .select("revenue_share_percent, commission_type")
+            .in("property_id", propertyIds)
+            .eq("commission_type", "pms")
+            .lte("effective_from", now)
+            .or(`effective_to.is.null,effective_to.gte.${now}`)
+            .order("effective_from", { ascending: false })
+            .limit(1);
+          
+          if (pmsTerms && pmsTerms.length > 0) {
+            const rate = pmsTerms[0].revenue_share_percent;
+            const words = numberToWords(rate);
+            setPmsCommissionText(`${words} percent (${rate}%)`);
           }
         }
         const emailToUse = contractData.sent_to_email || contractData.owner_email;

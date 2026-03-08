@@ -294,6 +294,7 @@ export type Database = {
           children: number | null
           commission_calculated_at: string | null
           commission_rate_applied: number | null
+          commission_type: string | null
           created_at: string | null
           external_reservation_id: string | null
           guest_email: string
@@ -347,6 +348,7 @@ export type Database = {
           children?: number | null
           commission_calculated_at?: string | null
           commission_rate_applied?: number | null
+          commission_type?: string | null
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email: string
@@ -400,6 +402,7 @@ export type Database = {
           children?: number | null
           commission_calculated_at?: string | null
           commission_rate_applied?: number | null
+          commission_type?: string | null
           created_at?: string | null
           external_reservation_id?: string | null
           guest_email?: string
@@ -3264,6 +3267,7 @@ export type Database = {
       }
       property_commercial_terms: {
         Row: {
+          commission_type: string
           contract_status: string | null
           created_at: string | null
           created_by: string | null
@@ -3279,6 +3283,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          commission_type?: string
           contract_status?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -3294,6 +3299,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          commission_type?: string
           contract_status?: string | null
           created_at?: string | null
           created_by?: string | null
