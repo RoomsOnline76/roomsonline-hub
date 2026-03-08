@@ -446,7 +446,16 @@ export default function PMSHousekeeping() {
               <Label>Estimated Cost</Label>
               <Input type="number" step="0.01" value={docketEstCost} onChange={e => setDocketEstCost(e.target.value)} placeholder="0.00" />
             </div>
-          </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <Checkbox
+                id="docket-mark-unavailable"
+                checked={docketMarkUnavailable}
+                onCheckedChange={(checked) => setDocketMarkUnavailable(!!checked)}
+              />
+              <Label htmlFor="docket-mark-unavailable" className="text-sm cursor-pointer">
+                Mark room as unavailable (takes room offline)
+              </Label>
+            </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowCreateDocket(false); resetDocketForm(); }}>Cancel</Button>
             <Button onClick={createMaintenanceDocket} disabled={saving}>{saving ? "Saving…" : "Create Docket"}</Button>
