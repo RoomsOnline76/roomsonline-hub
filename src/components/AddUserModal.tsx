@@ -44,10 +44,10 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const isHostfullySelected = selectedPMSSystems.includes("hostfully");
   const hasValidAgencyUid = hostfullyAgencyUid.trim().length > 0;
 
-  // Get all available PMS systems (non-hidden, including ROL'OS)
-  const allPMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
+  // Get deployed/active PMS systems (non-hidden, deployed or ready status)
+  const allPMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.hidden && (s.deploymentStatus === 'deployed' || s.deploymentStatus === 'ready' || s.deploymentStatus === 'in_development'));
 
-  // For single-select dropdown, use the same config list
+  // For single-select dropdown, use the same list
   const activePMSSystems = allPMSSystems.map(s => ({ key: s.key, name: s.name }));
 
   useEffect(() => {
