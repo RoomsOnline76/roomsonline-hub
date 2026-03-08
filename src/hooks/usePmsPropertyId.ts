@@ -39,22 +39,38 @@ export function usePmsPropertyId() {
           .eq("is_rol_property", true)
           .order("name");
         rolProperties = data || [];
-      } else {
+    } else {
+        // Check both primary ownership (via owner_email) and linked ownership (via property_owners)
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("id", user.id)
+          .single();
+
         const { data: owned } = await supabase
           .from("property_owners")
           .select("property_id")
           .eq("user_id", user.id);
 
-        if (owned && owned.length > 0) {
-          const ids = owned.map((o) => o.property_id);
-          const { data } = await supabase
-            .from("properties")
-            .select("id, name")
-            .in("id", ids)
-            .eq("is_rol_property", true)
-            .order("name");
-          rolProperties = data || [];
+        const linkedIds = owned?.map((o) => o.property_id) || [];
+
+        // Fetch ROL properties where user is primary owner OR linked owner
+        let query = supabase
+          .from("properties")
+          .select("id, name")
+          .eq("is_rol_property", true)
+          .order("name");
+
+        if (profile?.email && linkedIds.length > 0) {
+          query = query.or(`owner_email.eq.${profile.email},id.in.(${linkedIds.join(",")})`);
+        } else if (profile?.email) {
+          query = query.eq("owner_email", profile.email);
+        } else if (linkedIds.length > 0) {
+          query = query.in("id", linkedIds);
         }
+
+        const { data } = await query;
+        rolProperties = data || [];
       }
 
       setProperties(rolProperties);
