@@ -6597,7 +6597,7 @@ export default function PropertyForm() {
                         <CardHeader className="py-1.5 px-3">
                           <CardTitle className="text-xs flex items-center gap-1">
                             Infant
-                            {selectedPMS === "benson" && <Cloud className="h-3 w-3 text-primary" />}
+                            {selectedPMS === "benson" && !isRolProperty && <Cloud className="h-3 w-3 text-primary" />}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="py-1.5 px-3 flex gap-1">
