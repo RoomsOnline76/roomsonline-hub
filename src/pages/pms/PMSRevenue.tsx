@@ -147,12 +147,12 @@ export default function PMSRevenue() {
     return totalRev / pastBookings.length;
   }, [pastBookings]);
 
-  // === Historical metrics ===
+  // === Historical metrics (include all non-cancelled/failed bookings, not just paid) ===
   const historyMetrics = useMemo(() => {
-    const paid = historyBookings.filter((b: any) => b.payment_status === "paid");
-    const gbv = paid.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
-    const commission = paid.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
-    const avgAdr = paid.length > 0 ? gbv / paid.length : 0;
+    const active = historyBookings; // already filtered to exclude cancelled/failed
+    const gbv = active.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
+    const commission = active.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
+    const avgAdr = active.length > 0 ? gbv / active.length : 0;
 
     // Channel breakdown
     const channels: Record<string, { count: number; revenue: number }> = {};
