@@ -50,7 +50,9 @@ import {
   LucideIcon,
   Cloud,
   Key,
+  ChevronsUpDown,
 } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -261,6 +263,7 @@ export default function PropertyForm() {
 
   // Load owners list - only users with 'user' role (property owners)
   const [ownersLoaded, setOwnersLoaded] = useState(false);
+  const [ownerSearchOpen, setOwnerSearchOpen] = useState(false);
 
   useEffect(() => {
     const loadOwners = async () => {
@@ -4853,36 +4856,68 @@ export default function PropertyForm() {
                             <Label htmlFor="owner_email" className="text-xs">
                               Owner
                             </Label>
-                            <Select
-                              value={formData.owner_email}
-                              onValueChange={(value) => {
-                                const selectedOwner = owners.find((o) => o.email === value);
-                                handleInputChange("owner_email", value);
-                                handleInputChange("owner_name", selectedOwner?.full_name || "");
-                              }}
-                            >
-                              <SelectTrigger id="owner_email" className="h-7 text-xs">
-                                <SelectValue placeholder="Select owner">
-                                  {/* Show current owner_email even if not in profiles list */}
-                                  {formData.owner_email && !owners.find((o) => o.email === formData.owner_email)
-                                    ? formData.owner_email
-                                    : owners.find((o) => o.email === formData.owner_email)?.full_name || formData.owner_email || "Select owner"}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {/* Include current owner_email if not in list */}
-                                {formData.owner_email && !owners.find((o) => o.email === formData.owner_email) && (
-                                  <SelectItem key="current-owner" value={formData.owner_email}>
-                                    {formData.owner_email} (profile pending)
-                                  </SelectItem>
-                                )}
-                                {owners.map((owner) => (
-                                  <SelectItem key={owner.id} value={owner.email}>
-                                    {owner.full_name || owner.email}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <Popover open={ownerSearchOpen} onOpenChange={setOwnerSearchOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={ownerSearchOpen}
+                                  className="h-7 text-xs justify-between w-full font-normal"
+                                >
+                                  {formData.owner_email
+                                    ? owners.find((o) => o.email === formData.owner_email)?.full_name || formData.owner_email
+                                    : "Select owner…"}
+                                  <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[320px] p-0" align="start">
+                                <Command>
+                                  <CommandInput placeholder="Search by name, email or phone…" className="text-xs h-8" />
+                                  <CommandList>
+                                    <CommandEmpty className="py-3 text-xs text-center text-muted-foreground">No owner found.</CommandEmpty>
+                                    <CommandGroup>
+                                      {/* Show current owner if not in profiles list */}
+                                      {formData.owner_email && !owners.find((o) => o.email === formData.owner_email) && (
+                                        <CommandItem
+                                          value={formData.owner_email}
+                                          onSelect={() => {
+                                            setOwnerSearchOpen(false);
+                                          }}
+                                          className="text-xs"
+                                        >
+                                          <Check className={cn("mr-2 h-3 w-3", "opacity-100")} />
+                                          <div className="flex flex-col">
+                                            <span>{formData.owner_email}</span>
+                                            <span className="text-[10px] text-muted-foreground">Profile pending</span>
+                                          </div>
+                                        </CommandItem>
+                                      )}
+                                      {owners.map((owner) => (
+                                        <CommandItem
+                                          key={owner.id}
+                                          value={`${owner.full_name || ""} ${owner.email} ${owner.phone || ""}`}
+                                          onSelect={() => {
+                                            handleInputChange("owner_email", owner.email);
+                                            handleInputChange("owner_name", owner.full_name || "");
+                                            setOwnerSearchOpen(false);
+                                          }}
+                                          className="text-xs"
+                                        >
+                                          <Check className={cn("mr-2 h-3 w-3", formData.owner_email === owner.email ? "opacity-100" : "opacity-0")} />
+                                          <div className="flex flex-col min-w-0">
+                                            <span className="font-medium truncate">{owner.full_name || "—"}</span>
+                                            <span className="text-[10px] text-muted-foreground truncate">{owner.email}</span>
+                                            {owner.phone && (
+                                              <span className="text-[10px] text-muted-foreground truncate">{owner.phone}</span>
+                                            )}
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
                           </div>
                           {/* Linked Additional Owners */}
                           {propertyId && (isAdmin || isDev) && (
