@@ -3926,43 +3926,76 @@ export default function PropertyForm() {
             }
           }
           console.log(`[ROL Sync] Synced ${roomTypes.length} room types to hostfully_room_types`);
+
+          // Now ensure physical rolos_rooms exist for all rolos_room_types
+          const { data: allRolosTypes } = await supabase
+            .from("rolos_room_types")
+            .select("id, name")
+            .eq("property_id", savedPropertyId)
+            .eq("is_active", true);
+
+          if (allRolosTypes && allRolosTypes.length > 0) {
+            const { data: existingPhysical } = await supabase
+              .from("rolos_rooms")
+              .select("room_type_id")
+              .eq("property_id", savedPropertyId);
+
+            const hasPhysical = new Set((existingPhysical || []).map((r: any) => r.room_type_id).filter(Boolean));
+            const missingPhysical = allRolosTypes.filter(rt => !hasPhysical.has(rt.id));
+
+            if (missingPhysical.length > 0) {
+              const physicalRooms = missingPhysical.map(rt => ({
+                property_id: savedPropertyId,
+                room_number: rt.name,
+                room_name: rt.name,
+                room_type_id: rt.id,
+                status: "available",
+              }));
+              const { error: roomErr } = await supabase.from("rolos_rooms").insert(physicalRooms);
+              if (roomErr) console.warn("[ROL Sync] Physical rooms creation warning:", roomErr);
+              else console.log(`[ROL Sync] Created ${missingPhysical.length} physical rooms`);
+            }
+          }
         } catch (syncErr) {
           console.warn("Room types sync warning:", syncErr);
-          // Don't fail the save, just warn
         }
         }
 
         // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
         if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
           try {
+            console.log(`[ROL Sync] Syncing ${pmsRateTypes.length} rate types to rolos_rate_plans...`, pmsRateTypes.map((r: any) => r.name));
             for (const rateType of pmsRateTypes) {
+              const rateCode = typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id);
               const ratePlanData = {
                 property_id: savedPropertyId,
                 name: rateType.name || 'Unnamed Rate',
-                code: typeof rateType.id === 'string' ? rateType.id.substring(0, 20) : String(rateType.id),
+                code: rateCode,
                 description: rateType.description || null,
                 is_active: true,
                 min_stay: rateType.minStayDays || 1,
                 requires_deposit: false,
               };
 
-              // Check if a rate plan with this code already exists
+              // Check if a rate plan with this code OR name already exists
               const { data: existingPlan } = await supabase
                 .from("rolos_rate_plans")
                 .select("id")
                 .eq("property_id", savedPropertyId)
-                .eq("code", ratePlanData.code)
+                .or(`code.eq.${rateCode},name.eq.${ratePlanData.name}`)
                 .maybeSingle();
 
               if (existingPlan) {
-                await supabase
+                const { error: updateErr } = await supabase
                   .from("rolos_rate_plans")
                   .update(ratePlanData)
                   .eq("id", existingPlan.id);
+                if (updateErr) console.warn("[ROL Sync] Rate plan update error:", updateErr);
               } else {
-                await supabase
+                const { error: insertErr } = await supabase
                   .from("rolos_rate_plans")
                   .insert(ratePlanData);
+                if (insertErr) console.warn("[ROL Sync] Rate plan insert error:", insertErr);
               }
             }
             console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
