@@ -311,10 +311,10 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("rolos_rate_plans")
-        .select("id, base_rate")
+        .select("id, name, base_rate")
         .eq("property_id", propertyId)
         .eq("is_active", true);
-      return (data || []) as { id: string; base_rate: number | null }[];
+      return (data || []) as { id: string; name: string; base_rate: number | null }[];
     },
     enabled: !!propertyId,
   });
