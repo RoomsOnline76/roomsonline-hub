@@ -153,7 +153,7 @@ export function AppSidebar() {
   });
   const [systemOpen, setSystemOpen] = useState(false);
   const [editAuditOpen, setEditAuditOpen] = useState(false);
-  const [pmsOpen, setPmsOpen] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
