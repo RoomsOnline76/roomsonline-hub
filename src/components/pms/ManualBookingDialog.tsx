@@ -145,7 +145,45 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     setSaving(true);
     const totalPrice = form.total_price ? parseFloat(form.total_price) : (autoPrice || 0);
+    // Auto-determine status: paid → confirmed, else pending
+    const autoStatus = form.payment_status === "paid" ? "confirmed" : "pending";
 
+    // 1. Upsert guest profile
+    let guestId: string | null = null;
+    try {
+      const { data: existingGuest } = await supabase
+        .from("rolos_guest_profiles")
+        .select("id, total_stays, total_spent")
+        .eq("property_id", propertyId)
+        .eq("email", form.guest_email)
+        .maybeSingle();
+
+      if (existingGuest) {
+        guestId = existingGuest.id;
+        await supabase.from("rolos_guest_profiles").update({
+          full_name: form.guest_name,
+          phone: form.guest_phone || null,
+          total_stays: (existingGuest.total_stays || 0) + 1,
+          total_spent: (existingGuest.total_spent || 0) + totalPrice,
+          last_stay_date: format(form.check_in!, "yyyy-MM-dd"),
+        }).eq("id", existingGuest.id);
+      } else {
+        const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
+          property_id: propertyId,
+          full_name: form.guest_name,
+          email: form.guest_email,
+          phone: form.guest_phone || null,
+          total_stays: 1,
+          total_spent: totalPrice,
+          last_stay_date: format(form.check_in!, "yyyy-MM-dd"),
+        }).select("id").single();
+        guestId = newGuest?.id || null;
+      }
+    } catch (e) {
+      console.warn("Guest profile upsert failed:", e);
+    }
+
+    // 2. Insert booking
     const payload: any = {
       property_id: propertyId,
       guest_name: form.guest_name,
@@ -160,7 +198,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       infants: parseInt(form.infants) || 0,
       pets: parseInt(form.pets) || 0,
       total_price: totalPrice,
-      status: form.status,
+      status: autoStatus,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
       special_requests: form.special_requests || null,
@@ -168,12 +206,9 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       integration_type: "rolos",
     };
 
-    if (form.room_id) {
-      payload.rolos_room_ids = [form.room_id];
-    }
-    if (form.rate_plan_id) {
-      payload.rolos_rate_plan_id = form.rate_plan_id;
-    }
+    if (form.room_id) payload.rolos_room_ids = [form.room_id];
+    if (form.rate_plan_id) payload.rolos_rate_plan_id = form.rate_plan_id;
+    if (guestId) payload.rolos_guest_id = guestId;
 
     const { data: insertedData, error } = await supabase.from("bookings").insert(payload).select("id").single();
     setSaving(false);
@@ -183,9 +218,9 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       return;
     }
 
-    toast.success("Booking created successfully");
+    toast.success(`Booking created as "${autoStatus}"`);
 
-    // Send confirmation email
+    // 3. Send confirmation email
     if (insertedData?.id) {
       try {
         const { error: emailError } = await supabase.functions.invoke("send-booking-email", {
@@ -202,7 +237,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       }
     }
     onOpenChange(false);
-    // Reset form
     setForm({
       guest_name: "", guest_email: "", guest_phone: "",
       check_in: undefined, check_out: undefined,
@@ -375,16 +409,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
           {/* Status & Special Requests */}
           <div className="space-y-2">
-            <div>
-              <Label>Booking Status</Label>
-              <Select value={form.status} onValueChange={v => update("status", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-xs text-muted-foreground">Status auto-set: Paid → Confirmed, otherwise → Pending</p>
             <div>
               <Label>Special Requests</Label>
               <Textarea value={form.special_requests} onChange={e => update("special_requests", e.target.value)} placeholder="Any special requirements..." rows={3} />

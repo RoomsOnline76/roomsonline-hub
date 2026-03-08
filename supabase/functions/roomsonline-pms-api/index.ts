@@ -1446,6 +1446,11 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
   }).eq("id", booking_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  // Ensure guest profile exists and link
+  if (booking && !booking.rolos_guest_id && booking.guest_email) {
+    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
+    if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+  }
   // Mark assigned rooms as occupied
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
   if (assignedRooms?.length) {
@@ -1468,7 +1473,11 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
   }).eq("id", booking_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_out")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  // Release rooms and create housekeeping tasks
+  // Ensure guest profile on checkout too
+  if (booking && !booking.rolos_guest_id && booking.guest_email) {
+    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
+    if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+  }
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
   if (assignedRooms?.length) {
     const roomIds = assignedRooms.map((r: any) => r.room_id);
@@ -1620,6 +1629,33 @@ async function handleGetDailyMetrics(body: any, supabase: any): Promise<Response
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function ensureGuestProfile(supabase: any, propertyId: string, guestName: string, guestEmail: string | null, guestPhone: string | null, bookingAmount: number): Promise<string | null> {
+  if (!guestEmail) return null;
+  try {
+    const { data: existing } = await supabase.from("rolos_guest_profiles")
+      .select("id, total_stays, total_spent")
+      .eq("property_id", propertyId).eq("email", guestEmail).maybeSingle();
+    if (existing) {
+      await supabase.from("rolos_guest_profiles").update({
+        full_name: guestName,
+        phone: guestPhone,
+        total_stays: (existing.total_stays || 0) + 1,
+        total_spent: (existing.total_spent || 0) + bookingAmount,
+        last_stay_date: new Date().toISOString().split("T")[0],
+      }).eq("id", existing.id);
+      return existing.id;
+    } else {
+      const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
+        property_id: propertyId, full_name: guestName, email: guestEmail, phone: guestPhone,
+        total_stays: 1, total_spent: bookingAmount,
+        last_stay_date: new Date().toISOString().split("T")[0],
+      }).select("id").single();
+      return newGuest?.id || null;
+    }
+  } catch { return null; }
+}
 
 function getDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];

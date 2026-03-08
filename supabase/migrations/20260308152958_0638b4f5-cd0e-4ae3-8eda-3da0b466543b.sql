@@ -1,0 +1,1 @@
+ALTER TABLE public.rolos_guest_profiles ADD COLUMN IF NOT EXISTS complaints jsonb DEFAULT '[]'::jsonb;

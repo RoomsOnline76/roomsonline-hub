@@ -4233,6 +4233,7 @@ export type Database = {
         Row: {
           address: Json | null
           communication_preferences: Json | null
+          complaints: Json | null
           created_at: string | null
           date_of_birth: string | null
           email: string | null
@@ -4253,6 +4254,7 @@ export type Database = {
         Insert: {
           address?: Json | null
           communication_preferences?: Json | null
+          complaints?: Json | null
           created_at?: string | null
           date_of_birth?: string | null
           email?: string | null
@@ -4273,6 +4275,7 @@ export type Database = {
         Update: {
           address?: Json | null
           communication_preferences?: Json | null
+          complaints?: Json | null
           created_at?: string | null
           date_of_birth?: string | null
           email?: string | null

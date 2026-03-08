@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
@@ -23,6 +24,10 @@ import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
+import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
+import { BookingInvoice } from "@/components/pms/BookingInvoice";
+import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
+import { callPmsApi } from "@/hooks/usePmsApi";
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,6 +52,14 @@ import {
   TrendingUp,
   Plus,
   Pencil,
+  LogIn,
+  LogOut,
+  XCircle,
+  EyeOff,
+  CheckCircle,
+  FileText,
+  Receipt,
+  MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -78,6 +91,7 @@ interface BookingRow {
   rolos_rate_plan_id: string | null;
   modification_notes: any;
   room_type_id: string | null;
+  rolos_guest_id: string | null;
 }
 
 interface RoomType {
@@ -262,7 +276,7 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id")
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -785,8 +799,8 @@ export default function PMSDashboard() {
 
       {/* Booking Detail Sheet */}
       <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
-        <SheetContent className="sm:max-w-md overflow-y-auto">
-          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); }} />}
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); }} />}
         </SheetContent>
       </Sheet>
 
@@ -1228,10 +1242,12 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: 
   );
 }
 
-// ──────────── Booking Detail Component (Editable) ────────────
-function BookingDetail({ booking, rooms, onSaved }: { booking: BookingRow; rooms: Room[]; onSaved: () => void }) {
+// ──────────── Booking Detail Component (Tabbed Lifecycle) ────────────
+
+function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: BookingRow; rooms: Room[]; propertyId: string; onSaved: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form, setForm] = useState({
     guest_name: booking.guest_name,
     guest_email: booking.guest_email,
@@ -1271,237 +1287,234 @@ function BookingDetail({ booking, rooms, onSaved }: { booking: BookingRow; rooms
       special_requests: form.special_requests || null,
     }).eq("id", booking.id);
     setSaving(false);
-    if (error) {
-      toast("Failed to save: " + error.message);
-      return;
-    }
+    if (error) { toast("Failed to save: " + error.message); return; }
     toast("Booking updated successfully");
     setIsEditing(false);
     onSaved();
   };
 
+  const handleLifecycleAction = async (action: string) => {
+    setActionLoading(action);
+    try {
+      if (action === "check_in" || action === "check_out") {
+        const res = await callPmsApi(action, { booking_id: booking.id });
+        if (!res.success) throw new Error(res.error?.message || "Action failed");
+      } else if (action === "mark_paid") {
+        await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", booking.id);
+      } else if (action === "cancel") {
+        await supabase.from("bookings").update({ status: "cancelled" }).eq("id", booking.id);
+      } else if (action === "no_show") {
+        await supabase.from("bookings").update({ status: "no_show" }).eq("id", booking.id);
+      }
+      toast.success(`Action "${action.replace("_", " ")}" completed`);
+      onSaved();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+    setActionLoading(null);
+  };
+
   const b = booking;
   const nights = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
   const assignedRooms = rooms.filter(r => b.rolos_room_ids?.includes(r.id));
+  const guestId = b.rolos_guest_id || null;
 
-  if (isEditing) {
-    return (
-      <>
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Pencil className="h-4 w-4" /> Edit Booking
-          </SheetTitle>
-          <SheetDescription>Booking #{b.id.slice(0, 8)}</SheetDescription>
-        </SheetHeader>
-        <div className="space-y-4 mt-4">
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
-            <div className="space-y-2">
-              <div><label className="text-xs text-muted-foreground">Name</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_name} onChange={e => update("guest_name", e.target.value)} /></div>
-              <div><label className="text-xs text-muted-foreground">Email</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_email} onChange={e => update("guest_email", e.target.value)} /></div>
-              <div><label className="text-xs text-muted-foreground">Phone</label><input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} /></div>
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dates</h4>
-            <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-xs text-muted-foreground">Check-in</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_in_date} onChange={e => update("check_in_date", e.target.value)} /></div>
-              <div><label className="text-xs text-muted-foreground">Check-out</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_out_date} onChange={e => update("check_out_date", e.target.value)} /></div>
-            </div>
-            {nights > 0 && <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>}
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guests</h4>
-            <div className="grid grid-cols-5 gap-2">
-              <div><label className="text-[10px] text-muted-foreground">Adults</label><input type="number" min={1} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.adults} onChange={e => update("adults", e.target.value)} /></div>
-              <div><label className="text-[10px] text-muted-foreground">Children</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.children} onChange={e => update("children", e.target.value)} /></div>
-              <div><label className="text-[10px] text-muted-foreground">Teens</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.teens} onChange={e => update("teens", e.target.value)} /></div>
-              <div><label className="text-[10px] text-muted-foreground">Infants</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.infants} onChange={e => update("infants", e.target.value)} /></div>
-              <div><label className="text-[10px] text-muted-foreground">Pets</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={form.pets} onChange={e => update("pets", e.target.value)} /></div>
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</h4>
-            <div><label className="text-xs text-muted-foreground">Total Price (ZAR)</label><input type="number" min={0} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.total_price} onChange={e => update("total_price", e.target.value)} /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-muted-foreground">Payment Status</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_status} onChange={e => update("payment_status", e.target.value)}>
-                  <option value="unpaid">Unpaid</option>
-                  <option value="partial">Partial</option>
-                  <option value="paid">Paid</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Payment Method</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_method} onChange={e => update("payment_method", e.target.value)}>
-                  <option value="">—</option>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="eft">EFT</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <Separator />
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Booking Status</label>
-            <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.status} onChange={e => update("status", e.target.value)}>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="checked_in">Checked In</option>
-              <option value="checked_out">Checked Out</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="no_show">No Show</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Special Requests</label>
-            <textarea className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.special_requests} onChange={e => update("special_requests", e.target.value)} rows={3} />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? "Saving..." : "Save Changes"}</Button>
-            <Button variant="outline" onClick={() => setIsEditing(false)} className="flex-1">Cancel</Button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  // Lifecycle buttons based on status
+  const renderLifecycleActions = () => {
+    const btns: JSX.Element[] = [];
+    const loading = (a: string) => actionLoading === a;
+    
+    if (b.status === "pending") {
+      btns.push(
+        <Button key="pay" size="sm" onClick={() => handleLifecycleAction("mark_paid")} disabled={!!actionLoading}>
+          <CheckCircle className="h-3 w-3 mr-1" />{loading("mark_paid") ? "..." : "Mark Paid & Confirm"}
+        </Button>,
+        <Button key="cancel" size="sm" variant="destructive" onClick={() => handleLifecycleAction("cancel")} disabled={!!actionLoading}>
+          <XCircle className="h-3 w-3 mr-1" />Cancel
+        </Button>,
+        <Button key="noshow" size="sm" variant="outline" onClick={() => handleLifecycleAction("no_show")} disabled={!!actionLoading}>
+          <EyeOff className="h-3 w-3 mr-1" />No Show
+        </Button>,
+      );
+    } else if (b.status === "confirmed") {
+      btns.push(
+        <Button key="checkin" size="sm" onClick={() => handleLifecycleAction("check_in")} disabled={!!actionLoading}>
+          <LogIn className="h-3 w-3 mr-1" />{loading("check_in") ? "..." : "Check In"}
+        </Button>,
+        <Button key="cancel" size="sm" variant="destructive" onClick={() => handleLifecycleAction("cancel")} disabled={!!actionLoading}>
+          <XCircle className="h-3 w-3 mr-1" />Cancel
+        </Button>,
+      );
+    } else if (b.status === "checked_in") {
+      btns.push(
+        <Button key="checkout" size="sm" onClick={() => handleLifecycleAction("check_out")} disabled={!!actionLoading}>
+          <LogOut className="h-3 w-3 mr-1" />{loading("check_out") ? "..." : "Check Out"}
+        </Button>,
+      );
+    }
+    return btns.length > 0 ? <div className="flex flex-wrap gap-2 mt-2">{btns}</div> : null;
+  };
 
   return (
     <>
       <SheetHeader>
         <SheetTitle className="flex items-center gap-2">
-          <User className="h-4 w-4" />
-          {b.guest_name}
+          <User className="h-4 w-4" />{b.guest_name}
         </SheetTitle>
         <SheetDescription className="flex items-center justify-between">
           <span>Booking #{b.id.slice(0, 8)}</span>
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="ml-2">
-            <Pencil className="h-3 w-3 mr-1" />Edit
-          </Button>
+          <Badge variant={STATUS_BADGE_VARIANT[b.status] || "secondary"} className="capitalize">{b.status.replace("_", " ")}</Badge>
         </SheetDescription>
       </SheetHeader>
-      <div className="space-y-5 mt-4">
-        <div className="flex items-center gap-2">
-          <Badge variant={STATUS_BADGE_VARIANT[b.status] || "secondary"} className="capitalize">{b.status.replace("_", " ")}</Badge>
-          {b.requires_intervention && <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Needs Attention</Badge>}
-        </div>
-        <Separator />
-        <div className="space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stay Details</h4>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <span className="text-muted-foreground text-xs">Check-in</span>
-              <p className="font-medium">{format(parseISO(b.check_in_date), "d MMM yyyy")}</p>
-              {b.rolos_check_in_time && <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{b.rolos_check_in_time}</p>}
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs">Check-out</span>
-              <p className="font-medium">{format(parseISO(b.check_out_date), "d MMM yyyy")}</p>
-              {b.rolos_check_out_time && <p className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{b.rolos_check_out_time}</p>}
-            </div>
+
+      {/* Lifecycle Actions */}
+      {renderLifecycleActions()}
+
+      <Tabs defaultValue="details" className="mt-4">
+        <TabsList className="grid w-full grid-cols-4 h-8">
+          <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
+          <TabsTrigger value="folio" className="text-xs"><Receipt className="h-3 w-3 mr-1" />Folio</TabsTrigger>
+          <TabsTrigger value="invoice" className="text-xs"><FileText className="h-3 w-3 mr-1" />Invoice</TabsTrigger>
+          <TabsTrigger value="notes" className="text-xs"><MessageSquareText className="h-3 w-3 mr-1" />Notes</TabsTrigger>
+        </TabsList>
+
+        {/* Details Tab */}
+        <TabsContent value="details" className="space-y-4 mt-3">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)}>
+              <Pencil className="h-3 w-3 mr-1" />{isEditing ? "Cancel Edit" : "Edit"}
+            </Button>
           </div>
-          <div className="text-sm text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</div>
-        </div>
-        <Separator />
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" /><span>{b.guest_email}</span></div>
-            {b.guest_phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" /><span>{b.guest_phone}</span></div>}
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="outline" className="text-xs gap-1"><User className="h-3 w-3" />{b.adults} Adult{b.adults !== 1 ? "s" : ""}</Badge>
-            {(b.children ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.children} Child{(b.children ?? 0) !== 1 ? "ren" : ""}</Badge>}
-            {(b.teens ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.teens} Teen{(b.teens ?? 0) !== 1 ? "s" : ""}</Badge>}
-            {(b.infants ?? 0) > 0 && <Badge variant="outline" className="text-xs gap-1"><Baby className="h-3 w-3" />{b.infants} Infant{(b.infants ?? 0) !== 1 ? "s" : ""}</Badge>}
-            {(b.pets ?? 0) > 0 && <Badge variant="outline" className="text-xs gap-1"><PawPrint className="h-3 w-3" />{b.pets} Pet{(b.pets ?? 0) !== 1 ? "s" : ""}</Badge>}
-          </div>
-        </div>
-        <Separator />
-        {assignedRooms.length > 0 && (
-          <>
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Room Assignment</h4>
-              <div className="flex flex-wrap gap-2">
-                {assignedRooms.map(r => <Badge key={r.id} variant="secondary"><BedDouble className="h-3 w-3 mr-1" />{r.room_number}{r.room_name ? ` (${r.room_name})` : ""}</Badge>)}
-              </div>
-            </div>
-            <Separator />
-          </>
-        )}
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</h4>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Total</span>
-            <span className="font-semibold text-lg">R{b.total_price.toLocaleString()}</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CreditCard className="h-3.5 w-3.5" />
-            <span className="capitalize">{b.payment_status || "unknown"}</span>
-            {b.payment_method && <span>· {b.payment_method}</span>}
-          </div>
-        </div>
-        {b.booking_channel && (
-          <>
-            <Separator />
-            <div className="flex items-center gap-2 text-sm">
-              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-muted-foreground">Channel:</span>
-              <span className="capitalize">{b.booking_channel}</span>
-            </div>
-          </>
-        )}
-        {(b.special_requests || (b.special_requests_parsed && Object.keys(b.special_requests_parsed).length > 0)) && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 flex items-center gap-1"><MessageSquare className="h-3 w-3" />Special Requests</h4>
-              {b.special_requests && <p className="text-sm bg-amber-500/10 p-3 rounded-md border border-amber-500/20">{b.special_requests}</p>}
-              {b.special_requests_parsed && typeof b.special_requests_parsed === "object" && Object.entries(b.special_requests_parsed).length > 0 && (
-                <div className="space-y-1">
-                  {Object.entries(b.special_requests_parsed).map(([key, val]) => (
-                    <div key={key} className="flex items-start gap-2 text-xs">
-                      <span className="font-medium capitalize text-muted-foreground">{key.replace(/_/g, " ")}:</span>
-                      <span>{String(val)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-        {b.modification_notes && Array.isArray(b.modification_notes) && b.modification_notes.length > 0 && (
-          <>
-            <Separator />
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Modification History</h4>
+
+          {isEditing ? (
+            <div className="space-y-3">
               <div className="space-y-2">
-                {(b.modification_notes as any[]).slice(-5).reverse().map((note: any, i: number) => (
-                  <div key={i} className="text-xs bg-muted/50 p-2 rounded border border-border">
-                    <div className="flex items-center justify-between mb-1">
-                      <Badge variant="outline" className="text-[10px] capitalize">{note.action}</Badge>
-                      <span className="text-muted-foreground">{note.timestamp ? format(new Date(note.timestamp), "d MMM HH:mm") : ""}</span>
-                    </div>
-                    {note.changes && Object.entries(note.changes).map(([k, v]) => (
-                      <div key={k} className="text-muted-foreground">{k.replace(/_/g, " ")}: {String(v)}</div>
-                    ))}
-                  </div>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
+                <input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_name} onChange={e => update("guest_name", e.target.value)} placeholder="Name" />
+                <input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_email} onChange={e => update("guest_email", e.target.value)} placeholder="Email" />
+                <input className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} placeholder="Phone" />
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-2">
+                <div><label className="text-xs text-muted-foreground">Check-in</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_in_date} onChange={e => update("check_in_date", e.target.value)} /></div>
+                <div><label className="text-xs text-muted-foreground">Check-out</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_out_date} onChange={e => update("check_out_date", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {(["adults", "children", "teens", "infants", "pets"] as const).map(f => (
+                  <div key={f}><label className="text-[10px] text-muted-foreground capitalize">{f}</label><input type="number" min={f === "adults" ? 1 : 0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={(form as any)[f]} onChange={e => update(f, e.target.value)} /></div>
                 ))}
               </div>
+              <Separator />
+              <div><label className="text-xs text-muted-foreground">Total (ZAR)</label><input type="number" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.total_price} onChange={e => update("total_price", e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground">Payment Status</label>
+                  <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_status} onChange={e => update("payment_status", e.target.value)}>
+                    <option value="unpaid">Unpaid</option><option value="partial">Partial</option><option value="paid">Paid</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Method</label>
+                  <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.payment_method} onChange={e => update("payment_method", e.target.value)}>
+                    <option value="">—</option><option value="cash">Cash</option><option value="card">Card</option><option value="eft">EFT</option><option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Status</label>
+                <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.status} onChange={e => update("status", e.target.value)}>
+                  <option value="pending">Pending</option><option value="confirmed">Confirmed</option><option value="checked_in">Checked In</option><option value="checked_out">Checked Out</option><option value="cancelled">Cancelled</option><option value="no_show">No Show</option>
+                </select>
+              </div>
+              <textarea className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.special_requests} onChange={e => update("special_requests", e.target.value)} rows={2} placeholder="Special requests" />
+              <Button onClick={handleSave} disabled={saving} className="w-full">{saving ? "Saving..." : "Save Changes"}</Button>
             </div>
-          </>
-        )}
-      </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stay</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-muted-foreground text-xs">Check-in</span><p className="font-medium">{format(parseISO(b.check_in_date), "d MMM yyyy")}</p></div>
+                  <div><span className="text-muted-foreground text-xs">Check-out</span><p className="font-medium">{format(parseISO(b.check_out_date), "d MMM yyyy")}</p></div>
+                </div>
+                <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>
+              </div>
+              <Separator />
+              <div className="space-y-1.5 text-sm">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest</h4>
+                <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted-foreground" />{b.guest_email}</div>
+                {b.guest_phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{b.guest_phone}</div>}
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <Badge variant="outline" className="text-xs gap-1"><User className="h-3 w-3" />{b.adults}A</Badge>
+                  {(b.children ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.children}C</Badge>}
+                  {(b.teens ?? 0) > 0 && <Badge variant="outline" className="text-xs">{b.teens}T</Badge>}
+                  {(b.infants ?? 0) > 0 && <Badge variant="outline" className="text-xs"><Baby className="h-3 w-3" />{b.infants}</Badge>}
+                  {(b.pets ?? 0) > 0 && <Badge variant="outline" className="text-xs"><PawPrint className="h-3 w-3" />{b.pets}</Badge>}
+                </div>
+              </div>
+              {assignedRooms.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex flex-wrap gap-2">
+                    {assignedRooms.map(r => <Badge key={r.id} variant="secondary"><BedDouble className="h-3 w-3 mr-1" />{r.room_number}</Badge>)}
+                  </div>
+                </>
+              )}
+              <Separator />
+              <div className="space-y-1">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</h4>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Total</span><span className="font-semibold text-lg">R{b.total_price.toLocaleString()}</span></div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="capitalize">{b.payment_status || "unknown"}</span>{b.payment_method && <span>· {b.payment_method}</span>}</div>
+              </div>
+              {b.booking_channel && (
+                <>
+                  <Separator />
+                  <div className="flex items-center gap-2 text-sm"><Globe className="h-3.5 w-3.5 text-muted-foreground" /><span className="capitalize">{b.booking_channel}</span></div>
+                </>
+              )}
+              {b.special_requests && (
+                <>
+                  <Separator />
+                  <div><h4 className="text-xs font-semibold uppercase tracking-wider text-amber-600 flex items-center gap-1 mb-1"><MessageSquare className="h-3 w-3" />Special Requests</h4>
+                  <p className="text-sm bg-amber-500/10 p-2 rounded-md border border-amber-500/20 whitespace-pre-wrap">{b.special_requests}</p></div>
+                </>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Folio Tab */}
+        <TabsContent value="folio" className="mt-3">
+          <BookingFolioTab bookingId={b.id} />
+        </TabsContent>
+
+        {/* Invoice Tab */}
+        <TabsContent value="invoice" className="mt-3">
+          <BookingInvoice
+            bookingId={b.id}
+            guestName={b.guest_name}
+            guestEmail={b.guest_email}
+            checkIn={b.check_in_date}
+            checkOut={b.check_out_date}
+            adults={b.adults}
+            totalPrice={b.total_price}
+            propertyId={propertyId}
+          />
+        </TabsContent>
+
+        {/* Notes & Complaints Tab */}
+        <TabsContent value="notes" className="mt-3">
+          <BookingNotesTab
+            bookingId={b.id}
+            guestId={guestId}
+            specialRequests={b.special_requests}
+            modificationNotes={b.modification_notes}
+          />
+        </TabsContent>
+      </Tabs>
     </>
   );
 }
-
 function hasSpecialIndicator(b: BookingRow): boolean {
   return !!(b.requires_intervention || b.special_requests || (b.special_requests_parsed && typeof b.special_requests_parsed === "object" && Object.keys(b.special_requests_parsed).length > 0));
 }
