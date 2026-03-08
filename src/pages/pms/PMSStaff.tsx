@@ -20,10 +20,10 @@ interface StaffMember {
   user_id: string;
   staff_role: PmsStaffRole;
   display_name: string;
+  email: string | null;
   is_active: boolean;
   must_change_password: boolean;
   created_at: string;
-  profiles?: { email: string } | null;
 }
 
 const ASSIGNABLE_ROLES: PmsStaffRole[] = [
@@ -76,7 +76,7 @@ export default function PMSStaff() {
     setLoading(true);
     const { data, error } = await supabase
       .from("property_staff")
-      .select("*, profiles:user_id(email)")
+      .select("*")
       .eq("property_id", propertyId)
       .order("created_at", { ascending: false });
 
@@ -236,7 +236,7 @@ export default function PMSStaff() {
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">{member.display_name}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {(member.profiles as any)?.email || "—"}
+                        {member.email || "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
