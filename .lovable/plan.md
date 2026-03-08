@@ -1,46 +1,58 @@
 
-# ROL'OS Native PMS Enterprise Implementation — COMPLETED
+# ROLOS Property Website Integration Toolkit — COMPLETED
 
 ## What Was Delivered
 
 ### Phase 1: Database Schema ✅
-14 new `rolos_` tables created via migration:
-- **Core Inventory**: `rolos_rooms`, `rolos_room_types`, `rolos_rate_plans`
-- **Pricing Engine**: `rolos_rate_seasons` (GiST exclusion for overlap prevention), `rolos_rate_prices`
-- **Guest Management**: `rolos_guest_profiles`, `rolos_guest_comments`
-- **Reservation Extensions**: `rolos_booking_rooms` + ALTER `bookings` (6 new columns)
-- **Financial**: `rolos_folios`, `rolos_folio_transactions` (auto-balance recalc trigger)
-- **Operations**: `rolos_housekeeping_tasks`, `rolos_housekeeping_schedules`, `rolos_maintenance_requests`
-- **Analytics**: `rolos_daily_metrics` (generated ADR/RevPAR/occupancy columns)
+- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
+- `integration_logs` table — tracks widget loads, clicks, and booking initiations
+- `bookings` table extended with `integration_type` and `source_url` columns
+- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
 
-All tables have RLS policies, `updated_at` triggers, and validation triggers.
+### Phase 2: Edge Functions ✅
+- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
+- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
+- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
+- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
 
-### Phase 2: Edge Function Extensions ✅
-Extended `roomsonline-pms-api` with 20+ new actions:
-- Room management: `get_physical_rooms`, `create_physical_room`, `update_room_status`
-- Room types: `get_rolos_room_types`, `create_rolos_room_type`, `update_rolos_room_type`
-- Rate plans: `get_rate_plans`, `create_rate_plan`, `get_rate_seasons`, `create_rate_season`, `set_rate_prices`
-- Guest CRM: `get_guest_profiles`, `get_guest_profile`, `create_guest_profile`, `update_guest_profile`
-- Front desk: `check_in` (marks rooms occupied), `check_out` (releases rooms, creates cleaning tasks, closes folio)
-- Financial: `get_folio`, `add_folio_charge`, `process_folio_payment`
-- Operations: `get_housekeeping_board`, `assign_housekeeping_task`, `complete_housekeeping_task`
-- Reporting: `get_daily_metrics`
+### Phase 3: Admin UI ✅
+Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
 
-### Phase 3: Frontend Module ✅
-6 new pages under `/pms`:
-- `/pms` — Dashboard with room status summary
-- `/pms/rooms` — Physical room inventory grid with status management
-- `/pms/rate-plans` — Rate plan configuration
-- `/pms/guests` — Guest CRM with search
-- `/pms/housekeeping` — Kanban-style task board
-- `/pms/reports` — ADR/RevPAR/occupancy charts
+6 integration tabs:
+- **Direct Link** — Copyable booking URL + HTML button snippet
+- **Widget** — iframe and JavaScript embed code for date-picker widget
+- **Booking Bar** — Fixed-position bottom bar embed code
+- **Full Embed** — Full booking engine iframe for dedicated pages
+- **WordPress** — PHP plugin code + shortcode, ready-to-install
+- **API** — API key generation/rotation, cURL examples, endpoint docs
 
-### Phase 4: Navigation ✅
-- New "ROL'OS PMS" section added to sidebar navigation (collapsible, visible to all owners)
-- Routes protected via `ProtectedRoute`
+Each tab includes:
+- Enable/disable toggle (persisted to `integration_configs`)
+- Copyable code snippets with syntax highlighting
+- Step-by-step installation instructions
+- Domain whitelist configuration (widget, booking bar, full embed)
+
+### Phase 4: Analytics Dashboard ✅
+Integrated directly into the integrations page:
+- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
+- Widget Activity bar chart (loads + clicks by integration type)
+- Bookings by Integration pie chart
+- Revenue Pulse channel breakdown updated to include integration types
+
+### Phase 5: Embeddable Assets ✅
+Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
+- **Widget mode** — Card-style booking prompt with property hero image and branding
+- **Bar mode** — Compact horizontal bar with "Book Now" button
+- **Full mode** — Same as widget but for full-page embedding
+- Automatic load tracking via `integration_logs`
+- "Powered by ROL'OS" attribution footer
+
+### Phase 6: Revenue Pulse Integration ✅
+- Channel breakdown chart updated with integration type labels
+- Bookings with `integration_type` automatically appear in revenue analytics
 
 ## Architecture Preserved
-- Adapter contract compliance maintained (all existing actions untouched)
-- `NO_BOOKING_FROM_CACHE` rule enforced
+- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
 - RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- `rolos_` table prefix for clean separation
+- API key authentication for WordPress/API integrations (stored in `integration_configs`)
+- Integration tracking metadata flows through to commission calculation
