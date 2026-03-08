@@ -327,6 +327,9 @@ export function ROLRevenuePulse() {
         />
       </div>
 
+      {/* Portfolio Demand Forecast */}
+      <PortfolioDemandForecast />
+
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />
       </TabsContent>
