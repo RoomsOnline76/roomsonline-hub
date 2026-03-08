@@ -531,6 +531,8 @@ const App = () => (
             <Route path="/pms/events" element={<ProtectedRoute><PMSBrandProvider><PMSEvents /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/night-audit" element={<ProtectedRoute><PMSBrandProvider><PMSNightAudit /></PMSBrandProvider></ProtectedRoute>} />
             <Route path="/pms/messaging" element={<ProtectedRoute><PMSBrandProvider><PMSMessaging /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/portfolio" element={<ProtectedRoute><PMSBrandProvider><PMSPortfolio /></PMSBrandProvider></ProtectedRoute>} />
+            <Route path="/pms/revenue" element={<ProtectedRoute><PMSBrandProvider><PMSRevenue /></PMSBrandProvider></ProtectedRoute>} />
             {/* Integration toolkit */}
             <Route
               path="/admin/integrations"
