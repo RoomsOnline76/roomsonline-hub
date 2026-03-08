@@ -114,9 +114,6 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           <IntegrationDocumentation type="full_embed" />
         </TabsContent>
 
-        <TabsContent value="smart_button" className="space-y-4">
-          <SmartBookButtonGenerator property={property} />
-        </TabsContent>
 
         <TabsContent value="wordpress" className="space-y-4">
           <WordPressTab property={property} />
