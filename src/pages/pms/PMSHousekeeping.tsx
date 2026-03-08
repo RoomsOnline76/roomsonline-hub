@@ -456,6 +456,7 @@ export default function PMSHousekeeping() {
                 Mark room as unavailable (takes room offline)
               </Label>
             </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowCreateDocket(false); resetDocketForm(); }}>Cancel</Button>
             <Button onClick={createMaintenanceDocket} disabled={saving}>{saving ? "Saving…" : "Create Docket"}</Button>
