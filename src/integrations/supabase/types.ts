@@ -449,6 +449,13 @@ export type Database = {
             foreignKeyName: "bookings_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -582,6 +589,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "checkfront_connections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "checkfront_connections_property_id_fkey"
             columns: ["property_id"]
@@ -1110,6 +1124,13 @@ export type Database = {
             foreignKeyName: "hostfully_room_types_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "hostfully_room_types_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -1161,6 +1182,13 @@ export type Database = {
             foreignKeyName: "integration_configs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "integration_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -1199,6 +1227,13 @@ export type Database = {
           property_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "integration_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "integration_logs_property_id_fkey"
             columns: ["property_id"]
@@ -1395,6 +1430,13 @@ export type Database = {
             foreignKeyName: "itinerary_bookings_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "itinerary_bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -1533,6 +1575,13 @@ export type Database = {
             foreignKeyName: "local_experiences_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "local_experiences_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -1646,6 +1695,13 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "nightsbridge_booking_sessions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "nightsbridge_booking_sessions_property_id_fkey"
             columns: ["property_id"]
@@ -2096,6 +2152,13 @@ export type Database = {
             foreignKeyName: "pms_availability_cache_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "pms_availability_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -2249,6 +2312,13 @@ export type Database = {
             foreignKeyName: "pms_mappings_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "pms_mappings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -2314,6 +2384,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "pms_rate_types_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "pms_rate_types_cache_property_id_fkey"
             columns: ["property_id"]
@@ -2465,6 +2542,13 @@ export type Database = {
             foreignKeyName: "pms_reservations_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "pms_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -2551,6 +2635,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "pms_room_types_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "pms_room_types_cache_property_id_fkey"
             columns: ["property_id"]
@@ -2947,6 +3038,13 @@ export type Database = {
             foreignKeyName: "property_activation_logs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_activation_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3006,6 +3104,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_availability_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_availability_property_id_fkey"
             columns: ["property_id"]
@@ -3078,6 +3183,13 @@ export type Database = {
           verified_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_bank_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_bank_details_property_id_fkey"
             columns: ["property_id"]
@@ -3193,6 +3305,13 @@ export type Database = {
             foreignKeyName: "property_charges_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3252,6 +3371,13 @@ export type Database = {
           verification_data?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_checklist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_checklist_property_id_fkey"
             columns: ["property_id"]
@@ -3318,6 +3444,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_commercial_terms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_commercial_terms_property_id_fkey"
             columns: ["property_id"]
@@ -3424,6 +3557,13 @@ export type Database = {
             foreignKeyName: "property_contracts_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_contracts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3459,6 +3599,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_onboarding_roadmap_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_onboarding_roadmap_property_id_fkey"
             columns: ["property_id"]
@@ -3511,6 +3658,13 @@ export type Database = {
             foreignKeyName: "property_onboarding_tokens_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_onboarding_tokens_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3552,6 +3706,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "property_owners_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_owners_property_id_fkey"
             columns: ["property_id"]
@@ -3616,6 +3777,13 @@ export type Database = {
             foreignKeyName: "property_rates_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_rates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3669,6 +3837,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "property_staff_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "property_staff_property_id_fkey"
             columns: ["property_id"]
@@ -3812,6 +3987,13 @@ export type Database = {
             foreignKeyName: "rol_bank_export_lines_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rol_bank_export_lines_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -3946,6 +4128,13 @@ export type Database = {
             foreignKeyName: "rol_revenue_ledger_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rol_revenue_ledger_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -4065,6 +4254,13 @@ export type Database = {
             foreignKeyName: "rolos_brand_config_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_brand_config_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -4115,6 +4311,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_channel_connections_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_channel_connections_property_id_fkey"
             columns: ["property_id"]
@@ -4380,6 +4583,13 @@ export type Database = {
             foreignKeyName: "rolos_daily_metrics_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_daily_metrics_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -4430,6 +4640,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_deposit_schedules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_deposit_schedules_property_id_fkey"
             columns: ["property_id"]
@@ -4560,6 +4777,13 @@ export type Database = {
             foreignKeyName: "rolos_event_spaces_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_event_spaces_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -4649,6 +4873,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rolos_groups"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "rolos_events_property_id_fkey"
@@ -4775,6 +5006,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "bookings_decrypted"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_folios_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "rolos_folios_property_id_fkey"
@@ -4968,6 +5206,13 @@ export type Database = {
             foreignKeyName: "rolos_groups_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_groups_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5108,6 +5353,13 @@ export type Database = {
             foreignKeyName: "rolos_guest_profiles_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_profiles_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5155,6 +5407,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_housekeeping_schedules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_housekeeping_schedules_property_id_fkey"
             columns: ["property_id"]
@@ -5280,6 +5539,13 @@ export type Database = {
             foreignKeyName: "rolos_inventory_calendar_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_inventory_calendar_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5358,6 +5624,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rolos_folios"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "rolos_invoices_property_id_fkey"
@@ -5445,6 +5718,13 @@ export type Database = {
             foreignKeyName: "rolos_maintenance_requests_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_maintenance_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5515,6 +5795,13 @@ export type Database = {
           template_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_message_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_message_log_property_id_fkey"
             columns: ["property_id"]
@@ -5592,6 +5879,13 @@ export type Database = {
             foreignKeyName: "rolos_message_queue_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_message_queue_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5652,6 +5946,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_message_templates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_message_templates_property_id_fkey"
             columns: ["property_id"]
@@ -5718,6 +6019,13 @@ export type Database = {
           tax_posted?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_night_audit_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_night_audit_log_property_id_fkey"
             columns: ["property_id"]
@@ -5834,6 +6142,13 @@ export type Database = {
             foreignKeyName: "rolos_payments_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -5893,6 +6208,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_pricing_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_pricing_rules_property_id_fkey"
             columns: ["property_id"]
@@ -6007,6 +6329,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plans_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_rate_plans_property_id_fkey"
             columns: ["property_id"]
@@ -6165,6 +6494,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rolos_payments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_refunds_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "rolos_refunds_property_id_fkey"
@@ -6380,6 +6716,13 @@ export type Database = {
             foreignKeyName: "rolos_reservations_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -6442,6 +6785,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_room_types_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_room_types_property_id_fkey"
             columns: ["property_id"]
@@ -6509,6 +6859,13 @@ export type Database = {
             foreignKeyName: "rolos_rooms_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_rooms_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -6554,6 +6911,13 @@ export type Database = {
           staff_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_staff_activity_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_staff_activity_log_property_id_fkey"
             columns: ["property_id"]
@@ -6619,6 +6983,13 @@ export type Database = {
             foreignKeyName: "rolos_staff_shifts_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_staff_shifts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -6670,6 +7041,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_tax_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "rolos_tax_rules_property_id_fkey"
             columns: ["property_id"]
@@ -6745,6 +7123,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rolos_guest_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_waitlist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
           },
           {
             foreignKeyName: "rolos_waitlist_property_id_fkey"
@@ -6903,6 +7288,13 @@ export type Database = {
             foreignKeyName: "sync_logs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "sync_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -6962,6 +7354,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "system_alerts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
           {
             foreignKeyName: "system_alerts_property_id_fkey"
             columns: ["property_id"]
@@ -7403,6 +7802,13 @@ export type Database = {
             foreignKeyName: "bookings_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["id"]
           },
@@ -7414,6 +7820,195 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dw_booking_pipeline: {
+        Row: {
+          avg_value: number | null
+          booking_count: number | null
+          earliest_arrival: string | null
+          latest_departure: string | null
+          property_id: string | null
+          status: string | null
+          total_value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dw_channel_performance: {
+        Row: {
+          avg_booking_value: number | null
+          booking_count: number | null
+          cancellation_rate_pct: number | null
+          cancellations: number | null
+          channel: string | null
+          gross_revenue: number | null
+          property_id: string | null
+          total_commission: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dw_daily_revenue: {
+        Row: {
+          avg_booking_value: number | null
+          booking_count: number | null
+          gross_revenue: number | null
+          net_revenue: number | null
+          property_id: string | null
+          stay_date: string | null
+          total_commission: number | null
+          unique_guests: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dw_guest_ltv: {
+        Row: {
+          avg_stay_value: number | null
+          first_stay: string | null
+          guest_email: string | null
+          guest_name: string | null
+          last_stay: string | null
+          lifetime_value: number | null
+          property_id: string | null
+          total_stays: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dw_monthly_occupancy: {
+        Row: {
+          avg_adr: number | null
+          avg_occupancy_pct: number | null
+          avg_revpar: number | null
+          days_in_period: number | null
+          month: string | null
+          property_id: string | null
+          total_revenue: number | null
+          total_rooms_sold: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_daily_metrics_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_daily_metrics_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_daily_metrics_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dw_portfolio_kpis: {
+        Row: {
+          avg_adr_30d: number | null
+          avg_occupancy_30d: number | null
+          city: string | null
+          country: string | null
+          last_30d_bookings: number | null
+          last_30d_revenue: number | null
+          property_id: string | null
+          property_name: string | null
+          upcoming_arrivals: number | null
+          upcoming_value: number | null
+        }
+        Relationships: []
       }
       public_nightsbridge_config: {
         Row: {
