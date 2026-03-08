@@ -418,7 +418,7 @@ export default function PMSHousekeeping() {
                 <Select value={docketPriority} onValueChange={setDocketPriority}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {["low", "medium", "high", "urgent"].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                    {PRIORITIES.map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
