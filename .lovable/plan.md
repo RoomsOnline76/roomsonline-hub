@@ -1,78 +1,63 @@
 
-# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## What Was Delivered
+# Staff Login: Single URL with Smart Branding
 
-### Phase 1: Database Schema ✅
-- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
-- `integration_logs` table — tracks widget loads, clicks, and booking initiations
-- `bookings` table extended with `integration_type` and `source_url` columns
-- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
+## Problem
 
-### Phase 2: Edge Functions ✅
-- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
-- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
-- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
-- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
+Two issues:
+1. **404 on custom domain** — The route `/staff-login/:propertySlug` exists in `App.tsx` (line 541), so the 404 is a deployment/DNS routing issue on `sleepinafrica.roomsonline.co.za`, not a missing route. The SPA catch-all likely isn't configured on that domain.
+2. **Scalability** — Generating a unique URL per property (`/staff-login/latter-days`) is fragile: slugs change, properties rename, URLs break.
 
-### Phase 3: Admin UI ✅
-Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
+## Proposed Solution: Single `/staff-login` with Smart Memory
 
-6 integration tabs:
-- **Direct Link** — Copyable booking URL + HTML button snippet
-- **Widget** — iframe and JavaScript embed code for date-picker widget
-- **Booking Bar** — Fixed-position bottom bar embed code
-- **Full Embed** — Full booking engine iframe for dedicated pages
-- **WordPress** — PHP plugin code + shortcode, ready-to-install
-- **API** — API key generation/rotation, cURL examples, endpoint docs
+One universal URL: **`/staff-login`** (no slug required).
 
-Each tab includes:
-- Enable/disable toggle (persisted to `integration_configs`)
-- Copyable code snippets with syntax highlighting
-- Step-by-step installation instructions
-- Domain whitelist configuration (widget, booking bar, full embed)
+**Branding logic:**
+1. If a `?property=slug` query param is present → fetch and display that property's branding (used for first-time links from the Staff Management page)
+2. Else if `localStorage` has a previous property login → auto-apply that property's branding
+3. Else → show RoomsOnline default branding (clean, professional fallback)
 
-### Phase 4: Analytics Dashboard ✅
-Integrated directly into the integrations page:
-- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
-- Widget Activity bar chart (loads + clicks by integration type)
-- Bookings by Integration pie chart
-- Revenue Pulse channel breakdown updated to include integration types
+**After successful login:**
+- Save the property's brand data + slug to `localStorage` key `rol_staff_last_property`
+- Next time staff visits `/staff-login` (bookmark, typed URL), they see their property's branding automatically
 
-### Phase 5: Embeddable Assets ✅
-Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
-- **Widget mode** — Card-style booking prompt with property hero image and branding
-- **Bar mode** — Compact horizontal bar with "Book Now" button
-- **Full mode** — Same as widget but for full-page embedding
-- Automatic load tracking via `integration_logs`
-- "Powered by ROL'OS" attribution footer
+**Staff Management page update:**
+- Change the displayed URL from `https://sleepinafrica.roomsonline.co.za/staff-login/latter-days` to the published app URL with query param: `https://roomsonline-hub.lovable.app/staff-login?property=latter-days`
+- This URL is a convenience link, not a requirement — staff can just bookmark `/staff-login`
 
-### Phase 6: Revenue Pulse Integration ✅
-- Channel breakdown chart updated with integration type labels
-- Bookings with `integration_type` automatically appear in revenue analytics
+## Changes
 
-### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
-- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
-- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
-- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
-- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
-  - Overview & Use Cases (collapsible accordion)
-  - Quick Start guide (numbered steps)
-  - Advanced Configuration (code examples, parameters)
-  - Troubleshooting (issue/solution pairs)
-  - Best Practices (checklists)
+### 1. `src/pages/StaffLogin.tsx`
+- Make `propertySlug` param optional — support both `/staff-login` and `/staff-login/:propertySlug` (backward compat)
+- Add `?property=` query param support as primary resolution
+- Add localStorage read/write for `rol_staff_last_property` (stores `{ slug, name, logo, colors }`)
+- On successful login, persist brand to localStorage
+- Default fallback: ROL branding (dark navy gradient, ROL logo)
 
-#### Files Created/Modified (Phase 7):
-- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
-- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
-- `src/config/navigation.ts` — Added Integrations item to pmsSection
-- `src/App.tsx` — Registered `/pms/integrations` route
-- `src/pages/pms/index.ts` — Exported PMSIntegrations
-- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
+### 2. `src/App.tsx`
+- Keep existing route `/staff-login/:propertySlug` for backward compatibility
+- Add `/staff-login` route (no param) pointing to same component
 
-## Architecture Preserved
-- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
-- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
-- API key authentication for WordPress/API integrations (stored in `integration_configs`)
-- Integration tracking metadata flows through to commission calculation
+### 3. `src/pages/pms/PMSStaff.tsx`
+- Change `staffLoginUrl` from hardcoded custom domain to use `window.location.origin + /staff-login?property=${propertySlug}`
+- This makes the URL work on any domain the app is deployed to
+
+## UX Flow
+
+```text
+First-time staff member:
+  Manager shares: /staff-login?property=latter-days
+  → Page loads with Latter Days branding
+  → Staff logs in → branding saved to localStorage
+  → Staff bookmarks /staff-login
+
+Returning staff member:
+  Opens bookmark: /staff-login
+  → localStorage has Latter Days brand → shows branded login
+  → Feels like "their" portal
+
+Staff at new property:
+  Manager shares: /staff-login?property=new-place
+  → Overrides localStorage with New Place branding
+```
+
