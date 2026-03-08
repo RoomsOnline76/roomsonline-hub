@@ -457,7 +457,7 @@ function HomeContent() {
 
                 {/* Dropdown Menu */}
                 {isMenuOpen && (
-                  <div className="absolute top-12 right-0 w-56 bg-card/98 backdrop-blur-md border border-border rounded-xl shadow-2xl py-2 z-50 animate-fade-in">
+                  <div className="absolute top-12 right-0 w-56 bg-background border border-border rounded-xl shadow-2xl py-2 z-50 animate-fade-in">
                     {[
                       { to: "/journals", icon: BookOpen, label: "Journal" },
                       { to: "/about", icon: Users, label: "About Us" },
