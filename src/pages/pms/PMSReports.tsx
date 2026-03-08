@@ -386,6 +386,12 @@ export default function PMSReports() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          <TabsContent value="folios">
+            <PMSFoliosManager propertyId={propertyId} />
+          </TabsContent>
+        </Tabs>
       </div>
     </PMSLayout>
   );
