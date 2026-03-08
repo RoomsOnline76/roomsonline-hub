@@ -186,7 +186,25 @@ export default function PMSStaff() {
           </Button>
         </div>
 
-        <Card>
+        {/* Staff Login URL */}
+        {staffLoginUrl && (
+          <Card className="border-dashed">
+            <CardContent className="py-4 px-5 flex items-center gap-3">
+              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Branded Staff Login URL</p>
+                <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">
+                  {staffLoginUrl}
+                </code>
+              </div>
+              <Button variant="outline" size="sm" onClick={copyLoginUrl}>
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                Copy
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
           <CardHeader>
             <CardTitle className="text-base">Property Staff</CardTitle>
           </CardHeader>
