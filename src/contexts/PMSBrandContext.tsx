@@ -44,7 +44,7 @@ export function usePMSBrand() {
  * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
  * This makes the property feel like it has its own custom software.
  */
-function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null): () => void {
+function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null): () => void {
   const root = document.documentElement;
   const applied: string[] = [];
 
@@ -59,7 +59,6 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--primary", hsl);
       set("--primary-foreground", autoForeground(primary));
       set("--ring", hsl);
-      // Chart colour 1
       set("--chart-1", hsl);
     }
   }
@@ -80,6 +79,17 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--foreground", hsl);
       set("--card-foreground", hsl);
       set("--popover-foreground", hsl);
+    }
+  }
+
+  // Menu/sidebar accent colour
+  if (accent) {
+    const hsl = hexToHsl(accent);
+    if (hsl) {
+      set("--accent", hsl);
+      set("--accent-foreground", autoForeground(accent));
+      set("--sidebar-accent", hsl);
+      set("--sidebar-accent-foreground", autoForeground(accent));
     }
   }
 
