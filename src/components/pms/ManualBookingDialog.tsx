@@ -289,7 +289,19 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <SelectTrigger><SelectValue placeholder="Select rate plan (optional)" /></SelectTrigger>
                 <SelectContent>
                   {ratePlans.map(rp => (
-                    <SelectItem key={rp.id} value={rp.id}>{rp.name}{rp.base_rate ? ` — R${rp.base_rate.toLocaleString()}` : ""}</SelectItem>
+                    <SelectItem key={rp.id} value={rp.id}>
+                      {rp.name}{rp.base_rate ? ` — R${rp.base_rate.toLocaleString()}` : ""}
+                      {rp.pricing_model && rp.pricing_model !== 'per_room' && (
+                        <span className="text-muted-foreground ml-1 text-xs">({rp.pricing_model.replace(/_/g, ' ')})</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {pricingModel === 'per_person' && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium">⚡ Per-person rate — price multiplied by guest count</p>
+              )}
+            </div>
                   ))}
                 </SelectContent>
               </Select>
