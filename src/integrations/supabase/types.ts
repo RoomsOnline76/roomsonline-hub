@@ -7154,6 +7154,67 @@ export type Database = {
           },
         ]
       }
+      rolos_yield_rules: {
+        Row: {
+          adjustment_percent: number
+          condition: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          priority: number
+          property_id: string
+          rule_type: string
+          updated_at: string
+        }
+        Insert: {
+          adjustment_percent?: number
+          condition?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number
+          property_id: string
+          rule_type?: string
+          updated_at?: string
+        }
+        Update: {
+          adjustment_percent?: number
+          condition?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number
+          property_id?: string
+          rule_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_yield_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_yield_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_yield_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supporting_systems: {
         Row: {
           account_owner: string | null
