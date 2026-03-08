@@ -4,7 +4,9 @@ import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt } from "lucide-react";
+import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
