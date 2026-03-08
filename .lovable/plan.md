@@ -1,213 +1,102 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phase 1 — Night Audit Enhancement & Financial Auto-Posting ✅ COMPLETED
+# Plan: Address ROL'OS PMS v4.0 Gaps — Prioritized Implementation
 
-### Delivered
-- `timezone` column on `properties` table + `rolos_night_audit_log` table with RLS
-- `pms-night-audit` v2.0: timezone-aware, auto room charge + tax posting, housekeeping roll, metrics, folio closure, audit logging
-- `/pms/night-audit` page with summary cards, expandable history table, manual trigger
-- Sidebar item under Management, permission matrix updated
+This is a large scope covering 7 major gap areas. Here is a corrected assessment of what actually exists vs what is genuinely missing, followed by a phased implementation plan.
 
 ---
 
-## Phase 2 — Financial Engine: Invoice PDF & Payment Gateway Hooks ✅ COMPLETED
+## Corrected Gap Assessment (Spec vs Reality)
 
-### Database
-- ✅ `rolos_deposit_schedules` table with RLS (rate_plan_id, deposit_type, deposit_value, due_days_before)
-- ✅ `property_id` and `guest_name` columns added to `rolos_folios`
-- ✅ `invoices` storage bucket created with RLS policies
-
-### Edge Function: `pms-financial` v2.0
-- ✅ `generate_invoice` — builds branded HTML invoice from folio transactions + property branding, uploads to storage, stores `pdf_url`
-- ✅ `process_gateway_payment` — creates pending payment record for gateway flow (PayFast/PayGate adapter-ready)
-- ✅ `payment_webhook` — updates payment status from gateway callback, posts folio transaction, recalculates balance
-- ✅ `get_folios` — lists folios with booking info for property
-- ✅ `get_folio_detail` — returns folio + transactions + payments + invoices in one call
-- ✅ `get_deposit_schedules` — lists deposit schedules with rate plan names
-- ✅ `record_payment` — now updates folio balance automatically
-- ✅ Fixed `transaction_type` column name (was incorrectly `type`) in night audit
-
-### UI: Folios Manager
-- ✅ New `PMSFoliosManager` component with folio list table
-- ✅ Folio detail sheet: transactions, payments, invoices with PDF download
-- ✅ Record Payment dialog (amount, method, reference)
-- ✅ Generate Invoice button (branded HTML with property logo/colors/VAT)
-- ✅ Integrated as "Folios" tab in `/pms/reports` (Reports & Financials)
-
-### Files Created/Modified
-- `supabase/functions/pms-financial/index.ts` — v2.0 rewrite
-- `supabase/functions/pms-night-audit/index.ts` — fixed transaction_type column
-- `src/hooks/usePmsFinancial.ts` — added useFolios, useFolioDetail, useDepositSchedules
-- `src/components/pms/PMSFoliosManager.tsx` — new component
-- `src/pages/pms/PMSReports.tsx` — added Tabs (Analytics | Folios)
+| Area | What EXISTS | What is GENUINELY MISSING |
+|------|-----------|--------------------------|
+| **Financial Engine** | Full edge function with record_payment, process_refund, generate_invoice (HTML+storage), gateway_payment, webhook handler, folio CRUD, deposit schedules, tax calculation | Live gateway wiring (call PayFast/PayGate from folio context), automatic folio creation on booking, reconciliation dashboard UI |
+| **Channel Manager** | Tables, UI (connections, mappings, sync log), edge function with push_inventory/pull_reservations structure | Actual OTA API calls are **STUB** — payload built but not sent. No live connectivity |
+| **Night Audit** | Full edge function with 4 automated tasks (charge posting, tax, housekeeping roll, metrics, folio close), timezone-aware, manual trigger, cron schedule, complete UI | Already quite complete. Missing: reconciliation step, audit confirmation email |
+| **Messaging** | Full edge function with Resend delivery, template CRUD, queue processing, placeholder resolution, complete UI | No automated triggers (booking events don't auto-queue messages), no SMS/WhatsApp |
+| **Revenue** | 661-line page with forecast, historical performance, channel breakdown, rate suggestions, active plans tab | No yield rules engine, no competitor rate parsing, no dynamic pricing automation |
+| **Portfolio** | 300-line page with aggregated KPIs (revenue, occupancy, ADR, arrivals/departures), comparative chart, per-property cards | No portfolio-level restriction editor, no RevPAR aggregation, limited depth |
+| **TOBI AI** | Full system prompt with 17-module navigation, common tasks, property context injection | No action capabilities (can't trigger audits, generate reports, or modify data) |
 
 ---
 
-## Phase 3 — Messaging Engine ✅ COMPLETED
+## Phase 1 — Critical (implement first)
 
-### Database
-- ✅ `rolos_message_templates` table (property_id, name, trigger_event, subject, body, channel, is_active, send_offset_hours) with RLS
-- ✅ `rolos_message_queue` table (reservation_id, template_id, recipient, subject, body, channel, scheduled_at, status) with RLS
-- ✅ `rolos_message_log` table (reservation_id, channel, status, error, sent_at) with RLS
+### 1. Wire Messaging Automated Triggers
+- Create a database trigger on `bookings` table that auto-queues messages from `rolos_message_templates` when booking status changes (confirmed → booking_confirmed template, etc.)
+- Add a trigger for pre-arrival: night audit checks for bookings arriving tomorrow and queues pre_arrival template
+- Wire check_out template into night audit folio-close step
+- **Files**: New migration + update `pms-night-audit/index.ts`
 
-### Edge Function: `pms-message-dispatcher` v1.0
-- ✅ Template CRUD (list, upsert, delete)
-- ✅ Queue management (queue_message, process_queue, get_queue)
-- ✅ Direct send (send_message) via Resend
-- ✅ Placeholder resolution from reservation + guest data ({{guest_name}}, {{property_name}}, {{check_in}}, etc.)
-- ✅ Message logging on every send attempt
+### 2. Wire Financial Engine ↔ Booking Flow
+- Auto-create folio when a ROL'OS booking is confirmed (DB trigger on bookings table)
+- In `pms-financial`, add `initiate_gateway_payment` action that calls existing `payfast-api` or `paygate-api` edge functions based on `useActivePaymentGateway` logic
+- Add `reconcile` action that cross-checks folio balances against payment records
+- **Files**: New migration, update `pms-financial/index.ts`
 
-### UI: `/pms/messaging` (new page)
-- ✅ Template editor with placeholder insertion buttons
-- ✅ Template cards with trigger event, channel, active status
-- ✅ Message log table with status icons
-- ✅ Queue viewer with processing trigger
-- ✅ Manual send dialog
+### 3. Night Audit — Add Reconciliation + Notification
+- Add reconciliation step in night audit: compare folio balances vs payment totals, flag discrepancies
+- Send audit summary email via Resend after completion (to property owner/GM)
+- **Files**: Update `pms-night-audit/index.ts`
 
-### Integration
-- ✅ `messaging` added to PmsModule type and permission matrix (owner/GM full, front_desk RO, auditor RO)
-- ✅ Sidebar item under Management group with MessageSquare icon
-- ✅ Route `/pms/messaging` added to App.tsx
-- ✅ Hooks: usePmsMessaging.ts (useMessageTemplates, useUpsertTemplate, useDeleteTemplate, useSendMessage, useMessageLog, useMessageQueue, useProcessQueue)
+## Phase 2 — High Priority
 
-### Files Created/Modified
-- `supabase/functions/pms-message-dispatcher/index.ts` — new
-- `src/hooks/usePmsMessaging.ts` — new
-- `src/pages/pms/PMSMessaging.tsx` — new
-- `src/lib/pmsPermissions.ts` — added messaging module
-- `src/components/layout/PMSSidebar.tsx` — added Messaging nav item
-- `src/App.tsx` — added route
-- `src/pages/pms/index.ts` — added export
+### 4. Channel Manager — Stub-to-Live Architecture
+- Refactor `pms-channel-sync` to use a channel adapter pattern: each OTA gets a handler module
+- Implement Booking.com and Airbnb stubs with proper payload structures matching their XML/JSON APIs
+- Add conflict detection: when pull_reservations finds a date overlap with existing booking, flag it
+- Add rate sync action (push rates to channels)
+- **Files**: Rewrite `pms-channel-sync/index.ts`
 
----
+### 5. Revenue Management — Yield Rules Engine
+- Create `rolos_yield_rules` table (property_id, rule_type [occupancy_threshold, day_of_week, lead_time, season], condition JSON, adjustment_percent, priority)
+- Add yield calculation function that applies rules to base rates
+- Wire into rate push for channel manager
+- Add UI tab in PMSRevenue for rule management
+- **Files**: New migration, new component, update `PMSRevenue.tsx`
 
-## Phase 4 — Group Bookings & Events Completion ✅ COMPLETED
+### 6. Portfolio View — Enhanced Depth
+- Add RevPAR to aggregated KPIs
+- Add comparative sparkline charts per property (7-day trend)
+- Add portfolio-level restriction quick-view (stop-sells across properties)
+- **Files**: Update `PMSPortfolio.tsx`, add query for restrictions
 
-### Database
-- ✅ Added `setup_minutes`, `teardown_minutes`, `linked_group_id` to `rolos_events`
-- ✅ Added `release_date`, `status` to `rolos_group_room_blocks`
-- ✅ Added `attrition_rate`, `release_date` to `rolos_groups`
+## Phase 3 — Medium Priority
 
-### UI: Groups (`/pms/groups`)
-- ✅ Group detail sheet with tabs: Room Blocks | Reservations
-- ✅ Room block allocation (room type, count, rate override, dates, release date)
-- ✅ Release blocks back to inventory
-- ✅ Link individual guest reservations to group
-- ✅ Attrition rate and release date in create form
+### 7. TOBI AI — Action Capabilities
+- Extend `help-assistant` to accept `action_request` type messages
+- Support actions: trigger night audit, generate occupancy summary, list today's arrivals
+- These call existing edge functions server-side and return structured results
+- **Files**: Update `help-assistant/index.ts`, update `PMSTobiAssistant.tsx`
 
-### UI: Events (`/pms/events`)
-- ✅ Space Calendar tab — 14-day visual timeline per space
-- ✅ Conflict detection with setup/teardown window checking
-- ✅ Link events to group bookings
-- ✅ Setup/teardown time display in event table
-
-### Files Modified
-- `src/pages/pms/PMSGroups.tsx` — full rewrite with room blocks + reservations
-- `src/pages/pms/PMSEvents.tsx` — full rewrite with calendar + conflict detection
-
-## Phase 5 — Staff Shifts & Activity Log UI ✅ COMPLETED
-
-### UI: `/pms/staff` Enhanced
-- ✅ Tabs: Roster | Shifts | Activity
-- ✅ **Roster tab:** Existing staff CRUD (unchanged functionality, now tabbed)
-- ✅ **Shifts tab:** Week calendar view with prev/next navigation, per-staff-member rows, color-coded shift badges (Morning/Afternoon/Night/Full Day/Custom)
-- ✅ **Activity tab:** Filterable log from `rolos_staff_activity_log` with staff name, action, details, timestamp
-- ✅ Create Shift dialog (staff selector, shift type, start/end datetime, notes)
-- ✅ Wired existing hooks: `useStaffShifts`, `useCreateShift`, `useStaffActivityLog`
-
-### Files Modified
-- `src/pages/pms/PMSStaff.tsx` — full rewrite with 3-tab layout
-
-## Phase 6 — Security Hardening ✅ COMPLETED
-
-### XSS Prevention
-- ✅ Added DOMPurify sanitization to `PublicJournals.tsx` (public-facing journal content)
-- ✅ Added DOMPurify sanitization to `ContractSign.tsx` (2 instances of contract HTML rendering)
-- ✅ Added DOMPurify sanitization to `ContractPreviewPane.tsx` (admin contract preview)
-
-### Edge Function Auth Hardening
-- ✅ `pms-message-dispatcher`: Added `getClaims()` JWT validation (was previously unauthenticated with service role key)
-- ✅ `pms-channel-sync`: Migrated from `getUser()` to `getClaims()` for consistent auth pattern
-- ✅ Both functions now use separate service client for data ops and anon client for auth validation
-
-### Database Hardening
-- ✅ Fixed `update_bank_export_updated_at()` — added `SET search_path TO 'public'` + `SECURITY DEFINER`
-- ✅ Fixed `generate_batch_reference()` — added `SET search_path TO 'public'`
-- ✅ Reduced linter warnings from 146 to 144
-
-### Files Modified
-- `src/pages/PublicJournals.tsx` — DOMPurify import + sanitization
-- `src/pages/ContractSign.tsx` — DOMPurify import + 2x sanitization
-- `src/components/contract-editor/ContractPreviewPane.tsx` — DOMPurify import + sanitization
-- `supabase/functions/pms-message-dispatcher/index.ts` — getClaims() auth + service client separation
-- `supabase/functions/pms-channel-sync/index.ts` — getClaims() migration
-
-## Phase 7 — Revenue Management UI & Multi-Property Dashboard ✅ COMPLETED
-
-### Multi-Property Portfolio (`/pms/portfolio`)
-- ✅ Portfolio overview page showing KPIs across all ROL properties (last 30 days)
-- ✅ Total revenue, avg occupancy, avg ADR, today's arrivals/departures
-- ✅ Revenue & Occupancy comparison chart (horizontal bar per property)
-- ✅ Property cards with click-through to individual PMS dashboard
-- ✅ Responsive grid layout (2-col md, 3-col xl)
-
-### Revenue Management (`/pms/revenue`)
-- ✅ 14-day demand forecast with occupancy-based rate suggestions
-- ✅ Three tabs: Demand Forecast (chart + daily breakdown), Rate Suggestions (actionable cards), Active Plans
-- ✅ KPIs: forecast occupancy, forecast revenue, revenue opportunity, demand alerts
-- ✅ Signal system: increase (high demand >80%), decrease (low demand <30%), hold
-- ✅ Suggested ADR adjustments with percentage badges
-- ✅ Rate plan comparison against 30-day baseline ADR
-
-### Integration
-- ✅ `portfolio` and `revenue` added to PmsModule type and permission matrix
-- ✅ Portfolio: owner/GM/accountant(RO)/auditor(RO) access
-- ✅ Revenue: owner/GM/accountant(RO)/auditor(RO) access
-- ✅ Sidebar: "Revenue Mgmt" under Revenue group, "Portfolio" under Management group
-- ✅ Routes added to App.tsx
-
-### Files Created/Modified
-- `src/pages/pms/PMSPortfolio.tsx` — new
-- `src/pages/pms/PMSRevenue.tsx` — new
-- `src/pages/pms/index.ts` — added exports
-- `src/lib/pmsPermissions.ts` — added portfolio/revenue modules
-- `src/components/layout/PMSSidebar.tsx` — added nav items
-- `src/App.tsx` — added routes
-
-## Phase 8 — TypeScript Cleanup & Data Warehouse ✅ COMPLETED
-
-### TypeScript Strict Fixes
-- ✅ Created `src/types/pmsTypes.ts` — 20+ interfaces replacing `any` across PMS hooks/pages
-- ✅ `usePmsFinancial.ts` — replaced all `any` with typed interfaces (PmsFolio, PmsPayment, PmsRefund, PmsInvoice, PmsStaffShift, etc.)
-- ✅ `usePmsMessaging.ts` — replaced all `any` with PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult
-- ✅ `PMSDashboard.tsx` — replaced `any` in BookingRow interface and all `.map()` callbacks
-- ✅ `PMSMessaging.tsx` — replaced all `any` with typed interfaces in templates/log/queue maps
-- ✅ `PMSFoliosManager.tsx` — fixed `folio.booking.guest_name` → `folio.guest_name`
-- ✅ All `catch (e: any)` → `catch (e: unknown)` with proper casting
-
-### Code Cleanup & Refactor
-- ✅ `PMSMessaging.tsx` — migrated from manual `PMSSidebar`/`HelpProvider` wrapper to shared `PMSLayout` component (consistent with all other PMS pages)
-- ✅ Removed unused imports (PMSSidebar, PMSHelpDrawer, HelpProvider) from PMSMessaging
-- ✅ `onError: (err: any)` → `onError: (err: Error)` across all mutation hooks
-
-### Data Warehouse Views (6 views, all SECURITY INVOKER)
-- ✅ `dw_daily_revenue` — daily revenue per property (GBV, commission, net, unique guests)
-- ✅ `dw_monthly_occupancy` — monthly occupancy/ADR/RevPAR from rolos_daily_metrics
-- ✅ `dw_booking_pipeline` — forward-looking bookings by status (count + value)
-- ✅ `dw_channel_performance` — 90-day channel breakdown (revenue, cancellation rate)
-- ✅ `dw_guest_ltv` — guest lifetime value per property (total stays, LTV, avg value)
-- ✅ `dw_portfolio_kpis` — cross-property KPIs with LATERAL joins (revenue, occupancy, pipeline)
-- ✅ Linter issues reduced from 150 → 144 (SECURITY INVOKER on all new views)
-
-### Files Created/Modified
-- `src/types/pmsTypes.ts` — new centralized type definitions
-- `src/hooks/usePmsFinancial.ts` — full rewrite with strict types
-- `src/hooks/usePmsMessaging.ts` — full rewrite with strict types
-- `src/pages/pms/PMSMessaging.tsx` — PMSLayout migration + typed
-- `src/pages/pms/PMSDashboard.tsx` — typed BookingRow, removed any casts
-- `src/components/pms/PMSFoliosManager.tsx` — fixed folio property access
+### 8. TypeScript Debt — Remove `as any` Casts
+- After all table changes settle, regenerate types and replace `as any` casts with proper types from `supabase/types.ts`
+- Focus on `useChannelManager.ts`, `PMSRevenue.tsx`, `PMSPortfolio.tsx`
 
 ---
 
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE
+## Implementation Order
+
+```text
+Phase 1 (Critical):
+  [1] Messaging auto-triggers (DB trigger + night audit wire)
+  [2] Financial ↔ Booking auto-folio + gateway bridge
+  [3] Night audit reconciliation + email
+
+Phase 2 (High):
+  [4] Channel manager adapter pattern + conflict detection
+  [5] Yield rules engine + UI
+  [6] Portfolio enhanced KPIs
+
+Phase 3 (Medium):
+  [7] TOBI action capabilities
+  [8] TypeScript cleanup
+```
+
+## Technical Notes
+- All new DB changes via migration tool
+- Messaging triggers use existing `rolos_message_queue` + `pms-message-dispatcher` — no new edge functions needed
+- Financial gateway bridge reuses existing `payfast-api`/`paygate-api` functions via internal fetch
+- Channel adapter pattern allows incremental OTA onboarding without rewriting core sync logic
+- Security note on `verify_jwt = false`: addressed by internal auth validation in each function (getClaims/getUser pattern already in place)
+
