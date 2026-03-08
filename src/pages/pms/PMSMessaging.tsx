@@ -223,7 +223,7 @@ function PMSMessaging() {
                   <TableBody>
                     {queue.length === 0 ? (
                       <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Queue is empty</TableCell></TableRow>
-                    ) : queue.map((q: any) => (
+                    ) : queue.map((q: PmsQueueEntry) => (
                       <TableRow key={q.id}>
                         <TableCell><div className="flex items-center gap-1.5">{statusIcon(q.status)}<span className="text-xs capitalize">{q.status}</span></div></TableCell>
                         <TableCell className="text-sm">{q.recipient_email || "—"}</TableCell>

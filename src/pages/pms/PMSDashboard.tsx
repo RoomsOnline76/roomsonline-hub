@@ -1572,7 +1572,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
         </div>
         {unreadyRoomDetails.length > 0 && (
           <div className="text-xs text-muted-foreground">
-            {unreadyRoomDetails.map((r: any) => (
+            {unreadyRoomDetails.map((r: { id: string; room_number: string; status: string }) => (
               <span key={r.id} className="inline-flex items-center gap-1 mr-2">
                 <BedDouble className="h-3 w-3" />{r.room_number}: <Badge variant="outline" className="text-xs">{r.status}</Badge>
               </span>
