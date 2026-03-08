@@ -832,7 +832,7 @@ const WEEK_CELL_W = "w-[100px] min-w-[100px]";
 const WEEK_LABEL_W = "w-[180px] min-w-[180px]";
 
 function WeekCalendarGrid(props: CalendarGridProps) {
-  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
   const dailyOccupancy = useMemo(() => {
     const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
