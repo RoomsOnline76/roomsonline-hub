@@ -4,7 +4,7 @@ import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, addDays, startOfWeek, endOfWeek, differenceInDays, isToday, parseISO } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, differenceInDays, isToday, parseISO, getDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
@@ -31,6 +32,8 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   CalendarDays,
   AlertTriangle,
   MessageSquare,
@@ -62,6 +65,36 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// ──────────── SA Public Holidays ────────────
+const SA_PUBLIC_HOLIDAYS: { [year: number]: { [date: string]: string } } = {
+  2025: {
+    "2025-01-01": "New Year's Day", "2025-03-21": "Human Rights Day", "2025-04-18": "Good Friday",
+    "2025-04-21": "Family Day", "2025-04-28": "Freedom Day (Observed)", "2025-05-01": "Workers' Day",
+    "2025-06-16": "Youth Day", "2025-08-09": "National Women's Day", "2025-09-24": "Heritage Day",
+    "2025-12-16": "Day of Reconciliation", "2025-12-25": "Christmas Day", "2025-12-26": "Day of Goodwill",
+  },
+  2026: {
+    "2026-01-01": "New Year's Day", "2026-03-21": "Human Rights Day", "2026-04-03": "Good Friday",
+    "2026-04-06": "Family Day", "2026-04-27": "Freedom Day", "2026-05-01": "Workers' Day",
+    "2026-06-16": "Youth Day", "2026-08-10": "National Women's Day (Observed)", "2026-09-24": "Heritage Day",
+    "2026-12-16": "Day of Reconciliation", "2026-12-25": "Christmas Day", "2026-12-26": "Day of Goodwill",
+  },
+  2027: {
+    "2027-01-01": "New Year's Day", "2027-03-22": "Human Rights Day (Observed)", "2027-03-26": "Good Friday",
+    "2027-03-29": "Family Day", "2027-04-27": "Freedom Day", "2027-05-01": "Workers' Day",
+    "2027-06-16": "Youth Day", "2027-08-09": "National Women's Day", "2027-09-24": "Heritage Day",
+    "2027-12-16": "Day of Reconciliation", "2027-12-25": "Christmas Day", "2027-12-27": "Day of Goodwill (Observed)",
+  },
+};
+function getHolidayName(date: Date): string | null {
+  const dateStr = format(date, "yyyy-MM-dd");
+  return SA_PUBLIC_HOLIDAYS[date.getFullYear()]?.[dateStr] || null;
+}
+function isWeekendDay(date: Date): boolean {
+  const day = getDay(date);
+  return day === 0 || day === 6;
+}
 
 type ViewMode = "week" | "month";
 
@@ -585,184 +618,147 @@ export default function PMSDashboard() {
             )}
           </div>
 
-          {/* Compact stat pills */}
-          <div className="grid grid-cols-5 gap-3">
+          {/* Compact stat pills — horizontal strip */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             {statCards.map((stat) => (
-              <Card key={stat.label} className="py-2">
-                <CardContent className="flex items-center gap-2 p-0 px-3">
-                  <stat.icon className={cn("h-4 w-4 shrink-0", stat.color)} />
-                  <div className="min-w-0">
-                    <p className={cn("text-xl font-bold leading-none", stat.color)}>{stat.value}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{stat.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-card shrink-0">
+                <stat.icon className={cn("h-3.5 w-3.5 shrink-0", stat.color)} />
+                <span className={cn("text-sm font-semibold tabular-nums", stat.color)}>{stat.value}</span>
+                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{stat.label}</span>
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Calendar controls */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              {format(dateRange.start, "d MMM")} – {format(dateRange.end, "d MMM yyyy")}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* New Booking */}
-            <Button size="sm" onClick={() => setManualBookingOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              New Booking
-            </Button>
+        {/* Calendar controls — matching admin style */}
+        <Card>
+          <CardContent className="p-3">
+            {/* Top bar: date range, actions, navigation */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              <Button size="sm" onClick={() => setManualBookingOpen(true)} className="h-7 text-xs px-2">
+                <Plus className="h-3 w-3 mr-1" />New Booking
+              </Button>
 
-            {/* Restrictions dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings2 className="h-4 w-4 mr-1" />
-                  Restrictions
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs px-2">
+                    <Settings2 className="h-3 w-3 mr-1" />Restrictions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48 bg-popover">
+                  <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-red-500 mr-2" />Stop Sell
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-blue-500 mr-2" />Min Stay
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-pink-500 mr-2" />Max Stay
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2" />Lead Days Advance
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mr-2" />Lead Days Post
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="outline" size="icon" onClick={() => navigateBy(-1)} className="h-7 w-7">
+                  <ChevronLeft className="h-3 w-3" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
-                  <Ban className="h-4 w-4 mr-2 text-red-500" />
-                  Stop Sell
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMinStayOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-blue-500" />
-                  Min Stay
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setMaxStayOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-pink-500" />
-                  Max Stay
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLeadDaysAdvanceOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-yellow-500" />
-                  Lead Days Advance
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLeadDaysPostOpen(true)}>
-                  <CalendarDays className="h-4 w-4 mr-2 text-orange-500" />
-                  Lead Days Post
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* View mode */}
-            <div className="flex rounded-md border border-border overflow-hidden">
-              <button
-                onClick={() => setViewMode("week")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  viewMode === "week" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-accent text-foreground"
-                )}
-              >
-                Week
-              </button>
-              <button
-                onClick={() => setViewMode("month")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors",
-                  viewMode === "month" ? "bg-primary text-primary-foreground" : "bg-card hover:bg-accent text-foreground"
-                )}
-              >
-                Month
-              </button>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => navigateBy(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={goToToday}>
-              Today
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigateBy(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <CalendarDays className="h-4 w-4 mr-1" />
-                  Jump
+                <span className="text-sm font-semibold min-w-[160px] text-center">
+                  {format(dateRange.start, "d MMM")} – {format(dateRange.end, "d MMM yyyy")}
+                </span>
+                <Button variant="outline" size="icon" onClick={() => navigateBy(1)} className="h-7 w-7">
+                  <ChevronRight className="h-3 w-3" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  mode="single"
-                  selected={anchorDate}
-                  onSelect={(d) => { if (d) { setAnchorDate(d); setDatePickerOpen(false); } }}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap gap-3 text-xs">
-          {Object.entries(STATUS_COLORS).map(([status, colors]) => (
-            <div key={status} className="flex items-center gap-1.5">
-              <div className={cn("w-3 h-3 rounded-sm border", colors.bg, colors.border)} />
-              <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                <Button variant="outline" onClick={goToToday} className="h-7 text-xs px-2">Today</Button>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-7 text-xs px-2">
+                      <CalendarDays className="h-3 w-3 mr-1" />Jump
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={anchorDate}
+                      onSelect={(d) => { if (d) { setAnchorDate(d); setDatePickerOpen(false); } }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <div className="flex gap-0.5 ml-1">
+                  <Button
+                    variant={viewMode === "week" ? "default" : "outline"}
+                    onClick={() => setViewMode("week")}
+                    className="h-7 text-xs px-2"
+                  >Week</Button>
+                  <Button
+                    variant={viewMode === "month" ? "default" : "outline"}
+                    onClick={() => setViewMode("month")}
+                    className="h-7 text-xs px-2"
+                  >Month</Button>
+                </div>
+              </div>
             </div>
-          ))}
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-red-500/20 border border-red-500/40" />
-            <span className="text-muted-foreground">Stop Sell</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/40" />
-            <span className="text-muted-foreground">Min Stay</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-pink-500/20 border border-pink-500/40" />
-            <span className="text-muted-foreground">Max Stay</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-yellow-500/20 border border-yellow-500/40" />
-            <span className="text-muted-foreground">Lead Advance</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-orange-500/20 border border-orange-500/40" />
-            <span className="text-muted-foreground">Lead Post</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="h-3 w-3 text-amber-500" />
-            <span className="text-muted-foreground">Needs attention</span>
-          </div>
-        </div>
 
-        {/* Calendar Grid — week view: horizontal scroll; month view: stacked weekly rows */}
-        {viewMode === "week" ? (
-          <WeekCalendarGrid
-            dates={dates}
-            roomTypes={roomTypes}
-            roomsByType={roomsByType}
-            bookings={bookings}
-            rateSeasons={rateSeasons}
-            ratePrices={ratePrices}
-            rooms={rooms}
-            overrideMap={overrideMap}
-            getRateForDate={getRateForDate}
-            getPricingSuffix={getPricingSuffix}
-            getSeasonForDate={getSeasonForDate}
-            getRestriction={getRestriction}
-            onSelectBooking={setSelectedBooking}
-            bookingsLoading={bookingsLoading}
-          />
-        ) : (
-          <MonthCalendarGrid
-            weekChunks={weekChunks}
-            roomTypes={roomTypes}
-            roomsByType={roomsByType}
-            bookings={bookings}
-            rooms={rooms}
-            overrideMap={overrideMap}
-            getRateForDate={getRateForDate}
-            getPricingSuffix={getPricingSuffix}
-            getSeasonForDate={getSeasonForDate}
-            getRestriction={getRestriction}
-            onSelectBooking={setSelectedBooking}
-            bookingsLoading={bookingsLoading}
-          />
-        )}
+            {/* Legend row */}
+            <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+              <span className="text-muted-foreground font-medium">Bookings:</span>
+              {Object.entries(STATUS_COLORS).map(([status, colors]) => (
+                <div key={status} className="flex items-center gap-1">
+                  <div className={cn("w-3 h-1.5 rounded-full", colors.bg, "border", colors.border)} />
+                  <span className="capitalize text-muted-foreground">{status.replace("_", " ")}</span>
+                </div>
+              ))}
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground font-medium">Restrictions:</span>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-red-500" /><span className="text-muted-foreground">Stop Sell</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-blue-500" /><span className="text-muted-foreground">Min Stay</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-pink-500" /><span className="text-muted-foreground">Max Stay</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-yellow-500" /><span className="text-muted-foreground">Lead Adv</span></div>
+              <div className="flex items-center gap-1"><div className="w-3 h-1.5 rounded-full bg-orange-500" /><span className="text-muted-foreground">Lead Post</span></div>
+              <div className="flex items-center gap-1"><AlertTriangle className="h-3 w-3 text-amber-500" /><span className="text-muted-foreground">Attention</span></div>
+            </div>
+
+            {/* Calendar Grid */}
+            {viewMode === "week" ? (
+              <WeekCalendarGrid
+                dates={dates}
+                roomTypes={roomTypes}
+                roomsByType={roomsByType}
+                bookings={bookings}
+                rateSeasons={rateSeasons}
+                ratePrices={ratePrices}
+                rooms={rooms}
+                overrideMap={overrideMap}
+                getRateForDate={getRateForDate}
+                getPricingSuffix={getPricingSuffix}
+                getSeasonForDate={getSeasonForDate}
+                getRestriction={getRestriction}
+                onSelectBooking={setSelectedBooking}
+                bookingsLoading={bookingsLoading}
+              />
+            ) : (
+              <MonthCalendarGrid
+                weekChunks={weekChunks}
+                roomTypes={roomTypes}
+                roomsByType={roomsByType}
+                bookings={bookings}
+                rooms={rooms}
+                overrideMap={overrideMap}
+                getRateForDate={getRateForDate}
+                getPricingSuffix={getPricingSuffix}
+                getSeasonForDate={getSeasonForDate}
+                getRestriction={getRestriction}
+                onSelectBooking={setSelectedBooking}
+                bookingsLoading={bookingsLoading}
+              />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Today's Arrivals & Departures */}
         {(todayArrivals.length > 0 || todayDepartures.length > 0) && (
@@ -844,8 +840,134 @@ interface CalendarGridProps {
   bookingsLoading: boolean;
 }
 
-const WEEK_CELL_W = "w-[100px] min-w-[100px]";
-const WEEK_LABEL_W = "w-[180px] min-w-[180px]";
+const WEEK_CELL_W = "w-[80px] min-w-[80px]";
+const WEEK_LABEL_W = "w-[160px] min-w-[160px]";
+
+// ──────────── Shared: Date header cell ────────────
+function DateHeaderCell({ date, season, className: extraClass }: { date: Date; season?: RateSeason | null; className?: string }) {
+  const holiday = getHolidayName(date);
+  const weekend = isWeekendDay(date);
+  const today = isToday(date);
+
+  const cellContent = (
+    <div className={cn(
+      "px-0.5 py-1.5 text-center",
+      today ? "bg-primary/15 ring-1 ring-inset ring-primary/40" : holiday ? "bg-green-50 dark:bg-green-950/20" : weekend ? "bg-red-50/60 dark:bg-red-950/15" : "",
+      extraClass,
+    )}>
+      <div className={cn("text-[10px] font-semibold uppercase", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+        {format(date, "EEE")}
+      </div>
+      <div className={cn("text-sm font-bold", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-foreground")}>
+        {format(date, "d")}
+      </div>
+      <div className={cn("text-[9px]", today ? "text-primary" : holiday ? "text-green-700 dark:text-green-400" : weekend ? "text-red-500" : "text-muted-foreground")}>
+        {format(date, "MMM")}
+      </div>
+      {today && <div className="text-[7px] font-bold text-primary mt-0.5">TODAY</div>}
+      {season?.is_peak && !today && <div className="text-[7px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+    </div>
+  );
+
+  if (holiday) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{cellContent}</TooltipTrigger>
+        <TooltipContent><p className="font-semibold text-xs">{holiday}</p><p className="text-[10px] text-muted-foreground">SA Public Holiday</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  return cellContent;
+}
+
+// ──────────── Shared: Restriction colored lines ────────────
+function RestrictionLines({ restriction, prevRestriction, nextRestriction }: {
+  restriction: AvailabilityOverride | undefined;
+  prevRestriction?: AvailabilityOverride | undefined;
+  nextRestriction?: AvailabilityOverride | undefined;
+}) {
+  if (!restriction) return null;
+  const lines: JSX.Element[] = [];
+
+  const getLineClass = (hasPrev: boolean, hasNext: boolean, baseColor: string) => {
+    const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
+    return `h-1 flex-1 ${baseColor} ${rounded}`;
+  };
+
+  if (restriction.is_stop_sell) {
+    lines.push(
+      <Tooltip key="ss">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(!!prevRestriction?.is_stop_sell, !!nextRestriction?.is_stop_sell, "bg-red-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Stop Sell Active</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.minimum_stay != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.minimum_stay === restriction.minimum_stay;
+    lines.push(
+      <Tooltip key="min">
+        <TooltipTrigger asChild>
+          <div className={cn(getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-blue-500"), "flex items-center justify-center")}>
+            <span className="text-[7px] text-white font-bold leading-none">{restriction.minimum_stay}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Min Stay: {restriction.minimum_stay} nights</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.maximum_stay != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.maximum_stay === restriction.maximum_stay;
+    lines.push(
+      <Tooltip key="max">
+        <TooltipTrigger asChild>
+          <div className={cn(getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-pink-500"), "flex items-center justify-center")}>
+            <span className="text-[7px] text-white font-bold leading-none">{restriction.maximum_stay}</span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Max Stay: {restriction.maximum_stay} nights</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.lead_days_advance != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.lead_days_advance === restriction.lead_days_advance;
+    lines.push(
+      <Tooltip key="adv">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-yellow-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Lead Advance: {restriction.lead_days_advance} days</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (restriction.lead_days_post != null) {
+    const sameVal = (r?: AvailabilityOverride) => r?.lead_days_post === restriction.lead_days_post;
+    lines.push(
+      <Tooltip key="post">
+        <TooltipTrigger asChild>
+          <div className={getLineClass(sameVal(prevRestriction), sameVal(nextRestriction), "bg-orange-500")} />
+        </TooltipTrigger>
+        <TooltipContent><p className="text-xs font-medium">Lead Post: {restriction.lead_days_post} days</p></TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (lines.length === 0) return null;
+  return <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">{lines}</div>;
+}
+
+// ──────────── Shared: day cell background helper ────────────
+function dateCellBg(date: Date, extraStop?: boolean) {
+  const today = isToday(date);
+  const holiday = !!getHolidayName(date);
+  const weekend = isWeekendDay(date);
+  if (today) return "bg-primary/5";
+  if (extraStop) return "bg-red-500/5";
+  if (holiday) return "bg-green-50/50 dark:bg-green-950/10";
+  if (weekend) return "bg-red-50/30 dark:bg-red-950/10";
+  return "";
+}
 
 function WeekCalendarGrid(props: CalendarGridProps) {
   const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
@@ -861,46 +983,45 @@ function WeekCalendarGrid(props: CalendarGridProps) {
   }, [dates, bookings, rooms]);
 
   return (
-    <div className="border border-border rounded-lg bg-card overflow-hidden">
-      <ScrollArea className="w-full">
-        <div className="min-w-max">
-          {/* Occupancy bar */}
-          <div className="flex border-b border-border bg-muted/30">
-            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-medium text-muted-foreground border-r border-border flex items-center")}>Occupancy</div>
-            {dates.map((date, i) => {
-              const occ = dailyOccupancy[i];
-              return (
-                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0")}>
-                  <div className="w-full bg-muted rounded-full h-2 mb-1">
-                    <div className={cn("h-2 rounded-full", occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/30")} style={{ width: `${Math.min(occ, 100)}%` }} />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{occ}%</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Date header */}
-          <div className="flex border-b border-border bg-muted/50 sticky top-0 z-10">
-            <div className={cn(WEEK_LABEL_W, "shrink-0 px-3 py-2 text-xs font-semibold text-foreground border-r border-border")}>Room</div>
-            {dates.map((date, i) => {
-              const season = getSeasonForDate(date);
-              return (
-                <div key={i} className={cn(WEEK_CELL_W, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
-                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
-                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
-                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
-                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Room type rows */}
-          {roomTypes.map((rt) => (
-            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
-          ))}
-
+    <TooltipProvider>
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="w-full">
+          <table className="w-full border-collapse min-w-[800px]">
+            <thead>
+              {/* Occupancy row */}
+              <tr className="bg-muted/30">
+                <th className="border p-1 min-w-[160px] sticky left-0 bg-muted/30 z-10 text-xs font-medium text-muted-foreground text-left px-3">Occupancy</th>
+                {dates.map((date, i) => {
+                  const occ = dailyOccupancy[i];
+                  return (
+                    <th key={i} className="border p-1 min-w-[80px]">
+                      <div className="w-full bg-muted rounded-full h-1.5 mb-0.5">
+                        <div className={cn("h-1.5 rounded-full transition-all", occ >= 90 ? "bg-green-500" : occ >= 60 ? "bg-blue-500" : occ >= 30 ? "bg-amber-500" : "bg-muted-foreground/20")} style={{ width: `${Math.min(occ, 100)}%` }} />
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-normal">{occ}%</span>
+                    </th>
+                  );
+                })}
+              </tr>
+              {/* Date header row */}
+              <tr>
+                <th className="border bg-muted/50 p-1 min-w-[160px] sticky left-0 bg-background z-10" />
+                {dates.map((date, i) => {
+                  const season = getSeasonForDate(date);
+                  return (
+                    <th key={i} className="border p-0 min-w-[80px]">
+                      <DateHeaderCell date={date} season={season} />
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {roomTypes.map((rt) => (
+                <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+              ))}
+            </tbody>
+          </table>
           {roomTypes.length === 0 && !bookingsLoading && (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
               <div className="text-center space-y-2">
@@ -909,187 +1030,205 @@ function WeekCalendarGrid(props: CalendarGridProps) {
               </div>
             </div>
           )}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
+    </TooltipProvider>
   );
 }
 
-// ──────────── Month Calendar (stacked weekly rows, no horizontal scroll) ────────────
+// ──────────── Month Calendar (stacked weekly rows) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
   const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
-  // 7 columns for days + 1 for label. Use CSS grid with equal columns.
   return (
-    <div className="space-y-4">
-      {weekChunks.map((weekDates, weekIdx) => (
-        <div key={weekIdx} className="border border-border rounded-lg bg-card overflow-hidden">
-          {/* Date header row */}
-          <div className="grid border-b border-border bg-muted/50" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-            <div className="px-3 py-2 text-xs font-semibold text-foreground border-r border-border">Room</div>
-            {weekDates.map((date, i) => {
-              const season = getSeasonForDate(date);
-              return (
-                <div key={i} className={cn("px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/10", season?.is_peak && "bg-amber-500/5")}>
-                  <div className="text-[10px] uppercase text-muted-foreground">{format(date, "EEE")}</div>
-                  <div className={cn("text-sm font-semibold", isToday(date) ? "text-primary" : "text-foreground")}>{format(date, "d")}</div>
-                  <div className="text-[9px] text-muted-foreground">{format(date, "MMM")}</div>
-                  {season?.is_peak && <div className="text-[8px] text-amber-600 font-medium mt-0.5">PEAK</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Room type rows */}
-          {roomTypes.map((rt) => {
-            const typeRooms = roomsByType.get(rt.id) || [];
-            const totalUnits = typeRooms.length || 1;
-
-            const getMonthAvail = (date: Date) => {
-              const dateStr = format(date, "yyyy-MM-dd");
-              const booked = bookings.filter(b => {
-                if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
-                  return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
-                }
-                return false;
-              }).length;
-              return { booked, avail: Math.max(0, totalUnits - booked) };
-            };
-
-            return (
-              <div key={rt.id}>
-                {/* Room type header with rates + restrictions + availability */}
-                <div className="grid border-b border-border bg-muted/20" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-                  <div className="px-3 py-2 border-r border-border flex items-center gap-2">
-                    <BedDouble className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-foreground truncate">{rt.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
-                    </div>
-                  </div>
+    <TooltipProvider>
+      <div className="space-y-3">
+        {weekChunks.map((weekDates, weekIdx) => (
+          <div key={weekIdx} className="border rounded-lg overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="border bg-muted/50 p-1 min-w-[150px] w-[150px] sticky left-0 bg-background z-10" />
                   {weekDates.map((date, i) => {
-                    const rate = getRateForDate(rt.id, date);
-                    const restriction = getRestriction(rt.name, date);
-                    const isStopSell = restriction?.is_stop_sell;
-                    const { booked, avail } = getMonthAvail(date);
+                    const season = getSeasonForDate(date);
                     return (
-                      <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-                        {rate != null ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground/50">—</span>
-                        )}
-                        <div className="text-[8px] mt-0.5">
-                          {booked > 0 && <span className="text-amber-600">{booked}b</span>}
-                          {booked > 0 && " · "}
-                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                          {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
-                          {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
-                          {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
-                          {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
-                          {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
-                        </div>
-                      </div>
+                      <th key={i} className="border p-0">
+                        <DateHeaderCell date={date} season={season} />
+                      </th>
                     );
                   })}
-                </div>
+                </tr>
+              </thead>
+              <tbody>
+                {roomTypes.map((rt) => {
+                  const typeRooms = roomsByType.get(rt.id) || [];
+                  const totalUnits = typeRooms.length || 1;
 
-                {/* Individual room rows */}
-                {typeRooms.map((room) => (
-                  <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} colCount={weekDates.length} />
-                ))}
+                  const getMonthAvail = (date: Date) => {
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    const booked = bookings.filter(b => {
+                      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                        return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+                      }
+                      return false;
+                    }).length;
+                    return { booked, avail: Math.max(0, totalUnits - booked) };
+                  };
 
-                {/* Unassigned bookings */}
-                {(() => {
-                  const unassigned = bookings.filter(b =>
-                    b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
-                    weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
-                  );
-                  if (!unassigned.length) return null;
                   return (
-                    <div className="grid border-b border-border bg-amber-500/5" style={{ gridTemplateColumns: `160px repeat(${weekDates.length}, 1fr)` }}>
-                      <div className="px-3 py-1.5 border-r border-border flex items-center">
-                        <span className="text-[10px] text-amber-600 italic ml-4">Unassigned</span>
-                      </div>
-                      {weekDates.map((date, i) => {
-                        const dateStr = format(date, "yyyy-MM-dd");
-                        const dayBookings = bookings.filter(b =>
-                          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
-                          dateStr >= b.check_in_date && dateStr < b.check_out_date
-                        );
-                        return (
-                          <div key={i} className="border-r border-border last:border-r-0 relative h-8">
-                            {dayBookings.map(b => {
-                              const colors = getStatusColor(b.status);
-                              const isStart = b.check_in_date === dateStr;
-                              return (
-                                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
-                                  {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <MonthRoomTypeRows
+                      key={rt.id}
+                      rt={rt}
+                      weekDates={weekDates}
+                      typeRooms={typeRooms}
+                      bookings={bookings}
+                      getRateForDate={getRateForDate}
+                      getPricingSuffix={getPricingSuffix}
+                      getRestriction={getRestriction}
+                      getMonthAvail={getMonthAvail}
+                      onSelectBooking={onSelectBooking}
+                    />
                   );
-                })()}
-              </div>
-            );
-          })}
+                })}
+              </tbody>
+            </table>
 
-          {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
-            <div className="flex items-center justify-center py-12 text-muted-foreground">
-              <div className="text-center space-y-2">
-                <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
-                <p className="text-sm">No room types configured</p>
+            {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <div className="text-center space-y-2">
+                  <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
+                  <p className="text-sm">No room types configured</p>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </TooltipProvider>
   );
 }
 
-// ──────────── Month Room Row (CSS Grid) ────────────
-function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
+// ──────────── Month: Room type rows block (header + rooms + unassigned) ────────────
+function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate, getPricingSuffix, getRestriction, getMonthAvail, onSelectBooking }: {
+  rt: RoomType;
+  weekDates: Date[];
+  typeRooms: Room[];
+  bookings: BookingRow[];
+  getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
+  getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
+  getMonthAvail: (date: Date) => { booked: number; avail: number };
+  onSelectBooking: (b: BookingRow) => void;
+}) {
+  return (
+    <>
+      {/* Room type header row */}
+      <tr className="bg-slate-100 dark:bg-slate-800">
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
+          <div className="flex items-center gap-1.5 px-1">
+            <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <div className="truncate">{rt.name}</div>
+              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+            </div>
+          </div>
+        </td>
+        {weekDates.map((date, i) => {
+          const rate = getRateForDate(rt.id, date);
+          const restriction = getRestriction(rt.name, date);
+          const prevRestriction = i > 0 ? getRestriction(rt.name, weekDates[i - 1]) : undefined;
+          const nextRestriction = i < weekDates.length - 1 ? getRestriction(rt.name, weekDates[i + 1]) : undefined;
+          const { booked, avail } = getMonthAvail(date);
+          return (
+            <td key={i} className={cn("border p-1 text-center", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              <div className="flex flex-col items-center">
+                {rate != null ? (
+                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                )}
+                <div className="text-[8px] font-semibold mt-0.5">
+                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                </div>
+                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+
+      {/* Individual room rows */}
+      {typeRooms.map((room) => (
+        <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} />
+      ))}
+
+      {/* Unassigned bookings */}
+      {(() => {
+        const unassigned = bookings.filter(b =>
+          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+          weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
+        );
+        if (!unassigned.length) return null;
+        return (
+          <tr className="bg-amber-50/50 dark:bg-amber-950/10">
+            <td className="border p-1 sticky left-0 bg-amber-50/50 dark:bg-amber-950/10 z-10">
+              <span className="text-[10px] text-amber-600 italic pl-5">Unassigned</span>
+            </td>
+            {weekDates.map((date, i) => {
+              const dateStr = format(date, "yyyy-MM-dd");
+              const dayBookings = bookings.filter(b =>
+                b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                dateStr >= b.check_in_date && dateStr < b.check_out_date
+              );
+              return (
+                <td key={i} className="border p-0 relative h-8">
+                  {dayBookings.map(b => {
+                    const colors = getStatusColor(b.status);
+                    const isStart = b.check_in_date === dateStr;
+                    return (
+                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
+                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
+                      </button>
+                    );
+                  })}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })()}
+    </>
+  );
+}
+
+// ──────────── Month Room Row (table row) ────────────
+function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
   onSelectBooking: (b: BookingRow) => void;
-  colCount: number;
 }) {
   const isOOS = room.status === "out_of_service";
 
   return (
-    <div className={cn("grid border-b border-border", isOOS && "opacity-50")} style={{ gridTemplateColumns: `160px repeat(${colCount}, 1fr)` }}>
-      <div className="px-3 py-1.5 border-r border-border flex items-center gap-2">
-        <span className="text-xs text-foreground/80 ml-4">{room.room_number}</span>
-        {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
-        {isOOS && <Badge variant="outline" className="text-[8px] px-1 py-0">OOS</Badge>}
-      </div>
+    <tr className={cn(isOOS && "opacity-50")}>
+      <td className="border p-1 sticky left-0 bg-background z-10">
+        <div className="flex items-center gap-1 pl-5">
+          <span className="text-xs text-foreground/80">{room.room_number}</span>
+          {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
+          {isOOS && <Badge variant="outline" className="text-[7px] px-1 py-0 leading-none">OOS</Badge>}
+        </div>
+      </td>
       {dates.map((date, i) => {
         const dateStr = format(date, "yyyy-MM-dd");
-
         if (isOOS) {
-          return (
-            <div key={i} className="border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center">
-              <Ban className="h-3 w-3 text-muted-foreground/40" />
-            </div>
-          );
+          return <td key={i} className="border h-8 bg-muted/20"><div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div></td>;
         }
-
-        const dayBookings = bookings.filter(b => {
-          if (!b.rolos_room_ids?.includes(room.id)) return false;
-          return dateStr >= b.check_in_date && dateStr < b.check_out_date;
-        });
-
+        const dayBookings = bookings.filter(b => b.rolos_room_ids?.includes(room.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date);
         return (
-          <div key={i} className={cn("border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
+          <td key={i} className={cn("border p-0 relative h-8", dateCellBg(date))}>
             {dayBookings.map(b => {
               const colors = getStatusColor(b.status);
               const isStart = b.check_in_date === dateStr;
@@ -1110,14 +1249,14 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
                 </button>
               );
             })}
-          </div>
+          </td>
         );
       })}
-    </div>
+    </tr>
   );
 }
 
-// ──────────── Room Type Section (for week view) ────────────
+// ──────────── Room Type Section (for week view — table rows) ────────────
 function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, cellW, labelW }: {
   rt: RoomType;
   dates: Date[];
@@ -1131,9 +1270,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   labelW: string;
 }) {
   const typeRooms = roomsByType.get(rt.id) || [];
-  const totalUnits = typeRooms.length || 1; // At least 1 bookable unit per type
+  const totalUnits = typeRooms.length || 1;
 
-  // Compute per-day availability
   const getAvail = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     const booked = bookings.filter(b => {
@@ -1146,75 +1284,77 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   };
 
   return (
-    <div>
+    <>
       {/* Room type header row */}
-      <div className="flex border-b border-border bg-muted/20">
-        <div className={cn(labelW, "shrink-0 px-3 py-2 border-r border-border flex items-center gap-2")}>
-          <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
-          <div>
-            <div className="text-xs font-semibold text-foreground">{rt.name}</div>
-            <div className="text-[10px] text-muted-foreground">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+      <tr className="bg-slate-100 dark:bg-slate-800">
+        <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px]">
+          <div className="flex items-center gap-1.5 px-1">
+            <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <div className="truncate">{rt.name}</div>
+              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+            </div>
           </div>
-        </div>
+        </td>
         {dates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
-          const isStopSell = restriction?.is_stop_sell;
+          const prevRestriction = i > 0 ? getRestriction(rt.name, dates[i - 1]) : undefined;
+          const nextRestriction = i < dates.length - 1 ? getRestriction(rt.name, dates[i + 1]) : undefined;
           const { booked, avail } = getAvail(date);
           return (
-            <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
-              <div className="text-[8px] mt-0.5">
-                {booked > 0 && <span className="text-amber-600">{booked}b</span>}
-                {booked > 0 && " · "}
-                <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+            <td key={i} className={cn("border p-1 text-center min-w-[80px]", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              <div className="flex flex-col items-center">
+                {rate != null ? (
+                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                )}
+                <div className="text-[8px] font-semibold mt-0.5">
+                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                </div>
+                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
               </div>
-              <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
-                {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
-                {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
-                {restriction?.maximum_stay != null && <span className="text-[7px] bg-pink-500/20 text-pink-600 rounded px-0.5">MAX {restriction.maximum_stay}</span>}
-                {restriction?.lead_days_advance != null && <span className="text-[7px] bg-yellow-500/20 text-yellow-700 rounded px-0.5">ADV {restriction.lead_days_advance}</span>}
-                {restriction?.lead_days_post != null && <span className="text-[7px] bg-orange-500/20 text-orange-600 rounded px-0.5">POST {restriction.lead_days_post}</span>}
-              </div>
-            </div>
+            </td>
           );
         })}
-      </div>
+      </tr>
 
       {/* Individual room rows */}
       {typeRooms.map((room) => (
-        <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} cellW={cellW} labelW={labelW} />
+        <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} />
       ))}
-    </div>
+    </>
   );
 }
 
-// ──────────── Week Room Row (flex) ────────────
-function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: {
+// ──────────── Week Room Row (table row) ────────────
+function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
   onSelectBooking: (b: BookingRow) => void;
-  cellW: string;
-  labelW: string;
 }) {
   const isOOS = room.status === "out_of_service";
 
   return (
-    <div className={cn("flex border-b border-border", isOOS && "opacity-50")}>
-      <div className={cn(labelW, "shrink-0 px-3 py-1.5 border-r border-border flex items-center gap-2")}>
-        <span className="text-xs text-foreground/80 ml-4">{room.room_number}</span>
-        {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
-        {isOOS && <Badge variant="outline" className="text-[8px] px-1 py-0">OOS</Badge>}
-      </div>
+    <tr className={cn(isOOS && "opacity-50")}>
+      <td className="border p-1 sticky left-0 bg-background z-10 min-w-[160px]">
+        <div className="flex items-center gap-1 pl-5">
+          <span className="text-xs text-foreground/80">{room.room_number}</span>
+          {room.room_name && <span className="text-[10px] text-muted-foreground truncate">({room.room_name})</span>}
+          {isOOS && <Badge variant="outline" className="text-[7px] px-1 py-0 leading-none">OOS</Badge>}
+        </div>
+      </td>
       {dates.map((date, i) => {
         const dateStr = format(date, "yyyy-MM-dd");
         if (isOOS) {
-          return <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 h-8 bg-muted/30 flex items-center justify-center")}><Ban className="h-3 w-3 text-muted-foreground/40" /></div>;
+          return <td key={i} className="border h-8 min-w-[80px] bg-muted/20"><div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div></td>;
         }
         const dayBookings = bookings.filter(b => b.rolos_room_ids?.includes(room.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date);
         return (
-          <div key={i} className={cn(cellW, "shrink-0 border-r border-border last:border-r-0 relative h-8", isToday(date) && "bg-primary/5")}>
+          <td key={i} className={cn("border p-0 relative h-8 min-w-[80px]", dateCellBg(date))}>
             {dayBookings.map(b => {
               const colors = getStatusColor(b.status);
               const isStart = b.check_in_date === dateStr;
@@ -1235,10 +1375,10 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking, cellW, labelW }: 
                 </button>
               );
             })}
-          </div>
+          </td>
         );
       })}
-    </div>
+    </tr>
   );
 }
 
