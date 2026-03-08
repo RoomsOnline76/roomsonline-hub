@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SignatureCanvas } from "@/components/contract/SignatureCanvas";
@@ -785,7 +786,7 @@ export default function ContractSign() {
                 <ScrollArea className="h-[500px] p-4">
                   <div className="prose prose-sm max-w-none">
                     {/* Render the full contract content (dynamic template if available) */}
-                    <div dangerouslySetInnerHTML={{ __html: renderedContractHtml }} />
+                    <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedContractHtml) }} />
                     
                     {/* Signature block */}
                     {signatureData && (
@@ -903,7 +904,7 @@ export default function ContractSign() {
                   <ScrollArea className="h-[400px] p-4">
                     <div 
                       className="prose prose-sm max-w-none"
-                      dangerouslySetInnerHTML={{ __html: renderedContractHtml }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedContractHtml) }}
                     />
                   </ScrollArea>
                 </CollapsibleContent>

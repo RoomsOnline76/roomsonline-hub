@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DOMPurify from "dompurify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,7 +128,7 @@ export function ContractPreviewPane({
             {content ? (
               <div
                 className="prose prose-sm dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(renderedContent) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMarkdown(renderedContent)) }}
               />
             ) : (
               <div className="text-center text-muted-foreground py-12">

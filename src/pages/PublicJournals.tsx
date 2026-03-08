@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -169,7 +170,10 @@ export default function PublicJournals() {
                       prose-headings:text-foreground prose-p:text-foreground/80 prose-p:leading-relaxed
                       prose-strong:text-foreground prose-a:text-primary
                       prose-img:rounded-lg prose-li:marker:text-primary/50"
-                    dangerouslySetInnerHTML={{ __html: journal.content }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(journal.content, {
+                      ALLOWED_TAGS: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'img', 'br', 'blockquote', 'figure', 'figcaption', 'div', 'span', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                      ALLOWED_ATTR: ['href', 'src', 'alt', 'class', 'target', 'rel', 'width', 'height'],
+                    }) }}
                   />
                 )}
 

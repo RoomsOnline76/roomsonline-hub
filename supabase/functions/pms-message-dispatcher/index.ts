@@ -13,12 +13,28 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function getSupabase(authHeader?: string) {
+function getServiceSupabase() {
   const url = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  return createClient(url, serviceKey, {
-    global: { headers: authHeader ? { Authorization: authHeader } : {} },
-  });
+  return createClient(url, serviceKey);
+}
+
+async function authenticateRequest(req: Request) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Error("UNAUTHORIZED");
+  }
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } }
+  );
+  const token = authHeader.replace("Bearer ", "");
+  const { data, error } = await supabase.auth.getClaims(token);
+  if (error || !data?.claims) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return data.claims.sub as string;
 }
 
 /** Resolve {{placeholders}} in text */
@@ -50,7 +66,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabase = getSupabase(req.headers.get("Authorization") || undefined);
+    // Authenticate
+    let userId: string;
+    try {
+      userId = await authenticateRequest(req);
+    } catch {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = getServiceSupabase();
     const body = await req.json();
     const { action, property_id } = body;
 
