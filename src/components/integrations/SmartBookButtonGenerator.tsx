@@ -6,8 +6,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
-import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Check, Copy, ArrowRight, Eye } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye } from "lucide-react";
+
+const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
 interface SmartBookButtonGeneratorProps {
   property: {
@@ -42,7 +43,7 @@ const STYLE_MAP: Record<ButtonStyle, string> = {
 };
 
 export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorProps) {
-  const defaultColor = property.brand_primary_color || "#2563eb";
+  const defaultColor = property.brand_primary_color || "#e91e8c";
 
   const [platform, setPlatform] = useState<Platform>("html");
   const [buttonText, setButtonText] = useState("Book Now");
@@ -51,7 +52,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
 
-  const bookingUrl = `https://roomsonline-hub.lovable.app/book/${property.slug}`;
+  const bookingUrl = `${PRODUCTION_DOMAIN}/book/${property.slug}`;
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
   const size = SIZE_MAP[buttonSize];
 
@@ -219,7 +220,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
                     value={buttonColor}
                     onChange={(e) => setButtonColor(e.target.value)}
                     className="h-9 font-mono text-xs flex-1"
-                    placeholder="#2563eb"
+                    placeholder="#e91e8c"
                   />
                 </div>
               </div>
@@ -280,17 +281,45 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
 
         {/* Right: Preview + Output */}
         <div className="space-y-5">
-          {/* Live Preview */}
+          {/* Live Preview — all 3 styles side by side */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 Live Preview
               </CardTitle>
+              <CardDescription className="text-xs">
+                Click preview to test — links to <code className="bg-muted px-1 rounded text-[10px]">{bookingUrl}</code>
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-8 min-h-[80px]">
-                <span style={previewStyle}>{buttonText || "Book Now"}</span>
+              {/* Preview on light background */}
+              <div className="rounded-lg border border-dashed border-border bg-background p-6 mb-3">
+                <p className="text-xs text-muted-foreground mb-3">On light background:</p>
+                <div className="flex items-center justify-center min-h-[60px]">
+                  <a
+                    href={bookingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={previewStyle}
+                  >
+                    {buttonText || "Book Now"}
+                  </a>
+                </div>
+              </div>
+              {/* Preview on dark background */}
+              <div className="rounded-lg border border-dashed border-border bg-zinc-900 p-6">
+                <p className="text-xs text-zinc-400 mb-3">On dark background:</p>
+                <div className="flex items-center justify-center min-h-[60px]">
+                  <a
+                    href={bookingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={previewStyle}
+                  >
+                    {buttonText || "Book Now"}
+                  </a>
+                </div>
               </div>
             </CardContent>
           </Card>

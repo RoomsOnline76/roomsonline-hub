@@ -3,12 +3,14 @@ import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { Globe } from "lucide-react";
 
+const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+
 interface FullEmbedTabProps {
   property: { id: string; name: string; slug: string };
 }
 
 export function FullEmbedTab({ property }: FullEmbedTabProps) {
-  const embedUrl = `${window.location.origin}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=full`;
+  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=full`;
 
   const snippet = `<!-- RoomsOnline Full Booking Engine -->
 <iframe 

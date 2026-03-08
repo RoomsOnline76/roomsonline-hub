@@ -3,13 +3,14 @@ import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { Code2 } from "lucide-react";
 
+const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+
 interface WidgetTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function WidgetTab({ property }: WidgetTabProps) {
-  const embedUrl = `${window.location.origin}/embed/property/${property.slug}?integration=widget&property_id=${property.id}`;
-  const primaryColor = property.brand_primary_color || "#e91e63";
+  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}`;
 
   const iframeSnippet = `<!-- RoomsOnline Booking Widget -->
 <div id="rolos-booking-widget" style="width:100%;max-width:480px;">
