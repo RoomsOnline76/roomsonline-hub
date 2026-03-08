@@ -4583,13 +4583,16 @@ export type Database = {
           event_type: string
           expected_attendees: number | null
           id: string
+          linked_group_id: string | null
           name: string
           notes: string | null
           property_id: string
+          setup_minutes: number
           space_id: string | null
           special_requirements: Json | null
           start_at: string
           status: Database["public"]["Enums"]["event_status"]
+          teardown_minutes: number
           total_cost: number | null
           updated_at: string
         }
@@ -4603,13 +4606,16 @@ export type Database = {
           event_type?: string
           expected_attendees?: number | null
           id?: string
+          linked_group_id?: string | null
           name: string
           notes?: string | null
           property_id: string
+          setup_minutes?: number
           space_id?: string | null
           special_requirements?: Json | null
           start_at: string
           status?: Database["public"]["Enums"]["event_status"]
+          teardown_minutes?: number
           total_cost?: number | null
           updated_at?: string
         }
@@ -4623,17 +4629,27 @@ export type Database = {
           event_type?: string
           expected_attendees?: number | null
           id?: string
+          linked_group_id?: string | null
           name?: string
           notes?: string | null
           property_id?: string
+          setup_minutes?: number
           space_id?: string | null
           special_requirements?: Json | null
           start_at?: string
           status?: Database["public"]["Enums"]["event_status"]
+          teardown_minutes?: number
           total_cost?: number | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_events_linked_group_id_fkey"
+            columns: ["linked_group_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_events_property_id_fkey"
             columns: ["property_id"]
@@ -4843,8 +4859,10 @@ export type Database = {
           group_id: string
           id: string
           rate_override: number | null
+          release_date: string | null
           room_type_id: string
           start_date: string
+          status: string
         }
         Insert: {
           blocked_count?: number
@@ -4853,8 +4871,10 @@ export type Database = {
           group_id: string
           id?: string
           rate_override?: number | null
+          release_date?: string | null
           room_type_id: string
           start_date: string
+          status?: string
         }
         Update: {
           blocked_count?: number
@@ -4863,8 +4883,10 @@ export type Database = {
           group_id?: string
           id?: string
           rate_override?: number | null
+          release_date?: string | null
           room_type_id?: string
           start_date?: string
+          status?: string
         }
         Relationships: [
           {
@@ -4885,6 +4907,7 @@ export type Database = {
       }
       rolos_groups: {
         Row: {
+          attrition_rate: number | null
           check_in_date: string | null
           check_out_date: string | null
           contact_email: string | null
@@ -4897,11 +4920,13 @@ export type Database = {
           name: string
           notes: string | null
           property_id: string
+          release_date: string | null
           status: Database["public"]["Enums"]["group_booking_status"]
           total_rooms: number
           updated_at: string
         }
         Insert: {
+          attrition_rate?: number | null
           check_in_date?: string | null
           check_out_date?: string | null
           contact_email?: string | null
@@ -4914,11 +4939,13 @@ export type Database = {
           name: string
           notes?: string | null
           property_id: string
+          release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
           total_rooms?: number
           updated_at?: string
         }
         Update: {
+          attrition_rate?: number | null
           check_in_date?: string | null
           check_out_date?: string | null
           contact_email?: string | null
@@ -4931,6 +4958,7 @@ export type Database = {
           name?: string
           notes?: string | null
           property_id?: string
+          release_date?: string | null
           status?: Database["public"]["Enums"]["group_booking_status"]
           total_rooms?: number
           updated_at?: string
