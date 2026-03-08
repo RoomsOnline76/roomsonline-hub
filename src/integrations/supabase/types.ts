@@ -4494,6 +4494,70 @@ export type Database = {
           },
         ]
       }
+      rolos_inventory_calendar: {
+        Row: {
+          available_units: number | null
+          blocked_units: number
+          booked_units: number
+          created_at: string
+          date: string
+          id: string
+          property_id: string
+          restrictions: Json | null
+          room_type_id: string
+          total_units: number
+          updated_at: string
+        }
+        Insert: {
+          available_units?: number | null
+          blocked_units?: number
+          booked_units?: number
+          created_at?: string
+          date: string
+          id?: string
+          property_id: string
+          restrictions?: Json | null
+          room_type_id: string
+          total_units?: number
+          updated_at?: string
+        }
+        Update: {
+          available_units?: number | null
+          blocked_units?: number
+          booked_units?: number
+          created_at?: string
+          date?: string
+          id?: string
+          property_id?: string
+          restrictions?: Json | null
+          room_type_id?: string
+          total_units?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_inventory_calendar_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inventory_calendar_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inventory_calendar_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_maintenance_requests: {
         Row: {
           actual_cost: number | null
@@ -4795,6 +4859,216 @@ export type Database = {
             columns: ["rate_plan_id"]
             isOneToOne: false
             referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_reservation_rooms: {
+        Row: {
+          adults: number
+          children: number
+          created_at: string
+          id: string
+          infants: number
+          rate_charged: number | null
+          reservation_id: string
+          room_id: string | null
+          room_type_id: string | null
+          teens: number
+          updated_at: string
+        }
+        Insert: {
+          adults?: number
+          children?: number
+          created_at?: string
+          id?: string
+          infants?: number
+          rate_charged?: number | null
+          reservation_id: string
+          room_id?: string | null
+          room_type_id?: string | null
+          teens?: number
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          children?: number
+          created_at?: string
+          id?: string
+          infants?: number
+          rate_charged?: number | null
+          reservation_id?: string
+          room_id?: string | null
+          room_type_id?: string | null
+          teens?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_reservation_rooms_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservation_rooms_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservation_rooms_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_reservation_status_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          id: string
+          new_status: Database["public"]["Enums"]["rolos_reservation_status"]
+          old_status:
+            | Database["public"]["Enums"]["rolos_reservation_status"]
+            | null
+          reason: string | null
+          reservation_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_status: Database["public"]["Enums"]["rolos_reservation_status"]
+          old_status?:
+            | Database["public"]["Enums"]["rolos_reservation_status"]
+            | null
+          reason?: string | null
+          reservation_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          new_status?: Database["public"]["Enums"]["rolos_reservation_status"]
+          old_status?:
+            | Database["public"]["Enums"]["rolos_reservation_status"]
+            | null
+          reason?: string | null
+          reservation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_reservation_status_history_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_reservations: {
+        Row: {
+          booking_id: string | null
+          check_in: string
+          check_out: string
+          confirmation_number: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          guest_email: string | null
+          guest_id: string | null
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          notes: string | null
+          property_id: string
+          source: string | null
+          special_requests: string | null
+          status: Database["public"]["Enums"]["rolos_reservation_status"]
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          check_in: string
+          check_out: string
+          confirmation_number: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          guest_email?: string | null
+          guest_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          property_id: string
+          source?: string | null
+          special_requests?: string | null
+          status?: Database["public"]["Enums"]["rolos_reservation_status"]
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          check_in?: string
+          check_out?: string
+          confirmation_number?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          guest_email?: string | null
+          guest_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          property_id?: string
+          source?: string | null
+          special_requests?: string | null
+          status?: Database["public"]["Enums"]["rolos_reservation_status"]
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservations_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_guest_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservations_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -5777,6 +6051,13 @@ export type Database = {
         | "maintenance"
         | "accountant"
         | "auditor"
+      rolos_reservation_status:
+        | "pending"
+        | "confirmed"
+        | "checked_in"
+        | "checked_out"
+        | "cancelled"
+        | "no_show"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5943,6 +6224,14 @@ export const Constants = {
         "maintenance",
         "accountant",
         "auditor",
+      ],
+      rolos_reservation_status: [
+        "pending",
+        "confirmed",
+        "checked_in",
+        "checked_out",
+        "cancelled",
+        "no_show",
       ],
     },
   },
