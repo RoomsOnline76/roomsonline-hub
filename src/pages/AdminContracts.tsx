@@ -402,6 +402,7 @@ export default function AdminContracts() {
     setSelectedProperty(null);
     setShowUnarchivePrompt(false);
     setPropertyDropdownOpen(false);
+    setSelectedContractType("standard");
   };
 
   const searchProperties = async (query: string) => {
