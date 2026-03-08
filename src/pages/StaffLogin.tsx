@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,51 +9,90 @@ import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 
 interface PropertyBrand {
-  id: string;
-  name: string;
   slug: string;
+  name: string;
   brand_logo_url: string | null;
   brand_primary_color: string | null;
   brand_secondary_color: string | null;
   brand_font_color: string | null;
+  property_id: string;
+}
+
+const STORAGE_KEY = "rol_staff_last_property";
+
+const DEFAULT_BRAND: Omit<PropertyBrand, "property_id"> = {
+  slug: "",
+  name: "RoomsOnline",
+  brand_logo_url: null,
+  brand_primary_color: "#1a1a2e",
+  brand_secondary_color: "#16213e",
+  brand_font_color: "#ffffff",
+};
+
+function saveBrandToStorage(brand: PropertyBrand) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(brand));
+  } catch { /* quota exceeded — non-critical */ }
+}
+
+function loadBrandFromStorage(): PropertyBrand | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function StaffLogin() {
   const { propertySlug } = useParams<{ propertySlug: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [property, setProperty] = useState<PropertyBrand | null>(null);
+
+  const [brand, setBrand] = useState<PropertyBrand | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Resolve branding: query param > route param > localStorage > default
   useEffect(() => {
-    if (!propertySlug) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
+    const slug = searchParams.get("property") || propertySlug;
 
-    const fetchProperty = async () => {
-      const { data, error } = await supabase
+    if (slug) {
+      // Fetch from DB
+      supabase
         .from("properties")
         .select("id, name, slug, brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color")
-        .eq("slug", propertySlug)
+        .eq("slug", slug)
         .eq("is_rol_property", true)
-        .single();
-
-      if (error || !data) {
-        setNotFound(true);
-      } else {
-        setProperty(data as PropertyBrand);
-      }
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            const fetched: PropertyBrand = {
+              slug: data.slug,
+              name: data.name,
+              brand_logo_url: data.brand_logo_url,
+              brand_primary_color: data.brand_primary_color,
+              brand_secondary_color: data.brand_secondary_color,
+              brand_font_color: data.brand_font_color,
+              property_id: data.id,
+            };
+            setBrand(fetched);
+            saveBrandToStorage(fetched);
+          } else {
+            // Slug invalid — fall back to localStorage or default
+            setBrand(loadBrandFromStorage());
+          }
+          setLoading(false);
+        });
+    } else {
+      // No slug — try localStorage
+      setBrand(loadBrandFromStorage());
       setLoading(false);
-    };
-
-    fetchProperty();
-  }, [propertySlug]);
+    }
+  }, [propertySlug, searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,9 +110,15 @@ export default function StaffLogin() {
         return;
       }
 
-      if (data.user && property) {
-        // Redirect to PMS for this property
-        navigate(`/pms?property=${property.id}`);
+      if (data.user) {
+        // If we have a resolved property, persist branding and redirect
+        if (brand?.property_id) {
+          saveBrandToStorage(brand);
+          navigate(`/pms?property=${brand.property_id}`);
+        } else {
+          // No property context — go to PMS root
+          navigate("/pms");
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Login failed");
@@ -82,26 +127,17 @@ export default function StaffLogin() {
     }
   };
 
-  // Derive CSS from brand colors
-  const primaryColor = property?.brand_primary_color || "#1a1a2e";
-  const secondaryColor = property?.brand_secondary_color || "#16213e";
-  const fontColor = property?.brand_font_color || "#ffffff";
+  // Derive CSS from brand or defaults
+  const primaryColor = brand?.brand_primary_color || DEFAULT_BRAND.brand_primary_color!;
+  const secondaryColor = brand?.brand_secondary_color || DEFAULT_BRAND.brand_secondary_color!;
+  const fontColor = brand?.brand_font_color || DEFAULT_BRAND.brand_font_color!;
+  const displayName = brand?.name || DEFAULT_BRAND.name;
+  const logoUrl = brand?.brand_logo_url || DEFAULT_BRAND.brand_logo_url;
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (notFound) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-3">
-          <h1 className="text-2xl font-bold text-foreground">Property Not Found</h1>
-          <p className="text-muted-foreground">This staff login link is invalid or the property no longer exists.</p>
-        </div>
       </div>
     );
   }
@@ -123,12 +159,12 @@ export default function StaffLogin() {
       />
 
       <div className="relative z-10 w-full max-w-sm space-y-8">
-        {/* Property logo + name */}
+        {/* Logo + name */}
         <div className="text-center space-y-4">
-          {property?.brand_logo_url ? (
+          {logoUrl ? (
             <img
-              src={property.brand_logo_url}
-              alt={property.name}
+              src={logoUrl}
+              alt={displayName}
               className="h-16 w-auto mx-auto object-contain drop-shadow-lg"
             />
           ) : (
@@ -136,7 +172,7 @@ export default function StaffLogin() {
               className="h-16 w-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-bold shadow-lg"
               style={{ backgroundColor: `${fontColor}20`, color: fontColor }}
             >
-              {property?.name?.charAt(0) || "?"}
+              {displayName.charAt(0)}
             </div>
           )}
           <div>
@@ -144,7 +180,7 @@ export default function StaffLogin() {
               className="text-xl font-semibold tracking-tight"
               style={{ color: fontColor }}
             >
-              {property?.name}
+              {displayName}
             </h1>
             <p
               className="text-sm mt-1"
@@ -218,7 +254,7 @@ export default function StaffLogin() {
           </CardContent>
         </Card>
 
-        {/* Powered by — subtle */}
+        {/* Powered by */}
         <p
           className="text-center text-[10px] tracking-wide"
           style={{ color: `${fontColor}40` }}
