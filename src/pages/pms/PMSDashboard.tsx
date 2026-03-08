@@ -725,6 +725,7 @@ export default function PMSDashboard() {
             rooms={rooms}
             overrideMap={overrideMap}
             getRateForDate={getRateForDate}
+            getPricingSuffix={getPricingSuffix}
             getSeasonForDate={getSeasonForDate}
             getRestriction={getRestriction}
             onSelectBooking={setSelectedBooking}
