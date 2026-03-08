@@ -1152,6 +1152,22 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
     }
   }
 
+  // Also cancel in rolos_reservations if exists
+  const { data: rolosRes } = await supabase.from("rolos_reservations")
+    .select("id, status")
+    .eq("property_id", propertyId)
+    .eq("confirmation_number", reservation_id)
+    .maybeSingle();
+  if (rolosRes && rolosRes.status !== "cancelled") {
+    await supabase.from("rolos_reservations").update({ status: "cancelled" }).eq("id", rolosRes.id);
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      old_status: rolosRes.status,
+      new_status: "cancelled",
+      reason: reason || "Cancellation requested",
+    });
+  }
+
   console.log(`[roomsonline-pms-api] Reservation cancelled successfully: ${reservation_id}`);
 
   return new Response(
