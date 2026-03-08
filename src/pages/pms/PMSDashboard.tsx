@@ -144,7 +144,7 @@ export default function PMSDashboard() {
   const { propertyId, properties, loading: propLoading, switchProperty } = usePmsPropertyId();
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
