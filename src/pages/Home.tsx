@@ -488,17 +488,6 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* Property Attribution - Frosted glass badge */}
-        {heroProperty && (
-          <div className="absolute bottom-24 sm:bottom-28 right-4 sm:right-8 z-20">
-            <div className="rounded-lg px-4 py-2.5 text-right">
-              <p className="font-display text-sm sm:text-base text-white drop-shadow-sm">{heroProperty.name}</p>
-              <p className="text-xs sm:text-sm text-white/80">
-                {heroProperty.city}, {heroProperty.country}
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Hero Text */}
         <div
