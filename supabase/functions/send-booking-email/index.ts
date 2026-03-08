@@ -176,8 +176,12 @@ function wrapCustomTemplate(customContent: string, property: any): string {
 }
 
 // Helper: resolve branding for a property
+// ROL'OS properties (is_rol_property) get branded automatically when colours exist — no toggle needed.
+// Other properties require brand_override_enabled to be true.
 function resolveBranding(property: any): { accentColor: string; logoUrl: string; senderName: string; isBranded: boolean; secondaryColor: string; fontColor: string } {
-  const isBranded = !!property.brand_override_enabled;
+  const isRol = !!property.is_rol_property;
+  const hasColors = !!property.brand_primary_color;
+  const isBranded = isRol ? hasColors : (!!property.brand_override_enabled && hasColors);
   return {
     isBranded,
     accentColor: (isBranded && property.brand_primary_color) ? property.brand_primary_color : "#e91e8c",
