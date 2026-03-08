@@ -47,7 +47,7 @@ function PMSMessaging() {
     setEditOpen(true);
   };
 
-  const openEditTemplate = (t: any) => {
+  const openEditTemplate = (t: PmsMessageTemplate) => {
     setEditForm({ ...t });
     setEditOpen(true);
   };
