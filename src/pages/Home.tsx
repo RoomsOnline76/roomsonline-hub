@@ -242,7 +242,7 @@ function HomeContent() {
       try {
         const { data: heroProperties } = await supabase
           .from("properties")
-          .select("images, hero_video_url, name, city, country")
+          .select("images, hero_video_url, name, city, country, slug")
           .eq("hero_listing", true)
           .eq("is_active", true)
           .eq("show_on_website", true);
