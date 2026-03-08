@@ -430,7 +430,28 @@ export default function ContractSign() {
           }
         }
 
-        // Pre-fill signee email if available
+        // Fetch commission rate from property commercial terms
+        const propertyIds = propertiesList.map((p: any) => p.id).filter(Boolean);
+        if (propertyIds.length === 0 && fullProperty?.id) {
+          propertyIds.push(fullProperty.id);
+        }
+        if (propertyIds.length > 0) {
+          const now = new Date().toISOString().split("T")[0];
+          const { data: termsData } = await supabase
+            .from("property_commercial_terms")
+            .select("revenue_share_percent")
+            .in("property_id", propertyIds)
+            .lte("effective_from", now)
+            .or(`effective_to.is.null,effective_to.gte.${now}`)
+            .order("effective_from", { ascending: false })
+            .limit(1);
+          
+          if (termsData && termsData.length > 0) {
+            const rate = termsData[0].revenue_share_percent;
+            const words = numberToWords(rate);
+            setCommissionText(`${words} percent (${rate}%)`);
+          }
+        }
         const emailToUse = contractData.sent_to_email || contractData.owner_email;
         if (emailToUse) {
           setSigneeEmail(emailToUse);
