@@ -5556,6 +5556,7 @@ export default function PropertyForm() {
                     propertyName={formData.name}
                     ownerEmail={formData.owner_email}
                     ownerName={formData.owner_name}
+                    isRolProperty={isRolProperty}
                   />
                 )}
 
