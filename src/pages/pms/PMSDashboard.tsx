@@ -1107,9 +1107,15 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
           const isStopSell = restriction?.is_stop_sell;
+          const { booked, avail } = getAvail(date);
           return (
-            <div key={i} className={cn(cellW, "shrink-0 px-1 py-2 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
+            <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
               {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
+              <div className="text-[8px] mt-0.5">
+                {booked > 0 && <span className="text-amber-600">{booked}b</span>}
+                {booked > 0 && " · "}
+                <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}a</span>
+              </div>
               <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                 {isStopSell && <span className="text-[7px] bg-red-500/20 text-red-600 rounded px-0.5">STOP</span>}
                 {restriction?.minimum_stay != null && <span className="text-[7px] bg-blue-500/20 text-blue-600 rounded px-0.5">MIN {restriction.minimum_stay}</span>}
