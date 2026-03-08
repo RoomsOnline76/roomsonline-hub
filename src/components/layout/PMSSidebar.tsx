@@ -38,19 +38,39 @@ interface NavItem {
   module: PmsModule;
 }
 
-const pmsNavItems: NavItem[] = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
-  { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
-  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
-  { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
-  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
-  { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
-  { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
-  { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
-  { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
-  { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
-  { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
-  { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const pmsNavGroups: NavGroup[] = [
+  {
+    label: "Operations",
+    items: [
+      { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
+      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
+      { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
+      { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
+    ],
+  },
+  {
+    label: "Revenue",
+    items: [
+      { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
+      { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
+      { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
+      { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
+    ],
+  },
+  {
+    label: "Management",
+    items: [
+      { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
+      { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
+      { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
+      { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
+    ],
+  },
 ];
 
 export function PMSSidebar() {
@@ -168,12 +188,26 @@ export function PMSSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {pmsNavItems
-          .filter((item) => visibleModules.includes(item.module))
-          .map((item) => (
-            <NavLink key={item.href} item={item} />
-          ))}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        {pmsNavGroups.map((group) => {
+          const visibleItems = group.items.filter((item) => visibleModules.includes(item.module));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={group.label}>
+              {!collapsed && (
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.label}
+                </p>
+              )}
+              {collapsed && <div className="mx-auto w-6 border-t border-border/40 mb-2" />}
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}

@@ -21,8 +21,10 @@ interface PMSTobiAssistantProps {
 
 const PMS_SUGGESTED_PROMPTS = [
   "What's happening today?",
-  "How do I add a room?",
-  "Show me rate plans",
+  "Show occupancy & revenue",
+  "How do I connect an OTA?",
+  "Walk me through group bookings",
+  "What can my front desk staff see?",
   "Navigate to housekeeping",
 ];
 
@@ -199,8 +201,11 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
   const quickNavItems = [
     { label: "Dashboard", path: "/pms" },
     { label: "Rooms", path: "/pms/rooms" },
-    { label: "Rates", path: "/pms/rate-plans" },
     { label: "Guests", path: "/pms/guests" },
+    { label: "Rates", path: "/pms/rate-plans" },
+    { label: "Channels", path: "/pms/channels" },
+    { label: "Reports", path: "/pms/reports" },
+    { label: "Staff", path: "/pms/staff" },
   ];
 
   return (

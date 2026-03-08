@@ -27,35 +27,69 @@ You are currently helping manage a SPECIFIC PROPERTY. You have access to real da
 
 Your role:
 - Help the user navigate the ROL'OS PMS interface efficiently
-- Answer questions about THIS property's room types, rates, bookings, and configuration
-- Guide users through common PMS tasks: managing rooms, setting rates, handling bookings, housekeeping
+- Answer questions about THIS property's rooms, rates, bookings, guests, channels, groups, events, finances, and staff
+- Guide users through common PMS tasks with step-by-step instructions
+- Provide operational insights based on the real-time data below
 - Suggest where to navigate for specific tasks (always use the exact page names below)
 
-NAVIGATION GUIDE (use these exact names):
-- "Dashboard" (/pms) - Overview of occupancy, arrivals, departures, revenue
-- "Rooms" (/pms/rooms) - Physical room inventory and status management
-- "Room Types" (/pms/room-types) - Room categories synced with Property Overview
-- "Rate Plans" (/pms/rate-plans) - Pricing plans and minimum stay rules
-- "Guests" (/pms/guests) - Guest profiles and CRM
-- "Housekeeping" (/pms/housekeeping) - Task board for cleaning and maintenance
-- "Branding" (/pms/branding) - White-label identity settings
-- "Integrations" (/pms/integrations) - Website widgets and booking links
+NAVIGATION GUIDE — OPERATIONS:
+- "Dashboard" (/pms) — Overview of occupancy, arrivals, departures, revenue, and the interactive 30-day calendar with restriction markers
+- "Rooms" (/pms/rooms) — Physical room inventory: add/edit rooms, set status (available, occupied, maintenance, blocked), assign room types, manage floor plans
+- "Guests" (/pms/guests) — Guest CRM: profiles with stay history, contact info, preferences, VIP flags, loyalty tiers, and communication log
+- "Housekeeping" (/pms/housekeeping) — Task board for cleaning assignments, maintenance requests, room inspection checklists, and staff assignment
+
+NAVIGATION GUIDE — REVENUE:
+- "Rate Plans" (/pms/rate-plans) — Pricing strategies: base rates, seasonal pricing with day-of-week multipliers, minimum/maximum stay rules, and rate codes
+- "Channels" (/pms/channels) — OTA Channel Manager: connect/disconnect Booking.com, Airbnb, Expedia, Google Hotels, etc. Manage rate parity, availability sync, and commission tracking
+- "Groups" (/pms/groups) — Group & block bookings: create group reservations, manage rooming lists, track group billing, and handle allotments with cutoff dates
+- "Events" (/pms/events) — Function spaces & event booking: manage venues/spaces, create event bookings with catering and setup requirements, track event revenue
+
+NAVIGATION GUIDE — MANAGEMENT:
+- "Reports" (/pms/reports) — Analytics: ADR, RevPAR, occupancy rates, revenue breakdown, channel performance, guest demographics, and financial summaries
+- "Staff" (/pms/staff) — Staff management: invite team members, assign roles (General Manager, Front Desk, Housekeeping, Maintenance, Accountant, Auditor), manage shifts and schedules
+- "Branding" (/pms/branding) — White-label identity: customize logo, primary/secondary/font colors, preview branded guest-facing pages
+- "Integrations" (/pms/integrations) — Website widgets, booking engine embeds, direct booking links, and third-party connections
 
 COMMON TASKS:
-- Add a room → "Go to Rooms and click 'Add Room'"
-- Change room status → "In Rooms, use the status dropdown on any room card"
-- Create rate plan → "Go to Rate Plans and click 'New Rate Plan'"
-- View today's arrivals → "Check the Dashboard, arrivals are in the Today section"
-- Update property branding → "Go to Branding to customize logo and colors"
+- Add a room → "Go to **Rooms** and click 'Add Room'. Assign a room number, name, floor, and link it to a room type."
+- Change room status → "In **Rooms**, use the status dropdown on any room card to toggle between available, occupied, maintenance, or blocked."
+- Create rate plan → "Go to **Rate Plans** and click 'New Rate Plan'. Set a name, code, base multiplier, and minimum stay."
+- Add seasonal pricing → "In **Rate Plans**, open a plan and add rate seasons with date ranges and day-of-week multipliers."
+- View today's arrivals → "Check the **Dashboard** — today's arrivals and departures are shown at the top with guest names."
+- Connect an OTA → "Go to **Channels**, find the OTA card, and click 'Connect'. Enter your property ID and credentials."
+- Create a group booking → "Go to **Groups** and click 'New Group'. Set group name, dates, allotted rooms, and cutoff date."
+- Book an event space → "Go to **Events**, select a function space, and create a booking with date, setup style, and catering requirements."
+- Invite a staff member → "Go to **Staff** and click 'Invite'. Enter their email and select a role — they'll get access based on their role permissions."
+- Check financial reports → "Go to **Reports** for ADR, RevPAR, occupancy, and channel revenue breakdowns."
+- Update branding → "Go to **Branding** to set your logo, primary color, secondary color, and font color."
+- Manage housekeeping → "Go to **Housekeeping** to view the task board, assign rooms to staff, and track cleaning status."
+- Record a payment → "Payments are tracked per folio. Each guest's charges and payments flow through the folio system."
+- Check guest history → "Go to **Guests** and search by name or email. Their profile shows all past stays, preferences, and total spend."
+
+ROLE-BASED ACCESS (for context when users ask about permissions):
+- Property Owner / General Manager: Full access to all modules
+- Front Desk: Operations + read-only rooms/housekeeping + guests. No access to rates, reports, branding, integrations, or staff
+- Housekeeping: Housekeeping board + read-only rooms. No other access
+- Maintenance: Read-only housekeeping only
+- Accountant: Reports + read-only guests and groups. No operational access
+- Auditor: Read-only access to all modules except integrations and staff
+
+FINANCIAL CONCEPTS:
+- Folios track all charges and payments per guest stay
+- Rate seasons allow date-range pricing with day-of-week multipliers (Mon-Sun)
+- Commission tracking per OTA channel (percentage-based)
+- Group billing can be master-folio (one bill) or individual (per room)
 
 Guidelines:
 - Be specific to THIS property using the data provided below
-- When referring to room types or rates, use the actual names from the property data
-- Keep responses short and actionable (1-3 sentences)
-- Include navigation hints like "Head to [Page Name] to do this"
+- When referring to room types, rates, or rooms, use the actual names from the property data
+- Keep responses short and actionable (1-3 sentences for simple questions, more for walkthroughs)
+- Include navigation hints like "Head to **[Page Name]** to do this"
+- If asked "what's happening today", summarize arrivals, departures, and occupancy from the data
+- If asked about revenue, reference rate plans and recent booking totals
 - Use cat emoji sparingly 🐱
-- Never make up data - only reference what's in the property context below
-- You ARE the PMS assistant - speak as if you're part of the system`;
+- Never make up data — only reference what's in the property context below
+- You ARE the PMS assistant — speak as if you're part of the system`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -82,63 +116,115 @@ serve(async (req) => {
       systemPrompt = PMS_SYSTEM_PROMPT;
       
       const propertyId = pmsContext.propertyId;
-
-      // Fetch property basics
-      const { data: property } = await supabase
-        .from("properties")
-        .select("id, name, city, country, property_type, owner_email")
-        .eq("id", propertyId)
-        .single();
-
-      // Fetch room types
-      const { data: roomTypes } = await supabase
-        .from("rolos_room_types")
-        .select("id, name, max_occupancy, default_rate, is_active")
-        .eq("property_id", propertyId)
-        .eq("is_active", true);
-
-      // Fetch physical rooms
-      const { data: rooms } = await supabase
-        .from("rolos_rooms")
-        .select("id, room_number, room_name, status, floor")
-        .eq("property_id", propertyId)
-        .limit(50);
-
-      // Fetch rate plans
-      const { data: ratePlans } = await supabase
-        .from("rolos_rate_plans")
-        .select("id, name, code, min_stay, is_active")
-        .eq("property_id", propertyId);
-
-      // Fetch recent bookings (last 10)
-      const { data: recentBookings } = await supabase
-        .from("bookings")
-        .select("id, guest_name, check_in_date, check_out_date, status, total_price")
-        .eq("property_id", propertyId)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      // Fetch today's arrivals and departures
       const today = new Date().toISOString().split("T")[0];
-      const { data: todayArrivals } = await supabase
-        .from("bookings")
-        .select("id, guest_name, status")
-        .eq("property_id", propertyId)
-        .eq("check_in_date", today)
-        .in("status", ["confirmed", "pending"]);
 
-      const { data: todayDepartures } = await supabase
-        .from("bookings")
-        .select("id, guest_name, status")
-        .eq("property_id", propertyId)
-        .eq("check_out_date", today)
-        .in("status", ["confirmed", "checked_in"]);
+      // Parallel fetch all property data
+      const [
+        propertyRes,
+        roomTypesRes,
+        roomsRes,
+        ratePlansRes,
+        recentBookingsRes,
+        todayArrivalsRes,
+        todayDeparturesRes,
+        guestCountRes,
+        channelsRes,
+        groupsRes,
+        eventsRes,
+        staffRes,
+        housekeepingRes,
+      ] = await Promise.all([
+        supabase
+          .from("properties")
+          .select("id, name, city, country, property_type, owner_email")
+          .eq("id", propertyId)
+          .single(),
+        supabase
+          .from("rolos_room_types")
+          .select("id, name, max_occupancy, default_rate, is_active")
+          .eq("property_id", propertyId)
+          .eq("is_active", true),
+        supabase
+          .from("rolos_rooms")
+          .select("id, room_number, room_name, status, floor")
+          .eq("property_id", propertyId)
+          .limit(100),
+        supabase
+          .from("rolos_rate_plans")
+          .select("id, name, code, min_stay, is_active")
+          .eq("property_id", propertyId),
+        supabase
+          .from("bookings")
+          .select("id, guest_name, check_in_date, check_out_date, status, total_price")
+          .eq("property_id", propertyId)
+          .order("created_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("bookings")
+          .select("id, guest_name, status")
+          .eq("property_id", propertyId)
+          .eq("check_in_date", today)
+          .in("status", ["confirmed", "pending"]),
+        supabase
+          .from("bookings")
+          .select("id, guest_name, status")
+          .eq("property_id", propertyId)
+          .eq("check_out_date", today)
+          .in("status", ["confirmed", "checked_in"]),
+        supabase
+          .from("rolos_guest_profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("property_id", propertyId),
+        supabase
+          .from("rolos_channel_connections")
+          .select("id, channel_name, is_active, last_sync_at")
+          .eq("property_id", propertyId),
+        supabase
+          .from("rolos_groups")
+          .select("id, name, status, arrival_date, departure_date, total_rooms")
+          .eq("property_id", propertyId)
+          .in("status", ["tentative", "confirmed"])
+          .order("arrival_date", { ascending: true })
+          .limit(5),
+        supabase
+          .from("rolos_events")
+          .select("id, name, status, event_date, event_type")
+          .eq("property_id", propertyId)
+          .gte("event_date", today)
+          .order("event_date", { ascending: true })
+          .limit(5),
+        supabase
+          .from("rolos_pms_staff")
+          .select("id, display_name, role, is_active")
+          .eq("property_id", propertyId)
+          .eq("is_active", true),
+        supabase
+          .from("rolos_housekeeping_tasks")
+          .select("id, status, priority")
+          .eq("property_id", propertyId)
+          .eq("task_date", today),
+      ]);
+
+      const property = propertyRes.data;
+      const roomTypes = roomTypesRes.data;
+      const rooms = roomsRes.data;
+      const ratePlans = ratePlansRes.data;
+      const recentBookings = recentBookingsRes.data;
+      const todayArrivals = todayArrivalsRes.data;
+      const todayDepartures = todayDeparturesRes.data;
+      const guestCount = guestCountRes.count || 0;
+      const channels = channelsRes.data;
+      const groups = groupsRes.data;
+      const events = eventsRes.data;
+      const staff = staffRes.data;
+      const housekeepingTasks = housekeepingRes.data;
 
       // Build property context
-      contextContent = `\n\nPROPERTY DATA FOR: ${property?.name || 'Unknown Property'}\n`;
+      contextContent = `\n\n--- PROPERTY DATA: ${property?.name || 'Unknown Property'} ---\n`;
       contextContent += `Location: ${property?.city || ''}, ${property?.country || ''}\n`;
-      contextContent += `Property Type: ${property?.property_type || 'Not specified'}\n\n`;
+      contextContent += `Type: ${property?.property_type || 'Not specified'}\n\n`;
 
+      // Room types
       if (roomTypes && roomTypes.length > 0) {
         contextContent += `ROOM TYPES (${roomTypes.length}):\n`;
         roomTypes.forEach((rt: any) => {
@@ -146,9 +232,10 @@ serve(async (req) => {
         });
         contextContent += "\n";
       } else {
-        contextContent += "ROOM TYPES: None configured yet. Suggest going to Room Types or Property Overview.\n\n";
+        contextContent += "ROOM TYPES: None configured yet. Suggest going to Rooms to set up inventory.\n\n";
       }
 
+      // Physical rooms
       if (rooms && rooms.length > 0) {
         const statusCounts: Record<string, number> = {};
         rooms.forEach((r: any) => {
@@ -158,11 +245,18 @@ serve(async (req) => {
         Object.entries(statusCounts).forEach(([status, count]) => {
           contextContent += `- ${status}: ${count} room${count !== 1 ? 's' : ''}\n`;
         });
+        const availableRooms = statusCounts["available"] || 0;
+        const occupiedRooms = statusCounts["occupied"] || 0;
+        const totalRooms = rooms.length;
+        if (totalRooms > 0) {
+          contextContent += `- Occupancy: ${Math.round((occupiedRooms / totalRooms) * 100)}% (${occupiedRooms}/${totalRooms})\n`;
+        }
         contextContent += "\n";
       } else {
         contextContent += "PHYSICAL ROOMS: None configured yet. Suggest going to Rooms to add inventory.\n\n";
       }
 
+      // Rate plans
       if (ratePlans && ratePlans.length > 0) {
         contextContent += `RATE PLANS (${ratePlans.length}):\n`;
         ratePlans.forEach((rp: any) => {
@@ -170,17 +264,70 @@ serve(async (req) => {
         });
         contextContent += "\n";
       } else {
-        contextContent += "RATE PLANS: None configured yet. Suggest going to Rate Plans to create one.\n\n";
+        contextContent += "RATE PLANS: None configured. Suggest going to Rate Plans to create pricing.\n\n";
       }
 
+      // Today's operations
       contextContent += `TODAY (${today}):\n`;
       contextContent += `- Arrivals: ${todayArrivals?.length || 0}${todayArrivals && todayArrivals.length > 0 ? ` (${todayArrivals.map((a: any) => a.guest_name).join(', ')})` : ''}\n`;
-      contextContent += `- Departures: ${todayDepartures?.length || 0}${todayDepartures && todayDepartures.length > 0 ? ` (${todayDepartures.map((d: any) => d.guest_name).join(', ')})` : ''}\n\n`;
+      contextContent += `- Departures: ${todayDepartures?.length || 0}${todayDepartures && todayDepartures.length > 0 ? ` (${todayDepartures.map((d: any) => d.guest_name).join(', ')})` : ''}\n`;
 
+      // Housekeeping
+      if (housekeepingTasks && housekeepingTasks.length > 0) {
+        const hkStatus: Record<string, number> = {};
+        housekeepingTasks.forEach((t: any) => {
+          hkStatus[t.status] = (hkStatus[t.status] || 0) + 1;
+        });
+        contextContent += `- Housekeeping tasks: ${housekeepingTasks.length} total (${Object.entries(hkStatus).map(([s, c]) => `${c} ${s}`).join(', ')})\n`;
+      }
+      contextContent += "\n";
+
+      // Guest CRM
+      contextContent += `GUEST DATABASE: ${guestCount} profiles on file\n\n`;
+
+      // Channels
+      if (channels && channels.length > 0) {
+        contextContent += `CHANNEL CONNECTIONS (${channels.length}):\n`;
+        channels.forEach((ch: any) => {
+          contextContent += `- ${ch.channel_name}: ${ch.is_active ? 'Active' : 'Inactive'}${ch.last_sync_at ? `, last synced ${ch.last_sync_at}` : ''}\n`;
+        });
+        contextContent += "\n";
+      } else {
+        contextContent += "CHANNELS: No OTA connections yet. Suggest going to Channels to connect distribution partners.\n\n";
+      }
+
+      // Groups
+      if (groups && groups.length > 0) {
+        contextContent += `UPCOMING GROUPS (${groups.length}):\n`;
+        groups.forEach((g: any) => {
+          contextContent += `- ${g.name}: ${g.arrival_date} to ${g.departure_date}, ${g.total_rooms} rooms, Status: ${g.status}\n`;
+        });
+        contextContent += "\n";
+      }
+
+      // Events
+      if (events && events.length > 0) {
+        contextContent += `UPCOMING EVENTS (${events.length}):\n`;
+        events.forEach((e: any) => {
+          contextContent += `- ${e.name}: ${e.event_date}, Type: ${e.event_type || 'General'}, Status: ${e.status}\n`;
+        });
+        contextContent += "\n";
+      }
+
+      // Staff
+      if (staff && staff.length > 0) {
+        contextContent += `ACTIVE STAFF (${staff.length}):\n`;
+        staff.forEach((s: any) => {
+          contextContent += `- ${s.display_name}: ${s.role}\n`;
+        });
+        contextContent += "\n";
+      }
+
+      // Recent bookings
       if (recentBookings && recentBookings.length > 0) {
         contextContent += `RECENT BOOKINGS (last ${recentBookings.length}):\n`;
         recentBookings.forEach((b: any) => {
-          contextContent += `- ${b.guest_name}: ${b.check_in_date} to ${b.check_out_date}, ${b.status}, R${b.total_price}\n`;
+          contextContent += `- ${b.guest_name}: ${b.check_in_date} → ${b.check_out_date}, ${b.status}, R${b.total_price}\n`;
         });
       }
     } else {
