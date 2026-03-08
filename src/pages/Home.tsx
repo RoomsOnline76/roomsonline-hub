@@ -522,11 +522,12 @@ function HomeContent() {
         {heroProperty && (
           <Link
             to={`/property/${heroProperty.slug || heroProperty.id}`}
-            className="absolute bottom-[140px] sm:bottom-[160px] right-4 sm:right-8 z-30 text-white/90 hover:text-white text-xs sm:text-sm transition-all drop-shadow-lg flex items-center gap-1.5 bg-black/50 hover:bg-black/60 backdrop-blur-sm rounded-full px-3 py-1.5 cursor-pointer"
+            className="absolute right-4 sm:right-8 z-[40] text-white hover:text-white text-xs sm:text-sm transition-all drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] flex items-center gap-1.5 bg-black/60 hover:bg-black/70 backdrop-blur-md rounded-full px-4 py-2 cursor-pointer border border-white/20"
+            style={{ bottom: "170px" }}
           >
-            <span className="font-medium">{heroProperty.name}</span>
+            <span className="font-semibold">{heroProperty.name}</span>
             <span className="text-white/60">•</span>
-            <span>{heroProperty.city}</span>
+            <span className="text-white/90">{heroProperty.city}</span>
           </Link>
         )}
 
