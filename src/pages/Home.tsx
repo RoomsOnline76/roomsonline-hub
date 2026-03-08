@@ -254,6 +254,7 @@ function HomeContent() {
             name: string;
             city: string;
             country: string;
+            slug: string;
           }[] = [];
           for (const prop of heroProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
