@@ -175,7 +175,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       payload.rolos_rate_plan_id = form.rate_plan_id;
     }
 
-    const { error } = await supabase.from("bookings").insert(payload);
+    const { data: insertedData, error } = await supabase.from("bookings").insert(payload).select("id").single();
     setSaving(false);
 
     if (error) {
@@ -184,6 +184,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     }
 
     toast.success("Booking created successfully");
+
+    // Send confirmation email
+    if (insertedData?.id) {
+      try {
+        const { error: emailError } = await supabase.functions.invoke("send-booking-email", {
+          body: { booking_id: insertedData.id, bookingId: insertedData.id, status: "success" },
+        });
+        if (emailError) {
+          console.warn("Confirmation email failed:", emailError);
+          toast.warning("Booking created but confirmation email failed to send");
+        } else {
+          toast.success("Confirmation email sent to " + form.guest_email);
+        }
+      } catch (emailErr) {
+        console.warn("Email send error:", emailErr);
+      }
+    }
     onOpenChange(false);
     // Reset form
     setForm({
