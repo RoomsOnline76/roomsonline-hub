@@ -143,7 +143,213 @@ interface DayForecast {
   reason: string;
 }
 
-export default function PMSRevenue() {
+const RULE_TYPES = [
+  { value: "occupancy_threshold", label: "Occupancy Threshold", desc: "Adjust rates based on occupancy %" },
+  { value: "day_of_week", label: "Day of Week", desc: "Adjust rates for specific days" },
+  { value: "lead_time", label: "Lead Time", desc: "Adjust based on booking lead days" },
+  { value: "season", label: "Season", desc: "Seasonal rate adjustments" },
+];
+
+function YieldRulesTab({ propertyId }: { propertyId: string }) {
+  const { data: rules = [], isLoading } = useYieldRules(propertyId);
+  const upsert = useUpsertYieldRule(propertyId);
+  const deleteRule = useDeleteYieldRule(propertyId);
+  const toggleRule = useToggleYieldRule(propertyId);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10,
+    min_occupancy: 80, max_occupancy: 100, days: [] as string[],
+    min_lead_days: 0, max_lead_days: 7,
+  });
+
+  const handleCreate = () => {
+    let condition: Record<string, unknown> = {};
+    if (form.rule_type === "occupancy_threshold") {
+      condition = { min_occupancy: form.min_occupancy, max_occupancy: form.max_occupancy };
+    } else if (form.rule_type === "day_of_week") {
+      condition = { days: form.days };
+    } else if (form.rule_type === "lead_time") {
+      condition = { min_lead_days: form.min_lead_days, max_lead_days: form.max_lead_days };
+    }
+    upsert.mutate({
+      property_id: propertyId,
+      name: form.name,
+      rule_type: form.rule_type,
+      condition,
+      adjustment_percent: form.adjustment_percent,
+      priority: form.priority,
+    } as any, {
+      onSuccess: () => {
+        setShowCreate(false);
+        setForm({ name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10, min_occupancy: 80, max_occupancy: 100, days: [], min_lead_days: 0, max_lead_days: 7 });
+      },
+    });
+  };
+
+  const formatCondition = (rule: YieldRule) => {
+    const c = rule.condition || {};
+    switch (rule.rule_type) {
+      case "occupancy_threshold": return `${c.min_occupancy ?? 0}% – ${c.max_occupancy ?? 100}% occupancy`;
+      case "day_of_week": return (c.days as string[] || []).join(", ") || "No days set";
+      case "lead_time": return `${c.min_lead_days ?? 0} – ${c.max_lead_days ?? 999} days ahead`;
+      case "season": return "Season-based";
+      default: return JSON.stringify(c);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Yield Rules Engine</h3>
+          <p className="text-xs text-muted-foreground">Automated rate adjustments based on demand signals</p>
+        </div>
+        <Dialog open={showCreate} onOpenChange={setShowCreate}>
+          <DialogTrigger asChild>
+            <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Rule</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Create Yield Rule</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Rule Name</Label>
+                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Weekend Premium" />
+              </div>
+              <div className="space-y-2">
+                <Label>Rule Type</Label>
+                <Select value={form.rule_type} onValueChange={v => setForm(f => ({ ...f, rule_type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {RULE_TYPES.map(rt => (
+                      <SelectItem key={rt.value} value={rt.value}>{rt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{RULE_TYPES.find(r => r.value === form.rule_type)?.desc}</p>
+              </div>
+
+              {form.rule_type === "occupancy_threshold" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Min Occupancy %</Label>
+                    <Input type="number" value={form.min_occupancy} onChange={e => setForm(f => ({ ...f, min_occupancy: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Occupancy %</Label>
+                    <Input type="number" value={form.max_occupancy} onChange={e => setForm(f => ({ ...f, max_occupancy: Number(e.target.value) }))} />
+                  </div>
+                </div>
+              )}
+
+              {form.rule_type === "day_of_week" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Days</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d => (
+                      <Badge
+                        key={d}
+                        variant={form.days.includes(d.toLowerCase()) ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => setForm(f => ({
+                          ...f,
+                          days: f.days.includes(d.toLowerCase())
+                            ? f.days.filter(x => x !== d.toLowerCase())
+                            : [...f.days, d.toLowerCase()],
+                        }))}
+                      >{d.slice(0, 3)}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {form.rule_type === "lead_time" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Min Lead Days</Label>
+                    <Input type="number" value={form.min_lead_days} onChange={e => setForm(f => ({ ...f, min_lead_days: Number(e.target.value) }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Max Lead Days</Label>
+                    <Input type="number" value={form.max_lead_days} onChange={e => setForm(f => ({ ...f, max_lead_days: Number(e.target.value) }))} />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Adjustment %</Label>
+                  <Input type="number" value={form.adjustment_percent} onChange={e => setForm(f => ({ ...f, adjustment_percent: Number(e.target.value) }))} />
+                  <p className="text-[10px] text-muted-foreground">Positive = increase, Negative = decrease</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Priority (lower = first)</Label>
+                  <Input type="number" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: Number(e.target.value) }))} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+              <Button onClick={handleCreate} disabled={!form.name || upsert.isPending}>
+                {upsert.isPending ? "Saving…" : "Create Rule"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>
+      ) : rules.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Settings2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground">No yield rules configured.</p>
+            <p className="text-xs text-muted-foreground mt-1">Create rules to automate rate adjustments based on demand signals.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {rules.map(rule => (
+            <Card key={rule.id} className={!rule.is_active ? "opacity-60" : ""}>
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Switch
+                      checked={rule.is_active}
+                      onCheckedChange={v => toggleRule.mutate({ id: rule.id, is_active: v })}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold truncate">{rule.name}</p>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {RULE_TYPES.find(r => r.value === rule.rule_type)?.label || rule.rule_type}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] shrink-0">P{rule.priority}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{formatCondition(rule)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge className={`text-xs ${
+                      rule.adjustment_percent > 0 ? "bg-primary/10 text-primary border-primary/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                    }`}>
+                      {rule.adjustment_percent > 0 ? "+" : ""}{rule.adjustment_percent}%
+                    </Badge>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteRule.mutate(rule.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
   const { propertyId, loading: propLoading } = usePmsPropertyId();
   const [forecastDays] = useState(14);
   const [historyDays, setHistoryDays] = useState(30);
