@@ -7,7 +7,10 @@ import { PMSHelpDrawer } from "@/components/pms/PMSHelpDrawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
+import { ForcePasswordChangeModal } from "@/components/pms/ForcePasswordChangeModal";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PMSLayoutProps {
   children: ReactNode;
@@ -16,7 +19,10 @@ interface PMSLayoutProps {
 export function PMSLayout({ children }: PMSLayoutProps) {
   const isMobile = useIsMobile();
   const { propertyId } = usePmsPropertyId();
+  const { user } = useAuth();
+  const { mustChangePassword, loading: roleLoading } = usePmsStaffRole(propertyId);
   const [propertyName, setPropertyName] = useState<string | undefined>();
+  const [pwChanged, setPwChanged] = useState(false);
 
   useEffect(() => {
     if (!propertyId) {
@@ -33,6 +39,8 @@ export function PMSLayout({ children }: PMSLayoutProps) {
       });
   }, [propertyId]);
 
+  const showForcePassword = !roleLoading && mustChangePassword && !pwChanged && !!propertyId && !!user;
+
   return (
     <HelpProvider>
       <div className="flex min-h-screen w-full bg-background">
@@ -47,6 +55,14 @@ export function PMSLayout({ children }: PMSLayoutProps) {
         </main>
         {isMobile && <MobileBottomNav />}
       </div>
+      {showForcePassword && (
+        <ForcePasswordChangeModal
+          open={true}
+          propertyId={propertyId!}
+          userId={user!.id}
+          onComplete={() => setPwChanged(true)}
+        />
+      )}
       <PMSHelpDrawer propertyName={propertyName} />
       <FloatingHelpButton />
     </HelpProvider>

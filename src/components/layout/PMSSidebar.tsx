@@ -129,9 +129,11 @@ export function PMSSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {pmsNavItems.map((item) => (
-          <NavLink key={item.href} item={item} />
-        ))}
+        {pmsNavItems
+          .filter((item) => visibleModules.includes(item.module))
+          .map((item) => (
+            <NavLink key={item.href} item={item} />
+          ))}
       </nav>
 
       {/* Footer */}
