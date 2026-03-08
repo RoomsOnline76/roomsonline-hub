@@ -464,10 +464,11 @@ export default function PMSRatePlans() {
                   <CardContent>
                     {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+                      <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
                       {plan.base_rate && plan.base_rate > 0 ? (
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
+                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.suffix || ''}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground/60 italic">No base rate set</span>
