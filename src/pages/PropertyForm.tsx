@@ -4747,7 +4747,7 @@ export default function PropertyForm() {
                       <CardHeader className="py-2 px-4">
                         <CardTitle className="text-sm flex items-center justify-between">
                           <span>Property</span>
-                          {selectedPMS && (
+                          {selectedPMS && !isRolProperty && (
                             <div className="flex items-center gap-1 text-xs font-normal text-muted-foreground">
                               <div className="w-3 h-3 rounded bg-primary/10 border border-primary/30" />
                               <Cloud className="h-3 w-3" />
