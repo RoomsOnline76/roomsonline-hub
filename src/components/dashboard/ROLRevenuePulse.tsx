@@ -25,6 +25,7 @@ import { ChannelBreakdownChart } from "./ChannelBreakdownChart";
 import { TopPropertiesTable } from "./TopPropertiesTable";
 import { RiskIndicators } from "./RiskIndicators";
 import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
+import { PortfolioDemandForecast } from "./PortfolioDemandForecast";
 import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
 import { BankExportDashboard } from "@/components/bank-export";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
@@ -325,6 +326,9 @@ export function ROLRevenuePulse() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Portfolio Demand Forecast */}
+      <PortfolioDemandForecast />
 
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />

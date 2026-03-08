@@ -14,21 +14,31 @@ import {
 } from "date-fns";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Legend,
+  BarChart, Bar, Legend, PieChart, Pie, Cell,
 } from "recharts";
 import {
   TrendingUp, TrendingDown, AlertTriangle, Lightbulb, DollarSign,
-  Calendar, Target, ArrowUpRight, ArrowDownRight, Minus,
+  Calendar, Target, ArrowUpRight, ArrowDownRight, Minus, History, BarChart3,
 } from "lucide-react";
 
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
-
-// Occupancy thresholds for rate suggestions
-const THRESHOLDS = {
-  low: 30,
-  medium: 60,
-  high: 80,
+const fmtCurrency = (n: number) =>
+  new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+const fmtCompact = (n: number) => {
+  if (n >= 1_000_000) return `R${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `R${(n / 1_000).toFixed(0)}K`;
+  return fmtCurrency(n);
 };
+
+const THRESHOLDS = { low: 30, medium: 60, high: 80 };
+const PIE_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--muted-foreground))",
+];
 
 interface DayForecast {
   date: string;
@@ -39,17 +49,19 @@ interface DayForecast {
   revenue: number;
   adr: number;
   suggestion: "increase" | "decrease" | "hold";
-  suggestedAdjustment: number; // percentage
+  suggestedAdjustment: number;
   reason: string;
 }
 
 export default function PMSRevenue() {
   const { propertyId, loading: propLoading } = usePmsPropertyId();
   const [forecastDays] = useState(14);
+  const [historyDays, setHistoryDays] = useState(30);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const futureEnd = format(addDays(new Date(), forecastDays), "yyyy-MM-dd");
   const past30 = format(subDays(new Date(), 30), "yyyy-MM-dd");
+  const historyStart = format(subDays(new Date(), historyDays), "yyyy-MM-dd");
 
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
@@ -96,6 +108,23 @@ export default function PMSRevenue() {
     enabled: !!propertyId,
   });
 
+  // === NEW: Historical revenue & channel data ===
+  const { data: historyBookings = [], isLoading: historyLoading } = useQuery({
+    queryKey: ["rev-history", propertyId, historyStart, today],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, check_in_date, total_price, calculated_commission, booking_channel, payment_status, status")
+        .eq("property_id", propertyId!)
+        .gte("check_in_date", historyStart)
+        .lte("check_in_date", today)
+        .in("status", ["confirmed", "completed"])
+        .neq("status", "cancelled");
+      return data || [];
+    },
+    enabled: !!propertyId,
+  });
+
   // Fetch rate plans
   const { data: ratePlans = [] } = useQuery({
     queryKey: ["rev-rate-plans", propertyId],
@@ -119,6 +148,38 @@ export default function PMSRevenue() {
     return totalRev / pastBookings.length;
   }, [pastBookings]);
 
+  // === Historical metrics ===
+  const historyMetrics = useMemo(() => {
+    const paid = historyBookings.filter((b: any) => b.payment_status === "paid");
+    const gbv = paid.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
+    const commission = paid.reduce((s: number, b: any) => s + Number(b.calculated_commission || 0), 0);
+    const avgAdr = paid.length > 0 ? gbv / paid.length : 0;
+
+    // Channel breakdown
+    const channels: Record<string, { count: number; revenue: number }> = {};
+    paid.forEach((b: any) => {
+      const ch = b.booking_channel || "Direct";
+      if (!channels[ch]) channels[ch] = { count: 0, revenue: 0 };
+      channels[ch].count += 1;
+      channels[ch].revenue += Number(b.total_price || 0);
+    });
+    const channelBreakdown = Object.entries(channels)
+      .map(([channel, d]) => ({ channel, ...d }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Monthly timeline
+    const monthly: Record<string, { date: string; revenue: number; bookings: number }> = {};
+    paid.forEach((b: any) => {
+      const mo = (b.check_in_date as string)?.slice(0, 7) || "unknown";
+      if (!monthly[mo]) monthly[mo] = { date: mo, revenue: 0, bookings: 0 };
+      monthly[mo].revenue += Number(b.total_price || 0);
+      monthly[mo].bookings += 1;
+    });
+    const timeline = Object.values(monthly).sort((a, b) => a.date.localeCompare(b.date));
+
+    return { gbv, commission, avgAdr, totalBookings: paid.length, channelBreakdown, timeline };
+  }, [historyBookings]);
+
   // Generate daily forecast
   const forecast = useMemo<DayForecast[]>(() => {
     const days = eachDayOfInterval({
@@ -128,7 +189,6 @@ export default function PMSRevenue() {
 
     return days.map(day => {
       const dayStr = format(day, "yyyy-MM-dd");
-      // Count bookings overlapping this day
       const overlapping = futureBookings.filter((b: any) =>
         b.check_in_date <= dayStr && b.check_out_date > dayStr
       );
@@ -161,14 +221,8 @@ export default function PMSRevenue() {
       return {
         date: dayStr,
         dateLabel: format(day, "EEE dd MMM"),
-        occupancy,
-        bookedRooms,
-        totalRooms,
-        revenue: dayRevenue,
-        adr,
-        suggestion,
-        suggestedAdjustment,
-        reason,
+        occupancy, bookedRooms, totalRooms, revenue: dayRevenue, adr,
+        suggestion, suggestedAdjustment, reason,
       };
     });
   }, [futureBookings, totalRooms, forecastDays]);
@@ -178,14 +232,11 @@ export default function PMSRevenue() {
     const avgOcc = forecast.reduce((s, f) => s + f.occupancy, 0) / forecast.length;
     const totalForecastRev = forecast.reduce((s, f) => s + f.revenue, 0);
     const potentialRevGain = forecast.reduce((s, f) => {
-      if (f.suggestion === "increase") {
-        return s + (f.revenue * f.suggestedAdjustment / 100);
-      }
+      if (f.suggestion === "increase") return s + (f.revenue * f.suggestedAdjustment / 100);
       return s;
     }, 0);
     const lowDemandDays = forecast.filter(f => f.occupancy < THRESHOLDS.low).length;
     const highDemandDays = forecast.filter(f => f.occupancy >= THRESHOLDS.high).length;
-
     return { avgOcc, totalForecastRev, potentialRevGain, lowDemandDays, highDemandDays };
   }, [forecast]);
 
@@ -207,12 +258,12 @@ export default function PMSRevenue() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Revenue Management</h1>
           <p className="text-sm text-muted-foreground">
-            Demand forecast & rate optimization — next {forecastDays} days
+            Demand forecast, rate optimization & historical performance
           </p>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* KPI Cards - Combined forward + historical */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Card>
             <CardHeader className="pb-1">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -223,7 +274,7 @@ export default function PMSRevenue() {
               {loading ? <Skeleton className="h-8 w-16" /> : (
                 <>
                   <p className="text-2xl font-bold">{metrics.avgOcc.toFixed(1)}%</p>
-                  <p className="text-xs text-muted-foreground">Avg next {forecastDays}d</p>
+                  <p className="text-xs text-muted-foreground">Next {forecastDays}d avg</p>
                 </>
               )}
             </CardContent>
@@ -243,7 +294,7 @@ export default function PMSRevenue() {
           <Card>
             <CardHeader className="pb-1">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" />Revenue Opportunity
+                <TrendingUp className="h-3 w-3" />Opportunity
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -258,6 +309,21 @@ export default function PMSRevenue() {
           <Card>
             <CardHeader className="pb-1">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <History className="h-3 w-3" />Past {historyDays}d GBV
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? <Skeleton className="h-8 w-20" /> : (
+                <>
+                  <p className="text-2xl font-bold">{fmtCompact(historyMetrics.gbv)}</p>
+                  <p className="text-xs text-muted-foreground">{historyMetrics.totalBookings} bookings</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />Demand Alerts
               </CardTitle>
             </CardHeader>
@@ -265,14 +331,10 @@ export default function PMSRevenue() {
               {loading ? <Skeleton className="h-8 w-16" /> : (
                 <div className="flex items-center gap-2">
                   {metrics.highDemandDays > 0 && (
-                    <Badge className="text-xs bg-primary/10 text-primary border-primary/20">
-                      {metrics.highDemandDays}d high
-                    </Badge>
+                    <Badge className="text-xs bg-primary/10 text-primary border-primary/20">{metrics.highDemandDays}d high</Badge>
                   )}
                   {metrics.lowDemandDays > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {metrics.lowDemandDays}d low
-                    </Badge>
+                    <Badge variant="destructive" className="text-xs">{metrics.lowDemandDays}d low</Badge>
                   )}
                   {metrics.highDemandDays === 0 && metrics.lowDemandDays === 0 && (
                     <p className="text-sm font-medium text-muted-foreground">Balanced</p>
@@ -286,12 +348,13 @@ export default function PMSRevenue() {
         <Tabs defaultValue="forecast" className="space-y-4">
           <TabsList>
             <TabsTrigger value="forecast"><Calendar className="w-4 h-4 mr-1" />Demand Forecast</TabsTrigger>
+            <TabsTrigger value="performance"><History className="w-4 h-4 mr-1" />Performance</TabsTrigger>
             <TabsTrigger value="suggestions"><Lightbulb className="w-4 h-4 mr-1" />Rate Suggestions</TabsTrigger>
             <TabsTrigger value="plans"><DollarSign className="w-4 h-4 mr-1" />Active Plans</TabsTrigger>
           </TabsList>
 
+          {/* === FORECAST TAB (existing) === */}
           <TabsContent value="forecast" className="space-y-4">
-            {/* Occupancy Forecast Chart */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Occupancy & Revenue Forecast</CardTitle>
@@ -314,7 +377,6 @@ export default function PMSRevenue() {
               </CardContent>
             </Card>
 
-            {/* Day-by-day table */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Daily Breakdown</CardTitle>
@@ -324,20 +386,20 @@ export default function PMSRevenue() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="py-2 pr-4">Date</th>
-                        <th className="py-2 pr-4">Rooms</th>
-                        <th className="py-2 pr-4">Occupancy</th>
-                        <th className="py-2 pr-4">Revenue</th>
-                        <th className="py-2 pr-4">ADR</th>
-                        <th className="py-2">Signal</th>
+                        <th className="py-2 px-3">Date</th>
+                        <th className="py-2 px-3">Rooms</th>
+                        <th className="py-2 px-3">Occupancy</th>
+                        <th className="py-2 px-3">Revenue</th>
+                        <th className="py-2 px-3">ADR</th>
+                        <th className="py-2 px-3">Signal</th>
                       </tr>
                     </thead>
                     <tbody>
                       {forecast.map(f => (
                         <tr key={f.date} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-2 pr-4 font-medium">{f.dateLabel}</td>
-                          <td className="py-2 pr-4">{f.bookedRooms}/{f.totalRooms}</td>
-                          <td className="py-2 pr-4">
+                          <td className="py-2 px-3 font-medium">{f.dateLabel}</td>
+                          <td className="py-2 px-3">{f.bookedRooms}/{f.totalRooms}</td>
+                          <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
                                 <div
@@ -352,9 +414,9 @@ export default function PMSRevenue() {
                               <span className="text-xs">{f.occupancy.toFixed(0)}%</span>
                             </div>
                           </td>
-                          <td className="py-2 pr-4">R{fmt(f.revenue)}</td>
-                          <td className="py-2 pr-4">R{fmt(f.adr)}</td>
-                          <td className="py-2">
+                          <td className="py-2 px-3">R{fmt(f.revenue)}</td>
+                          <td className="py-2 px-3">R{fmt(f.adr)}</td>
+                          <td className="py-2 px-3">
                             {f.suggestion === "increase" && (
                               <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">
                                 <ArrowUpRight className="h-3 w-3 mr-0.5" />+{f.suggestedAdjustment}%
@@ -380,8 +442,134 @@ export default function PMSRevenue() {
             </Card>
           </TabsContent>
 
+          {/* === NEW: PERFORMANCE TAB === */}
+          <TabsContent value="performance" className="space-y-4">
+            {/* Period selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Period:</span>
+              {[30, 60, 90].map(d => (
+                <Button
+                  key={d}
+                  variant={historyDays === d ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setHistoryDays(d)}
+                >
+                  {d}D
+                </Button>
+              ))}
+            </div>
+
+            {/* Revenue History KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">Gross Booking Value</p>
+                  {historyLoading ? <Skeleton className="h-7 w-20" /> : (
+                    <p className="text-xl font-bold tabular-nums">{fmtCompact(historyMetrics.gbv)}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">Commission Earned</p>
+                  {historyLoading ? <Skeleton className="h-7 w-20" /> : (
+                    <p className="text-xl font-bold tabular-nums text-primary">{fmtCompact(historyMetrics.commission)}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">Average ADR</p>
+                  {historyLoading ? <Skeleton className="h-7 w-20" /> : (
+                    <p className="text-xl font-bold tabular-nums">R{fmt(historyMetrics.avgAdr)}</p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">Paid Bookings</p>
+                  {historyLoading ? <Skeleton className="h-7 w-12" /> : (
+                    <p className="text-xl font-bold tabular-nums">{historyMetrics.totalBookings}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-4">
+              {/* Revenue Timeline */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Revenue Timeline</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[260px]">
+                  {historyLoading ? <Skeleton className="h-full w-full" /> : historyMetrics.timeline.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={historyMetrics.timeline}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={v => { const [, m] = v.split("-"); return m; }} />
+                        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtCompact(v)} />
+                        <Tooltip formatter={(v: number) => [fmtCurrency(v), "Revenue"]} />
+                        <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data for this period</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Channel Breakdown */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Channel Mix</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[260px]">
+                  {historyLoading ? <Skeleton className="h-full w-full" /> : historyMetrics.channelBreakdown.length > 0 ? (
+                    <div className="flex items-center h-full gap-4">
+                      <div className="w-1/2 h-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={historyMetrics.channelBreakdown}
+                              dataKey="revenue"
+                              nameKey="channel"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={80}
+                              innerRadius={40}
+                              paddingAngle={2}
+                              strokeWidth={0}
+                            >
+                              {historyMetrics.channelBreakdown.map((_, i) => (
+                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v: number) => fmtCurrency(v)} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="w-1/2 space-y-2">
+                        {historyMetrics.channelBreakdown.slice(0, 6).map((ch, i) => (
+                          <div key={ch.channel} className="flex items-center gap-2 text-xs">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                            <span className="truncate flex-1">{ch.channel}</span>
+                            <span className="font-medium tabular-nums">{fmtCompact(ch.revenue)}</span>
+                            <span className="text-muted-foreground">({ch.count})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No channel data</div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* === SUGGESTIONS TAB (existing) === */}
           <TabsContent value="suggestions" className="space-y-4">
-            {/* Actionable suggestions */}
             <div className="grid gap-4">
               {forecast.filter(f => f.suggestion !== "hold").length === 0 ? (
                 <Card>
@@ -392,11 +580,7 @@ export default function PMSRevenue() {
                 </Card>
               ) : (
                 forecast.filter(f => f.suggestion !== "hold").map(f => (
-                  <Card key={f.date} className={
-                    f.suggestion === "increase"
-                      ? "border-primary/30"
-                      : "border-destructive/30"
-                  }>
+                  <Card key={f.date} className={f.suggestion === "increase" ? "border-primary/30" : "border-destructive/30"}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-sm font-semibold">{f.dateLabel}</CardTitle>
@@ -428,8 +612,8 @@ export default function PMSRevenue() {
             </div>
           </TabsContent>
 
+          {/* === ACTIVE PLANS TAB (existing) === */}
           <TabsContent value="plans" className="space-y-4">
-            {/* Active Rate Plans */}
             {(ratePlans as any[]).length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
