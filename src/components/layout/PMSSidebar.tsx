@@ -15,14 +15,17 @@ import {
   LogOut,
   ArrowLeft,
   UserCog,
+  ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import rolLogo from "@/assets/rol-logo.png";
 
 interface NavItem {
@@ -49,10 +52,12 @@ export function PMSSidebar() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const propertyId = searchParams.get("property");
-  const { signOut } = useAuth();
+  const { signOut, isDev, isAdmin, isFearlessLeader } = useAuth();
   const { propertyName, logoUrl, brandEnabled } = usePMSBrand();
   const { staffRole } = usePmsStaffRole(propertyId);
+  const { properties, switchProperty } = usePmsPropertyId();
   const visibleModules = getVisibleModules(staffRole);
+  const isPlatformUser = isDev || isAdmin || isFearlessLeader;
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("pms-sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
@@ -125,6 +130,35 @@ export function PMSSidebar() {
             </div>
           )}
         </div>
+
+        {/* Property switcher for platform users */}
+        {isPlatformUser && !collapsed && properties.length > 1 && (
+          <Select value={propertyId || ""} onValueChange={switchProperty}>
+            <SelectTrigger className="h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Switch property…" />
+            </SelectTrigger>
+            <SelectContent>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {isPlatformUser && collapsed && properties.length > 1 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setCollapsed(false)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground"
+              >
+                <ChevronsUpDown className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Switch property</TooltipContent>
+          </Tooltip>
+        )}
       </div>
 
       {/* Navigation */}
