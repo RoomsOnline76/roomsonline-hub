@@ -139,10 +139,29 @@ const systemControlSection: NavSection = {
   ],
 };
 
+// ROL'OS Native PMS section - owner+ with ROL properties
+const pmsSection: NavSection = {
+  id: 'pms',
+  label: "ROL'OS PMS",
+  icon: BedDouble,
+  minRole: 'owner',
+  collapsible: true,
+  defaultOpen: false,
+  items: [
+    { id: 'pms-dashboard', title: 'PMS Dashboard', icon: LayoutDashboard, href: '/pms', minRole: 'owner', description: 'Native PMS overview' },
+    { id: 'pms-rooms', title: 'Rooms', icon: BedDouble, href: '/pms/rooms', minRole: 'owner', description: 'Physical room inventory' },
+    { id: 'pms-rate-plans', title: 'Rate Plans', icon: TrendingUp, href: '/pms/rate-plans', minRole: 'owner', description: 'Pricing strategies' },
+    { id: 'pms-guests', title: 'Guests', icon: Users, href: '/pms/guests', minRole: 'owner', description: 'Guest CRM' },
+    { id: 'pms-housekeeping', title: 'Housekeeping', icon: Sparkles, href: '/pms/housekeeping', minRole: 'owner', description: 'Task board' },
+    { id: 'pms-reports', title: 'Reports', icon: BarChart3, href: '/pms/reports', minRole: 'owner', description: 'ADR, RevPAR, occupancy' },
+  ],
+};
+
 // Complete navigation configuration
 export const navigationConfig: NavSection[] = [
   workspaceSection,
   insightsSection,
+  pmsSection,
   adminSection,
   editAuditSection,
   systemControlSection,
