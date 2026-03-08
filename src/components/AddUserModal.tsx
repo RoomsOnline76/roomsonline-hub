@@ -32,7 +32,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   });
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activePMSSystems, setActivePMSSystems] = useState<{key: string, name: string}[]>([]);
+  
   
   // Multi-PMS toggle
   const [showMultiPMS, setShowMultiPMS] = useState(false);
@@ -44,30 +44,11 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const isHostfullySelected = selectedPMSSystems.includes("hostfully");
   const hasValidAgencyUid = hostfullyAgencyUid.trim().length > 0;
 
-  // Get all available PMS systems (not just active ones for multi-select)
-  const allPMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.isInternal);
+  // Get all available PMS systems (non-hidden, including ROL'OS)
+  const allPMSSystems = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
 
-  // Fetch active PMS systems from database
-  useEffect(() => {
-    const fetchActivePMS = async () => {
-      const { data } = await supabase
-        .from('pms_credentials')
-        .select('system_type')
-        .eq('is_active', true);
-      
-      if (data) {
-        const uniqueSystems = [...new Set(data.map(d => d.system_type))];
-        const systems = uniqueSystems
-          .map(key => {
-            const config = getPMSSystemByKey(key);
-            return config ? { key, name: config.name } : null;
-          })
-          .filter((s): s is {key: string, name: string} => s !== null);
-        setActivePMSSystems(systems);
-      }
-    };
-    fetchActivePMS();
-  }, []);
+  // For single-select dropdown, use the same config list
+  const activePMSSystems = allPMSSystems.map(s => ({ key: s.key, name: s.name }));
 
   useEffect(() => {
     if (open) {
