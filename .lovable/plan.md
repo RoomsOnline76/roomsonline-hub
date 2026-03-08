@@ -3,55 +3,49 @@
 
 ## Phase 1 — Night Audit Enhancement & Financial Auto-Posting ✅ COMPLETED
 
-### Database
-- ✅ Added `timezone` column to `properties` table (default `'Africa/Johannesburg'`)
-- ✅ Created `rolos_night_audit_log` table with RLS policies (property access + service role)
-
-### Edge Function: `pms-night-audit` v2.0
-- ✅ Timezone-aware scheduling — only audits properties when local midnight has passed
-- ✅ Auto-posts room charges to `rolos_folio_transactions` (nightly rate from booking)
-- ✅ Auto-posts tax charges using active `rolos_tax_rules`
-- ✅ Rolls housekeeping states (occupied → dirty) with auto-task creation
-- ✅ Calculates daily metrics (ADR, RevPAR, Occupancy) → `rolos_daily_metrics`
-- ✅ Closes balanced folios for checked-out bookings
-- ✅ Writes full results to `rolos_night_audit_log`
-- ✅ Supports manual trigger with `property_id` + `force` params
-- ✅ Idempotent — skips already-audited dates unless forced
-
-### UI: `/pms/night-audit`
-- ✅ New page with summary cards (Last Revenue, Charges, Rooms Rolled, Folios Closed)
-- ✅ Expandable audit history table with task-level detail
-- ✅ Manual trigger button for owners/admins
-- ✅ Added to PMS sidebar under Management group
-- ✅ Permission matrix updated — owner/GM full, accountant/auditor RO, others no access
-
-### Files Created/Modified
-- `supabase/functions/pms-night-audit/index.ts` — Enhanced v2.0
-- `src/hooks/useNightAuditLog.ts` — New hooks
-- `src/pages/pms/PMSNightAudit.tsx` — New page
-- `src/pages/pms/index.ts` — Export added
-- `src/App.tsx` — Route registered
-- `src/components/layout/PMSSidebar.tsx` — Night Audit sidebar item
-- `src/lib/pmsPermissions.ts` — `night-audit` module added to matrix
+### Delivered
+- `timezone` column on `properties` table + `rolos_night_audit_log` table with RLS
+- `pms-night-audit` v2.0: timezone-aware, auto room charge + tax posting, housekeeping roll, metrics, folio closure, audit logging
+- `/pms/night-audit` page with summary cards, expandable history table, manual trigger
+- Sidebar item under Management, permission matrix updated
 
 ---
 
-## Phase 2 — Financial Engine: Invoice PDF & Payment Gateway Hooks
-**Status:** Next up
+## Phase 2 — Financial Engine: Invoice PDF & Payment Gateway Hooks ✅ COMPLETED
 
-### Invoice PDF Generation
-- Enhance `pms-financial` edge function `generate_invoice` action with PDF
-- Upload PDF to storage bucket, store URL in `rolos_invoices.pdf_url`
+### Database
+- ✅ `rolos_deposit_schedules` table with RLS (rate_plan_id, deposit_type, deposit_value, due_days_before)
+- ✅ `property_id` and `guest_name` columns added to `rolos_folios`
+- ✅ `invoices` storage bucket created with RLS policies
 
-### Payment Gateway Integration
-- Extend with `process_gateway_payment` action + adapter pattern
-- Webhook handler for gateway callbacks
-- Create `rolos_deposit_schedules` table
+### Edge Function: `pms-financial` v2.0
+- ✅ `generate_invoice` — builds branded HTML invoice from folio transactions + property branding, uploads to storage, stores `pdf_url`
+- ✅ `process_gateway_payment` — creates pending payment record for gateway flow (PayFast/PayGate adapter-ready)
+- ✅ `payment_webhook` — updates payment status from gateway callback, posts folio transaction, recalculates balance
+- ✅ `get_folios` — lists folios with booking info for property
+- ✅ `get_folio_detail` — returns folio + transactions + payments + invoices in one call
+- ✅ `get_deposit_schedules` — lists deposit schedules with rate plan names
+- ✅ `record_payment` — now updates folio balance automatically
+- ✅ Fixed `transaction_type` column name (was incorrectly `type`) in night audit
+
+### UI: Folios Manager
+- ✅ New `PMSFoliosManager` component with folio list table
+- ✅ Folio detail sheet: transactions, payments, invoices with PDF download
+- ✅ Record Payment dialog (amount, method, reference)
+- ✅ Generate Invoice button (branded HTML with property logo/colors/VAT)
+- ✅ Integrated as "Folios" tab in `/pms/reports` (Reports & Financials)
+
+### Files Created/Modified
+- `supabase/functions/pms-financial/index.ts` — v2.0 rewrite
+- `supabase/functions/pms-night-audit/index.ts` — fixed transaction_type column
+- `src/hooks/usePmsFinancial.ts` — added useFolios, useFolioDetail, useDepositSchedules
+- `src/components/pms/PMSFoliosManager.tsx` — new component
+- `src/pages/pms/PMSReports.tsx` — added Tabs (Analytics | Folios)
 
 ---
 
 ## Phase 3 — Messaging Engine
-**Status:** Planned
+**Status:** Next up
 
 ## Phase 4 — Group Bookings & Events Completion
 **Status:** Planned
