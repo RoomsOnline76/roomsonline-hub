@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
                   if (taxAmount > 0) {
                     await supabase.from("rolos_folio_transactions").insert({
                       folio_id: booking.rolos_folio_id,
-                      type: "charge",
+                      transaction_type: "charge",
                       description: `${rule.name} (${rule.rate}%) — ${auditDateStr}`,
                       amount: taxAmount,
                     });
