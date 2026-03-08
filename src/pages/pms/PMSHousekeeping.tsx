@@ -284,6 +284,16 @@ export default function PMSHousekeeping() {
           </div>
         </div>
 
+        {/* Fallback banner */}
+        {usingFallback && (
+          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+            <CardContent className="py-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">No physical rooms configured. Showing room types as fallback. Add rooms in the Room Inventory page for full housekeeping tracking.</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* 3-Column Board */}
         <div className="grid md:grid-cols-3 gap-6">
           {/* ─── Needs Cleaning ─────────────────────── */}
