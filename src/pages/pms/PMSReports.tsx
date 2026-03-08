@@ -132,7 +132,7 @@ export default function PMSReports() {
       const months = eachMonthOfInterval({ start: dateRange.from, end: dateRange.to });
       return months.map(m => {
         const mStr = format(m, "yyyy-MM");
-        const mBookings = active.filter((b: any) => b.created_at?.startsWith(mStr));
+        const mBookings = active.filter((b: any) => b.check_in_date?.startsWith(mStr));
         const rev = mBookings.reduce((s: number, b: any) => s + Number(b.total_price || 0), 0);
         const nights = mBookings.reduce((s: number, b: any) => {
           if (b.check_in_date && b.check_out_date) return s + Math.max(1, differenceInDays(parseISO(b.check_out_date), parseISO(b.check_in_date)));
