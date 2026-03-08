@@ -28,6 +28,7 @@ interface VisualBrand {
   brand_primary_color: string;
   brand_secondary_color: string;
   brand_font_color: string;
+  brand_accent_color: string;
   brand_override_enabled: boolean;
 }
 
