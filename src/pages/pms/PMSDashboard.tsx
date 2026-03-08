@@ -802,7 +802,7 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Departures ({todayDepartures.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayDepartures.map((b: any) => (
+                {todayDepartures.map((b: BookingRow) => (
                   <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
                     <p className="text-sm font-medium">{b.guest_name}</p>
                     <Badge variant="outline" className="text-xs">{b.status}</Badge>
