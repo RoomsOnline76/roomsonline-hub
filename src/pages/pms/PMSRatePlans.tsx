@@ -9,9 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const PRICING_MODELS = [
+  { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
+  { value: "per_person", label: "Per Person", suffix: "/pp", desc: "Rate × guests × nights" },
+  { value: "per_person_sharing", label: "Per Person Sharing", suffix: "/pps", desc: "Base for 2 guests, extra per additional" },
+  { value: "per_unit", label: "Per Unit", suffix: "/unit", desc: "Rate × units × nights" },
+] as const;
 
 interface RatePlan {
   id: string;
@@ -23,6 +31,7 @@ interface RatePlan {
   requires_deposit: boolean;
   deposit_percentage: number | null;
   base_rate: number | null;
+  pricing_model: string;
 }
 
 interface RoomType {
@@ -46,6 +55,7 @@ export default function PMSRatePlans() {
   const [form, setForm] = useState({
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
     base_rate: "",
+    pricing_model: "per_room",
     linkedRoomTypeIds: [] as string[],
   });
 
@@ -92,6 +102,7 @@ export default function PMSRatePlans() {
           description: cleanDesc || null,
           is_active: true,
           min_stay: rt.minStayDays || 1,
+          pricing_model: rt.pricingModel || 'per_room',
           requires_deposit: false,
           base_rate: rt.baseRate || 0,
         };
@@ -197,7 +208,7 @@ export default function PMSRatePlans() {
     const [plansRes, roomTypesRes, linksRes] = await Promise.all([
       supabase
         .from("rolos_rate_plans")
-        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate")
+        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
         .eq("property_id", propertyId)
         .order("name"),
       supabase
@@ -229,7 +240,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", linkedRoomTypeIds: [] });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [] });
     setEditingPlan(null);
   };
 
@@ -243,6 +254,7 @@ export default function PMSRatePlans() {
         min_stay: String(plan.min_stay || 1),
         requires_deposit: plan.requires_deposit,
         base_rate: plan.base_rate ? String(plan.base_rate) : "",
+        pricing_model: plan.pricing_model || "per_room",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
       });
     } else {
@@ -264,6 +276,7 @@ export default function PMSRatePlans() {
       min_stay: parseInt(form.min_stay) || 1,
       requires_deposit: form.requires_deposit,
       base_rate: baseRate,
+      pricing_model: form.pricing_model || "per_room",
     };
 
     let planId: string;
@@ -310,7 +323,7 @@ export default function PMSRatePlans() {
         });
 
         if (matchIdx >= 0) {
-          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name };
+          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name, pricingModel: form.pricing_model };
         }
 
         await supabase
@@ -373,6 +386,20 @@ export default function PMSRatePlans() {
                   <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
                   <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. BAR, PROMO" /></div>
                   <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
+                  <div>
+                    <Label>Pricing Model *</Label>
+                    <Select value={form.pricing_model} onValueChange={v => setForm(p => ({ ...p, pricing_model: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PRICING_MODELS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>
+                            <span>{m.label}</span>
+                            <span className="text-muted-foreground ml-1 text-xs">— {m.desc}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div><Label>Base Rate (ZAR)</Label><Input type="number" min={0} value={form.base_rate} onChange={e => setForm(p => ({ ...p, base_rate: e.target.value }))} placeholder="0.00" /></div>
                     <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
@@ -437,10 +464,11 @@ export default function PMSRatePlans() {
                   <CardContent>
                     {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+                      <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
                       {plan.base_rate && plan.base_rate > 0 ? (
                         <div className="flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
-                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}</span>
+                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.suffix || ''}</span>
                         </div>
                       ) : (
                         <span className="text-muted-foreground/60 italic">No base rate set</span>

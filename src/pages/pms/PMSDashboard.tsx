@@ -311,10 +311,10 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("rolos_rate_plans")
-        .select("id, name, base_rate")
+        .select("id, name, base_rate, pricing_model")
         .eq("property_id", propertyId)
         .eq("is_active", true);
-      return (data || []) as { id: string; name: string; base_rate: number | null }[];
+      return (data || []) as { id: string; name: string; base_rate: number | null; pricing_model?: string }[];
     },
     enabled: !!propertyId,
   });
@@ -466,6 +466,20 @@ export default function PMSDashboard() {
     // 3. Fallback to room type default_rate
     const rt = roomTypes.find(t => t.id === roomTypeId);
     return rt?.default_rate || null;
+  };
+
+  // Get pricing model suffix for a room type (based on linked rate plans)
+  const getPricingSuffix = (roomTypeId: string): string => {
+    const linkedPlanIds = ratePlanRoomLinks
+      .filter(l => l.room_type_id === roomTypeId)
+      .map(l => l.rate_plan_id);
+    for (const planId of linkedPlanIds) {
+      const plan = ratePlansWithRate.find(p => p.id === planId);
+      if (plan?.pricing_model === 'per_person') return '/pp';
+      if (plan?.pricing_model === 'per_person_sharing') return '/pps';
+      if (plan?.pricing_model === 'per_unit') return '/unit';
+    }
+    return '';
   };
 
   // Get season for date
@@ -711,6 +725,7 @@ export default function PMSDashboard() {
             rooms={rooms}
             overrideMap={overrideMap}
             getRateForDate={getRateForDate}
+            getPricingSuffix={getPricingSuffix}
             getSeasonForDate={getSeasonForDate}
             getRestriction={getRestriction}
             onSelectBooking={setSelectedBooking}
@@ -725,6 +740,7 @@ export default function PMSDashboard() {
             rooms={rooms}
             overrideMap={overrideMap}
             getRateForDate={getRateForDate}
+            getPricingSuffix={getPricingSuffix}
             getSeasonForDate={getSeasonForDate}
             getRestriction={getRestriction}
             onSelectBooking={setSelectedBooking}
@@ -805,6 +821,7 @@ interface CalendarGridProps {
   ratePrices?: RatePrice[];
   overrideMap: Map<string, AvailabilityOverride>;
   getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
   getSeasonForDate: (date: Date) => RateSeason | null;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow) => void;
@@ -815,7 +832,7 @@ const WEEK_CELL_W = "w-[100px] min-w-[100px]";
 const WEEK_LABEL_W = "w-[180px] min-w-[180px]";
 
 function WeekCalendarGrid(props: CalendarGridProps) {
-  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { dates = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
   const dailyOccupancy = useMemo(() => {
     const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
@@ -865,7 +882,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
           {/* Room type rows */}
           {roomTypes.map((rt) => (
-            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
           ))}
 
           {roomTypes.length === 0 && !bookingsLoading && (
@@ -885,7 +902,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
 // ──────────── Month Calendar (stacked weekly rows, no horizontal scroll) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
-  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
 
   // 7 columns for days + 1 for label. Use CSS grid with equal columns.
   return (
@@ -943,7 +960,7 @@ function MonthCalendarGrid(props: CalendarGridProps) {
                     return (
                       <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
                         {rate != null ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span>
+                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground/50">—</span>
                         )}
@@ -1085,12 +1102,13 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking, colCount }: {
 }
 
 // ──────────── Room Type Section (for week view) ────────────
-function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getRestriction, onSelectBooking, cellW, labelW }: {
+function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, getPricingSuffix, getRestriction, onSelectBooking, cellW, labelW }: {
   rt: RoomType;
   dates: Date[];
   roomsByType: Map<string, Room[]>;
   bookings: BookingRow[];
   getRateForDate: (roomTypeId: string, date: Date) => number | null;
+  getPricingSuffix: (roomTypeId: string) => string;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   onSelectBooking: (b: BookingRow) => void;
   cellW: string;
@@ -1129,7 +1147,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
           const { booked, avail } = getAvail(date);
           return (
             <div key={i} className={cn(cellW, "shrink-0 px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
-              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
+              {rate != null ? <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span> : <span className="text-[10px] text-muted-foreground/50">—</span>}
               <div className="text-[8px] mt-0.5">
                 {booked > 0 && <span className="text-amber-600">{booked}b</span>}
                 {booked > 0 && " · "}

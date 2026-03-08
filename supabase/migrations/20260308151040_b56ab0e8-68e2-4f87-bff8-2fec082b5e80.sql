@@ -1,0 +1,1 @@
+ALTER TABLE public.rolos_rate_plans ADD COLUMN IF NOT EXISTS pricing_model text NOT NULL DEFAULT 'per_room';

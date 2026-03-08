@@ -31,6 +31,7 @@ interface RatePlan {
   id: string;
   name: string;
   base_rate: number | null;
+  pricing_model?: string;
 }
 
 interface ManualBookingDialogProps {
@@ -76,17 +77,59 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     return Math.max(0, differenceInDays(form.check_out, form.check_in));
   }, [form.check_in, form.check_out]);
 
-  // Auto-calculate price when rate/nights change
+  // Auto-calculate price when rate/nights/guests change
+  const selectedPlan = ratePlans.find(p => p.id === form.rate_plan_id);
+  const pricingModel = selectedPlan?.pricing_model || 'per_room';
+  const totalGuests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
   const autoPrice = useMemo(() => {
     if (!nights) return null;
-    // Try rate plan base_rate
     const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    if (plan?.base_rate && plan.base_rate > 0) return plan.base_rate * nights;
-    // Try room type default_rate
-    const rt = roomTypes.find(t => t.id === form.room_type_id);
-    if (rt?.default_rate && rt.default_rate > 0) return rt.default_rate * nights;
-    return null;
-  }, [nights, form.rate_plan_id, form.room_type_id, ratePlans, roomTypes]);
+    let rate = plan?.base_rate && plan.base_rate > 0 ? plan.base_rate : null;
+    if (!rate) {
+      const rt = roomTypes.find(t => t.id === form.room_type_id);
+      rate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
+    }
+    if (!rate) return null;
+
+    const model = plan?.pricing_model || 'per_room';
+    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
+    switch (model) {
+      case 'per_person':
+        return rate * guests * nights;
+      case 'per_person_sharing':
+        // Base rate covers 2 guests, extra guests at same rate
+        const extraGuests = Math.max(0, guests - 2);
+        return (rate * nights) + (rate * extraGuests * nights);
+      case 'per_unit':
+        return rate * nights;
+      case 'per_room':
+      default:
+        return rate * nights;
+    }
+  }, [nights, form.rate_plan_id, form.room_type_id, form.adults, form.children, form.teens, ratePlans, roomTypes]);
+
+  const priceBreakdown = useMemo(() => {
+    if (!nights || !autoPrice) return null;
+    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
+    const rate = plan?.base_rate || roomTypes.find(t => t.id === form.room_type_id)?.default_rate || 0;
+    const model = plan?.pricing_model || 'per_room';
+    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
+    switch (model) {
+      case 'per_person':
+        return `R${rate.toLocaleString()} × ${guests} guest${guests !== 1 ? 's' : ''} × ${nights} night${nights !== 1 ? 's' : ''}`;
+      case 'per_person_sharing': {
+        const extra = Math.max(0, guests - 2);
+        return extra > 0
+          ? `R${rate.toLocaleString()} × ${nights}n (base 2 pax) + R${rate.toLocaleString()} × ${extra} extra × ${nights}n`
+          : `R${rate.toLocaleString()} × ${nights} night${nights !== 1 ? 's' : ''} (sharing)`;
+      }
+      default:
+        return `R${rate.toLocaleString()} × ${nights} night${nights !== 1 ? 's' : ''}`;
+    }
+  }, [nights, autoPrice, form.rate_plan_id, form.room_type_id, form.adults, form.children, form.teens, ratePlans, roomTypes]);
 
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
@@ -246,10 +289,18 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <SelectTrigger><SelectValue placeholder="Select rate plan (optional)" /></SelectTrigger>
                 <SelectContent>
                   {ratePlans.map(rp => (
-                    <SelectItem key={rp.id} value={rp.id}>{rp.name}{rp.base_rate ? ` — R${rp.base_rate.toLocaleString()}` : ""}</SelectItem>
+                    <SelectItem key={rp.id} value={rp.id}>
+                      {rp.name}{rp.base_rate ? ` — R${rp.base_rate.toLocaleString()}` : ""}
+                      {rp.pricing_model && rp.pricing_model !== 'per_room' && (
+                        <span className="text-muted-foreground ml-1 text-xs">({rp.pricing_model.replace(/_/g, ' ')})</span>
+                      )}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {pricingModel === 'per_person' && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium">⚡ Per-person rate — price multiplied by guest count</p>
+              )}
             </div>
           </div>
 
@@ -272,7 +323,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div>
                 <Label>Total Price (ZAR)</Label>
                 <Input type="number" min={0} value={form.total_price} onChange={e => update("total_price", e.target.value)} placeholder={autoPrice ? `Auto: R${autoPrice.toLocaleString()}` : "0.00"} />
-                {autoPrice && !form.total_price && <p className="text-[10px] text-muted-foreground mt-0.5">Auto-calculated: R{autoPrice.toLocaleString()}</p>}
+                {autoPrice && !form.total_price && (
+                  <div className="mt-0.5">
+                    <p className="text-[10px] text-muted-foreground">Auto: R{autoPrice.toLocaleString()}</p>
+                    {priceBreakdown && <p className="text-[10px] text-muted-foreground/70">{priceBreakdown}</p>}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Payment Status</Label>
