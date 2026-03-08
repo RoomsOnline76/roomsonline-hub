@@ -105,6 +105,10 @@ export default function AdminContracts() {
   const [sendEmail, setSendEmail] = useState("");
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
+  const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos">("standard");
+  
+  // Contract templates
+  const [contractTemplates, setContractTemplates] = useState<{ id: string; name: string }[]>([]);
   
   // Property search states
   const [propertySearch, setPropertySearch] = useState("");
@@ -133,7 +137,23 @@ export default function AdminContracts() {
 
   useEffect(() => {
     loadContracts();
+    loadContractTemplates();
   }, []);
+
+  const loadContractTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("contract_templates")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      
+      if (error) throw error;
+      setContractTemplates(data || []);
+    } catch (error) {
+      console.error("Failed to load contract templates:", error);
+    }
+  };
 
   const loadContracts = async () => {
     try {
@@ -260,20 +280,29 @@ export default function AdminContracts() {
 
     try {
       setSending(true);
+      
+      // Determine which template to use based on contract type
+      const templateId = selectedContractType === "rolos" 
+        ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"  // ROL'OS PMS template
+        : "f47ac10b-58cc-4372-a567-0e02b2c3d479"; // Standard template
+      
       const { error } = await supabase.functions.invoke("send-owner-contract", {
         body: { 
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
           property_id: selectedProperty?.id || undefined,
+          template_id: templateId,
+          contract_type: selectedContractType,
         },
       });
 
       if (error) throw error;
 
-      toast.success("Contract sent successfully");
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : "Standard"} contract sent successfully`);
       setSendModalOpen(false);
       setSendEmail("");
       setSendName("");
+      setSelectedContractType("standard");
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to send contract");
@@ -373,6 +402,7 @@ export default function AdminContracts() {
     setSelectedProperty(null);
     setShowUnarchivePrompt(false);
     setPropertyDropdownOpen(false);
+    setSelectedContractType("standard");
   };
 
   const searchProperties = async (query: string) => {
@@ -829,7 +859,46 @@ export default function AdminContracts() {
               />
             </div>
 
-            {/* New owner badge - shown when no properties exist */}
+            {/* Contract Type Selector */}
+            <div className="space-y-2">
+              <Label>Contract Type *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedContractType("standard")}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedContractType === "standard"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Standard</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Listing & Distribution Agreement
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedContractType("rolos")}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedContractType === "rolos"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">ROL'OS PMS</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Includes PMS system access
+                  </p>
+                </button>
+              </div>
+            </div>
             {noPropertiesWarning && !validatingEmail && sendEmail && !selectedProperty && (
               <Alert className="bg-amber-50 border-amber-200">
                 <Building2 className="h-4 w-4 text-amber-600" />
