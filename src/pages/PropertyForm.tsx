@@ -10674,9 +10674,9 @@ export default function PropertyForm() {
                 <PropertyFormIntegrationsTab 
                   property={{ 
                     id: propertyId, 
-                    name: formData.name, 
-                    slug: formData.slug || propertyId,
-                    brand_primary_color: brandingData.brandPrimaryColor || null
+                    name: formData.name || "", 
+                    slug: propertySlug || propertyId,
+                    brand_primary_color: brandingData.brand_primary_color || null
                   }} 
                 />
               </TabsContent>
