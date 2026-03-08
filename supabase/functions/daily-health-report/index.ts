@@ -111,6 +111,37 @@ interface PmsIntegrationStats {
   success_rate: number;
 }
 
+interface DevTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: 'new' | 'started' | 'testing' | 'completed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  assigned_to: string | null;
+  assigned_name: string | null;
+  created_at: string;
+}
+
+function getTaskStatusColor(status: string): string {
+  switch (status) {
+    case 'new': return '#6b7280';
+    case 'started': return '#3b82f6';
+    case 'testing': return '#f59e0b';
+    case 'completed': return '#22c55e';
+    default: return '#6b7280';
+  }
+}
+
+function getTaskPriorityEmoji(priority: string): string {
+  switch (priority) {
+    case 'critical': return '🔴';
+    case 'high': return '🟠';
+    case 'medium': return '🟡';
+    case 'low': return '🟢';
+    default: return '⚪';
+  }
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString('en-ZA', {
     weekday: 'long',
