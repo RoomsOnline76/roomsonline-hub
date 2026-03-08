@@ -882,7 +882,7 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
           {/* Room type rows */}
           {roomTypes.map((rt) => (
-            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
+            <RoomTypeSection key={rt.id} rt={rt} dates={dates} roomsByType={roomsByType} bookings={bookings} getRateForDate={getRateForDate} getPricingSuffix={getPricingSuffix} getRestriction={getRestriction} onSelectBooking={onSelectBooking} cellW={WEEK_CELL_W} labelW={WEEK_LABEL_W} />
           ))}
 
           {roomTypes.length === 0 && !bookingsLoading && (
