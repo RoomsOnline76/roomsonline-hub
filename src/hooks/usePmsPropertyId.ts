@@ -3,26 +3,25 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
+export interface RolProperty {
+  id: string;
+  name: string;
+}
+
 /**
  * Resolves the current PMS property ID.
  * Priority: 1) ?property= query param  2) auto-detect from user's ROL properties
- * For admins/devs: picks the first ROL property.
- * For owners: picks their owned ROL property.
+ * Also returns all available ROL properties for switching.
  */
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
   const { user, isDev, isAdmin } = useAuth();
   const [propertyId, setPropertyId] = useState<string | null>(paramId);
+  const [properties, setProperties] = useState<RolProperty[]>([]);
   const [loading, setLoading] = useState(!paramId);
 
   useEffect(() => {
-    if (paramId) {
-      setPropertyId(paramId);
-      setLoading(false);
-      return;
-    }
-
     if (!user) {
       setLoading(false);
       return;
@@ -31,24 +30,16 @@ export function usePmsPropertyId() {
     const resolve = async () => {
       setLoading(true);
 
-      // For dev/admin: grab the first ROL property
+      let rolProperties: RolProperty[] = [];
+
       if (isDev || isAdmin) {
         const { data } = await supabase
           .from("properties")
-          .select("id")
+          .select("id, name")
           .eq("is_rol_property", true)
-          .limit(1)
-          .single();
-
-        if (data?.id) {
-          setPropertyId(data.id);
-          setSearchParams((prev) => {
-            prev.set("property", data.id);
-            return prev;
-          }, { replace: true });
-        }
+          .order("name");
+        rolProperties = data || [];
       } else {
-        // Owner: find properties they own that are ROL
         const { data: owned } = await supabase
           .from("property_owners")
           .select("property_id")
@@ -56,28 +47,51 @@ export function usePmsPropertyId() {
 
         if (owned && owned.length > 0) {
           const ids = owned.map((o) => o.property_id);
-          const { data: rolProp } = await supabase
+          const { data } = await supabase
             .from("properties")
-            .select("id")
+            .select("id, name")
             .in("id", ids)
             .eq("is_rol_property", true)
-            .limit(1)
-            .single();
-
-          if (rolProp?.id) {
-            setPropertyId(rolProp.id);
-            setSearchParams((prev) => {
-              prev.set("property", rolProp.id);
-              return prev;
-            }, { replace: true });
-          }
+            .order("name");
+          rolProperties = data || [];
         }
       }
+
+      setProperties(rolProperties);
+
+      // If paramId is valid and in the list, use it
+      if (paramId && rolProperties.some((p) => p.id === paramId)) {
+        setPropertyId(paramId);
+      } else if (rolProperties.length > 0) {
+        // Auto-select first
+        const first = rolProperties[0].id;
+        setPropertyId(first);
+        setSearchParams((prev) => {
+          prev.set("property", first);
+          return prev;
+        }, { replace: true });
+      }
+
       setLoading(false);
     };
 
     resolve();
-  }, [paramId, user, isDev, isAdmin]);
+  }, [user, isDev, isAdmin]);
 
-  return { propertyId, loading };
+  // When paramId changes externally, sync
+  useEffect(() => {
+    if (paramId && paramId !== propertyId) {
+      setPropertyId(paramId);
+    }
+  }, [paramId]);
+
+  const switchProperty = (id: string) => {
+    setPropertyId(id);
+    setSearchParams((prev) => {
+      prev.set("property", id);
+      return prev;
+    }, { replace: true });
+  };
+
+  return { propertyId, properties, loading, switchProperty };
 }
