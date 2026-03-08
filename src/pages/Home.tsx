@@ -237,18 +237,31 @@ function HomeContent() {
     }
   }, [selectedSegment]);
 
-  // Fetch random hero image/video from hero properties
+  // Fetch random hero image from public properties (with hero-listing fallback)
   useEffect(() => {
     async function fetchHeroMedia() {
       try {
-        const { data: heroProperties } = await supabase
-          .from("properties")
-          .select("id, images, hero_video_url, name, city, country, slug")
-          .eq("hero_listing", true)
-          .eq("is_active", true)
-          .eq("show_on_website", true);
+        const heroSelect = "id, images, name, city, country, slug, hero_listing";
 
-        if (heroProperties && heroProperties.length > 0) {
+        const { data: heroListedProperties } = await supabase
+          .from("public_properties")
+          .select(heroSelect)
+          .eq("is_active", true)
+          .eq("hero_listing", true);
+
+        const { data: fallbackProperties } = !heroListedProperties || heroListedProperties.length === 0
+          ? await supabase
+              .from("public_properties")
+              .select("id, images, name, city, country, slug")
+              .eq("is_active", true)
+          : { data: null };
+
+        const sourceProperties =
+          heroListedProperties && heroListedProperties.length > 0
+            ? heroListedProperties
+            : fallbackProperties || [];
+
+        if (sourceProperties.length > 0) {
           const validProperties: {
             id: string;
             imageUrl: string;
@@ -258,13 +271,14 @@ function HomeContent() {
             country: string;
             slug: string;
           }[] = [];
-          for (const prop of heroProperties) {
+
+          for (const prop of sourceProperties) {
             const imageUrl = extractPrimaryImageUrl(prop.images);
             if (imageUrl) {
               validProperties.push({
                 id: prop.id,
                 imageUrl,
-                videoUrl: prop.hero_video_url || null,
+                videoUrl: null,
                 name: prop.name,
                 city: prop.city,
                 country: prop.country,
