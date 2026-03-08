@@ -229,6 +229,7 @@ export default function PMSHousekeeping() {
     setDocketPriority("normal");
     setDocketDescription("");
     setDocketEstCost("");
+    setDocketMarkUnavailable(false);
   };
 
   // ── Derived data ──────────────────────────────────────────────────────
