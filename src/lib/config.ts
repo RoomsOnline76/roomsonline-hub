@@ -1,6 +1,7 @@
 // Application configuration constants
+// GLOBAL RULE: All generated/shared links MUST use production domains, never lovable.* domains.
 
-// The admin domain for admin panel URLs
+// The admin domain for admin panel URLs (ROLOS PMS, staff login, contracts, onboarding)
 export const ADMIN_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
 // The public-facing domain for property and room showcase URLs
@@ -8,6 +9,18 @@ export const PUBLIC_DOMAIN = "https://book.sleepinafrica.roomsonline.co.za";
 
 // The survey domain for project discovery questionnaire
 export const SURVEY_DOMAIN = "https://survey.roomsonline.co.za";
+
+// Helper to generate branded staff login URL (never use window.location.origin)
+export const getStaffLoginUrl = (propertySlug: string) =>
+  `${ADMIN_DOMAIN}/staff-login?property=${propertySlug}`;
+
+// Helper to generate contract signing URL
+export const getContractSigningUrl = (signingToken: string) =>
+  `${ADMIN_DOMAIN}/contract/sign/${signingToken}`;
+
+// Helper to generate onboarding URL
+export const getOnboardingUrl = (token: string) =>
+  `${ADMIN_DOMAIN}/onboarding/${token}`;
 
 // Helper to generate full property URL
 export const getPropertyUrl = (slugOrId: string) => `${PUBLIC_DOMAIN}/property/${slugOrId}`;

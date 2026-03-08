@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { getStaffLoginUrl } from "@/lib/config";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,7 +96,7 @@ export default function PMSStaff() {
   }, [propertyId]);
 
   const staffLoginUrl = propertySlug
-    ? `${window.location.origin}/staff-login?property=${propertySlug}`
+    ? getStaffLoginUrl(propertySlug)
     : null;
 
   const copyLoginUrl = () => {
