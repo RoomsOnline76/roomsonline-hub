@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -184,7 +185,25 @@ export default function DevTaskTracker() {
       <Card className="group">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-medium text-sm leading-tight flex-1">{task.title}</h3>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h3
+                  className="font-medium text-sm leading-tight flex-1 cursor-pointer hover:text-primary transition-colors"
+                  onClick={() => {
+                    const text = `${task.title}${task.description ? `\n${task.description}` : ''}`;
+                    navigator.clipboard.writeText(text);
+                    toast.success("Copied to clipboard");
+                  }}
+                >
+                  {task.title}
+                </h3>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="font-medium text-sm">{task.title}</p>
+                {task.description && <p className="text-xs text-muted-foreground mt-1">{task.description}</p>}
+                <p className="text-[10px] text-muted-foreground mt-1 italic">Click to copy</p>
+              </TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -215,7 +234,23 @@ export default function DevTaskTracker() {
           </div>
 
           {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p
+                  className="text-xs text-muted-foreground line-clamp-2 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(task.description!);
+                    toast.success("Description copied");
+                  }}
+                >
+                  {task.description}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-sm">
+                <p className="text-xs whitespace-pre-wrap">{task.description}</p>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">Click to copy</p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
