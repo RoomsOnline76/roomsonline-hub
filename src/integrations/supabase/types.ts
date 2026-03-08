@@ -4512,6 +4512,42 @@ export type Database = {
           },
         ]
       }
+      rolos_rate_plan_room_types: {
+        Row: {
+          created_at: string | null
+          id: string
+          rate_plan_id: string
+          room_type_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          rate_plan_id: string
+          room_type_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          rate_plan_id?: string
+          room_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_room_types_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_room_types_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_rate_plans: {
         Row: {
           closed_to_arrival: boolean[] | null

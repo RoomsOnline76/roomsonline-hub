@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, TrendingUp, RefreshCw, Link2, Pencil } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -23,112 +24,70 @@ interface RatePlan {
   deposit_percentage: number | null;
 }
 
-interface OverviewRateType {
+interface RoomType {
   id: string;
   name: string;
-  description: string | null;
-  price_type: string | null;
-  min_stay_days: number | null;
+}
+
+interface RatePlanRoomLink {
+  rate_plan_id: string;
+  room_type_id: string;
 }
 
 export default function PMSRatePlans() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [plans, setPlans] = useState<RatePlan[]>([]);
-  const [overviewRateTypes, setOverviewRateTypes] = useState<OverviewRateType[]>([]);
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
-  const [form, setForm] = useState({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false });
-
-  // Auto-sync rate plans from Property Overview source
-  const syncRateTypesFromOverview = useCallback(async () => {
-    if (!propertyId) return;
-
-    const [{ data: property }, { data: cacheRateTypes }] = await Promise.all([
-      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
-      supabase
-        .from("pms_rate_types_cache")
-        .select("id, name, description, price_type, min_stay_days")
-        .eq("property_id", propertyId),
-    ]);
-
-    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
-      ? ((property as any).amenities.room_types as any[])
-      : [];
-
-    // For ROL properties configured in Property Overview wizard, use a clear default naming convention.
-    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
-      ? [{ name: "Base Rate", description: "Default base rate from Property Overview", min_stay_days: 1 }]
-      : (cacheRateTypes || []);
-
-    if (!overviewTypes || overviewTypes.length === 0) return;
-
-    const { data: existingPlans } = await supabase
-      .from("rolos_rate_plans")
-      .select("id, name")
-      .eq("property_id", propertyId);
-
-    const existingByLower = new Map((existingPlans || []).map((p) => [p.name.toLowerCase(), p]));
-
-    // Normalize legacy naming for ROL properties: "Standard Rate" -> "Base Rate"
-    if ((property as any)?.is_rol_property && amenitiesRoomTypes.length > 0) {
-      const hasBase = existingByLower.has("base rate");
-      const standard = existingByLower.get("standard rate");
-      if (!hasBase && standard) {
-        const { error: renameError } = await supabase
-          .from("rolos_rate_plans")
-          .update({ name: "Base Rate", description: "Default base rate from Property Overview" })
-          .eq("id", standard.id);
-        if (!renameError) return;
-      }
-    }
-
-    const toImport = overviewTypes.filter((rt: any) => !existingByLower.has(String(rt.name).toLowerCase()));
-    if (toImport.length === 0) return;
-
-    const rows = toImport.map((rt: any) => ({
-      property_id: propertyId,
-      name: rt.name,
-      description: rt.description || null,
-      min_stay: rt.min_stay_days || 1,
-      is_active: true,
-    }));
-
-    const { error } = await supabase.from("rolos_rate_plans").insert(rows);
-    if (!error) {
-      toast.success(`Synced ${toImport.length} rate plan${toImport.length !== 1 ? 's' : ''} from Property Overview`);
-    }
-  }, [propertyId]);
+  const [form, setForm] = useState({
+    name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
+    linkedRoomTypeIds: [] as string[],
+  });
 
   const fetchData = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
 
-    // Auto-sync from overview first
-    await syncRateTypesFromOverview();
-
-    const [plansRes, overviewRes] = await Promise.all([
+    const [plansRes, roomTypesRes, linksRes] = await Promise.all([
       supabase
         .from("rolos_rate_plans")
         .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage")
         .eq("property_id", propertyId)
         .order("name"),
       supabase
-        .from("pms_rate_types_cache")
-        .select("id, name, description, price_type, min_stay_days")
+        .from("rolos_room_types")
+        .select("id, name")
         .eq("property_id", propertyId)
+        .eq("is_active", true)
         .order("name"),
+      supabase
+        .from("rolos_rate_plan_room_types")
+        .select("rate_plan_id, room_type_id")
+        .in("rate_plan_id",
+          // We need to scope to this property's plans - fetch ids inline
+          (await supabase.from("rolos_rate_plans").select("id").eq("property_id", propertyId)).data?.map(p => p.id) || []
+        ),
     ]);
 
     setPlans((plansRes.data || []) as RatePlan[]);
-    setOverviewRateTypes((overviewRes.data || []) as OverviewRateType[]);
+    setRoomTypes((roomTypesRes.data || []) as RoomType[]);
+    setLinks((linksRes.data || []) as RatePlanRoomLink[]);
     setLoading(false);
-  }, [propertyId, syncRateTypesFromOverview]);
+  }, [propertyId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const getLinkedRoomTypes = (planId: string) =>
+    links.filter(l => l.rate_plan_id === planId).map(l => l.room_type_id);
+
+  const getRoomTypeName = (id: string) =>
+    roomTypes.find(rt => rt.id === id)?.name || id;
+
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, linkedRoomTypeIds: [] });
     setEditingPlan(null);
   };
 
@@ -141,6 +100,7 @@ export default function PMSRatePlans() {
         description: plan.description || "",
         min_stay: String(plan.min_stay || 1),
         requires_deposit: plan.requires_deposit,
+        linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
       });
     } else {
       resetForm();
@@ -160,22 +120,34 @@ export default function PMSRatePlans() {
       requires_deposit: form.requires_deposit,
     };
 
+    let planId: string;
     let error;
+
     if (editingPlan) {
-      ({ error } = await supabase
-        .from("rolos_rate_plans")
-        .update(payload)
-        .eq("id", editingPlan.id));
+      planId = editingPlan.id;
+      ({ error } = await supabase.from("rolos_rate_plans").update(payload).eq("id", planId));
     } else {
-      ({ error } = await supabase
-        .from("rolos_rate_plans")
-        .insert(payload));
+      const res = await supabase.from("rolos_rate_plans").insert(payload).select("id").single();
+      error = res.error;
+      planId = res.data?.id || "";
     }
 
-    if (error) {
-      toast.error(error.message);
-      return;
+    if (error) { toast.error(error.message); return; }
+
+    // Sync room type links
+    // Delete existing links for this plan
+    await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", planId);
+
+    // Insert new links
+    if (form.linkedRoomTypeIds.length > 0) {
+      const linkRows = form.linkedRoomTypeIds.map(rtId => ({
+        rate_plan_id: planId,
+        room_type_id: rtId,
+      }));
+      const { error: linkError } = await supabase.from("rolos_rate_plan_room_types").insert(linkRows);
+      if (linkError) { toast.error("Saved rate plan but failed to link room types: " + linkError.message); }
     }
+
     toast.success(editingPlan ? "Rate plan updated" : "Rate plan created");
     setDialogOpen(false);
     resetForm();
@@ -187,11 +159,17 @@ export default function PMSRatePlans() {
       .from("rolos_rate_plans")
       .update({ is_active: !plan.is_active })
       .eq("id", plan.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    if (error) { toast.error(error.message); return; }
     fetchData();
+  };
+
+  const toggleRoomType = (roomTypeId: string) => {
+    setForm(prev => ({
+      ...prev,
+      linkedRoomTypeIds: prev.linkedRoomTypeIds.includes(roomTypeId)
+        ? prev.linkedRoomTypeIds.filter(id => id !== roomTypeId)
+        : [...prev.linkedRoomTypeIds, roomTypeId],
+    }));
   };
 
   if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
@@ -204,7 +182,7 @@ export default function PMSRatePlans() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Rate Plans</h1>
             <p className="text-sm text-muted-foreground">
-              Rate plans are automatically synced from Property Overview configuration.
+              Create rate plans and link them to room types.
             </p>
           </div>
           <div className="flex gap-2">
@@ -215,7 +193,7 @@ export default function PMSRatePlans() {
               <DialogTrigger asChild>
                 <Button onClick={() => handleOpenDialog()}><Plus className="h-4 w-4 mr-2" />New Rate Plan</Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>{editingPlan ? "Edit Rate Plan" : "Create Rate Plan"}</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
@@ -223,6 +201,27 @@ export default function PMSRatePlans() {
                   <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
                   <div><Label>Min Stay (nights)</Label><Input type="number" value={form.min_stay} onChange={e => setForm(p => ({ ...p, min_stay: e.target.value }))} /></div>
                   <div className="flex items-center gap-2"><Switch checked={form.requires_deposit} onCheckedChange={v => setForm(p => ({ ...p, requires_deposit: v }))} /><Label>Requires Deposit</Label></div>
+
+                  {/* Room type linking */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
+                    {roomTypes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>
+                    ) : (
+                      <div className="space-y-2 rounded-md border border-border p-3">
+                        {roomTypes.map(rt => (
+                          <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={form.linkedRoomTypeIds.includes(rt.id)}
+                              onCheckedChange={() => toggleRoomType(rt.id)}
+                            />
+                            <span className="text-sm">{rt.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <Button onClick={handleSave} className="w-full">{editingPlan ? "Update" : "Create"}</Button>
                 </div>
               </DialogContent>
@@ -236,35 +235,49 @@ export default function PMSRatePlans() {
               <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-2">No rate plans configured.</p>
               <p className="text-sm text-muted-foreground">
-                Add rate types in Property Overview → Rates tab, or create them directly here.
+                Create rate plans and link them to your room types.
               </p>
             </CardContent>
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {plans.map((plan) => (
-              <Card key={plan.id} className="group">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{plan.name}</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Switch checked={plan.is_active} onCheckedChange={() => handleToggleActive(plan)} />
+            {plans.map((plan) => {
+              const linkedIds = getLinkedRoomTypes(plan.id);
+              return (
+                <Card key={plan.id} className="group">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{plan.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
+                      </div>
                     </div>
-                  </div>
-                  {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
-                </CardHeader>
-                <CardContent>
-                  {plan.description && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
-                  <div className="flex gap-3 text-xs text-muted-foreground">
-                    <span>Min stay: {plan.min_stay}n</span>
-                    {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
+                  </CardHeader>
+                  <CardContent>
+                    {plan.description && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+                      <span>Min stay: {plan.min_stay}n</span>
+                      {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+                    </div>
+                    {linkedIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {linkedIds.map(rtId => (
+                          <Badge key={rtId} variant="secondary" className="text-xs">
+                            {getRoomTypeName(rtId)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any room types</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
