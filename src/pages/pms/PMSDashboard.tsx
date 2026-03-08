@@ -786,7 +786,7 @@ export default function PMSDashboard() {
       {/* Booking Detail Sheet */}
       <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <SheetContent className="sm:max-w-md overflow-y-auto">
-          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} />}
+          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); }} />}
         </SheetContent>
       </Sheet>
 
