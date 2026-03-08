@@ -960,7 +960,7 @@ function MonthCalendarGrid(props: CalendarGridProps) {
                     return (
                       <div key={i} className={cn("px-1 py-1.5 text-center border-r border-border last:border-r-0", isToday(date) && "bg-primary/5", isStopSell && "bg-red-500/10")}>
                         {rate != null ? (
-                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}</span>
+                          <span className="text-[10px] font-medium text-muted-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
                         ) : (
                           <span className="text-[10px] text-muted-foreground/50">—</span>
                         )}
