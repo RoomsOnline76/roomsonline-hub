@@ -9897,10 +9897,12 @@ export default function PropertyForm() {
                                   <div className="space-y-2">
                                     <Label className="flex items-center gap-2">
                                       Price Type (from linked Rate Types)
-                                      <Badge variant="outline" className="text-xs bg-primary/10">
-                                        <Cloud className="h-3 w-3 mr-1" />
-                                        PMS
-                                      </Badge>
+                                      {!isRolProperty && (
+                                        <Badge variant="outline" className="text-xs bg-primary/10">
+                                          <Cloud className="h-3 w-3 mr-1" />
+                                          PMS
+                                        </Badge>
+                                      )}
                                     </Label>
                                     <div className="flex flex-wrap gap-2">
                                       {priceTypes.length > 0 ? (
