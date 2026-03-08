@@ -109,12 +109,11 @@ export default function PMSHousekeeping() {
   const fetchAll = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
-    const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([
-      supabase.from("rolos_rooms").select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number") as any,
-      supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId) as any,
-      supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false }) as any,
-      supabase.from("rolos_maintenance_requests").select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false }) as any,
-    ]);
+    const roomsQ = supabase.from("rolos_rooms" as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number");
+    const typesQ = supabase.from("rolos_room_types" as any).select("id, name").eq("property_id", propertyId);
+    const tasksQ = supabase.from("rolos_housekeeping_tasks" as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
+    const maintQ = supabase.from("rolos_maintenance_requests" as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
+    const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
     setRooms((roomsRes.data as Room[]) || []);
     setRoomTypes((typesRes.data as RoomType[]) || []);
     setHkTasks((tasksRes.data as HKTask[]) || []);
