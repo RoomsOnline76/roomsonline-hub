@@ -144,7 +144,7 @@ export default function PMSDashboard() {
   const { propertyId, properties, loading: propLoading, switchProperty } = usePmsPropertyId();
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -164,8 +164,9 @@ export default function PMSDashboard() {
       const end = endOfWeek(anchorDate, { weekStartsOn: 1 });
       return { start, end };
     }
-    const start = startOfMonth(anchorDate);
-    const end = endOfMonth(anchorDate);
+    // Month view: start from anchorDate (today by default), show 30 days
+    const start = anchorDate;
+    const end = addDays(anchorDate, 30);
     return { start, end };
   }, [anchorDate, viewMode]);
 
