@@ -95,6 +95,7 @@ import { PropertyOnboardingWizard } from "@/components/onboarding";
 import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
+import { CommissionTab } from "@/components/property/CommissionTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
