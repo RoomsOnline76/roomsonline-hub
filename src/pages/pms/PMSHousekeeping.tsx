@@ -110,18 +110,39 @@ export default function PMSHousekeeping() {
 
   // ── Fetch all data ────────────────────────────────────────────────────
 
+  const [usingFallback, setUsingFallback] = useState(false);
+
   const fetchAll = useCallback(async () => {
     if (!propertyId) return;
     setLoading(true);
-    const roomsQ = supabase.from("rolos_rooms" as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number");
-    const typesQ = supabase.from("rolos_room_types" as any).select("id, name").eq("property_id", propertyId);
-    const tasksQ = supabase.from("rolos_housekeeping_tasks" as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
-    const maintQ = supabase.from("rolos_maintenance_requests" as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
+    const roomsQ = supabase.from("rolos_rooms").select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number");
+    const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId).eq("is_active", true);
+    const tasksQ = supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
+    const maintQ = supabase.from("rolos_maintenance_requests").select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
-    setRooms((roomsRes.data as unknown as Room[]) || []);
-    setRoomTypes((typesRes.data as unknown as RoomType[]) || []);
-    setHkTasks((tasksRes.data as unknown as HKTask[]) || []);
-    setMaintenanceReqs((maintRes.data as unknown as MaintenanceRequest[]) || []);
+
+    const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
+    setRoomTypes(fetchedRoomTypes);
+    setHkTasks((tasksRes.data || []) as HKTask[]);
+    setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
+
+    const fetchedRooms = (roomsRes.data || []) as Room[];
+    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0) {
+      // Fallback: derive synthetic rooms from room types
+      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt, idx) => ({
+        id: `fallback-${rt.id}`,
+        room_number: rt.name,
+        room_name: rt.name,
+        floor: null,
+        status: "available",
+        room_type_id: rt.id,
+      }));
+      setRooms(syntheticRooms);
+      setUsingFallback(true);
+    } else {
+      setRooms(fetchedRooms);
+      setUsingFallback(false);
+    }
     setLoading(false);
   }, [propertyId]);
 
