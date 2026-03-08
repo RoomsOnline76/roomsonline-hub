@@ -18,6 +18,8 @@ interface BrandConfig {
   business_name: string;
   business_address: { street?: string; city?: string; state?: string; postal?: string; country?: string };
   vat_number: string;
+  is_vat_registered: boolean;
+  vat_rate: number;
   email_footer_text: string;
   custom_tagline: string;
   favicon_url: string;
