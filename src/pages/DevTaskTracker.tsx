@@ -233,7 +233,23 @@ export default function DevTaskTracker() {
           </div>
 
           {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p
+                  className="text-xs text-muted-foreground line-clamp-2 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(task.description!);
+                    toast.success("Description copied");
+                  }}
+                >
+                  {task.description}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-sm">
+                <p className="text-xs whitespace-pre-wrap">{task.description}</p>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">Click to copy</p>
+              </TooltipContent>
+            </Tooltip>
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
