@@ -208,6 +208,8 @@ Deno.serve(async (req) => {
       expected_steps: INTENT_STEPS[resolvedIntent] || INTENT_STEPS.accommodation,
       min_requirements: INTENT_REQUIREMENTS[resolvedIntent] || INTENT_REQUIREMENTS.accommodation,
       property_id: property_id || null,
+      contract_type: contract_type || 'standard',
+      template_id: activeTemplate?.template_id || null,
     };
 
     // Create contract record with template_version_id, is_new_owner flag, and metadata
