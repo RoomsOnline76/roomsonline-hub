@@ -145,7 +145,7 @@ function PMSMessaging() {
                 </Card>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {templates.map((t: any) => (
+                  {templates.map((t: PmsMessageTemplate) => (
                     <Card key={t.id} className="relative">
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
