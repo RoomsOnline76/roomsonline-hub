@@ -2008,7 +2008,9 @@ export default function PropertyForm() {
   };
 
   // Helper to check if a room field is synced from PMS
+  // ROL'OS native properties never have PMS-locked fields (data is internal)
   const isRoomFieldPmsSynced = (roomId: string, fieldName: string): boolean => {
+    if (isRolProperty) return false;
     const room = roomTypes.find((r) => r.id === roomId);
     const syncedFields = ensureArray(room?.pms_synced_fields);
     return syncedFields.includes(fieldName);
