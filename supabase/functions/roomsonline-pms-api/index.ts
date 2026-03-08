@@ -102,8 +102,15 @@ const baseRequestSchema = z.object({
     "assign_housekeeping_task",
     "complete_housekeeping_task",
     "get_daily_metrics",
+    // Phase 1: Inventory Calendar
+    "update_inventory",
+    "check_inventory",
+    "backfill_inventory",
   ]),
   propertyId: z.string().uuid().optional(),
+  // Pagination params
+  limit: z.number().int().min(1).max(500).optional(),
+  offset: z.number().int().min(0).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
@@ -337,6 +344,14 @@ Deno.serve(async (req) => {
         return await handleCompleteHousekeepingTask(body, supabase);
       case "get_daily_metrics":
         return await handleGetDailyMetrics(body, supabase);
+
+      // Phase 1: Inventory Calendar
+      case "update_inventory":
+        return await handleUpdateInventory(body, supabase);
+      case "check_inventory":
+        return await handleCheckInventory(body, supabase);
+      case "backfill_inventory":
+        return await handleBackfillInventory(body, supabase);
 
       default:
         return new Response(
@@ -608,7 +623,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleGetReservations(body: { propertyId?: string; start_date?: string; end_date?: string }, supabase: any): Promise<Response> {
+async function handleGetReservations(body: { propertyId?: string; start_date?: string; end_date?: string; limit?: number; offset?: number }, supabase: any): Promise<Response> {
   if (!body.propertyId) {
     return new Response(
       JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_reservations")),
@@ -616,23 +631,24 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     );
   }
 
-  console.log(`[roomsonline-pms-api] Fetching reservations for property ${body.propertyId}`);
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
 
-  let query = supabase
+  console.log(`[roomsonline-pms-api] Fetching reservations for property ${body.propertyId} (limit=${queryLimit}, offset=${queryOffset})`);
+
+  // Query from both pms_reservations cache AND rolos_reservations
+  let cacheQuery = supabase
     .from("pms_reservations")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("property_id", body.propertyId)
     .eq("system_type", SOURCE)
-    .order("arrival_date", { ascending: true });
+    .order("arrival_date", { ascending: true })
+    .range(queryOffset, queryOffset + queryLimit - 1);
 
-  if (body.start_date) {
-    query = query.gte("arrival_date", body.start_date);
-  }
-  if (body.end_date) {
-    query = query.lte("departure_date", body.end_date);
-  }
+  if (body.start_date) cacheQuery = cacheQuery.gte("arrival_date", body.start_date);
+  if (body.end_date) cacheQuery = cacheQuery.lte("departure_date", body.end_date);
 
-  const { data, error } = await query;
+  const { data, error, count } = await cacheQuery;
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching reservations:", error);
@@ -662,8 +678,14 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     created_at: res.created_at,
   }));
 
+  const totalCount = count || 0;
+
   return new Response(
-    JSON.stringify(createSuccessResponse({ reservations }, "get_reservations")),
+    JSON.stringify(createSuccessResponse({ 
+      reservations,
+      total_count: totalCount,
+      has_more: queryOffset + queryLimit < totalCount,
+    }, "get_reservations")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
@@ -761,7 +783,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     }
   }
 
-  // Create reservation in pms_reservations
+  // Create reservation in pms_reservations (cache)
   const { error: insertError } = await supabase
     .from("pms_reservations")
     .insert({
@@ -797,6 +819,74 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Also create in rolos_reservations (operational table)
+  const { data: rolosRes, error: rolosInsertErr } = await supabase
+    .from("rolos_reservations")
+    .insert({
+      property_id: propertyId,
+      status: "confirmed",
+      confirmation_number: confirmationNumber,
+      check_in: arrival_date,
+      check_out: departure_date,
+      guest_name: guest.name,
+      guest_email: guest.email || null,
+      guest_phone: guest.phone || null,
+      total_amount: totalAmount,
+      currency: "ZAR",
+      special_requests: parsed.data.special_requests || null,
+      source: "direct",
+    })
+    .select("id")
+    .single();
+
+  if (rolosInsertErr) {
+    console.warn("[roomsonline-pms-api] Warning: Failed to insert rolos_reservation:", rolosInsertErr.message);
+  } else if (rolosRes) {
+    // Insert reservation rooms
+    const roomInserts = rooms.map(r => ({
+      reservation_id: rolosRes.id,
+      room_type_id: r.room_type_id,
+      adults: r.adults,
+      children: r.children,
+      teens: r.teens,
+      infants: r.infants,
+    }));
+    await supabase.from("rolos_reservation_rooms").insert(roomInserts);
+
+    // Log status history
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      new_status: "confirmed",
+      reason: "Reservation created",
+    });
+
+    // Update inventory calendar - increment booked_units
+    for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
+      for (const date of dates) {
+        await supabase.from("rolos_inventory_calendar").upsert({
+          property_id: propertyId,
+          room_type_id: roomTypeId,
+          date,
+          booked_units: requiredCount,
+          total_units: 0,
+        }, { onConflict: "property_id,room_type_id,date" });
+        
+        // Increment booked_units for existing rows
+        const { data: existing } = await supabase.from("rolos_inventory_calendar")
+          .select("id, booked_units")
+          .eq("property_id", propertyId)
+          .eq("room_type_id", roomTypeId)
+          .eq("date", date)
+          .single();
+        if (existing) {
+          await supabase.from("rolos_inventory_calendar")
+            .update({ booked_units: (existing.booked_units || 0) + requiredCount })
+            .eq("id", existing.id);
+        }
+      }
+    }
+  }
+
   // Update availability cache - decrement available units
   for (const [roomTypeId, requiredCount] of requiredRooms.entries()) {
     for (const date of dates) {
@@ -822,6 +912,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       reservation_id: reservationId,
       confirmation_number: confirmationNumber,
       status: "confirmed",
+      rolos_reservation_id: rolosRes?.id || null,
     }, "create_reservation")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
@@ -940,6 +1031,25 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
+  // Also update rolos_reservations if exists
+  const { data: rolosRes } = await supabase.from("rolos_reservations")
+    .select("id, status")
+    .eq("property_id", propertyId)
+    .eq("confirmation_number", reservation_id)
+    .maybeSingle();
+  if (rolosRes) {
+    await supabase.from("rolos_reservations").update({
+      check_in: finalArrival,
+      check_out: finalDeparture,
+    }).eq("id", rolosRes.id);
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      old_status: rolosRes.status,
+      new_status: rolosRes.status,
+      reason: `Dates modified: ${finalArrival} to ${finalDeparture}`,
+    });
+  }
+
   console.log(`[roomsonline-pms-api] Reservation modified successfully: ${reservation_id}`);
 
   return new Response(
@@ -1040,6 +1150,22 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
           .eq("id", avail.id);
       }
     }
+  }
+
+  // Also cancel in rolos_reservations if exists
+  const { data: rolosRes } = await supabase.from("rolos_reservations")
+    .select("id, status")
+    .eq("property_id", propertyId)
+    .eq("confirmation_number", reservation_id)
+    .maybeSingle();
+  if (rolosRes && rolosRes.status !== "cancelled") {
+    await supabase.from("rolos_reservations").update({ status: "cancelled" }).eq("id", rolosRes.id);
+    await supabase.from("rolos_reservation_status_history").insert({
+      reservation_id: rolosRes.id,
+      old_status: rolosRes.status,
+      new_status: "cancelled",
+      reason: reason || "Cancellation requested",
+    });
   }
 
   console.log(`[roomsonline-pms-api] Reservation cancelled successfully: ${reservation_id}`);
@@ -1375,15 +1501,18 @@ async function handleGetGuestProfiles(body: any, supabase: any): Promise<Respons
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_guest_profiles")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  let query = supabase.from("rolos_guest_profiles").select("*").eq("property_id", body.propertyId).order("last_stay_date", { ascending: false, nullsFirst: false });
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
+  let query = supabase.from("rolos_guest_profiles").select("*", { count: "exact" }).eq("property_id", body.propertyId).order("last_stay_date", { ascending: false, nullsFirst: false });
   if (body.search) {
     query = query.or(`full_name.ilike.%${body.search}%,email.ilike.%${body.search}%`);
   }
-  if (body.limit) query = query.limit(body.limit);
-  const { data, error } = await query;
+  query = query.range(queryOffset, queryOffset + queryLimit - 1);
+  const { data, error, count } = await query;
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_guest_profiles")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ guests: data || [] }, "get_guest_profiles")),
+  const totalCount = count || 0;
+  return new Response(JSON.stringify(createSuccessResponse({ guests: data || [], total_count: totalCount, has_more: queryOffset + queryLimit < totalCount }, "get_guest_profiles")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
@@ -1677,11 +1806,118 @@ async function handleGetDailyMetrics(body: any, supabase: any): Promise<Response
   }
   const startDate = body.start_date || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
   const endDate = body.end_date || new Date().toISOString().split("T")[0];
-  const { data, error } = await supabase.from("rolos_daily_metrics").select("*")
-    .eq("property_id", body.propertyId).gte("date", startDate).lte("date", endDate).order("date");
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
+  const { data, error, count } = await supabase.from("rolos_daily_metrics").select("*", { count: "exact" })
+    .eq("property_id", body.propertyId).gte("date", startDate).lte("date", endDate).order("date")
+    .range(queryOffset, queryOffset + queryLimit - 1);
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_daily_metrics")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ metrics: data || [] }, "get_daily_metrics")),
+  const totalCount = count || 0;
+  return new Response(JSON.stringify(createSuccessResponse({ metrics: data || [], total_count: totalCount, has_more: queryOffset + queryLimit < totalCount }, "get_daily_metrics")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// ============================================================================
+// INVENTORY CALENDAR HANDLERS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleUpdateInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, room_type_id, entries } = body;
+  if (!propertyId || !room_type_id || !entries || !Array.isArray(entries)) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId, room_type_id, entries[] required", "update_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const upserts = entries.map((e: any) => ({
+    property_id: propertyId,
+    room_type_id,
+    date: e.date,
+    total_units: e.total_units ?? 0,
+    booked_units: e.booked_units ?? 0,
+    blocked_units: e.blocked_units ?? 0,
+    restrictions: e.restrictions ?? {},
+  }));
+
+  const { error } = await supabase.from("rolos_inventory_calendar").upsert(upserts, {
+    onConflict: "property_id,room_type_id,date",
+  });
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ updated_count: upserts.length }, "update_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCheckInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, room_type_id, start_date, end_date } = body;
+  if (!propertyId || !start_date || !end_date) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId, start_date, end_date required", "check_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  let query = supabase.from("rolos_inventory_calendar").select("*")
+    .eq("property_id", propertyId)
+    .gte("date", start_date)
+    .lte("date", end_date)
+    .order("date");
+  
+  if (room_type_id) query = query.eq("room_type_id", room_type_id);
+
+  const { data, error } = await query;
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ inventory: data || [] }, "check_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleBackfillInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, days_ahead } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "backfill_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  // Get all room types for this property
+  const { data: roomTypes, error: rtError } = await supabase.from("rolos_room_types").select("id").eq("property_id", propertyId).eq("is_active", true);
+  if (rtError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, rtError.message, "backfill_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  const daysToFill = days_ahead || 90;
+  let totalInserted = 0;
+
+  for (const rt of (roomTypes || [])) {
+    // Count physical rooms of this type
+    const { count: roomCount } = await supabase.from("rolos_rooms").select("id", { count: "exact", head: true })
+      .eq("room_type_id", rt.id).eq("property_id", propertyId);
+
+    const totalUnits = roomCount || 1;
+    const upserts = [];
+    for (let i = 0; i < daysToFill; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      upserts.push({
+        property_id: propertyId,
+        room_type_id: rt.id,
+        date: d.toISOString().split("T")[0],
+        total_units: totalUnits,
+        booked_units: 0,
+        blocked_units: 0,
+      });
+    }
+
+    const { error } = await supabase.from("rolos_inventory_calendar").upsert(upserts, {
+      onConflict: "property_id,room_type_id,date",
+    });
+    if (!error) totalInserted += upserts.length;
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ backfilled_count: totalInserted, room_types: (roomTypes || []).length }, "backfill_inventory")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 

@@ -165,3 +165,11 @@ verify_jwt = false
 
 [functions.cancel-booking]
 verify_jwt = false
+
+[functions.pms-night-audit]
+verify_jwt = false
+schedule = "0 0 * * *"
+
+[functions.sync-rolos-room-types]
+verify_jwt = false
+schedule = "0 3 * * *"
