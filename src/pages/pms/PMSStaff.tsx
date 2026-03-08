@@ -558,14 +558,14 @@ export default function PMSStaff() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Shift Dialog */}
-      <Dialog open={showShiftDialog} onOpenChange={setShowShiftDialog}>
+      {/* Create / Edit Shift Dialog */}
+      <Dialog open={showShiftDialog} onOpenChange={(open) => { setShowShiftDialog(open); if (!open) setEditingShift(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Shift</DialogTitle>
-            <DialogDescription>Schedule a shift for a staff member.</DialogDescription>
+            <DialogTitle>{editingShift ? "Edit Shift" : "Add Shift"}</DialogTitle>
+            <DialogDescription>{editingShift ? "Update shift details." : "Schedule a shift for a staff member."}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateShift} className="space-y-4">
+          <form onSubmit={editingShift ? handleUpdateShift : handleCreateShift} className="space-y-4">
             <div className="space-y-2">
               <Label>Staff Member</Label>
               <Select value={shiftForm.staff_id} onValueChange={v => setShiftForm(f => ({ ...f, staff_id: v }))}>
@@ -601,10 +601,16 @@ export default function PMSStaff() {
               <Textarea value={shiftForm.notes} onChange={e => setShiftForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowShiftDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={createShift.isPending || !shiftForm.staff_id}>
-                {createShift.isPending ? "Creating…" : "Create Shift"}
-              </Button>
+              <Button type="button" variant="outline" onClick={() => { setShowShiftDialog(false); setEditingShift(null); }}>Cancel</Button>
+              {editingShift ? (
+                <Button type="submit" disabled={updateShift.isPending || !shiftForm.staff_id}>
+                  {updateShift.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+              ) : (
+                <Button type="submit" disabled={createShift.isPending || !shiftForm.staff_id}>
+                  {createShift.isPending ? "Creating…" : "Create Shift"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>
