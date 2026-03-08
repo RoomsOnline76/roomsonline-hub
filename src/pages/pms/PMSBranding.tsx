@@ -194,8 +194,9 @@ export default function PMSBranding() {
         brand_primary_color: visual.brand_primary_color || null,
         brand_secondary_color: visual.brand_secondary_color || null,
         brand_font_color: visual.brand_font_color || null,
+        brand_accent_color: visual.brand_accent_color || null,
         brand_override_enabled: visual.brand_override_enabled,
-      }).eq("id", propertyId);
+      } as any).eq("id", propertyId);
       if (prErr) throw prErr;
 
       toast.success("Branding & stationery saved");
