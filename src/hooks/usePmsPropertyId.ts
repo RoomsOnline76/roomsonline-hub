@@ -16,7 +16,7 @@ export interface RolProperty {
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
-  const { user, isDev, isAdmin } = useAuth();
+  const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
   const [propertyId, setPropertyId] = useState<string | null>(paramId);
   const [properties, setProperties] = useState<RolProperty[]>([]);
   const [loading, setLoading] = useState(!paramId);
@@ -32,7 +32,7 @@ export function usePmsPropertyId() {
 
       let rolProperties: RolProperty[] = [];
 
-      if (isDev || isAdmin) {
+      if (isDev || isAdmin || isFearlessLeader) {
         const { data } = await supabase
           .from("properties")
           .select("id, name")
