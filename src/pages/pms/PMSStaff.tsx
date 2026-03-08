@@ -13,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2, CalendarDays, Clock, Activity } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2, CalendarDays, Clock, Activity, Pencil, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, type PmsStaffRole } from "@/lib/pmsPermissions";
-import { useStaffShifts, useCreateShift, useStaffActivityLog } from "@/hooks/usePmsFinancial";
+import { useStaffShifts, useCreateShift, useUpdateShift, useDeleteShift, useStaffActivityLog } from "@/hooks/usePmsFinancial";
 import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
 
 interface StaffMember {
