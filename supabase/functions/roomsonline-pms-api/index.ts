@@ -345,6 +345,14 @@ Deno.serve(async (req) => {
       case "get_daily_metrics":
         return await handleGetDailyMetrics(body, supabase);
 
+      // Phase 1: Inventory Calendar
+      case "update_inventory":
+        return await handleUpdateInventory(body, supabase);
+      case "check_inventory":
+        return await handleCheckInventory(body, supabase);
+      case "backfill_inventory":
+        return await handleBackfillInventory(body, supabase);
+
       default:
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
