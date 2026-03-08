@@ -623,7 +623,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleGetReservations(body: { propertyId?: string; start_date?: string; end_date?: string }, supabase: any): Promise<Response> {
+async function handleGetReservations(body: { propertyId?: string; start_date?: string; end_date?: string; limit?: number; offset?: number }, supabase: any): Promise<Response> {
   if (!body.propertyId) {
     return new Response(
       JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_reservations")),
@@ -631,23 +631,24 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     );
   }
 
-  console.log(`[roomsonline-pms-api] Fetching reservations for property ${body.propertyId}`);
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
 
-  let query = supabase
+  console.log(`[roomsonline-pms-api] Fetching reservations for property ${body.propertyId} (limit=${queryLimit}, offset=${queryOffset})`);
+
+  // Query from both pms_reservations cache AND rolos_reservations
+  let cacheQuery = supabase
     .from("pms_reservations")
-    .select("*")
+    .select("*", { count: "exact" })
     .eq("property_id", body.propertyId)
     .eq("system_type", SOURCE)
-    .order("arrival_date", { ascending: true });
+    .order("arrival_date", { ascending: true })
+    .range(queryOffset, queryOffset + queryLimit - 1);
 
-  if (body.start_date) {
-    query = query.gte("arrival_date", body.start_date);
-  }
-  if (body.end_date) {
-    query = query.lte("departure_date", body.end_date);
-  }
+  if (body.start_date) cacheQuery = cacheQuery.gte("arrival_date", body.start_date);
+  if (body.end_date) cacheQuery = cacheQuery.lte("departure_date", body.end_date);
 
-  const { data, error } = await query;
+  const { data, error, count } = await cacheQuery;
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching reservations:", error);
@@ -677,8 +678,14 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     created_at: res.created_at,
   }));
 
+  const totalCount = count || 0;
+
   return new Response(
-    JSON.stringify(createSuccessResponse({ reservations }, "get_reservations")),
+    JSON.stringify(createSuccessResponse({ 
+      reservations,
+      total_count: totalCount,
+      has_more: queryOffset + queryLimit < totalCount,
+    }, "get_reservations")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
