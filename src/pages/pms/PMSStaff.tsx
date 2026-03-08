@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal } from "lucide-react";
+import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, type PmsStaffRole } from "@/lib/pmsPermissions";
 
@@ -31,11 +31,12 @@ const ASSIGNABLE_ROLES: PmsStaffRole[] = [
 ];
 
 export default function PMSStaff() {
-  const { propertyId } = usePmsPropertyId();
+  const { propertyId, properties } = usePmsPropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState<StaffMember | null>(null);
+  const [propertySlug, setPropertySlug] = useState<string | null>(null);
 
   // Add form state
   const [addEmail, setAddEmail] = useState("");
@@ -47,6 +48,28 @@ export default function PMSStaff() {
   // Reset password state
   const [resetPassword, setResetPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  // Fetch property slug for login URL
+  useEffect(() => {
+    if (!propertyId) return;
+    supabase
+      .from("properties")
+      .select("slug")
+      .eq("id", propertyId)
+      .single()
+      .then(({ data }) => setPropertySlug(data?.slug || null));
+  }, [propertyId]);
+
+  const staffLoginUrl = propertySlug
+    ? `${window.location.origin}/staff-login/${propertySlug}`
+    : null;
+
+  const copyLoginUrl = () => {
+    if (staffLoginUrl) {
+      navigator.clipboard.writeText(staffLoginUrl);
+      toast.success("Staff login URL copied to clipboard");
+    }
+  };
 
   const fetchStaff = async () => {
     if (!propertyId) return;
@@ -162,6 +185,25 @@ export default function PMSStaff() {
             Add Staff
           </Button>
         </div>
+
+        {/* Staff Login URL */}
+        {staffLoginUrl && (
+          <Card className="border-dashed">
+            <CardContent className="py-4 px-5 flex items-center gap-3">
+              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Branded Staff Login URL</p>
+                <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">
+                  {staffLoginUrl}
+                </code>
+              </div>
+              <Button variant="outline" size="sm" onClick={copyLoginUrl}>
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                Copy
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

@@ -40,6 +40,7 @@ import RoomAvailability from "./pages/RoomAvailability";
 import Booking from "./pages/Booking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
+import StaffLogin from "./pages/StaffLogin";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
@@ -536,6 +537,8 @@ const App = () => (
             />
             {/* Embeddable booking widget — public route */}
             <Route path="/embed/property/:slug" element={<EmbedProperty />} />
+            {/* Branded staff login — public route */}
+            <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
