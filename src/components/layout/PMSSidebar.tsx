@@ -21,6 +21,8 @@ import {
   CalendarHeart,
   Moon,
   MessageSquare,
+  Building2,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -59,6 +61,7 @@ const pmsNavGroups: NavGroup[] = [
     label: "Revenue",
     items: [
       { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
+      { title: "Revenue Mgmt", icon: Gauge, href: "/pms/revenue", module: "revenue" },
       { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
       { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
@@ -67,6 +70,7 @@ const pmsNavGroups: NavGroup[] = [
   {
     label: "Management",
     items: [
+      { title: "Portfolio", icon: Building2, href: "/pms/portfolio", module: "portfolio" },
       { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
       { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },

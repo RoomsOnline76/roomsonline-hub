@@ -143,8 +143,37 @@
 - `supabase/functions/pms-message-dispatcher/index.ts` — getClaims() auth + service client separation
 - `supabase/functions/pms-channel-sync/index.ts` — getClaims() migration
 
-## Phase 7 — Revenue Management UI & Multi-Property Dashboard
-**Status:** Planned
+## Phase 7 — Revenue Management UI & Multi-Property Dashboard ✅ COMPLETED
+
+### Multi-Property Portfolio (`/pms/portfolio`)
+- ✅ Portfolio overview page showing KPIs across all ROL properties (last 30 days)
+- ✅ Total revenue, avg occupancy, avg ADR, today's arrivals/departures
+- ✅ Revenue & Occupancy comparison chart (horizontal bar per property)
+- ✅ Property cards with click-through to individual PMS dashboard
+- ✅ Responsive grid layout (2-col md, 3-col xl)
+
+### Revenue Management (`/pms/revenue`)
+- ✅ 14-day demand forecast with occupancy-based rate suggestions
+- ✅ Three tabs: Demand Forecast (chart + daily breakdown), Rate Suggestions (actionable cards), Active Plans
+- ✅ KPIs: forecast occupancy, forecast revenue, revenue opportunity, demand alerts
+- ✅ Signal system: increase (high demand >80%), decrease (low demand <30%), hold
+- ✅ Suggested ADR adjustments with percentage badges
+- ✅ Rate plan comparison against 30-day baseline ADR
+
+### Integration
+- ✅ `portfolio` and `revenue` added to PmsModule type and permission matrix
+- ✅ Portfolio: owner/GM/accountant(RO)/auditor(RO) access
+- ✅ Revenue: owner/GM/accountant(RO)/auditor(RO) access
+- ✅ Sidebar: "Revenue Mgmt" under Revenue group, "Portfolio" under Management group
+- ✅ Routes added to App.tsx
+
+### Files Created/Modified
+- `src/pages/pms/PMSPortfolio.tsx` — new
+- `src/pages/pms/PMSRevenue.tsx` — new
+- `src/pages/pms/index.ts` — added exports
+- `src/lib/pmsPermissions.ts` — added portfolio/revenue modules
+- `src/components/layout/PMSSidebar.tsx` — added nav items
+- `src/App.tsx` — added routes
 
 ## Phase 8 — TypeScript Cleanup & Data Warehouse
 **Status:** Planned
