@@ -65,8 +65,8 @@ export default function PMSReports() {
         .from("bookings")
         .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel")
         .eq("property_id", propertyId)
-        .gte("created_at", fromStr)
-        .lte("created_at", toStr + "T23:59:59");
+        .gte("check_in_date", fromStr)
+        .lte("check_in_date", toStr);
       return data || [];
     },
     enabled: !!propertyId,
