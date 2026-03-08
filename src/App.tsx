@@ -497,6 +497,13 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            {/* ROL'OS Native PMS Module */}
+            <Route path="/pms" element={<ProtectedRoute><PMSDashboard /></ProtectedRoute>} />
+            <Route path="/pms/rooms" element={<ProtectedRoute><PMSRooms /></ProtectedRoute>} />
+            <Route path="/pms/rate-plans" element={<ProtectedRoute><PMSRatePlans /></ProtectedRoute>} />
+            <Route path="/pms/guests" element={<ProtectedRoute><PMSGuests /></ProtectedRoute>} />
+            <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSHousekeeping /></ProtectedRoute>} />
+            <Route path="/pms/reports" element={<ProtectedRoute><PMSReports /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
