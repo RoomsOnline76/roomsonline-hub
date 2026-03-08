@@ -1802,8 +1802,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 variant="default" 
                 className="gap-1 h-8 text-xs px-2"
                 onClick={() => {
-                  if (isPmsProperty) {
+                  if (isPmsProperty && !isNativeRolosProperty) {
                     fetchPmsAvailability(true);
+                  } else if (selectedPropertyData) {
+                    generateManualPropertyData(selectedPropertyData);
                   }
                 }}
                 disabled={pmsSyncStatus === "loading"}
@@ -1813,7 +1815,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 ) : (
                   <RefreshCw className="h-3 w-3" />
                 )}
-                {isPmsProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
+                {isPmsProperty && !isNativeRolosProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
 
               <div className="ml-auto flex gap-1">
