@@ -195,7 +195,7 @@ export function useCreateShift(propertyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (params: { staff_id: string; shift_type: string; start_time: string; end_time: string; notes?: string }) => {
-      const { error } = await supabase.from("rolos_staff_shifts" as "bookings").insert({ property_id: propertyId, ...params } as Record<string, unknown>);
+      const { error } = await supabase.from("rolos_staff_shifts" as never).insert({ property_id: propertyId, ...params } as never);
       if (error) throw error;
     },
     onSuccess: () => {
