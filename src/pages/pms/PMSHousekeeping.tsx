@@ -69,9 +69,9 @@ const PRIORITIES = ["low", "normal", "high", "emergency"];
 const STATUSES_OPEN = ["reported", "assigned", "in_progress"];
 
 const PRIORITY_BADGE: Record<string, string> = {
-  urgent: "bg-destructive text-destructive-foreground",
+  emergency: "bg-destructive text-destructive-foreground",
   high: "bg-destructive/80 text-destructive-foreground",
-  medium: "bg-amber-500 text-white",
+  normal: "bg-amber-500 text-white",
   low: "bg-muted text-muted-foreground",
 };
 
