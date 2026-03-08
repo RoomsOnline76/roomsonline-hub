@@ -250,6 +250,7 @@ function HomeContent() {
 
         if (heroProperties && heroProperties.length > 0) {
           const validProperties: {
+            id: string;
             imageUrl: string;
             videoUrl: string | null;
             name: string;
