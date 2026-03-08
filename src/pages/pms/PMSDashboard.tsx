@@ -886,7 +886,8 @@ function DateHeaderCell({ date, season, className: extraClass }: { date: Date; s
         {format(date, "MMM")}
       </div>
       {today && <div className="text-[7px] font-bold text-primary mt-0.5">TODAY</div>}
-      {season?.is_peak && !today && <div className="text-[7px] text-amber-600 font-medium mt-0.5">PEAK</div>}
+      {holiday && !today && <div className="text-[7px] font-semibold text-green-700 dark:text-green-400 mt-0.5 animate-pulse-glow truncate max-w-[4.5rem] mx-auto leading-tight" title={holiday}>{holiday}</div>}
+      {season?.is_peak && !today && !holiday && <div className="text-[7px] text-amber-600 font-medium mt-0.5">PEAK</div>}
     </div>
   );
 
