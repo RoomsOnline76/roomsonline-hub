@@ -81,6 +81,8 @@ interface RoomType {
   name: string;
   default_rate: number | null;
   is_active: boolean | null;
+  max_occupancy: number | null;
+  property_type: string | null;
 }
 
 interface Room {
@@ -201,18 +203,34 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch room types
+  // Fetch room types (with linked overview data for unit counts)
   const { data: roomTypes = [] } = useQuery({
     queryKey: ["pms-cal-room-types", propertyId],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("rolos_room_types")
-        .select("id, name, default_rate, is_active")
+        .select("id, name, default_rate, is_active, max_occupancy, linked_overview_id")
         .eq("property_id", propertyId)
         .eq("is_active", true)
         .order("name");
-      return (data || []) as RoomType[];
+
+      // Fetch overview room types for unit/property_type info
+      const { data: overviewData } = await supabase
+        .from("hostfully_room_types")
+        .select("id, property_type, max_guests")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+
+      const overviewMap = new Map((overviewData || []).map(o => [o.id, o]));
+
+      return (data || []).map(rt => {
+        const overview = overviewMap.get((rt as any).linked_overview_id);
+        return {
+          ...rt,
+          property_type: overview?.property_type || null,
+        } as RoomType;
+      });
     },
     enabled: !!propertyId,
   });
@@ -353,27 +371,45 @@ export default function PMSDashboard() {
   }, [rooms]);
 
   // Dynamic stats based on actual bookings for today
+  // Uses rolos_rooms if available, otherwise derives unit counts from room types
   const dynamicStats = useMemo(() => {
-    const totalRooms = rooms.filter(r => r.status !== "out_of_service").length;
-    // Count rooms occupied today based on active bookings
+    const WHOLE_PROPERTY_TYPES = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house', 'holiday'];
+    const physicalRooms = rooms.filter(r => r.status !== "out_of_service").length;
+
+    // If no physical rooms registered, compute from room types (smart unit detection)
+    const totalRooms = physicalRooms > 0
+      ? physicalRooms
+      : roomTypes.reduce((sum, rt) => {
+          const isWhole = rt.property_type && WHOLE_PROPERTY_TYPES.some(t => rt.property_type!.toLowerCase().includes(t));
+          return sum + (isWhole ? 1 : Math.max(1, rt.max_occupancy ? Math.ceil(rt.max_occupancy / 2) : 1));
+        }, 0) || roomTypes.length;
+
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const activeBookingsToday = bookings.filter(b =>
       todayStr >= b.check_in_date && todayStr < b.check_out_date &&
       !["cancelled", "no_show"].includes(b.status)
     );
-    // Count unique rooms occupied
-    const occupiedRoomIds = new Set<string>();
-    activeBookingsToday.forEach(b => {
-      b.rolos_room_ids?.forEach(rid => occupiedRoomIds.add(rid));
-    });
-    const occupied = occupiedRoomIds.size;
+
+    // Count occupied: use room IDs if available, else count bookings
+    let occupied: number;
+    if (physicalRooms > 0) {
+      const occupiedRoomIds = new Set<string>();
+      activeBookingsToday.forEach(b => {
+        b.rolos_room_ids?.forEach(rid => occupiedRoomIds.add(rid));
+      });
+      occupied = occupiedRoomIds.size;
+    } else {
+      // No physical rooms — count distinct bookings per room type today
+      occupied = activeBookingsToday.length;
+    }
+
     const available = Math.max(0, totalRooms - occupied);
     const occupancyPct = totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0;
     const dirty = rooms.filter(r => r.status === "dirty").length;
     const maintenance = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
 
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
-  }, [rooms, bookings]);
+  }, [rooms, roomTypes, bookings]);
 
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
@@ -590,6 +626,22 @@ export default function PMSDashboard() {
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded-sm bg-red-500/20 border border-red-500/40" />
             <span className="text-muted-foreground">Stop Sell</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-blue-500/20 border border-blue-500/40" />
+            <span className="text-muted-foreground">Min Stay</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-pink-500/20 border border-pink-500/40" />
+            <span className="text-muted-foreground">Max Stay</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-yellow-500/20 border border-yellow-500/40" />
+            <span className="text-muted-foreground">Lead Advance</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm bg-orange-500/20 border border-orange-500/40" />
+            <span className="text-muted-foreground">Lead Post</span>
           </div>
           <div className="flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-amber-500" />
