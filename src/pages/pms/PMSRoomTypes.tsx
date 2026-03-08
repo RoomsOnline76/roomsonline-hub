@@ -8,10 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2 } from "lucide-react";
-import { callPmsApi } from "@/hooks/usePmsApi";
-import { toast } from "sonner";
+import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface RoomType {
   id: string;
@@ -39,18 +38,17 @@ export default function PMSRoomTypes() {
   const fetchRoomTypes = async () => {
     if (!propertyId) return;
     setLoading(true);
-    try {
-      const res = await callPmsApi<{ room_types: RoomType[] }>("get_rolos_room_types", { propertyId });
-      if (res.success) {
-        // Also fetch linking info directly
-        const { data } = await supabase
-          .from("rolos_room_types")
-          .select("id, name, description, max_occupancy, default_rate, is_active, linked_overview_id")
-          .eq("property_id", propertyId)
-          .eq("is_active", true);
-        setRoomTypes((data as RoomType[]) || []);
-      }
-    } catch { /* ignore */ }
+
+    const { data, error } = await supabase
+      .from("rolos_room_types")
+      .select("id, name, description, max_occupancy, default_rate, is_active, linked_overview_id")
+      .eq("property_id", propertyId)
+      .eq("is_active", true)
+      .order("name");
+
+    if (!error) {
+      setRoomTypes((data as RoomType[]) || []);
+    }
     setLoading(false);
   };
 
@@ -82,54 +80,49 @@ export default function PMSRoomTypes() {
       return;
     }
 
-    try {
-      if (editingType) {
-        // Update existing
-        const res = await callPmsApi("update_rolos_room_type", {
-          room_type_id: editingType.id,
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          max_occupancy: parseInt(form.max_occupancy) || 2,
-          default_rate: form.default_rate ? parseFloat(form.default_rate) : null,
-        });
-        if (res.success) {
-          toast.success("Room type updated");
-        }
-      } else {
-        // Create new
-        const res = await callPmsApi("create_rolos_room_type", {
-          propertyId,
-          name: form.name.trim(),
-          description: form.description.trim() || null,
-          max_occupancy: parseInt(form.max_occupancy) || 2,
-          default_rate: form.default_rate ? parseFloat(form.default_rate) : null,
-        });
-        if (res.success) {
-          toast.success("Room type created and synced to Property Overview");
-        }
-      }
-      setDialogOpen(false);
-      resetForm();
-      fetchRoomTypes();
-    } catch (e: any) {
-      toast.error(e.message);
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim() || null,
+      max_occupancy: parseInt(form.max_occupancy) || 2,
+      default_rate: form.default_rate ? parseFloat(form.default_rate) : null,
+    };
+
+    let error;
+    if (editingType) {
+      ({ error } = await supabase
+        .from("rolos_room_types")
+        .update(payload)
+        .eq("id", editingType.id));
+    } else {
+      ({ error } = await supabase
+        .from("rolos_room_types")
+        .insert({ ...payload, property_id: propertyId, is_active: true }));
     }
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(editingType ? "Room type updated — syncing to Property Overview" : "Room type created — syncing to Property Overview");
+    setDialogOpen(false);
+    resetForm();
+    fetchRoomTypes();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this room type?")) return;
-    try {
-      // Soft delete by setting is_active = false
-      const { error } = await supabase
-        .from("rolos_room_types")
-        .update({ is_active: false })
-        .eq("id", id);
-      if (error) throw error;
-      toast.success("Room type deleted");
-      fetchRoomTypes();
-    } catch (e: any) {
-      toast.error(e.message);
+
+    const { error } = await supabase
+      .from("rolos_room_types")
+      .update({ is_active: false })
+      .eq("id", id);
+
+    if (error) {
+      toast.error(error.message);
+      return;
     }
+    toast.success("Room type deactivated");
+    fetchRoomTypes();
   };
 
   if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
@@ -142,63 +135,71 @@ export default function PMSRoomTypes() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Room Types</h1>
             <p className="text-sm text-muted-foreground">
-              Manage room categories. Changes sync to Property Overview automatically.
+              Manage room categories. Changes sync bidirectionally with Property Overview.
             </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}><Plus className="h-4 w-4 mr-2" />Add Room Type</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingType ? "Edit Room Type" : "Create Room Type"}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                    placeholder="e.g., Deluxe Suite"
-                  />
-                </div>
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={form.description}
-                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Room features and amenities"
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={fetchRoomTypes}>
+              <RefreshCw className="h-4 w-4 mr-2" />Refresh
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button onClick={() => handleOpenDialog()}><Plus className="h-4 w-4 mr-2" />Add Room Type</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingType ? "Edit Room Type" : "Create Room Type"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
                   <div>
-                    <Label>Max Occupancy</Label>
+                    <Label>Name *</Label>
                     <Input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={form.max_occupancy}
-                      onChange={(e) => setForm((p) => ({ ...p, max_occupancy: e.target.value }))}
+                      value={form.name}
+                      onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="e.g., Deluxe Suite"
                     />
                   </div>
                   <div>
-                    <Label>Default Rate (ZAR)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={form.default_rate}
-                      onChange={(e) => setForm((p) => ({ ...p, default_rate: e.target.value }))}
-                      placeholder="0.00"
+                    <Label>Description</Label>
+                    <Textarea
+                      value={form.description}
+                      onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Room features and amenities"
+                      rows={3}
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Max Occupancy</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={form.max_occupancy}
+                        onChange={(e) => setForm((p) => ({ ...p, max_occupancy: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Default Rate (ZAR)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.default_rate}
+                        onChange={(e) => setForm((p) => ({ ...p, default_rate: e.target.value }))}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Changes will automatically sync to Property Overview via database triggers.
+                  </p>
+                  <Button onClick={handleSave} className="w-full">
+                    {editingType ? "Update Room Type" : "Create Room Type"}
+                  </Button>
                 </div>
-                <Button onClick={handleSave} className="w-full">
-                  {editingType ? "Update Room Type" : "Create Room Type"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {loading ? (
@@ -209,7 +210,7 @@ export default function PMSRoomTypes() {
               <Layers className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-2">No room types configured yet.</p>
               <p className="text-sm text-muted-foreground">
-                Add room types here or in Property Overview — they sync automatically.
+                Add room types here or in Property Overview — they sync automatically both ways.
               </p>
             </CardContent>
           </Card>
@@ -246,11 +247,13 @@ export default function PMSRoomTypes() {
                       </div>
                     )}
                   </div>
-                  {rt.linked_overview_id && (
+                  {rt.linked_overview_id ? (
                     <Badge variant="outline" className="gap-1 text-xs">
                       <Link2 className="h-3 w-3" />
                       Synced with Overview
                     </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs">PMS Only</Badge>
                   )}
                 </CardContent>
               </Card>
