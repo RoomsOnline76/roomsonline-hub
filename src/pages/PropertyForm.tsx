@@ -95,6 +95,7 @@ import { PropertyOnboardingWizard } from "@/components/onboarding";
 import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
+import { CommissionTab } from "@/components/property/CommissionTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -7683,6 +7684,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
+                      {(isAdmin || isDev) && <TabsTrigger value="commission">Commission</TabsTrigger>}
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
@@ -8821,6 +8823,13 @@ export default function PropertyForm() {
                         )}
                       </div>
                     </TabsContent>
+
+                    {/* Commission Sub-tab */}
+                    {(isAdmin || isDev) && (
+                      <TabsContent value="commission">
+                        <CommissionTab propertyId={id!} isAdmin={isAdmin || isDev} />
+                      </TabsContent>
+                    )}
 
                     {/* Overview Sub-tab */}
                     <TabsContent value="overview" className="p-6 space-y-6">
