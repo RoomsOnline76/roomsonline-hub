@@ -70,7 +70,7 @@ serve(async (req) => {
     }
 
     // Generate onboarding URL
-    const baseUrl = Deno.env.get("SITE_URL") || "https://roomsonline.co.za";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
     const onboardingUrl = `${baseUrl}/onboarding/${token}`;
 
     // Send email via Resend

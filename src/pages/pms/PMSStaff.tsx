@@ -95,7 +95,7 @@ export default function PMSStaff() {
   }, [propertyId]);
 
   const staffLoginUrl = propertySlug
-    ? `${window.location.origin}/staff-login?property=${propertySlug}`
+    ? getStaffLoginUrl(propertySlug)
     : null;
 
   const copyLoginUrl = () => {

@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     }
 
     // Build signing URL
-    const baseUrl = Deno.env.get("SITE_URL") || "https://roomsonline.co.za";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
     const signingUrl = `${baseUrl}/contract/sign/${contract.signing_token}`;
 
     // Send email if Resend is configured
