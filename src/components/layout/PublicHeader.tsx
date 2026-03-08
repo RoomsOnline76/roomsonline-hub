@@ -72,7 +72,7 @@ export function PublicHeader({
           {/* Right: Desktop Nav + Currency + Mobile Menu */}
           <div className="flex items-center gap-4">
             {/* Desktop navigation links */}
-            <nav className="hidden sm:flex items-center gap-1">
+            <nav className="hidden md:flex items-center gap-1">
               <Link
                 to="/journals"
                 className={cn(
@@ -120,7 +120,7 @@ export function PublicHeader({
             </nav>
 
             {showCurrency && (
-              <div className="hidden sm:block">
+              <div className="hidden md:block">
                 <CurrencySelector
                   compact
                   variant={transparent ? "hero" : "default"}
@@ -133,7 +133,7 @@ export function PublicHeader({
               variant="ghost"
               size="sm"
               className={cn(
-                "sm:hidden",
+                "md:hidden",
                 transparent && "text-white hover:bg-white/10"
               )}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -149,7 +149,7 @@ export function PublicHeader({
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="sm:hidden mt-4 pb-2 animate-fade-in bg-background border border-border shadow-lg rounded-lg">
+          <div className="md:hidden mt-4 pb-2 animate-fade-in bg-background border border-border shadow-lg rounded-lg">
             <nav className="flex flex-col gap-1 p-2">
               <Link
                 to="/journals"
