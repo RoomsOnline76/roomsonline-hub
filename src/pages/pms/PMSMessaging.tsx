@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PMSSidebar } from "@/components/layout/PMSSidebar";
-import { PMSHelpDrawer } from "@/components/pms/PMSHelpDrawer";
-import { HelpProvider } from "@/contexts/HelpContext";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +20,7 @@ import {
   useSendMessage, useMessageLog, useMessageQueue, useProcessQueue,
   MESSAGE_PLACEHOLDERS, TRIGGER_EVENTS,
 } from "@/hooks/usePmsMessaging";
+import type { PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult } from "@/types/pmsTypes";
 
 function PMSMessaging() {
   const [searchParams] = useSearchParams();
