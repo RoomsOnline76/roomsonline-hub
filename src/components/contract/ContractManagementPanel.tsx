@@ -412,6 +412,76 @@ export function ContractManagementPanel({
         propertyName={ownerEmail ? `Owner: ${ownerEmail}` : propertyName}
         isLoading={overrideContract.isPending}
       />
+
+      {/* Contract Type Selection Modal for ROL Properties */}
+      <Dialog open={contractTypeModalOpen} onOpenChange={setContractTypeModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Contract Type</DialogTitle>
+            <DialogDescription>
+              Choose the appropriate contract type for this property owner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <button
+              type="button"
+              onClick={() => setSelectedContractType("standard")}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                selectedContractType === "standard"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Standard Agreement</p>
+                  <p className="text-sm text-muted-foreground">
+                    Accommodation Listing & Distribution Agreement only
+                  </p>
+                </div>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedContractType("rolos")}
+              className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                selectedContractType === "rolos"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-muted-foreground/50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Server className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">ROL'OS PMS Partnership</p>
+                  <p className="text-sm text-muted-foreground">
+                    Includes PMS system access, data handling & support terms
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContractTypeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmSend} disabled={sendContract.isPending}>
+              {sendContract.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
