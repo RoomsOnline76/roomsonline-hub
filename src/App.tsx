@@ -71,6 +71,7 @@ import DevLogs from "./pages/DevLogs";
 import DevFeatures from "./pages/DevFeatures";
 import DevDanger from "./pages/DevDanger";
 import DevTesting from "./pages/DevTesting";
+import DevTaskTracker from "./pages/DevTaskTracker";
 import PMSComparison from "./pages/PMSComparison";
 import AdminIntegrations from "./pages/AdminIntegrations";
 import EmbedProperty from "./pages/EmbedProperty";
