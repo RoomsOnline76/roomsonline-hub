@@ -240,7 +240,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", linkedRoomTypeIds: [] });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [] });
     setEditingPlan(null);
   };
 
