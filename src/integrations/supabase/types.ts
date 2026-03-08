@@ -4564,6 +4564,7 @@ export type Database = {
           max_stay: number | null
           min_stay: number | null
           name: string
+          pricing_model: string
           property_id: string
           requires_deposit: boolean | null
           updated_at: string | null
@@ -4583,6 +4584,7 @@ export type Database = {
           max_stay?: number | null
           min_stay?: number | null
           name: string
+          pricing_model?: string
           property_id: string
           requires_deposit?: boolean | null
           updated_at?: string | null
@@ -4602,6 +4604,7 @@ export type Database = {
           max_stay?: number | null
           min_stay?: number | null
           name?: string
+          pricing_model?: string
           property_id?: string
           requires_deposit?: boolean | null
           updated_at?: string | null
