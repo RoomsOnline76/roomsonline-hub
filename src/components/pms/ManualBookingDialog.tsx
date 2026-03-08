@@ -31,6 +31,7 @@ interface RatePlan {
   id: string;
   name: string;
   base_rate: number | null;
+  pricing_model?: string;
 }
 
 interface ManualBookingDialogProps {
