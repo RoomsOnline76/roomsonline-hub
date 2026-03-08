@@ -196,7 +196,7 @@ export default function PMSBranding() {
       if (prErr) throw prErr;
 
       toast.success("Branding & stationery saved");
-      refresh?.();
+      // Brand context will pick up changes on next load
     } catch (e: any) {
       toast.error(e.message || "Failed to save");
     }
