@@ -211,6 +211,8 @@ export default function ContractSign() {
         owner_postal_address: propertyDetails?.postalAddress || 'N/A',
         owner_key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
         commission_percentage: commissionText,
+        listing_commission_percentage: commissionText,
+        pms_commission_percentage: pmsCommissionText,
         covered_properties_list: propertiesListHtml,
       };
 
