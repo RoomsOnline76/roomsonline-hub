@@ -1194,6 +1194,430 @@ async function handleSetRates(body: unknown, supabase: any): Promise<Response> {
 }
 
 // ============================================================================
+// ROL'OS NATIVE PMS HANDLERS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleGetPhysicalRooms(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_physical_rooms")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase
+    .from("rolos_rooms")
+    .select("*, room_type:rolos_room_types(*)")
+    .eq("property_id", body.propertyId)
+    .order("floor", { ascending: true })
+    .order("room_number", { ascending: true });
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_physical_rooms")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ rooms: data || [] }, "get_physical_rooms")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCreatePhysicalRoom(body: any, supabase: any): Promise<Response> {
+  const { propertyId, room_number, room_name, room_type_id, floor, max_occupancy, bed_configuration, amenities } = body;
+  if (!propertyId || !room_number) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId and room_number required", "create_physical_room")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rooms").insert({
+    property_id: propertyId, room_number, room_name, room_type_id, floor, max_occupancy, bed_configuration, amenities,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "create_physical_room")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "create_physical_room")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleUpdateRoomStatus(body: any, supabase: any): Promise<Response> {
+  const { room_id, status } = body;
+  if (!room_id || !status) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "room_id and status required", "update_room_status")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rooms").update({ status }).eq("id", room_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_room_status")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "update_room_status")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetRolosRoomTypes(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_rolos_room_types")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_room_types").select("*").eq("property_id", body.propertyId).eq("is_active", true);
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_rolos_room_types")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ room_types: data || [] }, "get_rolos_room_types")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCreateRolosRoomType(body: any, supabase: any): Promise<Response> {
+  const { propertyId, name, code, description, base_occupancy, max_occupancy, default_rate, amenities, images } = body;
+  if (!propertyId || !name) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId and name required", "create_rolos_room_type")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_room_types").insert({
+    property_id: propertyId, name, code, description, base_occupancy, max_occupancy, default_rate, amenities, images,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "create_rolos_room_type")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "create_rolos_room_type")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleUpdateRolosRoomType(body: any, supabase: any): Promise<Response> {
+  const { room_type_id, ...updates } = body;
+  if (!room_type_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "room_type_id required", "update_rolos_room_type")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { propertyId, action, ...safeUpdates } = updates;
+  const { data, error } = await supabase.from("rolos_room_types").update(safeUpdates).eq("id", room_type_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_rolos_room_type")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "update_rolos_room_type")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetRatePlans(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_rate_plans")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rate_plans").select("*").eq("property_id", body.propertyId);
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_rate_plans")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ rate_plans: data || [] }, "get_rate_plans")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCreateRatePlan(body: any, supabase: any): Promise<Response> {
+  const { propertyId, name, code, description, is_tax_inclusive, min_stay, max_stay, requires_deposit, deposit_percentage, deposit_amount } = body;
+  if (!propertyId || !name) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId and name required", "create_rate_plan")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rate_plans").insert({
+    property_id: propertyId, name, code, description, is_tax_inclusive, min_stay, max_stay, requires_deposit, deposit_percentage, deposit_amount,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "create_rate_plan")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "create_rate_plan")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetRateSeasons(body: any, supabase: any): Promise<Response> {
+  if (!body.rate_plan_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "rate_plan_id is required", "get_rate_seasons")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rate_seasons").select("*, prices:rolos_rate_prices(*)").eq("rate_plan_id", body.rate_plan_id).order("start_date");
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_rate_seasons")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ seasons: data || [] }, "get_rate_seasons")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCreateRateSeason(body: any, supabase: any): Promise<Response> {
+  const { rate_plan_id, name, start_date, end_date, day_of_week_multipliers, min_stay_override, is_peak } = body;
+  if (!rate_plan_id || !name || !start_date || !end_date) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "rate_plan_id, name, start_date, end_date required", "create_rate_season")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rate_seasons").insert({
+    rate_plan_id, name, start_date, end_date, day_of_week_multipliers, min_stay_override, is_peak,
+  }).select().single();
+  if (error) {
+    if (error.message?.includes("exclusion")) {
+      return new Response(JSON.stringify(createErrorResponse("CONFLICT", "Season dates overlap with existing season", "create_rate_season")),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 });
+    }
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "create_rate_season")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+  return new Response(JSON.stringify(createSuccessResponse(data, "create_rate_season")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleSetRatePrices(body: any, supabase: any): Promise<Response> {
+  const { season_id, room_type_id, base_rate, extra_adult_rate, extra_child_rate } = body;
+  if (!season_id || !room_type_id || base_rate === undefined) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "season_id, room_type_id, base_rate required", "set_rate_prices")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_rate_prices").upsert({
+    season_id, room_type_id, base_rate, extra_adult_rate, extra_child_rate,
+  }, { onConflict: "season_id,room_type_id" }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "set_rate_prices")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "set_rate_prices")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetGuestProfiles(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_guest_profiles")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  let query = supabase.from("rolos_guest_profiles").select("*").eq("property_id", body.propertyId).order("last_stay_date", { ascending: false, nullsFirst: false });
+  if (body.search) {
+    query = query.or(`full_name.ilike.%${body.search}%,email.ilike.%${body.search}%`);
+  }
+  if (body.limit) query = query.limit(body.limit);
+  const { data, error } = await query;
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_guest_profiles")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ guests: data || [] }, "get_guest_profiles")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetGuestProfile(body: any, supabase: any): Promise<Response> {
+  if (!body.guest_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "guest_id required", "get_guest_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_guest_profiles").select("*").eq("id", body.guest_id).single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Guest not found", "get_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  // Get comments
+  const { data: comments } = await supabase.from("rolos_guest_comments").select("*, created_by_profile:profiles(full_name)").eq("guest_id", body.guest_id).order("created_at", { ascending: false });
+  return new Response(JSON.stringify(createSuccessResponse({ ...data, comments: comments || [] }, "get_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCreateGuestProfile(body: any, supabase: any): Promise<Response> {
+  const { propertyId, full_name, email, phone, nationality, tags, notes } = body;
+  if (!propertyId || !full_name) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId and full_name required", "create_guest_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_guest_profiles").insert({
+    property_id: propertyId, full_name, email, phone, nationality, tags, notes,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "create_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "create_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleUpdateGuestProfile(body: any, supabase: any): Promise<Response> {
+  const { guest_id, ...updates } = body;
+  if (!guest_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "guest_id required", "update_guest_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { propertyId, action, ...safeUpdates } = updates;
+  const { data, error } = await supabase.from("rolos_guest_profiles").update(safeUpdates).eq("id", guest_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "update_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCheckIn(body: any, supabase: any): Promise<Response> {
+  const { booking_id } = body;
+  if (!booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "check_in")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data: booking, error } = await supabase.from("bookings").update({
+    status: "checked_in",
+    rolos_check_in_time: new Date().toISOString(),
+  }).eq("id", booking_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_in")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  // Mark assigned rooms as occupied
+  const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
+  if (assignedRooms?.length) {
+    await supabase.from("rolos_rooms").update({ status: "occupied" }).in("id", assignedRooms.map((r: any) => r.room_id));
+  }
+  return new Response(JSON.stringify(createSuccessResponse(booking, "check_in")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCheckOut(body: any, supabase: any): Promise<Response> {
+  const { booking_id } = body;
+  if (!booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "check_out")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data: booking, error } = await supabase.from("bookings").update({
+    status: "checked_out",
+    rolos_check_out_time: new Date().toISOString(),
+  }).eq("id", booking_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_out")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  // Release rooms and create housekeeping tasks
+  const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
+  if (assignedRooms?.length) {
+    const roomIds = assignedRooms.map((r: any) => r.room_id);
+    await supabase.from("rolos_rooms").update({ status: "dirty" }).in("id", roomIds);
+    // Create cleaning tasks
+    await supabase.from("rolos_housekeeping_tasks").insert(
+      roomIds.map((room_id: string) => ({
+        room_id, task_type: "clean", priority: "normal", status: "pending",
+        scheduled_date: new Date().toISOString().split("T")[0],
+      }))
+    );
+  }
+  // Close folio
+  await supabase.from("rolos_folios").update({ status: "closed", closed_at: new Date().toISOString() }).eq("booking_id", booking_id);
+  return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetFolio(body: any, supabase: any): Promise<Response> {
+  if (!body.booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "get_folio")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data: folio, error } = await supabase.from("rolos_folios").select("*, transactions:rolos_folio_transactions(*)").eq("booking_id", body.booking_id).single();
+  if (error) {
+    // Auto-create folio if doesn't exist
+    const { data: newFolio, error: createError } = await supabase.from("rolos_folios").insert({ booking_id: body.booking_id }).select("*, transactions:rolos_folio_transactions(*)").single();
+    if (createError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, createError.message, "get_folio")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+    return new Response(JSON.stringify(createSuccessResponse(newFolio, "get_folio")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+  return new Response(JSON.stringify(createSuccessResponse(folio, "get_folio")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleAddFolioCharge(body: any, supabase: any): Promise<Response> {
+  const { booking_id, description, amount, tax_amount, transaction_type } = body;
+  if (!booking_id || !description || amount === undefined) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id, description, amount required", "add_folio_charge")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  // Ensure folio exists
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+  if (!folio) {
+    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+    folio = newFolio;
+  }
+  const { data, error } = await supabase.from("rolos_folio_transactions").insert({
+    folio_id: folio.id, transaction_type: transaction_type || "charge", description, amount, tax_amount,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "add_folio_charge")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "add_folio_charge")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleProcessFolioPayment(body: any, supabase: any): Promise<Response> {
+  const { booking_id, amount, payment_method, reference } = body;
+  if (!booking_id || amount === undefined) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id and amount required", "process_folio_payment")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+  if (!folio) {
+    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+    folio = newFolio;
+  }
+  const { data, error } = await supabase.from("rolos_folio_transactions").insert({
+    folio_id: folio.id, transaction_type: "payment", description: `Payment - ${payment_method || "cash"}`,
+    amount: -Math.abs(amount), reference,
+  }).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "process_folio_payment")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "process_folio_payment")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetHousekeepingBoard(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_housekeeping_board")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data: rooms, error } = await supabase.from("rolos_rooms")
+    .select("*, room_type:rolos_room_types(name), tasks:rolos_housekeeping_tasks(*, assigned_profile:profiles(full_name))")
+    .eq("property_id", body.propertyId)
+    .order("floor", { ascending: true })
+    .order("room_number", { ascending: true });
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_housekeeping_board")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ rooms: rooms || [] }, "get_housekeeping_board")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleAssignHousekeepingTask(body: any, supabase: any): Promise<Response> {
+  const { task_id, assigned_to } = body;
+  if (!task_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "task_id required", "assign_housekeeping_task")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_housekeeping_tasks").update({ assigned_to, status: "assigned" }).eq("id", task_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "assign_housekeeping_task")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse(data, "assign_housekeeping_task")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCompleteHousekeepingTask(body: any, supabase: any): Promise<Response> {
+  const { task_id, notes } = body;
+  if (!task_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "task_id required", "complete_housekeeping_task")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data: task, error } = await supabase.from("rolos_housekeeping_tasks").update({
+    status: "completed", completed_date: new Date().toISOString(), notes,
+  }).eq("id", task_id).select().single();
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "complete_housekeeping_task")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  // If cleaning task completed, mark room as available
+  if (task.task_type === "clean" || task.task_type === "deep_clean") {
+    await supabase.from("rolos_rooms").update({ status: "available" }).eq("id", task.room_id);
+  }
+  return new Response(JSON.stringify(createSuccessResponse(task, "complete_housekeeping_task")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetDailyMetrics(body: any, supabase: any): Promise<Response> {
+  if (!body.propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_daily_metrics")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const startDate = body.start_date || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  const endDate = body.end_date || new Date().toISOString().split("T")[0];
+  const { data, error } = await supabase.from("rolos_daily_metrics").select("*")
+    .eq("property_id", body.propertyId).gte("date", startDate).lte("date", endDate).order("date");
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_daily_metrics")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ metrics: data || [] }, "get_daily_metrics")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
