@@ -125,9 +125,7 @@ export default function DevTaskTracker() {
   };
 
   const updateStatus = async (id: string, status: TaskStatus) => {
-    const update: any = { status };
-    if (status === "completed") update.is_archived = true;
-    const { error } = await supabase.from("dev_tasks").update(update).eq("id", id);
+    const { error } = await supabase.from("dev_tasks").update({ status } as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
     toast.success(`Task → ${STATUS_CONFIG[status].label}`);
     fetchTasks();
