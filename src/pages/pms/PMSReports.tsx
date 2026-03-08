@@ -234,9 +234,18 @@ export default function PMSReports() {
   return (
     <PMSLayout>
       <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Reports & Financials</h1>
+        
+        <Tabs defaultValue="analytics" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-1" />Analytics</TabsTrigger>
+            <TabsTrigger value="folios"><Receipt className="w-4 h-4 mr-1" />Folios</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="analytics" className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Property Reports</h1>
+          <h2 className="text-lg font-semibold">Performance Analytics</h2>
           <div className="flex items-center gap-2">
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
