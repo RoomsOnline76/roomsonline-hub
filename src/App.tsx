@@ -86,11 +86,15 @@ const isSurveyDomain = window.location.hostname === 'survey.roomsonline.co.za';
 
 // Redirect component for /book path
 const BookRedirect = () => {
-  if (window.location.hostname === 'book.sleepinafrica.roomsonline.co.za') {
+  const hostname = window.location.hostname;
+  const isPreviewHost = hostname.includes("lovableproject.com") || hostname.includes("lovable.app");
+
+  if (hostname === "book.sleepinafrica.roomsonline.co.za" || isPreviewHost) {
     return <Home />;
   }
-  // Redirect to book subdomain
-  window.location.href = 'https://book.sleepinafrica.roomsonline.co.za';
+
+  // Redirect to book subdomain for non-preview hosts
+  window.location.href = "https://book.sleepinafrica.roomsonline.co.za";
   return null;
 };
 
