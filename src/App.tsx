@@ -537,6 +537,8 @@ const App = () => (
             />
             {/* Embeddable booking widget — public route */}
             <Route path="/embed/property/:slug" element={<EmbedProperty />} />
+            {/* Branded staff login — public route */}
+            <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
