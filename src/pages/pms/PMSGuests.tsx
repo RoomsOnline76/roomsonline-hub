@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
