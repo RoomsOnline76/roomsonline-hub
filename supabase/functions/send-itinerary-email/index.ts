@@ -351,7 +351,7 @@ Deno.serve(async (req) => {
     const propertyIds = [...new Set(stays.map(s => s.propertyId).filter(Boolean))];
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, city, country")
+      .select("id, name, city, country, is_rol_property, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url")
       .in("id", propertyIds);
 
     const propertyMap = new Map(properties?.map(p => [p.id, p]) || []);
@@ -363,8 +363,12 @@ Deno.serve(async (req) => {
       country: stay.country || propertyMap.get(stay.propertyId)?.country,
     }));
 
+    // Resolve branding from the first (or only) property
+    const primaryProperty = propertyMap.get(stays[0]?.propertyId) || null;
+    const brand = resolveItineraryBranding(primaryProperty);
+
     // Generate email HTML
-    const emailHtml = generateItineraryEmail(itinerary, enrichedStays);
+    const emailHtml = generateItineraryEmail(itinerary, enrichedStays, brand);
 
     // Property names for subject
     const propertyNames = enrichedStays.map(s => s.propertyName).join(" → ");
