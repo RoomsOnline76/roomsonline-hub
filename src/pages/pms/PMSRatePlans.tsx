@@ -276,6 +276,7 @@ export default function PMSRatePlans() {
       min_stay: parseInt(form.min_stay) || 1,
       requires_deposit: form.requires_deposit,
       base_rate: baseRate,
+      pricing_model: form.pricing_model || "per_room",
     };
 
     let planId: string;
