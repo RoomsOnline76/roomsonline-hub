@@ -40,14 +40,26 @@ export default function PMSRatePlans() {
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
   const [form, setForm] = useState({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false });
 
-  // Auto-sync rate types from overview into rolos_rate_plans
+  // Auto-sync rate plans from Property Overview source
   const syncRateTypesFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    const { data: overviewTypes } = await supabase
-      .from("pms_rate_types_cache")
-      .select("id, name, description, price_type, min_stay_days")
-      .eq("property_id", propertyId);
+    const [{ data: property }, { data: cacheRateTypes }] = await Promise.all([
+      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
+      supabase
+        .from("pms_rate_types_cache")
+        .select("id, name, description, price_type, min_stay_days")
+        .eq("property_id", propertyId),
+    ]);
+
+    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
+      ? ((property as any).amenities.room_types as any[])
+      : [];
+
+    // For ROL properties configured in Property Overview wizard, use a clear default naming convention.
+    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
+      ? [{ name: "Base Rate", description: "Default base rate from Property Overview", min_stay_days: 1 }]
+      : (cacheRateTypes || []);
 
     if (!overviewTypes || overviewTypes.length === 0) return;
 
@@ -56,12 +68,25 @@ export default function PMSRatePlans() {
       .select("id, name")
       .eq("property_id", propertyId);
 
-    const existingNames = new Set((existingPlans || []).map(p => p.name.toLowerCase()));
-    const toImport = overviewTypes.filter(rt => !existingNames.has(rt.name.toLowerCase()));
+    const existingByLower = new Map((existingPlans || []).map((p) => [p.name.toLowerCase(), p]));
 
+    // Normalize legacy naming for ROL properties: "Standard Rate" -> "Base Rate"
+    if ((property as any)?.is_rol_property && amenitiesRoomTypes.length > 0) {
+      const hasBase = existingByLower.has("base rate");
+      const standard = existingByLower.get("standard rate");
+      if (!hasBase && standard) {
+        const { error: renameError } = await supabase
+          .from("rolos_rate_plans")
+          .update({ name: "Base Rate", description: "Default base rate from Property Overview" })
+          .eq("id", standard.id);
+        if (!renameError) return;
+      }
+    }
+
+    const toImport = overviewTypes.filter((rt: any) => !existingByLower.has(String(rt.name).toLowerCase()));
     if (toImport.length === 0) return;
 
-    const rows = toImport.map(rt => ({
+    const rows = toImport.map((rt: any) => ({
       property_id: propertyId,
       name: rt.name,
       description: rt.description || null,
