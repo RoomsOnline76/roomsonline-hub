@@ -264,7 +264,7 @@ export function useCreatePricingRule(propertyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (params: { name: string; rule_type: string; conditions: Record<string, unknown>; adjustments: Record<string, unknown>; priority?: number }) => {
-      const { error } = await supabase.from("rolos_pricing_rules" as "bookings").insert({ property_id: propertyId, ...params } as Record<string, unknown>);
+      const { error } = await supabase.from("rolos_pricing_rules" as never).insert({ property_id: propertyId, ...params } as never);
       if (error) throw error;
     },
     onSuccess: () => {

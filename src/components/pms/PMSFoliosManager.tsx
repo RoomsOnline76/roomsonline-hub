@@ -121,7 +121,7 @@ function FolioDetailSheet({ folioId, propertyId, open, onClose, onRecordPayment 
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Receipt className="w-5 h-5" />
-            {folio?.booking?.guest_name || "Folio Detail"}
+            {folio?.guest_name || "Folio Detail"}
           </SheetTitle>
         </SheetHeader>
 
