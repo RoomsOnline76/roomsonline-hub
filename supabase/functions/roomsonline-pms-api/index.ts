@@ -1478,17 +1478,29 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
     const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
     if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
   }
+  // Get room IDs from booking_rooms table OR fallback to rolos_room_ids on the booking
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
-  if (assignedRooms?.length) {
-    const roomIds = assignedRooms.map((r: any) => r.room_id);
+  let roomIds: string[] = assignedRooms?.length ? assignedRooms.map((r: any) => r.room_id) : [];
+  // Fallback: use rolos_room_ids from the booking record itself
+  if (!roomIds.length && booking?.rolos_room_ids?.length) {
+    roomIds = booking.rolos_room_ids;
+  }
+  if (roomIds.length) {
+    console.log(`[check_out] Marking ${roomIds.length} room(s) as dirty:`, roomIds);
     await supabase.from("rolos_rooms").update({ status: "dirty" }).in("id", roomIds);
     // Create cleaning tasks
-    await supabase.from("rolos_housekeeping_tasks").insert(
-      roomIds.map((room_id: string) => ({
-        room_id, task_type: "clean", priority: "normal", status: "pending",
-        scheduled_date: new Date().toISOString().split("T")[0],
-      }))
-    );
+    const { data: existingTasks } = await supabase.from("rolos_housekeeping_tasks")
+      .select("room_id").in("room_id", roomIds).eq("status", "pending").eq("task_type", "clean");
+    const existingRoomIds = new Set((existingTasks || []).map((t: any) => t.room_id));
+    const newTaskRoomIds = roomIds.filter((id: string) => !existingRoomIds.has(id));
+    if (newTaskRoomIds.length) {
+      await supabase.from("rolos_housekeeping_tasks").insert(
+        newTaskRoomIds.map((room_id: string) => ({
+          room_id, task_type: "clean", priority: "normal", status: "pending",
+          scheduled_date: new Date().toISOString().split("T")[0],
+        }))
+      );
+    }
   }
   // Close folio
   await supabase.from("rolos_folios").update({ status: "closed", closed_at: new Date().toISOString() }).eq("booking_id", booking_id);
