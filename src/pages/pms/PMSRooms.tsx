@@ -158,6 +158,6 @@ export default function PMSRooms() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

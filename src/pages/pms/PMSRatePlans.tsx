@@ -106,6 +106,6 @@ export default function PMSRatePlans() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

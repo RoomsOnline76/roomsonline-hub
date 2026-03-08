@@ -124,6 +124,6 @@ export default function PMSHousekeeping() {
           </div>
         </div>
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

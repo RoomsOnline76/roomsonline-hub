@@ -120,6 +120,6 @@ export default function PMSGuests() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

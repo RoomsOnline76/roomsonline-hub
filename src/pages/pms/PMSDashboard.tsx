@@ -168,6 +168,6 @@ export default function PMSDashboard() {
           </Card>
         </div>
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }

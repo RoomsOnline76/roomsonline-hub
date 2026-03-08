@@ -69,6 +69,6 @@ export default function PMSReports() {
           </>
         )}
       </div>
-    </AppLayout>
+    </PMSLayout>
   );
 }
