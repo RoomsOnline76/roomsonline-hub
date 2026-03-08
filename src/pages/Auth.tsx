@@ -51,6 +51,44 @@ function AuthContent() {
   // reCAPTCHA for request access
   const requestRecaptcha = useRecaptcha("request_access");
 
+  const resolveAndRedirect = async (userId: string) => {
+    try {
+      // Check if user is a pure owner (only 'user' role) with a ROL property
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      
+      const roleList = roles?.map(r => r.role) || [];
+      const isPureOwner = roleList.length > 0 && roleList.every(r => r === "user");
+      
+      if (isPureOwner) {
+        const { data: owned } = await supabase
+          .from("property_owners")
+          .select("property_id")
+          .eq("user_id", userId);
+        
+        if (owned && owned.length > 0) {
+          const ids = owned.map(o => o.property_id);
+          const { data: rolProps } = await supabase
+            .from("properties")
+            .select("id")
+            .in("id", ids)
+            .eq("is_rol_property", true)
+            .limit(1);
+          
+          if (rolProps && rolProps.length > 0) {
+            navigate(`/pms?property=${rolProps[0].id}`);
+            return;
+          }
+        }
+      }
+      navigate("/");
+    } catch {
+      navigate("/");
+    }
+  };
+
   useEffect(() => {
     // On mount, try to detect recovery tokens in URL hash and exchange them
     // This handles the case where generateLink's action_link redirects with tokens
@@ -94,10 +132,10 @@ function AuthContent() {
           title: "Welcome back!",
           description: "Successfully logged in",
         });
-        navigate("/");
+        resolveAndRedirect(session.user.id);
       } else if (event === 'INITIAL_SESSION' && session && !isRecoveryModeRef.current && !hashIndicatesRecovery) {
-        // Existing session on page load - redirect to home
-        navigate("/");
+        // Existing session on page load - redirect
+        resolveAndRedirect(session.user.id);
       } else if (event === 'TOKEN_REFRESHED' && isRecoveryModeRef.current) {
         // Session refreshed during recovery - stay on recovery form
         console.log('Token refreshed during recovery flow - staying on form');
@@ -137,7 +175,7 @@ function AuthContent() {
         title: "Welcome back!",
         description: "Successfully logged in",
       });
-      navigate("/");
+      // The onAuthStateChange SIGNED_IN handler will do the redirect
     }
 
     setLoading(false);

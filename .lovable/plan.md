@@ -1,106 +1,78 @@
 
+# ROLOS Property Website Integration Toolkit — COMPLETED
 
-## Plan: Owner Auto-Redirect to PMS + Enterprise PMS Calendar
+## What Was Delivered
 
-Two major features: (1) route ROL'OS property owners directly to PMS on login, and (2) build an enterprise-grade calendar page in the PMS module.
+### Phase 1: Database Schema ✅
+- `integration_configs` table — property-scoped integration settings with API keys, domain whitelists, and jsonb config
+- `integration_logs` table — tracks widget loads, clicks, and booking initiations
+- `bookings` table extended with `integration_type` and `source_url` columns
+- Full RLS policies: owners manage their own, admin/dev have full access, anon can insert logs
 
----
+### Phase 2: Edge Functions ✅
+- **`generate-integration-assets`** — Generates code snippets per integration type with AI-powered installation instructions (Lovable AI gemini-3-flash-preview)
+- **`track-embed-interaction`** — Public endpoint for widgets to log loads/clicks to `integration_logs`
+- **`wordpress-plugin-api`** — API key-authenticated endpoint for WordPress plugin (get_property_info, get_availability, create_booking_redirect)
+- **`push-booking` extended** — Now accepts and persists `integration_type` and `source_url` on every booking
 
-### Part 1: Owner Auto-Redirect to PMS Landing Page
+### Phase 3: Admin UI ✅
+Route: `/admin/integrations` — accessible to all property owners via Workspace sidebar
 
-**Current behavior:** All users (including owners) redirect to `/dashboard/reports` after login via `navigate("/")` in `Auth.tsx`, which then hits `<Navigate to="/dashboard/reports" />` in `App.tsx`.
+6 integration tabs:
+- **Direct Link** — Copyable booking URL + HTML button snippet
+- **Widget** — iframe and JavaScript embed code for date-picker widget
+- **Booking Bar** — Fixed-position bottom bar embed code
+- **Full Embed** — Full booking engine iframe for dedicated pages
+- **WordPress** — PHP plugin code + shortcode, ready-to-install
+- **API** — API key generation/rotation, cURL examples, endpoint docs
 
-**Change:** After successful login, check if the user is a pure "owner" (has `user` role, no `admin`/`dev` roles) AND owns at least one ROL'OS property (`is_rol_property = true`). If so, redirect to `/pms` instead of `/`.
+Each tab includes:
+- Enable/disable toggle (persisted to `integration_configs`)
+- Copyable code snippets with syntax highlighting
+- Step-by-step installation instructions
+- Domain whitelist configuration (widget, booking bar, full embed)
 
-**Files to modify:**
-- **`src/pages/Auth.tsx`** — After sign-in, query `user_roles` and `property_owners` + `properties.is_rol_property`. If owner-only with ROL property, navigate to `/pms` instead of `/`.
-- **`src/App.tsx`** — Update the `"/"` route to also handle ROL owners (or keep the redirect logic in Auth.tsx only, which is cleaner).
+### Phase 4: Analytics Dashboard ✅
+Integrated directly into the integrations page:
+- Widget Loads / Bookings via Integrations / Conversion Rate KPIs
+- Widget Activity bar chart (loads + clicks by integration type)
+- Bookings by Integration pie chart
+- Revenue Pulse channel breakdown updated to include integration types
 
----
+### Phase 5: Embeddable Assets ✅
+Route: `/embed/property/:slug` — public, minimal React page for iframe embedding
+- **Widget mode** — Card-style booking prompt with property hero image and branding
+- **Bar mode** — Compact horizontal bar with "Book Now" button
+- **Full mode** — Same as widget but for full-page embedding
+- Automatic load tracking via `integration_logs`
+- "Powered by ROL'OS" attribution footer
 
-### Part 2: PMS Calendar Page
+### Phase 6: Revenue Pulse Integration ✅
+- Channel breakdown chart updated with integration type labels
+- Bookings with `integration_type` automatically appear in revenue analytics
 
-Create a new **`/pms/calendar`** route with a full enterprise PMS calendar.
+### Phase 7: PMS Integrations Menu & Property Overview Tab ✅
+- **PMS Sidebar:** Added "Integrations" menu item to ROL'OS PMS sidebar (`/pms/integrations`)
+- **PMS Integrations Page:** New page using `usePmsPropertyId` with property selector dropdown
+- **Property Form Tab:** Conditional "Integrations" tab visible only for ROL properties (`is_rol_property = true`)
+- **Comprehensive Documentation:** `IntegrationDocumentation` component with:
+  - Overview & Use Cases (collapsible accordion)
+  - Quick Start guide (numbered steps)
+  - Advanced Configuration (code examples, parameters)
+  - Troubleshooting (issue/solution pairs)
+  - Best Practices (checklists)
 
-**New file: `src/pages/pms/PMSCalendar.tsx`**
+#### Files Created/Modified (Phase 7):
+- `src/pages/pms/PMSIntegrations.tsx` — New PMS integrations management page
+- `src/components/integrations/IntegrationDocumentation.tsx` — Exhaustive docs for all 6 integration types
+- `src/components/property/PropertyFormIntegrationsTab.tsx` — Property-level integrations tab component
+- `src/config/navigation.ts` — Added Integrations item to pmsSection
+- `src/App.tsx` — Registered `/pms/integrations` route
+- `src/pages/pms/index.ts` — Exported PMSIntegrations
+- `src/pages/PropertyForm.tsx` — Added conditional Integrations tab for ROL properties
 
-A property-scoped calendar that displays:
-
-**Grid layout** — Rows = room types (with individual rooms nested), Columns = dates (scrollable). Week/Month toggle.
-
-**Data layers per cell:**
-- **Rate**: base rate from `rolos_rate_prices` joined through `rolos_rate_seasons` (matched by date range) for that room type
-- **Availability**: computed from `rolos_rooms` status + existing bookings overlapping that date
-- **Blockouts/Stop-sell**: from `rolos_rate_plans` (`closed_to_arrival`, `closed_to_departure`) and season-level min-stay overrides
-- **Bookings**: from `bookings` table filtered by property, rendered as horizontal spans across check-in to check-out dates
-
-**Booking display features:**
-- Bookings rendered as colored bars spanning their date range within the room row
-- Color coding by status: confirmed (blue), pending (amber), checked_in (green), cancelled (red/strikethrough)
-- Click to expand: opens a detail panel/drawer showing:
-  - Guest name, email, phone
-  - Check-in/out dates and times (`rolos_check_in_time`, `rolos_check_out_time`)
-  - Adults, children, infants, pets counts
-  - Room assignment (`rolos_room_ids`)
-  - Special requests (`special_requests`, `special_requests_parsed`)
-  - Payment status and total price
-  - Booking channel and source
-  - Modification history (`modification_notes`)
-- Visual markers for bookings with special requests or `requires_intervention = true` (warning icon/badge)
-
-**Enterprise enhancements:**
-- Date navigation: prev/next week/month, today button, date picker jump
-- Occupancy summary bar at top (% occupied per day)
-- Rate display per room type per date cell
-- Season indicators (peak/off-peak from `rolos_rate_seasons`)
-- Legend for status colors, blockouts, and special markers
-- Responsive: horizontal scroll on mobile with sticky room-type column
-
-**Files to create/modify:**
-- **Create `src/pages/pms/PMSCalendar.tsx`** — The full calendar component
-- **Modify `src/pages/pms/index.ts`** — Export `PMSCalendar`
-- **Modify `src/App.tsx`** — Add `/pms/calendar` route
-- **Modify `src/components/layout/PMSSidebar.tsx`** — Add "Calendar" nav item with `CalendarDays` icon after "Reports"
-- **Modify `src/components/layout/MobileBottomNav.tsx`** — No change needed (uses overflow "More" menu)
-
-**Data fetching strategy:**
-- Fetch `rolos_room_types` + `rolos_rooms` for the property
-- Fetch `bookings` for property within visible date range
-- Fetch `rolos_rate_plans` → `rolos_rate_seasons` → `rolos_rate_prices` for rate overlay
-- All queries scoped to `propertyId` from `usePmsPropertyId()`
-
----
-
-### Technical Details
-
-```text
-┌──────────────────────────────────────────────────────┐
-│ Calendar Header: ◀ Week/Month ▶  Today  [Date Jump] │
-│ Occupancy Bar: ██░░██████░░░░ (% per day)            │
-├────────────┬─────┬─────┬─────┬─────┬─────┬──────────┤
-│ Room Type  │ Mar8│ Mar9│Mar10│Mar11│Mar12│ ...       │
-├────────────┼─────┼─────┼─────┼─────┼─────┼──────────┤
-│ Deluxe     │R1200│R1200│R1500│R1500│R1200│           │
-│  Room 101  │ ████████ J.Smith ████│     │           │
-│  Room 102  │     │     │ ░░░░BLOCKED░░░░│           │
-│ Standard   │R 800│R 800│R1000│R1000│R 800│           │
-│  Room 201  │     │████ A.Jones █████████│           │
-└────────────┴─────┴─────┴─────┴─────┴─────┴──────────┘
-                         ↓ click booking
-              ┌─────────────────────────┐
-              │ Booking: J. Smith       │
-              │ Mar 8 → Mar 10 (2 nts)  │
-              │ 2 Adults, 1 Child       │
-              │ ⚠ Special: Late arrival │
-              │ Status: Confirmed       │
-              │ Total: R2,400           │
-              └─────────────────────────┘
-```
-
-**Auth redirect flow:**
-```text
-Login → Auth.tsx checks roles
-  ├─ owner + ROL property → /pms
-  └─ admin/dev → / → /dashboard/reports
-```
-
+## Architecture Preserved
+- All bookings route through existing `push-booking` flow (NO_BOOKING_FROM_CACHE enforced)
+- RLS isolation via `is_property_owner()` / `is_linked_owner()` / `has_role()`
+- API key authentication for WordPress/API integrations (stored in `integration_configs`)
+- Integration tracking metadata flows through to commission calculation
