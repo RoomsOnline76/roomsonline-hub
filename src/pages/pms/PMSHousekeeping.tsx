@@ -117,8 +117,10 @@ export default function PMSHousekeeping() {
     setLoading(true);
     const roomsQ = supabase.from("rolos_rooms").select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId).order("room_number");
     const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId).eq("is_active", true);
-    const tasksQ = supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId).neq("status", "completed").order("created_at", { ascending: false });
-    const maintQ = supabase.from("rolos_maintenance_requests").select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId).order("created_at", { ascending: false });
+    // Split long chains to avoid TS2589 deep instantiation
+    const tasksBase = supabase.from("rolos_housekeeping_tasks").select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
+    const tasksQ = tasksBase.neq("status", "completed").order("created_at", { ascending: false });
+    const maintQ = supabase.from("rolos_maintenance_requests").select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
