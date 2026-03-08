@@ -403,8 +403,14 @@ export default function PMSBranding() {
                       </a>
                     </Button>
                   </div>
+                  {!visual.brand_primary_color && (
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <p className="text-xs text-amber-700">Set a primary colour above for the branded page to display your identity.</p>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    Both pages use the SLP showcase layout and booking workflow. The branded version applies your colours and logo configured above.
+                    Both pages use the SLP showcase layout and booking workflow. The branded version applies your colours and logo configured above via the <code className="font-mono">?branded=true</code> parameter.
                   </p>
                 </CardContent>
               </Card>

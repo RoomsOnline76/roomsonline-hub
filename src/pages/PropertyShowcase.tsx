@@ -521,10 +521,13 @@ export default function PropertyShowcase() {
   useEffect(() => {
     brandCleanupRef.current?.();
     brandCleanupRef.current = null;
-    if (property?.brand_override_enabled && property?.brand_primary_color) {
+    // Apply brand if enabled in DB OR if ?branded=true query param is present
+    const brandedParam = new URLSearchParams(window.location.search).get("branded");
+    const shouldApplyBrand = (property?.brand_override_enabled || brandedParam === "true") && property?.brand_primary_color;
+    if (shouldApplyBrand) {
       const brand: PropertyBrand = {
         enabled: true,
-        primaryColor: property.brand_primary_color,
+        primaryColor: property.brand_primary_color!,
         secondaryColor: property.brand_secondary_color,
         fontColor: property.brand_font_color,
         logoUrl: property.brand_logo_url,
