@@ -425,7 +425,9 @@ Deno.serve(async (req) => {
 
     // --- Step 3: Send email with brochure attachment if available ---
     const emailPayload: any = {
-      from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+      from: brand.isBranded
+        ? `${brand.senderName} <noreply@notify.roomsonline.co.za>`
+        : "RoomsOnline <hello@notify.roomsonline.co.za>",
       to: [itinerary.guest_email],
       subject: `Your Journey is Confirmed! | ${propertyNames}`,
       html: emailHtml,
