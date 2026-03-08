@@ -9127,7 +9127,7 @@ export default function PropertyForm() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1">
                       <h3 className="font-semibold text-xs">ROOM TYPES</h3>
-                      {selectedPMS && isFieldPopulatedByPMS("room_types", selectedPMS) && (
+                      {selectedPMS && !isRolProperty && isFieldPopulatedByPMS("room_types", selectedPMS) && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
