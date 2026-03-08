@@ -32,6 +32,7 @@ export default function PMSReports() {
     fetch();
   }, [propertyId]);
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const latestMetric = metrics[metrics.length - 1];

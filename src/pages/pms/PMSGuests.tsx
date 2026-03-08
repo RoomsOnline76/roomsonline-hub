@@ -60,6 +60,7 @@ export default function PMSGuests() {
     } catch (e: any) { toast.error(e.message); }
   };
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   return (

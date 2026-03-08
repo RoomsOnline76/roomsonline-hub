@@ -89,6 +89,7 @@ export default function PMSBranding() {
     setSaving(false);
   };
 
+  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const addr = config.business_address;
