@@ -105,9 +105,50 @@ export default function PMSRooms() {
       linked_overview_id: (ot as any).source === "hostfully" ? (ot as any).id : null,
     }));
 
-    const { error } = await supabase.from("rolos_room_types").insert(rows);
+    const { data: insertedTypes, error } = await supabase.from("rolos_room_types").insert(rows).select("id, name");
     if (error) {
       console.warn("[PMS Rooms] Auto-sync room types warning:", error);
+    }
+
+    // Auto-create physical rooms for newly synced room types (ROL properties)
+    if (insertedTypes && insertedTypes.length > 0) {
+      const physicalRooms = insertedTypes.map((rt, idx) => ({
+        property_id: propertyId,
+        room_number: rt.name,
+        room_name: rt.name,
+        room_type_id: rt.id,
+        status: "available",
+      }));
+      const { error: roomErr } = await supabase.from("rolos_rooms").insert(physicalRooms);
+      if (roomErr) console.warn("[PMS Rooms] Auto-create physical rooms warning:", roomErr);
+    }
+
+    // Also create physical rooms for existing room types that are missing them
+    const { data: allRolosTypes } = await supabase
+      .from("rolos_room_types")
+      .select("id, name")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+
+    if (allRolosTypes && allRolosTypes.length > 0) {
+      const { data: existingPhysical } = await supabase
+        .from("rolos_rooms")
+        .select("room_type_id")
+        .eq("property_id", propertyId);
+
+      const hasPhysical = new Set((existingPhysical || []).map(r => r.room_type_id).filter(Boolean));
+      const missingPhysical = allRolosTypes.filter(rt => !hasPhysical.has(rt.id));
+
+      if (missingPhysical.length > 0) {
+        const backfillRooms = missingPhysical.map(rt => ({
+          property_id: propertyId,
+          room_number: rt.name,
+          room_name: rt.name,
+          room_type_id: rt.id,
+          status: "available",
+        }));
+        await supabase.from("rolos_rooms").insert(backfillRooms);
+      }
     }
   }, [propertyId]);
 
