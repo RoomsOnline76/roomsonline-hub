@@ -1,3 +1,8 @@
+// ============================================================================
+// PMS FINANCIAL ENGINE v2.0
+// Handles payments, refunds, invoices (with PDF), tax, deposits, gateway hooks
+// ============================================================================
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -5,6 +10,95 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
+  const businessName = branding?.business_name || property?.name || "Property";
+  const businessAddress = branding?.business_address || "";
+  const vatNumber = branding?.vat_number || "";
+  const isVatRegistered = branding?.is_vat_registered || false;
+  const logoUrl = property?.brand_logo_url || "";
+  const primaryColor = property?.brand_primary_color || "#1a1a2e";
+
+  const charges = transactions.filter((t: any) => (t.amount || 0) > 0);
+  const payments = transactions.filter((t: any) => (t.amount || 0) < 0);
+
+  const chargeRows = charges.map((t: any) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${t.description || "Charge"}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">${Number(t.amount).toFixed(2)}</td>
+    </tr>
+  `).join("");
+
+  const paymentRows = payments.map((t: any) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#16a34a;">${t.description || "Payment"}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;color:#16a34a;">(${Math.abs(Number(t.amount)).toFixed(2)})</td>
+    </tr>
+  `).join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Invoice ${invoice.invoice_number}</title></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:40px;color:#1a1a2e;max-width:800px;margin:0 auto;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;">
+    <div>
+      ${logoUrl ? `<img src="${logoUrl}" alt="${businessName}" style="max-height:60px;margin-bottom:8px;" />` : ""}
+      <h1 style="margin:0;font-size:28px;color:${primaryColor};">${businessName}</h1>
+      ${businessAddress ? `<p style="margin:4px 0;color:#666;font-size:13px;">${businessAddress}</p>` : ""}
+      ${isVatRegistered && vatNumber ? `<p style="margin:4px 0;color:#666;font-size:13px;">VAT: ${vatNumber}</p>` : ""}
+    </div>
+    <div style="text-align:right;">
+      <h2 style="margin:0;font-size:24px;color:${primaryColor};">INVOICE</h2>
+      <p style="margin:4px 0;font-size:14px;color:#666;">${invoice.invoice_number}</p>
+      <p style="margin:4px 0;font-size:13px;color:#666;">Issued: ${invoice.issued_date || new Date().toISOString().split("T")[0]}</p>
+      ${invoice.due_date ? `<p style="margin:4px 0;font-size:13px;color:#666;">Due: ${invoice.due_date}</p>` : ""}
+    </div>
+  </div>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+    <thead>
+      <tr style="background:${primaryColor};color:white;">
+        <th style="padding:10px 12px;text-align:left;">Description</th>
+        <th style="padding:10px 12px;text-align:right;width:120px;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${chargeRows}
+    </tbody>
+  </table>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:24px;">
+    <table style="border-collapse:collapse;min-width:280px;">
+      <tr>
+        <td style="padding:6px 16px;font-weight:600;">Subtotal</td>
+        <td style="padding:6px 16px;text-align:right;">${Number(invoice.subtotal).toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 16px;font-weight:600;">Tax</td>
+        <td style="padding:6px 16px;text-align:right;">${Number(invoice.tax_total).toFixed(2)}</td>
+      </tr>
+      <tr style="border-top:2px solid ${primaryColor};">
+        <td style="padding:10px 16px;font-weight:700;font-size:16px;">Total</td>
+        <td style="padding:10px 16px;text-align:right;font-weight:700;font-size:16px;">${invoice.currency || "ZAR"} ${Number(invoice.total).toFixed(2)}</td>
+      </tr>
+    </table>
+  </div>
+
+  ${payments.length > 0 ? `
+  <h3 style="font-size:16px;margin-bottom:8px;color:${primaryColor};">Payments Received</h3>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+    <tbody>${paymentRows}</tbody>
+  </table>
+  ` : ""}
+
+  ${invoice.notes ? `<p style="margin-top:24px;padding:12px;background:#f8f8f8;border-radius:4px;font-size:13px;color:#666;">${invoice.notes}</p>` : ""}
+  
+  <div style="margin-top:40px;padding-top:16px;border-top:1px solid #eee;text-align:center;color:#999;font-size:11px;">
+    Generated by ROL'OS Property Management System
+  </div>
+</body>
+</html>`;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -36,9 +130,9 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     switch (action) {
+      // ==================== RECORD PAYMENT ====================
       case "record_payment": {
         const { folio_id, property_id, amount, currency, method, reference, notes } = body;
-        // Insert payment
         const { data: payment, error: payErr } = await supabase
           .from("rolos_payments")
           .insert({
@@ -57,20 +151,24 @@ Deno.serve(async (req) => {
           .single();
         if (payErr) throw payErr;
 
-        // Also create a folio transaction for the payment
+        // Create folio transaction for the payment
         await supabase.from("rolos_folio_transactions").insert({
           folio_id,
-          type: "payment",
+          transaction_type: "payment",
           description: `Payment via ${method || "cash"}${reference ? ` (${reference})` : ""}`,
-          amount: -Math.abs(amount), // Payments reduce balance
+          amount: -Math.abs(amount),
           created_by: user.id,
         });
+
+        // Update folio balance
+        await updateFolioBalance(supabase, folio_id);
 
         return new Response(JSON.stringify({ success: true, payment }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
+      // ==================== PROCESS REFUND ====================
       case "process_refund": {
         const { payment_id, property_id: refPropId, amount: refAmount, reason } = body;
         const { data: refund, error: refErr } = await supabase
@@ -98,19 +196,21 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ==================== GENERATE INVOICE WITH PDF ====================
       case "generate_invoice": {
-        const { folio_id: invFolioId, property_id: invPropId } = body;
+        const { folio_id: invFolioId, property_id: invPropId, notes: invNotes } = body;
 
-        // Get folio transactions to calculate totals
+        // Get folio transactions
         const { data: transactions } = await supabase
           .from("rolos_folio_transactions")
           .select("*")
-          .eq("folio_id", invFolioId);
+          .eq("folio_id", invFolioId)
+          .order("created_at");
 
-        const charges = (transactions || []).filter((t: any) => t.amount > 0);
+        const charges = (transactions || []).filter((t: any) => (t.amount || 0) > 0);
         const subtotal = charges.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
-        // Get tax rules
+        // Get tax rules for tax calculation
         const { data: taxRules } = await supabase
           .from("rolos_tax_rules")
           .select("*")
@@ -122,10 +222,9 @@ Deno.serve(async (req) => {
         }, 0);
 
         const total = subtotal + taxTotal;
-
-        // Generate invoice number
         const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
+        // Insert invoice
         const { data: invoice, error: invErr } = await supabase
           .from("rolos_invoices")
           .insert({
@@ -136,17 +235,61 @@ Deno.serve(async (req) => {
             tax_total: Math.round(taxTotal * 100) / 100,
             total: Math.round(total * 100) / 100,
             status: "issued",
+            notes: invNotes || null,
             created_by: user.id,
           })
           .select()
           .single();
         if (invErr) throw invErr;
 
+        // Get property info for branding
+        const { data: property } = await supabase
+          .from("properties")
+          .select("name, brand_logo_url, brand_primary_color")
+          .eq("id", invPropId)
+          .single();
+
+        // Get branding config
+        const { data: branding } = await supabase
+          .from("rolos_brand_config")
+          .select("*")
+          .eq("property_id", invPropId)
+          .maybeSingle();
+
+        // Generate PDF HTML
+        const html = generateInvoiceHTML(invoice, transactions || [], property, branding);
+
+        // Store as HTML file (can be rendered as PDF by client)
+        const filePath = `${invPropId}/${invoiceNumber}.html`;
+        const encoder = new TextEncoder();
+        const htmlBytes = encoder.encode(html);
+
+        const { error: uploadErr } = await supabase.storage
+          .from("invoices")
+          .upload(filePath, htmlBytes, {
+            contentType: "text/html",
+            upsert: true,
+          });
+
+        if (!uploadErr) {
+          const { data: publicUrl } = supabase.storage
+            .from("invoices")
+            .getPublicUrl(filePath);
+
+          if (publicUrl?.publicUrl) {
+            await supabase.from("rolos_invoices")
+              .update({ pdf_url: publicUrl.publicUrl })
+              .eq("id", invoice.id);
+            invoice.pdf_url = publicUrl.publicUrl;
+          }
+        }
+
         return new Response(JSON.stringify({ success: true, invoice }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
+      // ==================== APPLY TAX ====================
       case "apply_tax": {
         const { property_id: taxPropId } = body;
         const { data: rules, error: taxErr } = await supabase
@@ -161,6 +304,122 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ==================== PROCESS GATEWAY PAYMENT ====================
+      case "process_gateway_payment": {
+        const { folio_id: gwFolioId, property_id: gwPropId, amount: gwAmount, gateway } = body;
+
+        // Create a pending payment record
+        const { data: payment, error: gwErr } = await supabase
+          .from("rolos_payments")
+          .insert({
+            folio_id: gwFolioId,
+            property_id: gwPropId,
+            amount: gwAmount,
+            currency: "ZAR",
+            method: "card",
+            status: "pending",
+            notes: `Gateway: ${gateway || "payfast"}`,
+            created_by: user.id,
+          })
+          .select()
+          .single();
+        if (gwErr) throw gwErr;
+
+        // In production, this would call the gateway API (PayFast/PayGate)
+        // For now, return the payment_id for the frontend to initiate the gateway flow
+        return new Response(JSON.stringify({ success: true, payment, gateway: gateway || "payfast" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== PAYMENT WEBHOOK ====================
+      case "payment_webhook": {
+        const { payment_id: whPaymentId, gateway_transaction_id, status: whStatus } = body;
+
+        const updateData: any = {
+          gateway_transaction_id,
+          status: whStatus === "success" ? "completed" : "failed",
+        };
+        if (whStatus === "success") {
+          updateData.paid_at = new Date().toISOString();
+        }
+
+        const { data: updatedPayment, error: whErr } = await supabase
+          .from("rolos_payments")
+          .update(updateData)
+          .eq("id", whPaymentId)
+          .select()
+          .single();
+        if (whErr) throw whErr;
+
+        // If payment succeeded, add folio transaction
+        if (whStatus === "success" && updatedPayment) {
+          await supabase.from("rolos_folio_transactions").insert({
+            folio_id: updatedPayment.folio_id,
+            transaction_type: "payment",
+            description: `Card payment (${gateway_transaction_id || "gateway"})`,
+            amount: -Math.abs(Number(updatedPayment.amount)),
+          });
+          await updateFolioBalance(supabase, updatedPayment.folio_id);
+        }
+
+        return new Response(JSON.stringify({ success: true, payment: updatedPayment }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== GET FOLIOS ====================
+      case "get_folios": {
+        const { property_id: fPropId } = body;
+        const { data: folios, error: fErr } = await supabase
+          .from("rolos_folios")
+          .select("*, booking:bookings!booking_id(guest_name, check_in_date, check_out_date, status)")
+          .eq("property_id", fPropId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (fErr) throw fErr;
+
+        return new Response(JSON.stringify({ success: true, folios }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== GET FOLIO DETAIL ====================
+      case "get_folio_detail": {
+        const { folio_id: dFolioId } = body;
+
+        const [folioRes, txRes, payRes, invRes] = await Promise.all([
+          supabase.from("rolos_folios").select("*, booking:bookings!booking_id(guest_name, check_in_date, check_out_date, status, total_price)").eq("id", dFolioId).single(),
+          supabase.from("rolos_folio_transactions").select("*").eq("folio_id", dFolioId).order("created_at"),
+          supabase.from("rolos_payments").select("*").eq("folio_id", dFolioId).order("created_at", { ascending: false }),
+          supabase.from("rolos_invoices").select("*").eq("folio_id", dFolioId).order("created_at", { ascending: false }),
+        ]);
+
+        return new Response(JSON.stringify({
+          success: true,
+          folio: folioRes.data,
+          transactions: txRes.data || [],
+          payments: payRes.data || [],
+          invoices: invRes.data || [],
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ==================== DEPOSIT SCHEDULES ====================
+      case "get_deposit_schedules": {
+        const { property_id: dsPropId } = body;
+        const { data, error } = await supabase
+          .from("rolos_deposit_schedules")
+          .select("*, rate_plan:rolos_rate_plans!rate_plan_id(name)")
+          .eq("property_id", dsPropId)
+          .order("name");
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true, schedules: data }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
@@ -169,9 +428,20 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error("pms-financial error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: (err as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
+
+// Helper: recalculate folio balance from transactions
+async function updateFolioBalance(supabase: any, folioId: string) {
+  const { data: txs } = await supabase
+    .from("rolos_folio_transactions")
+    .select("amount")
+    .eq("folio_id", folioId);
+
+  const balance = (txs || []).reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+  await supabase.from("rolos_folios").update({ balance: Math.round(balance * 100) / 100 }).eq("id", folioId);
+}

@@ -4392,6 +4392,67 @@ export type Database = {
           },
         ]
       }
+      rolos_deposit_schedules: {
+        Row: {
+          created_at: string
+          deposit_type: string
+          deposit_value: number
+          due_days_before: number
+          id: string
+          is_active: boolean
+          name: string
+          property_id: string
+          rate_plan_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deposit_type?: string
+          deposit_value?: number
+          due_days_before?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          property_id: string
+          rate_plan_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deposit_type?: string
+          deposit_value?: number
+          due_days_before?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          property_id?: string
+          rate_plan_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_deposit_schedules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_deposit_schedules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_deposit_schedules_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_event_reservations: {
         Row: {
           booking_id: string | null
@@ -4654,7 +4715,9 @@ export type Database = {
           closed_at: string | null
           created_at: string | null
           currency: string | null
+          guest_name: string | null
           id: string
+          property_id: string | null
           status: string | null
           updated_at: string | null
         }
@@ -4664,7 +4727,9 @@ export type Database = {
           closed_at?: string | null
           created_at?: string | null
           currency?: string | null
+          guest_name?: string | null
           id?: string
+          property_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -4674,7 +4739,9 @@ export type Database = {
           closed_at?: string | null
           created_at?: string | null
           currency?: string | null
+          guest_name?: string | null
           id?: string
+          property_id?: string | null
           status?: string | null
           updated_at?: string | null
         }
@@ -4691,6 +4758,20 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: true
             referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_folios_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_folios_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]

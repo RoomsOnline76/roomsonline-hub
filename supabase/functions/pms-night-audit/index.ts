@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
               .from("rolos_folio_transactions")
               .select("id")
               .eq("folio_id", booking.rolos_folio_id)
-              .eq("type", "charge")
+              .eq("transaction_type", "charge")
               .like("description", `%Room charge%${auditDateStr}%`)
               .maybeSingle();
 
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
               .from("rolos_folio_transactions")
               .insert({
                 folio_id: booking.rolos_folio_id,
-                type: "charge",
+                transaction_type: "charge",
                 description: `Room charge — ${auditDateStr}`,
                 amount: nightlyRate,
               });
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
                   if (taxAmount > 0) {
                     await supabase.from("rolos_folio_transactions").insert({
                       folio_id: booking.rolos_folio_id,
-                      type: "charge",
+                      transaction_type: "charge",
                       description: `${rule.name} (${rule.rate}%) — ${auditDateStr}`,
                       amount: taxAmount,
                     });

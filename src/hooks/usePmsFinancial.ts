@@ -2,6 +2,35 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// ==================== FOLIOS ====================
+export function useFolios(propertyId: string | null) {
+  return useQuery({
+    queryKey: ["pms-folios", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("pms-financial", {
+        body: { action: "get_folios", property_id: propertyId },
+      });
+      if (error) throw error;
+      return (data as any)?.folios || [];
+    },
+  });
+}
+
+export function useFolioDetail(folioId: string | null) {
+  return useQuery({
+    queryKey: ["pms-folio-detail", folioId],
+    enabled: !!folioId,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("pms-financial", {
+        body: { action: "get_folio_detail", folio_id: folioId },
+      });
+      if (error) throw error;
+      return data as { folio: any; transactions: any[]; payments: any[]; invoices: any[] };
+    },
+  });
+}
+
 // ==================== PAYMENTS ====================
 export function usePayments(propertyId: string | null, folioId?: string) {
   return useQuery({
@@ -27,8 +56,10 @@ export function useRecordPayment(propertyId: string | null) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["pms-payments", propertyId] });
+      qc.invalidateQueries({ queryKey: ["pms-folios", propertyId] });
+      qc.invalidateQueries({ queryKey: ["pms-folio-detail", vars.folio_id] });
       toast.success("Payment recorded");
     },
     onError: (err: any) => toast.error("Payment failed", { description: err.message }),
@@ -83,15 +114,16 @@ export function useInvoices(propertyId: string | null) {
 export function useGenerateInvoice(propertyId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { folio_id: string }) => {
+    mutationFn: async (params: { folio_id: string; notes?: string }) => {
       const { data, error } = await supabase.functions.invoke("pms-financial", {
         body: { action: "generate_invoice", property_id: propertyId, ...params },
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["pms-invoices", propertyId] });
+      qc.invalidateQueries({ queryKey: ["pms-folio-detail", vars.folio_id] });
       toast.success("Invoice generated");
     },
     onError: (err: any) => toast.error("Invoice generation failed", { description: err.message }),
@@ -123,6 +155,21 @@ export function useCreateTaxRule(propertyId: string | null) {
       toast.success("Tax rule created");
     },
     onError: (err: any) => toast.error("Failed to create tax rule", { description: err.message }),
+  });
+}
+
+// ==================== DEPOSIT SCHEDULES ====================
+export function useDepositSchedules(propertyId: string | null) {
+  return useQuery({
+    queryKey: ["pms-deposit-schedules", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("pms-financial", {
+        body: { action: "get_deposit_schedules", property_id: propertyId },
+      });
+      if (error) throw error;
+      return (data as any)?.schedules || [];
+    },
   });
 }
 

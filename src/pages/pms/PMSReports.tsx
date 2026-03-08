@@ -4,7 +4,9 @@ import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt } from "lucide-react";
+import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -232,9 +234,18 @@ export default function PMSReports() {
   return (
     <PMSLayout>
       <div className="space-y-6">
+        <h1 className="text-2xl font-bold tracking-tight">Reports & Financials</h1>
+        
+        <Tabs defaultValue="analytics" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-1" />Analytics</TabsTrigger>
+            <TabsTrigger value="folios"><Receipt className="w-4 h-4 mr-1" />Folios</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="analytics" className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Property Reports</h1>
+          <h2 className="text-lg font-semibold">Performance Analytics</h2>
           <div className="flex items-center gap-2">
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -375,6 +386,12 @@ export default function PMSReports() {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          <TabsContent value="folios">
+            <PMSFoliosManager propertyId={propertyId} />
+          </TabsContent>
+        </Tabs>
       </div>
     </PMSLayout>
   );
