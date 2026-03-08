@@ -384,11 +384,48 @@ export default function PMSHousekeeping() {
                     <p className="font-bold">{room.room_number}</p>
                     <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
                     {openDockets.length > 0 && (
-                      <div className="flex items-center gap-1.5 mt-1 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
-                        <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                        <span className="text-xs text-amber-700 dark:text-amber-400">
-                          {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
-                        </span>
+                      <div className="mt-1 space-y-2">
+                        <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                          <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                          <span className="text-xs text-amber-700 dark:text-amber-400">
+                            {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        {openDockets.map(req => (
+                          <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <AlertTriangle className="h-3 w-3 text-destructive" />
+                              <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
+                              {req.priority && (
+                                <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{req.description}</p>
+                            {req.status === "resolved" && (
+                              <div className="bg-muted/50 p-2 rounded space-y-1.5">
+                                {req.completion_notes && (
+                                  <p className="text-xs"><span className="font-medium">Notes:</span> {req.completion_notes}</p>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <Checkbox
+                                    id={`ready-clean-${req.id}`}
+                                    checked={req.room_ready_confirmed}
+                                    onCheckedChange={(checked) => toggleRoomReady(req, !!checked)}
+                                  />
+                                  <Label htmlFor={`ready-clean-${req.id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                                    <ShieldCheck className="h-3 w-3" /> Room ready after repairs
+                                  </Label>
+                                </div>
+                              </div>
+                            )}
+                            {STATUSES_OPEN.includes(req.status || "") && (
+                              <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
+                                <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
+                              </Button>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CardContent>
