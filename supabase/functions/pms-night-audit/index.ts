@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
               .from("rolos_folio_transactions")
               .insert({
                 folio_id: booking.rolos_folio_id,
-                type: "charge",
+                transaction_type: "charge",
                 description: `Room charge — ${auditDateStr}`,
                 amount: nightlyRate,
               });
