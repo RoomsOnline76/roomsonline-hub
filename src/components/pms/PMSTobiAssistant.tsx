@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Cat, Send, Sparkles, RotateCcw } from "lucide-react";
+import { Cat, Send, Sparkles, RotateCcw, Navigation } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
@@ -12,21 +15,30 @@ interface Message {
   content: string;
 }
 
-const SUGGESTED_PROMPTS = [
-  "How do bookings work?",
-  "How do I connect my PMS?",
-  "What is ROL Spec?",
-  "How do I add a property?",
+interface PMSTobiAssistantProps {
+  propertyName?: string;
+}
+
+const PMS_SUGGESTED_PROMPTS = [
+  "What's happening today?",
+  "How do I add a room?",
+  "Show me rate plans",
+  "Navigate to housekeeping",
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/help-assistant`;
 
-export function TobiAssistant() {
+export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { propertyId } = usePmsPropertyId();
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi there! I'm TOBI, your built-in ROL guide 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
+      content: propertyName 
+        ? `Hey there! I'm TOBI, your assistant for **${propertyName}** 🐱\n\nI know this property inside-out — ask me about rooms, rates, bookings, or where to find things in the PMS!`
+        : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -40,6 +52,18 @@ export function TobiAssistant() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Reset chat when property changes
+  useEffect(() => {
+    setMessages([
+      {
+        role: "assistant",
+        content: propertyName 
+          ? `Hey there! I'm TOBI, your assistant for **${propertyName}** 🐱\n\nI know this property inside-out — ask me about rooms, rates, bookings, or where to find things in the PMS!`
+          : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
+      },
+    ]);
+  }, [propertyId, propertyName]);
 
   const streamChat = useCallback(
     async ({
@@ -60,6 +84,7 @@ export function TobiAssistant() {
         body: JSON.stringify({
           messages: chatMessages,
           userRole: user?.user_metadata?.role || "user",
+          pmsContext: propertyId ? { propertyId } : undefined,
         }),
       });
 
@@ -108,7 +133,7 @@ export function TobiAssistant() {
 
       onDone();
     },
-    [user]
+    [user, propertyId]
   );
 
   const sendMessage = async (messageText?: string) => {
@@ -155,7 +180,9 @@ export function TobiAssistant() {
     setMessages([
       {
         role: "assistant",
-        content: "Hi there! I'm TOBI, your built-in ROL guide 🐱 Ask me anything about using Rooms Online - from adding properties to managing bookings. How can I help you today?",
+        content: propertyName 
+          ? `Hey there! I'm TOBI, your assistant for **${propertyName}** 🐱\n\nI know this property inside-out — ask me about rooms, rates, bookings, or where to find things in the PMS!`
+          : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
       },
     ]);
     setInput("");
@@ -168,6 +195,14 @@ export function TobiAssistant() {
     }
   };
 
+  // Quick navigation buttons
+  const quickNavItems = [
+    { label: "Dashboard", path: "/pms" },
+    { label: "Rooms", path: "/pms/rooms" },
+    { label: "Rates", path: "/pms/rate-plans" },
+    { label: "Guests", path: "/pms/guests" },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -178,13 +213,43 @@ export function TobiAssistant() {
           </div>
           <div>
             <h3 className="font-semibold text-sm">TOBI</h3>
-            <p className="text-xs text-muted-foreground">Your ROL Guide</p>
+            <p className="text-xs text-muted-foreground">
+              {propertyName ? `${propertyName} Assistant` : "PMS Guide"}
+            </p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={resetChat} title="Start new chat">
-          <RotateCcw className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {propertyId && (
+            <Badge variant="outline" className="text-xs">
+              Property Connected
+            </Badge>
+          )}
+          <Button variant="ghost" size="icon" onClick={resetChat} title="Start new chat">
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
+
+      {/* Quick Nav */}
+      {propertyId && (
+        <div className="px-4 py-2 border-b bg-muted/20">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
+            <Navigation className="w-3 h-3" />
+            Quick nav:
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {quickNavItems.map((item) => (
+              <button
+                key={item.path}
+                onClick={() => navigate(`${item.path}?property=${propertyId}`)}
+                className="text-xs px-2 py-0.5 rounded bg-background border hover:bg-muted transition-colors"
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
@@ -239,13 +304,13 @@ export function TobiAssistant() {
       </ScrollArea>
 
       {/* Suggested Prompts */}
-      {messages.length === 1 && (
+      {messages.length === 1 && propertyId && (
         <div className="px-4 pb-2">
           <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
             <Sparkles className="w-3 h-3" /> Try asking:
           </p>
           <div className="flex flex-wrap gap-1">
-            {SUGGESTED_PROMPTS.map((prompt) => (
+            {PMS_SUGGESTED_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => sendMessage(prompt)}
@@ -266,7 +331,7 @@ export function TobiAssistant() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask TOBI anything..."
+            placeholder={propertyId ? "Ask about this property..." : "Ask TOBI anything..."}
             disabled={isLoading}
             className="flex-1"
           />

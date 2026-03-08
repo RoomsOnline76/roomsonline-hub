@@ -1,10 +1,13 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { PMSSidebar } from "./PMSSidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { HelpProvider } from "@/contexts/HelpContext";
-import { HelpDrawer, FloatingHelpButton } from "@/components/help";
+import { FloatingHelpButton } from "@/components/help";
+import { PMSHelpDrawer } from "@/components/pms/PMSHelpDrawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PMSLayoutProps {
   children: ReactNode;
@@ -12,6 +15,23 @@ interface PMSLayoutProps {
 
 export function PMSLayout({ children }: PMSLayoutProps) {
   const isMobile = useIsMobile();
+  const { propertyId } = usePmsPropertyId();
+  const [propertyName, setPropertyName] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (!propertyId) {
+      setPropertyName(undefined);
+      return;
+    }
+    supabase
+      .from("properties")
+      .select("name")
+      .eq("id", propertyId)
+      .single()
+      .then(({ data }) => {
+        setPropertyName(data?.name || undefined);
+      });
+  }, [propertyId]);
 
   return (
     <HelpProvider>
@@ -27,7 +47,7 @@ export function PMSLayout({ children }: PMSLayoutProps) {
         </main>
         {isMobile && <MobileBottomNav />}
       </div>
-      <HelpDrawer />
+      <PMSHelpDrawer propertyName={propertyName} />
       <FloatingHelpButton />
     </HelpProvider>
   );
