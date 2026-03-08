@@ -22,10 +22,12 @@ interface PMSBrandData {
 
 const defaultBrand: PMSBrandData = {
   propertyName: "",
+  propertySlug: null,
   logoUrl: null,
   primaryColor: null,
   secondaryColor: null,
   fontColor: null,
+  accentColor: null,
   tagline: null,
   brandEnabled: false,
   loading: true,
