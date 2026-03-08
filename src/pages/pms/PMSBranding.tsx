@@ -371,6 +371,45 @@ export default function PMSBranding() {
               </CardContent>
             </Card>
 
+            {/* ─── Showcase Links ─── */}
+            {(propertySlug || propertySlugLocal) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Globe className="h-4 w-4 text-primary" /> Showcase Pages</CardTitle>
+                  <CardDescription>View your property's public-facing pages on the booking platform.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Sleep in Africa Showcase</p>
+                      <p className="text-xs text-muted-foreground truncate">Default SLP layout with RoomsOnline branding</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" asChild>
+                      <a href={`https://book.sleepinafrica.roomsonline.co.za/property/${propertySlug || propertySlugLocal}`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View
+                      </a>
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Branded Showcase Page</p>
+                      <p className="text-xs text-muted-foreground truncate">Your property colours, logo & brand identity</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="shrink-0 gap-1.5" asChild>
+                      <a href={`https://book.sleepinafrica.roomsonline.co.za/property/${propertySlug || propertySlugLocal}?branded=true`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        View
+                      </a>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Both pages use the SLP showcase layout and booking workflow. The branded version applies your colours and logo configured above.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save Branding & Stationery"}
             </Button>
