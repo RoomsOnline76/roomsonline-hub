@@ -128,7 +128,7 @@ export function ContractPreviewPane({
             {content ? (
               <div
                 className="prose prose-sm dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(renderedContent) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderMarkdown(renderedContent)) }}
               />
             ) : (
               <div className="text-center text-muted-foreground py-12">
