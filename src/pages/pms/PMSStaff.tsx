@@ -13,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2, CalendarDays, Clock, Activity } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { UserPlus, KeyRound, UserX, UserCheck, Shield, MoreHorizontal, Copy, Link2, CalendarDays, Clock, Activity, Pencil, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, type PmsStaffRole } from "@/lib/pmsPermissions";
-import { useStaffShifts, useCreateShift, useStaffActivityLog } from "@/hooks/usePmsFinancial";
+import { useStaffShifts, useCreateShift, useUpdateShift, useDeleteShift, useStaffActivityLog } from "@/hooks/usePmsFinancial";
 import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
 
 interface StaffMember {
@@ -49,6 +49,7 @@ export default function PMSStaff() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState<StaffMember | null>(null);
   const [showShiftDialog, setShowShiftDialog] = useState(false);
+  const [editingShift, setEditingShift] = useState<any>(null);
   const [propertySlug, setPropertySlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("roster");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -71,6 +72,8 @@ export default function PMSStaff() {
   // Hooks for shifts and activity
   const { data: shifts = [] } = useStaffShifts(propertyId);
   const createShift = useCreateShift(propertyId);
+  const updateShift = useUpdateShift(propertyId);
+  const deleteShift = useDeleteShift(propertyId);
   const { data: activityLog = [] } = useStaffActivityLog(propertyId);
 
   // Week days for shift calendar
@@ -178,10 +181,51 @@ export default function PMSStaff() {
         end_time: shiftForm.end_time,
         notes: shiftForm.notes || undefined,
       });
-      toast.success("Shift created");
       setShowShiftDialog(false);
       setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
     } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleEditShift = (shift: any) => {
+    setEditingShift(shift);
+    setShiftForm({
+      staff_id: shift.staff_id,
+      shift_type: shift.shift_type,
+      start_time: shift.start_time ? format(parseISO(shift.start_time), "yyyy-MM-dd'T'HH:mm") : "",
+      end_time: shift.end_time ? format(parseISO(shift.end_time), "yyyy-MM-dd'T'HH:mm") : "",
+      notes: shift.notes || "",
+    });
+    setShowShiftDialog(true);
+  };
+
+  const handleUpdateShift = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingShift) return;
+    try {
+      await updateShift.mutateAsync({
+        id: editingShift.id,
+        staff_id: shiftForm.staff_id,
+        shift_type: shiftForm.shift_type,
+        start_time: shiftForm.start_time,
+        end_time: shiftForm.end_time,
+        notes: shiftForm.notes || undefined,
+      });
+      setShowShiftDialog(false);
+      setEditingShift(null);
+      setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const handleDeleteShift = async (shiftId: string) => {
+    try {
+      await deleteShift.mutateAsync(shiftId);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const openNewShiftDialog = () => {
+    setEditingShift(null);
+    setShiftForm({ staff_id: "", shift_type: "morning", start_time: "", end_time: "", notes: "" });
+    setShowShiftDialog(true);
   };
 
   const getShiftsForStaffDay = (staffId: string, day: Date) => {
@@ -321,7 +365,7 @@ export default function PMSStaff() {
                   <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>Next →</Button>
                   {weekOffset !== 0 && <Button variant="ghost" size="sm" onClick={() => setWeekOffset(0)}>Today</Button>}
                 </div>
-                <Button size="sm" onClick={() => setShowShiftDialog(true)}>
+                <Button size="sm" onClick={openNewShiftDialog}>
                   <Clock className="h-4 w-4 mr-1.5" /> Add Shift
                 </Button>
               </div>
@@ -359,12 +403,25 @@ export default function PMSStaff() {
                                 {dayShifts.length > 0 ? (
                                   <div className="space-y-0.5">
                                     {dayShifts.map((s: any) => (
-                                      <Badge key={s.id} variant="outline" className={`text-[10px] block ${getShiftBadgeClass(s.shift_type)}`}>
-                                        {s.shift_type === "custom"
-                                          ? `${format(parseISO(s.start_time), "HH:mm")}–${format(parseISO(s.end_time), "HH:mm")}`
-                                          : SHIFT_TYPES.find(t => t.value === s.shift_type)?.label || s.shift_type
-                                        }
-                                      </Badge>
+                                      <DropdownMenu key={s.id}>
+                                        <DropdownMenuTrigger asChild>
+                                          <button className={`text-[10px] w-full rounded-md border px-1.5 py-0.5 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-all ${getShiftBadgeClass(s.shift_type)}`}>
+                                            {s.shift_type === "custom"
+                                              ? `${format(parseISO(s.start_time), "HH:mm")}–${format(parseISO(s.end_time), "HH:mm")}`
+                                              : SHIFT_TYPES.find(t => t.value === s.shift_type)?.label || s.shift_type
+                                            }
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="center" className="min-w-[140px]">
+                                          <DropdownMenuItem onClick={() => handleEditShift(s)} className="text-xs gap-2">
+                                            <Pencil className="h-3 w-3" /> Edit Shift
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem onClick={() => handleDeleteShift(s.id)} className="text-xs gap-2 text-destructive focus:text-destructive">
+                                            <Trash2 className="h-3 w-3" /> Delete Shift
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
                                     ))}
                                   </div>
                                 ) : (
@@ -501,14 +558,14 @@ export default function PMSStaff() {
         </DialogContent>
       </Dialog>
 
-      {/* Create Shift Dialog */}
-      <Dialog open={showShiftDialog} onOpenChange={setShowShiftDialog}>
+      {/* Create / Edit Shift Dialog */}
+      <Dialog open={showShiftDialog} onOpenChange={(open) => { setShowShiftDialog(open); if (!open) setEditingShift(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add Shift</DialogTitle>
-            <DialogDescription>Schedule a shift for a staff member.</DialogDescription>
+            <DialogTitle>{editingShift ? "Edit Shift" : "Add Shift"}</DialogTitle>
+            <DialogDescription>{editingShift ? "Update shift details." : "Schedule a shift for a staff member."}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreateShift} className="space-y-4">
+          <form onSubmit={editingShift ? handleUpdateShift : handleCreateShift} className="space-y-4">
             <div className="space-y-2">
               <Label>Staff Member</Label>
               <Select value={shiftForm.staff_id} onValueChange={v => setShiftForm(f => ({ ...f, staff_id: v }))}>
@@ -544,10 +601,16 @@ export default function PMSStaff() {
               <Textarea value={shiftForm.notes} onChange={e => setShiftForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowShiftDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={createShift.isPending || !shiftForm.staff_id}>
-                {createShift.isPending ? "Creating…" : "Create Shift"}
-              </Button>
+              <Button type="button" variant="outline" onClick={() => { setShowShiftDialog(false); setEditingShift(null); }}>Cancel</Button>
+              {editingShift ? (
+                <Button type="submit" disabled={updateShift.isPending || !shiftForm.staff_id}>
+                  {updateShift.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+              ) : (
+                <Button type="submit" disabled={createShift.isPending || !shiftForm.staff_id}>
+                  {createShift.isPending ? "Creating…" : "Create Shift"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>
