@@ -272,6 +272,8 @@ export default function PMSBranding() {
                 <ColorField label="Primary Colour" description="Buttons, headers, and accents" value={visual.brand_primary_color} onChange={v => setVisual(p => ({ ...p, brand_primary_color: v }))} />
                 <ColorField label="Secondary Colour" description="Backgrounds, highlights, and secondary elements" value={visual.brand_secondary_color} onChange={v => setVisual(p => ({ ...p, brand_secondary_color: v }))} />
                 <ColorField label="Font Colour" description="Primary text colour for headings and body" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
+                <Separator />
+                <ColorField label="Menu / Accent Colour" description="Sidebar active menu item highlight and hover background in the PMS interface" value={visual.brand_accent_color} onChange={v => setVisual(p => ({ ...p, brand_accent_color: v }))} />
               </CardContent>
             </Card>
 
