@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,15 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, CheckCircle, XCircle, AlertCircle, Calculator } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays } from "date-fns";
+import { GuestCountStepper } from "./GuestCountStepper";
 
 interface AvailabilityStatus {
   loading: boolean;
   available: boolean | null;
   roomTypes: any[];
   error: string | null;
+}
+
+interface RatePlanInfo {
+  pricing_model: string;
+  base_rate: number;
+  name: string;
 }
 
 interface ModifyBookingModalProps {
@@ -37,9 +44,26 @@ interface ModifyBookingModalProps {
     infants?: number | null;
     special_requests?: string | null;
     room_type_id?: string | null;
+    total_price?: number;
+    rolos_rate_plan_id?: string | null;
   };
   onSubmit: (modifications: Record<string, any>) => Promise<void>;
   loading?: boolean;
+}
+
+function countNights(checkIn: string, checkOut: string): number {
+  const d1 = new Date(checkIn);
+  const d2 = new Date(checkOut);
+  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000));
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
@@ -61,7 +85,10 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
   const [propertyInfo, setPropertyInfo] = useState<{
     external_system: string | null;
     benson_property_code: string | null;
+    is_rol_property: boolean | null;
   } | null>(null);
+
+  const [ratePlan, setRatePlan] = useState<RatePlanInfo | null>(null);
 
   const [availability, setAvailability] = useState<AvailabilityStatus>({
     loading: false,
@@ -70,19 +97,54 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     error: null,
   });
 
-  // Fetch property info on mount to know which PMS to call
+  // Fetch property info and rate plan on mount
   useEffect(() => {
     if (!open) return;
-    const fetchProperty = async () => {
-      const { data } = await supabase
+    const fetchData = async () => {
+      const { data: prop } = await supabase
         .from("properties")
-        .select("external_system, benson_property_code")
+        .select("external_system, benson_property_code, is_rol_property")
         .eq("id", booking.property_id)
         .maybeSingle();
-      setPropertyInfo(data);
+      setPropertyInfo(prop);
+
+      // Fetch rate plan if ROL booking
+      if (booking.rolos_rate_plan_id) {
+        const { data: rp } = await supabase
+          .from("rolos_rate_plans")
+          .select("pricing_model, base_rate, name")
+          .eq("id", booking.rolos_rate_plan_id)
+          .maybeSingle();
+        if (rp) setRatePlan(rp as RatePlanInfo);
+      }
     };
-    fetchProperty();
-  }, [open, booking.property_id]);
+    fetchData();
+  }, [open, booking.property_id, booking.rolos_rate_plan_id]);
+
+  // Dynamic price calculation
+  const estimatedPrice = useMemo(() => {
+    if (!ratePlan) return null;
+
+    const nights = countNights(checkInDate, checkOutDate);
+    const rate = ratePlan.base_rate || 0;
+
+    switch (ratePlan.pricing_model) {
+      case "per_person": {
+        const totalPax = adults + teens;
+        const childPax = children;
+        return (totalPax * rate + childPax * rate) * nights;
+      }
+      case "per_room":
+      case "per_unit":
+        return rate * nights;
+      case "per_night":
+        return rate * nights;
+      default:
+        return rate * adults * nights;
+    }
+  }, [ratePlan, checkInDate, checkOutDate, adults, teens, children]);
+
+  const priceChanged = estimatedPrice !== null && estimatedPrice !== booking.total_price;
 
   // Fetch live availability when dates change
   const fetchAvailability = useCallback(async (startDate: string, endDate: string) => {
@@ -114,7 +176,6 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
       const responseData = data?.data || data;
       const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
 
-      // Check if any room type has availability for all nights
       const hasAvailability = roomTypes.some((rt: any) => {
         const perNight = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
         return perNight.length > 0 && perNight.every((n: any) => (n.available_units ?? n.numberOfRoomsAvailable ?? 0) > 0);
@@ -137,12 +198,12 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     }
   }, [propertyInfo, booking.property_id]);
 
-  // Trigger availability fetch when dates change (and differ from original)
+  // Trigger availability fetch when dates change
   useEffect(() => {
     if (checkInDate !== booking.check_in_date || checkOutDate !== booking.check_out_date) {
       const timer = setTimeout(() => {
         fetchAvailability(checkInDate, checkOutDate);
-      }, 500); // debounce
+      }, 500);
       return () => clearTimeout(timer);
     } else {
       setAvailability({ loading: false, available: null, roomTypes: [], error: null });
@@ -163,9 +224,7 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     if (specialRequests !== (booking.special_requests || "")) modifications.special_requests = specialRequests;
     if (note.trim()) modifications.note = note.trim();
 
-    if (Object.keys(modifications).length === 0) {
-      return;
-    }
+    if (Object.keys(modifications).length === 0) return;
 
     await onSubmit(modifications);
   };
@@ -180,6 +239,7 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
     specialRequests !== (booking.special_requests || "");
 
   const datesChanged = checkInDate !== booking.check_in_date || checkOutDate !== booking.check_out_date;
+  const nights = countNights(checkInDate, checkOutDate);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -216,13 +276,18 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
             </div>
           </div>
 
+          {/* Nights indicator */}
+          <div className="text-xs text-muted-foreground text-center">
+            {nights} {nights === 1 ? "night" : "nights"}
+          </div>
+
           {/* Availability Status Indicator */}
           {datesChanged && propertyInfo?.external_system && (
             <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 text-xs">
               {availability.loading ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  <span className="text-muted-foreground">Checking {propertyInfo.external_system} availability…</span>
+                  <span className="text-muted-foreground">Checking availability…</span>
                 </>
               ) : availability.error ? (
                 <>
@@ -232,9 +297,7 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
               ) : availability.available === true ? (
                 <>
                   <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                  <span className="text-emerald-600">
-                    Rooms available for selected dates ({availability.roomTypes.length} room type{availability.roomTypes.length !== 1 ? "s" : ""})
-                  </span>
+                  <span className="text-emerald-600">Rooms available for selected dates</span>
                 </>
               ) : availability.available === false ? (
                 <>
@@ -245,49 +308,83 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
             </div>
           )}
 
-          {/* Guest Counts */}
-          <div className="grid grid-cols-4 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Adults</Label>
-              <Input
-                type="number"
-                min={1}
-                value={adults}
-                onChange={(e) => setAdults(Number(e.target.value))}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Teens</Label>
-              <Input
-                type="number"
-                min={0}
-                value={teens}
-                onChange={(e) => setTeens(Number(e.target.value))}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Children</Label>
-              <Input
-                type="number"
-                min={0}
-                value={children}
-                onChange={(e) => setChildren(Number(e.target.value))}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Infants</Label>
-              <Input
-                type="number"
-                min={0}
-                value={infants}
-                onChange={(e) => setInfants(Number(e.target.value))}
-                className="h-8 text-xs"
-              />
-            </div>
+          {/* Guest Counts using GuestCountStepper */}
+          <div className="space-y-0 border border-border rounded-lg px-3 divide-y divide-border">
+            <GuestCountStepper
+              label="Adults"
+              value={adults}
+              min={1}
+              max={20}
+              onChange={setAdults}
+              className="py-2"
+            />
+            <GuestCountStepper
+              label="Teens"
+              sublabel="13–17 years"
+              value={teens}
+              min={0}
+              max={10}
+              onChange={setTeens}
+              className="py-2"
+            />
+            <GuestCountStepper
+              label="Children"
+              sublabel="2–12 years"
+              value={children}
+              min={0}
+              max={10}
+              onChange={setChildren}
+              className="py-2"
+            />
+            <GuestCountStepper
+              label="Infants"
+              sublabel="Under 2"
+              value={infants}
+              min={0}
+              max={5}
+              onChange={setInfants}
+              className="py-2"
+            />
           </div>
+
+          {/* Dynamic Price Preview */}
+          {ratePlan && (
+            <div className={`rounded-lg border p-3 space-y-1.5 ${priceChanged ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30"}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Calculator className="h-3 w-3" />
+                  <span>Rate: {ratePlan.name} ({ratePlan.pricing_model.replace("_", " ")})</span>
+                </div>
+                <Badge variant="outline" className="text-[10px]">
+                  {formatCurrency(ratePlan.base_rate || 0)}/{ratePlan.pricing_model === "per_person" ? "pp" : "night"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Current total</span>
+                <span className="text-xs">{formatCurrency(booking.total_price || 0)}</span>
+              </div>
+
+              {estimatedPrice !== null && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">New estimated total</span>
+                  <span className={`text-sm font-semibold ${priceChanged ? "text-primary" : ""}`}>
+                    {formatCurrency(estimatedPrice)}
+                  </span>
+                </div>
+              )}
+
+              {priceChanged && estimatedPrice !== null && (
+                <div className="flex items-center justify-between pt-1 border-t border-border">
+                  <span className="text-xs text-muted-foreground">Difference</span>
+                  <span className={`text-xs font-medium ${(estimatedPrice - (booking.total_price || 0)) > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                    {(estimatedPrice - (booking.total_price || 0)) > 0 ? "+" : ""}
+                    {formatCurrency(estimatedPrice - (booking.total_price || 0))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Special Requests */}
           <div className="space-y-1">
