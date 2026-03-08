@@ -10666,6 +10666,20 @@ export default function PropertyForm() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Integrations Tab - Only for ROL Properties */}
+            {isRolProperty && propertyId && (
+              <TabsContent value="integrations" className="space-y-2">
+                <PropertyFormIntegrationsTab 
+                  property={{ 
+                    id: propertyId, 
+                    name: formData.name, 
+                    slug: formData.slug || propertyId,
+                    brand_primary_color: brandingData.brandPrimaryColor || null
+                  }} 
+                />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
 
