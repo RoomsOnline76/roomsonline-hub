@@ -99,6 +99,20 @@ function AuthContent() {
           navigate(`/pms?property=${rolProps[0].id}`);
           return;
         }
+
+        // Check if user is staff on any ROL property
+        const { data: staffRecord } = await supabase
+          .from("property_staff")
+          .select("property_id")
+          .eq("user_id", userId)
+          .eq("is_active", true)
+          .limit(1)
+          .maybeSingle();
+
+        if (staffRecord) {
+          navigate(`/pms?property=${staffRecord.property_id}`);
+          return;
+        }
       }
       navigate("/");
     } catch {
