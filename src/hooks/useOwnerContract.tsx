@@ -75,11 +75,20 @@ export function useOwnerContract(ownerEmail: string | undefined) {
 
   // Send contract mutation
   const sendContract = useMutation({
-    mutationFn: async ({ ownerName }: { ownerName?: string }) => {
+    mutationFn: async ({ ownerName, contractType }: { ownerName?: string; contractType?: 'standard' | 'rolos' }) => {
       if (!ownerEmail) throw new Error("Owner email is required");
 
+      const templateId = contractType === 'rolos'
+        ? 'b2c3d4e5-f6a7-4890-bcde-f12345678901'  // ROL'OS PMS template
+        : 'f47ac10b-58cc-4372-a567-0e02b2c3d479'; // Standard template
+
       const { data, error } = await supabase.functions.invoke("send-owner-contract", {
-        body: { owner_email: ownerEmail, owner_name: ownerName },
+        body: { 
+          owner_email: ownerEmail, 
+          owner_name: ownerName,
+          template_id: templateId,
+          contract_type: contractType || 'standard',
+        },
       });
 
       if (error) throw error;

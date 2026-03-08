@@ -27,6 +27,7 @@ export function ContractManagementPanel({
   ownerEmail,
   ownerName,
   showOnWebsite = false,
+  isRolProperty = false,
 }: ContractManagementPanelProps) {
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const {
@@ -40,12 +41,26 @@ export function ContractManagementPanel({
   } = useOwnerContract(ownerEmail);
 
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [contractTypeModalOpen, setContractTypeModalOpen] = useState(false);
+  const [selectedContractType, setSelectedContractType] = useState<'standard' | 'rolos'>(
+    isRolProperty ? 'rolos' : 'standard'
+  );
 
   const handleSendContract = () => {
     if (!ownerEmail) {
       return;
     }
-    sendContract.mutate({ ownerName });
+    // If ROL property, show contract type selection modal
+    if (isRolProperty && !contract) {
+      setContractTypeModalOpen(true);
+    } else {
+      sendContract.mutate({ ownerName, contractType: selectedContractType });
+    }
+  };
+
+  const handleConfirmSend = () => {
+    sendContract.mutate({ ownerName, contractType: selectedContractType });
+    setContractTypeModalOpen(false);
   };
 
   const handleOverride = (reason: string) => {
