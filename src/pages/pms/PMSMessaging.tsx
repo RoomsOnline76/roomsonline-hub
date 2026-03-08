@@ -101,7 +101,7 @@ function PMSMessaging() {
   };
 
   const insertPlaceholder = (key: string) => {
-    setEditForm((f: any) => ({ ...f, body: (f.body || "") + `{{${key}}}` }));
+    setEditForm((f) => ({ ...f, body: (f.body || "") + `{{${key}}}` }));
   };
 
   return (
