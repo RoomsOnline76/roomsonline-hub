@@ -38,7 +38,7 @@ export default function PMSReports() {
   const latestMetric = metrics[metrics.length - 1];
 
   return (
-    <AppLayout>
+    <PMSLayout>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">PMS Reports</h1>
 
