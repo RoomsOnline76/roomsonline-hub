@@ -172,17 +172,19 @@ export function PMSSidebar() {
 
       {/* Footer */}
       <div className="p-2 space-y-2 border-t border-border">
-        {/* Back to ROL */}
-        <button
-          onClick={() => navigate("/admin/property-overview")}
-          className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-            "hover:bg-accent hover:text-accent-foreground text-foreground/70"
-          )}
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" />
-          {!collapsed && <span className="flex-1 text-left">Back to ROL</span>}
-        </button>
+        {/* Back to ROL — only for platform users (admin/dev/fearless) and property owners, not staff */}
+        {(isPlatformUser || !staffRole) && (
+          <button
+            onClick={() => navigate("/admin/property-overview")}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+              "hover:bg-accent hover:text-accent-foreground text-foreground/70"
+            )}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Back to ROL</span>}
+          </button>
+        )}
 
         <PoweredByRolOS className="pb-2" />
 
