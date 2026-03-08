@@ -3295,8 +3295,8 @@ export default function PropertyForm() {
                 minAdvanceDays: 0,
                 maxAdvanceDays: 0,
                 description: baseRate 
-                  ? `Base rate from onboarding: R${baseRate}` 
-                  : `Rate for ${roomName} - configure rate amount`,
+                  ? `Base rate: R${baseRate}` 
+                  : `${roomName} Rate`,
                 baseRate,
                 pms_synced: false,
                 linkedRoomId: roomId, // Track which room this rate is for
