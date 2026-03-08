@@ -92,7 +92,7 @@ export function usePmsPropertyId() {
     };
 
     resolve();
-  }, [user, isDev, isAdmin]);
+  }, [user, isDev, isAdmin, isFearlessLeader]);
 
   // When paramId changes externally, sync
   useEffect(() => {

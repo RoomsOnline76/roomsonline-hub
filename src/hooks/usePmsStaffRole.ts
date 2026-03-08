@@ -15,7 +15,7 @@ interface PmsStaffRoleResult {
  * Returns null role for platform admins/devs (they bypass staff roles).
  */
 export function usePmsStaffRole(propertyId: string | null): PmsStaffRoleResult {
-  const { user, isDev, isAdmin } = useAuth();
+  const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
   const [staffRole, setStaffRole] = useState<PmsStaffRole | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,8 +26,8 @@ export function usePmsStaffRole(propertyId: string | null): PmsStaffRoleResult {
       return;
     }
 
-    // Platform admins/devs bypass staff roles entirely
-    if (isDev || isAdmin) {
+    // Platform admins/devs/fearless leaders bypass staff roles entirely
+    if (isDev || isAdmin || isFearlessLeader) {
       setStaffRole(null);
       setMustChangePassword(false);
       setLoading(false);
