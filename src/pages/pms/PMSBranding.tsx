@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Palette, Save, Eye } from "lucide-react";
+import { Palette, Save, Eye, Upload, Loader2, X, Type, ShieldCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
-import { hexToHsl, autoForeground } from "@/lib/brandOverride";
 
 interface BrandConfig {
   business_name: string;
@@ -22,6 +21,14 @@ interface BrandConfig {
   email_footer_text: string;
   custom_tagline: string;
   favicon_url: string;
+}
+
+interface VisualBrand {
+  brand_logo_url: string;
+  brand_primary_color: string;
+  brand_secondary_color: string;
+  brand_font_color: string;
+  brand_override_enabled: boolean;
 }
 
 const defaultConfig: BrandConfig = {
@@ -33,23 +40,93 @@ const defaultConfig: BrandConfig = {
   favicon_url: "",
 };
 
+const defaultVisual: VisualBrand = {
+  brand_logo_url: "",
+  brand_primary_color: "",
+  brand_secondary_color: "",
+  brand_font_color: "",
+  brand_override_enabled: false,
+};
+
+/* ── Colour helpers ── */
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const c = hex.replace("#", "");
+  if (c.length !== 6) return null;
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return null;
+  return { r, g, b };
+}
+function rgbToHex(r: number, g: number, b: number): string {
+  const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  return `#${cl(r).toString(16).padStart(2, "0")}${cl(g).toString(16).padStart(2, "0")}${cl(b).toString(16).padStart(2, "0")}`;
+}
+function getLuminance(hex: string): number {
+  const c = hex.replace("#", "");
+  if (c.length < 6) return 0;
+  const toL = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  return 0.2126 * toL(parseInt(c.substring(0, 2), 16)) + 0.7152 * toL(parseInt(c.substring(2, 4), 16)) + 0.0722 * toL(parseInt(c.substring(4, 6), 16));
+}
+function getContrastRatio(a: string, b: string): number {
+  const l1 = Math.max(getLuminance(a), getLuminance(b));
+  const l2 = Math.min(getLuminance(a), getLuminance(b));
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
+function ContrastBadge({ ratio }: { ratio: number }) {
+  if (ratio >= 4.5) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"><ShieldCheck className="h-3 w-3" />AA ({ratio.toFixed(1)})</span>;
+  if (ratio >= 3) return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"><AlertTriangle className="h-3 w-3" />Large only ({ratio.toFixed(1)})</span>;
+  return <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"><AlertTriangle className="h-3 w-3" />Poor ({ratio.toFixed(1)})</span>;
+}
+
+function ColorField({ label, description, value, onChange }: { label: string; description: string; value: string; onChange: (v: string) => void }) {
+  const rgb = hexToRgb(value || "");
+  const rgbChange = (ch: "r" | "g" | "b", raw: string) => {
+    const n = parseInt(raw, 10); if (isNaN(n)) return;
+    const c = rgb || { r: 0, g: 0, b: 0 };
+    onChange(rgbToHex(ch === "r" ? n : c.r, ch === "g" ? n : c.g, ch === "b" ? n : c.b));
+  };
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm font-medium">{label}</Label>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="flex items-center gap-3">
+        <input type="color" value={value || "#000000"} onChange={e => onChange(e.target.value)} className="h-10 w-14 rounded-md border border-border cursor-pointer bg-transparent p-0.5" />
+        <Input type="text" value={value || ""} onChange={e => onChange(e.target.value)} placeholder="#000000" className="font-mono text-sm max-w-[120px]" />
+        {value && <div className="h-10 w-10 shrink-0 rounded-md border border-border" style={{ backgroundColor: value }} />}
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-xs text-muted-foreground w-6">R</span>
+        <Input type="number" min={0} max={255} value={rgb?.r ?? ""} onChange={e => rgbChange("r", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" />
+        <span className="text-xs text-muted-foreground w-6">G</span>
+        <Input type="number" min={0} max={255} value={rgb?.g ?? ""} onChange={e => rgbChange("g", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" />
+        <span className="text-xs text-muted-foreground w-6">B</span>
+        <Input type="number" min={0} max={255} value={rgb?.b ?? ""} onChange={e => rgbChange("b", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" />
+      </div>
+    </div>
+  );
+}
+
 export default function PMSBranding() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
-  const { propertyName, logoUrl, primaryColor, brandEnabled } = usePMSBrand();
+  const { propertyName } = usePMSBrand();
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
+  const [visual, setVisual] = useState<VisualBrand>(defaultVisual);
   const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Load both stationery (rolos_brand_config) and visual brand (properties) in parallel
   useEffect(() => {
     if (!propertyId) return;
     (async () => {
-      const { data } = await supabase
-        .from("rolos_brand_config" as any)
-        .select("*")
-        .eq("property_id", propertyId)
-        .maybeSingle();
-      if (data) {
-        const d = data as any;
+      const [stationeryRes, propertyRes] = await Promise.all([
+        supabase.from("rolos_brand_config" as any).select("*").eq("property_id", propertyId).maybeSingle(),
+        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_override_enabled").eq("id", propertyId).single(),
+      ]);
+      if (stationeryRes.data) {
+        const d = stationeryRes.data as any;
         setConfig({
           business_name: d.business_name || "",
           business_address: d.business_address || {},
@@ -59,15 +136,44 @@ export default function PMSBranding() {
           favicon_url: d.favicon_url || "",
         });
       }
+      if (propertyRes.data) {
+        const p = propertyRes.data as any;
+        setVisual({
+          brand_logo_url: p.brand_logo_url || "",
+          brand_primary_color: p.brand_primary_color || "",
+          brand_secondary_color: p.brand_secondary_color || "",
+          brand_font_color: p.brand_font_color || "",
+          brand_override_enabled: p.brand_override_enabled ?? false,
+        });
+      }
       setLoaded(true);
     })();
   }, [propertyId]);
+
+  const handleLogoUpload = async (file: File) => {
+    if (!file || !file.type.startsWith("image/")) { toast.error("Please upload an image file"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Max file size is 5MB"); return; }
+    setIsUploading(true);
+    try {
+      const folder = propertyId || "new";
+      const fileName = `${folder}/logo-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+      const { data: upData, error: upErr } = await supabase.storage.from("property-images").upload(fileName, file, { cacheControl: "3600", upsert: false });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("property-images").getPublicUrl(upData.path);
+      setVisual(prev => ({ ...prev, brand_logo_url: urlData.publicUrl }));
+      toast.success("Logo uploaded");
+    } catch (e: any) {
+      toast.error(e.message || "Upload failed");
+    }
+    setIsUploading(false);
+  };
 
   const handleSave = async () => {
     if (!propertyId) return;
     setSaving(true);
     try {
-      const payload = {
+      // Save stationery to rolos_brand_config
+      const stationeryPayload = {
         property_id: propertyId,
         business_name: config.business_name || null,
         business_address: config.business_address,
@@ -76,13 +182,21 @@ export default function PMSBranding() {
         custom_tagline: config.custom_tagline || null,
         favicon_url: config.favicon_url || null,
       };
+      const { error: stErr } = await supabase.from("rolos_brand_config" as any).upsert(stationeryPayload as any, { onConflict: "property_id" });
+      if (stErr) throw stErr;
 
-      const { error } = await supabase
-        .from("rolos_brand_config" as any)
-        .upsert(payload as any, { onConflict: "property_id" });
+      // Save visual brand to properties table (syncs with Property Overview)
+      const { error: prErr } = await supabase.from("properties").update({
+        brand_logo_url: visual.brand_logo_url || null,
+        brand_primary_color: visual.brand_primary_color || null,
+        brand_secondary_color: visual.brand_secondary_color || null,
+        brand_font_color: visual.brand_font_color || null,
+        brand_override_enabled: visual.brand_override_enabled,
+      }).eq("id", propertyId);
+      if (prErr) throw prErr;
 
-      if (error) throw error;
       toast.success("Branding & stationery saved");
+      // Brand context will pick up changes on next load
     } catch (e: any) {
       toast.error(e.message || "Failed to save");
     }
@@ -93,43 +207,108 @@ export default function PMSBranding() {
   if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
 
   const addr = config.business_address;
+  const hasColors = !!(visual.brand_primary_color || visual.brand_secondary_color || visual.brand_font_color);
 
   return (
     <PMSLayout>
-      <div className="space-y-6 max-w-4xl">
+      <div className="space-y-6 max-w-5xl">
         <div className="flex items-center gap-3">
           <Palette className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Branding & Stationery</h1>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Config Form */}
+          {/* Main Form */}
           <div className="lg:col-span-2 space-y-6">
+
+            {/* ─── Logo Upload ─── */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Upload className="h-4 w-4 text-primary" /> Property Logo</CardTitle>
+                <CardDescription>Used on booking pages, invoices, folios, and guest communications. Changes sync to Property Overview.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {visual.brand_logo_url ? (
+                  <div className="space-y-2">
+                    <div className="relative inline-block rounded-lg border border-border bg-muted/30 p-4">
+                      <img src={visual.brand_logo_url} alt="Property logo" className="max-h-24 max-w-[240px] object-contain" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={() => setVisual(p => ({ ...p, brand_logo_url: "" }))}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate max-w-sm">{visual.brand_logo_url}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="block border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} disabled={isUploading} />
+                      {isUploading ? (
+                        <><Loader2 className="h-8 w-8 text-primary mx-auto mb-2 animate-spin" /><p className="text-xs text-primary font-medium">Uploading…</p></>
+                      ) : (
+                        <><Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" /><p className="text-sm font-medium text-foreground mb-1">Click to upload</p><p className="text-xs text-muted-foreground">PNG, JPG, SVG up to 5MB</p></>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                      <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">or paste URL</span></div>
+                    </div>
+                    <Input type="url" placeholder="https://example.com/logo.png" value={visual.brand_logo_url} onChange={e => setVisual(p => ({ ...p, brand_logo_url: e.target.value }))} className="text-xs" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ─── Brand Colours ─── */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Palette className="h-4 w-4 text-primary" /> Brand Colours</CardTitle>
+                <CardDescription>Property showcase and booking pages use these colours. Changes sync bidirectionally with Property Overview.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <ColorField label="Primary Colour" description="Buttons, headers, and accents" value={visual.brand_primary_color} onChange={v => setVisual(p => ({ ...p, brand_primary_color: v }))} />
+                <ColorField label="Secondary Colour" description="Backgrounds, highlights, and secondary elements" value={visual.brand_secondary_color} onChange={v => setVisual(p => ({ ...p, brand_secondary_color: v }))} />
+                <ColorField label="Font Colour" description="Primary text colour for headings and body" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
+              </CardContent>
+            </Card>
+
+            {/* Contrast preview */}
+            {hasColors && visual.brand_font_color && visual.brand_primary_color && (
+              <Card>
+                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Type className="h-4 w-4 text-primary" /> Contrast Check</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_primary_color }}>
+                      <p className="text-sm font-semibold" style={{ color: visual.brand_font_color }}>Heading</p>
+                      <p className="text-xs" style={{ color: visual.brand_font_color, opacity: 0.85 }}>Body text preview</p>
+                      <ContrastBadge ratio={getContrastRatio(visual.brand_primary_color, visual.brand_font_color)} />
+                    </div>
+                    {visual.brand_secondary_color && (
+                      <div className="rounded-lg border border-border p-4 space-y-1" style={{ backgroundColor: visual.brand_secondary_color }}>
+                        <p className="text-sm font-semibold" style={{ color: visual.brand_font_color }}>Heading</p>
+                        <p className="text-xs" style={{ color: visual.brand_font_color, opacity: 0.85 }}>Body text preview</p>
+                        <ContrastBadge ratio={getContrastRatio(visual.brand_secondary_color, visual.brand_font_color)} />
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ─── Business Identity ─── */}
             <Card>
               <CardHeader>
                 <CardTitle>Business Identity</CardTitle>
-                <CardDescription>This information appears on invoices, folios, and guest communications.</CardDescription>
+                <CardDescription>Appears on invoices, folios, and guest communications.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label>Business Name</Label>
-                  <Input value={config.business_name} onChange={e => setConfig(p => ({ ...p, business_name: e.target.value }))} placeholder={propertyName || "Your business name"} />
-                </div>
-                <div>
-                  <Label>Custom Tagline</Label>
-                  <Input value={config.custom_tagline} onChange={e => setConfig(p => ({ ...p, custom_tagline: e.target.value }))} placeholder="e.g. Where memories are made" />
-                </div>
-                <div>
-                  <Label>VAT / Tax Number</Label>
-                  <Input value={config.vat_number} onChange={e => setConfig(p => ({ ...p, vat_number: e.target.value }))} placeholder="e.g. VAT4870123456" />
-                </div>
+                <div><Label>Business Name</Label><Input value={config.business_name} onChange={e => setConfig(p => ({ ...p, business_name: e.target.value }))} placeholder={propertyName || "Your business name"} /></div>
+                <div><Label>Custom Tagline</Label><Input value={config.custom_tagline} onChange={e => setConfig(p => ({ ...p, custom_tagline: e.target.value }))} placeholder="e.g. Where memories are made" /></div>
+                <div><Label>VAT / Tax Number</Label><Input value={config.vat_number} onChange={e => setConfig(p => ({ ...p, vat_number: e.target.value }))} placeholder="e.g. VAT4870123456" /></div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Business Address</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Business Address</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div><Label>Street</Label><Input value={addr.street || ""} onChange={e => setConfig(p => ({ ...p, business_address: { ...p.business_address, street: e.target.value } }))} /></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -144,50 +323,39 @@ export default function PMSBranding() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Communications</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Communications</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label>Email Footer Text</Label>
-                  <Textarea value={config.email_footer_text} onChange={e => setConfig(p => ({ ...p, email_footer_text: e.target.value }))} placeholder="Custom text that appears at the bottom of guest emails" rows={3} />
-                </div>
-                <div>
-                  <Label>Favicon URL</Label>
-                  <Input value={config.favicon_url} onChange={e => setConfig(p => ({ ...p, favicon_url: e.target.value }))} placeholder="https://..." />
-                </div>
+                <div><Label>Email Footer Text</Label><Textarea value={config.email_footer_text} onChange={e => setConfig(p => ({ ...p, email_footer_text: e.target.value }))} placeholder="Custom text at the bottom of guest emails" rows={3} /></div>
+                <div><Label>Favicon URL</Label><Input value={config.favicon_url} onChange={e => setConfig(p => ({ ...p, favicon_url: e.target.value }))} placeholder="https://..." /></div>
               </CardContent>
             </Card>
 
             <Button onClick={handleSave} disabled={saving} className="w-full">
-              <Save className="h-4 w-4 mr-2" />{saving ? "Saving..." : "Save Branding & Stationery"}
+              <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save Branding & Stationery"}
             </Button>
           </div>
 
-          {/* Live Preview */}
+          {/* ─── Live Preview Sidebar ─── */}
           <div className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Eye className="h-4 w-4" /> Live Preview</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Eye className="h-4 w-4" /> Live Preview</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {/* Header Preview */}
-                <div className="border border-border rounded-lg p-4 space-y-3">
+                <div className="border border-border rounded-lg p-4 space-y-3" style={{ backgroundColor: visual.brand_secondary_color || undefined }}>
                   <div className="flex items-center gap-3">
-                    {logoUrl ? (
-                      <img src={logoUrl} alt="" className="h-10 w-10 object-contain rounded" />
+                    {visual.brand_logo_url ? (
+                      <img src={visual.brand_logo_url} alt="" className="h-10 w-10 object-contain rounded" />
                     ) : (
                       <div className="h-10 w-10 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
                         {(config.business_name || propertyName || "P").charAt(0)}
                       </div>
                     )}
                     <div>
-                      <p className="font-semibold text-sm">{config.business_name || propertyName || "Property Name"}</p>
-                      {config.custom_tagline && <p className="text-[10px] text-muted-foreground italic">{config.custom_tagline}</p>}
+                      <p className="font-semibold text-sm" style={{ color: visual.brand_font_color || undefined }}>{config.business_name || propertyName || "Property Name"}</p>
+                      {config.custom_tagline && <p className="text-[10px] italic" style={{ color: visual.brand_font_color ? `${visual.brand_font_color}99` : undefined }}>{config.custom_tagline}</p>}
                     </div>
                   </div>
                   <Separator />
-                  <div className="text-[10px] text-muted-foreground space-y-0.5">
+                  <div className="text-[10px] space-y-0.5" style={{ color: visual.brand_font_color ? `${visual.brand_font_color}aa` : undefined }}>
                     {addr.street && <p>{addr.street}</p>}
                     {(addr.city || addr.state) && <p>{[addr.city, addr.state].filter(Boolean).join(", ")} {addr.postal}</p>}
                     {addr.country && <p>{addr.country}</p>}
@@ -195,7 +363,14 @@ export default function PMSBranding() {
                   </div>
                 </div>
 
-                {/* Footer Preview */}
+                {/* Button preview */}
+                {visual.brand_primary_color && (
+                  <div className="flex gap-2">
+                    <button className="px-3 py-1.5 rounded-md text-xs font-medium text-white" style={{ backgroundColor: visual.brand_primary_color }}>Book Now</button>
+                    <button className="px-3 py-1.5 rounded-md text-xs font-medium border" style={{ borderColor: visual.brand_primary_color, color: visual.brand_primary_color }}>View Rooms</button>
+                  </div>
+                )}
+
                 <div className="border border-border rounded-lg p-3 space-y-2">
                   <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Email Footer</p>
                   {config.email_footer_text && <p className="text-xs text-muted-foreground">{config.email_footer_text}</p>}
@@ -203,14 +378,13 @@ export default function PMSBranding() {
                   <PoweredByRolOS />
                 </div>
 
-                {/* Brand status */}
                 <div className="flex items-center gap-2">
-                  <Badge variant={brandEnabled ? "default" : "secondary"}>
-                    {brandEnabled ? "Brand Active" : "Default ROL Theme"}
+                  <Badge variant={visual.brand_override_enabled ? "default" : "secondary"}>
+                    {visual.brand_override_enabled ? "Brand Active" : "Default ROL Theme"}
                   </Badge>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  Visual branding (logo, colors) is managed in your property's settings under the Branding tab.
+                  Logo and colours sync bidirectionally with the Property Overview branding tab.
                 </p>
               </CardContent>
             </Card>
