@@ -201,8 +201,11 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
   const quickNavItems = [
     { label: "Dashboard", path: "/pms" },
     { label: "Rooms", path: "/pms/rooms" },
-    { label: "Rates", path: "/pms/rate-plans" },
     { label: "Guests", path: "/pms/guests" },
+    { label: "Rates", path: "/pms/rate-plans" },
+    { label: "Channels", path: "/pms/channels" },
+    { label: "Reports", path: "/pms/reports" },
+    { label: "Staff", path: "/pms/staff" },
   ];
 
   return (
