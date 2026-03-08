@@ -17,6 +17,8 @@ import {
   UserCog,
   ChevronsUpDown,
   Radio,
+  UsersRound,
+  CalendarHeart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -43,6 +45,8 @@ const pmsNavItems: NavItem[] = [
   { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
   { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
   { title: "Channels", icon: Radio, href: "/pms/channels", module: "channels" },
+  { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
+  { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
   { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
   { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
   { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },

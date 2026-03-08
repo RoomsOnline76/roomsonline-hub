@@ -176,3 +176,6 @@ schedule = "0 3 * * *"
 
 [functions.pms-channel-sync]
 verify_jwt = false
+
+[functions.pms-financial]
+verify_jwt = false

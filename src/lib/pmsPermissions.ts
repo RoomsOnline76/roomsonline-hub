@@ -23,7 +23,9 @@ export type PmsModule =
   | "integrations"
   | "staff"
   | "calendar"
-  | "channels";
+  | "channels"
+  | "groups"
+  | "events";
 
 export interface ModuleAccess {
   visible: boolean;
@@ -39,37 +41,37 @@ const PERMISSION_MATRIX: Record<PmsStaffRole, Record<PmsModule, ModuleAccess>> =
   property_owner: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL, channels: FULL,
+    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL,
   },
   general_manager: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL, channels: FULL,
+    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL,
   },
   front_desk: {
     dashboard: FULL, rooms: RO, "rate-plans": NONE, guests: FULL,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: FULL, channels: RO,
+    staff: NONE, calendar: FULL, channels: RO, groups: RO, events: RO,
   },
   housekeeping: {
     dashboard: NONE, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: FULL, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE,
+    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE,
   },
   maintenance: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: NONE,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE,
+    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE,
   },
   accountant: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: RO,
     housekeeping: NONE, reports: FULL, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE,
+    staff: NONE, calendar: NONE, channels: NONE, groups: RO, events: NONE,
   },
   auditor: {
     dashboard: RO, rooms: RO, "rate-plans": RO, guests: RO,
     housekeeping: RO, reports: RO, branding: RO, integrations: NONE,
-    staff: NONE, calendar: RO, channels: RO,
+    staff: NONE, calendar: RO, channels: RO, groups: RO, events: RO,
   },
 };
 

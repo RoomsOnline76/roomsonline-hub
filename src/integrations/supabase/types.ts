@@ -4389,6 +4389,210 @@ export type Database = {
           },
         ]
       }
+      rolos_event_reservations: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          event_id: string
+          guest_name: string | null
+          id: string
+          reservation_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          event_id: string
+          guest_name?: string | null
+          id?: string
+          reservation_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          event_id?: string
+          guest_name?: string | null
+          id?: string
+          reservation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_event_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_event_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_event_reservations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_event_reservations_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_event_spaces: {
+        Row: {
+          amenities: Json | null
+          capacity_max: number | null
+          capacity_min: number | null
+          created_at: string
+          daily_rate: number | null
+          description: string | null
+          hourly_rate: number | null
+          id: string
+          images: Json | null
+          is_active: boolean
+          name: string
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          amenities?: Json | null
+          capacity_max?: number | null
+          capacity_min?: number | null
+          created_at?: string
+          daily_rate?: number | null
+          description?: string | null
+          hourly_rate?: number | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean
+          name: string
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          amenities?: Json | null
+          capacity_max?: number | null
+          capacity_min?: number | null
+          created_at?: string
+          daily_rate?: number | null
+          description?: string | null
+          hourly_rate?: number | null
+          id?: string
+          images?: Json | null
+          is_active?: boolean
+          name?: string
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_event_spaces_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_event_spaces_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_events: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          end_at: string
+          event_type: string
+          expected_attendees: number | null
+          id: string
+          name: string
+          notes: string | null
+          property_id: string
+          space_id: string | null
+          special_requirements: Json | null
+          start_at: string
+          status: Database["public"]["Enums"]["event_status"]
+          total_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_at: string
+          event_type?: string
+          expected_attendees?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          property_id: string
+          space_id?: string | null
+          special_requirements?: Json | null
+          start_at: string
+          status?: Database["public"]["Enums"]["event_status"]
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_at?: string
+          event_type?: string
+          expected_attendees?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          property_id?: string
+          space_id?: string | null
+          special_requirements?: Json | null
+          start_at?: string
+          status?: Database["public"]["Enums"]["event_status"]
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_events_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_events_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_event_spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_folio_transactions: {
         Row: {
           amount: number
@@ -4484,6 +4688,182 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: true
             referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_group_reservations: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          group_id: string
+          guest_name: string | null
+          id: string
+          reservation_id: string | null
+          status: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          group_id: string
+          guest_name?: string | null
+          id?: string
+          reservation_id?: string | null
+          status?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          group_id?: string
+          guest_name?: string | null
+          id?: string
+          reservation_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_group_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_reservations_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_group_room_blocks: {
+        Row: {
+          blocked_count: number
+          created_at: string
+          end_date: string
+          group_id: string
+          id: string
+          rate_override: number | null
+          room_type_id: string
+          start_date: string
+        }
+        Insert: {
+          blocked_count?: number
+          created_at?: string
+          end_date: string
+          group_id: string
+          id?: string
+          rate_override?: number | null
+          room_type_id: string
+          start_date: string
+        }
+        Update: {
+          blocked_count?: number
+          created_at?: string
+          end_date?: string
+          group_id?: string
+          id?: string
+          rate_override?: number | null
+          room_type_id?: string
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_group_room_blocks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_group_room_blocks_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_groups: {
+        Row: {
+          check_in_date: string | null
+          check_out_date: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          group_type: string
+          id: string
+          name: string
+          notes: string | null
+          property_id: string
+          status: Database["public"]["Enums"]["group_booking_status"]
+          total_rooms: number
+          updated_at: string
+        }
+        Insert: {
+          check_in_date?: string | null
+          check_out_date?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_type?: string
+          id?: string
+          name: string
+          notes?: string | null
+          property_id: string
+          status?: Database["public"]["Enums"]["group_booking_status"]
+          total_rooms?: number
+          updated_at?: string
+        }
+        Update: {
+          check_in_date?: string | null
+          check_out_date?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_type?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          property_id?: string
+          status?: Database["public"]["Enums"]["group_booking_status"]
+          total_rooms?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_groups_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_groups_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -4807,6 +5187,82 @@ export type Database = {
           },
         ]
       }
+      rolos_invoices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          folio_id: string
+          id: string
+          invoice_number: string
+          issued_date: string
+          notes: string | null
+          pdf_url: string | null
+          property_id: string
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_total: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          folio_id: string
+          id?: string
+          invoice_number: string
+          issued_date?: string
+          notes?: string | null
+          pdf_url?: string | null
+          property_id: string
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          folio_id?: string
+          id?: string
+          invoice_number?: string
+          issued_date?: string
+          notes?: string | null
+          pdf_url?: string | null
+          property_id?: string
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_invoices_folio_id_fkey"
+            columns: ["folio_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_maintenance_requests: {
         Row: {
           actual_cost: number | null
@@ -4899,6 +5355,181 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rolos_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_payment_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          payment_id: string
+          transaction_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          payment_id: string
+          transaction_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          payment_id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_payment_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_payment_allocations_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folio_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          folio_id: string
+          gateway_transaction_id: string | null
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          notes: string | null
+          paid_at: string | null
+          property_id: string
+          reference: string | null
+          status: Database["public"]["Enums"]["payment_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          folio_id: string
+          gateway_transaction_id?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          paid_at?: string | null
+          property_id: string
+          reference?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          folio_id?: string
+          gateway_transaction_id?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          notes?: string | null
+          paid_at?: string | null
+          property_id?: string
+          reference?: string | null
+          status?: Database["public"]["Enums"]["payment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_payments_folio_id_fkey"
+            columns: ["folio_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_payments_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_pricing_rules: {
+        Row: {
+          adjustments: Json
+          conditions: Json
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean
+          name: string
+          priority: number
+          property_id: string
+          rule_type: Database["public"]["Enums"]["pricing_rule_type"]
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          adjustments?: Json
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number
+          property_id: string
+          rule_type: Database["public"]["Enums"]["pricing_rule_type"]
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adjustments?: Json
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number
+          property_id?: string
+          rule_type?: Database["public"]["Enums"]["pricing_rule_type"]
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_pricing_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_pricing_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -5108,6 +5739,70 @@ export type Database = {
             columns: ["rate_plan_id"]
             isOneToOne: false
             referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_refunds: {
+        Row: {
+          amount: number
+          approved_by: string | null
+          created_at: string
+          gateway_refund_id: string | null
+          id: string
+          payment_id: string
+          processed_at: string | null
+          property_id: string
+          reason: string
+          status: Database["public"]["Enums"]["refund_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          approved_by?: string | null
+          created_at?: string
+          gateway_refund_id?: string | null
+          id?: string
+          payment_id: string
+          processed_at?: string | null
+          property_id: string
+          reason: string
+          status?: Database["public"]["Enums"]["refund_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          approved_by?: string | null
+          created_at?: string
+          gateway_refund_id?: string | null
+          id?: string
+          payment_id?: string
+          processed_at?: string | null
+          property_id?: string
+          reason?: string
+          status?: Database["public"]["Enums"]["refund_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_refunds_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_refunds_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -5451,6 +6146,247 @@ export type Database = {
           },
           {
             foreignKeyName: "rolos_rooms_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_staff_activity_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          id: string
+          property_id: string
+          staff_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          property_id: string
+          staff_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          property_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_staff_activity_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_staff_activity_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_staff_activity_log_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "property_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_staff_shifts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          property_id: string
+          shift_type: Database["public"]["Enums"]["shift_type"]
+          staff_id: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          property_id: string
+          shift_type?: Database["public"]["Enums"]["shift_type"]
+          staff_id: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          property_id?: string
+          shift_type?: Database["public"]["Enums"]["shift_type"]
+          staff_id?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_staff_shifts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_staff_shifts_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_staff_shifts_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "property_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_tax_rules: {
+        Row: {
+          applies_to: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          property_id: string
+          rate: number
+          updated_at: string
+        }
+        Insert: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          property_id: string
+          rate: number
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          property_id?: string
+          rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_tax_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_tax_rules_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_waitlist: {
+        Row: {
+          booked_at: string | null
+          created_at: string
+          end_date: string
+          guest_email: string
+          guest_id: string | null
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          notes: string | null
+          notified_at: string | null
+          property_id: string
+          room_type_id: string | null
+          start_date: string
+          status: Database["public"]["Enums"]["waitlist_status"]
+          updated_at: string
+        }
+        Insert: {
+          booked_at?: string | null
+          created_at?: string
+          end_date: string
+          guest_email: string
+          guest_id?: string | null
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          notified_at?: string | null
+          property_id: string
+          room_type_id?: string | null
+          start_date: string
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          updated_at?: string
+        }
+        Update: {
+          booked_at?: string | null
+          created_at?: string
+          end_date?: string
+          guest_email?: string
+          guest_id?: string | null
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          notes?: string | null
+          notified_at?: string | null
+          property_id?: string
+          room_type_id?: string | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["waitlist_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_waitlist_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_guest_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_waitlist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_waitlist_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_waitlist_room_type_id_fkey"
             columns: ["room_type_id"]
             isOneToOne: false
             referencedRelation: "rolos_room_types"
@@ -6212,6 +7148,10 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      can_access_property: {
+        Args: { _property_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
@@ -6307,8 +7247,30 @@ export type Database = {
       component_type: "pms" | "internal" | "external" | "infrastructure"
       dev_task_priority: "low" | "medium" | "high" | "critical"
       dev_task_status: "new" | "started" | "testing" | "completed"
+      event_status:
+        | "inquiry"
+        | "tentative"
+        | "confirmed"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+      group_booking_status: "inquiry" | "tentative" | "confirmed" | "cancelled"
       health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
+      invoice_status: "draft" | "issued" | "paid" | "overdue" | "cancelled"
+      payment_method:
+        | "cash"
+        | "card"
+        | "bank_transfer"
+        | "online"
+        | "voucher"
+        | "other"
+      payment_status:
+        | "pending"
+        | "completed"
+        | "failed"
+        | "refunded"
+        | "partially_refunded"
       pms_integration_status:
         | "coming_soon"
         | "in_development"
@@ -6323,6 +7285,14 @@ export type Database = {
         | "maintenance"
         | "accountant"
         | "auditor"
+      pricing_rule_type:
+        | "occupancy_based"
+        | "lead_time"
+        | "day_of_week"
+        | "seasonal"
+        | "demand"
+        | "manual_override"
+      refund_status: "pending" | "approved" | "processed" | "rejected"
       rolos_reservation_status:
         | "pending"
         | "confirmed"
@@ -6330,6 +7300,13 @@ export type Database = {
         | "checked_out"
         | "cancelled"
         | "no_show"
+      shift_type: "morning" | "afternoon" | "night" | "full_day" | "custom"
+      waitlist_status:
+        | "waiting"
+        | "notified"
+        | "booked"
+        | "expired"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -6501,8 +7478,33 @@ export const Constants = {
       component_type: ["pms", "internal", "external", "infrastructure"],
       dev_task_priority: ["low", "medium", "high", "critical"],
       dev_task_status: ["new", "started", "testing", "completed"],
+      event_status: [
+        "inquiry",
+        "tentative",
+        "confirmed",
+        "in_progress",
+        "completed",
+        "cancelled",
+      ],
+      group_booking_status: ["inquiry", "tentative", "confirmed", "cancelled"],
       health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
+      invoice_status: ["draft", "issued", "paid", "overdue", "cancelled"],
+      payment_method: [
+        "cash",
+        "card",
+        "bank_transfer",
+        "online",
+        "voucher",
+        "other",
+      ],
+      payment_status: [
+        "pending",
+        "completed",
+        "failed",
+        "refunded",
+        "partially_refunded",
+      ],
       pms_integration_status: [
         "coming_soon",
         "in_development",
@@ -6519,6 +7521,15 @@ export const Constants = {
         "accountant",
         "auditor",
       ],
+      pricing_rule_type: [
+        "occupancy_based",
+        "lead_time",
+        "day_of_week",
+        "seasonal",
+        "demand",
+        "manual_override",
+      ],
+      refund_status: ["pending", "approved", "processed", "rejected"],
       rolos_reservation_status: [
         "pending",
         "confirmed",
@@ -6526,6 +7537,14 @@ export const Constants = {
         "checked_out",
         "cancelled",
         "no_show",
+      ],
+      shift_type: ["morning", "afternoon", "night", "full_day", "custom"],
+      waitlist_status: [
+        "waiting",
+        "notified",
+        "booked",
+        "expired",
+        "cancelled",
       ],
     },
   },
