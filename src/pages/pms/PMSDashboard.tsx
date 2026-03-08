@@ -376,13 +376,10 @@ export default function PMSDashboard() {
     const WHOLE_PROPERTY_TYPES = ['self_catering', 'villa', 'cottage', 'holiday_house', 'house', 'holiday'];
     const physicalRooms = rooms.filter(r => r.status !== "out_of_service").length;
 
-    // If no physical rooms registered, compute from room types (smart unit detection)
+    // If no physical rooms registered, each room type = 1 bookable unit
     const totalRooms = physicalRooms > 0
       ? physicalRooms
-      : roomTypes.reduce((sum, rt) => {
-          const isWhole = rt.property_type && WHOLE_PROPERTY_TYPES.some(t => rt.property_type!.toLowerCase().includes(t));
-          return sum + (isWhole ? 1 : Math.max(1, rt.max_occupancy ? Math.ceil(rt.max_occupancy / 2) : 1));
-        }, 0) || roomTypes.length;
+      : roomTypes.length;
 
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const activeBookingsToday = bookings.filter(b =>
