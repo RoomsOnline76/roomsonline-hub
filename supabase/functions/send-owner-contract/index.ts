@@ -54,7 +54,9 @@ Deno.serve(async (req) => {
       // New intent-aware fields
       listing_intent,
       commercial_model,
-      property_id // Optional: if sending contract for specific property created via preflight
+      property_id, // Optional: if sending contract for specific property created via preflight
+      template_id, // Optional: specific template to use
+      contract_type, // Optional: 'standard' or 'rolos'
     } = await req.json();
 
     if (!owner_email) {
