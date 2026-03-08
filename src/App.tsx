@@ -492,6 +492,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/dev/tasks"
+              element={
+                <ProtectedRoute requireDevOrFearless={true}>
+                  <DevTaskTracker />
+                </ProtectedRoute>
+              }
+            />
             {/* Property Progress Dashboard */}
             <Route
               path="/dashboard/property/:id/progress"

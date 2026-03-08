@@ -137,6 +137,7 @@ const systemItems: NavItem[] = [
   { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
   { title: "AI Testing", icon: FlaskConical, href: "/dev/testing", requireDev: true },
   { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
+  { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
 ];
 
 // ROL'OS PMS items - visible to all authenticated users with a property context
