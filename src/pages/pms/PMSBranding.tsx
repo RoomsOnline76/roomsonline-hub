@@ -189,6 +189,8 @@ export default function PMSBranding() {
         business_name: config.business_name || null,
         business_address: config.business_address,
         vat_number: config.vat_number || null,
+        is_vat_registered: config.is_vat_registered,
+        vat_rate: config.is_vat_registered ? config.vat_rate : null,
         email_footer_text: config.email_footer_text || null,
         custom_tagline: config.custom_tagline || null,
         favicon_url: config.favicon_url || null,
