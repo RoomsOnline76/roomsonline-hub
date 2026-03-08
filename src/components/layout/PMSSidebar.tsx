@@ -6,6 +6,7 @@ import {
   TrendingUp,
   Users,
   Sparkles,
+  Code2,
   BarChart3,
   Palette,
   ChevronLeft,
