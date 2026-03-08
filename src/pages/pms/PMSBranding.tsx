@@ -46,6 +46,7 @@ const defaultVisual: VisualBrand = {
   brand_primary_color: "",
   brand_secondary_color: "",
   brand_font_color: "",
+  brand_accent_color: "",
   brand_override_enabled: false,
 };
 
