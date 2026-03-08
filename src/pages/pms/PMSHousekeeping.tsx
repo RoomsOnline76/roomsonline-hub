@@ -404,7 +404,7 @@ export default function PMSHousekeeping() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Maintenance Docket</DialogTitle>
-            <DialogDescription>Log a maintenance issue for a room. The room will be set to maintenance status.</DialogDescription>
+            <DialogDescription>Log a maintenance issue for a room. The room stays available unless you mark it unavailable.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
