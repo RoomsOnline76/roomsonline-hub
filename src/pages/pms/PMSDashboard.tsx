@@ -45,6 +45,7 @@ import {
   Sparkles,
   Settings2,
   TrendingUp,
+  Plus,
 } from "lucide-react";
 
 type ViewMode = "week" | "month";
