@@ -175,7 +175,7 @@ function AuthContent() {
         title: "Welcome back!",
         description: "Successfully logged in",
       });
-      navigate("/");
+      // The onAuthStateChange SIGNED_IN handler will do the redirect
     }
 
     setLoading(false);
