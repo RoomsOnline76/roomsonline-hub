@@ -4436,6 +4436,7 @@ export type Database = {
           actual_cost: number | null
           assigned_to: string | null
           completed_date: string | null
+          completion_notes: string | null
           created_at: string | null
           description: string
           estimated_cost: number | null
@@ -4446,6 +4447,7 @@ export type Database = {
           property_id: string
           reported_by: string | null
           room_id: string | null
+          room_ready_confirmed: boolean | null
           status: string | null
           updated_at: string | null
         }
@@ -4453,6 +4455,7 @@ export type Database = {
           actual_cost?: number | null
           assigned_to?: string | null
           completed_date?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           description: string
           estimated_cost?: number | null
@@ -4463,6 +4466,7 @@ export type Database = {
           property_id: string
           reported_by?: string | null
           room_id?: string | null
+          room_ready_confirmed?: boolean | null
           status?: string | null
           updated_at?: string | null
         }
@@ -4470,6 +4474,7 @@ export type Database = {
           actual_cost?: number | null
           assigned_to?: string | null
           completed_date?: string | null
+          completion_notes?: string | null
           created_at?: string | null
           description?: string
           estimated_cost?: number | null
@@ -4480,6 +4485,7 @@ export type Database = {
           property_id?: string
           reported_by?: string | null
           room_id?: string | null
+          room_ready_confirmed?: boolean | null
           status?: string | null
           updated_at?: string | null
         }

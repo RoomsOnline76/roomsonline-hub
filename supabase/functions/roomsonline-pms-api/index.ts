@@ -1602,10 +1602,11 @@ async function handleCompleteHousekeepingTask(body: any, supabase: any): Promise
   }).eq("id", task_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "complete_housekeeping_task")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  // If cleaning task completed, mark room as available
+  // If cleaning task completed, mark room as available (but NOT for maintenance tasks)
   if (task.task_type === "clean" || task.task_type === "deep_clean") {
     await supabase.from("rolos_rooms").update({ status: "available" }).eq("id", task.room_id);
   }
+  // Maintenance tasks: room stays in maintenance/out_of_order until room_ready_confirmed via frontend
   return new Response(JSON.stringify(createSuccessResponse(task, "complete_housekeeping_task")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
