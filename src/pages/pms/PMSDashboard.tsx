@@ -468,6 +468,20 @@ export default function PMSDashboard() {
     return rt?.default_rate || null;
   };
 
+  // Get pricing model suffix for a room type (based on linked rate plans)
+  const getPricingSuffix = (roomTypeId: string): string => {
+    const linkedPlanIds = ratePlanRoomLinks
+      .filter(l => l.room_type_id === roomTypeId)
+      .map(l => l.rate_plan_id);
+    for (const planId of linkedPlanIds) {
+      const plan = ratePlansWithRate.find(p => p.id === planId);
+      if (plan?.pricing_model === 'per_person') return '/pp';
+      if (plan?.pricing_model === 'per_person_sharing') return '/pps';
+      if (plan?.pricing_model === 'per_unit') return '/unit';
+    }
+    return '';
+  };
+
   // Get season for date
   const getSeasonForDate = (date: Date): RateSeason | null => {
     const dateStr = format(date, "yyyy-MM-dd");
