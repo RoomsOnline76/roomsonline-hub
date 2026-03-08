@@ -9,10 +9,12 @@ import {
 
 interface PMSBrandData {
   propertyName: string;
+  propertySlug: string | null;
   logoUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
   fontColor: string | null;
+  accentColor: string | null;
   tagline: string | null;
   brandEnabled: boolean;
   loading: boolean;
