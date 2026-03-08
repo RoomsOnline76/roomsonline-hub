@@ -910,7 +910,7 @@ export default function PMSRevenue() {
 
           {/* === ACTIVE PLANS TAB (existing) === */}
           <TabsContent value="plans" className="space-y-4">
-            {(ratePlans as any[]).length === 0 ? (
+            {ratePlans.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
