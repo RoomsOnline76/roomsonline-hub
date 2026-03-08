@@ -910,7 +910,7 @@ export default function PMSRevenue() {
 
           {/* === ACTIVE PLANS TAB (existing) === */}
           <TabsContent value="plans" className="space-y-4">
-            {(ratePlans as any[]).length === 0 ? (
+            {(ratePlans as unknown as Array<{ id: string }>).length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
@@ -919,7 +919,7 @@ export default function PMSRevenue() {
               </Card>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
-                {(ratePlans as any[]).map((plan: any) => (
+                {(ratePlans as unknown as Array<{ id: string; name: string; base_rate: number | null; pricing_model: string }>).map((plan) => (
                   <Card key={plan.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
