@@ -496,7 +496,7 @@ function HomeContent() {
         >
           <div className="w-full px-4 sm:px-8 md:px-12 flex flex-col">
             <h2 className="font-display text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white drop-shadow-lg mb-4 sm:mb-6 tracking-tight leading-tight">
-              Sleep in Africa by RoomsOnline.
+              Sleep in Africa <span className="text-[0.5em]">by RoomsOnline.</span>
             </h2>
             <p className="font-display text-base sm:text-lg md:text-xl lg:text-2xl text-white/90 drop-shadow-md leading-relaxed max-w-2xl italic tracking-normal">
               {headline}
