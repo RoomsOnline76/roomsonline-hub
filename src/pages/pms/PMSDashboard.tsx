@@ -1475,6 +1475,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
 
       {/* Lifecycle Actions */}
       {renderLifecycleActions()}
+      {renderRoomReassignDialog()}
 
       <Tabs defaultValue="details" className="mt-4">
         <TabsList className="grid w-full grid-cols-4 h-8">
