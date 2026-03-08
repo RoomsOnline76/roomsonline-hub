@@ -44,8 +44,45 @@
 
 ---
 
-## Phase 3 — Messaging Engine
-**Status:** Next up
+## Phase 3 — Messaging Engine ✅ COMPLETED
+
+### Database
+- ✅ `rolos_message_templates` table (property_id, name, trigger_event, subject, body, channel, is_active, send_offset_hours) with RLS
+- ✅ `rolos_message_queue` table (reservation_id, template_id, recipient, subject, body, channel, scheduled_at, status) with RLS
+- ✅ `rolos_message_log` table (reservation_id, channel, status, error, sent_at) with RLS
+
+### Edge Function: `pms-message-dispatcher` v1.0
+- ✅ Template CRUD (list, upsert, delete)
+- ✅ Queue management (queue_message, process_queue, get_queue)
+- ✅ Direct send (send_message) via Resend
+- ✅ Placeholder resolution from reservation + guest data ({{guest_name}}, {{property_name}}, {{check_in}}, etc.)
+- ✅ Message logging on every send attempt
+
+### UI: `/pms/messaging` (new page)
+- ✅ Template editor with placeholder insertion buttons
+- ✅ Template cards with trigger event, channel, active status
+- ✅ Message log table with status icons
+- ✅ Queue viewer with processing trigger
+- ✅ Manual send dialog
+
+### Integration
+- ✅ `messaging` added to PmsModule type and permission matrix (owner/GM full, front_desk RO, auditor RO)
+- ✅ Sidebar item under Management group with MessageSquare icon
+- ✅ Route `/pms/messaging` added to App.tsx
+- ✅ Hooks: usePmsMessaging.ts (useMessageTemplates, useUpsertTemplate, useDeleteTemplate, useSendMessage, useMessageLog, useMessageQueue, useProcessQueue)
+
+### Files Created/Modified
+- `supabase/functions/pms-message-dispatcher/index.ts` — new
+- `src/hooks/usePmsMessaging.ts` — new
+- `src/pages/pms/PMSMessaging.tsx` — new
+- `src/lib/pmsPermissions.ts` — added messaging module
+- `src/components/layout/PMSSidebar.tsx` — added Messaging nav item
+- `src/App.tsx` — added route
+- `src/pages/pms/index.ts` — added export
+
+---
+
+## Phase 4 — Group Bookings & Events Completion
 
 ## Phase 4 — Group Bookings & Events Completion
 **Status:** Planned

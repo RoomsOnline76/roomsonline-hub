@@ -26,7 +26,8 @@ export type PmsModule =
   | "channels"
   | "groups"
   | "events"
-  | "night-audit";
+  | "night-audit"
+  | "messaging";
 
 export interface ModuleAccess {
   visible: boolean;
@@ -42,37 +43,37 @@ const PERMISSION_MATRIX: Record<PmsStaffRole, Record<PmsModule, ModuleAccess>> =
   property_owner: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL,
+    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
   },
   general_manager: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL,
+    staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
   },
   front_desk: {
     dashboard: FULL, rooms: RO, "rate-plans": NONE, guests: FULL,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: FULL, channels: RO, groups: RO, events: RO, "night-audit": NONE,
+    staff: NONE, calendar: FULL, channels: RO, groups: RO, events: RO, "night-audit": NONE, messaging: RO,
   },
   housekeeping: {
     dashboard: NONE, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: FULL, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE,
+    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
   },
   maintenance: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: NONE,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE,
+    staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
   },
   accountant: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: RO,
     housekeeping: NONE, reports: FULL, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE, channels: NONE, groups: RO, events: NONE, "night-audit": RO,
+    staff: NONE, calendar: NONE, channels: NONE, groups: RO, events: NONE, "night-audit": RO, messaging: NONE,
   },
   auditor: {
     dashboard: RO, rooms: RO, "rate-plans": RO, guests: RO,
     housekeeping: RO, reports: RO, branding: RO, integrations: NONE,
-    staff: NONE, calendar: RO, channels: RO, groups: RO, events: RO, "night-audit": RO,
+    staff: NONE, calendar: RO, channels: RO, groups: RO, events: RO, "night-audit": RO, messaging: RO,
   },
 };
 
