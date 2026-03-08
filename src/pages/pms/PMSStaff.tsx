@@ -49,6 +49,7 @@ export default function PMSStaff() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState<StaffMember | null>(null);
   const [showShiftDialog, setShowShiftDialog] = useState(false);
+  const [editingShift, setEditingShift] = useState<any>(null);
   const [propertySlug, setPropertySlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("roster");
   const [weekOffset, setWeekOffset] = useState(0);
