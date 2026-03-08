@@ -77,17 +77,59 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     return Math.max(0, differenceInDays(form.check_out, form.check_in));
   }, [form.check_in, form.check_out]);
 
-  // Auto-calculate price when rate/nights change
+  // Auto-calculate price when rate/nights/guests change
+  const selectedPlan = ratePlans.find(p => p.id === form.rate_plan_id);
+  const pricingModel = selectedPlan?.pricing_model || 'per_room';
+  const totalGuests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
   const autoPrice = useMemo(() => {
     if (!nights) return null;
-    // Try rate plan base_rate
     const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    if (plan?.base_rate && plan.base_rate > 0) return plan.base_rate * nights;
-    // Try room type default_rate
-    const rt = roomTypes.find(t => t.id === form.room_type_id);
-    if (rt?.default_rate && rt.default_rate > 0) return rt.default_rate * nights;
-    return null;
-  }, [nights, form.rate_plan_id, form.room_type_id, ratePlans, roomTypes]);
+    let rate = plan?.base_rate && plan.base_rate > 0 ? plan.base_rate : null;
+    if (!rate) {
+      const rt = roomTypes.find(t => t.id === form.room_type_id);
+      rate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
+    }
+    if (!rate) return null;
+
+    const model = plan?.pricing_model || 'per_room';
+    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
+    switch (model) {
+      case 'per_person':
+        return rate * guests * nights;
+      case 'per_person_sharing':
+        // Base rate covers 2 guests, extra guests at same rate
+        const extraGuests = Math.max(0, guests - 2);
+        return (rate * nights) + (rate * extraGuests * nights);
+      case 'per_unit':
+        return rate * nights;
+      case 'per_room':
+      default:
+        return rate * nights;
+    }
+  }, [nights, form.rate_plan_id, form.room_type_id, form.adults, form.children, form.teens, ratePlans, roomTypes]);
+
+  const priceBreakdown = useMemo(() => {
+    if (!nights || !autoPrice) return null;
+    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
+    const rate = plan?.base_rate || roomTypes.find(t => t.id === form.room_type_id)?.default_rate || 0;
+    const model = plan?.pricing_model || 'per_room';
+    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
+
+    switch (model) {
+      case 'per_person':
+        return `R${rate.toLocaleString()} × ${guests} guest${guests !== 1 ? 's' : ''} × ${nights} night${nights !== 1 ? 's' : ''}`;
+      case 'per_person_sharing': {
+        const extra = Math.max(0, guests - 2);
+        return extra > 0
+          ? `R${rate.toLocaleString()} × ${nights}n (base 2 pax) + R${rate.toLocaleString()} × ${extra} extra × ${nights}n`
+          : `R${rate.toLocaleString()} × ${nights} night${nights !== 1 ? 's' : ''} (sharing)`;
+      }
+      default:
+        return `R${rate.toLocaleString()} × ${nights} night${nights !== 1 ? 's' : ''}`;
+    }
+  }, [nights, autoPrice, form.rate_plan_id, form.room_type_id, form.adults, form.children, form.teens, ratePlans, roomTypes]);
 
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
