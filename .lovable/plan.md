@@ -106,8 +106,18 @@
 - `src/pages/pms/PMSGroups.tsx` — full rewrite with room blocks + reservations
 - `src/pages/pms/PMSEvents.tsx` — full rewrite with calendar + conflict detection
 
-## Phase 5 — Staff Shifts & Activity Log UI
-**Status:** Planned
+## Phase 5 — Staff Shifts & Activity Log UI ✅ COMPLETED
+
+### UI: `/pms/staff` Enhanced
+- ✅ Tabs: Roster | Shifts | Activity
+- ✅ **Roster tab:** Existing staff CRUD (unchanged functionality, now tabbed)
+- ✅ **Shifts tab:** Week calendar view with prev/next navigation, per-staff-member rows, color-coded shift badges (Morning/Afternoon/Night/Full Day/Custom)
+- ✅ **Activity tab:** Filterable log from `rolos_staff_activity_log` with staff name, action, details, timestamp
+- ✅ Create Shift dialog (staff selector, shift type, start/end datetime, notes)
+- ✅ Wired existing hooks: `useStaffShifts`, `useCreateShift`, `useStaffActivityLog`
+
+### Files Modified
+- `src/pages/pms/PMSStaff.tsx` — full rewrite with 3-tab layout
 
 ## Phase 6 — Security Hardening
 **Status:** Planned
