@@ -39,37 +39,37 @@ const PERMISSION_MATRIX: Record<PmsStaffRole, Record<PmsModule, ModuleAccess>> =
   property_owner: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL,
+    staff: FULL, calendar: FULL, channels: FULL,
   },
   general_manager: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
-    staff: FULL, calendar: FULL,
+    staff: FULL, calendar: FULL, channels: FULL,
   },
   front_desk: {
     dashboard: FULL, rooms: RO, "rate-plans": NONE, guests: FULL,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: FULL,
+    staff: NONE, calendar: FULL, channels: RO,
   },
   housekeeping: {
     dashboard: NONE, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: FULL, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE,
+    staff: NONE, calendar: NONE, channels: NONE,
   },
   maintenance: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: NONE,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE,
+    staff: NONE, calendar: NONE, channels: NONE,
   },
   accountant: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: RO,
     housekeeping: NONE, reports: FULL, branding: NONE, integrations: NONE,
-    staff: NONE, calendar: NONE,
+    staff: NONE, calendar: NONE, channels: NONE,
   },
   auditor: {
     dashboard: RO, rooms: RO, "rate-plans": RO, guests: RO,
     housekeeping: RO, reports: RO, branding: RO, integrations: NONE,
-    staff: NONE, calendar: RO,
+    staff: NONE, calendar: RO, channels: RO,
   },
 };
 
