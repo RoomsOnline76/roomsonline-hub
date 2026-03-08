@@ -454,7 +454,7 @@ export default function PMSRatePlans() {
             {plans.map((plan) => {
               const linkedIds = getLinkedRoomTypes(plan.id);
               return (
-                <Card key={plan.id} className="group">
+                <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{plan.name}</CardTitle>
