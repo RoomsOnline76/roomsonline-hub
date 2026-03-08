@@ -133,7 +133,7 @@ export function PublicHeader({
               variant="ghost"
               size="sm"
               className={cn(
-                "sm:hidden",
+                "md:hidden",
                 transparent && "text-white hover:bg-white/10"
               )}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
