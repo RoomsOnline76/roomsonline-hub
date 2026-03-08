@@ -1806,11 +1806,118 @@ async function handleGetDailyMetrics(body: any, supabase: any): Promise<Response
   }
   const startDate = body.start_date || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
   const endDate = body.end_date || new Date().toISOString().split("T")[0];
-  const { data, error } = await supabase.from("rolos_daily_metrics").select("*")
-    .eq("property_id", body.propertyId).gte("date", startDate).lte("date", endDate).order("date");
+  const queryLimit = Math.min(body.limit || 100, 500);
+  const queryOffset = body.offset || 0;
+  const { data, error, count } = await supabase.from("rolos_daily_metrics").select("*", { count: "exact" })
+    .eq("property_id", body.propertyId).gte("date", startDate).lte("date", endDate).order("date")
+    .range(queryOffset, queryOffset + queryLimit - 1);
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_daily_metrics")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ metrics: data || [] }, "get_daily_metrics")),
+  const totalCount = count || 0;
+  return new Response(JSON.stringify(createSuccessResponse({ metrics: data || [], total_count: totalCount, has_more: queryOffset + queryLimit < totalCount }, "get_daily_metrics")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// ============================================================================
+// INVENTORY CALENDAR HANDLERS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleUpdateInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, room_type_id, entries } = body;
+  if (!propertyId || !room_type_id || !entries || !Array.isArray(entries)) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId, room_type_id, entries[] required", "update_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const upserts = entries.map((e: any) => ({
+    property_id: propertyId,
+    room_type_id,
+    date: e.date,
+    total_units: e.total_units ?? 0,
+    booked_units: e.booked_units ?? 0,
+    blocked_units: e.blocked_units ?? 0,
+    restrictions: e.restrictions ?? {},
+  }));
+
+  const { error } = await supabase.from("rolos_inventory_calendar").upsert(upserts, {
+    onConflict: "property_id,room_type_id,date",
+  });
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ updated_count: upserts.length }, "update_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleCheckInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, room_type_id, start_date, end_date } = body;
+  if (!propertyId || !start_date || !end_date) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId, start_date, end_date required", "check_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  let query = supabase.from("rolos_inventory_calendar").select("*")
+    .eq("property_id", propertyId)
+    .gte("date", start_date)
+    .lte("date", end_date)
+    .order("date");
+  
+  if (room_type_id) query = query.eq("room_type_id", room_type_id);
+
+  const { data, error } = await query;
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "check_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ inventory: data || [] }, "check_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleBackfillInventory(body: any, supabase: any): Promise<Response> {
+  const { propertyId, days_ahead } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "backfill_inventory")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  // Get all room types for this property
+  const { data: roomTypes, error: rtError } = await supabase.from("rolos_room_types").select("id").eq("property_id", propertyId).eq("is_active", true);
+  if (rtError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, rtError.message, "backfill_inventory")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  const daysToFill = days_ahead || 90;
+  let totalInserted = 0;
+
+  for (const rt of (roomTypes || [])) {
+    // Count physical rooms of this type
+    const { count: roomCount } = await supabase.from("rolos_rooms").select("id", { count: "exact", head: true })
+      .eq("room_type_id", rt.id).eq("property_id", propertyId);
+
+    const totalUnits = roomCount || 1;
+    const upserts = [];
+    for (let i = 0; i < daysToFill; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      upserts.push({
+        property_id: propertyId,
+        room_type_id: rt.id,
+        date: d.toISOString().split("T")[0],
+        total_units: totalUnits,
+        booked_units: 0,
+        blocked_units: 0,
+      });
+    }
+
+    const { error } = await supabase.from("rolos_inventory_calendar").upsert(upserts, {
+      onConflict: "property_id,room_type_id,date",
+    });
+    if (!error) totalInserted += upserts.length;
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ backfilled_count: totalInserted, room_types: (roomTypes || []).length }, "backfill_inventory")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
