@@ -745,6 +745,11 @@ export default function PMSRevenue() {
               </div>
             )}
           </TabsContent>
+
+          {/* === YIELD RULES TAB === */}
+          <TabsContent value="yield" className="space-y-4">
+            <YieldRulesTab propertyId={propertyId!} />
+          </TabsContent>
         </Tabs>
       </div>
     </PMSLayout>
