@@ -161,7 +161,7 @@ export default function PMSPortfolio() {
         </div>
 
         {/* Portfolio KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="pb-1">
               <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -201,6 +201,18 @@ export default function PMSPortfolio() {
             <CardContent>
               {loading ? <Skeleton className="h-8 w-16" /> : (
                 <p className="text-2xl font-bold">R{fmt(totals.avgAdr)}</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />Avg RevPAR
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? <Skeleton className="h-8 w-16" /> : (
+                <p className="text-2xl font-bold">R{fmt(totals.avgRevpar)}</p>
               )}
             </CardContent>
           </Card>
