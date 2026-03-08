@@ -188,12 +188,26 @@ export function PMSSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {pmsNavItems
-          .filter((item) => visibleModules.includes(item.module))
-          .map((item) => (
-            <NavLink key={item.href} item={item} />
-          ))}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        {pmsNavGroups.map((group) => {
+          const visibleItems = group.items.filter((item) => visibleModules.includes(item.module));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={group.label}>
+              {!collapsed && (
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {group.label}
+                </p>
+              )}
+              {collapsed && <div className="mx-auto w-6 border-t border-border/40 mb-2" />}
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => (
+                  <NavLink key={item.href} item={item} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}
