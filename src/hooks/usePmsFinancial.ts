@@ -206,6 +206,37 @@ export function useCreateShift(propertyId: string | null) {
   });
 }
 
+export function useUpdateShift(propertyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; staff_id?: string; shift_type?: string; start_time?: string; end_time?: string; notes?: string }) => {
+      const { id, ...updates } = params;
+      const { error } = await supabase.from("rolos_staff_shifts" as never).update(updates as never).eq("id" as never, id as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pms-staff-shifts", propertyId] });
+      toast.success("Shift updated");
+    },
+    onError: (err: Error) => toast.error("Failed to update shift", { description: err.message }),
+  });
+}
+
+export function useDeleteShift(propertyId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (shiftId: string) => {
+      const { error } = await supabase.from("rolos_staff_shifts" as never).delete().eq("id" as never, shiftId as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pms-staff-shifts", propertyId] });
+      toast.success("Shift deleted");
+    },
+    onError: (err: Error) => toast.error("Failed to delete shift", { description: err.message }),
+  });
+}
+
 // ==================== STAFF ACTIVITY LOG ====================
 export function useStaffActivityLog(propertyId: string | null) {
   return useQuery({
