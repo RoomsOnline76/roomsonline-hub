@@ -1248,6 +1248,11 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Room reassignment state
+  const [showRoomReassign, setShowRoomReassign] = useState(false);
+  const [unreadyRoomDetails, setUnreadyRoomDetails] = useState<any[]>([]);
+  const [reassignRoomIds, setReassignRoomIds] = useState<string[]>([]);
+  const [reassignPrice, setReassignPrice] = useState("");
   const [form, setForm] = useState({
     guest_name: booking.guest_name,
     guest_email: booking.guest_email,
@@ -1293,12 +1298,23 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     onSaved();
   };
 
-  const handleLifecycleAction = async (action: string) => {
+  const handleLifecycleAction = async (action: string, extraPayload?: Record<string, any>) => {
     setActionLoading(action);
     try {
       if (action === "check_in" || action === "check_out") {
-        const res = await callPmsApi(action, { booking_id: booking.id });
-        if (!res.success) throw new Error(res.error?.message || "Action failed");
+        const res = await callPmsApi(action, { booking_id: booking.id, ...extraPayload });
+        if (!res.success) {
+          // Handle ROOMS_NOT_READY: show reassignment dialog
+          if (res.error?.code === "ROOMS_NOT_READY") {
+            setUnreadyRoomDetails((res.error?.details as any)?.unready_rooms || []);
+            setReassignRoomIds(booking.rolos_room_ids || []);
+            setReassignPrice(String(booking.total_price));
+            setShowRoomReassign(true);
+            setActionLoading(null);
+            return;
+          }
+          throw new Error(res.error?.message || "Action failed");
+        }
       } else if (action === "mark_paid") {
         await supabase.from("bookings").update({ payment_status: "paid", status: "confirmed" }).eq("id", booking.id);
       } else if (action === "cancel") {
@@ -1314,9 +1330,25 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     setActionLoading(null);
   };
 
+  const handleReassignCheckIn = async () => {
+    const overridePrice = parseFloat(reassignPrice);
+    await handleLifecycleAction("check_in", {
+      override_room_ids: reassignRoomIds,
+      override_total_price: isNaN(overridePrice) ? undefined : overridePrice,
+    });
+    setShowRoomReassign(false);
+  };
+
+  const toggleReassignRoom = (roomId: string) => {
+    setReassignRoomIds(prev =>
+      prev.includes(roomId) ? prev.filter(id => id !== roomId) : [...prev, roomId]
+    );
+  };
+
   const b = booking;
   const nights = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
   const assignedRooms = rooms.filter(r => b.rolos_room_ids?.includes(r.id));
+  const availableRooms = rooms.filter(r => r.status === "available");
   const guestId = b.rolos_guest_id || null;
 
   // Lifecycle buttons based on status
@@ -1324,6 +1356,19 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     const btns: JSX.Element[] = [];
     const loading = (a: string) => actionLoading === a;
     
+    // Show room readiness warning for confirmed bookings
+    if (b.status === "confirmed" && assignedRooms.length > 0) {
+      const unready = assignedRooms.filter(r => r.status !== "available" && r.status !== "occupied");
+      if (unready.length > 0) {
+        btns.push(
+          <div key="room-warning" className="w-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-2 text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>Room{unready.length > 1 ? "s" : ""} not ready: {unready.map(r => `${r.room_number} (${r.status})`).join(", ")}</span>
+          </div>
+        );
+      }
+    }
+
     if (b.status === "pending") {
       btns.push(
         <Button key="pay" size="sm" onClick={() => handleLifecycleAction("mark_paid")} disabled={!!actionLoading}>
@@ -1355,6 +1400,67 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     return btns.length > 0 ? <div className="flex flex-wrap gap-2 mt-2">{btns}</div> : null;
   };
 
+  // Room reassignment dialog
+  const renderRoomReassignDialog = () => {
+    if (!showRoomReassign) return null;
+    return (
+      <div className="border border-destructive/30 bg-destructive/5 rounded-lg p-4 space-y-3 mt-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          Room(s) Not Ready — Reassign to Check In
+        </div>
+        {unreadyRoomDetails.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            {unreadyRoomDetails.map((r: any) => (
+              <span key={r.id} className="inline-flex items-center gap-1 mr-2">
+                <BedDouble className="h-3 w-3" />{r.room_number}: <Badge variant="outline" className="text-xs">{r.status}</Badge>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="space-y-2">
+          <label className="text-xs font-medium">Select Room(s)</label>
+          <div className="flex flex-wrap gap-2">
+            {rooms.map(r => {
+              const selected = reassignRoomIds.includes(r.id);
+              const isReady = r.status === "available";
+              return (
+                <Button
+                  key={r.id}
+                  size="sm"
+                  variant={selected ? "default" : "outline"}
+                  className={cn("text-xs", !isReady && !selected && "opacity-50")}
+                  onClick={() => toggleReassignRoom(r.id)}
+                >
+                  <BedDouble className="h-3 w-3 mr-1" />
+                  {r.room_number}
+                  {!isReady && <Badge variant="outline" className="ml-1 text-[10px]">{r.status}</Badge>}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium">Rate Override (ZAR)</label>
+          <input
+            type="number"
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm mt-1"
+            value={reassignPrice}
+            onChange={e => setReassignPrice(e.target.value)}
+            placeholder="Leave as-is or override"
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">Original: R{booking.total_price.toLocaleString()}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleReassignCheckIn} disabled={reassignRoomIds.length === 0 || !!actionLoading}>
+            <LogIn className="h-3 w-3 mr-1" />{actionLoading === "check_in" ? "..." : "Check In with New Room"}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowRoomReassign(false)}>Cancel</Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <SheetHeader>
@@ -1369,6 +1475,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
 
       {/* Lifecycle Actions */}
       {renderLifecycleActions()}
+      {renderRoomReassignDialog()}
 
       <Tabs defaultValue="details" className="mt-4">
         <TabsList className="grid w-full grid-cols-4 h-8">

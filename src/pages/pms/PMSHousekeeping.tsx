@@ -272,6 +272,7 @@ export default function PMSHousekeeping() {
             </h2>
             {dirtyRooms.map(room => {
               const tasks = tasksForRoom(room.id);
+              const openDockets = openMaintenanceForRoom(room.id);
               return (
                 <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                   <CardContent className="py-3 space-y-2">
@@ -280,7 +281,9 @@ export default function PMSHousekeeping() {
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
                       </div>
+                      <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">dirty</Badge>
                     </div>
+                    {/* Active cleaning tasks */}
                     {tasks.map(task => (
                       <div key={task.id} className="flex items-center justify-between gap-2 pt-1 border-t border-border">
                         <div className="text-xs">
@@ -295,6 +298,46 @@ export default function PMSHousekeeping() {
                     {tasks.length === 0 && (
                       <p className="text-xs text-muted-foreground italic">No active task — room marked dirty</p>
                     )}
+                    {/* Open maintenance dockets on dirty rooms */}
+                    {openDockets.map(req => (
+                      <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 text-destructive" />
+                          <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
+                          {req.priority && (
+                            <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{req.description}</p>
+                        {req.status === "resolved" && (
+                          <div className="bg-muted/50 p-2 rounded space-y-1.5">
+                            {req.completion_notes && (
+                              <p className="text-xs"><span className="font-medium">Notes:</span> {req.completion_notes}</p>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`ready-dirty-${req.id}`}
+                                checked={req.room_ready_confirmed}
+                                onCheckedChange={(checked) => toggleRoomReady(req, !!checked)}
+                              />
+                              <Label htmlFor={`ready-dirty-${req.id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3" /> Room ready after repairs
+                              </Label>
+                            </div>
+                          </div>
+                        )}
+                        {STATUSES_OPEN.includes(req.status || "") && (
+                          <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
+                            <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    {/* Report issue button for dirty rooms */}
+                    <Button size="sm" variant="ghost" className="w-full text-xs" onClick={() => { setDocketRoomId(room.id); setShowCreateDocket(true); }}>
+                      <Plus className="h-3 w-3 mr-1" />Report Issue
+                    </Button>
                   </CardContent>
                 </Card>
               );
