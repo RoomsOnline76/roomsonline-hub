@@ -193,7 +193,7 @@ function PMSMessaging() {
                     <TableBody>
                       {log.length === 0 ? (
                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No messages sent yet</TableCell></TableRow>
-                      ) : log.map((m: any) => (
+                      ) : log.map((m: PmsMessageLogEntry) => (
                         <TableRow key={m.id}>
                           <TableCell><div className="flex items-center gap-1.5">{statusIcon(m.status)}<span className="text-xs capitalize">{m.status}</span></div></TableCell>
                           <TableCell className="text-sm">{m.recipient_email || m.recipient_phone || "—"}</TableCell>
