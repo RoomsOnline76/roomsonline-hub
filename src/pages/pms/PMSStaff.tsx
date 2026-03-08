@@ -31,11 +31,12 @@ const ASSIGNABLE_ROLES: PmsStaffRole[] = [
 ];
 
 export default function PMSStaff() {
-  const { propertyId } = usePmsPropertyId();
+  const { propertyId, properties } = usePmsPropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState<StaffMember | null>(null);
+  const [propertySlug, setPropertySlug] = useState<string | null>(null);
 
   // Add form state
   const [addEmail, setAddEmail] = useState("");
@@ -47,6 +48,28 @@ export default function PMSStaff() {
   // Reset password state
   const [resetPassword, setResetPassword] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  // Fetch property slug for login URL
+  useEffect(() => {
+    if (!propertyId) return;
+    supabase
+      .from("properties")
+      .select("slug")
+      .eq("id", propertyId)
+      .single()
+      .then(({ data }) => setPropertySlug(data?.slug || null));
+  }, [propertyId]);
+
+  const staffLoginUrl = propertySlug
+    ? `${window.location.origin}/staff-login/${propertySlug}`
+    : null;
+
+  const copyLoginUrl = () => {
+    if (staffLoginUrl) {
+      navigator.clipboard.writeText(staffLoginUrl);
+      toast.success("Staff login URL copied to clipboard");
+    }
+  };
 
   const fetchStaff = async () => {
     if (!propertyId) return;
