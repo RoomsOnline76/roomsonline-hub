@@ -4417,6 +4417,12 @@ export default function PropertyForm() {
                             }
                             
                             setSelectedPMS(newPMS);
+                            // Auto-set isRolProperty when selecting roomsonline
+                            if (newPMS === "roomsonline") {
+                              setIsRolProperty(true);
+                            } else if (newPMS && newPMS !== "roomsonline") {
+                              setIsRolProperty(false);
+                            }
                             setIsDirty(true);
                           }}
                         >
