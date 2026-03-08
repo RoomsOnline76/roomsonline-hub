@@ -265,6 +265,7 @@ function HomeContent() {
                 name: prop.name,
                 city: prop.city,
                 country: prop.country,
+                slug: prop.slug || "",
               });
             }
           }
