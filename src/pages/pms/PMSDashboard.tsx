@@ -113,7 +113,7 @@ interface BookingRow {
   teens: number | null;
   total_price: number;
   special_requests: string | null;
-  special_requests_parsed: any;
+  special_requests_parsed: Record<string, unknown> | null;
   requires_intervention: boolean | null;
   booking_channel: string | null;
   payment_status: string | null;
@@ -122,7 +122,7 @@ interface BookingRow {
   rolos_check_out_time: string | null;
   rolos_room_ids: string[] | null;
   rolos_rate_plan_id: string | null;
-  modification_notes: any;
+  modification_notes: Record<string, unknown>[] | null;
   room_type_id: string | null;
   rolos_guest_id: string | null;
 }
@@ -789,7 +789,7 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Arrivals ({todayArrivals.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayArrivals.map((b: any) => (
+                {todayArrivals.map((b: BookingRow) => (
                   <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
                     <p className="text-sm font-medium">{b.guest_name}</p>
                     <Badge variant="outline" className="text-xs">{b.status}</Badge>
@@ -802,7 +802,7 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Departures ({todayDepartures.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayDepartures.map((b: any) => (
+                {todayDepartures.map((b: BookingRow) => (
                   <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
                     <p className="text-sm font-medium">{b.guest_name}</p>
                     <Badge variant="outline" className="text-xs">{b.status}</Badge>
@@ -1572,7 +1572,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
         </div>
         {unreadyRoomDetails.length > 0 && (
           <div className="text-xs text-muted-foreground">
-            {unreadyRoomDetails.map((r: any) => (
+            {unreadyRoomDetails.map((r: { id: string; room_number: string; status: string }) => (
               <span key={r.id} className="inline-flex items-center gap-1 mr-2">
                 <BedDouble className="h-3 w-3" />{r.room_number}: <Badge variant="outline" className="text-xs">{r.status}</Badge>
               </span>

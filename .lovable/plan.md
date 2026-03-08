@@ -175,5 +175,39 @@
 - `src/components/layout/PMSSidebar.tsx` — added nav items
 - `src/App.tsx` — added routes
 
-## Phase 8 — TypeScript Cleanup & Data Warehouse
-**Status:** Planned
+## Phase 8 — TypeScript Cleanup & Data Warehouse ✅ COMPLETED
+
+### TypeScript Strict Fixes
+- ✅ Created `src/types/pmsTypes.ts` — 20+ interfaces replacing `any` across PMS hooks/pages
+- ✅ `usePmsFinancial.ts` — replaced all `any` with typed interfaces (PmsFolio, PmsPayment, PmsRefund, PmsInvoice, PmsStaffShift, etc.)
+- ✅ `usePmsMessaging.ts` — replaced all `any` with PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult
+- ✅ `PMSDashboard.tsx` — replaced `any` in BookingRow interface and all `.map()` callbacks
+- ✅ `PMSMessaging.tsx` — replaced all `any` with typed interfaces in templates/log/queue maps
+- ✅ `PMSFoliosManager.tsx` — fixed `folio.booking.guest_name` → `folio.guest_name`
+- ✅ All `catch (e: any)` → `catch (e: unknown)` with proper casting
+
+### Code Cleanup & Refactor
+- ✅ `PMSMessaging.tsx` — migrated from manual `PMSSidebar`/`HelpProvider` wrapper to shared `PMSLayout` component (consistent with all other PMS pages)
+- ✅ Removed unused imports (PMSSidebar, PMSHelpDrawer, HelpProvider) from PMSMessaging
+- ✅ `onError: (err: any)` → `onError: (err: Error)` across all mutation hooks
+
+### Data Warehouse Views (6 views, all SECURITY INVOKER)
+- ✅ `dw_daily_revenue` — daily revenue per property (GBV, commission, net, unique guests)
+- ✅ `dw_monthly_occupancy` — monthly occupancy/ADR/RevPAR from rolos_daily_metrics
+- ✅ `dw_booking_pipeline` — forward-looking bookings by status (count + value)
+- ✅ `dw_channel_performance` — 90-day channel breakdown (revenue, cancellation rate)
+- ✅ `dw_guest_ltv` — guest lifetime value per property (total stays, LTV, avg value)
+- ✅ `dw_portfolio_kpis` — cross-property KPIs with LATERAL joins (revenue, occupancy, pipeline)
+- ✅ Linter issues reduced from 150 → 144 (SECURITY INVOKER on all new views)
+
+### Files Created/Modified
+- `src/types/pmsTypes.ts` — new centralized type definitions
+- `src/hooks/usePmsFinancial.ts` — full rewrite with strict types
+- `src/hooks/usePmsMessaging.ts` — full rewrite with strict types
+- `src/pages/pms/PMSMessaging.tsx` — PMSLayout migration + typed
+- `src/pages/pms/PMSDashboard.tsx` — typed BookingRow, removed any casts
+- `src/components/pms/PMSFoliosManager.tsx` — fixed folio property access
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE

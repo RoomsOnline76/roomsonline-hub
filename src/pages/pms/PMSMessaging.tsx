@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PMSSidebar } from "@/components/layout/PMSSidebar";
-import { PMSHelpDrawer } from "@/components/pms/PMSHelpDrawer";
-import { HelpProvider } from "@/contexts/HelpContext";
+import { PMSLayout } from "@/components/layout/PMSLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +20,7 @@ import {
   useSendMessage, useMessageLog, useMessageQueue, useProcessQueue,
   MESSAGE_PLACEHOLDERS, TRIGGER_EVENTS,
 } from "@/hooks/usePmsMessaging";
+import type { PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult } from "@/types/pmsTypes";
 
 function PMSMessaging() {
   const [searchParams] = useSearchParams();
@@ -39,7 +38,7 @@ function PMSMessaging() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
   const [sendForm, setSendForm] = useState({ recipient_email: "", subject: "", body: "" });
 
   const openNewTemplate = () => {
@@ -47,7 +46,7 @@ function PMSMessaging() {
     setEditOpen(true);
   };
 
-  const openEditTemplate = (t: any) => {
+  const openEditTemplate = (t: PmsMessageTemplate) => {
     setEditForm({ ...t });
     setEditOpen(true);
   };
@@ -57,8 +56,8 @@ function PMSMessaging() {
       await upsertTemplate.mutateAsync(editForm);
       toast.success("Template saved");
       setEditOpen(false);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to save template");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to save template");
     }
   };
 
@@ -66,8 +65,8 @@ function PMSMessaging() {
     try {
       await deleteTemplate.mutateAsync(id);
       toast.success("Template deleted");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to delete");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to delete");
     }
   };
 
@@ -77,17 +76,17 @@ function PMSMessaging() {
       toast.success("Message sent");
       setSendOpen(false);
       setSendForm({ recipient_email: "", subject: "", body: "" });
-    } catch (e: any) {
-      toast.error(e.message || "Failed to send");
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to send");
     }
   };
 
   const handleProcessQueue = async () => {
     try {
       const result = await processQueue.mutateAsync();
-      toast.success(`Processed: ${(result as any)?.sent || 0} sent, ${(result as any)?.failed || 0} failed`);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to process queue");
+      toast.success(`Processed: ${result?.sent || 0} sent, ${result?.failed || 0} failed`);
+    } catch (e: unknown) {
+      toast.error((e as Error).message || "Failed to process queue");
     }
   };
 
@@ -101,31 +100,29 @@ function PMSMessaging() {
   };
 
   const insertPlaceholder = (key: string) => {
-    setEditForm((f: any) => ({ ...f, body: (f.body || "") + `{{${key}}}` }));
+    setEditForm((f) => ({ ...f, body: (f.body || "") + `{{${key}}}` }));
   };
 
   return (
-    <HelpProvider>
-      <div className="flex min-h-screen bg-background">
-        <PMSSidebar />
-        <main className="flex-1 p-6 overflow-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
-              <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleProcessQueue} disabled={processQueue.isPending}>
-                <RefreshCw className="h-4 w-4 mr-1" /> Process Queue ({queue.filter((q: any) => q.status === "pending").length})
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
-                <Send className="h-4 w-4 mr-1" /> Send Message
-              </Button>
-              <Button size="sm" onClick={openNewTemplate}>
-                <Plus className="h-4 w-4 mr-1" /> New Template
-              </Button>
-            </div>
+    <PMSLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
+            <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
           </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleProcessQueue} disabled={processQueue.isPending}>
+              <RefreshCw className="h-4 w-4 mr-1" /> Process Queue ({queue.filter((q: PmsQueueEntry) => q.status === "pending").length})
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
+              <Send className="h-4 w-4 mr-1" /> Send Message
+            </Button>
+            <Button size="sm" onClick={openNewTemplate}>
+              <Plus className="h-4 w-4 mr-1" /> New Template
+            </Button>
+          </div>
+        </div>
 
           <Tabs defaultValue="templates" className="space-y-4">
             <TabsList>
@@ -148,7 +145,7 @@ function PMSMessaging() {
                 </Card>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {templates.map((t: any) => (
+                  {templates.map((t: PmsMessageTemplate) => (
                     <Card key={t.id} className="relative">
                       <CardHeader className="pb-2">
                         <div className="flex items-start justify-between">
@@ -196,7 +193,7 @@ function PMSMessaging() {
                     <TableBody>
                       {log.length === 0 ? (
                         <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No messages sent yet</TableCell></TableRow>
-                      ) : log.map((m: any) => (
+                      ) : log.map((m: PmsMessageLogEntry) => (
                         <TableRow key={m.id}>
                           <TableCell><div className="flex items-center gap-1.5">{statusIcon(m.status)}<span className="text-xs capitalize">{m.status}</span></div></TableCell>
                           <TableCell className="text-sm">{m.recipient_email || m.recipient_phone || "—"}</TableCell>
@@ -226,7 +223,7 @@ function PMSMessaging() {
                   <TableBody>
                     {queue.length === 0 ? (
                       <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Queue is empty</TableCell></TableRow>
-                    ) : queue.map((q: any) => (
+                    ) : queue.map((q: PmsQueueEntry) => (
                       <TableRow key={q.id}>
                         <TableCell><div className="flex items-center gap-1.5">{statusIcon(q.status)}<span className="text-xs capitalize">{q.status}</span></div></TableCell>
                         <TableCell className="text-sm">{q.recipient_email || "—"}</TableCell>
@@ -329,10 +326,8 @@ function PMSMessaging() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </main>
-        <PMSHelpDrawer />
       </div>
-    </HelpProvider>
+    </PMSLayout>
   );
 }
 
