@@ -14,11 +14,14 @@ import {
   ChevronRight,
   LogOut,
   ArrowLeft,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
+import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
+import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import rolLogo from "@/assets/rol-logo.png";
 
@@ -26,17 +29,19 @@ interface NavItem {
   title: string;
   icon: React.ElementType;
   href: string;
+  module: PmsModule;
 }
 
 const pmsNavItems: NavItem[] = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/pms" },
-  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
-  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
-  { title: "Guests", icon: Users, href: "/pms/guests" },
-  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
-  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
-  { title: "Branding", icon: Palette, href: "/pms/branding" },
-  { title: "Integrations", icon: Code2, href: "/pms/integrations" },
+  { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
+  { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
+  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans", module: "rate-plans" },
+  { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
+  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
+  { title: "Reports", icon: BarChart3, href: "/pms/reports", module: "reports" },
+  { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
+  { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
+  { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
 ];
 
 export function PMSSidebar() {
