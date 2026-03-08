@@ -18,6 +18,7 @@ interface ContractManagementPanelProps {
   ownerEmail?: string;
   ownerName?: string;
   showOnWebsite?: boolean;
+  isRolProperty?: boolean;
 }
 
 export function ContractManagementPanel({
