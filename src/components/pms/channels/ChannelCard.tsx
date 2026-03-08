@@ -85,7 +85,9 @@ export function ChannelCard({
                 )}
               </>
             ) : (
-              <p className="text-xs text-muted-foreground">Not connected</p>
+              <p className="text-xs text-muted-foreground">
+                {CHANNEL_DESCRIPTIONS[channelName] ?? "Not connected"}
+              </p>
             )}
           </div>
 
