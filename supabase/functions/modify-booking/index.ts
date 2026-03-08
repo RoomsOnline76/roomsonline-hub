@@ -21,6 +21,152 @@ interface ModifyRequest {
   };
 }
 
+// Calculate number of nights between two date strings
+function countNights(checkIn: string, checkOut: string): number {
+  const d1 = new Date(checkIn);
+  const d2 = new Date(checkOut);
+  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000));
+}
+
+// Generate array of date strings for a range [checkIn, checkOut)
+function dateRange(checkIn: string, checkOut: string): string[] {
+  const dates: string[] = [];
+  const d = new Date(checkIn);
+  const end = new Date(checkOut);
+  while (d < end) {
+    dates.push(d.toISOString().split("T")[0]);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+// Recalculate total price for ROL-native bookings based on rate plan pricing model
+async function recalculateRolPrice(
+  supabase: any,
+  booking: any,
+  modifications: ModifyRequest["modifications"]
+): Promise<number | null> {
+  const ratePlanId = booking.rolos_rate_plan_id;
+  if (!ratePlanId) return null;
+
+  // Fetch rate plan
+  const { data: ratePlan } = await supabase
+    .from("rolos_rate_plans")
+    .select("pricing_model, base_rate")
+    .eq("id", ratePlanId)
+    .single();
+
+  if (!ratePlan) return null;
+
+  const checkIn = modifications.check_in_date || booking.check_in_date;
+  const checkOut = modifications.check_out_date || booking.check_out_date;
+  const nights = countNights(checkIn, checkOut);
+  const adults = modifications.adults ?? booking.adults;
+  const children = modifications.children ?? (booking.children || 0);
+  const teens = modifications.teens ?? (booking.teens || 0);
+  const baseRate = ratePlan.base_rate || 0;
+
+  // Try to get season-specific pricing
+  const roomTypeId = booking.room_type_id;
+  let seasonRate = baseRate;
+  let extraAdultRate = 0;
+  let extraChildRate = 0;
+
+  if (roomTypeId) {
+    const { data: seasonPrices } = await supabase
+      .from("rolos_rate_prices")
+      .select("base_rate, extra_adult_rate, extra_child_rate, season:rolos_rate_seasons!inner(start_date, end_date, day_of_week_multipliers)")
+      .eq("room_type_id", roomTypeId)
+      .lte("season.start_date", checkIn)
+      .gte("season.end_date", checkOut);
+
+    if (seasonPrices && seasonPrices.length > 0) {
+      seasonRate = seasonPrices[0].base_rate || baseRate;
+      extraAdultRate = seasonPrices[0].extra_adult_rate || 0;
+      extraChildRate = seasonPrices[0].extra_child_rate || 0;
+    }
+  }
+
+  switch (ratePlan.pricing_model) {
+    case "per_person": {
+      // base_rate is per person per night
+      const totalPax = adults + teens; // teens typically charged as adults
+      const childPax = children; // children at child rate or same rate
+      const perNight = (totalPax * seasonRate) + (childPax * (extraChildRate || seasonRate));
+      return perNight * nights;
+    }
+    case "per_room":
+    case "per_unit": {
+      // base_rate is per room/unit per night
+      const roomCount = booking.rooms?.length || 1;
+      return seasonRate * nights * roomCount;
+    }
+    case "per_night": {
+      // flat nightly rate regardless of occupancy
+      return seasonRate * nights;
+    }
+    default: {
+      // Fallback: per_person if we can't determine
+      return seasonRate * adults * nights;
+    }
+  }
+}
+
+// Update property_availability when dates change (release old dates, block new dates)
+async function updateAvailabilityBlockout(
+  supabase: any,
+  propertyId: string,
+  roomTypeId: string | null,
+  oldCheckIn: string,
+  oldCheckOut: string,
+  newCheckIn: string,
+  newCheckOut: string,
+  externalSystem: string
+) {
+  const roomType = roomTypeId || "default";
+
+  // 1. Release old dates that are NOT in the new range
+  const oldDates = dateRange(oldCheckIn, oldCheckOut);
+  const newDates = dateRange(newCheckIn, newCheckOut);
+  const datesToRelease = oldDates.filter((d) => !newDates.includes(d));
+  const datesToBlock = newDates.filter((d) => !oldDates.includes(d));
+
+  // Release: increment available_units for old dates no longer booked
+  for (const date of datesToRelease) {
+    await supabase.rpc("increment_availability", {
+      p_property_id: propertyId,
+      p_room_type: roomType,
+      p_date: date,
+    }).then(() => {}).catch(() => {
+      // If RPC doesn't exist, do direct update
+      return supabase
+        .from("property_availability")
+        .update({ available_units: 1, is_stop_sell: false })
+        .eq("property_id", propertyId)
+        .eq("room_type", roomType)
+        .eq("date", date);
+    });
+  }
+
+  // Block: decrement available_units / set stop_sell for new dates
+  for (const date of datesToBlock) {
+    // Upsert with 0 available units
+    await supabase
+      .from("property_availability")
+      .upsert(
+        {
+          property_id: propertyId,
+          room_type: roomType,
+          date,
+          external_system: externalSystem || "rolos",
+          available_units: 0,
+          is_stop_sell: true,
+        },
+        { onConflict: "property_id,room_type,date,external_system" }
+      );
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -96,7 +242,6 @@ Deno.serve(async (req) => {
 
     // For external PMS, check if modification is supported
     if (!isRolNative && externalSystem !== "none") {
-      // Check PMS tracker for modify capability
       const { data: tracker } = await supabase
         .from("pms_tracker_status")
         .select("has_modify")
@@ -146,7 +291,6 @@ Deno.serve(async (req) => {
           }
         } catch (availErr) {
           console.error("Availability check failed:", availErr);
-          // Continue with modification - availability check is best-effort for modify
         }
       }
 
@@ -182,7 +326,6 @@ Deno.serve(async (req) => {
           const pmsResult = await pmsResponse.json();
 
           if (!pmsResult.success) {
-            // Log failure to sync status
             await supabase.from("booking_sync_status").upsert(
               {
                 booking_id,
@@ -217,7 +360,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    // S6: Update local database
+    // S6: Recalculate total_price for ROL-native properties when pax or dates change
+    const paxOrDatesChanged =
+      modifications.adults !== undefined ||
+      modifications.children !== undefined ||
+      modifications.teens !== undefined ||
+      modifications.check_in_date !== undefined ||
+      modifications.check_out_date !== undefined;
+
+    let newTotalPrice: number | null = null;
+
+    if (isRolNative && paxOrDatesChanged) {
+      newTotalPrice = await recalculateRolPrice(supabase, booking, modifications);
+      console.log("Recalculated ROL price:", newTotalPrice, "from old:", booking.total_price);
+    }
+
+    // S7: Update availability blockout when dates change
+    const datesChanged = modifications.check_in_date || modifications.check_out_date;
+    if (datesChanged) {
+      const newCheckIn = modifications.check_in_date || booking.check_in_date;
+      const newCheckOut = modifications.check_out_date || booking.check_out_date;
+
+      try {
+        await updateAvailabilityBlockout(
+          supabase,
+          booking.property_id,
+          booking.room_type_id,
+          booking.check_in_date,
+          booking.check_out_date,
+          newCheckIn,
+          newCheckOut,
+          isRolNative ? "rolos" : externalSystem
+        );
+        console.log("Updated availability blockout for date change");
+      } catch (err) {
+        console.error("Availability blockout update failed (non-critical):", err);
+      }
+    }
+
+    // S8: Update local database
     const updateData: Record<string, any> = {
       last_modified_at: new Date().toISOString(),
       modified_by: userId,
@@ -231,6 +412,11 @@ Deno.serve(async (req) => {
     if (modifications.infants !== undefined) updateData.infants = modifications.infants;
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
+
+    // Update total_price if recalculated
+    if (newTotalPrice !== null) {
+      updateData.total_price = newTotalPrice;
+    }
 
     const { error: updateError } = await supabase
       .from("bookings")
@@ -249,7 +435,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // S7: Update sync status
+    // S9: Update sync status
     if (externalSystem !== "none") {
       await supabase.from("booking_sync_status").upsert(
         {
@@ -265,7 +451,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // S8: Send modification email
+    // S10: Send modification email
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
         method: "POST",
@@ -282,8 +468,12 @@ Deno.serve(async (req) => {
             check_out: booking.check_out_date,
             adults: booking.adults,
             rooms: booking.rooms,
+            total_price: booking.total_price,
           },
-          new_data: modifications,
+          new_data: {
+            ...modifications,
+            total_price: newTotalPrice ?? booking.total_price,
+          },
           note: modifications.note,
         }),
       });
@@ -296,6 +486,8 @@ Deno.serve(async (req) => {
         success: true,
         message: "Booking modified successfully",
         booking_id,
+        new_total_price: newTotalPrice ?? booking.total_price,
+        old_total_price: booking.total_price,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

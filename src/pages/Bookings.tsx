@@ -72,6 +72,7 @@ interface Booking {
   source?: "internal" | "pms";
   ai_metadata?: any;
   booking_channel?: string | null;
+  rolos_rate_plan_id?: string | null;
 }
 
 const Bookings = () => {
@@ -212,10 +213,24 @@ const Bookings = () => {
       if (error) throw error;
       if (data && !data.success && data.code) throw new Error(data.message || "Modification failed");
 
-      toast.success("Booking modified successfully");
+      const newPrice = data?.new_total_price;
+      const priceMsg = newPrice && newPrice !== modifyModalBooking.total_price
+        ? ` — New total: R${Math.round(newPrice).toLocaleString()}`
+        : "";
+
+      toast.success(`Booking modified successfully${priceMsg}`);
       setModifyModalBooking(null);
-      // Reload bookings
-      window.location.reload();
+
+      // Update local state instead of full reload
+      setBookings(prev => prev.map(b =>
+        b.id === modifyModalBooking.id
+          ? {
+              ...b,
+              ...modifications,
+              total_price: newPrice ?? b.total_price,
+            }
+          : b
+      ));
     } catch (error: any) {
       console.error("Error modifying booking:", error);
       toast.error(`Failed to modify: ${error.message}`);
