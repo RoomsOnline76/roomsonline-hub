@@ -112,22 +112,18 @@ function PMSMessaging() {
             <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
             <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
           </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Messaging</h1>
-              <p className="text-sm text-muted-foreground">Manage guest communication templates and message history</p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleProcessQueue} disabled={processQueue.isPending}>
-                <RefreshCw className="h-4 w-4 mr-1" /> Process Queue ({queue.filter((q: any) => q.status === "pending").length})
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
-                <Send className="h-4 w-4 mr-1" /> Send Message
-              </Button>
-              <Button size="sm" onClick={openNewTemplate}>
-                <Plus className="h-4 w-4 mr-1" /> New Template
-              </Button>
-            </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleProcessQueue} disabled={processQueue.isPending}>
+              <RefreshCw className="h-4 w-4 mr-1" /> Process Queue ({queue.filter((q: PmsQueueEntry) => q.status === "pending").length})
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}>
+              <Send className="h-4 w-4 mr-1" /> Send Message
+            </Button>
+            <Button size="sm" onClick={openNewTemplate}>
+              <Plus className="h-4 w-4 mr-1" /> New Template
+            </Button>
           </div>
+        </div>
 
           <Tabs defaultValue="templates" className="space-y-4">
             <TabsList>
