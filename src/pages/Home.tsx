@@ -540,7 +540,7 @@ function HomeContent() {
             style={{ bottom: "170px" }}
           >
             <span className="font-semibold">{heroProperty.name}</span>
-            <span className="text-white/60">•</span>
+            <span className="text-white/75">•</span>
             <span className="text-white/90">{heroProperty.city}</span>
           </Link>
         )}
