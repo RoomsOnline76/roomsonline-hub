@@ -221,8 +221,8 @@ export default function PMSRoomTypes() {
           const pmsRateTypes = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
 
           // Update matching room type baseRate
-          const rtIdx = roomTypesArr.findIndex((rt: any) =>
-            (rt.name || '').toLowerCase() === payload.name.toLowerCase()
+          const rtIdx = roomTypesArr.findIndex((rt) =>
+            (rt?.name || '').toLowerCase() === payload.name.toLowerCase()
           );
           if (rtIdx >= 0) {
             roomTypesArr[rtIdx] = { ...roomTypesArr[rtIdx], baseRate: payload.default_rate };
