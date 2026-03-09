@@ -80,8 +80,9 @@ export default function PMSRoomTypes() {
       console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
     }
 
-    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
-      ? ((property as any).amenities.room_types as any[])
+    const amenities = property?.amenities as PropertyAmenities | null;
+    const amenitiesRoomTypes: OverviewRoomType[] = Array.isArray(amenities?.room_types)
+      ? amenities!.room_types!
           .filter((rt) => rt?.name)
           .map((rt, index) => ({
             id: `amenity-${rt.id || index}`,
@@ -90,15 +91,15 @@ export default function PMSRoomTypes() {
             max_guests: Number(rt.maxPeople ?? rt.max_guests ?? rt.max_adults ?? 2) || 2,
             daily_rate: rt.baseRate ?? rt.base_rate ?? null,
             is_active: true,
-            source: "amenities" as const,
+            source: 'amenities' as const,
           }))
       : [];
 
-    const activeHostfully = (hostfullyTypes || [])
+    const activeHostfully: OverviewRoomType[] = (hostfullyTypes || [])
       .filter((ot) => ot.is_active !== false)
-      .map((ot) => ({ ...ot, source: "hostfully" as const }));
+      .map((ot) => ({ ...ot, max_guests: ot.max_guests || 2, source: 'hostfully' as const }));
 
-    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
+    const overviewTypes: OverviewRoomType[] = property?.is_rol_property && amenitiesRoomTypes.length > 0
       ? amenitiesRoomTypes
       : activeHostfully;
 
