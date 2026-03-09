@@ -449,7 +449,7 @@ function HomeContent() {
                 <h1 className="font-display text-xl sm:text-2xl text-white drop-shadow-lg tracking-wide">
                   RoomsOnline
                 </h1>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">Rooms done Right</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 mt-0.5">Rooms done Right</p>
               </div>
             </Link>
 
