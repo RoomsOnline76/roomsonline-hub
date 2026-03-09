@@ -13,8 +13,6 @@ import JourneyConfirmation from "./pages/JourneyConfirmation";
 import JourneyCheckout from "./pages/JourneyCheckout";
 import ItineraryBuilder from "./pages/ItineraryBuilder";
 import Home from "./pages/Home";
-import HomeOld from "./pages/HomeOld";
-import StagingBook from "./pages/StagingBook";
 import PropertyOverview from "./pages/PropertyOverview";
 import Calendar from "./pages/Calendar";
 import CalendarAccommodation from "./pages/CalendarAccommodation";
@@ -119,10 +117,7 @@ const App = () => (
                 : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<BookRedirect />} />
-          <Route path="/home-old" element={<HomeOld />} />
           <Route path="/property_listing" element={<PropertyListing />} />
-          <Route path="/staging" element={<StagingBook />} />
-          <Route path="/auth" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
           <Route
             path="/admin"

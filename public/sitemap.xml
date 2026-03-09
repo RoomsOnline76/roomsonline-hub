@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   RoomsOnline Sitemap
-  Last updated: 2026-01-08
+  Last updated: 2026-03-09
   
   NOTE: For production, this sitemap should be dynamically generated
   from the database using an edge function that queries:
@@ -21,7 +21,7 @@
   <!-- Homepage -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -29,7 +29,7 @@
   <!-- About Us -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/about</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -37,7 +37,7 @@
   <!-- Contact -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/contact</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -45,15 +45,23 @@
   <!-- Journals Index -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/journals</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- How Our Booking Engine Works (SEO landing page) -->
+  <url>
+    <loc>https://sleepinafrica.roomsonline.co.za/how-our-booking-engine-works</loc>
+    <lastmod>2026-03-09</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   
   <!-- Privacy Policy -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/privacy-policy</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -61,7 +69,7 @@
   <!-- Terms of Service -->
   <url>
     <loc>https://sleepinafrica.roomsonline.co.za/terms-of-service</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -73,7 +81,7 @@
   <!-- Properties Listing -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/properties</loc>
-    <lastmod>2026-01-08</lastmod>
+    <lastmod>2026-03-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>

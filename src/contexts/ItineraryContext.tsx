@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 
 // Types
 export interface GuestCount {
@@ -268,7 +269,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
         // Update existing
         const { error } = await supabase
           .from('itineraries')
-          .update(itineraryData as any)
+          .update(itineraryData as Database['public']['Tables']['itineraries']['Update'])
           .eq('id', itineraryId);
         
         if (error) throw error;
@@ -277,7 +278,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
         // Create new
         const { data, error } = await supabase
           .from('itineraries')
-          .insert(itineraryData as any)
+          .insert(itineraryData as Database['public']['Tables']['itineraries']['Insert'])
           .select('id')
           .single();
         

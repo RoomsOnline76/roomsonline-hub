@@ -12,6 +12,35 @@ import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2, RefreshCw } fro
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface PropertyAmenities {
+  room_types?: Array<{
+    id?: string;
+    name?: string;
+    description?: string | null;
+    maxPeople?: number;
+    max_guests?: number;
+    max_adults?: number;
+    baseRate?: number;
+    base_rate?: number;
+  }>;
+  pms_rate_types?: Array<{
+    id?: string;
+    linkedRoomId?: string;
+    baseRate?: number;
+  }>;
+  external_ids?: Record<string, string>;
+}
+
+interface OverviewRoomType {
+  id: string;
+  name: string;
+  description: string | null;
+  max_guests: number;
+  daily_rate: number | null;
+  is_active?: boolean;
+  source: 'amenities' | 'hostfully';
+}
+
 interface RoomType {
   id: string;
   name: string;
@@ -51,8 +80,9 @@ export default function PMSRoomTypes() {
       console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
     }
 
-    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
-      ? ((property as any).amenities.room_types as any[])
+    const amenities = property?.amenities as PropertyAmenities | null;
+    const amenitiesRoomTypes: OverviewRoomType[] = Array.isArray(amenities?.room_types)
+      ? amenities!.room_types!
           .filter((rt) => rt?.name)
           .map((rt, index) => ({
             id: `amenity-${rt.id || index}`,
@@ -61,15 +91,15 @@ export default function PMSRoomTypes() {
             max_guests: Number(rt.maxPeople ?? rt.max_guests ?? rt.max_adults ?? 2) || 2,
             daily_rate: rt.baseRate ?? rt.base_rate ?? null,
             is_active: true,
-            source: "amenities" as const,
+            source: 'amenities' as const,
           }))
       : [];
 
-    const activeHostfully = (hostfullyTypes || [])
+    const activeHostfully: OverviewRoomType[] = (hostfullyTypes || [])
       .filter((ot) => ot.is_active !== false)
-      .map((ot) => ({ ...ot, source: "hostfully" as const }));
+      .map((ot) => ({ ...ot, max_guests: ot.max_guests || 2, source: 'hostfully' as const }));
 
-    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
+    const overviewTypes: OverviewRoomType[] = property?.is_rol_property && amenitiesRoomTypes.length > 0
       ? amenitiesRoomTypes
       : activeHostfully;
 
@@ -83,7 +113,7 @@ export default function PMSRoomTypes() {
     const linkedIds = new Set((existingRolos || []).map((r) => r.linked_overview_id).filter(Boolean));
     const existingNames = new Set((existingRolos || []).map((r) => r.name.toLowerCase()));
 
-    const missing = overviewTypes.filter((ot) => !linkedIds.has((ot as any).id) && !existingNames.has(ot.name.toLowerCase()));
+    const missing = overviewTypes.filter((ot) => !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase()));
     if (missing.length === 0) return;
 
     const rows = missing.map((ot) => ({
@@ -93,7 +123,7 @@ export default function PMSRoomTypes() {
       max_occupancy: ot.max_guests || 2,
       default_rate: ot.daily_rate || null,
       is_active: true,
-      linked_overview_id: (ot as any).source === "hostfully" ? (ot as any).id : null,
+      linked_overview_id: ot.source === 'hostfully' ? ot.id : null,
     }));
 
     const { error } = await supabase.from("rolos_room_types").insert(rows);
@@ -186,13 +216,13 @@ export default function PMSRoomTypes() {
           .single();
 
         if (property) {
-          const amenities = (property as any).amenities || {};
-          const roomTypesArr: any[] = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
-          const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
+          const amenities = (property.amenities as PropertyAmenities) || {};
+          const roomTypesArr = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
+          const pmsRateTypes = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
 
           // Update matching room type baseRate
-          const rtIdx = roomTypesArr.findIndex((rt: any) =>
-            (rt.name || '').toLowerCase() === payload.name.toLowerCase()
+          const rtIdx = roomTypesArr.findIndex((rt) =>
+            (rt?.name || '').toLowerCase() === payload.name.toLowerCase()
           );
           if (rtIdx >= 0) {
             roomTypesArr[rtIdx] = { ...roomTypesArr[rtIdx], baseRate: payload.default_rate };
@@ -201,8 +231,8 @@ export default function PMSRoomTypes() {
           // Update matching pms_rate_type baseRate (by linkedRoomId)
           const roomId = rtIdx >= 0 ? roomTypesArr[rtIdx]?.id : null;
           if (roomId) {
-            const rateIdx = pmsRateTypes.findIndex((rt: any) =>
-              rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+            const rateIdx = pmsRateTypes.findIndex((rt) =>
+              rt?.linkedRoomId === roomId || rt?.id === `wizard-rate-${roomId}`
             );
             if (rateIdx >= 0) {
               pmsRateTypes[rateIdx] = { ...pmsRateTypes[rateIdx], baseRate: payload.default_rate };

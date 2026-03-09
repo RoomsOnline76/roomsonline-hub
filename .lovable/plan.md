@@ -1,81 +1,85 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-# Codebase Audit & Optimization Plan
-
-## Analysis Summary
-
-After scanning the codebase, here are the key findings across the project (~80+ pages, ~70+ edge functions, ~30+ hooks, ~50+ UI components):
-
-### 1. Dead Code & Redundancies
-- **`HomeOld.tsx`** (845 lines): Only referenced from a single `/home-old` route in App.tsx. Legacy page, candidate for removal.
-- **`StagingBook.tsx`** (627 lines): Only on `/staging` route, appears to be a dev/test page.
-- **Duplicate `/auth` route** in App.tsx (line 125–126): Exact same route registered twice.
-- **`src/components/ui/use-toast.ts`**: Re-export shim — just forwards from `@/hooks/use-toast`. All 38 consumers already import from `@/hooks/use-toast` directly. File is unused.
-- **413 `console.log` statements** across 15 files in `src/` — production debug noise.
-
-### 2. TypeScript Debt
-- **739 `as any` casts** across 43 files — already identified in Phase 3 but only 3 files were cleaned. Bulk remains.
-- 10 `eslint-disable` / `@ts-ignore` annotations.
-
-### 3. robots.txt Gaps
-- Missing disallows for new routes added since Jan 2026: `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`.
-- Missing `Disallow: /how-our-booking-engine-works` (SEO landing page — actually should be *allowed*, but `/pms/` definitely shouldn't be crawled).
-
-### 4. sitemap.xml Staleness
-- Last updated 2026-01-08. Missing `/how-our-booking-engine-works` (public SEO page). Still has placeholder comments for dynamic generation.
-
-### 5. Performance Concerns
-- `PMSDashboard.tsx` is **1,789 lines** — a monolith that could benefit from extraction but is functional. Not a priority blocker.
-- Several PMS pages use extensive `useState` arrays (e.g., PMSHousekeeping has 15+ state vars) — functional but verbose.
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
 ---
 
-## Implementation Plan
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-### Phase A — Cleanup (safe removals, no behavior change)
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-1. **Remove duplicate `/auth` route** in App.tsx (line 126)
-2. **Remove `src/components/ui/use-toast.ts`** — unused re-export shim (all consumers use `@/hooks/use-toast`)
-3. **Strip production `console.log` calls** from `src/` files (keep `console.warn`/`console.error` for actual error paths). Target files:
-   - `PropertyShowcase.tsx`, `JourneyCheckout.tsx`, `PayFastOnsiteModal.tsx`, `CalendarAccommodation.tsx`, `useNightsBridgeTracking.ts`, `AdminKeys.tsx`, and others
-4. **Archive `HomeOld.tsx`** — remove route from App.tsx and delete the file (845 lines of dead weight). If needed later, it's in git history.
-5. **Archive `StagingBook.tsx`** — remove `/staging` route and file (627 lines). Dev-only page accessible via git.
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
-### Phase B — System Files Update
+---
 
-1. **robots.txt** — Add missing disallows:
-   ```
-   Disallow: /pms/
-   Disallow: /dev/
-   Disallow: /pulse
-   Disallow: /journey/
-   Disallow: /embed/
-   Disallow: /staff-login
-   Disallow: /onboarding/
-   Disallow: /contract/
-   ```
-   Add allowed public page: `Allow: /how-our-booking-engine-works`
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-2. **sitemap.xml** — Add the `/how-our-booking-engine-works` page entry with current date. Update `lastmod` dates to `2026-03-09`.
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
-### Phase C — TypeScript Hardening (targeted, safe)
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
 
-Focus on the **highest-impact files** where `as any` casts mask real type issues:
-- `PropertyOverview.tsx` — cast `property` fields that exist in the DB schema but aren't in the generated types (likely JSON column access)
-- `PMSRoomTypes.tsx` — multiple `as any` for amenities/linked IDs
-- `ItineraryContext.tsx` — insert/update casts
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
 
-This phase creates typed interfaces for these patterns rather than blind casts.
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
 
-### What We Will NOT Touch
-- **Edge functions** — recently rewritten in Phase 1–3, stable
-- **UI component library** (`src/components/ui/`) — auto-generated shadcn components
-- **`src/integrations/supabase/`** — auto-generated, must not edit
-- **PMSDashboard 1,789-line monolith** — functional, splitting risks regressions for zero user value
-- **`StagingBook` and `HomeOld`** — will confirm with user before deleting
+---
 
-### Estimated Scope
-- ~15 files modified
-- ~1,500 lines removed (dead code + console.logs)
-- 0 behavioral changes
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
 
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
