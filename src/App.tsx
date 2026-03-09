@@ -76,7 +76,6 @@ const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey
 const DevPMS = lazy(() => import("./pages/DevPMS"));
 const DevLogs = lazy(() => import("./pages/DevLogs"));
 const DevFeatures = lazy(() => import("./pages/DevFeatures"));
-const DevDanger = lazy(() => import("./pages/DevDanger"));
 const DevTesting = lazy(() => import("./pages/DevTesting"));
 const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
