@@ -113,7 +113,7 @@ export default function PMSRoomTypes() {
     const linkedIds = new Set((existingRolos || []).map((r) => r.linked_overview_id).filter(Boolean));
     const existingNames = new Set((existingRolos || []).map((r) => r.name.toLowerCase()));
 
-    const missing = overviewTypes.filter((ot) => !linkedIds.has((ot as any).id) && !existingNames.has(ot.name.toLowerCase()));
+    const missing = overviewTypes.filter((ot) => !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase()));
     if (missing.length === 0) return;
 
     const rows = missing.map((ot) => ({
@@ -123,7 +123,7 @@ export default function PMSRoomTypes() {
       max_occupancy: ot.max_guests || 2,
       default_rate: ot.daily_rate || null,
       is_active: true,
-      linked_overview_id: (ot as any).source === "hostfully" ? (ot as any).id : null,
+      linked_overview_id: ot.source === 'hostfully' ? ot.id : null,
     }));
 
     const { error } = await supabase.from("rolos_room_types").insert(rows);
