@@ -593,6 +593,7 @@ const App = () => (
     </MobileBookingProvider>
     </CurrencyProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;
