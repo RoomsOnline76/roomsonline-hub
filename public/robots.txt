@@ -6,6 +6,7 @@ User-agent: *
 Allow: /
 Allow: /property/
 Allow: /properties
+Allow: /property_listing
 Allow: /journals/
 Allow: /journals
 Allow: /about
@@ -13,6 +14,7 @@ Allow: /contact
 Allow: /privacy-policy
 Allow: /terms-of-service
 Allow: /how-our-booking-engine-works
+Allow: /booking-confirmation/
 Allow: /*.js
 Allow: /*.css
 Allow: /*.json
@@ -20,13 +22,12 @@ Allow: /*.json
 # Block admin and protected areas
 Disallow: /admin/
 Disallow: /admin-*
-Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /calendar/
 Disallow: /bookings
 Disallow: /booking/
 Disallow: /insights
 Disallow: /test-*
-Disallow: /staging
 Disallow: /nb
 Disallow: /pms-config
 Disallow: /benson-config
@@ -42,18 +43,20 @@ Disallow: /staff-login
 Disallow: /onboarding/
 Disallow: /contract/
 
-# Google Bot - allow public content
+# Google Bot — allow public content
 User-agent: Googlebot
 Allow: /
 Allow: /property/
 Allow: /properties
+Allow: /property_listing
 Allow: /journals/
 Allow: /about
 Allow: /contact
 Allow: /how-our-booking-engine-works
+Allow: /booking-confirmation/
 Disallow: /admin/
 Disallow: /admin-*
-Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /calendar/
 Disallow: /bookings
 Disallow: /auth
@@ -74,44 +77,103 @@ Allow: /journals/
 Allow: /how-our-booking-engine-works
 Disallow: /admin/
 Disallow: /admin-*
-Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /auth
 Disallow: /pms/
 Disallow: /dev/
 Disallow: /journey/
 Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
 
-# OpenAI GPT Bot - allow for AI understanding
+# OpenAI GPTBot — allow public + LLM context files
 User-agent: GPTBot
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
 Allow: /schema-org-site.jsonld
 Disallow: /admin/
 Disallow: /admin-*
-Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /auth
 Disallow: /pms/
 Disallow: /dev/
+Disallow: /journey/
+Disallow: /embed/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
 
 # ChatGPT User Agent
 User-agent: ChatGPT-User
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
 Disallow: /admin/
-Disallow: /dashboard
+Disallow: /dashboard/
 Disallow: /auth
 Disallow: /pms/
 Disallow: /dev/
+Disallow: /journey/
+Disallow: /embed/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
 
 # Anthropic Claude Bot
 User-agent: anthropic-ai
 Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
 Disallow: /admin/
-Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /journey/
+Disallow: /embed/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
+
+# Google Extended (Gemini/Bard)
+User-agent: Google-Extended
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /llm-context.json
+Allow: /llm-actions.md
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /llm-context.json
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
+# Cohere AI
+User-agent: cohere-ai
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Disallow: /admin/
+Disallow: /dashboard/
 Disallow: /auth
 Disallow: /pms/
 Disallow: /dev/
@@ -121,6 +183,9 @@ User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
+Allow: /
+
+User-agent: LinkedInBot
 Allow: /
 
 # Sitemaps

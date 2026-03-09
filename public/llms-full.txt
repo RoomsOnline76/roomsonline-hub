@@ -1,0 +1,159 @@
+# RoomsOnline (Sleep in Africa) — Full LLM Context
+
+> Last updated: 2026-03-09
+
+## System Identity
+
+RoomsOnline (ROL) is a PMS-agnostic booking orchestration platform that unifies multiple Property Management Systems under one interface. It is NOT a PMS, channel manager, payment processor, or review platform. The external PMS is always the source of truth for availability and rates.
+
+**Domains:**
+- Public booking: book.sleepinafrica.roomsonline.co.za
+- Admin console: sleepinafrica.roomsonline.co.za
+
+---
+
+## Architecture
+
+### Data Authority Model
+
+**PMS Controls (authoritative):**
+- Availability, rates, booking confirmation
+- Inventory counts, room/rate type definitions
+- Reservation status
+
+**ROL Controls:**
+- Property display data, editorial content
+- User interface, booking collection forms
+- Cache management, user accounts
+- Navigation tags, property images
+
+**Cache Purpose:** Performance optimization for display only. Never authoritative for transactions.
+
+### PMS Integrations
+
+| PMS | Status | Capabilities |
+|-----|--------|-------------|
+| NightsBridge | Full integration | Availability, rates, bookings, reservation sync |
+| Hostfully | Full integration | Availability, rates, bookings, room types |
+| ROL'OS (native) | Built-in | Full PMS — rooms, rates, housekeeping, night audit, guests, channels, events, messaging, revenue, portfolio |
+| Checkfront | Partial | Availability, bookings |
+| Cloudbeds | Planned | — |
+| Little Hotelier | Planned | — |
+
+### Adapter Pattern
+
+Each PMS has an isolated edge function adapter. New PMS integrations require zero core UI changes. Adapters implement a standard contract interface:
+
+```
+getAvailability(roomTypeId, startDate, endDate) → AvailabilityResponse
+getRates(roomTypeId, rateTypeId, startDate, endDate) → RatesResponse
+createBooking(bookingData) → BookingConfirmation
+getRoomTypes?() → RoomType[]
+getRateTypes?() → RateType[]
+getReservations?(startDate, endDate) → Reservation[]
+healthCheck?() → HealthStatus
+```
+
+---
+
+## Key Features
+
+### Public Booking Experience
+- AI-powered natural language property search (Gemini-backed)
+- Interactive map with property type filtering
+- Curated editorial segments (destination-based, experience-based)
+- Multi-stop Journey Builder for itinerary planning
+- Real-time availability checking via PMS adapters
+- Multi-currency support (ZAR, USD, EUR, GBP)
+
+### ROL'OS Native PMS Module
+Full property management system for properties without external PMS:
+- Room management and room types
+- Rate plans with seasonal pricing
+- Housekeeping task tracking
+- Night audit workflow
+- Guest profile management
+- Channel management
+- Group bookings and events
+- Staff messaging
+- Revenue analytics
+- Multi-property portfolio dashboard
+
+### Integration Toolkit
+Embeddable tools for property websites:
+- Direct booking links
+- JavaScript booking widgets
+- Booking bar overlays
+- Full iframe embeds
+- WordPress plugin
+- Commission attribution via source tracking
+
+### Silent Co-Pilot Intelligence
+Four-layer AI system:
+1. **Behavioral Memory** — Intent signal tracking (views, filters, dwell times)
+2. **Psychic Admin** — Background property data sync and image verification
+3. **Curated Guest** — NLP special request parsing and tone-adaptive itineraries
+4. **System Guardian** — Anomaly detection, rate drift alerts, daily leadership digest
+
+AI suggestions governed by confidence scoring: only auto-applies at ≥0.9 confidence.
+
+---
+
+## Architectural Invariants (MUST NEVER violate)
+
+1. **NO_BOOKING_FROM_CACHE** — Booking decisions must always verify with live PMS
+2. **PMS_AUTHORITY** — External PMS is always authoritative for availability/rates/confirmations
+3. **ADAPTER_PATTERN** — Each PMS has isolated adapter; new integration = zero core UI changes
+4. **SNAKE_CASE** — All database fields, API responses use snake_case
+5. **RLS_MANDATORY** — Row Level Security on all tables
+
+---
+
+## Public URL Structure
+
+| Path | Purpose |
+|------|---------|
+| `/` | Homepage — hero, AI search, map, segments |
+| `/property/{slug}` | Property showcase page |
+| `/property/{slug}/room/{room-slug}` | Room detail page |
+| `/property/{slug}/room/{room-slug}/availability` | Room availability calendar |
+| `/booking/{id}` | Booking flow |
+| `/booking-confirmation/{id}` | Booking confirmation |
+| `/property_listing` | Full property directory |
+| `/journals` | Travel journal index |
+| `/about` | About page |
+| `/contact` | Contact page |
+| `/how-our-booking-engine-works` | Platform overview |
+| `/privacy-policy` | Privacy policy |
+| `/terms-of-service` | Terms of service |
+
+---
+
+## Technology Stack
+
+- **Frontend:** React 18 + Vite + TypeScript + Tailwind CSS
+- **UI Components:** shadcn/ui + Radix primitives
+- **Backend:** Supabase (PostgreSQL + Edge Functions + Auth + Storage)
+- **AI:** Lovable AI Gateway (Gemini + GPT models)
+- **Maps:** Google Maps with MarkerClusterer
+- **Animations:** Framer Motion
+- **State:** TanStack React Query + React Context
+
+---
+
+## Structured Data Files
+
+- `/schema-org-site.jsonld` — Site-level Schema.org (Organization, WebSite, WebApplication, BreadcrumbList)
+- `/schema-org-property-template.jsonld` — Per-property LodgingBusiness template
+- `/llm-context.json` — Machine-readable system context
+- `/llm-actions.md` — LLM modification guide with safe/forbidden action lists
+- `/llms.txt` — Summary for AI crawlers
+- `/llms-full.txt` — This file (comprehensive context)
+
+---
+
+## Contact
+
+- Email: hello@roomsonline.co.za
+- Website: https://roomsonline.co.za
+- Region: Africa-focused, headquartered in South Africa

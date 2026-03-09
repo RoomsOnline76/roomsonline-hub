@@ -4,16 +4,18 @@
     "type": "multi-pms_booking_orchestration_platform",
     "scope": "PMS-agnostic booking engine that unifies multiple Property Management Systems under one interface",
     "primary_function": "Orchestrate bookings across diverse PMS backends while providing consistent UI/UX",
+    "version": "2026.03",
+    "last_updated": "2026-03-09",
     "domains": {
-      "admin_console": "sleepinafrica.roomsonline.co.za",
-      "public_booking": "book.sleepinafrica.roomsonline.co.za"
+      "public_booking": "book.sleepinafrica.roomsonline.co.za",
+      "admin_console": "sleepinafrica.roomsonline.co.za"
     },
     "is_not": [
-      "a Property Management System (PMS)",
+      "a Property Management System (PMS) — though it includes ROL'OS native PMS for properties without external PMS",
       "a channel manager",
       "a payment processor",
       "a review platform",
-      "the source of truth for availability or rates"
+      "the source of truth for availability or rates (external PMS is authoritative)"
     ]
   },
   "architectural_invariants": {
@@ -61,7 +63,9 @@
       "cache_management",
       "user_accounts",
       "navigation_tags",
-      "property_images"
+      "property_images",
+      "itineraries_and_journeys",
+      "integration_toolkit_config"
     ],
     "cache_purpose": "Performance optimization for display. Never authoritative for transactions."
   },
@@ -74,43 +78,63 @@
     "ALWAYS use service_role for administrative database operations",
     "ALWAYS log sync operations to sync_logs table"
   ],
+  "key_features": {
+    "ai_search": "Natural language property search powered by Gemini via Lovable AI Gateway",
+    "journey_builder": "Multi-stop itinerary planning with multi-property bookings",
+    "rolos_native_pms": "Built-in PMS module with rooms, rates, housekeeping, night audit, guests, channels, events, messaging, revenue, portfolio",
+    "integration_toolkit": "Embeddable widgets, booking bars, direct links, WordPress plugin for property websites",
+    "multi_currency": "ZAR, USD, EUR, GBP with real-time conversion",
+    "editorial_content": "Curated property descriptions, travel journals, destination guides",
+    "silent_copilot": "Four-layer AI intelligence system: Behavioral Memory, Psychic Admin, Curated Guest, System Guardian"
+  },
   "ui_zones": {
     "public_booking": {
       "url_pattern": "book.sleepinafrica.roomsonline.co.za/*",
-      "purpose": "Guest booking interface, property showcase",
+      "purpose": "Guest booking interface, property showcase, journey builder",
       "protection": "none (public)",
-      "key_components": ["PropertyShowcase", "BookingWidget", "RoomShowcase", "PropertyListing"]
+      "key_components": ["PropertyShowcase", "BookingWidget", "RoomShowcase", "PropertyListing", "JourneyBuilder", "AISearch"]
     },
     "owner_portal": {
       "url_pattern": "sleepinafrica.roomsonline.co.za/dashboard/*",
-      "purpose": "Property management, booking overview, reports",
+      "purpose": "Property management, booking overview, reports, revenue analytics",
       "protection": "authenticated + owner role",
-      "key_components": ["Dashboard", "Bookings", "Calendar"]
+      "key_components": ["Dashboard", "Bookings", "Calendar", "PropertyProgress"]
     },
     "admin_console": {
       "url_pattern": "sleepinafrica.roomsonline.co.za/admin/*",
-      "purpose": "System administration, user management, PMS configuration",
+      "purpose": "System administration, user management, PMS configuration, contracts, onboarding",
       "protection": "authenticated + admin role",
-      "key_components": ["AdminUsers", "AdminKeys", "PMSConfig", "AdminAudit"]
+      "key_components": ["AdminUsers", "AdminKeys", "PMSConfig", "AdminAudit", "AdminContracts", "AdminOnboarding", "AdminReviewQueue"]
+    },
+    "pms_module": {
+      "url_pattern": "sleepinafrica.roomsonline.co.za/pms/*",
+      "purpose": "ROL'OS native PMS — full property management",
+      "protection": "authenticated + owner role",
+      "key_components": ["PMSDashboard", "PMSRooms", "PMSRoomTypes", "PMSRatePlans", "PMSGuests", "PMSHousekeeping", "PMSReports", "PMSBranding", "PMSIntegrations", "PMSStaff", "PMSChannels", "PMSGroups", "PMSEvents", "PMSNightAudit", "PMSMessaging", "PMSPortfolio", "PMSRevenue"]
     },
     "dev_tools": {
-      "url_pattern": "sleepinafrica.roomsonline.co.za/admin/integrations/*",
-      "purpose": "System monitoring, health checks, debugging",
+      "url_pattern": "sleepinafrica.roomsonline.co.za/dev/*",
+      "purpose": "System monitoring, health checks, debugging, task tracking",
       "protection": "authenticated + dev role",
-      "key_components": ["AdminSystemHealth", "BensonConfig"]
+      "key_components": ["DevOverview", "DevPMS", "DevLogs", "DevFeatures", "DevDanger", "DevTesting", "DevTaskTracker"]
     }
   },
   "pms_integrations": {
     "supported": [
       {
-        "name": "Benson",
-        "type": "full_integration",
-        "capabilities": ["availability", "rates", "bookings", "room_types"]
-      },
-      {
         "name": "NightsBridge",
         "type": "full_integration",
-        "capabilities": ["availability", "rates", "bookings", "reservations_sync"]
+        "capabilities": ["availability", "rates", "bookings", "reservations_sync", "booking_sessions"]
+      },
+      {
+        "name": "Hostfully",
+        "type": "full_integration",
+        "capabilities": ["availability", "rates", "bookings", "room_types", "amenities"]
+      },
+      {
+        "name": "ROL'OS (Native)",
+        "type": "built_in",
+        "capabilities": ["rooms", "room_types", "rate_plans", "guests", "housekeeping", "night_audit", "channels", "groups", "events", "messaging", "revenue", "portfolio", "branding", "staff"]
       },
       {
         "name": "Checkfront",
@@ -131,22 +155,25 @@
     "adapter_location": "supabase/functions/*-api/"
   },
   "glossary": {
-    "pms": "Property Management System - external software that manages property inventory, rates, and reservations",
+    "pms": "Property Management System — external software that manages property inventory, rates, and reservations",
     "adapter": "Isolated edge function handling PMS-specific API communication, implementing standard contract",
     "cache": "Read-only copy of PMS data stored in ROL database for display performance",
-    "native_pms": "ROL's built-in PMS functionality for properties without external PMS integration",
+    "rolos": "ROL'OS — ROL's built-in native PMS module for properties without external PMS integration",
     "sync_logs": "Audit trail table recording all data synchronization between ROL and external PMS",
-    "rls": "Row Level Security - PostgreSQL feature for fine-grained data access control",
+    "rls": "Row Level Security — PostgreSQL feature for fine-grained data access control",
     "edge_function": "Serverless function running on Supabase infrastructure for backend logic",
-    "booking_widget": "Embeddable component for date/guest selection and availability checking"
+    "booking_widget": "Embeddable component for date/guest selection and availability checking",
+    "journey": "Multi-stop itinerary combining multiple property stays into a single trip",
+    "integration_toolkit": "Suite of embeddable tools (widgets, booking bars, direct links, WordPress plugin) for property websites",
+    "silent_copilot": "Four-layer AI intelligence system providing behavioral memory, proactive admin assistance, curated guest interactions, and system monitoring"
   },
-  "file_references": {
-    "system_manifest": "docs/system-export/rol-system-manifest.json",
-    "booking_flow": "docs/system-export/booking-flow-state-machine.json",
-    "data_authority": "docs/system-export/data-authority-model.json",
-    "pms_registry": "docs/system-export/pms-adapter-registry.json",
-    "llm_actions": "public/llm-actions.md"
+  "llm_files": {
+    "summary": "/llms.txt",
+    "full_context": "/llms-full.txt",
+    "machine_context": "/llm-context.json",
+    "action_guide": "/llm-actions.md",
+    "schema_org_site": "/schema-org-site.jsonld",
+    "schema_org_property_template": "/schema-org-property-template.jsonld"
   },
-  "version": "2026.01.08",
   "generated_for": "ai_llm_context"
 }

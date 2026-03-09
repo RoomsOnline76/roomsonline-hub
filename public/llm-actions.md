@@ -1,16 +1,20 @@
 # RoomsOnline LLM Action Guide
 
 > **Purpose:** Instructions for LLMs and AI systems on how to safely reason about and modify the RoomsOnline system.
+>
+> **Last updated:** 2026-03-09
 
 ## REQUIRED READING ORDER
 
 Before making any modifications, read these files in order:
 
-1. `public/llm-context.json` - System fundamentals, invariants, and architecture
-2. `docs/system-export/rol-system-manifest.json` - Complete system manifest
-3. `docs/system-export/pms-adapter-registry.json` - Existing PMS integrations and contracts
-4. `docs/system-export/booking-flow-state-machine.json` - Booking transaction logic
-5. `docs/system-export/data-authority-model.json` - Who controls what data
+1. `public/llms.txt` — Quick system overview
+2. `public/llm-context.json` — System fundamentals, invariants, and architecture
+3. `public/llms-full.txt` — Comprehensive context with all features and patterns
+4. `docs/system-export/rol-system-manifest.json` — Complete system manifest
+5. `docs/system-export/pms-adapter-registry.json` — Existing PMS integrations and contracts
+6. `docs/system-export/booking-flow-state-machine.json` — Booking transaction logic
+7. `docs/system-export/data-authority-model.json` — Who controls what data
 
 ---
 
@@ -24,6 +28,8 @@ Before making any modifications, read these files in order:
 - ✅ Add form validation rules
 - ✅ Implement new filtering/sorting options
 - ✅ Add accessibility improvements
+- ✅ Extend Journey Builder with new itinerary features
+- ✅ Add new property showcase sections
 
 ### Data & Caching
 - ✅ Create new cached data views for performance
@@ -37,10 +43,21 @@ Before making any modifications, read these files in order:
 - ✅ Create health check endpoints for adapters
 - ✅ Add rate limiting protection
 
+### ROL'OS Native PMS
+- ✅ Add new PMS module pages
+- ✅ Extend existing module functionality
+- ✅ Add new report types
+- ✅ Create new PMS workflows (with proper RLS)
+
 ### Edge Functions
 - ✅ Create new edge functions for isolated features
 - ✅ Add logging and monitoring
 - ✅ Implement webhook handlers
+
+### Integration Toolkit
+- ✅ Add new embeddable widget types
+- ✅ Extend booking bar configuration
+- ✅ Create new integration channels
 
 ---
 
@@ -57,12 +74,14 @@ Before making any modifications, read these files in order:
 - ❌ Remove or weaken RLS policies
 - ❌ Store sensitive data without encryption
 - ❌ Bypass authentication checks
+- ❌ Store user roles on profile/users table (must use separate user_roles table)
 
 ### Architecture
 - ❌ Modify adapter contracts without backward compatibility
 - ❌ Change `snake_case` naming conventions
 - ❌ Merge adapter logic into core UI
 - ❌ Create direct PMS database connections
+- ❌ Edit auto-generated files (supabase/config.toml, src/integrations/supabase/types.ts, src/integrations/supabase/client.ts, .env)
 
 ### Data Authority
 - ❌ Mark cache data as authoritative for bookings
@@ -218,13 +237,16 @@ When extending adapters:
 
 ## RELATED DOCUMENTATION
 
+- [LLM Summary](/llms.txt)
+- [Full LLM Context](/llms-full.txt)
+- [Machine Context](/llm-context.json)
+- [Schema.org Site](/schema-org-site.jsonld)
+- [Schema.org Property Template](/schema-org-property-template.jsonld)
 - [System Manifest](../docs/system-export/rol-system-manifest.json)
 - [Booking Flow](../docs/system-export/booking-flow-state-machine.json)
 - [Data Authority](../docs/system-export/data-authority-model.json)
 - [PMS Registry](../docs/system-export/pms-adapter-registry.json)
-- [LLM Context](./llm-context.json)
 
 ---
 
-*Last updated: 2026-01-08*
-*For AI/LLM consumption*
+*For AI/LLM consumption — version 2026.03*
