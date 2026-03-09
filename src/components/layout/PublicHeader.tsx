@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Menu, X } from "lucide-react";
+import { ArrowLeft, Menu, X, BookOpen, Users, Scale, ShieldCheck, FileText, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { useState } from "react";
