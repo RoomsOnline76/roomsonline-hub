@@ -402,6 +402,10 @@ function HomeContent() {
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
         {/* Background media - clickable to property */}
+        {/* Hero skeleton while loading */}
+        {isLoadingHero && (
+          <div className="absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-muted animate-pulse" />
+        )}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
         >
@@ -449,7 +453,7 @@ function HomeContent() {
                 <h1 className="font-display text-xl sm:text-2xl text-white drop-shadow-lg tracking-wide">
                   RoomsOnline
                 </h1>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-white/70 mt-0.5">Rooms done Right</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 mt-0.5">Rooms done Right</p>
               </div>
             </Link>
 
@@ -540,7 +544,7 @@ function HomeContent() {
             style={{ bottom: "170px" }}
           >
             <span className="font-semibold">{heroProperty.name}</span>
-            <span className="text-white/60">•</span>
+            <span className="text-white/75">•</span>
             <span className="text-white/90">{heroProperty.city}</span>
           </Link>
         )}

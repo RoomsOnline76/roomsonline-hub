@@ -1,105 +1,85 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-# UX Audit & Optimization Plan
-
-## Analysis Findings
-
-### 1. Accessibility Gaps (WCAG)
-- **No skip-to-content link** anywhere in the app — keyboard users must tab through entire nav on every page load
-- **Missing `aria-label`s**: Only 2 instances across all public pages (Home hero + menu button). PropertyCard images, footer links, mobile nav buttons, and search form elements all lack accessible labels
-- **Empty `alt=""` on brand logos** in `EmbedProperty.tsx` and `PMSBranding.tsx` — decorative is OK but brand logos convey meaning
-- **Color contrast**: Hero overlay text at `text-white/70` and `text-white/60` risks failing WCAG AA on light backgrounds
-- **Mobile nav**: Bottom nav buttons have no `aria-label` — screen readers get icon-only labels
-
-### 2. Performance Issues
-- **Zero code splitting**: All 60+ page imports are eagerly loaded in `App.tsx` — every visitor downloads the entire admin/PMS/dev bundle. This is the single biggest performance win available
-- **PropertyCard images**: No `loading="lazy"` — all property cards in segments load all images immediately
-- **Hero image**: Uses CSS `background-image` (no lazy load, no `<img>` optimization, no format negotiation)
-- **Google Fonts**: Two font families loaded render-blocking via `@import` in CSS
-
-### 3. UX Pain Points
-- **Home page (855 lines)**: Hamburger menu uses custom click-outside logic instead of a proper accessible Sheet/Dialog — no keyboard trap, no Escape key, no focus management
-- **PublicHeader mobile menu**: Emoji icons (📖👥🔗🔒📋✉️) instead of Lucide icons — inconsistent with rest of UI, poor screen reader experience
-- **Auth page (1,047 lines)**: Very long monolith with login, signup, password reset, recovery, and access request all in one component
-- **No loading/skeleton state on Home hero**: `isLoadingHero` fades in but shows nothing during load — flash of empty black
-- **Footer**: Minimal — no logo, no tagline, no social links. Doesn't match the "luxury editorial" brand
-
-### 4. Inconsistencies
-- **Home page has its own nav/header** (not using `PublicHeader`) — two separate navigation implementations with different behavior
-- **Home mobile menu** uses emoji icons; `PublicHeader` mobile menu also uses emojis. Desktop nav in `PublicHeader` uses no icons. Three different patterns
-- **`theme-color` in manifest/index.html is `#000000`** — should be brand pink `#e91e8c` or the warm neutral background
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
 ---
 
-## Implementation Plan
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-### Phase A — Performance (Highest Impact)
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-**1. Route-level code splitting with `React.lazy`**
-Split all non-public pages into lazy chunks. Public pages (Home, PropertyShowcase, Booking, Auth, About, Contact, Journals, Privacy, Terms) stay eager. All admin, PMS, dev, and dashboard pages become lazy.
-
-- Add `Suspense` wrapper with a minimal spinner in `App.tsx`
-- Convert ~40 admin/PMS/dev imports to `React.lazy(() => import(...))`
-- **Impact**: ~60-70% reduction in initial bundle for public visitors
-
-**2. Add `loading="lazy"` to PropertyCard images**
-- `PropertyCard.tsx`: Add `loading="lazy"` to the `<img>` tag
-- Public-facing property grid loads 20+ images; lazy loading defers below-fold images
-
-**3. Preconnect Google Fonts**
-- Add `<link rel="preconnect" href="https://fonts.googleapis.com">` to `index.html`
-- Move font import from CSS `@import` to `<link>` tag in `index.html` for faster loading
-
-### Phase B — Accessibility (WCAG AA)
-
-**4. Skip-to-content link**
-- Add a visually-hidden, focus-visible skip link as first element in `PublicLayout` and `AppLayout`
-- Target: `<a href="#main-content" class="sr-only focus:not-sr-only ...">Skip to content</a>`
-- Add `id="main-content"` to `<main>` elements
-
-**5. Fix missing accessible labels**
-- `PropertyCard.tsx`: Add meaningful `alt` text using property name
-- `MobileBottomNav.tsx`: Add `aria-label` to nav buttons
-- `PublicHeader.tsx`: Add `aria-label` to mobile menu button
-- `PublicFooter.tsx`: Add `aria-label="Footer navigation"` to `<nav>`
-- `EmbedProperty.tsx` / `PMSBranding.tsx`: Replace `alt=""` with brand name
-
-**6. Fix hero text contrast**
-- Change `text-white/70` → `text-white/80` and `text-white/60` → `text-white/75` on Home hero overlays
-- Ensure property credit badge text meets 4.5:1 ratio against `bg-black/60`
-
-### Phase C — UX Consistency
-
-**7. Replace emoji icons in mobile menus with Lucide icons**
-- `PublicHeader.tsx` mobile dropdown: Replace 📖👥🔗🔒📋✉️ with `BookOpen`, `Users`, `Link2`, `Shield`, `FileText`, `Mail` from Lucide
-- Consistent icon language across the entire app
-
-**8. Update `theme-color` to brand color**
-- `index.html`: Change `<meta name="theme-color">` from `#000000` to `#e91e8c`
-- `manifest.json`: Update `theme_color` to `#e91e8c`
-- Better browser chrome / PWA appearance matching brand
-
-**9. Add hero skeleton state**
-- Home page: Show a subtle shimmer/gradient placeholder while `isLoadingHero` is true instead of invisible content
-
-### Phase D — System Files
-
-**10. Update `index.html` head optimization**
-- Add `preconnect` hints for Supabase and Google Fonts
-- Move Google Fonts from CSS `@import` to HTML `<link>` (render priority)
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
 ---
 
-### What We Will NOT Touch
-- **Shadcn UI components** — auto-generated, already accessible
-- **Edge functions** — backend, no UX impact
-- **Admin/PMS page internals** — functional, not public-facing priority
-- **Home page nav architecture** — the dual-nav pattern is intentional (hero-integrated vs standard)
-- **Auth page monolith** — functional, splitting risks regressions
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-### Estimated Scope
-- ~12 files modified
-- 0 behavioral changes
-- Major bundle size reduction from code splitting
-- WCAG AA baseline achieved for public pages
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
+
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
+
+---
+
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)

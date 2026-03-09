@@ -11,7 +11,7 @@ export function PublicFooter() {
       <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           {/* Navigation links */}
-          <nav className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm">
+          <nav aria-label="Footer navigation" className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm">
             <Link
               to="/about"
               className="text-muted-foreground hover:text-foreground transition-colors"

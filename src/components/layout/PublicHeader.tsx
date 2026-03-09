@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Menu, X } from "lucide-react";
+import { ArrowLeft, Menu, X, BookOpen, Users, Scale, ShieldCheck, FileText, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { useState } from "react";
@@ -132,6 +132,7 @@ export function PublicHeader({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               className={cn(
                 "md:hidden",
                 transparent && "text-white hover:bg-white/10"
@@ -156,7 +157,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📖</span>
+                <BookOpen className="w-4 h-4 text-muted-foreground" />
                 Journal
               </Link>
               <Link
@@ -164,7 +165,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">👥</span>
+                <Users className="w-4 h-4 text-muted-foreground" />
                 About Us
               </Link>
               <Link
@@ -172,7 +173,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔗</span>
+                <Scale className="w-4 h-4 text-muted-foreground" />
                 How It Works
               </Link>
               <Link
@@ -180,7 +181,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">🔒</span>
+                <ShieldCheck className="w-4 h-4 text-muted-foreground" />
                 Privacy
               </Link>
               <Link
@@ -188,7 +189,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">📋</span>
+                <FileText className="w-4 h-4 text-muted-foreground" />
                 Terms
               </Link>
               <Link
@@ -196,7 +197,7 @@ export function PublicHeader({
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-colors text-foreground hover:bg-accent"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-muted-foreground">✉️</span>
+                <Mail className="w-4 h-4 text-muted-foreground" />
                 Contact Us
               </Link>
               {showCurrency && (
