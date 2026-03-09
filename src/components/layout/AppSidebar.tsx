@@ -478,6 +478,11 @@ export function AppSidebar() {
         </Button>
       </div>
 
+      {/* Dark mode toggle */}
+      <div className={cn("px-3 pt-2", collapsed && "flex justify-center")}>
+        <ThemeToggle collapsed={collapsed} />
+      </div>
+
       {/* User */}
       <div className={cn("p-3 border-t border-sidebar-border", collapsed && "flex justify-center")}>
         {collapsed ? (
