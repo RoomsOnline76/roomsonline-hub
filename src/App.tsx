@@ -513,14 +513,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/dev/danger"
-              element={
-                <ProtectedRoute requireDev={true}>
-                  <DevDanger />
-                </ProtectedRoute>
-              }
-            />
+            
             <Route
               path="/dev/testing"
               element={
