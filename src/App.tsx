@@ -383,20 +383,12 @@ const App = () => (
           />
           <Route
             path="/admin/system-health"
-            element={
-              <ProtectedRoute requireDevOrFearless={true}>
-                <AdminSystemHealth />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/dev/system-health" replace />}
           />
           <Route
             path="/admin/supporting-systems"
-            element={
-              <ProtectedRoute requireDevOrFearless={true}>
-                <SupportingSystems />
-              </ProtectedRoute>
-            }
-            />
+            element={<Navigate to="/admin-keys" replace />}
+          />
             {/* Contract signing - public route */}
             <Route path="/contract/sign/:token" element={<ContractSign />} />
             {/* Property onboarding - requires auth */}
