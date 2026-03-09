@@ -268,7 +268,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
         // Update existing
         const { error } = await supabase
           .from('itineraries')
-          .update(itineraryData as any)
+          .update(itineraryData as Database['public']['Tables']['itineraries']['Update'])
           .eq('id', itineraryId);
         
         if (error) throw error;
