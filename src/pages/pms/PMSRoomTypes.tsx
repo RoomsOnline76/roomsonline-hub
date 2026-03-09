@@ -12,6 +12,35 @@ import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2, RefreshCw } fro
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+interface PropertyAmenities {
+  room_types?: Array<{
+    id?: string;
+    name?: string;
+    description?: string | null;
+    maxPeople?: number;
+    max_guests?: number;
+    max_adults?: number;
+    baseRate?: number;
+    base_rate?: number;
+  }>;
+  pms_rate_types?: Array<{
+    id?: string;
+    linkedRoomId?: string;
+    baseRate?: number;
+  }>;
+  external_ids?: Record<string, string>;
+}
+
+interface OverviewRoomType {
+  id: string;
+  name: string;
+  description: string | null;
+  max_guests: number;
+  daily_rate: number | null;
+  is_active?: boolean;
+  source: 'amenities' | 'hostfully';
+}
+
 interface RoomType {
   id: string;
   name: string;
