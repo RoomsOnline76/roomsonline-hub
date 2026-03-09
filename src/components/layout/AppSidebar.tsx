@@ -28,11 +28,8 @@ import {
   Wand2,
   Sparkles,
   TrendingUp,
-  Activity,
   Database,
   Flag,
-  FlaskConical,
-  AlertTriangle,
   BedDouble,
   CheckSquare,
 } from "lucide-react";
