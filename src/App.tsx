@@ -135,6 +135,7 @@ const PageFallback = () => (
 );
 
 const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="rol-theme">
   <QueryClientProvider client={queryClient}>
     <CurrencyProvider>
       <MobileBookingProvider>
