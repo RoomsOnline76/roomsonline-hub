@@ -70,7 +70,8 @@ export function PropertyCard({ property, variant = "default", showCautionBadge =
         <div className={`relative overflow-hidden ${isLarge ? "h-64 sm:h-72" : "h-48 sm:h-52"}`}>
           <img
             src={imageUrl}
-            alt={property.name}
+            alt={`${property.name} – ${property.city}, ${property.country}`}
+            loading="lazy"
             className={`w-full h-full transition-transform duration-500 group-hover:scale-105 ${
               imageUrl === rolLogo ? "object-contain bg-muted/30 p-8" : "object-cover"
             }`}

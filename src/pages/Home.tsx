@@ -402,6 +402,10 @@ function HomeContent() {
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-[100dvh] sm:h-screen w-full flex-shrink-0 landscape:min-h-[500px]">
         {/* Background media - clickable to property */}
+        {/* Hero skeleton while loading */}
+        {isLoadingHero && (
+          <div className="absolute inset-0 bg-gradient-to-br from-muted via-muted/80 to-muted animate-pulse" />
+        )}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
         >

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,75 +9,99 @@ import { MobileBookingProvider } from "@/contexts/MobileBookingContext";
 import { ItineraryProvider } from "@/contexts/ItineraryContext";
 import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
-import JourneyReview from "./pages/JourneyReview";
-import JourneyConfirmation from "./pages/JourneyConfirmation";
-import JourneyCheckout from "./pages/JourneyCheckout";
-import ItineraryBuilder from "./pages/ItineraryBuilder";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// Eager — public-facing pages (critical path)
 import Home from "./pages/Home";
-import PropertyOverview from "./pages/PropertyOverview";
-import Calendar from "./pages/Calendar";
-import CalendarAccommodation from "./pages/CalendarAccommodation";
-import CalendarEventWedding from "./pages/CalendarEventWedding";
-import CalendarConference from "./pages/CalendarConference";
-import Promotion from "./pages/Promotion";
-import Bookings from "./pages/Bookings";
-import Dashboard from "./pages/Dashboard";
-import ROLPulse from "./pages/ROLPulse";
-import Insights from "./pages/Insights";
-import AdminDashboard from "./pages/AdminDashboard";
-import AdminPayments from "./pages/AdminPayments";
-import AdminKeys from "./pages/AdminKeys";
-import AdminUsers from "./pages/AdminUsers";
-import AdminAccessRequests from "./pages/AdminAccessRequests";
-import PropertyForm from "./pages/PropertyForm";
-import BensonConfig from "./pages/BensonConfig";
-import PMSConfig from "./pages/PMSConfig";
-import TestBookingBenson from "./pages/TestBookingBenson";
 import PropertyShowcase from "./pages/PropertyShowcase";
 import RoomShowcase from "./pages/RoomShowcase";
 import RoomAvailability from "./pages/RoomAvailability";
 import Booking from "./pages/Booking";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
-import StaffLogin from "./pages/StaffLogin";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
-import PropertyListing from "./pages/PropertyListing";
-import NB from "./pages/NB";
-import AdminJournals from "./pages/AdminJournals";
-import JournalEditor from "./pages/JournalEditor";
 import PublicJournals from "./pages/PublicJournals";
-import AdminAudit from "./pages/AdminAudit";
-import AdminHelpArticles from "./pages/AdminHelpArticles";
-import HelpArticleEditor from "./pages/HelpArticleEditor";
-import AdminSystemHealth from "./pages/AdminSystemHealth";
-import ProjectDiscoverySurvey from "./pages/ProjectDiscoverySurvey";
-import SupportingSystems from "./pages/SupportingSystems";
+import PMSComparison from "./pages/PMSComparison";
+import PropertyListing from "./pages/PropertyListing";
+import EmbedProperty from "./pages/EmbedProperty";
+import StaffLogin from "./pages/StaffLogin";
 import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
-import AdminContracts from "./pages/AdminContracts";
-import AdminOnboarding from "./pages/AdminOnboarding";
-import AdminContractEditor from "./pages/AdminContractEditor";
-import AdminWizardEditor from "./pages/AdminWizardEditor";
-import AdminPreFlight from "./pages/AdminPreFlight";
-import AdminReviewQueue from "./pages/AdminReviewQueue";
-import PropertyProgress from "./pages/PropertyProgress";
-import DevOverview from "./pages/DevOverview";
-import DevPMS from "./pages/DevPMS";
-import DevLogs from "./pages/DevLogs";
-import DevFeatures from "./pages/DevFeatures";
-import DevDanger from "./pages/DevDanger";
-import DevTesting from "./pages/DevTesting";
-import DevTaskTracker from "./pages/DevTaskTracker";
-import PMSComparison from "./pages/PMSComparison";
-import AdminIntegrations from "./pages/AdminIntegrations";
-import EmbedProperty from "./pages/EmbedProperty";
-import { PMSDashboard, PMSRooms, PMSRoomTypes, PMSRatePlans, PMSGuests, PMSHousekeeping, PMSReports, PMSBranding, PMSIntegrations, PMSStaff, PMSChannels, PMSGroups, PMSEvents, PMSNightAudit, PMSMessaging, PMSPortfolio, PMSRevenue } from "./pages/pms";
+
+// Lazy — admin, PMS, dev, dashboard (only loaded when needed)
+const JourneyReview = lazy(() => import("./pages/JourneyReview"));
+const JourneyConfirmation = lazy(() => import("./pages/JourneyConfirmation"));
+const JourneyCheckout = lazy(() => import("./pages/JourneyCheckout"));
+const ItineraryBuilder = lazy(() => import("./pages/ItineraryBuilder"));
+const PropertyOverview = lazy(() => import("./pages/PropertyOverview"));
+const Calendar = lazy(() => import("./pages/Calendar"));
+const CalendarAccommodation = lazy(() => import("./pages/CalendarAccommodation"));
+const CalendarEventWedding = lazy(() => import("./pages/CalendarEventWedding"));
+const CalendarConference = lazy(() => import("./pages/CalendarConference"));
+const Promotion = lazy(() => import("./pages/Promotion"));
+const Bookings = lazy(() => import("./pages/Bookings"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ROLPulse = lazy(() => import("./pages/ROLPulse"));
+const Insights = lazy(() => import("./pages/Insights"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const AdminPayments = lazy(() => import("./pages/AdminPayments"));
+const AdminKeys = lazy(() => import("./pages/AdminKeys"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AdminAccessRequests = lazy(() => import("./pages/AdminAccessRequests"));
+const PropertyForm = lazy(() => import("./pages/PropertyForm"));
+const BensonConfig = lazy(() => import("./pages/BensonConfig"));
+const PMSConfig = lazy(() => import("./pages/PMSConfig"));
+const TestBookingBenson = lazy(() => import("./pages/TestBookingBenson"));
+const NB = lazy(() => import("./pages/NB"));
+const AdminJournals = lazy(() => import("./pages/AdminJournals"));
+const JournalEditor = lazy(() => import("./pages/JournalEditor"));
+const AdminAudit = lazy(() => import("./pages/AdminAudit"));
+const AdminHelpArticles = lazy(() => import("./pages/AdminHelpArticles"));
+const HelpArticleEditor = lazy(() => import("./pages/HelpArticleEditor"));
+const AdminSystemHealth = lazy(() => import("./pages/AdminSystemHealth"));
+const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
+const SupportingSystems = lazy(() => import("./pages/SupportingSystems"));
+const AdminContracts = lazy(() => import("./pages/AdminContracts"));
+const AdminOnboarding = lazy(() => import("./pages/AdminOnboarding"));
+const AdminContractEditor = lazy(() => import("./pages/AdminContractEditor"));
+const AdminWizardEditor = lazy(() => import("./pages/AdminWizardEditor"));
+const AdminPreFlight = lazy(() => import("./pages/AdminPreFlight"));
+const AdminReviewQueue = lazy(() => import("./pages/AdminReviewQueue"));
+const PropertyProgress = lazy(() => import("./pages/PropertyProgress"));
+const DevOverview = lazy(() => import("./pages/DevOverview"));
+const DevPMS = lazy(() => import("./pages/DevPMS"));
+const DevLogs = lazy(() => import("./pages/DevLogs"));
+const DevFeatures = lazy(() => import("./pages/DevFeatures"));
+const DevDanger = lazy(() => import("./pages/DevDanger"));
+const DevTesting = lazy(() => import("./pages/DevTesting"));
+const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
+const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
+
+// Lazy PMS pages
+const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
+const PMSRooms = lazy(() => import("./pages/pms/PMSRooms"));
+const PMSRoomTypes = lazy(() => import("./pages/pms/PMSRoomTypes"));
+const PMSRatePlans = lazy(() => import("./pages/pms/PMSRatePlans"));
+const PMSGuests = lazy(() => import("./pages/pms/PMSGuests"));
+const PMSHousekeeping = lazy(() => import("./pages/pms/PMSHousekeeping"));
+const PMSReports = lazy(() => import("./pages/pms/PMSReports"));
+const PMSBranding = lazy(() => import("./pages/pms/PMSBranding"));
+const PMSIntegrations = lazy(() => import("./pages/pms/PMSIntegrations"));
+const PMSStaff = lazy(() => import("./pages/pms/PMSStaff"));
+const PMSChannels = lazy(() => import("./pages/pms/PMSChannels"));
+const PMSGroups = lazy(() => import("./pages/pms/PMSGroups"));
+const PMSEvents = lazy(() => import("./pages/pms/PMSEvents"));
+const PMSNightAudit = lazy(() => import("./pages/pms/PMSNightAudit"));
+const PMSMessaging = lazy(() => import("./pages/pms/PMSMessaging"));
+const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
+const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
+
 import { PMSBrandProvider } from "./contexts/PMSBrandContext";
-import { ProtectedRoute } from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -92,10 +117,21 @@ const BookRedirect = () => {
     return <Home />;
   }
 
-  // Redirect to book subdomain for non-preview hosts
   window.location.href = "https://book.sleepinafrica.roomsonline.co.za";
   return null;
 };
+
+// Suspense fallback for lazy-loaded pages
+const PageFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="space-y-4 w-full max-w-md px-6">
+      <Skeleton className="h-8 w-3/4 mx-auto" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-32 w-full rounded-lg" />
+    </div>
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -108,6 +144,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={
             isSurveyDomain
@@ -545,6 +582,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </RecaptchaProvider>

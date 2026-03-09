@@ -132,6 +132,7 @@ export function PublicHeader({
             <Button
               variant="ghost"
               size="sm"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               className={cn(
                 "md:hidden",
                 transparent && "text-white hover:bg-white/10"

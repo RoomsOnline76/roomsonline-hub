@@ -446,7 +446,7 @@ export default function PMSBranding() {
                 <div className="border border-border rounded-lg p-4 space-y-3" style={{ backgroundColor: visual.brand_secondary_color || undefined }}>
                   <div className="flex items-center gap-3">
                     {visual.brand_logo_url ? (
-                      <img src={visual.brand_logo_url} alt="" className="h-10 w-10 object-contain rounded" />
+                      <img src={visual.brand_logo_url} alt={`${config.business_name || propertyName || "Property"} logo`} className="h-10 w-10 object-contain rounded" />
                     ) : (
                       <div className="h-10 w-10 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-sm">
                         {(config.business_name || propertyName || "P").charAt(0)}

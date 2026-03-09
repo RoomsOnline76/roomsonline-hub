@@ -48,6 +48,7 @@ export function PublicLayout({
       )}
 
       <main
+        id="main-content"
         className={cn(
           "flex-1 animate-fade-in",
           contentClassName

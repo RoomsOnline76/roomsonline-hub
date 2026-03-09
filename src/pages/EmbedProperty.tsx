@@ -88,7 +88,7 @@ export default function EmbedProperty() {
         )}
         <div className="p-5 space-y-4">
           {property.brand_logo_url && (
-            <img src={property.brand_logo_url} alt="" className="h-8 object-contain" />
+            <img src={property.brand_logo_url} alt={`${property.name} logo`} className="h-8 object-contain" />
           )}
           <div>
             <h2 className="text-lg font-semibold text-foreground">{property.name}</h2>
