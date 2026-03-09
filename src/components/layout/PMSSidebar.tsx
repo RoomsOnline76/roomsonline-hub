@@ -34,6 +34,7 @@ import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import rolLogo from "@/assets/rol-logo.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
   title: string;
