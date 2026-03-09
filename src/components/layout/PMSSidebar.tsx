@@ -219,6 +219,11 @@ export function PMSSidebar() {
         })}
       </nav>
 
+      {/* Dark mode toggle */}
+      <div className={cn("px-2 pt-2", collapsed && "flex justify-center")}>
+        <ThemeToggle collapsed={collapsed} />
+      </div>
+
       {/* Footer */}
       <div className="p-2 space-y-2 border-t border-border">
         {/* Back to ROL — only for platform users (admin/dev/fearless) and property owners, not staff */}
