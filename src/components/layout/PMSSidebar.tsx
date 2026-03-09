@@ -166,10 +166,10 @@ export function PMSSidebar() {
         </div>
 
         {/* Property switcher for platform users */}
-        {isPlatformUser && !collapsed && properties.length > 1 && (
+        {isPlatformUser && !collapsed && properties.length > 0 && (
           <Select value={propertyId || ""} onValueChange={switchProperty}>
             <SelectTrigger className="h-8 text-xs bg-muted/50 border-border/50">
-              <SelectValue placeholder="Switch property…" />
+              <SelectValue placeholder="Select ROL'OS property…" />
             </SelectTrigger>
             <SelectContent>
               {properties.map((p) => (
@@ -180,7 +180,7 @@ export function PMSSidebar() {
             </SelectContent>
           </Select>
         )}
-        {isPlatformUser && collapsed && properties.length > 1 && (
+        {isPlatformUser && collapsed && properties.length > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
