@@ -11,6 +11,7 @@ import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 // Eager — public-facing pages (critical path)
 import Home from "./pages/Home";
@@ -134,6 +135,7 @@ const PageFallback = () => (
 );
 
 const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="rol-theme">
   <QueryClientProvider client={queryClient}>
     <CurrencyProvider>
       <MobileBookingProvider>
@@ -591,6 +593,7 @@ const App = () => (
     </MobileBookingProvider>
     </CurrencyProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

@@ -34,6 +34,7 @@ import { getVisibleModules, type PmsModule } from "@/lib/pmsPermissions";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import rolLogo from "@/assets/rol-logo.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
   title: string;
@@ -217,6 +218,11 @@ export function PMSSidebar() {
           );
         })}
       </nav>
+
+      {/* Dark mode toggle */}
+      <div className={cn("px-2 pt-2", collapsed && "flex justify-center")}>
+        <ThemeToggle collapsed={collapsed} />
+      </div>
 
       {/* Footer */}
       <div className="p-2 space-y-2 border-t border-border">
