@@ -1,5 +1,5 @@
 # RoomsOnline Crawler Directives
-# Last updated: 2026-01-08
+# Last updated: 2026-03-09
 
 # Default rules for all crawlers
 User-agent: *
@@ -12,6 +12,7 @@ Allow: /about
 Allow: /contact
 Allow: /privacy-policy
 Allow: /terms-of-service
+Allow: /how-our-booking-engine-works
 Allow: /*.js
 Allow: /*.css
 Allow: /*.json
@@ -32,6 +33,14 @@ Disallow: /benson-config
 Disallow: /auth
 Disallow: /*/edit
 Disallow: /*/settings
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /pulse
+Disallow: /journey/
+Disallow: /embed/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
 
 # Google Bot - allow public content
 User-agent: Googlebot
@@ -41,12 +50,20 @@ Allow: /properties
 Allow: /journals/
 Allow: /about
 Allow: /contact
+Allow: /how-our-booking-engine-works
 Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard
 Disallow: /calendar/
 Disallow: /bookings
 Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /journey/
+Disallow: /embed/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
 
 # Bing Bot
 User-agent: Bingbot
@@ -54,10 +71,15 @@ Allow: /
 Allow: /property/
 Allow: /properties
 Allow: /journals/
+Allow: /how-our-booking-engine-works
 Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard
 Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /journey/
+Disallow: /staff-login
 
 # OpenAI GPT Bot - allow for AI understanding
 User-agent: GPTBot
@@ -69,6 +91,8 @@ Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard
 Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
 
 # ChatGPT User Agent
 User-agent: ChatGPT-User
@@ -78,6 +102,8 @@ Allow: /llm-actions.md
 Disallow: /admin/
 Disallow: /dashboard
 Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
 
 # Anthropic Claude Bot
 User-agent: anthropic-ai
@@ -87,6 +113,8 @@ Allow: /llm-actions.md
 Disallow: /admin/
 Disallow: /dashboard
 Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
 
 # Social media crawlers
 User-agent: Twitterbot

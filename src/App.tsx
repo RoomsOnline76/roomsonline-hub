@@ -117,10 +117,7 @@ const App = () => (
                 : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<BookRedirect />} />
-          <Route path="/home-old" element={<HomeOld />} />
           <Route path="/property_listing" element={<PropertyListing />} />
-          <Route path="/staging" element={<StagingBook />} />
-          <Route path="/auth" element={<Auth />} />
           <Route path="/auth" element={<Auth />} />
           <Route
             path="/admin"
