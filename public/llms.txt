@@ -1,0 +1,46 @@
+# RoomsOnline (Sleep in Africa)
+
+> PMS-agnostic booking orchestration platform for extraordinary accommodation across Africa.
+
+## About
+
+RoomsOnline (ROL) is a multi-PMS booking engine that unifies property management systems under one interface. We connect travelers with handpicked safari lodges, boutique hotels, guest houses, villas, and resorts across Africa.
+
+- Website: https://book.sleepinafrica.roomsonline.co.za
+- Type: SaaS Booking Platform
+- Region: Africa-focused
+- Currencies: ZAR, USD, EUR, GBP
+
+## What We Do
+
+- **Booking Orchestration**: Search, compare, and book accommodation across multiple PMS backends (NightsBridge, Hostfully, ROL'OS native PMS) through a single unified interface.
+- **Multi-Stop Journeys**: Build custom itineraries with multiple properties in a single trip. Journey Builder lets travelers plan multi-destination African adventures.
+- **Property Showcase**: Rich editorial pages for each property featuring curated descriptions, image galleries, room details, local experiences, and direct booking.
+- **ROL'OS Native PMS**: Built-in property management system for properties without external PMS — includes room management, rate plans, housekeeping, night audit, guest profiles, and channel management.
+- **Integration Toolkit**: Embeddable booking widgets, direct links, booking bars, and WordPress plugin for property websites.
+- **Journal / Editorial**: Travel stories, destination guides, and curated property features.
+
+## Public Pages
+
+- / — Homepage with AI-powered property search, interactive map, and curated segments
+- /property/{slug} — Individual property showcase with rooms, availability, and booking
+- /property/{slug}/room/{room-slug} — Room detail page
+- /property_listing — Full property directory
+- /journals — Travel journal and editorial content
+- /about — About RoomsOnline
+- /contact — Contact information
+- /how-our-booking-engine-works — Platform overview and PMS comparison
+- /privacy-policy — Privacy policy
+- /terms-of-service — Terms of service
+
+## Structured Data
+
+- Schema.org JSON-LD: /schema-org-site.jsonld
+- LLM context: /llm-context.json
+- LLM action guide: /llm-actions.md
+- Full LLM context: /llms-full.txt
+
+## Contact
+
+- Email: hello@roomsonline.co.za
+- Website: https://roomsonline.co.za
