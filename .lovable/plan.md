@@ -64,6 +64,22 @@
 - ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
 - ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
 
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
 ---
 
 ## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
