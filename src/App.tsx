@@ -11,6 +11,7 @@ import { BehavioralMemoryProvider } from "@/contexts/BehavioralMemoryContext";
 import { RecaptchaProvider } from "@/components/RecaptchaProvider";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 // Eager — public-facing pages (critical path)
 import Home from "./pages/Home";
