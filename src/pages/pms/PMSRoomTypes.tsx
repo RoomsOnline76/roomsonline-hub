@@ -231,8 +231,8 @@ export default function PMSRoomTypes() {
           // Update matching pms_rate_type baseRate (by linkedRoomId)
           const roomId = rtIdx >= 0 ? roomTypesArr[rtIdx]?.id : null;
           if (roomId) {
-            const rateIdx = pmsRateTypes.findIndex((rt: any) =>
-              rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+            const rateIdx = pmsRateTypes.findIndex((rt) =>
+              rt?.linkedRoomId === roomId || rt?.id === `wizard-rate-${roomId}`
             );
             if (rateIdx >= 0) {
               pmsRateTypes[rateIdx] = { ...pmsRateTypes[rateIdx], baseRate: payload.default_rate };

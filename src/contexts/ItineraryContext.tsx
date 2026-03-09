@@ -277,7 +277,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
         // Create new
         const { data, error } = await supabase
           .from('itineraries')
-          .insert(itineraryData as any)
+          .insert(itineraryData as Database['public']['Tables']['itineraries']['Insert'])
           .select('id')
           .single();
         
