@@ -72,7 +72,7 @@ const AdminWizardEditor = lazy(() => import("./pages/AdminWizardEditor"));
 const AdminPreFlight = lazy(() => import("./pages/AdminPreFlight"));
 const AdminReviewQueue = lazy(() => import("./pages/AdminReviewQueue"));
 const PropertyProgress = lazy(() => import("./pages/PropertyProgress"));
-const DevOverview = lazy(() => import("./pages/DevOverview"));
+const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
 const DevPMS = lazy(() => import("./pages/DevPMS"));
 const DevLogs = lazy(() => import("./pages/DevLogs"));
 const DevFeatures = lazy(() => import("./pages/DevFeatures"));
