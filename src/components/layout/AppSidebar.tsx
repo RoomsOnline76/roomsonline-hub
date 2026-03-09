@@ -48,6 +48,7 @@ import { StatusIndicator } from "@/components/ui/status-indicator";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
 import { ProfileModal } from "@/components/ProfileModal";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { RoleIndicator } from "./RoleIndicator";
 
 // Separate component to handle optional HelpContext
