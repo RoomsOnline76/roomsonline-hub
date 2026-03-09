@@ -216,9 +216,9 @@ export default function PMSRoomTypes() {
           .single();
 
         if (property) {
-          const amenities = (property as any).amenities || {};
-          const roomTypesArr: any[] = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
-          const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
+          const amenities = (property.amenities as PropertyAmenities) || {};
+          const roomTypesArr = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
+          const pmsRateTypes = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
 
           // Update matching room type baseRate
           const rtIdx = roomTypesArr.findIndex((rt: any) =>
