@@ -64,9 +64,7 @@ const JournalEditor = lazy(() => import("./pages/JournalEditor"));
 const AdminAudit = lazy(() => import("./pages/AdminAudit"));
 const AdminHelpArticles = lazy(() => import("./pages/AdminHelpArticles"));
 const HelpArticleEditor = lazy(() => import("./pages/HelpArticleEditor"));
-const AdminSystemHealth = lazy(() => import("./pages/AdminSystemHealth"));
-const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
-const SupportingSystems = lazy(() => import("./pages/SupportingSystems"));
+const DevSystemHealth = lazy(() => import("./pages/DevSystemHealth"));
 const AdminContracts = lazy(() => import("./pages/AdminContracts"));
 const AdminOnboarding = lazy(() => import("./pages/AdminOnboarding"));
 const AdminContractEditor = lazy(() => import("./pages/AdminContractEditor"));
@@ -74,11 +72,10 @@ const AdminWizardEditor = lazy(() => import("./pages/AdminWizardEditor"));
 const AdminPreFlight = lazy(() => import("./pages/AdminPreFlight"));
 const AdminReviewQueue = lazy(() => import("./pages/AdminReviewQueue"));
 const PropertyProgress = lazy(() => import("./pages/PropertyProgress"));
-const DevOverview = lazy(() => import("./pages/DevOverview"));
+const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
 const DevPMS = lazy(() => import("./pages/DevPMS"));
 const DevLogs = lazy(() => import("./pages/DevLogs"));
 const DevFeatures = lazy(() => import("./pages/DevFeatures"));
-const DevDanger = lazy(() => import("./pages/DevDanger"));
 const DevTesting = lazy(() => import("./pages/DevTesting"));
 const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
@@ -385,20 +382,12 @@ const App = () => (
           />
           <Route
             path="/admin/system-health"
-            element={
-              <ProtectedRoute requireDevOrFearless={true}>
-                <AdminSystemHealth />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/dev/system-health" replace />}
           />
           <Route
             path="/admin/supporting-systems"
-            element={
-              <ProtectedRoute requireDevOrFearless={true}>
-                <SupportingSystems />
-              </ProtectedRoute>
-            }
-            />
+            element={<Navigate to="/admin-keys" replace />}
+          />
             {/* Contract signing - public route */}
             <Route path="/contract/sign/:token" element={<ContractSign />} />
             {/* Property onboarding - requires auth */}
@@ -485,9 +474,17 @@ const App = () => (
             {/* Dev routes */}
             <Route
               path="/dev/overview"
+              element={<Navigate to="/dev/system-health" replace />}
+            />
+            <Route
+              path="/dev/danger"
+              element={<Navigate to="/dev/system-health?tab=actions" replace />}
+            />
+            <Route
+              path="/dev/system-health"
               element={
                 <ProtectedRoute requireDev={true}>
-                  <DevOverview />
+                  <DevSystemHealth />
                 </ProtectedRoute>
               }
             />
@@ -515,14 +512,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/dev/danger"
-              element={
-                <ProtectedRoute requireDev={true}>
-                  <DevDanger />
-                </ProtectedRoute>
-              }
-            />
+            
             <Route
               path="/dev/testing"
               element={

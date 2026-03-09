@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -4403,6 +4404,13 @@ export default function AdminKeys() {
             .map(renderKeyCard)}
         </Accordion>
       </div>
+      {/* External Tools Section (formerly Supporting Systems) */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">External Tools</h2>
+        <p className="text-sm text-muted-foreground mb-4">Manage external tools, hosting accounts, and team credentials</p>
+        <SupportingSystemsTab />
+      </div>
+
       {renderHostfullyListingSelector()}
       {renderSandboxQueryDialog()}
     </AppLayout>

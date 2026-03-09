@@ -128,16 +128,12 @@ const systemControlSection: NavSection = {
   collapsible: true,
   defaultOpen: false,
   items: [
-    { id: 'dev-overview', title: 'System Overview', icon: Activity, href: '/dev/overview', minRole: 'dev', description: 'Global health dashboard' },
+    { id: 'system-health', title: 'System Health', icon: HeartPulse, href: '/dev/system-health', minRole: 'dev', description: 'Overview, components & maintenance' },
     { id: 'pms-control', title: 'PMS Control', icon: Server, href: '/dev/pms', minRole: 'dev', description: 'Adapter status & controls' },
-    { id: 'integrations', title: 'Integrations', icon: KeyRound, href: '/admin-keys', minRole: 'dev' },
-    { id: 'supporting-systems', title: 'Supporting Systems', icon: Settings, href: '/admin/supporting-systems', minRole: 'dev' },
-    { id: 'system-health', title: 'System Health', icon: HeartPulse, href: '/admin/system-health', minRole: 'dev' },
+    { id: 'integrations', title: 'Integrations', icon: KeyRound, href: '/admin-keys', minRole: 'dev', description: 'API keys, PMS credentials & external tools' },
     { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/dev/logs', minRole: 'dev', description: 'Sync and error logs' },
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
-    { id: 'ai-testing', title: 'AI Testing', icon: FlaskConical, href: '/dev/testing', minRole: 'dev', description: 'AI-assisted test generation' },
-    { id: 'nb-widget', title: 'NB Widget', icon: CalendarDays, href: '/nb', minRole: 'dev', description: 'NightsBridge widget testing' },
-    { id: 'danger-zone', title: 'Danger Zone', icon: AlertTriangle, href: '/dev/danger', minRole: 'dev', description: 'Destructive operations' },
+    { id: 'task-tracker', title: 'Task Tracker', icon: ClipboardCheck, href: '/dev/tasks', minRole: 'dev', description: 'Dev task board' },
   ],
 };
 

@@ -1,85 +1,85 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-# System Control Menu — Consolidation Plan
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
-## Current State (10 items, significant overlap)
+---
 
-```text
-SYSTEM (current)
-├── System Overview      ← global health dashboard (PMS adapters, edge fns, pipelines)
-├── PMS Control          ← PMS adapter on/off, sync triggers
-├── Integrations         ← 4,400-line monster: API keys, PMS credentials, config
-├── Supporting Systems   ← external tool credential vault (URLs, logins)
-├── System Health        ← component-level health checks, latency monitoring
-├── Data & Logs          ← audit log viewer
-├── Feature Flags        ← toggle flags (reads from api_keys table)
-├── AI Testing           ← AI test scenario generator (niche, rarely used)
-├── Danger Zone          ← destructive ops: cache clear, stuck sync reset
-└── Task Tracker         ← Kanban dev task board
-```
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-## Overlap Analysis
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-| Overlap | Why |
-|---------|-----|
-| **System Overview ↔ System Health** | Both answer "is the system healthy?" — Overview shows adapters/pipelines summary, Health shows per-component latency checks. Same audience, same question. |
-| **Integrations ↔ Supporting Systems** | Both manage credentials. Integrations handles PMS + API keys. Supporting Systems handles external tools (hosting, email, analytics logins). Same concept: "where are our credentials?" |
-| **Danger Zone → System Health** | Danger Zone has 3 destructive actions used rarely. Better as an "Actions" tab within the health dashboard than a standalone page. |
-| **AI Testing** | Niche tool, used during development sprints only. Not critical to daily ops. Candidate for archive. |
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
-## Proposed Menu (6 items, from 10)
+---
 
-```text
-SYSTEM (proposed)
-├── System Health        ← MERGED: Overview + Component Health + Danger Zone (3 tabs)
-├── PMS Control          ← keep as-is (adapter management is specific enough)
-├── Integrations         ← MERGED: API Keys + Supporting Systems (add tab)
-├── Data & Logs          ← keep as-is
-├── Feature Flags        ← keep as-is
-└── Task Tracker         ← keep as-is
-```
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-### What changes
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
-**1. System Health** — merge 3 pages into 1 tabbed page
-- **Tab: Overview** — current DevOverview content (PMS adapter summary, edge function status, sync pipeline status, error rate, uptime gauge, daily health report button)
-- **Tab: Components** — current AdminSystemHealth content (per-component health checks with latency, auto-refresh, time range filters)
-- **Tab: Actions** — current DevDanger content (cache purge, stuck sync reset, pending booking clear — behind confirmation dialogs)
-- Route: `/dev/system-health` (consolidate both old routes)
-- Old routes `/dev/overview`, `/admin/system-health`, `/dev/danger` redirect to new page
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
 
-**2. Integrations** — add Supporting Systems as a tab
-- **Existing tabs/sections** in AdminKeys stay untouched (API keys, PMS credentials, etc.)
-- **New tab: External Tools** — current SupportingSystems content (credential vault for hosting, email, analytics tools)
-- Route stays `/admin-keys`
-- Old route `/admin/supporting-systems` redirects
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
 
-**3. Removed from menu**
-- **AI Testing** → moved to `/dev/testing-archive`, accessible via direct URL only. Not deleted, just unlisted. Can be reviewed post-upgrade.
-- **NB Widget** → already absent from sidebar in current state. Route stays for direct access.
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
 
-### What stays unchanged
-- **PMS Control** (`/dev/pms`) — distinct adapter management, no overlap
-- **Data & Logs** (`/dev/logs`) — unique audit log viewer
-- **Feature Flags** (`/dev/features`) — unique toggle interface
-- **Task Tracker** (`/dev/tasks`) — unique project management
+---
 
-## Implementation Steps
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
 
-1. **Create new `DevSystemHealth.tsx`** — tabbed page with Overview, Components, and Actions tabs. Extract existing component logic from DevOverview, AdminSystemHealth, and DevDanger into tab content sections within this single page.
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
 
-2. **Add "External Tools" tab to `AdminKeys.tsx`** — import SupportingSystems content as an inline tab within the existing page structure. Given the file is already large, the tab content will be extracted to a `<SupportingSystemsTab />` component.
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
 
-3. **Update `navigation.ts`** — reduce systemControlSection items from 10 to 6 with updated labels/routes.
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
 
-4. **Update `AppSidebar.tsx`** — update systemItems array to match new 6-item config.
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
 
-5. **Update `App.tsx`** — add redirect routes for old paths, add new consolidated route, remove AI Testing from sidebar routing (keep route accessible).
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
 
-6. **Delete or archive old standalone files** — `DevOverview.tsx`, `AdminSystemHealth.tsx`, `DevDanger.tsx`, `SupportingSystems.tsx` become unused after merge (code moved into new components).
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
 
-## Files Affected
-- **New**: `src/pages/DevSystemHealth.tsx`, `src/components/system/SupportingSystemsTab.tsx`
-- **Edit**: `src/config/navigation.ts`, `src/components/layout/AppSidebar.tsx`, `src/App.tsx`, `src/pages/AdminKeys.tsx`
-- **Archive** (delete after code extracted): `src/pages/DevOverview.tsx`, `src/pages/AdminSystemHealth.tsx`, `src/pages/DevDanger.tsx`, `src/pages/SupportingSystems.tsx`
+---
 
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
