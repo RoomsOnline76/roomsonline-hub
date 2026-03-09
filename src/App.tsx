@@ -475,9 +475,17 @@ const App = () => (
             {/* Dev routes */}
             <Route
               path="/dev/overview"
+              element={<Navigate to="/dev/system-health" replace />}
+            />
+            <Route
+              path="/dev/danger"
+              element={<Navigate to="/dev/system-health?tab=actions" replace />}
+            />
+            <Route
+              path="/dev/system-health"
               element={
                 <ProtectedRoute requireDev={true}>
-                  <DevOverview />
+                  <DevSystemHealth />
                 </ProtectedRoute>
               }
             />
