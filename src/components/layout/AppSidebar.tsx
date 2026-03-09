@@ -128,17 +128,13 @@ const editAuditItems: NavItem[] = [
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
 ];
 
-// System menu - Dev/Fearless Leader technical items (Integrations dev-only)
+// System menu - Dev/Fearless Leader technical items
 const systemItems: NavItem[] = [
-  { title: "System Overview", icon: Activity, href: "/dev/overview", requireDev: true },
+  { title: "System Health", icon: HeartPulse, href: "/dev/system-health", requireDev: true },
   { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
-  { title: "Supporting Systems", icon: Settings, href: "/admin/supporting-systems", requireDevOrFearless: true },
-  { title: "System Health", icon: HeartPulse, href: "/admin/system-health", requireDevOrFearless: true },
   { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
   { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
-  { title: "AI Testing", icon: FlaskConical, href: "/dev/testing", requireDev: true },
-  { title: "Danger Zone", icon: AlertTriangle, href: "/dev/danger", requireDev: true },
   { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
 ];
 
