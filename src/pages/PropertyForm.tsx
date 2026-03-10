@@ -7879,7 +7879,7 @@ export default function PropertyForm() {
                               {
                                 id: newId,
                                 name: "New Rate Type",
-                                priceType: "UnitRate",
+                                priceType: "per_room",
                                 minStayDays: 1,
                                 maxStayDays: 0,
                                 minAdvanceDays: 0,
@@ -7995,7 +7995,7 @@ export default function PropertyForm() {
                                         </p>
                                       </div>
                                       <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Price Type</Label>
+                                        <Label className="text-sm font-medium">Pricing Model</Label>
                                         <Select
                                           value={rateType.priceType || "UnitRate"}
                                           onValueChange={(value) => {
@@ -8011,7 +8011,10 @@ export default function PropertyForm() {
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="UnitRate">Per Night</SelectItem>
+                                            <SelectItem value="per_room">Per Room / Per Unit</SelectItem>
+                                            <SelectItem value="per_person">Per Person</SelectItem>
+                                            <SelectItem value="per_person_sharing">Per Person Sharing</SelectItem>
+                                            <SelectItem value="UnitRate">Per Night (legacy)</SelectItem>
                                             <SelectItem value="PerStay">Per Stay</SelectItem>
                                           </SelectContent>
                                         </Select>
@@ -8024,8 +8027,15 @@ export default function PropertyForm() {
                                   {/* Price Type - read-only display for PMS */}
                                   {rateType.pms_synced && (
                                     <div className="space-y-1">
-                                      <Label className="text-xs text-muted-foreground">Price Type</Label>
-                                      <p className="font-medium">{rateType.priceType || "-"}</p>
+                                      <Label className="text-xs text-muted-foreground">Pricing Model</Label>
+                                      <p className="font-medium">{
+                                        rateType.priceType === 'per_room' ? 'Per Room / Per Unit' :
+                                        rateType.priceType === 'per_person' ? 'Per Person' :
+                                        rateType.priceType === 'per_person_sharing' ? 'Per Person Sharing' :
+                                        rateType.priceType === 'UnitRate' ? 'Per Night' :
+                                        rateType.priceType === 'PerStay' ? 'Per Stay' :
+                                        rateType.priceType || "-"
+                                      }</p>
                                     </div>
                                   )}
 
