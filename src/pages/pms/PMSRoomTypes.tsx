@@ -20,8 +20,10 @@ interface PropertyAmenities {
     maxPeople?: number;
     max_guests?: number;
     max_adults?: number;
+    maxAdults?: number;
     baseRate?: number;
     base_rate?: number;
+    linkedRateTypes?: string[];
   }>;
   pms_rate_types?: Array<{
     id?: string;
