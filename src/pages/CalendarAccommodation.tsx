@@ -768,7 +768,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               ratesByDate[dateStr].push({
                 rateTypeId: rateTypeId,
                 rateTypeName: rateType?.name || 'Standard Rate',
-                priceType: rateType?.priceType || 'PER ROOM',
+                priceType: rateType?.pricingModel || rateType?.priceType || 'per_room',
                 roomAmount: rateAmount,
               });
             }
