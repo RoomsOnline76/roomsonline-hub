@@ -792,11 +792,22 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
             );
             const baseRate = matchedRateType?.baseRate || room.baseRate || room.base_rate || 0;
             const matchedId = matchedRateType?.id || pmsRateTypes[0]?.id || 'default';
+            const orphanPriceType = matchedRateType?.pricingModel || matchedRateType?.priceType || 'per_room';
+            const isOrphanPerPerson = orphanPriceType.toLowerCase().includes('person');
             ratesByDate[dateStr].push({
               rateTypeId: String(matchedId),
               rateTypeName: matchedRateType?.name || room.name || 'Standard Rate',
-              priceType: matchedRateType?.pricingModel || matchedRateType?.priceType || 'per_room',
+              priceType: orphanPriceType,
               roomAmount: baseRate,
+              ...(isOrphanPerPerson ? {
+                adultAmounts: {
+                  adultAmount1: matchedRateType?.adult1Rate ?? baseRate,
+                  adultAmount2: matchedRateType?.adult2Rate ?? baseRate,
+                },
+                teenAmount: matchedRateType?.teenRate ?? 0,
+                childAmount: matchedRateType?.childRate ?? 0,
+                infantAmount: matchedRateType?.infantRate ?? 0,
+              } : {}),
             });
           }
         } else {
