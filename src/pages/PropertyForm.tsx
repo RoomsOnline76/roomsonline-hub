@@ -2229,6 +2229,7 @@ export default function PropertyForm() {
       stayPayDiscountPercentage?: number | null;
       // Base rate from wizard
       baseRate?: number | null;
+      pricingModel?: string | null;
       pms_synced?: boolean;
     }[]
   >([]);
