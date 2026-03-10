@@ -736,43 +736,50 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         if (linkedRateTypes.length > 0) {
           // Filter to only rate types that actually exist in pmsRateTypes
           const resolvedRateTypes = linkedRateTypes
-            .map((id: string) => ({ id, rateType: pmsRateTypes.find((rt: any) => rt.id === id) }))
+            .map((id: string) => ({ id, rateType: pmsRateTypes.find((rt: any) => rt.id === id || String(rt.id) === String(id)) }))
             .filter((entry: any) => entry.rateType);
           
-          // If none of the linked IDs resolve, fall back to all pmsRateTypes
-          const effectiveRateTypes = resolvedRateTypes.length > 0 
-            ? resolvedRateTypes 
-            : pmsRateTypes.map((rt: any) => ({ id: rt.id, rateType: rt }));
-          
-          for (const { id: rateTypeId, rateType } of effectiveRateTypes) {
-            const baseRate = rateType?.baseRate || room.baseRate || 0;
-            
-            // Find applicable season for this date
-            let rateAmount = baseRate;
-            const checkDate = new Date(iterDate);
-            
-            for (const season of seasons) {
-              const seasonStart = new Date(season.from || season.startDate);
-              const seasonEnd = new Date(season.to || season.endDate);
-              if (checkDate >= seasonStart && checkDate <= seasonEnd) {
-                const seasonRateKey = `${roomId}-${rateTypeId}`;
-                const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
-                const seasonRate = roomSeasonRates[seasonRateKey] || roomSeasonRates[rateTypeId];
-                
-                if (seasonRate?.roomAmount != null) {
-                  rateAmount = seasonRate.roomAmount;
-                } else if (typeof seasonRate === 'number') {
-                  rateAmount = seasonRate;
+          // If none of the linked IDs resolve, show a SINGLE default rate row 
+          // using the room's own baseRate — do NOT fall back to all pmsRateTypes
+          if (resolvedRateTypes.length > 0) {
+            for (const { id: rateTypeId, rateType } of resolvedRateTypes) {
+              const baseRate = rateType?.baseRate || room.baseRate || 0;
+              
+              let rateAmount = baseRate;
+              const checkDate = new Date(iterDate);
+              
+              for (const season of seasons) {
+                const seasonStart = new Date(season.from || season.startDate);
+                const seasonEnd = new Date(season.to || season.endDate);
+                if (checkDate >= seasonStart && checkDate <= seasonEnd) {
+                  const seasonRateKey = `${roomId}-${rateTypeId}`;
+                  const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
+                  const seasonRate = roomSeasonRates[seasonRateKey] || roomSeasonRates[rateTypeId];
+                  
+                  if (seasonRate?.roomAmount != null) {
+                    rateAmount = seasonRate.roomAmount;
+                  } else if (typeof seasonRate === 'number') {
+                    rateAmount = seasonRate;
+                  }
+                  break;
                 }
-                break;
               }
+              
+              ratesByDate[dateStr].push({
+                rateTypeId: rateTypeId,
+                rateTypeName: rateType?.name || 'Standard Rate',
+                priceType: rateType?.priceType || 'PER ROOM',
+                roomAmount: rateAmount,
+              });
             }
-            
+          } else {
+            // Orphaned linkedRateTypes — show single rate from room's baseRate
+            const baseRate = room.baseRate || room.base_rate || 0;
             ratesByDate[dateStr].push({
-              rateTypeId: rateTypeId,
-              rateTypeName: rateType?.name || 'Standard Rate',
-              priceType: rateType?.priceType || 'PER ROOM',
-              roomAmount: rateAmount,
+              rateTypeId: 'default',
+              rateTypeName: room.name || 'Standard Rate',
+              priceType: 'PER ROOM',
+              roomAmount: baseRate,
             });
           }
         } else {
