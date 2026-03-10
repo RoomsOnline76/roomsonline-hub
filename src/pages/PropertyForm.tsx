@@ -7995,7 +7995,7 @@ export default function PropertyForm() {
                                         </p>
                                       </div>
                                       <div className="space-y-2">
-                                        <Label className="text-sm font-medium">Price Type</Label>
+                                        <Label className="text-sm font-medium">Pricing Model</Label>
                                         <Select
                                           value={rateType.priceType || "UnitRate"}
                                           onValueChange={(value) => {
