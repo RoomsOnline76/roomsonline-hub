@@ -7879,7 +7879,7 @@ export default function PropertyForm() {
                               {
                                 id: newId,
                                 name: "New Rate Type",
-                                priceType: "UnitRate",
+                                priceType: "per_room",
                                 minStayDays: 1,
                                 maxStayDays: 0,
                                 minAdvanceDays: 0,
