@@ -4003,7 +4003,7 @@ export default function PropertyForm() {
                 min_stay: rateType.minStayDays || 1,
                 requires_deposit: false,
                 base_rate: rateType.baseRate || 0,
-                pricing_model: rateType.pricingModel || rateType.priceType || 'per_room',
+                pricing_model: (rateType as any).pricingModel || rateType.priceType || 'per_room',
               };
 
               // Check if a rate plan with this exact ID or code already exists
