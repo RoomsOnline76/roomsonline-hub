@@ -3243,20 +3243,28 @@ export default function PropertyForm() {
           const hasExternalSystem = !!(data as any).external_system && (data as any).external_system !== 'none' && (data as any).external_system !== 'roomsonline';
           
           if (rawRateTypes && Array.isArray(rawRateTypes) && rawRateTypes.length > 0) {
-            const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => ({
-              id: rt.id ?? rt.rate_type_id ?? idx + 1,
-              name: rt.name || `Rate Type ${rt.id ?? rt.rate_type_id ?? idx + 1}`,
-              priceType: rt.priceType || rt.price_type || "UnitRate",
-              minStayDays: rt.minStayDays || rt.min_stay_days || 1,
-              maxStayDays: rt.maxStayDays || rt.max_stay_days || 0,
-              minAdvanceDays: rt.minAdvanceDays || rt.min_advance_days || 0,
-              maxAdvanceDays: rt.maxAdvanceDays || rt.max_advance_days || 0,
-              description: rt.description || "",
-              baseRate: rt.baseRate || rt.base_rate || null,
-              // Only mark as PMS synced if property has a real external system
-              // For wizard-generated rate types or non-PMS properties, allow editing
-              pms_synced: hasExternalSystem && (rt.pms_synced !== false),
-            }));
+            const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => {
+              // pricingModel is the canonical field; priceType is legacy fallback
+              const resolvedPricingModel = rt.pricingModel || rt.pricing_model || rt.priceType || rt.price_type || "UnitRate";
+              return {
+                id: rt.id ?? rt.rate_type_id ?? idx + 1,
+                name: rt.name || `Rate Type ${rt.id ?? rt.rate_type_id ?? idx + 1}`,
+                priceType: resolvedPricingModel,
+                pricingModel: resolvedPricingModel,
+                minStayDays: rt.minStayDays || rt.min_stay_days || 1,
+                maxStayDays: rt.maxStayDays || rt.max_stay_days || 0,
+                minAdvanceDays: rt.minAdvanceDays || rt.min_advance_days || 0,
+                maxAdvanceDays: rt.maxAdvanceDays || rt.max_advance_days || 0,
+                description: rt.description || "",
+                baseRate: rt.baseRate || rt.base_rate || null,
+                adult1Rate: rt.adult1Rate ?? rt.adult_1_rate ?? null,
+                adult2Rate: rt.adult2Rate ?? rt.adult_2_rate ?? null,
+                teenRate: rt.teenRate ?? rt.teen_rate ?? null,
+                childRate: rt.childRate ?? rt.child_rate ?? null,
+                infantRate: rt.infantRate ?? rt.infant_rate ?? null,
+                pms_synced: hasExternalSystem && (rt.pms_synced !== false),
+              };
+            });
             setPmsRateTypes(transformedRateTypes);
           } else if ((data as any).external_system === "hostfully" && data.id) {
             // For Hostfully properties, fetch rate types from pms_rate_types_cache
