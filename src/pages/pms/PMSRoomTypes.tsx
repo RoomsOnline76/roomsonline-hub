@@ -206,47 +206,69 @@ export default function PMSRoomTypes() {
       return;
     }
 
-    // Write-back default_rate to amenities (last save wins)
-    if (payload.default_rate !== null) {
-      try {
-        const { data: property } = await supabase
-          .from("properties")
-          .select("amenities")
-          .eq("id", propertyId)
-          .single();
+    // Write-back ALL changed fields to amenities (last save wins)
+    try {
+      const { data: property } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .single();
 
-        if (property) {
-          const amenities = (property.amenities as PropertyAmenities) || {};
-          const roomTypesArr = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
-          const pmsRateTypes = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
+      if (property) {
+        const amenities = (property.amenities as PropertyAmenities) || {};
+        const roomTypesArr = Array.isArray(amenities.room_types) ? [...amenities.room_types] : [];
+        const pmsRateTypesArr = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
 
-          // Update matching room type baseRate
-          const rtIdx = roomTypesArr.findIndex((rt) =>
-            (rt?.name || '').toLowerCase() === payload.name.toLowerCase()
-          );
-          if (rtIdx >= 0) {
-            roomTypesArr[rtIdx] = { ...roomTypesArr[rtIdx], baseRate: payload.default_rate };
-          }
+        // Find matching room type by name (or linked_overview_id if editing)
+        const rtIdx = editingType?.linked_overview_id 
+          ? roomTypesArr.findIndex((rt) => rt?.id === editingType.linked_overview_id || (rt?.name || '').toLowerCase() === payload.name.toLowerCase())
+          : roomTypesArr.findIndex((rt) => (rt?.name || '').toLowerCase() === payload.name.toLowerCase());
+        
+        if (rtIdx >= 0) {
+          // Sync all editable fields back
+          roomTypesArr[rtIdx] = { 
+            ...roomTypesArr[rtIdx], 
+            name: payload.name,
+            description: payload.description,
+            maxPeople: payload.max_occupancy,
+            maxAdults: payload.max_occupancy,
+            baseRate: payload.default_rate,
+          };
 
-          // Update matching pms_rate_type baseRate (by linkedRoomId)
-          const roomId = rtIdx >= 0 ? roomTypesArr[rtIdx]?.id : null;
-          if (roomId) {
-            const rateIdx = pmsRateTypes.findIndex((rt) =>
-              rt?.linkedRoomId === roomId || rt?.id === `wizard-rate-${roomId}`
-            );
-            if (rateIdx >= 0) {
-              pmsRateTypes[rateIdx] = { ...pmsRateTypes[rateIdx], baseRate: payload.default_rate };
+          // Also update matching pms_rate_type baseRate if rate changed
+          if (payload.default_rate !== null) {
+            const roomId = roomTypesArr[rtIdx]?.id;
+            if (roomId) {
+              // Check linkedRateTypes on the room first
+              const roomLinkedRateTypes = roomTypesArr[rtIdx]?.linkedRateTypes || [];
+              let rateUpdated = false;
+              for (const linkedId of roomLinkedRateTypes) {
+                const rateIdx = pmsRateTypesArr.findIndex((rt) => rt?.id === linkedId);
+                if (rateIdx >= 0) {
+                  pmsRateTypesArr[rateIdx] = { ...pmsRateTypesArr[rateIdx], baseRate: payload.default_rate };
+                  rateUpdated = true;
+                }
+              }
+              // Fallback: wizard-rate pattern
+              if (!rateUpdated) {
+                const rateIdx = pmsRateTypesArr.findIndex((rt) =>
+                  rt?.linkedRoomId === roomId || rt?.id === `wizard-rate-${roomId}`
+                );
+                if (rateIdx >= 0) {
+                  pmsRateTypesArr[rateIdx] = { ...pmsRateTypesArr[rateIdx], baseRate: payload.default_rate };
+                }
+              }
             }
           }
-
-          await supabase
-            .from("properties")
-            .update({ amenities: { ...amenities, room_types: roomTypesArr, pms_rate_types: pmsRateTypes } })
-            .eq("id", propertyId);
         }
-      } catch (wbErr) {
-        console.warn("[PMSRoomTypes] Write-back to amenities warning:", wbErr);
+
+        await supabase
+          .from("properties")
+          .update({ amenities: { ...amenities, room_types: roomTypesArr, pms_rate_types: pmsRateTypesArr } })
+          .eq("id", propertyId);
       }
+    } catch (wbErr) {
+      console.warn("[PMSRoomTypes] Write-back to amenities warning:", wbErr);
     }
 
     toast.success(editingType ? "Room type updated — syncing to Property Overview" : "Room type created — syncing to Property Overview");
