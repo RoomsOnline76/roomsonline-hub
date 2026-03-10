@@ -6269,7 +6269,10 @@ export type Database = {
       }
       rolos_rate_plans: {
         Row: {
+          adult_1_rate: number | null
+          adult_2_rate: number | null
           base_rate: number | null
+          child_rate: number | null
           closed_to_arrival: boolean[] | null
           closed_to_departure: boolean[] | null
           code: string | null
@@ -6278,6 +6281,7 @@ export type Database = {
           deposit_percentage: number | null
           description: string | null
           id: string
+          infant_rate: number | null
           is_active: boolean | null
           is_tax_inclusive: boolean | null
           max_stay: number | null
@@ -6286,10 +6290,14 @@ export type Database = {
           pricing_model: string
           property_id: string
           requires_deposit: boolean | null
+          teen_rate: number | null
           updated_at: string | null
         }
         Insert: {
+          adult_1_rate?: number | null
+          adult_2_rate?: number | null
           base_rate?: number | null
+          child_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
           code?: string | null
@@ -6298,6 +6306,7 @@ export type Database = {
           deposit_percentage?: number | null
           description?: string | null
           id?: string
+          infant_rate?: number | null
           is_active?: boolean | null
           is_tax_inclusive?: boolean | null
           max_stay?: number | null
@@ -6306,10 +6315,14 @@ export type Database = {
           pricing_model?: string
           property_id: string
           requires_deposit?: boolean | null
+          teen_rate?: number | null
           updated_at?: string | null
         }
         Update: {
+          adult_1_rate?: number | null
+          adult_2_rate?: number | null
           base_rate?: number | null
+          child_rate?: number | null
           closed_to_arrival?: boolean[] | null
           closed_to_departure?: boolean[] | null
           code?: string | null
@@ -6318,6 +6331,7 @@ export type Database = {
           deposit_percentage?: number | null
           description?: string | null
           id?: string
+          infant_rate?: number | null
           is_active?: boolean | null
           is_tax_inclusive?: boolean | null
           max_stay?: number | null
@@ -6326,6 +6340,7 @@ export type Database = {
           pricing_model?: string
           property_id?: string
           requires_deposit?: boolean | null
+          teen_rate?: number | null
           updated_at?: string | null
         }
         Relationships: [
