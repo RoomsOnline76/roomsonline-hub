@@ -8011,7 +8011,10 @@ export default function PropertyForm() {
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            <SelectItem value="UnitRate">Per Night</SelectItem>
+                                            <SelectItem value="per_room">Per Room / Per Unit</SelectItem>
+                                            <SelectItem value="per_person">Per Person</SelectItem>
+                                            <SelectItem value="per_person_sharing">Per Person Sharing</SelectItem>
+                                            <SelectItem value="UnitRate">Per Night (legacy)</SelectItem>
                                             <SelectItem value="PerStay">Per Stay</SelectItem>
                                           </SelectContent>
                                         </Select>
