@@ -1102,13 +1102,16 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
   // Get rate type options from property's saved pms_rate_types (same as Property Form > Room Information > Rate Types)
   const rateTypeOptions = React.useMemo(() => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
+    const seenNames = new Set<string>();
     
     // Only use property's saved pms_rate_types to match Property Form
     if (selectedPropertyData?.amenities?.pms_rate_types) {
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
         const rateTypeId = rt.id || rt.rate_type_id;
-        if (rateTypeId && rt.name) {
+        const name = (rt.name || '').trim();
+        if (rateTypeId && name && !seenNames.has(name.toLowerCase())) {
+          seenNames.add(name.toLowerCase());
           const rtIdStr = String(rateTypeId);
           // Check if this rate type has any rates in the PMS data
           let hasRates = false;
@@ -1116,7 +1119,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
             pmsData.roomTypes.forEach(room => {
               Object.values(room.ratesByDate).forEach(dateRates => {
                 dateRates.forEach(rate => {
-                  // Compare as strings to avoid type mismatch
                   if (String(rate.rateTypeId) === rtIdStr) {
                     const hasValues = (rate.roomAmount != null && rate.roomAmount > 0) || 
                                      (rate.adultAmounts && Object.values(rate.adultAmounts).some(v => v != null && v > 0)) ||
@@ -1132,7 +1134,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           
           rateTypes.push({
             id: rtIdStr,
-            label: rt.name,
+            label: name,
             hasRates
           });
         }
@@ -2233,7 +2235,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                               {/* Rate Rows - Now with PER ROOM / PER PERSON structure */}
                               {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
                                 const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
-                                const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
+                                const isUnitRate = rate.priceType?.toUpperCase().includes("UNIT") || rate.priceType === "UnitRate";
+                                const priceTypeLabel = isPerPerson ? "PER PERSON" : isUnitRate ? "PER UNIT" : "PER ROOM";
                                 const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
                                 // Occupancy sub-rows for PER PERSON rates - filter based on room settings
@@ -2623,7 +2626,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                               {/* Rate Rows - Now with PER ROOM / PER PERSON structure */}
                               {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
                                 const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
-                                const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
+                                const isUnitRate = rate.priceType?.toUpperCase().includes("UNIT") || rate.priceType === "UnitRate";
+                                const priceTypeLabel = isPerPerson ? "PER PERSON" : isUnitRate ? "PER UNIT" : "PER ROOM";
                                 const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
                                 // Occupancy sub-rows for PER PERSON rates - filter based on room settings
