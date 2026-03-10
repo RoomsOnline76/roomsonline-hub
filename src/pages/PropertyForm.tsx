@@ -10211,11 +10211,13 @@ export default function PropertyForm() {
                         const linkedRateTypeIds = rawLinkedIds.map(extractRateTypeId).filter(Boolean);
                         
                         // If room has specific linked rate types, filter by those; otherwise show all available
-                        const availableRateTypesForRoom = linkedRateTypeIds.length > 0
+                        // Fall back to all rate types if linked IDs are orphaned (no matches found)
+                        const filteredByLinked = linkedRateTypeIds.length > 0
                           ? pmsRateTypes.filter((rt) => 
                               linkedRateTypeIds.includes(String(rt.id)) || linkedRateTypeIds.includes(rt.id)
                             )
-                          : pmsRateTypes; // Show all rate types if none specifically linked
+                          : [];
+                        const availableRateTypesForRoom = filteredByLinked.length > 0 ? filteredByLinked : pmsRateTypes;
 
                         return (
                           <>
