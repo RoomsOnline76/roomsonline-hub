@@ -8027,8 +8027,15 @@ export default function PropertyForm() {
                                   {/* Price Type - read-only display for PMS */}
                                   {rateType.pms_synced && (
                                     <div className="space-y-1">
-                                      <Label className="text-xs text-muted-foreground">Price Type</Label>
-                                      <p className="font-medium">{rateType.priceType || "-"}</p>
+                                      <Label className="text-xs text-muted-foreground">Pricing Model</Label>
+                                      <p className="font-medium">{
+                                        rateType.priceType === 'per_room' ? 'Per Room / Per Unit' :
+                                        rateType.priceType === 'per_person' ? 'Per Person' :
+                                        rateType.priceType === 'per_person_sharing' ? 'Per Person Sharing' :
+                                        rateType.priceType === 'UnitRate' ? 'Per Night' :
+                                        rateType.priceType === 'PerStay' ? 'Per Stay' :
+                                        rateType.priceType || "-"
+                                      }</p>
                                     </div>
                                   )}
 
