@@ -8036,7 +8036,7 @@ export default function PropertyForm() {
                                       <div className="space-y-2">
                                         <Label className="text-sm font-medium">Pricing Model</Label>
                                         <Select
-                                          value={rateType.priceType || "UnitRate"}
+                                          value={rateType.pricingModel || rateType.priceType || "UnitRate"}
                                           onValueChange={(value) => {
                                             setPmsRateTypes((prev) =>
                                               prev.map((rt) =>
