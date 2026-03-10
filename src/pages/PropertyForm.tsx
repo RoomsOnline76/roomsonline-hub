@@ -2229,6 +2229,7 @@ export default function PropertyForm() {
       stayPayDiscountPercentage?: number | null;
       // Base rate from wizard
       baseRate?: number | null;
+      pricingModel?: string | null;
       pms_synced?: boolean;
     }[]
   >([]);
@@ -4003,15 +4004,35 @@ export default function PropertyForm() {
                 min_stay: rateType.minStayDays || 1,
                 requires_deposit: false,
                 base_rate: rateType.baseRate || 0,
+                pricing_model: rateType.pricingModel || rateType.priceType || 'per_room',
               };
 
-              // Check if a rate plan with this code OR name already exists
-              const { data: existingPlan } = await supabase
+              // Check if a rate plan with this exact ID or code already exists
+              // First try exact UUID match, then fall back to code match
+              let existingPlan: { id: string } | null = null;
+              
+              // Try matching by full UUID id first
+              const fullId = String(rateType.id);
+              const { data: idMatch } = await supabase
                 .from("rolos_rate_plans")
                 .select("id")
                 .eq("property_id", savedPropertyId)
-                .or(`code.eq.${rateCode},name.eq.${ratePlanData.name}`)
+                .eq("id", fullId)
                 .maybeSingle();
+              
+              if (idMatch) {
+                existingPlan = idMatch;
+              } else {
+                // Fall back to code match only (not name, to avoid duplicate creation)
+                const { data: codeMatch } = await supabase
+                  .from("rolos_rate_plans")
+                  .select("id")
+                  .eq("property_id", savedPropertyId)
+                  .eq("code", rateCode)
+                  .limit(1)
+                  .maybeSingle();
+                existingPlan = codeMatch;
+              }
 
               if (existingPlan) {
                 const { error: updateErr } = await supabase
@@ -8001,7 +8022,7 @@ export default function PropertyForm() {
                                           onValueChange={(value) => {
                                             setPmsRateTypes((prev) =>
                                               prev.map((rt) =>
-                                                rt.id === rateType.id ? { ...rt, priceType: value } : rt
+                                                rt.id === rateType.id ? { ...rt, priceType: value, pricingModel: value } : rt
                                               )
                                             );
                                             setIsDirty(true);
