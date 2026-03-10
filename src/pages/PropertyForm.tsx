@@ -8046,6 +8046,108 @@ export default function PropertyForm() {
                                         </Select>
                                       </div>
                                     </div>
+                                    
+                                    {/* Per-Person Rate Breakdown - show when pricing model is per_person */}
+                                    {(rateType.priceType === 'per_person' || rateType.priceType === 'per_person_sharing' || rateType.pricingModel === 'per_person' || rateType.pricingModel === 'per_person_sharing') && (
+                                      <div className="mt-4 p-3 border rounded-lg bg-muted/30">
+                                        <Label className="text-sm font-medium mb-3 block">Per-Person Rate Breakdown</Label>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-muted-foreground">1 Adult (½)</Label>
+                                            <Input
+                                              type="number"
+                                              placeholder="0"
+                                              value={rateType.adult1Rate ?? ""}
+                                              onChange={(e) => {
+                                                const value = e.target.value ? parseFloat(e.target.value) : null;
+                                                setPmsRateTypes((prev) =>
+                                                  prev.map((rt) =>
+                                                    rt.id === rateType.id ? { ...rt, adult1Rate: value } : rt
+                                                  )
+                                                );
+                                                setIsDirty(true);
+                                              }}
+                                              className="bg-background h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-muted-foreground">2 Adults</Label>
+                                            <Input
+                                              type="number"
+                                              placeholder="0"
+                                              value={rateType.adult2Rate ?? ""}
+                                              onChange={(e) => {
+                                                const value = e.target.value ? parseFloat(e.target.value) : null;
+                                                setPmsRateTypes((prev) =>
+                                                  prev.map((rt) =>
+                                                    rt.id === rateType.id ? { ...rt, adult2Rate: value } : rt
+                                                  )
+                                                );
+                                                setIsDirty(true);
+                                              }}
+                                              className="bg-background h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-muted-foreground">Teen (t)</Label>
+                                            <Input
+                                              type="number"
+                                              placeholder="0"
+                                              value={rateType.teenRate ?? ""}
+                                              onChange={(e) => {
+                                                const value = e.target.value ? parseFloat(e.target.value) : null;
+                                                setPmsRateTypes((prev) =>
+                                                  prev.map((rt) =>
+                                                    rt.id === rateType.id ? { ...rt, teenRate: value } : rt
+                                                  )
+                                                );
+                                                setIsDirty(true);
+                                              }}
+                                              className="bg-background h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-muted-foreground">Child (c)</Label>
+                                            <Input
+                                              type="number"
+                                              placeholder="0"
+                                              value={rateType.childRate ?? ""}
+                                              onChange={(e) => {
+                                                const value = e.target.value ? parseFloat(e.target.value) : null;
+                                                setPmsRateTypes((prev) =>
+                                                  prev.map((rt) =>
+                                                    rt.id === rateType.id ? { ...rt, childRate: value } : rt
+                                                  )
+                                                );
+                                                setIsDirty(true);
+                                              }}
+                                              className="bg-background h-8 text-sm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-xs text-muted-foreground">Infant (i)</Label>
+                                            <Input
+                                              type="number"
+                                              placeholder="0"
+                                              value={rateType.infantRate ?? ""}
+                                              onChange={(e) => {
+                                                const value = e.target.value ? parseFloat(e.target.value) : null;
+                                                setPmsRateTypes((prev) =>
+                                                  prev.map((rt) =>
+                                                    rt.id === rateType.id ? { ...rt, infantRate: value } : rt
+                                                  )
+                                                );
+                                                setIsDirty(true);
+                                              }}
+                                              className="bg-background h-8 text-sm"
+                                            />
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-2">
+                                          Set individual rates per guest type. Base rate above is used as fallback when per-person rates are not set.
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 
