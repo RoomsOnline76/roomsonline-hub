@@ -3234,7 +3234,7 @@ export default function PropertyForm() {
           // Load rate types - check both pms_rate_types and rate_types for compatibility
           const rawRateTypes = amenities?.pms_rate_types || amenities?.rate_types;
           // Determine if this property has a real PMS connection
-          const hasExternalSystem = !!(data as any).external_system && (data as any).external_system !== 'none';
+          const hasExternalSystem = !!(data as any).external_system && (data as any).external_system !== 'none' && (data as any).external_system !== 'roomsonline';
           
           if (rawRateTypes && Array.isArray(rawRateTypes) && rawRateTypes.length > 0) {
             const transformedRateTypes = rawRateTypes.map((rt: any, idx: number) => ({
