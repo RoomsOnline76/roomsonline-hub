@@ -8022,7 +8022,7 @@ export default function PropertyForm() {
                                           onValueChange={(value) => {
                                             setPmsRateTypes((prev) =>
                                               prev.map((rt) =>
-                                                rt.id === rateType.id ? { ...rt, priceType: value } : rt
+                                                rt.id === rateType.id ? { ...rt, priceType: value, pricingModel: value } : rt
                                               )
                                             );
                                             setIsDirty(true);
