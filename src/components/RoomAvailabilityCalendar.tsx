@@ -226,8 +226,30 @@ export default function RoomAvailabilityCalendar({
           r.name === roomName
         );
         
-        const baseRate = matchedRoom?.base_rate || matchedRoom?.baseRate || matchedRoom?.daily_rate || matchedRoom?.dailyRate;
-        const rateUnit = matchedRoom?.rate_unit || matchedRoom?.rateUnit || 'per_night';
+        // Resolve base rate: direct on room, or via linkedRateTypes → pms_rate_types
+        let baseRate = matchedRoom?.base_rate || matchedRoom?.baseRate || matchedRoom?.daily_rate || matchedRoom?.dailyRate;
+        let rateUnit = matchedRoom?.rate_unit || matchedRoom?.rateUnit || 'per_night';
+        
+        if (!baseRate && matchedRoom?.linkedRateTypes?.length) {
+          const pmsRateTypes = propertyAmenities?.pms_rate_types || [];
+          for (const linkedId of matchedRoom.linkedRateTypes) {
+            const linkedRate = pmsRateTypes.find((rt: any) => rt.id === linkedId);
+            if (linkedRate?.baseRate) {
+              baseRate = linkedRate.baseRate;
+              if (linkedRate.pricingModel === 'per_person') rateUnit = 'per_person';
+              break;
+            }
+          }
+          // If linked rate type not found, try any available rate type as fallback
+          if (!baseRate && pmsRateTypes.length > 0) {
+            const fallbackRate = pmsRateTypes.find((rt: any) => rt.baseRate);
+            if (fallbackRate?.baseRate) {
+              baseRate = fallbackRate.baseRate;
+              if (fallbackRate.pricingModel === 'per_person') rateUnit = 'per_person';
+            }
+          }
+        }
+        
         const seasons = propertyAmenities?.seasons || [];
         const seasonRates = propertyAmenities?.season_rates || [];
         
