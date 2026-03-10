@@ -4005,13 +4005,32 @@ export default function PropertyForm() {
                 base_rate: rateType.baseRate || 0,
               };
 
-              // Check if a rate plan with this code OR name already exists
-              const { data: existingPlan } = await supabase
+              // Check if a rate plan with this exact ID or code already exists
+              // First try exact UUID match, then fall back to code match
+              let existingPlan: { id: string } | null = null;
+              
+              // Try matching by full UUID id first
+              const fullId = String(rateType.id);
+              const { data: idMatch } = await supabase
                 .from("rolos_rate_plans")
                 .select("id")
                 .eq("property_id", savedPropertyId)
-                .or(`code.eq.${rateCode},name.eq.${ratePlanData.name}`)
+                .eq("id", fullId)
                 .maybeSingle();
+              
+              if (idMatch) {
+                existingPlan = idMatch;
+              } else {
+                // Fall back to code match only (not name, to avoid duplicate creation)
+                const { data: codeMatch } = await supabase
+                  .from("rolos_rate_plans")
+                  .select("id")
+                  .eq("property_id", savedPropertyId)
+                  .eq("code", rateCode)
+                  .limit(1)
+                  .maybeSingle();
+                existingPlan = codeMatch;
+              }
 
               if (existingPlan) {
                 const { error: updateErr } = await supabase
