@@ -2230,6 +2230,11 @@ export default function PropertyForm() {
       // Base rate from wizard
       baseRate?: number | null;
       pricingModel?: string | null;
+      adult1Rate?: number | null;
+      adult2Rate?: number | null;
+      teenRate?: number | null;
+      childRate?: number | null;
+      infantRate?: number | null;
       pms_synced?: boolean;
     }[]
   >([]);
