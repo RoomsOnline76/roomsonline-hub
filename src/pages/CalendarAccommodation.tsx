@@ -2624,7 +2624,8 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                               {/* Rate Rows - Now with PER ROOM / PER PERSON structure */}
                               {selectedDisplayOptions.includes("rates") && filteredRates.map((rate, rateIndex) => {
                                 const isPerPerson = rate.priceType?.toUpperCase().includes("PERSON");
-                                const priceTypeLabel = isPerPerson ? "PER PERSON" : "PER ROOM";
+                                const isUnitRate = rate.priceType?.toUpperCase().includes("UNIT") || rate.priceType === "UnitRate";
+                                const priceTypeLabel = isPerPerson ? "PER PERSON" : isUnitRate ? "PER UNIT" : "PER ROOM";
                                 const rateLabel = `${rate.rateTypeName || rate.rateType} ${priceTypeLabel}`;
                                 
                                 // Occupancy sub-rows for PER PERSON rates - filter based on room settings
