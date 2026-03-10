@@ -765,11 +765,23 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
                 }
               }
               
+              const priceType = rateType?.pricingModel || rateType?.priceType || 'per_room';
+              const isPerPersonRate = priceType.toLowerCase().includes('person');
+              
               ratesByDate[dateStr].push({
                 rateTypeId: rateTypeId,
                 rateTypeName: rateType?.name || 'Standard Rate',
-                priceType: rateType?.pricingModel || rateType?.priceType || 'per_room',
+                priceType: priceType,
                 roomAmount: rateAmount,
+                ...(isPerPersonRate ? {
+                  adultAmounts: {
+                    adultAmount1: rateType?.adult1Rate ?? rateAmount,
+                    adultAmount2: rateType?.adult2Rate ?? rateAmount,
+                  },
+                  teenAmount: rateType?.teenRate ?? 0,
+                  childAmount: rateType?.childRate ?? 0,
+                  infantAmount: rateType?.infantRate ?? 0,
+                } : {}),
               });
             }
           } else {

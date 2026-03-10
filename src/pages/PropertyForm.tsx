@@ -4010,6 +4010,11 @@ export default function PropertyForm() {
                 requires_deposit: false,
                 base_rate: rateType.baseRate || 0,
                 pricing_model: rateType.pricingModel || rateType.priceType || 'per_room',
+                adult_1_rate: rateType.adult1Rate ?? null,
+                adult_2_rate: rateType.adult2Rate ?? null,
+                teen_rate: rateType.teenRate ?? null,
+                child_rate: rateType.childRate ?? null,
+                infant_rate: rateType.infantRate ?? null,
               };
 
               // Check if a rate plan with this exact ID or code already exists
