@@ -321,14 +321,26 @@ export default function PMSRatePlans() {
         const amenities = (property as any).amenities || {};
         const pmsRateTypes: any[] = Array.isArray(amenities.pms_rate_types) ? [...amenities.pms_rate_types] : [];
 
-        // Find matching rate type by code or name
+        // Find matching rate type by plan UUID, code, or name
         const matchIdx = pmsRateTypes.findIndex((rt: any) => {
+          if (rt.id === planId) return true;
           const code = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
           return code === form.code || (rt.name || '').toLowerCase() === form.name.toLowerCase();
         });
 
+        const rateData = { 
+          baseRate: baseRate, 
+          name: form.name, 
+          description: form.description || undefined,
+          pricingModel: form.pricing_model,
+          minStayDays: parseInt(form.min_stay) || 1,
+        };
+
         if (matchIdx >= 0) {
-          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], baseRate: baseRate, name: form.name, pricingModel: form.pricing_model };
+          pmsRateTypes[matchIdx] = { ...pmsRateTypes[matchIdx], ...rateData };
+        } else {
+          // Rate plan exists in rolos_rate_plans but not in amenities — add it
+          pmsRateTypes.push({ id: planId, priceType: 'UnitRate', ...rateData });
         }
 
         await supabase

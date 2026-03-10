@@ -3878,23 +3878,50 @@ export default function PropertyForm() {
       // This triggers the bidirectional sync to rolos_room_types
       if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
         try {
-          // Upsert room types to hostfully_room_types
+          // Upsert room types to hostfully_room_types with ALL fields
           for (const room of roomTypes) {
-            // Find matching rate type to get baseRate
+            // Find matching rate type to get baseRate — check linkedRateTypes first, then wizard-rate pattern
             const roomId = room.id || '';
-            const matchingRate = pmsRateTypes.find((rt: any) => 
-              rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
-            );
-            const baseRate = matchingRate?.baseRate || room.rates?.[0]?.baseRate || room.base_rate || room.baseRate || null;
+            let baseRate = room.base_rate || room.baseRate || null;
             
-            const roomTypeData = {
+            if (!baseRate) {
+              // Check linkedRateTypes on the room
+              const roomLinkedRateTypes = room.linkedRateTypes || [];
+              for (const linkedId of roomLinkedRateTypes) {
+                const matchingRate = pmsRateTypes.find((rt: any) => rt.id === linkedId);
+                if (matchingRate?.baseRate) {
+                  baseRate = matchingRate.baseRate;
+                  break;
+                }
+              }
+            }
+            
+            if (!baseRate) {
+              // Fallback: wizard-rate pattern or linkedRoomId
+              const matchingRate = pmsRateTypes.find((rt: any) => 
+                rt.linkedRoomId === roomId || rt.id === `wizard-rate-${roomId}`
+              );
+              baseRate = matchingRate?.baseRate || room.rates?.[0]?.baseRate || null;
+            }
+            
+            const roomTypeData: any = {
               property_id: savedPropertyId,
               name: room.name || 'Unnamed Room',
               description: room.description || null,
               max_guests: room.maxPeople || room.maxAdults || 2,
               daily_rate: baseRate,
-              is_active: true,
-              // Use existing id if it looks like a UUID, otherwise generate
+              is_active: room.selected !== false,
+              bed_configuration: room.bedConfiguration || null,
+              amenities: room.amenities || null,
+              images: room.images || null,
+              facilities_raw: room.facilities || null,
+              min_stay: room.minStay || null,
+              max_stay: room.maxStay || null,
+              room_size: room.roomSize || null,
+              bathrooms: room.bathrooms || null,
+              property_type: room.pmsRoomType || null,
+              linked_rate_type_ids: room.linkedRateTypes || null,
+              // Use existing id if it looks like a UUID, otherwise don't set
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
             };
 
