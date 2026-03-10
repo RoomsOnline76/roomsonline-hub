@@ -734,8 +734,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         
         // If room has linked rate types, use those
         if (linkedRateTypes.length > 0) {
-          for (const rateTypeId of linkedRateTypes) {
-            const rateType = pmsRateTypes.find((rt: any) => rt.id === rateTypeId);
+          // Filter to only rate types that actually exist in pmsRateTypes
+          const resolvedRateTypes = linkedRateTypes
+            .map((id: string) => ({ id, rateType: pmsRateTypes.find((rt: any) => rt.id === id) }))
+            .filter((entry: any) => entry.rateType);
+          
+          // If none of the linked IDs resolve, fall back to all pmsRateTypes
+          const effectiveRateTypes = resolvedRateTypes.length > 0 
+            ? resolvedRateTypes 
+            : pmsRateTypes.map((rt: any) => ({ id: rt.id, rateType: rt }));
+          
+          for (const { id: rateTypeId, rateType } of effectiveRateTypes) {
             const baseRate = rateType?.baseRate || room.baseRate || 0;
             
             // Find applicable season for this date
@@ -746,9 +755,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               const seasonStart = new Date(season.from || season.startDate);
               const seasonEnd = new Date(season.to || season.endDate);
               if (checkDate >= seasonStart && checkDate <= seasonEnd) {
-                // Look up season rate: try multiple key formats
-                // Format 1: "{roomId}-{rateTypeId}"
-                // Format 2: Direct lookup in seasonRates object by room id
                 const seasonRateKey = `${roomId}-${rateTypeId}`;
                 const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
                 const seasonRate = roomSeasonRates[seasonRateKey] || roomSeasonRates[rateTypeId];
