@@ -773,12 +773,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               });
             }
           } else {
-            // Orphaned linkedRateTypes — show single rate from room's baseRate
-            const baseRate = room.baseRate || room.base_rate || 0;
+            // Orphaned linkedRateTypes — find correct rate type by matching room via linkedRoomId or name
+            const matchedRateType = pmsRateTypes.find((rt: any) => 
+              rt.linkedRoomId === roomId || 
+              (rt.name || '').toLowerCase().includes((room.name || '').toLowerCase())
+            );
+            const baseRate = matchedRateType?.baseRate || room.baseRate || room.base_rate || 0;
+            const matchedId = matchedRateType?.id || pmsRateTypes[0]?.id || 'default';
             ratesByDate[dateStr].push({
-              rateTypeId: 'default',
-              rateTypeName: room.name || 'Standard Rate',
-              priceType: 'PER ROOM',
+              rateTypeId: String(matchedId),
+              rateTypeName: matchedRateType?.name || room.name || 'Standard Rate',
+              priceType: matchedRateType?.priceType || 'PER ROOM',
               roomAmount: baseRate,
             });
           }
