@@ -8,6 +8,10 @@
       "DOM",
       "DOM.Iterable"
     ],
+    "types": [
+      "node",
+      "google.maps"
+    ],
     "module": "ESNext",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
