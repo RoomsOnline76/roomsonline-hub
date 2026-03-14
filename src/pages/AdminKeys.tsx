@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
+import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -4404,6 +4405,9 @@ export default function AdminKeys() {
             .map(renderKeyCard)}
         </Accordion>
       </div>
+      {/* PayFast Environment Toggle */}
+      <PayFastEnvironmentToggle />
+
       {/* External Tools Section (formerly Supporting Systems) */}
       <div>
         <h2 className="text-xl font-semibold mb-4">External Tools</h2>
