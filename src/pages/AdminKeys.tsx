@@ -4405,6 +4405,9 @@ export default function AdminKeys() {
             .map(renderKeyCard)}
         </Accordion>
       </div>
+      {/* PayFast Environment Toggle */}
+      <PayFastEnvironmentToggle />
+
       {/* External Tools Section (formerly Supporting Systems) */}
       <div>
         <h2 className="text-xl font-semibold mb-4">External Tools</h2>
