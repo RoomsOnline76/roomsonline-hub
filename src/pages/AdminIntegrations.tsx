@@ -111,6 +111,9 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
+            {/* PayFast Environment Toggle */}
+            <PayFastEnvironmentToggle />
+
             {/* Analytics overview */}
             <IntegrationAnalytics propertyId={selectedProperty} />
 
