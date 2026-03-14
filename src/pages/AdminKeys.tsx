@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
+import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
