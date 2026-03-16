@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { getModuleAccess } from "@/lib/pmsPermissions";
@@ -174,7 +174,7 @@ export default function PMSEvents() {
   };
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -462,6 +462,6 @@ export default function PMSEvents() {
           </form>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

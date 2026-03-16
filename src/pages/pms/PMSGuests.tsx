@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,11 +94,11 @@ export default function PMSGuests() {
     setLoadingHistory(false);
   };
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
@@ -254,6 +254,6 @@ export default function PMSGuests() {
           )}
         </SheetContent>
       </Sheet>
-    </PMSLayout>
+    </>
   );
 }

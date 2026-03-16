@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,7 +147,7 @@ export default function PMSPortfolio() {
   const loading = propLoading || bookingsLoading;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -317,6 +317,6 @@ export default function PMSPortfolio() {
           </ScrollArea>
         </div>
       </div>
-    </PMSLayout>
+    </>
   );
 }

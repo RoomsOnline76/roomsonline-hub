@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
@@ -587,26 +587,22 @@ export default function PMSDashboard() {
 
   if (propLoading) {
     return (
-      <PMSLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-[400px] w-full" />
-        </div>
-      </PMSLayout>
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
     );
   }
 
   if (!propertyId) {
     return (
-      <PMSLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <Sparkles className="h-12 w-12 text-primary" />
-          <h1 className="text-2xl font-bold">Property Management</h1>
-          <p className="text-muted-foreground text-center max-w-md">
-            Select a property from your Property Overview to access the PMS module.
-          </p>
-        </div>
-      </PMSLayout>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Sparkles className="h-12 w-12 text-primary" />
+        <h1 className="text-2xl font-bold">Property Management</h1>
+        <p className="text-muted-foreground text-center max-w-md">
+          Select a property from your Property Overview to access the PMS module.
+        </p>
+      </div>
     );
   }
 
@@ -619,7 +615,7 @@ export default function PMSDashboard() {
   ];
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-4">
         {/* Header with property switch & stats */}
         <div className="flex flex-col gap-4">
@@ -838,7 +834,7 @@ export default function PMSDashboard() {
       <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-    </PMSLayout>
+    </>
   );
 }
 

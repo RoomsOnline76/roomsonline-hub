@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -266,11 +266,11 @@ export default function PMSHousekeeping() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -612,6 +612,6 @@ export default function PMSHousekeeping() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -228,11 +228,11 @@ export default function PMSReports() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Reports & Financials</h1>
         
@@ -393,6 +393,6 @@ export default function PMSReports() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }

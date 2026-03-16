@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,7 +104,7 @@ function PMSMessaging() {
   };
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -327,7 +327,7 @@ function PMSMessaging() {
             </DialogContent>
           </Dialog>
       </div>
-    </PMSLayout>
+    </>
   );
 }
 

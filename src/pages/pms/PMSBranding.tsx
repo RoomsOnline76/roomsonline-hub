@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -217,14 +217,14 @@ export default function PMSBranding() {
     setSaving(false);
   };
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const addr = config.business_address;
   const hasColors = !!(visual.brand_primary_color || visual.brand_secondary_color || visual.brand_font_color);
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6 max-w-5xl">
         <div className="flex items-center gap-3">
           <Palette className="h-6 w-6 text-primary" />
@@ -507,6 +507,6 @@ export default function PMSBranding() {
           </div>
         </div>
       </div>
-    </PMSLayout>
+    </>
   );
 }

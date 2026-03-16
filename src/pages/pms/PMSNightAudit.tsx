@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { useNightAuditLog, useTriggerNightAudit, type NightAuditLogEntry } from "@/hooks/useNightAuditLog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -90,11 +90,11 @@ export default function PMSNightAudit() {
 
   const lastCompleted = logs?.find((l) => l.status === "completed");
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <Moon className="w-6 h-6 text-primary" />
@@ -195,6 +195,6 @@ export default function PMSNightAudit() {
         </CardContent>
       </Card>
       </div>
-    </PMSLayout>
+    </>
   );
 }

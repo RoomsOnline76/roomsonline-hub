@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { getStaffLoginUrl } from "@/lib/config";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -248,7 +248,7 @@ export default function PMSStaff() {
   const activeStaff = staff.filter(s => s.is_active);
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -616,6 +616,6 @@ export default function PMSStaff() {
           </form>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

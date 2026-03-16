@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { getModuleAccess } from "@/lib/pmsPermissions";
@@ -74,7 +74,7 @@ export default function PMSChannels() {
   }));
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -174,6 +174,6 @@ export default function PMSChannels() {
           }}
         />
       )}
-    </PMSLayout>
+    </>
   );
 }

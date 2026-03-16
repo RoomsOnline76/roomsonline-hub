@@ -1,4 +1,4 @@
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,31 +36,27 @@ export default function PMSIntegrations() {
 
   if (propertyLoading || propertyDataLoading) {
     return (
-      <PMSLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-muted-foreground">Loading property…</p>
-        </div>
-      </PMSLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-muted-foreground">Loading property…</p>
+      </div>
     );
   }
 
   if (!propertyId || !property) {
     return (
-      <PMSLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <Code2 className="h-12 w-12 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">No ROL Property Found</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            Website integrations are available for properties using ROL'OS as their native PMS.
-            Contact support to enable ROL'OS for your property.
-          </p>
-        </div>
-      </PMSLayout>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Code2 className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-lg font-semibold">No ROL Property Found</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Website integrations are available for properties using ROL'OS as their native PMS.
+          Contact support to enable ROL'OS for your property.
+        </p>
+      </div>
     );
   }
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         {/* Header with Property Selector */}
         <div className="flex items-center justify-between">
@@ -177,6 +173,6 @@ export default function PMSIntegrations() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }

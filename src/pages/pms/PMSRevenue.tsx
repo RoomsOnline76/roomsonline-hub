@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -544,11 +544,11 @@ export default function PMSRevenue() {
 
   const loading = propLoading || futureLoading;
 
-  if (propLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Revenue Management</h1>
@@ -958,6 +958,6 @@ export default function PMSRevenue() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }
