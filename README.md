@@ -23,7 +23,7 @@ RoomsOnline is a curated booking platform for vacation rentals, hotels, and B&Bs
 - **Maps**: Google Maps API integration
 - **Animations**: Framer Motion (via Tailwind CSS Animate)
 
-### Backend (Lovable Cloud / Supabase)
+### Backend (Supabase)
 
 - **Database**: PostgreSQL
 - **Authentication**: Supabase Auth
