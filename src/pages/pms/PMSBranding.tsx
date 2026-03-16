@@ -224,7 +224,7 @@ export default function PMSBranding() {
   const hasColors = !!(visual.brand_primary_color || visual.brand_secondary_color || visual.brand_font_color);
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6 max-w-5xl">
         <div className="flex items-center gap-3">
           <Palette className="h-6 w-6 text-primary" />
