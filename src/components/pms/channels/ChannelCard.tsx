@@ -12,6 +12,8 @@ const CHANNEL_DESCRIPTIONS: Record<string, string> = {
   expedia: "Global travel platform — distribute inventory across Expedia Group brands.",
   agoda: "Asia-focused OTA — reach travellers across APAC markets.",
   google_hotels: "Surface rates on Google Search & Maps via Hotel Ads.",
+  lekkeslaap: "South Africa's leading accommodation platform — reach local travellers.",
+  nightsbridge: "Channel manager & booking platform for Southern African properties.",
 };
 
 interface ChannelConnection {
