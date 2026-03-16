@@ -232,7 +232,7 @@ export default function PMSReports() {
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">Reports & Financials</h1>
         
