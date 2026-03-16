@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
+import { RolosChannelApiCards } from "@/components/integrations/RolosChannelApiCards";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -255,6 +256,26 @@ export default function AdminKeys() {
   const [roomsonlineActive, setRoomsonlineActive] = useState(false);
   const [togglingRoomsonline, setTogglingRoomsonline] = useState(false);
 
+  // ROL'OS planned items state
+  const DEFAULT_PLANNED_ITEMS = ["Booking Engine Widget", "Channel Manager", "Payment Integration", "Multi-Property Dashboard"];
+  const [rolosCompletedItems, setRolosCompletedItems] = useState<string[]>([]);
+  const rolosPlannedItems = DEFAULT_PLANNED_ITEMS.filter((item) => !rolosCompletedItems.includes(item));
+
+  const handleMarkRolosItemDeployed = async (item: string) => {
+    const newCompleted = [...rolosCompletedItems, item];
+    setRolosCompletedItems(newCompleted);
+    // Persist to pms_tracker_status additional_info
+    const existing = trackerData.roomsonline?.additional_info || {};
+    await supabase
+      .from("pms_tracker_status")
+      .upsert({
+        system_type: "roomsonline",
+        additional_info: { ...existing, rolos_completed_items: newCompleted },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "system_type" });
+    toast({ title: `${item} marked as deployed` });
+  };
+
   // ProfitRoom-specific state
   const [profitroomCredentials, setProfitroomCredentials] = useState<PMSCredentials | null>(null);
   const [profitroomApiKey, setProfitroomApiKey] = useState("");
@@ -321,6 +342,11 @@ export default function AdminKeys() {
         };
       });
       setTrackerData(mapped);
+      // Load ROL'OS completed items from additional_info
+      const rolosInfo = mapped.roomsonline?.additional_info as any;
+      if (rolosInfo?.rolos_completed_items) {
+        setRolosCompletedItems(rolosInfo.rolos_completed_items);
+      }
     }
   };
 
@@ -4083,6 +4109,14 @@ export default function AdminKeys() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <IntegrationStatusDropdown
+                      systemType="roomsonline"
+                      currentStatus={trackerData.roomsonline?.integration_status || null}
+                      onStatusChange={() => fetchTrackerData()}
+                      compact
+                    />
+                  </div>
                   <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={roomsonlineActive}
@@ -4091,10 +4125,6 @@ export default function AdminKeys() {
                     />
                     <span className="text-xs text-muted-foreground">{roomsonlineActive ? "On" : "Off"}</span>
                   </div>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    In Development
-                  </Badge>
                 </div>
               </div>
             </AccordionTrigger>
@@ -4123,31 +4153,41 @@ export default function AdminKeys() {
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Maintenance</Badge>
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Analytics (ADR/RevPAR)</Badge>
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">White-Label Branding</Badge>
+                    {rolosCompletedItems.map((item) => (
+                      <Badge key={item} className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">{item}</Badge>
+                    ))}
                   </div>
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
                     14 dedicated database tables • Bi-directional sync with Property Overview
                   </p>
                 </div>
 
-                {/* Planned Capabilities */}
+                {/* Planned Capabilities - clickable to mark as completed */}
                 <div className="p-4 rounded-lg border bg-background space-y-2">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm font-medium">Planned / In Progress</p>
+                    <span className="text-xs text-muted-foreground">(click to mark as deployed)</span>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    <Badge variant="secondary">Booking Engine Widget</Badge>
-                    <Badge variant="secondary">Channel Manager</Badge>
-                    <Badge variant="secondary">Payment Integration</Badge>
-                    <Badge variant="secondary">Multi-Property Dashboard</Badge>
+                    {rolosPlannedItems.map((item) => (
+                      <Badge
+                        key={item}
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+                        onClick={() => handleMarkRolosItemDeployed(item)}
+                      >
+                        {item}
+                      </Badge>
+                    ))}
+                    {rolosPlannedItems.length === 0 && (
+                      <p className="text-xs text-muted-foreground">All items deployed!</p>
+                    )}
                   </div>
                 </div>
 
-                <PMSProgressToggles
-                  systemType="roomsonline"
-                  trackerData={trackerData.roomsonline}
-                  onUpdated={fetchTrackerData}
-                />
+                {/* Channel API Credentials */}
+                <RolosChannelApiCards />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails

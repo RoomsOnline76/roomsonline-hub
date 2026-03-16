@@ -17,25 +17,24 @@ interface ConnectChannelDialogProps {
 const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string }[]> = {
   booking_com: [
     { key: "hotel_id", label: "Hotel ID" },
-    { key: "username", label: "API Username" },
-    { key: "password", label: "API Password", type: "password" },
   ],
   airbnb: [
     { key: "listing_id", label: "Listing ID" },
-    { key: "access_token", label: "Access Token", type: "password" },
   ],
   expedia: [
     { key: "property_id", label: "Property ID" },
-    { key: "api_key", label: "API Key", type: "password" },
-    { key: "api_secret", label: "API Secret", type: "password" },
   ],
   agoda: [
     { key: "hotel_id", label: "Hotel ID" },
-    { key: "api_key", label: "API Key", type: "password" },
   ],
   google_hotels: [
     { key: "partner_id", label: "Partner ID" },
-    { key: "account_id", label: "Account ID" },
+  ],
+  lekkeslaap: [
+    { key: "property_id", label: "Property ID" },
+  ],
+  nightsbridge: [
+    { key: "bbid", label: "Property ID (BBID)" },
   ],
 };
 

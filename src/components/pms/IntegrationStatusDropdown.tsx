@@ -86,12 +86,12 @@ export function IntegrationStatusDropdown({
       
       const { error } = await supabase
         .from('pms_tracker_status')
-        .update({ 
+        .upsert({ 
+          system_type: systemType,
           integration_status: newStatus,
           is_production: isProduction,
           updated_at: new Date().toISOString()
-        })
-        .eq('system_type', systemType);
+        }, { onConflict: 'system_type' });
 
       if (error) throw error;
 

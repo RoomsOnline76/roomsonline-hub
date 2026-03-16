@@ -4273,6 +4273,33 @@ export type Database = {
           },
         ]
       }
+      rolos_channel_api_config: {
+        Row: {
+          channel_name: string
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          channel_name: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          channel_name?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rolos_channel_connections: {
         Row: {
           channel_name: Database["public"]["Enums"]["channel_name"]

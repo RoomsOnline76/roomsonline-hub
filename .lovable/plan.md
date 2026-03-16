@@ -1,86 +1,85 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-## Plan: Channel Manager Updates, ROL'OS API Cards, and Status Dropdown Fix
-
-This plan covers four distinct changes across three pages.
-
----
-
-### 1. `/rolos/channels` — Add Lekkeslaap & NightsBridge channels, simplify connect dialog
-
-**ChannelLogo.tsx** — Add two new channel entries:
-- `lekkeslaap`: label "Lekkeslaap", orange color, initials "Lk"
-- `nightsbridge`: label "NightsBridge", teal color, initials "NB"
-
-**ChannelCard.tsx** — Add descriptions for new channels.
-
-**ConnectChannelDialog.tsx** — Remove API credential fields (username, password, API key, etc.) from all channels. Keep only the appropriate Property ID field per channel:
-- `booking_com`: "Hotel ID"
-- `airbnb`: "Listing ID"
-- `expedia`: "Property ID"
-- `agoda`: "Hotel ID"
-- `google_hotels`: "Partner ID"
-- `lekkeslaap`: "Property ID"
-- `nightsbridge`: "Property ID" (bbid)
-
-**Database migration** — Add `lekkeslaap` and `nightsbridge` to the `channel_name` enum.
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
 ---
 
-### 2. `/admin/integrations` (AdminKeys.tsx) — ROL'OS section: Add channel API cards
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-Under the existing ROL'OS section, add a new subsection: **"Channel API Credentials"**. This will contain accordion cards for each OTA channel (Booking.com, Expedia, Agoda, Google Hotels, Airbnb, Lekkeslaap, NightsBridge). Each card will have:
-- Channel-specific configuration fields (API key, secret, hotel ID, partner ID, etc.) — these are the **platform-level** credentials that ROL'OS uses to connect on behalf of properties
-- A Save button that persists to a new `rolos_channel_api_config` table
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-**New table: `rolos_channel_api_config`**
-```
-id uuid PK
-channel_name text (booking_com, expedia, etc.)
-config jsonb (stores API key, secret, endpoint URL, etc.)
-is_active boolean default false
-created_at, updated_at timestamps
-```
-RLS: admin/dev only.
-
-**ROL'OS Internal API card changes:**
-- Replace the hardcoded "In Development" badge with the `IntegrationStatusDropdown` component (same as other PMS cards), allowing status changes (planned, in_development, in_testing, deployed, parked)
-- Remove `PMSProgressToggles` component from the ROL'OS card (implementation progress milestones don't apply)
-- In the "Planned / In Progress" section, make items interactive — each badge becomes clickable/draggable to mark as completed (move from "Planned" to "Deployed Capabilities")
-
-For the planned items, store their completion status in `pms_tracker_status` additional_info JSONB or a simple local state backed by the existing tracker data.
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
 ---
 
-### 3. `/admin/integrations` — Google Maps & reCAPTCHA status dropdown not saving
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-**Root cause:** The `IntegrationStatusDropdown` updates `pms_tracker_status` via `.update().eq('system_type', systemType)`. For Google Maps (`google`) and reCAPTCHA, if no row exists in `pms_tracker_status`, the update matches zero rows and silently fails.
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
-**Fix in `IntegrationStatusDropdown.tsx`:** Change the update to an **upsert** — if no row exists, insert one; if it does, update it. Use `.upsert()` with `onConflict: 'system_type'`:
-```ts
-const { error } = await supabase
-  .from('pms_tracker_status')
-  .upsert({
-    system_type: systemType,
-    integration_status: newStatus,
-    is_production: isProduction,
-    updated_at: new Date().toISOString()
-  }, { onConflict: 'system_type' });
-```
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
 
-This ensures rows are created on first status change for any system type.
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
+
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
 
 ---
 
-### 4. Files to modify
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
 
-| File | Change |
-|------|--------|
-| `src/components/pms/channels/ChannelLogo.tsx` | Add lekkeslaap, nightsbridge entries |
-| `src/components/pms/channels/ChannelCard.tsx` | Add descriptions for new channels |
-| `src/components/pms/channels/ConnectChannelDialog.tsx` | Remove credential fields, keep only property ID per channel |
-| `src/components/pms/IntegrationStatusDropdown.tsx` | Change `.update()` to `.upsert()` |
-| `src/pages/AdminKeys.tsx` | Add channel API config cards in ROL'OS section; replace hardcoded badge with IntegrationStatusDropdown; remove PMSProgressToggles; make planned items interactive |
-| **New:** `src/components/integrations/RolosChannelApiCards.tsx` | New component for channel API credential cards |
-| **Migration** | Add `lekkeslaap`, `nightsbridge` to `channel_name` enum; create `rolos_channel_api_config` table |
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
 
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)

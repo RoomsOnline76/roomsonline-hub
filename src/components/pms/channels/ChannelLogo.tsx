@@ -6,6 +6,8 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   expedia: { label: "Expedia", color: "bg-yellow-500", initials: "E" },
   agoda: { label: "Agoda", color: "bg-red-600", initials: "Ag" },
   google_hotels: { label: "Google Hotels", color: "bg-emerald-500", initials: "G" },
+  lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk" },
+  nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
 };
 
