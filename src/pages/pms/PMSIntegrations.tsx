@@ -36,11 +36,9 @@ export default function PMSIntegrations() {
 
   if (propertyLoading || propertyDataLoading) {
     return (
-      <PMSLayout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <p className="text-muted-foreground">Loading property…</p>
-        </div>
-      </PMSLayout>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <p className="text-muted-foreground">Loading property…</p>
+      </div>
     );
   }
 
