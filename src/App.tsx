@@ -538,25 +538,27 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* ROL'OS Native PMS Module — white-labeled with PMSBrandProvider */}
-            <Route path="/pms" element={<ProtectedRoute><PMSBrandProvider><PMSDashboard /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/rooms" element={<ProtectedRoute><PMSBrandProvider><PMSRooms /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/room-types" element={<ProtectedRoute><PMSBrandProvider><PMSRoomTypes /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/rate-plans" element={<ProtectedRoute><PMSBrandProvider><PMSRatePlans /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/guests" element={<ProtectedRoute><PMSBrandProvider><PMSGuests /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/housekeeping" element={<ProtectedRoute><PMSBrandProvider><PMSHousekeeping /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/reports" element={<ProtectedRoute><PMSBrandProvider><PMSReports /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/branding" element={<ProtectedRoute><PMSBrandProvider><PMSBranding /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/integrations" element={<ProtectedRoute><PMSBrandProvider><PMSIntegrations /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/calendar" element={<ProtectedRoute><PMSBrandProvider><PMSDashboard /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/staff" element={<ProtectedRoute><PMSBrandProvider><PMSStaff /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/channels" element={<ProtectedRoute><PMSBrandProvider><PMSChannels /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/groups" element={<ProtectedRoute><PMSBrandProvider><PMSGroups /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/events" element={<ProtectedRoute><PMSBrandProvider><PMSEvents /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/night-audit" element={<ProtectedRoute><PMSBrandProvider><PMSNightAudit /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/messaging" element={<ProtectedRoute><PMSBrandProvider><PMSMessaging /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/portfolio" element={<ProtectedRoute><PMSBrandProvider><PMSPortfolio /></PMSBrandProvider></ProtectedRoute>} />
-            <Route path="/pms/revenue" element={<ProtectedRoute><PMSBrandProvider><PMSRevenue /></PMSBrandProvider></ProtectedRoute>} />
+            {/* ROL'OS Native PMS Module — persistent shell keeps sidebar & brand mounted */}
+            <Route path="/pms" element={<ProtectedRoute><PMSShell /></ProtectedRoute>}>
+              <Route index element={<PMSDashboard />} />
+              <Route path="rooms" element={<PMSRooms />} />
+              <Route path="room-types" element={<PMSRoomTypes />} />
+              <Route path="rate-plans" element={<PMSRatePlans />} />
+              <Route path="guests" element={<PMSGuests />} />
+              <Route path="housekeeping" element={<PMSHousekeeping />} />
+              <Route path="reports" element={<PMSReports />} />
+              <Route path="branding" element={<PMSBranding />} />
+              <Route path="integrations" element={<PMSIntegrations />} />
+              <Route path="calendar" element={<PMSDashboard />} />
+              <Route path="staff" element={<PMSStaff />} />
+              <Route path="channels" element={<PMSChannels />} />
+              <Route path="groups" element={<PMSGroups />} />
+              <Route path="events" element={<PMSEvents />} />
+              <Route path="night-audit" element={<PMSNightAudit />} />
+              <Route path="messaging" element={<PMSMessaging />} />
+              <Route path="portfolio" element={<PMSPortfolio />} />
+              <Route path="revenue" element={<PMSRevenue />} />
+            </Route>
             {/* Integration toolkit */}
             <Route
               path="/admin/integrations"
