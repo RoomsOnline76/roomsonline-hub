@@ -173,6 +173,6 @@ export default function PMSIntegrations() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }
