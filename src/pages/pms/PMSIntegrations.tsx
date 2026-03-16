@@ -56,7 +56,7 @@ export default function PMSIntegrations() {
   }
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         {/* Header with Property Selector */}
         <div className="flex items-center justify-between">
