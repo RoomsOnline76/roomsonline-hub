@@ -4083,6 +4083,14 @@ export default function AdminKeys() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <IntegrationStatusDropdown
+                      systemType="roomsonline"
+                      currentStatus={trackerData.roomsonline?.integration_status || null}
+                      onStatusChange={() => fetchTrackerData()}
+                      compact
+                    />
+                  </div>
                   <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
                     <Switch
                       checked={roomsonlineActive}
@@ -4091,10 +4099,6 @@ export default function AdminKeys() {
                     />
                     <span className="text-xs text-muted-foreground">{roomsonlineActive ? "On" : "Off"}</span>
                   </div>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    In Development
-                  </Badge>
                 </div>
               </div>
             </AccordionTrigger>
@@ -4123,31 +4127,41 @@ export default function AdminKeys() {
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Maintenance</Badge>
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">Analytics (ADR/RevPAR)</Badge>
                     <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">White-Label Branding</Badge>
+                    {rolosCompletedItems.map((item) => (
+                      <Badge key={item} className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border-emerald-200">{item}</Badge>
+                    ))}
                   </div>
                   <p className="text-xs text-emerald-600 dark:text-emerald-400">
                     14 dedicated database tables • Bi-directional sync with Property Overview
                   </p>
                 </div>
 
-                {/* Planned Capabilities */}
+                {/* Planned Capabilities - clickable to mark as completed */}
                 <div className="p-4 rounded-lg border bg-background space-y-2">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm font-medium">Planned / In Progress</p>
+                    <span className="text-xs text-muted-foreground">(click to mark as deployed)</span>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    <Badge variant="secondary">Booking Engine Widget</Badge>
-                    <Badge variant="secondary">Channel Manager</Badge>
-                    <Badge variant="secondary">Payment Integration</Badge>
-                    <Badge variant="secondary">Multi-Property Dashboard</Badge>
+                    {rolosPlannedItems.map((item) => (
+                      <Badge
+                        key={item}
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-emerald-100 hover:text-emerald-800 transition-colors"
+                        onClick={() => handleMarkRolosItemDeployed(item)}
+                      >
+                        {item}
+                      </Badge>
+                    ))}
+                    {rolosPlannedItems.length === 0 && (
+                      <p className="text-xs text-muted-foreground">All items deployed!</p>
+                    )}
                   </div>
                 </div>
 
-                <PMSProgressToggles
-                  systemType="roomsonline"
-                  trackerData={trackerData.roomsonline}
-                  onUpdated={fetchTrackerData}
-                />
+                {/* Channel API Credentials */}
+                <RolosChannelApiCards />
 
                 {/* PMS IT Contact */}
                 <PMSContactDetails
