@@ -99,7 +99,7 @@ const PMSMessaging = lazy(() => import("./pages/pms/PMSMessaging"));
 const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
 const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
 
-import { PMSBrandProvider } from "./contexts/PMSBrandContext";
+import { PMSShell } from "./components/layout/PMSShell";
 
 const queryClient = new QueryClient();
 
