@@ -615,7 +615,7 @@ export default function PMSDashboard() {
   ];
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-4">
         {/* Header with property switch & stats */}
         <div className="flex flex-col gap-4">
