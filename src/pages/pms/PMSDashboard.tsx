@@ -587,12 +587,10 @@ export default function PMSDashboard() {
 
   if (propLoading) {
     return (
-      <PMSLayout>
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-[400px] w-full" />
-        </div>
-      </PMSLayout>
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
     );
   }
 
