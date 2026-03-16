@@ -248,7 +248,7 @@ export default function PMSStaff() {
   const activeStaff = staff.filter(s => s.is_active);
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
