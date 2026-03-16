@@ -94,7 +94,7 @@ export default function PMSNightAudit() {
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <Moon className="w-6 h-6 text-primary" />
