@@ -44,16 +44,14 @@ export default function PMSIntegrations() {
 
   if (!propertyId || !property) {
     return (
-      <PMSLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <Code2 className="h-12 w-12 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">No ROL Property Found</h2>
-          <p className="text-muted-foreground text-center max-w-md">
-            Website integrations are available for properties using ROL'OS as their native PMS.
-            Contact support to enable ROL'OS for your property.
-          </p>
-        </div>
-      </PMSLayout>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Code2 className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-lg font-semibold">No ROL Property Found</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Website integrations are available for properties using ROL'OS as their native PMS.
+          Contact support to enable ROL'OS for your property.
+        </p>
+      </div>
     );
   }
 
