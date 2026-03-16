@@ -256,6 +256,26 @@ export default function AdminKeys() {
   const [roomsonlineActive, setRoomsonlineActive] = useState(false);
   const [togglingRoomsonline, setTogglingRoomsonline] = useState(false);
 
+  // ROL'OS planned items state
+  const DEFAULT_PLANNED_ITEMS = ["Booking Engine Widget", "Channel Manager", "Payment Integration", "Multi-Property Dashboard"];
+  const [rolosCompletedItems, setRolosCompletedItems] = useState<string[]>([]);
+  const rolosPlannedItems = DEFAULT_PLANNED_ITEMS.filter((item) => !rolosCompletedItems.includes(item));
+
+  const handleMarkRolosItemDeployed = async (item: string) => {
+    const newCompleted = [...rolosCompletedItems, item];
+    setRolosCompletedItems(newCompleted);
+    // Persist to pms_tracker_status additional_info
+    const existing = trackerData.roomsonline?.additional_info || {};
+    await supabase
+      .from("pms_tracker_status")
+      .upsert({
+        system_type: "roomsonline",
+        additional_info: { ...existing, rolos_completed_items: newCompleted },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "system_type" });
+    toast({ title: `${item} marked as deployed` });
+  };
+
   // ProfitRoom-specific state
   const [profitroomCredentials, setProfitroomCredentials] = useState<PMSCredentials | null>(null);
   const [profitroomApiKey, setProfitroomApiKey] = useState("");
