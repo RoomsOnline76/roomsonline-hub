@@ -376,6 +376,6 @@ export default function PMSRooms() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PMSLayout>
+    </>
   );
 }

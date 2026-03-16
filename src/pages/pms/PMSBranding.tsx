@@ -507,6 +507,6 @@ export default function PMSBranding() {
           </div>
         </div>
       </div>
-    </PMSLayout>
+    </>
   );
 }

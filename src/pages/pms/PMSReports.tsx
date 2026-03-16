@@ -393,6 +393,6 @@ export default function PMSReports() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }

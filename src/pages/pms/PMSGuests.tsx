@@ -254,6 +254,6 @@ export default function PMSGuests() {
           )}
         </SheetContent>
       </Sheet>
-    </PMSLayout>
+    </>
   );
 }

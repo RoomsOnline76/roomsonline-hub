@@ -834,7 +834,7 @@ export default function PMSDashboard() {
       <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
       <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-    </PMSLayout>
+    </>
   );
 }
 

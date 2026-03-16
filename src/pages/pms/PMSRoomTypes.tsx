@@ -431,6 +431,6 @@ export default function PMSRoomTypes() {
           </div>
         )}
       </div>
-    </PMSLayout>
+    </>
   );
 }

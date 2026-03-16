@@ -612,6 +612,6 @@ export default function PMSHousekeeping() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }
