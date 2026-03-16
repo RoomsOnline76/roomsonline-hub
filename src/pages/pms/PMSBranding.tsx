@@ -217,8 +217,8 @@ export default function PMSBranding() {
     setSaving(false);
   };
 
-  if (propertyLoading) return <PMSLayout><p className="text-muted-foreground">Loading property…</p></PMSLayout>;
-  if (!propertyId) return <PMSLayout><p className="text-muted-foreground">Select a property first.</p></PMSLayout>;
+  if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
+  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const addr = config.business_address;
   const hasColors = !!(visual.brand_primary_color || visual.brand_secondary_color || visual.brand_font_color);
