@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

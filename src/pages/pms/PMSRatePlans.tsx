@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

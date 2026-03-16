@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { useNightAuditLog, useTriggerNightAudit, type NightAuditLogEntry } from "@/hooks/useNightAuditLog";
 import { Card, CardContent } from "@/components/ui/card";

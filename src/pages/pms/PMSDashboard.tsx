@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { PMSLayout } from "@/components/layout/PMSLayout";
+
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
