@@ -548,7 +548,7 @@ export default function PMSRevenue() {
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
-    <PMSLayout>
+    <>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Revenue Management</h1>
