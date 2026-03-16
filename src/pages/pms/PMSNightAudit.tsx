@@ -195,6 +195,6 @@ export default function PMSNightAudit() {
         </CardContent>
       </Card>
       </div>
-    </PMSLayout>
+    </>
   );
 }

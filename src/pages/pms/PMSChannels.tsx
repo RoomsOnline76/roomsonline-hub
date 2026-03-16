@@ -174,6 +174,6 @@ export default function PMSChannels() {
           }}
         />
       )}
-    </PMSLayout>
+    </>
   );
 }

@@ -317,6 +317,6 @@ export default function PMSPortfolio() {
           </ScrollArea>
         </div>
       </div>
-    </PMSLayout>
+    </>
   );
 }

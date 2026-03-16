@@ -958,6 +958,6 @@ export default function PMSRevenue() {
           </TabsContent>
         </Tabs>
       </div>
-    </PMSLayout>
+    </>
   );
 }

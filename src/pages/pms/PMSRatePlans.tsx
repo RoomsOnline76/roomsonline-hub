@@ -511,6 +511,6 @@ export default function PMSRatePlans() {
           </div>
         )}
       </div>
-    </PMSLayout>
+    </>
   );
 }

@@ -616,6 +616,6 @@ export default function PMSStaff() {
           </form>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

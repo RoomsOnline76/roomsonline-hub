@@ -476,6 +476,6 @@ export default function PMSGroups() {
           </form>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

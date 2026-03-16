@@ -462,6 +462,6 @@ export default function PMSEvents() {
           </form>
         </DialogContent>
       </Dialog>
-    </PMSLayout>
+    </>
   );
 }

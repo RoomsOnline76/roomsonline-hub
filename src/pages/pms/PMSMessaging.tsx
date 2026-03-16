@@ -327,7 +327,7 @@ function PMSMessaging() {
             </DialogContent>
           </Dialog>
       </div>
-    </PMSLayout>
+    </>
   );
 }
 
