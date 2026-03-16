@@ -342,6 +342,11 @@ export default function AdminKeys() {
         };
       });
       setTrackerData(mapped);
+      // Load ROL'OS completed items from additional_info
+      const rolosInfo = mapped.roomsonline?.additional_info as any;
+      if (rolosInfo?.rolos_completed_items) {
+        setRolosCompletedItems(rolosInfo.rolos_completed_items);
+      }
     }
   };
 
