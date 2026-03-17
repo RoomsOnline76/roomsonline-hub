@@ -11,7 +11,7 @@ interface WidgetTabProps {
 export function WidgetTab({ property }: WidgetTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const encodedColor = encodeURIComponent(brandColor);
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}`;
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}&mode=embedded`;
 
   const iframeSnippet = `<!-- RoomsOnline Booking Widget -->
 <div id="rolos-booking-widget" style="width:100%;max-width:480px;">
