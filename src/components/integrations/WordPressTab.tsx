@@ -20,7 +20,7 @@ export function WordPressTab({ property }: WordPressTabProps) {
  * Plugin Name: RoomsOnline Booking Widget
  * Plugin URI: https://roomsonline.co.za
  * Description: Embed the RoomsOnline booking engine on any page via shortcode.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: RoomsOnline
  * Author URI: https://roomsonline.co.za
  * License: GPL v2 or later
@@ -31,36 +31,42 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-register_activation_hook(__FILE__, function() {
-    // No setup required — shortcode only.
-});
+if (!function_exists('rolos_booking_activate')) {
+    function rolos_booking_activate() {
+        // Shortcode-only plugin: no setup required on activation.
+    }
+}
+register_activation_hook(__FILE__, 'rolos_booking_activate');
 
-function rolos_booking_shortcode($atts) {
-    $atts = shortcode_atts(array(
-        'property' => '',
-        'property_id' => '',
-        'color' => '${brandColor}',
-        'height' => '520px',
-    ), $atts);
-    
-    $base_url = '${PUBLIC_DOMAIN}';
-    $src = esc_url($base_url . '/embed/property/' . $atts['property'] 
-        . '?integration=wordpress&property_id=' . $atts['property_id']
-        . '&brand_color=' . urlencode($atts['color'])
-        . '&mode=embedded');
-    
-    return '<div class="rolos-booking-widget">'
-        . '<iframe src="' . $src . '" '
-        . 'style="width:100%;height:' . esc_attr($atts['height']) . ';border:none;border-radius:8px;" '
-        . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
-        . '</div>';
+if (!function_exists('rolos_booking_shortcode')) {
+    function rolos_booking_shortcode($atts) {
+        $atts = shortcode_atts(array(
+            'property' => '',
+            'property_id' => '',
+            'color' => '${brandColor}',
+            'height' => '520px',
+        ), $atts, 'rolos_booking');
+
+        $base_url = '${PUBLIC_DOMAIN}';
+        $src = esc_url($base_url . '/embed/property/' . $atts['property']
+            . '?integration=wordpress&property_id=' . $atts['property_id']
+            . '&brand_color=' . rawurlencode($atts['color'])
+            . '&mode=embedded');
+
+        return '<div class="rolos-booking-widget">'
+            . '<iframe src="' . $src . '" '
+            . 'style="width:100%;height:' . esc_attr($atts['height']) . ';border:none;border-radius:8px;" '
+            . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
+            . '</div>';
+    }
 }
 add_shortcode('rolos_booking', 'rolos_booking_shortcode');`.trim();
 
   const handleDownloadZip = async () => {
     const zip = new JSZip();
     const folder = zip.folder("rolos-booking");
-    folder?.file("rolos-booking.php", phpSnippet);
+    const cleanPhpSnippet = phpSnippet.replace(/^\uFEFF/, "").trimStart();
+    folder?.file("rolos-booking.php", cleanPhpSnippet, { binary: false });
     
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
