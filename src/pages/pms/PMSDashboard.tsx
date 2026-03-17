@@ -535,7 +535,13 @@ export default function PMSDashboard() {
     }
     // 3. Fallback to room type default_rate
     const rt = roomTypes.find(t => t.id === roomTypeId);
-    return rt?.default_rate || null;
+    if (rt?.default_rate) return rt.default_rate;
+
+    // 4. Fallback: check pms_availability_cache for non-ROL properties
+    const cacheEntry = cacheRateMap?.get(roomTypeId);
+    if (cacheEntry) return cacheEntry;
+
+    return null;
   };
 
   // Get pricing model suffix for a room type (based on linked rate plans)
