@@ -1,85 +1,73 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+## Plan: Smart Button Combiner + NightsBridge-Style Embed Page
 
----
+### Two Core Problems
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+**A. Smart Button** — Currently generates only a styled `<a>` link. User wants it to be a **solution combiner** where owners pick which elements to include (button only, button + date pickers, button + inline widget, booking bar + widget, etc.) and get the appropriate combined snippet.
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
-
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+**B. Embed Page (`EmbedProperty.tsx`)** — Currently shows a small card with a redirect link. The widget/full embed/WordPress iframes all point here but it just bounces the guest off-site. It needs to render the **full NightsBridge-style booking experience** inline: branded header, date pickers, room type grid with prices/availability, property info section, and "Powered by ROL'OS" footer — all within the iframe, no redirects.
 
 ---
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+### Changes
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+#### 1. Smart Button Generator — Add "Solution Type" selector
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+Add a new Step 0 before platform selection: **"What do you need?"** with options:
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+| Option | Description | Output |
+|--------|-------------|--------|
+| **Book Now Button** | Simple styled link (current behaviour) | `<a>` tag |
+| **Button + Date Pickers** | Booking bar-style with dates + button | HTML/JS snippet with date inputs |
+| **Embedded Widget** | Full inline booking widget | iframe snippet pointing to `/embed/property/{slug}` |
+| **Button + Widget Combo** | Button that scrolls to / reveals an embedded widget on the same page | Combined snippet: button + hidden iframe that shows on click |
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+The rest of the customisation (color, size, style, platform) applies to whichever solution type is selected. The generated code changes based on the solution type. This replaces having separate tabs — the Smart Button becomes the **single entry point** for all integration code generation.
 
----
+**File:** `src/components/integrations/SmartBookButtonGenerator.tsx`
 
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+#### 2. Rebuild `EmbedProperty.tsx` — NightsBridge-style inline booking
 
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+Replace the current simple card with a full booking page that renders **inside the iframe**, matching the NightsBridge layout from the screenshot:
 
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+**Layout (top to bottom):**
+- **Branded header bar**: Property name on left, brand color background, "Do you have a promo code?" + "Login" links on right
+- **Date picker row**: Check-in / Check-out date inputs, night count badge, "Check Availability" button, "Hide Calendar" toggle
+- **Availability grid**: Room types as rows, dates as columns (day/week/day navigation). Each cell shows the nightly rate or "SOLD". Uses property's `hostfully_room_types` or `room_types` data with real availability from the DB.
+- **Property info section**: Hero image, "About us" blurb, "General facilities" list, contact info (phone + email)
+- **Footer**: "Online booking powered by ROL'OS on behalf of {Property Name}" + privacy policy link
 
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+**Data sources:**
+- Property details from `properties` table (name, images, facilities, contact)
+- Room types from `hostfully_room_types` or `room_types` (whichever exists for this property)
+- Availability/pricing from existing availability tables
+- Brand color from URL param or property record
 
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+**Key behaviors:**
+- `mode=embedded` → no outer navigation chrome, just the booking engine
+- Date selection updates the grid in real-time
+- Clicking a rate cell adds that room type to cart / initiates booking flow
+- All interactions stay within the iframe (no `target="_blank"`, no redirects)
+- Responsive: works at widget width (480px) and full-page width (100%)
 
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+**File:** `src/pages/EmbedProperty.tsx` — full rewrite
 
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+#### 3. Update embed tab descriptions
+
+Update `WidgetTab`, `FullEmbedTab`, `WordPressTab` descriptions to reference the new NB-style experience: "Guests see a full availability calendar with room types, rates, and can complete their booking — all within the embed."
+
+**Files:** `WidgetTab.tsx`, `FullEmbedTab.tsx`, `WordPressTab.tsx` — minor description updates
 
 ---
 
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `SmartBookButtonGenerator.tsx` | Add solution type selector (button / button+dates / widget / combo); generate appropriate snippet per type |
+| `EmbedProperty.tsx` | Full rewrite: NB-style branded header, date picker row, room availability grid, property info, footer — all inline, no redirects |
+| `WidgetTab.tsx` | Update description to reflect NB-style inline experience |
+| `FullEmbedTab.tsx` | Update description to reflect NB-style inline experience |
+| `WordPressTab.tsx` | Update description to reflect NB-style inline experience |
+
