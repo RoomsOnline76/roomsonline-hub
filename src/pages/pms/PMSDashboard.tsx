@@ -456,7 +456,7 @@ export default function PMSDashboard() {
         .eq("property_id", propertyId)
         .not("rates", "is", null)
         .limit(200);
-      return (data || []) as { external_room_type_id: string; rates: any; raw_data: any }[];
+      return (data || []) as unknown as { external_room_type_id: string; rates: any; raw_data: any }[];
     },
     enabled: !!propertyId,
   });
