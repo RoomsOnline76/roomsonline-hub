@@ -185,3 +185,35 @@ export function getUniqueRoomTypes(buildings: ParsedBuilding[]): string[] {
   
   return Array.from(types).sort();
 }
+
+/**
+ * Groups units within a building by their room type (case-insensitive).
+ * Returns an array of RoomTypeGroup objects sorted by type name.
+ */
+export function groupUnitsByType(building: ParsedBuilding): RoomTypeGroup[] {
+  const typeMap = new Map<string, { displayName: string; ids: string[]; numbers: string[] }>();
+
+  for (const unit of building.units) {
+    const typeName = unit.room_type || 'Standard';
+    const key = typeName.toUpperCase();
+
+    if (!typeMap.has(key)) {
+      typeMap.set(key, { displayName: typeName, ids: [], numbers: [] });
+    }
+    const entry = typeMap.get(key)!;
+    entry.ids.push(unit.id);
+    entry.numbers.push(unit.room_number);
+  }
+
+  const groups: RoomTypeGroup[] = [];
+  for (const [, { displayName, ids, numbers }] of typeMap) {
+    groups.push({
+      type_name: displayName,
+      unit_count: ids.length,
+      unit_ids: ids,
+      unit_numbers: numbers,
+    });
+  }
+
+  return groups.sort((a, b) => a.type_name.localeCompare(b.type_name));
+}
