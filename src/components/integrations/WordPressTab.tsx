@@ -20,7 +20,7 @@ export function WordPressTab({ property }: WordPressTabProps) {
  * Plugin Name: RoomsOnline Booking Widget
  * Plugin URI: https://roomsonline.co.za
  * Description: Embed the RoomsOnline booking engine on any page via shortcode.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: RoomsOnline
  * Author URI: https://roomsonline.co.za
  * License: GPL v2 or later
@@ -30,6 +30,10 @@ export function WordPressTab({ property }: WordPressTabProps) {
 if (!defined('ABSPATH')) {
     exit;
 }
+
+register_activation_hook(__FILE__, function() {
+    // No setup required — shortcode only.
+});
 
 function rolos_booking_shortcode($atts) {
     $atts = shortcode_atts(array(
@@ -51,7 +55,7 @@ function rolos_booking_shortcode($atts) {
         . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
         . '</div>';
 }
-add_shortcode('rolos_booking', 'rolos_booking_shortcode');`;
+add_shortcode('rolos_booking', 'rolos_booking_shortcode');`.trim();
 
   const handleDownloadZip = async () => {
     const zip = new JSZip();
@@ -125,6 +129,9 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');`;
             <li>Add the shortcode above to any page or post</li>
             <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
           </ol>
+          <p className="mt-2 text-xs italic">
+            <strong>Note:</strong> This plugin only registers a shortcode — it does not create pages. If you see new pages (e.g. "Hotel Checkout"), they are from your WordPress theme or another plugin.
+          </p>
         </div>
       </CardContent>
     </Card>
