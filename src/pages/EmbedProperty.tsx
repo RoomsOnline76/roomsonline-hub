@@ -37,11 +37,37 @@ export default function EmbedProperty() {
         setProperty(prop);
         const { data: rooms } = await supabase
           .from("hostfully_room_types")
-          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities")
+          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities, linked_rolos_id")
           .eq("property_id", prop.id)
           .eq("is_active", true)
           .order("name");
         setRoomTypes(rooms || []);
+
+        // For ROL'OS properties, resolve rate plans for rooms missing daily_rate
+        if (prop.is_rol_property && rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
+          const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
+          const { data: rpRoomTypes } = await supabase
+            .from("rolos_rate_plan_room_types")
+            .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+            .in("room_type_id", rolosIds)
+            .eq("rolos_rate_plans.is_active", true);
+
+          if (rpRoomTypes) {
+            const map: Record<string, any> = {};
+            for (const entry of rpRoomTypes) {
+              const plan = (entry as any).rolos_rate_plans;
+              if (plan && plan.base_rate != null) {
+                map[entry.room_type_id] = {
+                  base_rate: Number(plan.base_rate),
+                  pricing_model: plan.pricing_model || "per_unit",
+                  adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
+                  adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+                };
+              }
+            }
+            setRatePlanMap(map);
+          }
+        }
       }
       setLoading(false);
     };
