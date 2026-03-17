@@ -33,9 +33,9 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
           <IntegrationToggle propertyId={property.id} integrationType="full_embed" />
         </div>
         <CardDescription>
-          Embed the complete booking engine on a dedicated page of your website. The <strong>entire booking
-          flow — room selection, availability, and checkout — happens inside the iframe</strong>. Guests never
-          leave your website. Rendered in your brand colour{" "}
+          Embed the complete booking engine with <strong>availability calendar, room type grid with nightly rates,
+          and full checkout — all inside the iframe</strong>. Guests see live availability and book without ever
+          leaving your website. Rendered in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
