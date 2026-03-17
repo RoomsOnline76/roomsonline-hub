@@ -11,7 +11,7 @@ interface WidgetTabProps {
 export function WidgetTab({ property }: WidgetTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const encodedColor = encodeURIComponent(brandColor);
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}`;
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}&mode=embedded`;
 
   const iframeSnippet = `<!-- RoomsOnline Booking Widget -->
 <div id="rolos-booking-widget" style="width:100%;max-width:480px;">
@@ -48,8 +48,8 @@ export function WidgetTab({ property }: WidgetTabProps) {
           <IntegrationToggle propertyId={property.id} integrationType="widget" />
         </div>
         <CardDescription>
-          Embed a compact booking widget directly on your website. Guests can check availability
-          and start their booking without leaving your page. The widget renders in your property's
+          Embed a compact booking widget directly on your website. The <strong>entire booking flow happens inside the iframe</strong> —
+          guests never leave your website. The widget renders in your property's
           brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />

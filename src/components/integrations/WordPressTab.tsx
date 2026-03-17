@@ -31,7 +31,8 @@ function rolos_booking_shortcode($atts) {
     $base_url = '${PUBLIC_DOMAIN}';
     $src = esc_url($base_url . '/embed/property/' . $atts['property'] 
         . '?integration=wordpress&property_id=' . $atts['property_id']
-        . '&brand_color=' . urlencode($atts['color']));
+        . '&brand_color=' . urlencode($atts['color'])
+        . '&mode=embedded');
     
     return '<div class="rolos-booking-widget">'
         . '<iframe src="' . $src . '" '
@@ -54,7 +55,8 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');
         </div>
         <CardDescription>
           Install a lightweight WordPress plugin to embed booking widgets using simple shortcodes.
-          Works with any WordPress theme and renders in your brand colour{" "}
+          The <strong>entire booking flow stays inside the widget</strong> — guests never leave your WordPress site.
+          Renders in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
