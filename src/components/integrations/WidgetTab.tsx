@@ -48,9 +48,8 @@ export function WidgetTab({ property }: WidgetTabProps) {
           <IntegrationToggle propertyId={property.id} integrationType="widget" />
         </div>
         <CardDescription>
-          Embed a compact booking widget directly on your website. The <strong>entire booking flow happens inside the iframe</strong> —
-          guests never leave your website. The widget renders in your property's
-          brand colour{" "}
+          Embed a full booking engine with <strong>availability calendar, room types, nightly rates, and checkout</strong> —
+          all inside the iframe. Guests complete the entire flow without leaving your website. Renders in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
