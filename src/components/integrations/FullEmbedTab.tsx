@@ -1,16 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Globe } from "lucide-react";
-
-const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+import { Globe, AlertCircle } from "lucide-react";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface FullEmbedTabProps {
-  property: { id: string; name: string; slug: string };
+  property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function FullEmbedTab({ property }: FullEmbedTabProps) {
-  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=full`;
+  const brandColor = property.brand_primary_color || "#e91e63";
+  const encodedColor = encodeURIComponent(brandColor);
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=full&brand_color=${encodedColor}`;
 
   const snippet = `<!-- RoomsOnline Full Booking Engine -->
 <iframe 
@@ -33,10 +34,23 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
         </div>
         <CardDescription>
           Embed the complete booking engine as an iframe on a dedicated booking page of your website.
-          Includes room selection, availability, and the full checkout flow.
+          Includes room selection, availability, and the full checkout flow — all rendered in your
+          brand colour{" "}
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
+            <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Commission info */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-muted-foreground">
+            Bookings through this embed use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
+          </span>
+        </div>
+
         <CodeSnippetBlock code={snippet} language="html" title="Full Embed iframe" />
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">

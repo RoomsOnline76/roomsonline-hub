@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye } from "lucide-react";
 
-const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface SmartBookButtonGeneratorProps {
   property: {
@@ -52,7 +52,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
 
-  const bookingUrl = `${PRODUCTION_DOMAIN}/book/${property.slug}`;
+  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=smart_button&property_id=${property.id}`;
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
   const size = SIZE_MAP[buttonSize];
 
