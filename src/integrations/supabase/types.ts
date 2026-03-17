@@ -1011,6 +1011,7 @@ export type Database = {
           security_deposit: number | null
           tax_rate: number | null
           thumbnail_url: string | null
+          total_units: number | null
           updated_at: string | null
           wifi_network: string | null
           wifi_password: string | null
@@ -1063,6 +1064,7 @@ export type Database = {
           security_deposit?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
+          total_units?: number | null
           updated_at?: string | null
           wifi_network?: string | null
           wifi_password?: string | null
@@ -1115,6 +1117,7 @@ export type Database = {
           security_deposit?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
+          total_units?: number | null
           updated_at?: string | null
           wifi_network?: string | null
           wifi_password?: string | null
@@ -1139,6 +1142,68 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hostfully_unit_map: {
+        Row: {
+          created_at: string | null
+          hostfully_uid: string
+          id: string
+          is_active: boolean | null
+          property_id: string
+          room_type_id: string
+          unit_name: string | null
+          unit_number: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          hostfully_uid: string
+          id?: string
+          is_active?: boolean | null
+          property_id: string
+          room_type_id: string
+          unit_name?: string | null
+          unit_number?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          hostfully_uid?: string
+          id?: string
+          is_active?: boolean | null
+          property_id?: string
+          room_type_id?: string
+          unit_name?: string | null
+          unit_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hostfully_unit_map_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "hostfully_unit_map_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hostfully_unit_map_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hostfully_unit_map_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "hostfully_room_types"
             referencedColumns: ["id"]
           },
         ]
