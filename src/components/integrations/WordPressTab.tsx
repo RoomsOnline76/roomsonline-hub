@@ -283,10 +283,15 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
           <CodeSnippetBlock code={shortcode} language="text" title="WordPress Shortcode" />
         </div>
 
-        <div>
-          <h4 className="text-sm font-medium mb-2">Plugin Code (Reference)</h4>
-          <CodeSnippetBlock code={phpSnippet} language="php" title="rolos-booking.php" />
-        </div>
+        <details className="group">
+          <summary className="text-sm font-medium mb-2 cursor-pointer select-none list-none flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
+            <span className="transition-transform group-open:rotate-90">▶</span>
+            Plugin Code (Reference)
+          </summary>
+          <div className="mt-2">
+            <CodeSnippetBlock code={phpSnippet} language="php" title="rolos-booking.php" />
+          </div>
+        </details>
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
           <h5 className="font-medium text-foreground mb-1">Installation Steps</h5>
