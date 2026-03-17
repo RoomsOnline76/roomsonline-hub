@@ -248,9 +248,9 @@ export default function EmbedProperty() {
                     </td>
                     {dateColumns.map((d) => (
                       <td key={d.toISOString()} style={{ textAlign: "center", padding: "8px 4px" }}>
-                        {rate ? (
+                        {effectiveRate ? (
                           <span style={{ fontSize: "12px", color: "#333", fontWeight: 500 }}>
-                            R{rate.toLocaleString()}
+                            R{effectiveRate.toLocaleString()}{isPerPerson ? <span style={{ fontSize: "10px", color: "#888" }}> pp</span> : null}
                           </span>
                         ) : (
                           <span style={{ fontSize: "11px", color: "#ccc" }}>—</span>
@@ -260,14 +260,14 @@ export default function EmbedProperty() {
                     <td style={{ textAlign: "center", padding: "8px 12px" }}>
                       {totalPrice ? (
                         <span style={{ fontWeight: 700, color: "#222", fontSize: "14px" }}>
-                          R{totalPrice.toLocaleString()}
+                          R{totalPrice.toLocaleString()}{isPerPerson ? <span style={{ fontSize: "10px", color: "#888", fontWeight: 400 }}> pp</span> : null}
                         </span>
                       ) : (
                         <span style={{ color: "#ccc" }}>—</span>
                       )}
                     </td>
                     <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                      {rate && nights > 0 && (
+                      {effectiveRate && nights > 0 && (
                         <button
                           onClick={() => {
                             // Navigate to booking within iframe context
