@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye } from "lucide-react";
 
-const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface SmartBookButtonGeneratorProps {
   property: {
