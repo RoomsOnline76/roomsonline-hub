@@ -993,7 +993,23 @@ serve(async (req) => {
         }
 
         console.log(`[HotelBeds] Cached availability for ${roomTypes.length} room types`);
-        
+
+        // ── Hydrate cache → ROL'OS pipeline ──
+        try {
+          const hydrateUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/hydrate-pms-cache-to-rolos`;
+          await fetch(hydrateUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ property_id: propertyId, system_type: "hotelbeds" }),
+          });
+          console.log(`[HotelBeds] Hydration triggered for property ${propertyId}`);
+        } catch (hydrateErr) {
+          console.error("[HotelBeds] Hydration call failed (non-blocking):", hydrateErr);
+        }
+
         return new Response(
           JSON.stringify(createSuccessResponse(transformed, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

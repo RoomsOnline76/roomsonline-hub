@@ -443,6 +443,48 @@ export default function PMSDashboard() {
     enabled: rateSeasons.length > 0,
   });
 
+  // Fallback: fetch pms_availability_cache rates keyed by rolos_room_type_id
+  // This covers Benson/HotelBeds properties where rates may not yet be in rolos_rate_plans
+  const { data: cacheRates = [] } = useQuery({
+    queryKey: ["pms-cache-rates", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      // Get distinct room types from cache with their rates
+      const { data } = await supabase
+        .from("pms_availability_cache" as any)
+        .select("external_room_type_id, rates, raw_data")
+        .eq("property_id", propertyId)
+        .not("rates", "is", null)
+        .limit(200);
+      return (data || []) as unknown as { external_room_type_id: string; rates: any; raw_data: any }[];
+    },
+    enabled: !!propertyId,
+  });
+
+  // Build a map: rolos_room_type_id → best rate from cache
+  const cacheRateMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!cacheRates.length || !roomTypes.length) return map;
+    // Build external_id → rolos_room_type_id mapping via name match
+    for (const entry of cacheRates) {
+      const name = entry.raw_data?.roomTypeName || entry.raw_data?.room_type_name;
+      if (!name) continue;
+      // Match to roomType by name
+      const rt = roomTypes.find(t => t.name === name);
+      if (!rt || map.has(rt.id)) continue;
+      // Extract best rate
+      const rates = Array.isArray(entry.rates) ? entry.rates : [];
+      for (const r of rates) {
+        const amount = r.room_amount || r.adult_amounts?.adultAmount1 || r.adult_amounts?.adult_amount_1;
+        if (amount && amount > 0) {
+          map.set(rt.id, amount);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [cacheRates, roomTypes]);
+
   // Fetch availability overrides
   const { data: availOverrides = [], refetch: refetchOverrides } = useQuery({
     queryKey: ["pms-cal-overrides", propertyId, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
@@ -535,7 +577,13 @@ export default function PMSDashboard() {
     }
     // 3. Fallback to room type default_rate
     const rt = roomTypes.find(t => t.id === roomTypeId);
-    return rt?.default_rate || null;
+    if (rt?.default_rate) return rt.default_rate;
+
+    // 4. Fallback: check pms_availability_cache for non-ROL properties
+    const cacheEntry = cacheRateMap?.get(roomTypeId);
+    if (cacheEntry) return cacheEntry;
+
+    return null;
   };
 
   // Get pricing model suffix for a room type (based on linked rate plans)
