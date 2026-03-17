@@ -13,6 +13,13 @@ export interface HostfullyUnit {
   room_type: string;    // "Studio"
 }
 
+export interface RoomTypeGroup {
+  type_name: string;        // "Compact Studio", "Studio", etc.
+  unit_count: number;       // 17
+  unit_ids: string[];       // Hostfully UIDs
+  unit_numbers: string[];   // "104", "108", etc.
+}
+
 export interface ParsedBuilding {
   building_name: string;           // "EIGHTY2onM"
   units: HostfullyUnit[];          // All units in this building
