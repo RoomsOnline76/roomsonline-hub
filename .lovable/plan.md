@@ -1,85 +1,51 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+## Plan: Fix Embed Page ARI Resolution for ROL'OS Properties
 
----
+### Problem
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+The embed page (`EmbedProperty.tsx`) only queries `hostfully_room_types.daily_rate` for room pricing. For ROL'OS properties (like Latter Days), this field is only populated for rooms with a simple unit rate. The Dungeon room uses a "Per Person" rate plan (`rolos_rate_plans`) at R650/person, so its `hostfully_room_types.daily_rate` is `null` — rendering it with "—" and no Book button.
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
+The admin calendar resolves rates correctly because it uses the full ROL'OS rate plan pipeline: `rolos_rate_plans` → `rolos_rate_plan_room_types` → `rolos_rate_seasons` → `rolos_rate_prices`.
 
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+### Solution
 
----
+Enhance `EmbedProperty.tsx` to fetch rates from the ROL'OS rate plan system when the property is a ROL'OS property (`is_rol_property = true`).
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+### Changes to `EmbedProperty.tsx`
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+1. **Add `is_rol_property` to the property select query** (line 30)
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+2. **After fetching room types, if `is_rol_property`, also fetch:**
+   - `rolos_room_types` for this property (to get the mapping between `hostfully_room_types.linked_rolos_id` and ROL'OS room type IDs)
+   - `rolos_rate_plans` + `rolos_rate_plan_room_types` to resolve each room's rate plan and base rate
+   - Use the rate plan's `base_rate` and `pricing_model` as fallback when `hostfully_room_types.daily_rate` is null
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+3. **Update the grid rendering** to use the resolved rate per room type:
+   - For rooms with `daily_rate` already set → use as-is
+   - For rooms where `daily_rate` is null but a ROL'OS rate plan exists → show the rate plan's `base_rate` with a label indicating the pricing model (e.g., "R650 pp" for per_person, "R2,650" for UnitRate)
+   - Show pricing model indicator so guests understand the rate basis
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+4. **Per-date rate resolution** (future-proofing): Query `rolos_rate_seasons` and `rolos_rate_prices` to show date-specific rates in the grid cells instead of a flat base_rate across all dates. If no season overrides exist (as is the case for Latter Days currently), fall back to the rate plan's `base_rate`.
 
----
+### Files to Modify
 
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+| File | Change |
+|------|--------|
+| `src/pages/EmbedProperty.tsx` | Add ROL'OS rate plan resolution; update grid to show resolved rates with pricing model labels |
 
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+### Technical Detail
 
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+```text
+Data flow:
+  hostfully_room_types (room.id) 
+    → linked_rolos_id → rolos_room_types.id
+    → rolos_rate_plan_room_types.room_type_id 
+    → rolos_rate_plans.base_rate + pricing_model
 
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+Grid cell display:
+  - UnitRate: "R2,650"
+  - per_person: "R650 pp"  
+  - null rate + null plan: "—" (unchanged)
+```
 
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
-
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
-
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
-
----
-
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
