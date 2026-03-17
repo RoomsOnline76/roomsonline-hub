@@ -224,7 +224,11 @@ export default function EmbedProperty() {
             <tbody>
               {roomTypes.map((room) => {
                 const rate = room.daily_rate ? Number(room.daily_rate) : null;
-                const totalPrice = rate && nights > 0 ? rate * nights : null;
+                const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+                const effectiveRate = rate ?? (rolosPlan?.base_rate ?? null);
+                const pricingModel = rolosPlan?.pricing_model;
+                const isPerPerson = pricingModel === "per_person";
+                const totalPrice = effectiveRate && nights > 0 ? effectiveRate * nights : null;
                 const thumbnail = room.thumbnail_url || (Array.isArray(room.images) && room.images.length > 0 ? ((room.images[0] as any)?.url || room.images[0]) : null);
 
                 return (
