@@ -291,7 +291,7 @@ export function HostfullyBuildingImporter({
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );
