@@ -216,7 +216,7 @@ export function HostfullyBuildingImporter({
         </div>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[400px] pr-4">
+        <div className="h-[400px] overflow-y-auto pr-4">
           <div className="space-y-2">
             {buildings.map((building) => {
               const isSelected = selectedBuildings.has(building.building_name);
