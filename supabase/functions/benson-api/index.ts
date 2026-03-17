@@ -957,6 +957,22 @@ serve(async (req) => {
               }
             }
           }
+
+          // ── Hydrate cache → ROL'OS pipeline ──
+          try {
+            const hydrateUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/hydrate-pms-cache-to-rolos`;
+            await fetch(hydrateUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({ property_id, system_type: "benson" }),
+            });
+            console.log(`[Benson] Hydration triggered for property ${property_id}`);
+          } catch (hydrateErr) {
+            console.error("[Benson] Hydration call failed (non-blocking):", hydrateErr);
+          }
         } else {
           console.warn(`No room types found in Benson response. Full response:`, JSON.stringify(result).substring(0, 500));
         }
