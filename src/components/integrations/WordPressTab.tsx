@@ -55,7 +55,8 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');
         </div>
         <CardDescription>
           Install a lightweight WordPress plugin to embed booking widgets using simple shortcodes.
-          Works with any WordPress theme and renders in your brand colour{" "}
+          The <strong>entire booking flow stays inside the widget</strong> — guests never leave your WordPress site.
+          Renders in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
