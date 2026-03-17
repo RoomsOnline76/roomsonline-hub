@@ -14,6 +14,7 @@ export default function EmbedProperty() {
 
   const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string; adult_1_rate?: number; adult_2_rate?: number }>>({});
   const [loading, setLoading] = useState(true);
 
   const today = startOfDay(new Date());
