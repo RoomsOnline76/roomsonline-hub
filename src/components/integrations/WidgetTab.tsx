@@ -1,16 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Code2 } from "lucide-react";
-
-const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+import { Code2, AlertCircle } from "lucide-react";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface WidgetTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function WidgetTab({ property }: WidgetTabProps) {
-  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}`;
+  const brandColor = property.brand_primary_color || "#e91e63";
+  const encodedColor = encodeURIComponent(brandColor);
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}`;
 
   const iframeSnippet = `<!-- RoomsOnline Booking Widget -->
 <div id="rolos-booking-widget" style="width:100%;max-width:480px;">
@@ -48,10 +49,23 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </div>
         <CardDescription>
           Embed a compact booking widget directly on your website. Guests can check availability
-          and start their booking without leaving your page.
+          and start their booking without leaving your page. The widget renders in your property's
+          brand colour{" "}
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
+            <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Commission info */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-muted-foreground">
+            Bookings through this widget use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
+          </span>
+        </div>
+
         <div>
           <h4 className="text-sm font-medium mb-2">iframe Embed (Simplest)</h4>
           <CodeSnippetBlock code={iframeSnippet} language="html" title="iframe Widget" />
@@ -67,7 +81,7 @@ export function WidgetTab({ property }: WidgetTabProps) {
           <ol className="list-decimal list-inside space-y-1">
             <li>Copy either snippet above</li>
             <li>Paste it into your website's HTML where you want the widget to appear</li>
-            <li>The widget automatically uses your property's brand colors</li>
+            <li>The widget automatically uses your property's brand colours</li>
             <li>Bookings are tracked with <code className="bg-muted px-1 rounded">integration=widget</code></li>
           </ol>
         </div>

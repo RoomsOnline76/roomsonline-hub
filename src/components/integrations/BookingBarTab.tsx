@@ -1,16 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { LayoutTemplate } from "lucide-react";
-
-const PRODUCTION_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
+import { LayoutTemplate, AlertCircle } from "lucide-react";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface BookingBarTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function BookingBarTab({ property }: BookingBarTabProps) {
-  const embedUrl = `${PRODUCTION_DOMAIN}/embed/property/${property.slug}?integration=booking_bar&property_id=${property.id}&mode=bar`;
+  const brandColor = property.brand_primary_color || "#e91e63";
+  const encodedColor = encodeURIComponent(brandColor);
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=booking_bar&property_id=${property.id}&mode=bar&brand_color=${encodedColor}`;
 
   const snippet = `<!-- RoomsOnline Floating Booking Bar -->
 <div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;">
@@ -34,10 +35,22 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         </div>
         <CardDescription>
           A persistent bar that sticks to the bottom of your website, giving guests quick access
-          to check dates and book. Non-intrusive and always visible.
+          to check dates and book. Non-intrusive and always visible, styled in your brand colour{" "}
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
+            <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Commission info */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-muted-foreground">
+            Bookings through this widget use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
+          </span>
+        </div>
+
         <CodeSnippetBlock code={snippet} language="html" title="Floating Bar Embed" />
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
@@ -45,7 +58,7 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           <ol className="list-decimal list-inside space-y-1">
             <li>Copy the snippet above</li>
             <li>Paste it just before <code className="bg-muted px-1 rounded">&lt;/body&gt;</code> in your website</li>
-            <li>The bar will appear fixed at the bottom of every page</li>
+            <li>The bar will appear fixed at the bottom of every page in your brand colours</li>
             <li>Guests can select dates and are redirected to your booking page</li>
           </ol>
         </div>

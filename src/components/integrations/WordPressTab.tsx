@@ -1,15 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Puzzle, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Puzzle, AlertCircle } from "lucide-react";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface WordPressTabProps {
-  property: { id: string; name: string; slug: string };
+  property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function WordPressTab({ property }: WordPressTabProps) {
-  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}"]`;
+  const brandColor = property.brand_primary_color || "#e91e63";
+  const encodedColor = encodeURIComponent(brandColor);
+  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"]`;
 
   const phpSnippet = `<?php
 /**
@@ -22,12 +24,14 @@ function rolos_booking_shortcode($atts) {
     $atts = shortcode_atts(array(
         'property' => '',
         'property_id' => '',
+        'color' => '${brandColor}',
         'height' => '520px',
     ), $atts);
     
-    $base_url = 'https://book.sleepinafrica.roomsonline.co.za';
+    $base_url = '${PUBLIC_DOMAIN}';
     $src = esc_url($base_url . '/embed/property/' . $atts['property'] 
-        . '?integration=wordpress&property_id=' . $atts['property_id']);
+        . '?integration=wordpress&property_id=' . $atts['property_id']
+        . '&brand_color=' . urlencode($atts['color']));
     
     return '<div class="rolos-booking-widget">'
         . '<iframe src="' . $src . '" '
@@ -50,10 +54,22 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');
         </div>
         <CardDescription>
           Install a lightweight WordPress plugin to embed booking widgets using simple shortcodes.
-          Works with any WordPress theme.
+          Works with any WordPress theme and renders in your brand colour{" "}
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
+            <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Commission info */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-muted-foreground">
+            Bookings through this widget use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
+          </span>
+        </div>
+
         <div>
           <h4 className="text-sm font-medium mb-2">Shortcode</h4>
           <CodeSnippetBlock code={shortcode} language="text" title="WordPress Shortcode" />
