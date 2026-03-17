@@ -60,6 +60,13 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
 
+  // Sync color when property data loads/changes
+  useEffect(() => {
+    if (property.brand_primary_color) {
+      setButtonColor(property.brand_primary_color);
+    }
+  }, [property.brand_primary_color]);
+
   const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=smart_button&property_id=${property.id}`;
   const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=smart_widget&property_id=${property.id}&brand_color=${encodeURIComponent(buttonColor)}&mode=embedded`;
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
