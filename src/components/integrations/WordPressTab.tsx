@@ -31,7 +31,8 @@ function rolos_booking_shortcode($atts) {
     $base_url = '${PUBLIC_DOMAIN}';
     $src = esc_url($base_url . '/embed/property/' . $atts['property'] 
         . '?integration=wordpress&property_id=' . $atts['property_id']
-        . '&brand_color=' . urlencode($atts['color']));
+        . '&brand_color=' . urlencode($atts['color'])
+        . '&mode=embedded');
     
     return '<div class="rolos-booking-widget">'
         . '<iframe src="' . $src . '" '
