@@ -270,9 +270,21 @@ export default function EmbedProperty() {
                       {effectiveRate && nights > 0 && (
                         <button
                           onClick={() => {
-                            // Navigate to booking within iframe context
-                            const bookUrl = `/booking/${property.slug}?room_type=${room.id}&checkin=${checkIn}&checkout=${checkOut}&integration=${integration}&property_id=${property.id}${promoCode ? `&voucher=${promoCode}` : ""}`;
-                            window.location.href = bookUrl;
+                            // Navigate to booking — pass rate data so Booking.tsx can calculate
+                            const params = new URLSearchParams({
+                              roomTypeId: room.id,
+                              roomTypeName: room.name,
+                              checkIn,
+                              checkOut,
+                              integration,
+                              property_id: property.id,
+                              adults: "2",
+                            });
+                            if (effectiveRate) params.set("embed_rate", String(effectiveRate));
+                            if (pricingModel) params.set("embed_pricing_model", pricingModel);
+                            if (room.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
+                            if (promoCode) params.set("voucher", promoCode);
+                            window.location.href = `/booking/${property.slug}?${params.toString()}`;
                           }}
                           style={{ background: brandColor, color: fontColor, border: "none", padding: "6px 16px", borderRadius: "4px", fontSize: "12px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                         >

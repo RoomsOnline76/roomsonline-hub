@@ -84,12 +84,12 @@ const Booking = () => {
   // Get sticky guest details from context
   const { guestDetails, setGuestDetails, stays, totalPrice: itineraryTotalPrice } = useItinerary();
   
-  const urlCheckIn = searchParams.get("checkIn");
-  const urlCheckOut = searchParams.get("checkOut");
+  const urlCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
+  const urlCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
   
-  // Pre-selected values from URL (from staging booking flow)
-  const preSelectedRoomTypeId = searchParams.get("roomTypeId");
+  // Pre-selected values from URL (from staging booking flow or embed)
+  const preSelectedRoomTypeId = searchParams.get("roomTypeId") || searchParams.get("room_type");
   const preSelectedRoomTypeName = searchParams.get("roomTypeName");
   const preSelectedRateTypeId = searchParams.get("rateTypeId");
   const preSelectedRateTypeName = searchParams.get("rateTypeName");
@@ -99,6 +99,11 @@ const Booking = () => {
   const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
   const preSelectedPets = parseInt(searchParams.get("pets") || "0");
   const preSelectedTotalCost = searchParams.get("totalCost") ? parseFloat(searchParams.get("totalCost")!) : null;
+  
+  // Embed-specific params: pre-resolved rate data from EmbedProperty
+  const embedRate = searchParams.get("embed_rate") ? parseFloat(searchParams.get("embed_rate")!) : null;
+  const embedPricingModel = searchParams.get("embed_pricing_model");
+  const embedLinkedRolosId = searchParams.get("linked_rolos_id");
 
   // Form state - initialize from sticky context
   const [guestName, setGuestName] = useState(guestDetails.name || "");
