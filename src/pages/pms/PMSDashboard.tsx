@@ -1139,16 +1139,20 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   getMonthAvail: (date: Date) => { booked: number; avail: number };
   onSelectBooking: (b: BookingRow) => void;
 }) {
+  const isSingleRoom = typeRooms.length === 1;
+  const singleRoom = isSingleRoom ? typeRooms[0] : null;
+  const singleRoomOOS = singleRoom?.status === "out_of_service";
+
   return (
     <>
-      {/* Room type header row */}
-      <tr className="bg-slate-100 dark:bg-slate-800">
+      {/* Room type header row (merged with booking bars for single-room types) */}
+      <tr className={cn("bg-slate-100 dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
         <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10">
           <div className="flex items-center gap-1.5 px-1">
             <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
             <div className="min-w-0">
               <div className="truncate">{rt.name}</div>
-              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+              {!isSingleRoom && <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} rooms</div>}
             </div>
           </div>
         </td>
@@ -1158,27 +1162,63 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
           const prevRestriction = i > 0 ? getRestriction(rt.name, weekDates[i - 1]) : undefined;
           const nextRestriction = i < weekDates.length - 1 ? getRestriction(rt.name, weekDates[i + 1]) : undefined;
           const { booked, avail } = getMonthAvail(date);
+          const dateStr = format(date, "yyyy-MM-dd");
+
+          // For single-room types, also render booking bars in this cell
+          const dayBookings = isSingleRoom && singleRoom && !singleRoomOOS
+            ? bookings.filter(b => b.rolos_room_ids?.includes(singleRoom.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date)
+            : [];
+
           return (
-            <td key={i} className={cn("border p-1 text-center", dateCellBg(date, !!restriction?.is_stop_sell))}>
-              <div className="flex flex-col items-center">
-                {rate != null ? (
-                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
-                )}
-                <div className="text-[8px] font-semibold mt-0.5">
-                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
-                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
-                </div>
-                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
-              </div>
+            <td key={i} className={cn("border p-0 text-center relative", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              {isSingleRoom && singleRoomOOS ? (
+                <div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div>
+              ) : (
+                <>
+                  <div className={cn("flex flex-col items-center", isSingleRoom && "absolute inset-0 z-0 justify-center pointer-events-none")}>
+                    {rate != null ? (
+                      <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                    )}
+                    {!isSingleRoom && (
+                      <div className="text-[8px] font-semibold mt-0.5">
+                        <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                        {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                      </div>
+                    )}
+                    <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+                  </div>
+                  {/* Booking bars for single-room types */}
+                  {dayBookings.map(b => {
+                    const colors = getStatusColor(b.status);
+                    const isStart = b.check_in_date === dateStr;
+                    const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    return (
+                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                        "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
+                        colors.bg, colors.border,
+                        isStart ? "left-0.5 rounded-l-sm" : "left-0",
+                        isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                      )}>
+                        {isStart && (
+                          <>
+                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </td>
           );
         })}
       </tr>
 
-      {/* Individual room rows */}
-      {typeRooms.map((room) => (
+      {/* Individual room rows (only for multi-room types) */}
+      {!isSingleRoom && typeRooms.map((room) => (
         <MonthRoomRow key={room.id} room={room} dates={weekDates} bookings={bookings} onSelectBooking={onSelectBooking} />
       ))}
 
@@ -1301,16 +1341,20 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
     return { booked, avail: Math.max(0, totalUnits - booked) };
   };
 
+  const isSingleRoom = typeRooms.length === 1;
+  const singleRoom = isSingleRoom ? typeRooms[0] : null;
+  const singleRoomOOS = singleRoom?.status === "out_of_service";
+
   return (
     <>
-      {/* Room type header row */}
-      <tr className="bg-slate-100 dark:bg-slate-800">
+      {/* Room type header row (merged with booking bars for single-room types) */}
+      <tr className={cn("bg-slate-100 dark:bg-slate-800", isSingleRoom && singleRoomOOS && "opacity-50")}>
         <td className="border p-1 font-semibold text-xs text-foreground sticky left-0 bg-slate-100 dark:bg-slate-800 z-10 min-w-[160px]">
           <div className="flex items-center gap-1.5 px-1">
             <BedDouble className="h-3 w-3 text-muted-foreground shrink-0" />
             <div className="min-w-0">
               <div className="truncate">{rt.name}</div>
-              <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} room{typeRooms.length !== 1 ? "s" : ""}</div>
+              {!isSingleRoom && <div className="text-[9px] text-muted-foreground font-normal">{typeRooms.length} rooms</div>}
             </div>
           </div>
         </td>
@@ -1320,27 +1364,61 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
           const prevRestriction = i > 0 ? getRestriction(rt.name, dates[i - 1]) : undefined;
           const nextRestriction = i < dates.length - 1 ? getRestriction(rt.name, dates[i + 1]) : undefined;
           const { booked, avail } = getAvail(date);
+          const dateStr = format(date, "yyyy-MM-dd");
+
+          const dayBookings = isSingleRoom && singleRoom && !singleRoomOOS
+            ? bookings.filter(b => b.rolos_room_ids?.includes(singleRoom.id) && dateStr >= b.check_in_date && dateStr < b.check_out_date)
+            : [];
+
           return (
-            <td key={i} className={cn("border p-1 text-center min-w-[80px]", dateCellBg(date, !!restriction?.is_stop_sell))}>
-              <div className="flex flex-col items-center">
-                {rate != null ? (
-                  <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground/50 italic">—</span>
-                )}
-                <div className="text-[8px] font-semibold mt-0.5">
-                  <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
-                  {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
-                </div>
-                <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
-              </div>
+            <td key={i} className={cn("border p-0 text-center relative min-w-[80px]", isSingleRoom ? "h-8" : "p-1", dateCellBg(date, !!restriction?.is_stop_sell))}>
+              {isSingleRoom && singleRoomOOS ? (
+                <div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div>
+              ) : (
+                <>
+                  <div className={cn("flex flex-col items-center", isSingleRoom && "absolute inset-0 z-0 justify-center pointer-events-none")}>
+                    {rate != null ? (
+                      <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                    )}
+                    {!isSingleRoom && (
+                      <div className="text-[8px] font-semibold mt-0.5">
+                        <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                        {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                      </div>
+                    )}
+                    <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+                  </div>
+                  {dayBookings.map(b => {
+                    const colors = getStatusColor(b.status);
+                    const isStart = b.check_in_date === dateStr;
+                    const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    return (
+                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                        "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
+                        colors.bg, colors.border,
+                        isStart ? "left-0.5 rounded-l-sm" : "left-0",
+                        isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                      )}>
+                        {isStart && (
+                          <>
+                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </td>
           );
         })}
       </tr>
 
-      {/* Individual room rows */}
-      {typeRooms.map((room) => (
+      {/* Individual room rows (only for multi-room types) */}
+      {!isSingleRoom && typeRooms.map((room) => (
         <WeekRoomRow key={room.id} room={room} dates={dates} bookings={bookings} onSelectBooking={onSelectBooking} />
       ))}
     </>
