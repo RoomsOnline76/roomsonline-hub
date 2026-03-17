@@ -13,15 +13,14 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
   const encodedColor = encodeURIComponent(brandColor);
   const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodedColor}`;
 
-  // Generate a lighter tint of the brand color for the range fill
   const snippet = `<!-- RoomsOnline Floating Booking Bar with Calendar -->
 <div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;font-family:system-ui,-apple-system,sans-serif;">
   <div style="background:${brandColor};box-shadow:0 -4px 20px rgba(0,0,0,0.18);padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
-    <button id="rolos-date-btn" onclick="rolosToggleCal()" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:999px;font-size:14px;font-weight:500;cursor:pointer;backdrop-filter:blur(4px);transition:all 0.2s;">
+    <button id="rolos-date-btn" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:999px;font-size:14px;font-weight:500;cursor:pointer;backdrop-filter:blur(4px);transition:all 0.2s;">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <span id="rolos-date-label">Select dates</span>
     </button>
-    <button onclick="rolosBook()" style="background:#fff;color:${brandColor};border:none;padding:10px 28px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+    <button id="rolos-book-btn" style="background:#fff;color:${brandColor};border:none;padding:10px 28px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
       Book Now
     </button>
   </div>
@@ -29,9 +28,9 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
   <!-- Calendar Popup -->
   <div id="rolos-cal" style="display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;width:340px;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.2);overflow:hidden;animation:rolosFadeIn 0.25s ease-out;">
     <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
-      <button onclick="rolosNavMonth(-1)" style="border:none;background:none;cursor:pointer;padding:6px;border-radius:50%;color:#666;font-size:18px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">‹</button>
+      <button id="rolos-prev-month" style="border:none;background:none;cursor:pointer;padding:6px;border-radius:50%;color:#666;font-size:18px;">&#8249;</button>
       <span id="rolos-month-label" style="font-weight:600;font-size:15px;color:#111;"></span>
-      <button onclick="rolosNavMonth(1)" style="border:none;background:none;cursor:pointer;padding:6px;border-radius:50%;color:#666;font-size:18px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">›</button>
+      <button id="rolos-next-month" style="border:none;background:none;cursor:pointer;padding:6px;border-radius:50%;color:#666;font-size:18px;">&#8250;</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);padding:0 12px;margin-bottom:4px;">
       <span style="text-align:center;font-size:11px;color:#999;padding:4px 0;font-weight:500;">Su</span>
@@ -45,7 +44,7 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
     <div id="rolos-days" style="display:grid;grid-template-columns:repeat(7,1fr);padding:0 12px 12px;gap:2px;"></div>
     <div id="rolos-summary" style="display:none;padding:10px 16px;border-top:1px solid #f0f0f0;background:#fafafa;font-size:13px;color:#666;text-align:center;"></div>
     <div style="padding:4px 12px 12px;">
-      <button onclick="rolosConfirmDates()" id="rolos-confirm-btn" style="width:100%;padding:10px;border:none;border-radius:10px;background:${brandColor};color:#fff;font-weight:600;font-size:14px;cursor:pointer;opacity:0.4;pointer-events:none;transition:all 0.2s;">Confirm Dates</button>
+      <button id="rolos-confirm-btn" style="width:100%;padding:10px;border:none;border-radius:10px;background:${brandColor};color:#fff;font-weight:600;font-size:14px;cursor:pointer;opacity:0.4;pointer-events:none;transition:all 0.2s;">Confirm Dates</button>
     </div>
   </div>
 </div>
@@ -64,21 +63,96 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
 
 <script>
 (function(){
-  var bc='${brandColor}',ci=null,co=null,sel=0,cm=new Date(),mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var bc='${brandColor}',ci=null,co=null,sel=0,
+      cm=new Date(),
+      mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
   var td=new Date();td.setHours(0,0,0,0);
   if(td.getDate()>25){cm=new Date(td.getFullYear(),td.getMonth()+1,1);}
-  window.rolosToggleCal=function(){var c=document.getElementById('rolos-cal');c.style.display=c.style.display==='none'?'block':'none';if(c.style.display==='block')render();};
-  window.rolosNavMonth=function(d){cm=new Date(cm.getFullYear(),cm.getMonth()+d,1);render();};
-  window.rolosConfirmDates=function(){document.getElementById('rolos-cal').style.display='none';};
-  window.rolosBook=function(){var u='${bookingUrl}';if(ci)u+='&checkin='+fmt(ci);if(co)u+='&checkout='+fmt(co);window.open(u,'_blank');};
+
   function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
   function p(n){return n<10?'0'+n:n;}
   function sameDay(a,b){return a&&b&&a.getTime()===b.getTime();}
   function inRange(d){return ci&&co&&d>ci&&d<co;}
-  function pick(d){if(sel===0||!ci){ci=d;co=null;sel=1;}else{if(d<ci){ci=d;co=null;}else if(sameDay(d,ci)){var nx=new Date(d);nx.setDate(nx.getDate()+1);co=nx;sel=0;}else{co=d;sel=0;}}render();updateLabel();}
-  function updateLabel(){var lb=document.getElementById('rolos-date-label');var btn=document.getElementById('rolos-confirm-btn');if(ci&&co){var n=Math.round((co-ci)/864e5);lb.textContent=fmtShort(ci)+' – '+fmtShort(co)+' ('+n+' night'+(n!==1?'s':'')+')';btn.style.opacity='1';btn.style.pointerEvents='auto';document.getElementById('rolos-summary').style.display='block';document.getElementById('rolos-summary').textContent=fmtShort(ci)+' → '+fmtShort(co)+' · '+n+' night'+(n!==1?'s':'');}else if(ci){lb.textContent=fmtShort(ci)+' – Check-out';btn.style.opacity='0.4';btn.style.pointerEvents='none';document.getElementById('rolos-summary').style.display='block';document.getElementById('rolos-summary').textContent='Select check-out date';}else{lb.textContent='Select dates';btn.style.opacity='0.4';btn.style.pointerEvents='none';document.getElementById('rolos-summary').style.display='none';}}
   function fmtShort(d){return mn[d.getMonth()].slice(0,3)+' '+d.getDate();}
-  function render(){document.getElementById('rolos-month-label').textContent=mn[cm.getMonth()]+' '+cm.getFullYear();var g=document.getElementById('rolos-days');g.innerHTML='';var f=new Date(cm.getFullYear(),cm.getMonth(),1);var l=new Date(cm.getFullYear(),cm.getMonth()+1,0);for(var i=0;i<f.getDay();i++){var e=document.createElement('span');g.appendChild(e);}for(var d=1;d<=l.getDate();d++){var dt=new Date(cm.getFullYear(),cm.getMonth(),d);var b=document.createElement('button');b.className='rolos-day';b.textContent=d;b.disabled=dt<td;if(sameDay(dt,ci)&&sameDay(dt,co)){b.className+=' rolos-ci rolos-co';}else if(sameDay(dt,ci)){b.className+=' rolos-ci';}else if(sameDay(dt,co)){b.className+=' rolos-co';}else if(inRange(dt)){b.className+=' rolos-range';}if(sameDay(dt,td)&&!sameDay(dt,ci)&&!sameDay(dt,co)){b.className+=' rolos-today';}(function(dd){b.onclick=function(){if(!b.disabled)pick(dd);};})(dt);g.appendChild(b);}}
+
+  function pick(d){
+    if(sel===0||!ci){ci=d;co=null;sel=1;}
+    else{if(d<ci){ci=d;co=null;}else if(sameDay(d,ci)){var nx=new Date(d);nx.setDate(nx.getDate()+1);co=nx;sel=0;}else{co=d;sel=0;}}
+    render();updateLabel();
+  }
+
+  function updateLabel(){
+    var lb=document.getElementById('rolos-date-label');
+    var btn=document.getElementById('rolos-confirm-btn');
+    var sum=document.getElementById('rolos-summary');
+    if(ci&&co){
+      var n=Math.round((co-ci)/864e5);
+      lb.textContent=fmtShort(ci)+' \\u2013 '+fmtShort(co)+' ('+n+' night'+(n!==1?'s':'')+')';
+      btn.style.opacity='1';btn.style.pointerEvents='auto';
+      sum.style.display='block';sum.textContent=fmtShort(ci)+' \\u2192 '+fmtShort(co)+' \\u00B7 '+n+' night'+(n!==1?'s':'');
+    }else if(ci){
+      lb.textContent=fmtShort(ci)+' \\u2013 Check-out';
+      btn.style.opacity='0.4';btn.style.pointerEvents='none';
+      sum.style.display='block';sum.textContent='Select check-out date';
+    }else{
+      lb.textContent='Select dates';
+      btn.style.opacity='0.4';btn.style.pointerEvents='none';
+      sum.style.display='none';
+    }
+  }
+
+  function render(){
+    document.getElementById('rolos-month-label').textContent=mn[cm.getMonth()]+' '+cm.getFullYear();
+    var g=document.getElementById('rolos-days');g.innerHTML='';
+    var f=new Date(cm.getFullYear(),cm.getMonth(),1);
+    var l=new Date(cm.getFullYear(),cm.getMonth()+1,0);
+    for(var i=0;i<f.getDay();i++){var e=document.createElement('span');g.appendChild(e);}
+    for(var d=1;d<=l.getDate();d++){
+      var dt=new Date(cm.getFullYear(),cm.getMonth(),d);
+      var b=document.createElement('button');b.className='rolos-day';b.textContent=d;b.disabled=dt<td;
+      if(sameDay(dt,ci)&&sameDay(dt,co)){b.className+=' rolos-ci rolos-co';}
+      else if(sameDay(dt,ci)){b.className+=' rolos-ci';}
+      else if(sameDay(dt,co)){b.className+=' rolos-co';}
+      else if(inRange(dt)){b.className+=' rolos-range';}
+      if(sameDay(dt,td)&&!sameDay(dt,ci)&&!sameDay(dt,co)){b.className+=' rolos-today';}
+      (function(dd){b.addEventListener('click',function(){if(!b.disabled)pick(dd);});})(dt);
+      g.appendChild(b);
+    }
+  }
+
+  /* Wire up all buttons via addEventListener — no inline onclick needed */
+  document.getElementById('rolos-date-btn').addEventListener('click',function(){
+    var c=document.getElementById('rolos-cal');
+    c.style.display=c.style.display==='none'?'block':'none';
+    if(c.style.display==='block')render();
+  });
+
+  document.getElementById('rolos-book-btn').addEventListener('click',function(){
+    var u='${bookingUrl}';
+    if(ci)u+='&checkin='+fmt(ci);
+    if(co)u+='&checkout='+fmt(co);
+    window.open(u,'_blank');
+  });
+
+  document.getElementById('rolos-prev-month').addEventListener('click',function(){
+    cm=new Date(cm.getFullYear(),cm.getMonth()-1,1);render();
+  });
+
+  document.getElementById('rolos-next-month').addEventListener('click',function(){
+    cm=new Date(cm.getFullYear(),cm.getMonth()+1,1);render();
+  });
+
+  document.getElementById('rolos-confirm-btn').addEventListener('click',function(){
+    document.getElementById('rolos-cal').style.display='none';
+  });
+
+  /* Hover effects for nav buttons */
+  ['rolos-prev-month','rolos-next-month'].forEach(function(id){
+    var el=document.getElementById(id);
+    el.addEventListener('mouseover',function(){el.style.background='#f3f4f6';});
+    el.addEventListener('mouseout',function(){el.style.background='none';});
+  });
+
   render();updateLabel();
 })();
 </script>`;
