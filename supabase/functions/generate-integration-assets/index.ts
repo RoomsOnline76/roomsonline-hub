@@ -82,9 +82,15 @@ serve(async (req) => {
         break;
       }
       case "booking_bar": {
-        const url = `${embedBase}?integration=booking_bar&property_id=${property.id}&mode=bar`;
-        snippet = `<div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;"><iframe src="${url}" style="width:100%;height:72px;border:none;box-shadow:0 -2px 12px rgba(0,0,0,0.1);" title="Book ${property.name}" loading="lazy"></iframe></div>`;
-        previewUrl = url;
+        const bookingBarUrl = `${baseUrl}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodeURIComponent(primaryColor)}`;
+        snippet = `<!-- RoomsOnline Floating Booking Bar -->
+<div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:${primaryColor};box-shadow:0 -2px 12px rgba(0,0,0,0.15);padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-family:system-ui,-apple-system,sans-serif;">
+  <label style="color:#fff;font-size:14px;font-weight:500;">Check-in<input type="date" id="rolos-checkin" style="margin-left:6px;padding:6px 10px;border:none;border-radius:4px;font-size:14px;" /></label>
+  <label style="color:#fff;font-size:14px;font-weight:500;">Check-out<input type="date" id="rolos-checkout" style="margin-left:6px;padding:6px 10px;border:none;border-radius:4px;font-size:14px;" /></label>
+  <button onclick="(function(){var ci=document.getElementById('rolos-checkin').value;var co=document.getElementById('rolos-checkout').value;var url='${bookingBarUrl}';if(ci)url+='&checkin='+ci;if(co)url+='&checkout='+co;window.open(url,'_blank');})()" style="background:#fff;color:${primaryColor};border:none;padding:10px 24px;border-radius:6px;font-weight:700;font-size:14px;cursor:pointer;">Book Now</button>
+</div>
+<script>(function(){var t=new Date().toISOString().split('T')[0];document.getElementById('rolos-checkin').setAttribute('min',t);document.getElementById('rolos-checkout').setAttribute('min',t);})()</script>`;
+        previewUrl = bookingBarUrl;
         break;
       }
       case "full_embed": {

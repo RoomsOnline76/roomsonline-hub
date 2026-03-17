@@ -11,7 +11,7 @@ interface BookingBarTabProps {
 export function BookingBarTab({ property }: BookingBarTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const encodedColor = encodeURIComponent(brandColor);
-  const bookingUrl = `${PUBLIC_DOMAIN}/property/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodedColor}`;
+  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodedColor}`;
 
   const snippet = `<!-- RoomsOnline Floating Booking Bar -->
 <div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:${brandColor};box-shadow:0 -2px 12px rgba(0,0,0,0.15);padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;font-family:system-ui,-apple-system,sans-serif;">
