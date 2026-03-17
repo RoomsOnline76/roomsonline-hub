@@ -1,8 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Puzzle, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Puzzle, AlertCircle, Download } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import JSZip from "jszip";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -16,9 +18,18 @@ export function WordPressTab({ property }: WordPressTabProps) {
   const phpSnippet = `<?php
 /**
  * Plugin Name: RoomsOnline Booking Widget
- * Description: Embed RoomsOnline booking engine via shortcode.
+ * Plugin URI: https://roomsonline.co.za
+ * Description: Embed the RoomsOnline booking engine on any page via shortcode.
  * Version: 1.0.0
+ * Author: RoomsOnline
+ * Author URI: https://roomsonline.co.za
+ * License: GPL v2 or later
+ * Text Domain: rolos-booking
  */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 function rolos_booking_shortcode($atts) {
     $atts = shortcode_atts(array(
@@ -40,8 +51,21 @@ function rolos_booking_shortcode($atts) {
         . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
         . '</div>';
 }
-add_shortcode('rolos_booking', 'rolos_booking_shortcode');
-?>`;
+add_shortcode('rolos_booking', 'rolos_booking_shortcode');`;
+
+  const handleDownloadZip = async () => {
+    const zip = new JSZip();
+    const folder = zip.folder("rolos-booking");
+    folder?.file("rolos-booking.php", phpSnippet);
+    
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "rolos-booking.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Card>
@@ -72,23 +96,33 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');
           </span>
         </div>
 
+        {/* Download ZIP button */}
+        <Button onClick={handleDownloadZip} variant="default" className="w-full gap-2">
+          <Download className="h-4 w-4" />
+          Download WordPress Plugin (.zip)
+        </Button>
+        <p className="text-xs text-muted-foreground text-center -mt-2">
+          Ready to install — go to <strong>WordPress Admin → Plugins → Add New → Upload Plugin</strong> and select this file.
+        </p>
+
         <div>
           <h4 className="text-sm font-medium mb-2">Shortcode</h4>
           <CodeSnippetBlock code={shortcode} language="text" title="WordPress Shortcode" />
         </div>
 
         <div>
-          <h4 className="text-sm font-medium mb-2">Plugin Code (Single File)</h4>
+          <h4 className="text-sm font-medium mb-2">Plugin Code (Reference)</h4>
           <CodeSnippetBlock code={phpSnippet} language="php" title="rolos-booking.php" />
         </div>
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
           <h5 className="font-medium text-foreground mb-1">Installation Steps</h5>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Copy the PHP code above and save it as <code className="bg-muted px-1 rounded">rolos-booking.php</code></li>
-            <li>Upload to <code className="bg-muted px-1 rounded">wp-content/plugins/rolos-booking/</code></li>
-            <li>Activate the plugin in WordPress Admin → Plugins</li>
-            <li>Add the shortcode to any page or post</li>
+            <li>Click <strong>Download WordPress Plugin</strong> above</li>
+            <li>In WordPress Admin, go to <strong>Plugins → Add New → Upload Plugin</strong></li>
+            <li>Select the downloaded <code className="bg-muted px-1 rounded">rolos-booking.zip</code> file</li>
+            <li>Click <strong>Install Now</strong>, then <strong>Activate</strong></li>
+            <li>Add the shortcode above to any page or post</li>
             <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
           </ol>
         </div>
