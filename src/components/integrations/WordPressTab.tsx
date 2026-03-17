@@ -129,6 +129,9 @@ add_shortcode('rolos_booking', 'rolos_booking_shortcode');`.trim();
             <li>Add the shortcode above to any page or post</li>
             <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
           </ol>
+          <p className="mt-2 text-xs italic">
+            <strong>Note:</strong> This plugin only registers a shortcode — it does not create pages. If you see new pages (e.g. "Hotel Checkout"), they are from your WordPress theme or another plugin.
+          </p>
         </div>
       </CardContent>
     </Card>
