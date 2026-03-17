@@ -11,7 +11,7 @@ interface FullEmbedTabProps {
 export function FullEmbedTab({ property }: FullEmbedTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const encodedColor = encodeURIComponent(brandColor);
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=full&brand_color=${encodedColor}`;
+  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=embedded&brand_color=${encodedColor}`;
 
   const snippet = `<!-- RoomsOnline Full Booking Engine -->
 <iframe 
