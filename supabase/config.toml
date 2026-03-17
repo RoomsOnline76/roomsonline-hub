@@ -182,3 +182,6 @@ verify_jwt = false
 
 [functions.hydrate-pms-cache-to-rolos]
 verify_jwt = false
+
+[functions.wordpress-plugin-update]
+verify_jwt = false
