@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,13 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonSize, setButtonSize] = useState<ButtonSize>("medium");
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
+
+  // Sync color when property data loads/changes
+  useEffect(() => {
+    if (property.brand_primary_color) {
+      setButtonColor(property.brand_primary_color);
+    }
+  }, [property.brand_primary_color]);
 
   const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=smart_button&property_id=${property.id}`;
   const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=smart_widget&property_id=${property.id}&brand_color=${encodeURIComponent(buttonColor)}&mode=embedded`;
