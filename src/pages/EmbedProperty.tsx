@@ -14,6 +14,7 @@ export default function EmbedProperty() {
 
   const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string; adult_1_rate?: number; adult_2_rate?: number }>>({});
   const [loading, setLoading] = useState(true);
 
   const today = startOfDay(new Date());
@@ -27,7 +28,7 @@ export default function EmbedProperty() {
       if (!slug) return;
       const { data: prop } = await supabase
         .from("properties")
-        .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, images, description, amenities, address, city")
+        .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, images, description, amenities, address, city, is_rol_property")
         .eq("slug", slug)
         .eq("is_active", true)
         .single();
@@ -36,11 +37,37 @@ export default function EmbedProperty() {
         setProperty(prop);
         const { data: rooms } = await supabase
           .from("hostfully_room_types")
-          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities")
+          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities, linked_rolos_id")
           .eq("property_id", prop.id)
           .eq("is_active", true)
           .order("name");
         setRoomTypes(rooms || []);
+
+        // For ROL'OS properties, resolve rate plans for rooms missing daily_rate
+        if (prop.is_rol_property && rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
+          const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
+          const { data: rpRoomTypes } = await supabase
+            .from("rolos_rate_plan_room_types")
+            .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+            .in("room_type_id", rolosIds)
+            .eq("rolos_rate_plans.is_active", true);
+
+          if (rpRoomTypes) {
+            const map: Record<string, any> = {};
+            for (const entry of rpRoomTypes) {
+              const plan = (entry as any).rolos_rate_plans;
+              if (plan && plan.base_rate != null) {
+                map[entry.room_type_id] = {
+                  base_rate: Number(plan.base_rate),
+                  pricing_model: plan.pricing_model || "per_unit",
+                  adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
+                  adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+                };
+              }
+            }
+            setRatePlanMap(map);
+          }
+        }
       }
       setLoading(false);
     };
@@ -197,7 +224,11 @@ export default function EmbedProperty() {
             <tbody>
               {roomTypes.map((room) => {
                 const rate = room.daily_rate ? Number(room.daily_rate) : null;
-                const totalPrice = rate && nights > 0 ? rate * nights : null;
+                const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+                const effectiveRate = rate ?? (rolosPlan?.base_rate ?? null);
+                const pricingModel = rolosPlan?.pricing_model;
+                const isPerPerson = pricingModel === "per_person";
+                const totalPrice = effectiveRate && nights > 0 ? effectiveRate * nights : null;
                 const thumbnail = room.thumbnail_url || (Array.isArray(room.images) && room.images.length > 0 ? ((room.images[0] as any)?.url || room.images[0]) : null);
 
                 return (
@@ -217,9 +248,9 @@ export default function EmbedProperty() {
                     </td>
                     {dateColumns.map((d) => (
                       <td key={d.toISOString()} style={{ textAlign: "center", padding: "8px 4px" }}>
-                        {rate ? (
+                        {effectiveRate ? (
                           <span style={{ fontSize: "12px", color: "#333", fontWeight: 500 }}>
-                            R{rate.toLocaleString()}
+                            R{effectiveRate.toLocaleString()}{isPerPerson ? <span style={{ fontSize: "10px", color: "#888" }}> pp</span> : null}
                           </span>
                         ) : (
                           <span style={{ fontSize: "11px", color: "#ccc" }}>—</span>
@@ -229,14 +260,14 @@ export default function EmbedProperty() {
                     <td style={{ textAlign: "center", padding: "8px 12px" }}>
                       {totalPrice ? (
                         <span style={{ fontWeight: 700, color: "#222", fontSize: "14px" }}>
-                          R{totalPrice.toLocaleString()}
+                          R{totalPrice.toLocaleString()}{isPerPerson ? <span style={{ fontSize: "10px", color: "#888", fontWeight: 400 }}> pp</span> : null}
                         </span>
                       ) : (
                         <span style={{ color: "#ccc" }}>—</span>
                       )}
                     </td>
                     <td style={{ padding: "8px 12px", textAlign: "center" }}>
-                      {rate && nights > 0 && (
+                      {effectiveRate && nights > 0 && (
                         <button
                           onClick={() => {
                             // Navigate to booking within iframe context
