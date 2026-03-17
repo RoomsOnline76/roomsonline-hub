@@ -1,60 +1,99 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-## Plan: Fix Booking Bar Embed Size + Rate Calculation in Embeds and Booking Page
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
-### Two Distinct Issues
+---
 
-**Issue 1: Booking Bar is an iframe with full booking engine — should be a simple bar**
-The BookingBarTab currently generates the same full-page URL as FullEmbedTab, resulting in a cramped full booking engine in a tiny space. The booking bar should be a pure HTML snippet (date pickers + Book button) that redirects — no iframe needed. The existing snippet is actually correct HTML, but the description/URL suggests it might be getting embedded as an iframe somewhere. The booking bar snippet itself is fine — it's self-contained HTML.
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-**Issue 2: Rates don't flow from embed → Booking page for ROL'OS properties**
-When a user clicks "Book" in the embed (`EmbedProperty.tsx`), they navigate to `/booking/${slug}?room_type=${room.id}`. The Booking page (`Booking.tsx`) then:
-1. Fetches the property — gets `external_system` (which is null/none for ROL'OS properties like Latter Days)
-2. Tries to build availability from `amenities.room_types` (wizard rooms) or `pms_availability_cache`
-3. For ROL'OS properties with rates in `rolos_rate_plans`, neither source has the data — rates are only in `rolos_rate_plans` which Booking.tsx never queries
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-The EmbedProperty page correctly resolves rates via `rolos_rate_plan_room_types` → `rolos_rate_plans`, but this data is never passed to the Booking page.
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+
+---
+
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
+
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
+
+---
+
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
 
 ### Root Cause
-`Booking.tsx` has no fallback path for ROL'OS properties that use `rolos_rate_plans`. It only checks:
-- PMS API calls (Benson, Hostfully, HotelBeds)
-- `pms_availability_cache` 
-- `amenities.room_types` (wizard rates)
-
-ROL'OS properties store their rates in `rolos_rate_plans` + `rolos_rate_plan_room_types`, which is never queried by the Booking page.
+Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
 
 ### Changes
+- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
+- ✅ **Benson adapter**: Calls hydration after cache writes
+- ✅ **HotelBeds adapter**: Calls hydration after cache writes
+- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
+- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
 
-#### 1. Fix EmbedProperty.tsx — pass rate data via URL params
-When the Book button is clicked, include the resolved rate and pricing model in the URL so the Booking page can use it immediately.
+---
 
-Also pass the `linked_rolos_id` (the rolos_room_type ID) as the room identifier instead of the `hostfully_room_types` UUID, since that's what the rate plan maps to.
-
-**File:** `src/pages/EmbedProperty.tsx` — update Book button onClick
-
-#### 2. Add ROL'OS rate plan fallback in Booking.tsx
-For properties where `is_rol_property = true` and no external PMS, add a new code path in `calculateCost` that:
-1. Queries `rolos_rate_plans` + `rolos_rate_plan_room_types` for the property
-2. Queries `hostfully_room_types` to get room type info (name, linked_rolos_id)
-3. Builds synthetic availability with daily rates from the rate plans
-4. Falls back to `daily_rate` on `hostfully_room_types` if no rate plan exists
-
-This mirrors what `EmbedProperty.tsx` already does but feeds it into the cost calculator format.
-
-**File:** `src/pages/Booking.tsx` — add ROL'OS rate resolution in calculateCost, before the wizard-rates fallback
-
-#### 3. Fix Booking.tsx room initialization for embed-originated bookings  
-The embed passes `room_type` as a URL param but Booking.tsx reads `roomTypeId`. Add support for the `room_type` param and resolve the hostfully_room_types UUID to the correct room type ID for matching.
-
-**File:** `src/pages/Booking.tsx` — read `room_type` from searchParams, add to room initialization
-
-#### 4. No changes needed to BookingBarTab
-The booking bar snippet is pure HTML (no iframe). It correctly generates a redirect URL. The issue the user sees is likely on the property page itself where rates don't calculate — which is the same root cause as issue 2.
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/pages/EmbedProperty.tsx` | Pass rate + pricing_model + proper room ID in Book button URL |
-| `src/pages/Booking.tsx` | Add ROL'OS rate plan query fallback; support `room_type` URL param from embed |
-
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)

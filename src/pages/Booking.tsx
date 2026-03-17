@@ -84,12 +84,12 @@ const Booking = () => {
   // Get sticky guest details from context
   const { guestDetails, setGuestDetails, stays, totalPrice: itineraryTotalPrice } = useItinerary();
   
-  const urlCheckIn = searchParams.get("checkIn");
-  const urlCheckOut = searchParams.get("checkOut");
+  const urlCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
+  const urlCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
   
-  // Pre-selected values from URL (from staging booking flow)
-  const preSelectedRoomTypeId = searchParams.get("roomTypeId");
+  // Pre-selected values from URL (from staging booking flow or embed)
+  const preSelectedRoomTypeId = searchParams.get("roomTypeId") || searchParams.get("room_type");
   const preSelectedRoomTypeName = searchParams.get("roomTypeName");
   const preSelectedRateTypeId = searchParams.get("rateTypeId");
   const preSelectedRateTypeName = searchParams.get("rateTypeName");
@@ -99,6 +99,11 @@ const Booking = () => {
   const preSelectedInfants = parseInt(searchParams.get("infants") || "0");
   const preSelectedPets = parseInt(searchParams.get("pets") || "0");
   const preSelectedTotalCost = searchParams.get("totalCost") ? parseFloat(searchParams.get("totalCost")!) : null;
+  
+  // Embed-specific params: pre-resolved rate data from EmbedProperty
+  const embedRate = searchParams.get("embed_rate") ? parseFloat(searchParams.get("embed_rate")!) : null;
+  const embedPricingModel = searchParams.get("embed_pricing_model");
+  const embedLinkedRolosId = searchParams.get("linked_rolos_id");
 
   // Form state - initialize from sticky context
   const [guestName, setGuestName] = useState(guestDetails.name || "");
@@ -630,18 +635,112 @@ const Booking = () => {
             // Transform cache data into availability format with aliases
             availability = transformCacheToAvailability(cacheData, roomAliases);
           } else if (!externalSystem || externalSystem === 'none') {
-            // No PMS and no cache - build synthetic availability from wizard rates
-            // Also check for manual availability blocks
-            console.log('[Booking] No PMS - building synthetic availability from wizard rates');
-            const wizardRooms = amenities?.room_types || [];
-            const seasons = amenities?.seasons || [];
-            const seasonRates = amenities?.season_rates || [];
+            // No PMS — check for ROL'OS rate plans first, then wizard rates
+            const isRolProperty = !!(property as any).is_rol_property;
             
-            if (wizardRooms.length === 0) {
-              console.warn("No wizard room types found for this property");
-              setCalculatingCost(false);
-              return;
+            if (isRolProperty || embedRate) {
+              // ROL'OS property or embed with pre-resolved rate: query rate plans
+              console.log('[Booking] ROL\'OS property — resolving rates from rolos_rate_plans');
+              
+              // Fetch room types for this property (hostfully_room_types serves as overview)
+              const { data: hfRooms } = await supabase
+                .from("hostfully_room_types")
+                .select("id, name, linked_rolos_id, daily_rate, max_guests, is_active")
+                .eq("property_id", property.id)
+                .eq("is_active", true);
+              
+              // Fetch rate plans via rolos_rate_plan_room_types
+              const rolosIds = (hfRooms || []).filter(r => r.linked_rolos_id).map(r => r.linked_rolos_id!);
+              let ratePlanMap: Record<string, { base_rate: number; pricing_model: string; adult_1_rate?: number; adult_2_rate?: number }> = {};
+              
+              if (rolosIds.length > 0) {
+                const { data: rpRoomTypes } = await supabase
+                  .from("rolos_rate_plan_room_types")
+                  .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+                  .in("room_type_id", rolosIds)
+                  .eq("rolos_rate_plans.is_active", true);
+                
+                if (rpRoomTypes) {
+                  for (const entry of rpRoomTypes) {
+                    const plan = (entry as any).rolos_rate_plans;
+                    if (plan?.base_rate != null) {
+                      ratePlanMap[entry.room_type_id] = {
+                        base_rate: Number(plan.base_rate),
+                        pricing_model: plan.pricing_model || "per_unit",
+                        adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
+                        adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+                      };
+                    }
+                  }
+                }
+              }
+              
+              // Also honor embed_rate passed via URL (overrides DB lookup for the specific room)
+              if (embedRate && preSelectedRoomTypeId) {
+                // Find the hfRoom matching the preSelected ID
+                const matchedRoom = (hfRooms || []).find(r => r.id === preSelectedRoomTypeId);
+                if (matchedRoom?.linked_rolos_id) {
+                  ratePlanMap[matchedRoom.linked_rolos_id] = {
+                    base_rate: embedRate,
+                    pricing_model: embedPricingModel || "per_unit",
+                  };
+                } else if (embedLinkedRolosId) {
+                  ratePlanMap[embedLinkedRolosId] = {
+                    base_rate: embedRate,
+                    pricing_model: embedPricingModel || "per_unit",
+                  };
+                }
+              }
+              
+              // Build synthetic availability from resolved rates
+              const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
+                const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+                const effectiveRate = room.daily_rate ? Number(room.daily_rate) : (rolosPlan?.base_rate ?? 0);
+                const pricingModel = rolosPlan?.pricing_model || "per_unit";
+                const isPerPerson = pricingModel === "per_person";
+                
+                const dailyRates: any[] = [];
+                const availArr: any[] = [];
+                const currentDate = new Date(checkIn!);
+                const end = new Date(checkOut!);
+                while (currentDate < end) {
+                  const dateStr = currentDate.toISOString().split('T')[0];
+                  dailyRates.push({ date: dateStr, room_amount: effectiveRate });
+                  availArr.push({ date: dateStr, available_units: 99 });
+                  currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                return {
+                  room_type_id: room.id,
+                  room_type_name: room.name,
+                  rate_types: [{
+                    rate_type_id: 'rolos-rate',
+                    rate_type_name: 'Standard Rate',
+                    price_type: isPerPerson ? 'PER_PERSON' : 'PER_NIGHT',
+                    rates: dailyRates,
+                  }],
+                  rooms_available_per_night: availArr,
+                };
+              });
+              
+              if (syntheticRoomTypes.length > 0 && syntheticRoomTypes.some((rt: any) => rt.rate_types[0].rates[0]?.room_amount > 0)) {
+                availability = { room_types: syntheticRoomTypes };
+                console.log('[Booking] ROL\'OS synthetic availability:', availability);
+              }
             }
+            
+            // Fallback to wizard rates if ROL'OS didn't produce results
+            if (!availability) {
+              console.log('[Booking] No PMS - building synthetic availability from wizard rates');
+              const wizardRooms = amenities?.room_types || [];
+              const seasons = amenities?.seasons || [];
+              const seasonRates = amenities?.season_rates || [];
+            
+              if (wizardRooms.length === 0) {
+                console.warn("No wizard room types found for this property");
+                setCalculatingCost(false);
+                return;
+              }
             
             // Fetch manual availability overrides for this date range
             const { data: manualOverrides } = await supabase
@@ -704,6 +803,7 @@ const Booking = () => {
             
             availability = { room_types: syntheticRoomTypes };
             console.log('[Booking] Synthetic availability with manual blocks:', availability);
+            }
           } else {
             console.warn("No cached availability data found for this property");
             setCalculatingCost(false);
