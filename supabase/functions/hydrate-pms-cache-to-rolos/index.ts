@@ -221,13 +221,12 @@ Deno.serve(async (req) => {
           room_type: name,
           date: row.date,
           available_units: row.available_units ?? 0,
-          is_closed: stopSell,
-          min_stay: minStay,
-          max_stay: maxStay,
+          is_stop_sell: stopSell,
+          minimum_stay: minStay,
+          maximum_stay: maxStay,
           lead_days_advance: restrictions.lead_days_advance ?? null,
           lead_days_post: restrictions.lead_days_post ?? null,
-          closed_to_arrival: restrictions.closed_to_arrival ?? false,
-          closed_to_departure: restrictions.closed_to_departure ?? false,
+          external_system: system_type,
         }, { onConflict: "property_id,room_type,date" });
 
         if (!availErr) availabilityUpserted++;
