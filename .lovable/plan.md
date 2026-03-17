@@ -82,4 +82,18 @@
 
 ---
 
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)
+## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
+
+### Root Cause
+Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
+
+### Changes
+- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
+- ✅ **Benson adapter**: Calls hydration after cache writes
+- ✅ **HotelBeds adapter**: Calls hydration after cache writes
+- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
+- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
