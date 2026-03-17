@@ -803,6 +803,7 @@ const Booking = () => {
             
             availability = { room_types: syntheticRoomTypes };
             console.log('[Booking] Synthetic availability with manual blocks:', availability);
+            }
           } else {
             console.warn("No cached availability data found for this property");
             setCalculatingCost(false);
