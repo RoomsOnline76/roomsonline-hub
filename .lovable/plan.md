@@ -1,81 +1,85 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-## Plan: Hostfully Importer — Type-Based Room Import
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
-### Problem
-The importer currently creates one `hostfully_room_types` row per physical unit (e.g., 47 rows for SixonN). The calendar, booking, and availability systems then treat each as a separate bookable entity. The correct model is: **room types** (Compact Studio, Studio, One Bedroom, Two Bedroom) with a **unit count** representing total inventory.
+---
 
-### Database Changes
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-**1. Add `total_units` column to `hostfully_room_types`**
-```sql
-ALTER TABLE hostfully_room_types ADD COLUMN total_units integer DEFAULT 1;
-```
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-**2. Create `hostfully_unit_map` table**
-Maps individual Hostfully unit UIDs back to their room type for availability sync:
-```sql
-CREATE TABLE hostfully_unit_map (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_type_id uuid REFERENCES hostfully_room_types(id) ON DELETE CASCADE,
-  property_id uuid REFERENCES properties(id) ON DELETE CASCADE,
-  hostfully_uid text NOT NULL,
-  unit_number text,        -- "104", "108"
-  unit_name text,          -- "104 Compact Studio"
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
-);
-CREATE INDEX idx_unit_map_room_type ON hostfully_unit_map(room_type_id);
-CREATE INDEX idx_unit_map_property ON hostfully_unit_map(property_id);
-```
-RLS: same as hostfully_room_types (admin/dev + property access).
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
-### Code Changes
+---
 
-**3. Update `HostfullyBuildingImporter.tsx` — `handleImport()`**
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-Instead of creating one row per unit, group units by `room_type` (case-insensitive), then:
-- Create **one** `hostfully_room_types` row per unique type with `total_units` = count, `name` = type name (e.g., "Compact Studio"), `hostfully_room_id` = first unit's UID (for backward compat)
-- Insert **all** individual unit UIDs into `hostfully_unit_map` linked to their room type row
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
-**4. Update importer UI** — Show grouped summary
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
 
-In the expanded building view, instead of listing individual units, show the aggregated types:
-```
-Compact Studio [17]  |  Studio [13]  |  One Bedroom [4]  |  Two Bedroom [11]
-```
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
 
-**5. Update `hostfully-api/index.ts` — availability sync**
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
 
-In the multi-unit availability fetch section (~line 908-970):
-- Instead of reading unit UIDs from `hostfully_room_types.hostfully_room_id`, read from `hostfully_unit_map`
-- After fetching per-unit calendars, **aggregate by room type**: for each date, sum available units across all units of that type
-- Return one `room_type` entry per type with `available_units` = aggregated count
+---
 
-**6. Update `hostfullyBuildingParser.ts`**
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
 
-Add a helper to the `ParsedBuilding` interface:
-```ts
-export interface RoomTypeGroup {
-  type_name: string;
-  unit_count: number;
-  unit_ids: string[];       // Hostfully UIDs
-  unit_numbers: string[];   // "104", "108", etc.
-}
-```
-Add `groupUnitsByType(building: ParsedBuilding): RoomTypeGroup[]` function.
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
 
-### Impact on Calendar
-The calendar already groups by `property_type` column. With this change, each row in `hostfully_room_types` IS a type, so the calendar naturally shows "Compact Studio", "Studio", etc. The `total_units` column provides the inventory count per date (minus booked/unavailable).
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
 
-### Impact on Booking
-Bookings will be to a **room type** (e.g., "Compact Studio") not a specific unit number. This is the standard hotel model. Unit assignment can happen at check-in.
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
 
-### Files to Modify
-| File | Change |
-|------|--------|
-| **Migration** | Add `total_units` to `hostfully_room_types`, create `hostfully_unit_map` table |
-| `src/lib/hostfullyBuildingParser.ts` | Add `RoomTypeGroup` interface and `groupUnitsByType()` |
-| `src/components/pms/HostfullyBuildingImporter.tsx` | Group by type on import; show type summary in UI |
-| `supabase/functions/hostfully-api/index.ts` | Read from `hostfully_unit_map` for availability; aggregate by type |
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
 
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-11)

@@ -906,70 +906,138 @@ async function handleFetchAvailability(
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Check if this property has child units in hostfully_room_types
-    let unitRows: { hostfully_room_id: string; name: string }[] = [];
+    // Check if this property has room types with unit maps
+    let roomTypeRows: { id: string; name: string; total_units: number; hostfully_room_id: string }[] = [];
+    let unitMapByRoomType = new Map<string, { hostfully_uid: string; unit_name: string }[]>();
+    
     if (propertyId) {
-      const { data: units } = await supabase
+      // First try the new unit_map approach
+      const { data: roomTypes } = await supabase
         .from('hostfully_room_types')
-        .select('hostfully_room_id, name')
+        .select('id, hostfully_room_id, name, total_units')
         .eq('property_id', propertyId)
         .eq('is_active', true);
       
-      if (units && units.length > 0) {
-        // Filter to units with a valid hostfully_room_id (these are the actual bookable units)
-        // Note: Do NOT exclude the resolved propertyUid — for Hostfully standalone properties,
-        // the resolved UID is itself a bookable unit and must be included.
-        unitRows = units.filter(u => !!u.hostfully_room_id);
+      if (roomTypes && roomTypes.length > 0) {
+        roomTypeRows = roomTypes.filter(r => !!r.hostfully_room_id);
+        
+        // Check for unit map entries
+        const { data: unitMaps } = await supabase
+          .from('hostfully_unit_map')
+          .select('room_type_id, hostfully_uid, unit_name')
+          .eq('property_id', propertyId)
+          .eq('is_active', true);
+        
+        if (unitMaps && unitMaps.length > 0) {
+          for (const um of unitMaps) {
+            if (!unitMapByRoomType.has(um.room_type_id)) {
+              unitMapByRoomType.set(um.room_type_id, []);
+            }
+            unitMapByRoomType.get(um.room_type_id)!.push({
+              hostfully_uid: um.hostfully_uid,
+              unit_name: um.unit_name || '',
+            });
+          }
+        }
       }
     }
 
-    // If we have child units, fetch availability for each unit in parallel
-    if (unitRows.length > 0) {
-      console.log(`[Hostfully] Multi-unit property detected: fetching availability for ${unitRows.length} units`);
+    // If we have room types, fetch availability per unit and aggregate by type
+    if (roomTypeRows.length > 0) {
+      const hasUnitMap = unitMapByRoomType.size > 0;
+      console.log(`[Hostfully] Multi-unit property: ${roomTypeRows.length} room types, unit_map=${hasUnitMap}`);
       
-      // Batch fetch in groups of 10 to avoid rate limits
       const BATCH_SIZE = 10;
       const allRoomTypes: any[] = [];
-      
-      for (let i = 0; i < unitRows.length; i += BATCH_SIZE) {
-        const batch = unitRows.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (unit) => {
-            try {
-              const endpoint = `/property-calendar/${unit.hostfully_room_id}?from=${startDate}&to=${endDate}`;
-              const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
-              
-              if (!response.ok) {
-                console.warn(`[Hostfully] Calendar fetch failed for unit ${unit.name} (${unit.hostfully_room_id}): ${response.status}`);
-                return null;
-              }
-              
-              const responseData = await response.json();
-              const calendarArray = responseData?.calendar?.entries || 
-                                    responseData?.calendar || 
-                                    responseData?.days || 
-                                    responseData;
-              
-              if (!Array.isArray(calendarArray)) {
-                console.warn(`[Hostfully] Invalid calendar data for unit ${unit.name}`);
-                return null;
-              }
-              
-              const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_room_id, unit.name);
-              return mapped.room_types[0] || null;
-            } catch (err) {
-              console.warn(`[Hostfully] Error fetching calendar for unit ${unit.name}:`, err);
-              return null;
-            }
-          })
-        );
+
+      for (const roomType of roomTypeRows) {
+        // Get individual unit UIDs: prefer unit_map, fallback to single hostfully_room_id
+        const unitEntries = unitMapByRoomType.get(roomType.id) || 
+          [{ hostfully_uid: roomType.hostfully_room_id, unit_name: roomType.name }];
         
-        for (const rt of batchResults) {
-          if (rt) allRoomTypes.push(rt);
+        // Fetch availability for all units of this type
+        const unitAvailabilities: any[] = [];
+        
+        for (let i = 0; i < unitEntries.length; i += BATCH_SIZE) {
+          const batch = unitEntries.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (unit) => {
+              try {
+                const endpoint = `/property-calendar/${unit.hostfully_uid}?from=${startDate}&to=${endDate}`;
+                const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
+                
+                if (!response.ok) {
+                  console.warn(`[Hostfully] Calendar fetch failed for unit ${unit.unit_name} (${unit.hostfully_uid}): ${response.status}`);
+                  return null;
+                }
+                
+                const responseData = await response.json();
+                const calendarArray = responseData?.calendar?.entries || 
+                                      responseData?.calendar || 
+                                      responseData?.days || 
+                                      responseData;
+                
+                if (!Array.isArray(calendarArray)) {
+                  console.warn(`[Hostfully] Invalid calendar data for unit ${unit.unit_name}`);
+                  return null;
+                }
+                
+                const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_uid, unit.unit_name);
+                return mapped.room_types[0] || null;
+              } catch (err) {
+                console.warn(`[Hostfully] Error fetching calendar for unit ${unit.unit_name}:`, err);
+                return null;
+              }
+            })
+          );
+          
+          for (const rt of batchResults) {
+            if (rt) unitAvailabilities.push(rt);
+          }
+        }
+
+        // Aggregate: sum available units per date across all units of this type
+        if (unitAvailabilities.length > 0) {
+          const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
+          
+          for (const unitAvail of unitAvailabilities) {
+            const perNight = unitAvail.availability_per_night || [];
+            for (const day of perNight) {
+              const existing = dateAvailMap.get(day.date);
+              if (existing) {
+                existing.available += (day.available_units || 0);
+              } else {
+                dateAvailMap.set(day.date, {
+                  available: day.available_units || 0,
+                  restrictions: day.restrictions || {},
+                  rates: [],
+                });
+              }
+            }
+          }
+
+          // Use rate data from first unit (rates are same across units of same type)
+          const firstUnit = unitAvailabilities[0];
+          
+          const aggregatedPerNight = Array.from(dateAvailMap.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, data]) => ({
+              date,
+              available_units: data.available,
+              restrictions: data.restrictions,
+            }));
+
+          allRoomTypes.push({
+            room_type_id: roomType.id,
+            name: roomType.name,
+            total_units: roomType.total_units || unitEntries.length,
+            availability_per_night: aggregatedPerNight,
+            rate_types: firstUnit.rate_types || [],
+          });
         }
       }
       
-      console.log(`[Hostfully] Successfully fetched availability for ${allRoomTypes.length}/${unitRows.length} units`);
+      console.log(`[Hostfully] Successfully aggregated availability for ${allRoomTypes.length}/${roomTypeRows.length} room types`);
       
       const availability = { room_types: allRoomTypes };
       

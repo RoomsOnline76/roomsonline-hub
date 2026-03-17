@@ -15,9 +15,8 @@ import {
   Loader2,
   DoorOpen,
   CheckCircle2,
-  AlertCircle
 } from "lucide-react";
-import { ParsedBuilding, HostfullyUnit } from "@/lib/hostfullyBuildingParser";
+import { ParsedBuilding, groupUnitsByType, RoomTypeGroup } from "@/lib/hostfullyBuildingParser";
 
 interface HostfullyBuildingImporterProps {
   buildings: ParsedBuilding[];
@@ -61,8 +60,7 @@ export function HostfullyBuildingImporter({
   };
 
   const selectAll = () => {
-    const allNames = new Set(buildings.map(b => b.building_name));
-    setSelectedBuildings(allNames);
+    setSelectedBuildings(new Set(buildings.map(b => b.building_name)));
   };
 
   const deselectAll = () => {
@@ -100,36 +98,58 @@ export function HostfullyBuildingImporter({
             pms_managed_fields: ["name", "rooms", "rates", "availability"],
             pms_sync_status: "synced",
             is_active: true,
-            // Default required fields
             property_type: "hotel",
             address: "Pending",
             city: "Pending",
             country: "South Africa",
             price_per_night: 0,
-            max_guests: building.units.reduce((max, u) => Math.max(max, 2), 2),
+            max_guests: building.units.reduce((max) => Math.max(max, 2), 2),
           })
           .select("id")
           .single();
 
         if (propError) throw propError;
 
-        // Create room types for each unit
-        const roomTypeInserts = building.units.map((unit: HostfullyUnit) => ({
-          property_id: newProperty.id,
-          hostfully_room_id: unit.id,
-          name: unit.room_number && unit.room_type 
-            ? `${unit.room_number} ${unit.room_type}`
-            : unit.name,
-          is_active: true,
-        }));
+        // Group units by room type
+        const typeGroups = groupUnitsByType(building);
 
-        const { error: roomError } = await supabase
-          .from("hostfully_room_types")
-          .insert(roomTypeInserts);
+        // Create one hostfully_room_types row per unique type
+        for (const group of typeGroups) {
+          const { data: roomType, error: roomError } = await supabase
+            .from("hostfully_room_types")
+            .insert({
+              property_id: newProperty.id,
+              hostfully_room_id: group.unit_ids[0], // first unit UID for backward compat
+              name: group.type_name,
+              total_units: group.unit_count,
+              property_type: group.type_name, // used by calendar grouping
+              is_active: true,
+            })
+            .select("id")
+            .single();
 
-        if (roomError) {
-          console.error("Error creating room types:", roomError);
-          // Don't throw - property was created successfully
+          if (roomError) {
+            console.error(`Error creating room type ${group.type_name}:`, roomError);
+            continue;
+          }
+
+          // Insert all individual unit UIDs into hostfully_unit_map
+          const unitMapInserts = group.unit_ids.map((uid, idx) => ({
+            room_type_id: roomType.id,
+            property_id: newProperty.id,
+            hostfully_uid: uid,
+            unit_number: group.unit_numbers[idx] || null,
+            unit_name: `${group.unit_numbers[idx] || ''} ${group.type_name}`.trim(),
+            is_active: true,
+          }));
+
+          const { error: mapError } = await supabase
+            .from("hostfully_unit_map" as never)
+            .insert(unitMapInserts as never);
+
+          if (mapError) {
+            console.error(`Error creating unit map for ${group.type_name}:`, mapError);
+          }
         }
 
         successCount++;
@@ -172,7 +192,7 @@ export function HostfullyBuildingImporter({
               <Badge variant="secondary">{buildings.length} unique</Badge>
             </CardTitle>
             <CardDescription>
-              Properties grouped by building name. Select buildings to import as ROL properties.
+              Properties grouped by building name. Select buildings to import as ROL properties with room types.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -203,6 +223,7 @@ export function HostfullyBuildingImporter({
               const isSelected = selectedBuildings.has(building.building_name);
               const isExpanded = expandedBuildings.has(building.building_name);
               const isImported = importedBuildings.has(building.building_name);
+              const typeGroups = groupUnitsByType(building);
 
               return (
                 <Collapsible
@@ -238,6 +259,7 @@ export function HostfullyBuildingImporter({
                         <DoorOpen className="h-3 w-3" />
                         {building.unit_count} units
                       </Badge>
+                      <Badge variant="secondary">{typeGroups.length} types</Badge>
                       {isImported && (
                         <Badge className="bg-green-500 flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
@@ -250,23 +272,19 @@ export function HostfullyBuildingImporter({
                   <CollapsibleContent>
                     <div className="ml-10 mt-2 mb-3 p-3 rounded border bg-background">
                       <div className="text-xs text-muted-foreground mb-2">
-                        Room Types in this building:
+                        Room Types (will be created as bookable categories):
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {building.units.slice(0, 12).map((unit) => (
-                          <div
-                            key={unit.id}
-                            className="text-xs p-2 rounded bg-muted flex items-center gap-2"
+                      <div className="flex flex-wrap gap-2">
+                        {typeGroups.map((group) => (
+                          <Badge
+                            key={group.type_name}
+                            variant="outline"
+                            className="text-xs py-1.5 px-3"
                           >
-                            <span className="font-mono font-medium">{unit.room_number}</span>
-                            <span className="text-muted-foreground">{unit.room_type}</span>
-                          </div>
+                            {group.type_name}
+                            <span className="ml-1.5 font-bold text-primary">[{group.unit_count}]</span>
+                          </Badge>
                         ))}
-                        {building.units.length > 12 && (
-                          <div className="text-xs p-2 text-muted-foreground">
-                            +{building.units.length - 12} more...
-                          </div>
-                        )}
                       </div>
                     </div>
                   </CollapsibleContent>
