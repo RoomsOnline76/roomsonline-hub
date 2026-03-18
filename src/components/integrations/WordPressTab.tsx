@@ -306,9 +306,11 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
             <li>Add the shortcode above to any page or post</li>
             <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
           </ol>
-          <p className="mt-3 text-xs">
-            <strong>Auto-Updates:</strong> Once installed, the plugin checks for updates every 12 hours. When you click <strong>Push Update</strong>, all WordPress sites will see the new version in <strong>Dashboard → Updates</strong>.
-          </p>
+          {showPushUpdate && (
+            <p className="mt-3 text-xs">
+              <strong>Auto-Updates:</strong> Once installed, the plugin checks for updates every 12 hours. When you click <strong>Push Update</strong>, all WordPress sites will see the new version in <strong>Dashboard → Updates</strong>.
+            </p>
+          )}
           <p className="mt-2 text-xs italic">
             <strong>Note:</strong> This plugin only registers a shortcode — it does not create pages. If you see new pages (e.g. "Hotel Checkout"), they are from your WordPress theme or another plugin.
           </p>
