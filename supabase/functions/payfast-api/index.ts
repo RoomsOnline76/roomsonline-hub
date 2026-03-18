@@ -839,13 +839,14 @@ Deno.serve(async (req) => {
       
       if (!uuid) {
         console.error("[PayFast] No UUID received from onsite API. PayFast error:", payfastError);
+        // Return 200 with success:false so supabase.functions.invoke passes the body to the client
         return new Response(
           JSON.stringify({ 
             success: false, 
             error: payfastError || "Failed to initiate onsite payment",
             details: payfastError ? `PayFast: ${payfastError}` : undefined
           }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       
