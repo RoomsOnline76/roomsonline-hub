@@ -765,11 +765,12 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   // Resolve room type IDs: use slug if UUID was mapped, otherwise keep original
   const resolvedRoomTypeIds = rawRoomTypeIds.map(id => uuidToSlugMap.get(id) || id);
   
+  // FIX: Support both 'roomsonline' and 'rol' system_type for backward compatibility
   const { data: currentAvailability, error: availError } = await supabase
     .from("pms_availability_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .in("external_room_type_id", resolvedRoomTypeIds)
     .gte("date", arrival_date)
     .lt("date", departure_date);
