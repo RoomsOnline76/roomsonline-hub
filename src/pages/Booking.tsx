@@ -1447,10 +1447,10 @@ const Booking = () => {
 
   // Layout wrapper — white-label for integration flows, standard for portal
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
-  const LayoutWrapper = ({ children: c }: { children: React.ReactNode }) =>
+  const wrapLayout = useCallback((children: React.ReactNode) =>
     isIntegration ? (
       <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl}>
-        {c}
+        {children}
       </WhiteLabelLayout>
     ) : (
       <PublicLayout
@@ -1458,9 +1458,9 @@ const Booking = () => {
         backTo={property ? `/property/${property.slug || property.id}` : "/"}
         hideJourneyBuilder
       >
-        {c}
+        {children}
       </PublicLayout>
-    );
+    ), [isIntegration, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
   if (isLoading) {
     return (
