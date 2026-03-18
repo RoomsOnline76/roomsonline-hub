@@ -29,10 +29,9 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
           <IntegrationToggle propertyId={property.id} integrationType="direct" />
         </div>
         <CardDescription>
-          This link directs guests to the <strong>Sleeping In Africa</strong> booking portal.
-          From there, they are redirected to your property's dedicated booking page where they can
-          browse rooms, check availability, and complete their reservation — all within the
-          ROL'OS-powered booking experience.
+          This link directs guests straight to your property's dedicated booking page where they can
+          browse rooms, check availability, and complete their reservation — fully branded
+          with your property's identity.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
