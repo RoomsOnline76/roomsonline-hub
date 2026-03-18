@@ -144,7 +144,7 @@ const BookingConfirmation = () => {
   const paymentCancelled = paymentStatus === "cancelled";
 
   return (
-    <LayoutWrapper>
+    return wrapLayout(
       <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
         <Card className="max-w-lg mx-auto text-center border-border/50">
           <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
