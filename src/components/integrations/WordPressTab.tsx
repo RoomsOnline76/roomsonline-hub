@@ -13,6 +13,7 @@ import { useState } from "react";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
+  showPushUpdate?: boolean;
 }
 
 export function WordPressTab({ property }: WordPressTabProps) {
