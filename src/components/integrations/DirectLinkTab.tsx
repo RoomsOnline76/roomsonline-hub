@@ -6,14 +6,15 @@ import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface DirectLinkTabProps {
-  property: { id: string; name: string; slug: string };
+  property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
 export function DirectLinkTab({ property }: DirectLinkTabProps) {
+  const brandColor = property.brand_primary_color || "#e91e8c";
   const bookingUrl = `${PUBLIC_DOMAIN}/property/${property.slug}?source=website&integration=direct&property_id=${property.id}`;
 
   const htmlSnippet = `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
-  style="display:inline-block;padding:12px 24px;background:#e91e63;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">
+  style="display:inline-block;padding:12px 24px;background:${brandColor};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">
   Book Now
 </a>`;
 

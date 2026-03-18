@@ -87,9 +87,9 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
     var sum=document.getElementById('rolos-summary');
     if(ci&&co){
       var n=Math.round((co-ci)/864e5);
-      lb.textContent=fmtShort(ci)+' \\u2013 '+fmtShort(co)+' ('+n+' night'+(n!==1?'s':'')+')';
+      lb.textContent=fmtShort(ci)+' – '+fmtShort(co)+' ('+n+' night'+(n!==1?'s':'')+')';
       btn.style.opacity='1';btn.style.pointerEvents='auto';
-      sum.style.display='block';sum.textContent=fmtShort(ci)+' \\u2192 '+fmtShort(co)+' \\u00B7 '+n+' night'+(n!==1?'s':'');
+      sum.style.display='block';sum.textContent=fmtShort(ci)+' → '+fmtShort(co)+' · '+n+' night'+(n!==1?'s':'');
     }else if(ci){
       lb.textContent=fmtShort(ci)+' \\u2013 Check-out';
       btn.style.opacity='0.4';btn.style.pointerEvents='none';
