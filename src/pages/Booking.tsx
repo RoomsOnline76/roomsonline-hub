@@ -1405,7 +1405,9 @@ const Booking = () => {
       
       // Fallback: direct navigation (shouldn't happen with payment gate)
       toast.success("Booking request submitted successfully!");
-      navigate(`/booking-confirmation/${data.id}`);
+      const confirmParams = new URLSearchParams();
+      if (integrationParam) confirmParams.set("integration", integrationParam);
+      navigate(`/booking-confirmation/${data.id}${confirmParams.toString() ? `?${confirmParams.toString()}` : ""}`);
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create booking";
