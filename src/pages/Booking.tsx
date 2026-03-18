@@ -1374,13 +1374,45 @@ const Booking = () => {
       });
       bookingData.rooms = roomsWithRateKey;
 
-      const { data, error } = await supabase
+      // DEDUPLICATION: Check for existing pending booking for same property/dates/email
+      // to prevent orphaned pending records on retry
+      const { data: existingPending } = await supabase
         .from('bookings')
-        .insert(bookingData)
-        .select()
-        .single();
+        .select('id')
+        .eq('property_id', property!.id)
+        .eq('check_in_date', checkIn)
+        .eq('check_out_date', checkOut)
+        .eq('guest_email', guestEmail)
+        .eq('status', 'pending')
+        .eq('payment_status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error;
+      let data;
+      if (existingPending) {
+        console.log('[Booking] Reusing existing pending booking:', existingPending.id);
+        // Update the existing pending booking with latest data
+        const { data: updated, error: updateError } = await supabase
+          .from('bookings')
+          .update({
+            ...bookingData,
+            status: 'pending', // keep pending
+          })
+          .eq('id', existingPending.id)
+          .select()
+          .single();
+        if (updateError) throw updateError;
+        data = updated;
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from('bookings')
+          .insert(bookingData)
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        data = inserted;
+      }
 
       // --- PAYMENT GATE ---
       // All bookings use PayFast onsite modal (stays in ROL UI)

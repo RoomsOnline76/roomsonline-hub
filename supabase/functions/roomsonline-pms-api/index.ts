@@ -781,10 +781,11 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
-  // Count required rooms per type
+  // Count required rooms per type (using resolved slug IDs)
   const requiredRooms = new Map<string, number>();
   for (const room of rooms) {
-    requiredRooms.set(room.room_type_id, (requiredRooms.get(room.room_type_id) || 0) + 1);
+    const resolvedId = uuidToSlugMap.get(room.room_type_id) || room.room_type_id;
+    requiredRooms.set(resolvedId, (requiredRooms.get(resolvedId) || 0) + 1);
   }
 
   // Generate date range
