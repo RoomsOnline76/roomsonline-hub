@@ -793,7 +793,7 @@ Deno.serve(async (req) => {
         email_address: booking.guest_email,
         name_first: booking.guest_name.split(" ")[0] || "",
         name_last: booking.guest_name.split(" ").slice(1).join(" ") || "",
-        cell_number: booking.guest_phone?.replace(/\D/g, "") || "",
+        ...((() => { const c = (booking.guest_phone || "").replace(/\D/g, ""); return /^0[0-9]{9}$/.test(c) ? { cell_number: c } : {}; })()),
       };
       
       // Generate signature (calculated from URL-encoded param string, excluding signature)
