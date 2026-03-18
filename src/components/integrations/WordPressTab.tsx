@@ -13,9 +13,10 @@ import { useState } from "react";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
+  showPushUpdate?: boolean;
 }
 
-export function WordPressTab({ property }: WordPressTabProps) {
+export function WordPressTab({ property, showPushUpdate = false }: WordPressTabProps) {
   const queryClient = useQueryClient();
   const [pushing, setPushing] = useState(false);
   const brandColor = property.brand_primary_color || "#e91e63";
@@ -264,18 +265,20 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
         </div>
 
         {/* Action buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button onClick={handleDownloadZip} variant="default" className="gap-2">
+        <div className={showPushUpdate ? "grid grid-cols-2 gap-3" : ""}>
+          <Button onClick={handleDownloadZip} variant="default" className="gap-2 w-full">
             <Download className="h-4 w-4" />
             Download Plugin (.zip)
           </Button>
-          <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
-            {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            Push Update to All Sites
-          </Button>
+          {showPushUpdate && (
+            <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
+              {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              Push Update to All Sites
+            </Button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground text-center -mt-2">
-          <strong>Download</strong> for first install. <strong>Push Update</strong> bumps the version — all WordPress sites see the update automatically.
+          <strong>Download</strong> for first install.{showPushUpdate && <> <strong>Push Update</strong> bumps the version — all WordPress sites see the update automatically.</>}
         </p>
 
         <div>
@@ -303,9 +306,11 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
             <li>Add the shortcode above to any page or post</li>
             <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
           </ol>
-          <p className="mt-3 text-xs">
-            <strong>Auto-Updates:</strong> Once installed, the plugin checks for updates every 12 hours. When you click <strong>Push Update</strong>, all WordPress sites will see the new version in <strong>Dashboard → Updates</strong>.
-          </p>
+          {showPushUpdate && (
+            <p className="mt-3 text-xs">
+              <strong>Auto-Updates:</strong> Once installed, the plugin checks for updates every 12 hours. When you click <strong>Push Update</strong>, all WordPress sites will see the new version in <strong>Dashboard → Updates</strong>.
+            </p>
+          )}
           <p className="mt-2 text-xs italic">
             <strong>Note:</strong> This plugin only registers a shortcode — it does not create pages. If you see new pages (e.g. "Hotel Checkout"), they are from your WordPress theme or another plugin.
           </p>
