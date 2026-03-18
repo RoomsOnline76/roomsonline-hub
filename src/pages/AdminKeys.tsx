@@ -4088,6 +4088,22 @@ export default function AdminKeys() {
               </div>
             </AccordionContent>
           </AccordionItem>
+          <AccordionItem value="wordpress-updates" className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-3">
+                <Puzzle className="h-5 w-5 text-primary" />
+                <span className="font-semibold">WordPress Plugin Updates</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="pt-4 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Push a version bump to all WordPress sites. Installed plugins will see the update within 12 hours.
+                </p>
+                <WordPressPushUpdateButton />
+              </div>
+            </AccordionContent>
+          </AccordionItem>
         </Accordion>
       </div>
 
