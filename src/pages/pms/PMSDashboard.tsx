@@ -281,6 +281,7 @@ export default function PMSDashboard() {
         const overview = overviewMap.get((rt as any).linked_overview_id);
         return {
           ...rt,
+          linked_overview_id: (rt as any).linked_overview_id || null,
           property_type: overview?.property_type || null,
         } as RoomType;
       });
