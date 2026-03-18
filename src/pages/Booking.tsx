@@ -309,18 +309,43 @@ const Booking = () => {
           checkOut: urlCheckOut || undefined,
         }]);
       } else if (roomTypes.length > 0) {
-        const firstRoom = roomTypes[0];
-        setRooms([{
-          roomTypeId: String(firstRoom.id),
-          roomTypeName: firstRoom.name,
-          numberOfAdults: Math.min(initialGuests, firstRoom.maxGuests || 2),
-          numberOfTeens: 0,
-          numberOfChildren: 0,
-          numberOfInfants: 0,
-          numberOfPets: 0,
-          checkIn: urlCheckIn || undefined,
-          checkOut: urlCheckOut || undefined,
-        }]);
+        // For ROL'OS properties without a pre-selected room, try to use hfRoom IDs
+        // which match the synthetic availability builder (avoids ID mismatch)
+        const initRoom = async () => {
+          const firstRoom = roomTypes[0];
+          let bestId = String(firstRoom.id);
+          let bestName = firstRoom.name;
+          let bestMax = firstRoom.maxGuests || 2;
+
+          if (property) {
+            const { data: hfRooms } = await supabase
+              .from("hostfully_room_types")
+              .select("id, name, linked_rolos_id, max_guests, is_active")
+              .eq("property_id", property.id)
+              .eq("is_active", true)
+              .limit(1);
+
+            if (hfRooms && hfRooms.length > 0) {
+              bestId = hfRooms[0].id;
+              bestName = hfRooms[0].name;
+              bestMax = hfRooms[0].max_guests || bestMax;
+              console.log('[Booking] Using hfRoom ID for initialization:', bestId, bestName);
+            }
+          }
+
+          setRooms([{
+            roomTypeId: bestId,
+            roomTypeName: bestName,
+            numberOfAdults: Math.min(initialGuests, bestMax),
+            numberOfTeens: 0,
+            numberOfChildren: 0,
+            numberOfInfants: 0,
+            numberOfPets: 0,
+            checkIn: urlCheckIn || undefined,
+            checkOut: urlCheckOut || undefined,
+          }]);
+        };
+        initRoom();
       }
     }
     // Use pre-selected rate type if available
