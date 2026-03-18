@@ -1,99 +1,76 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
+Issue restated (what is still broken):
+- Paid booking-bar bookings are not reducing availability / blocking dates in any calendar surface (`/pms/calendar`, `/admin/calendar/accommodation`, embeds).
+- This means the previous patch did not close the full booking→inventory pipeline.
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+What I verified in the current system:
+1) Recent bookings for Latter Days are `paid + confirmed`, but:
+- `external_reservation_id` is null
+- `booking_sync_status` has no `roomsonline` rows
+2) `pms_availability_cache` for this property exists under `system_type='rol'` (not `roomsonline`)
+3) `roomsonline-pms-api` currently queries with `system_type='roomsonline'`, so availability lookups miss live cache rows
+4) `push-booking` fallback guard currently requires `booking.status !== 'confirmed'`, but PayFast sets `status='confirmed'` before calling push-booking — so fallback block logic is skipped when ROL sync fails
+5) Existing `property_availability` manual blocks exist, but:
+- `/admin/calendar` PMS path uses cache data, not those manual rows as source-of-truth
+- embed grid is currently static (room default rates), not live availability-aware
+6) `/pms/calendar` room matching uses `booking.room_type_id === rolos_room_types.id`; booking-bar bookings often store overview UUIDs (`hostfully_room_types.id`) so bookings do not render on the expected room rows
 
----
+Implementation plan
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+1. Fix booking confirmation fallback in `push-booking`
+- File: `supabase/functions/push-booking/index.ts`
+- Replace status-based fallback gate with explicit ROL-failure flag.
+- Extract shared “local block + notify” helper and call it when:
+  - ROL adapter throws
+  - ROL adapter returns non-success
+- Do not depend on `booking.status` for fallback eligibility.
+- Also write explicit `booking_sync_status`/`sync_logs` entries for roomsonline success/failure so this is observable.
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
+2. Fix ROL cache lookup + room mapping in `roomsonline-pms-api`
+- File: `supabase/functions/roomsonline-pms-api/index.ts`
+- Keep adapter source as roomsonline, but read/write cache rows using the property’s actual cache system type (`rol` or `roomsonline`), with backward-compatible support for both.
+- Improve UUID→external room ID resolution:
+  - map via `hostfully_room_types.id`
+  - map via `hostfully_room_types.linked_rolos_id`
+  - fuzzy/contains fallback on normalized names (to handle names like “3 Bedroomed Holiday House” vs “Holiday House”)
+- Ensure `rolos_inventory_calendar.room_type_id` receives internal UUID room type IDs (not slug/external IDs).
 
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+3. Make calendar/embed consumers reflect blocked inventory
+- `src/pages/pms/PMSDashboard.tsx`
+  - booking row matching should accept either:
+    - `booking.room_type_id === rolos_room_types.id`
+    - `booking.room_type_id === rolos_room_types.linked_overview_id`
+- `src/pages/CalendarAccommodation.tsx`
+  - for PMS properties, overlay `property_availability` overrides onto displayed PMS room/date rows (stop-sell/available units), so fallback blocks are visible.
+- `src/pages/EmbedProperty.tsx`
+  - replace static `ratesByDate` generation with live date-wise availability + rates from cache (+ override merge).
+  - render sold/blocked dates when `available_units <= 0` or stop-sell is active.
 
----
+4. One-time repair for already-paid bookings
+- Add a migration/backfill script to repair paid bookings that missed inventory updates:
+  - target confirmed+paid bookings for this property in affected date windows
+  - map room IDs correctly
+  - decrement/mark cache availability for booked nights
+  - upsert `rolos_inventory_calendar`
+  - ensure property-level overrides exist where required
+- Normalize legacy room ID linkage for affected paid bookings where possible (overview UUID → linked rolos UUID) to restore PMS calendar visibility.
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+Technical details (why this failed)
+- Failure cascade:
+  1) PayFast marks booking confirmed
+  2) ROL adapter lookup misses cache (`rol` vs `roomsonline`)
+  3) push-booking fallback is skipped because booking already confirmed
+  4) no inventory mutation reaches cache/calendar/embed pipelines
+- So this is not one bug; it is a chain across payment handler, push-booking control flow, adapter cache keying, and UI data sources.
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
-
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
-
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
-
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
-
----
-
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
-
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
-
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
-
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
-
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
-
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
-
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
-
----
-
-## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
-
-### Root Cause
-Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
-
-### Changes
-- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
-- ✅ **Benson adapter**: Calls hydration after cache writes
-- ✅ **HotelBeds adapter**: Calls hydration after cache writes
-- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
-- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
-
----
-
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
+Validation plan after implementation
+1) Create one test booking via booking bar (paid flow)
+2) Confirm:
+- `/admin/calendar/accommodation` shows blocked/updated availability on booked dates
+- `/pms/calendar` shows the booking on the correct room row + arrivals/departures coherence
+- embed grid shows sold/blocked dates and correct daily rates
+3) Confirm backend records:
+- `booking_sync_status` has roomsonline sync event
+- `pms_availability_cache` changed on booked dates
+- `rolos_inventory_calendar` rows exist for booked nights
+- `sync_logs` include success/fallback trace
