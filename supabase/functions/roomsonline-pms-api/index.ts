@@ -543,7 +543,7 @@ async function handleGetRoomTypes(body: { propertyId?: string }, supabase: any):
     .from("pms_room_types_cache")
     .select("*")
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching room types:", error);
