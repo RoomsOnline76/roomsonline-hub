@@ -350,7 +350,7 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, check_in_date, check_out_date, status")
+        .select("id, guest_name, check_in_date, check_out_date, status, room_type_id")
         .eq("property_id", propertyId)
         .eq("check_in_date", today)
         .in("status", ["confirmed", "pending"])
@@ -559,6 +559,35 @@ export default function PMSDashboard() {
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
   }, [rooms, roomTypes, bookings]);
 
+  // Urgent rooms: dirty/maintenance rooms with same-day arrivals
+  const urgentRooms = useMemo(() => {
+    if (!todayArrivals.length || !rooms.length) return [];
+    const dirtyRooms = rooms.filter(r => r.status === "dirty" || r.status === "maintenance");
+    if (!dirtyRooms.length) return [];
+
+    const results: { room: Room; guestName: string; issue: string }[] = [];
+    for (const arrival of todayArrivals) {
+      const arrivalRtId = (arrival as any).room_type_id as string | null;
+      if (!arrivalRtId) continue;
+      // Match room type by id or linked_overview_id
+      const matchedTypes = roomTypes.filter(
+        rt => rt.id === arrivalRtId || rt.linked_overview_id === arrivalRtId
+      );
+      const matchedTypeIds = new Set(matchedTypes.map(rt => rt.id));
+      const flagged = dirtyRooms.filter(r => r.room_type_id && matchedTypeIds.has(r.room_type_id));
+      for (const room of flagged) {
+        if (!results.some(r => r.room.id === room.id)) {
+          results.push({
+            room,
+            guestName: arrival.guest_name,
+            issue: room.status === "dirty" ? "dirty" : "in maintenance",
+          });
+        }
+      }
+    }
+    return results;
+  }, [todayArrivals, rooms, roomTypes]);
+
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
@@ -662,6 +691,8 @@ export default function PMSDashboard() {
     { label: "Occupied", value: `${dynamicStats.occupied} (${dynamicStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
     { label: "Arrivals Today", value: todayArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
     { label: "Departures Today", value: todayDepartures.length, icon: TrendingUp, color: "text-purple-600" },
+    ...(dynamicStats.dirty > 0 ? [{ label: "Dirty", value: dynamicStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
+    ...(dynamicStats.maintenance > 0 ? [{ label: "Maintenance", value: dynamicStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
   ];
 
   return (
@@ -696,6 +727,23 @@ export default function PMSDashboard() {
             ))}
           </div>
         </div>
+
+        {/* Urgent housekeeping alert */}
+        {urgentRooms.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-500/10">
+            <CardContent className="p-3 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Housekeeping Alert</p>
+                {urgentRooms.map((u) => (
+                  <p key={u.room.id} className="text-sm text-foreground">
+                    <span className="font-medium">{u.room.room_name || u.room.room_number}</span> is {u.issue} — guest <span className="font-medium">{u.guestName}</span> checking in today
+                  </p>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Calendar controls — matching admin style */}
         <Card>
