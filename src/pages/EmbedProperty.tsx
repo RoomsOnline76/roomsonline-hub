@@ -44,7 +44,7 @@ export default function EmbedProperty() {
           .order("name");
         setRoomTypes(rooms || []);
 
-        if (prop.is_rol_property && rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
+        if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
           const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
           const { data: rpRoomTypes } = await supabase
             .from("rolos_rate_plan_room_types")
