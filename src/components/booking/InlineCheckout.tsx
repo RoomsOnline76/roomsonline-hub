@@ -84,6 +84,8 @@ export function InlineCheckout({
         throw new Error("Failed to save itinerary");
       }
 
+      // Create booking record from first stay
+      const firstStay = stays[0];
       // DEDUPLICATION: Check for existing pending booking for same property/dates/email
       const { data: existingPending } = await supabase
         .from('bookings')
