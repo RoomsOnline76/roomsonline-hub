@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import React, { useEffect } from "react";
+import React, { useEffect, useCallback } from "react";
 
 // Declare gtag for TypeScript
 declare global {
@@ -87,44 +87,41 @@ const BookingConfirmation = () => {
     }
   }, [booking]);
 
-  // Layout wrapper — white-label for integration flows
-  const LayoutWrapper = ({ children: c }: { children: React.ReactNode }) =>
+  // Layout wrapper — stable function to avoid re-mount on state changes
+  const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
+  const wrapLayout = useCallback((children: React.ReactNode) =>
     isIntegration ? (
-      <WhiteLabelLayout propertyName={booking?.properties ? (booking.properties as any).name : undefined}>
-        {c}
+      <WhiteLabelLayout propertyName={propertyName}>
+        {children}
       </WhiteLabelLayout>
     ) : (
-      <PublicLayout>{c}</PublicLayout>
-    );
+      <PublicLayout>{children}</PublicLayout>
+    ), [isIntegration, propertyName]);
 
   if (isLoading) {
-    return (
-      <LayoutWrapper>
-        <div className="container mx-auto px-4 py-12">
-          <div className="max-w-lg mx-auto">
-            <Skeleton className="h-16 w-16 rounded-full mx-auto mb-6" />
-            <Skeleton className="h-8 w-64 mx-auto mb-4" />
-            <Skeleton className="h-20 w-full" />
-          </div>
+    return wrapLayout(
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-lg mx-auto">
+          <Skeleton className="h-16 w-16 rounded-full mx-auto mb-6" />
+          <Skeleton className="h-8 w-64 mx-auto mb-4" />
+          <Skeleton className="h-20 w-full" />
         </div>
-      </LayoutWrapper>
+      </div>
     );
   }
 
   if (error || !booking) {
-    return (
-      <LayoutWrapper>
-        <div className="container mx-auto px-4 py-24 text-center">
-          <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
-          <h1 className="font-display text-2xl sm:text-3xl mb-4">Booking Not Found</h1>
-          <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-            We couldn't find this booking. It may have expired or the link is invalid.
-          </p>
-          <Button asChild>
-            <Link to="/">Return to Home</Link>
-          </Button>
-        </div>
-      </LayoutWrapper>
+    return wrapLayout(
+      <div className="container mx-auto px-4 py-24 text-center">
+        <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
+        <h1 className="font-display text-2xl sm:text-3xl mb-4">Booking Not Found</h1>
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+          We couldn't find this booking. It may have expired or the link is invalid.
+        </p>
+        <Button asChild>
+          <Link to="/">Return to Home</Link>
+        </Button>
+      </div>
     );
   }
 
@@ -142,9 +139,8 @@ const BookingConfirmation = () => {
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
-  return (
-    <LayoutWrapper>
-      <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
+  return wrapLayout(
+    <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
         <Card className="max-w-lg mx-auto text-center border-border/50">
           <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
             {paymentCancelled ? (
@@ -232,8 +228,7 @@ const BookingConfirmation = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
-    </LayoutWrapper>
+    </div>
   );
 };
 
