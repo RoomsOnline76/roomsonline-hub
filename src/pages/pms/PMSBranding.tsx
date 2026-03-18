@@ -433,6 +433,9 @@ export default function PMSBranding() {
               </Card>
             )}
 
+            {/* ─── Review Platforms ─── */}
+            <ReviewPlatformsCard propertyId={propertyId} />
+
             <Button onClick={handleSave} disabled={saving} className="w-full">
               <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save Branding & Stationery"}
             </Button>
