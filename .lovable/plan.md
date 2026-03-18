@@ -1,99 +1,67 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+# Fix: Bookings Not Blocking Dates + Duplicate Pending Entries
 
----
+## Root Cause Analysis
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+### Issue 1: Dates Not Blocked in Calendars/Embeds
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
+**Three cascading failures:**
 
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+1. **Room type ID mismatch**: When `push-booking` calls `roomsonline-pms-api` → `create_reservation`, it passes the booking's `room_type_id` (a UUID from `hostfully_room_types`, e.g. `c8253bc0-...` = "3 Bedroomed Holiday House"). But `roomsonline-pms-api` checks availability against `pms_availability_cache` where `external_room_type_id` uses **slug-based IDs** (e.g. `holiday-house`, `petite-hotel-room`). No match → `available_units = 0` → returns `AVAILABILITY_CHANGED` error.
 
----
+2. **Fallback path skipped**: `push-booking` catches the ROL PMS error at line 244 and is supposed to "fall through to manual mode". But the manual mode check at line 250 requires `!externalSystem || externalSystem === 'none'`. Since `externalSystem = 'roomsonline'`, the manual date-blocking code is **never reached**.
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+3. **No `property_availability` or `rolos_inventory_calendar` records created**: Neither the ROL PMS path nor the manual path succeeds, so zero date-blocking occurs. Confirmed by querying both tables — both return empty for this property's booked dates.
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+### Issue 2: Duplicate Booking Entries (Pending + Paid)
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+The `pending` entries are orphaned bookings from earlier attempts where the user started checkout but either:
+- Cancelled the PayFast modal
+- Encountered an error and re-tried
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+`Booking.tsx` creates a new `bookings` row (status: `pending`) on every "Book Now" click. There is no deduplication — if the user clicks again, a second `pending` row is created. The PayFast ITN only updates the specific booking it was given, leaving the prior attempt as a ghost `pending` row.
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+## Fix Plan
 
----
+### Fix 1: `push-booking` — ROL fallback must block dates (Critical)
 
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+In `supabase/functions/push-booking/index.ts`, when the ROL PMS `create_reservation` call fails (the catch block at line 244), the code currently falls through but skips manual mode. 
 
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
+**Change**: After the ROL PMS catch block, explicitly run the same date-blocking logic that the manual mode uses (lines 259-326), regardless of `externalSystem` value. Also mark the booking as confirmed since payment is already processed.
 
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
+```
+// Line ~244-248: After ROL PMS error catch
+} catch (rolError) {
+  console.error('Error creating ROL reservation:', rolError);
+  // CRITICAL FIX: Still block dates and confirm booking even if ROL PMS adapter fails
+  // Payment has already been processed by PayFast, so the booking is valid
+  
+  [insert the same date-blocking logic from lines 259-326]
+  [set booking status to 'confirmed']
+  [send owner notification + guest email]
+  [return success response]
+}
+```
 
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+### Fix 2: `roomsonline-pms-api` — Map UUID room_type_ids to cache slugs
 
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+In `supabase/functions/roomsonline-pms-api/index.ts` `handleCreateReservation`, before checking `pms_availability_cache`, look up the room type name from `hostfully_room_types` or `rolos_room_types` and slugify it to match the `external_room_type_id` format used in the cache. This is the proper long-term fix so the ROL PMS path works correctly.
 
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+### Fix 3: `Booking.tsx` — Prevent duplicate pending bookings
 
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+Before creating a new booking, check if a `pending`/`unpaid` booking already exists for the same property, dates, and guest email. If found, reuse it instead of inserting a new row. This prevents orphaned `pending` records.
 
----
+### Fix 4: Clean up existing orphaned bookings
 
-## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
+Mark the two orphaned `pending` bookings as `cancelled` and retroactively block the dates for the two `paid` bookings.
 
-### Root Cause
-Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
+## Files to Change
 
-### Changes
-- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
-- ✅ **Benson adapter**: Calls hydration after cache writes
-- ✅ **HotelBeds adapter**: Calls hydration after cache writes
-- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
-- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
+| File | Change |
+|------|--------|
+| `supabase/functions/push-booking/index.ts` | Add date-blocking fallback in ROL PMS error catch block (extract shared blocking function) |
+| `supabase/functions/roomsonline-pms-api/index.ts` | Map UUID room_type_ids → slug-based external_room_type_ids before availability check |
+| `src/pages/Booking.tsx` | Check for existing pending booking before inserting a new one; reuse if found |
+| Database (one-time fix) | Cancel orphaned pending bookings; block dates for paid bookings |
 
----
-
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
