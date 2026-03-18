@@ -284,6 +284,9 @@ export default function EmbedProperty() {
                             if (pricingModel) params.set("embed_pricing_model", pricingModel);
                             if (room.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
                             if (promoCode) params.set("voucher", promoCode);
+                            if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+                            if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
+                            if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
                             window.location.href = `/booking/${property.slug}?${params.toString()}`;
                           }}
                           style={{ background: brandColor, color: fontColor, border: "none", padding: "6px 16px", borderRadius: "4px", fontSize: "12px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
