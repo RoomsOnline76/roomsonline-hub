@@ -234,7 +234,7 @@ const BookingConfirmation = () => {
           </CardContent>
         </Card>
       </div>
-    </LayoutWrapper>
+    );
   );
 };
 
