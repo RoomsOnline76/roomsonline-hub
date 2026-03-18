@@ -642,7 +642,7 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     .from("pms_reservations")
     .select("*", { count: "exact" })
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .order("arrival_date", { ascending: true })
     .range(queryOffset, queryOffset + queryLimit - 1);
 
