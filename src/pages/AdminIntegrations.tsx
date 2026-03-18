@@ -168,7 +168,7 @@ export default function AdminIntegrations() {
                 <SmartBookButtonGenerator property={currentProperty} />
               </TabsContent>
               <TabsContent value="wordpress">
-                <WordPressTab property={currentProperty} />
+                <WordPressTab property={currentProperty} showPushUpdate={true} />
               </TabsContent>
               <TabsContent value="api">
                 <ApiTab property={currentProperty} />
