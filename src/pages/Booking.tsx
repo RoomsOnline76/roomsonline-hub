@@ -83,6 +83,10 @@ const Booking = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
+  // Integration detection — when present, use white-label layout
+  const integrationParam = searchParams.get("integration");
+  const isIntegration = !!integrationParam;
+
   // Apply brand colors from URL params (embed flow passes these explicitly)
   const urlBrandColor = searchParams.get("brand_color");
   const urlBrandSecondary = searchParams.get("brand_secondary_color");
