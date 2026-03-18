@@ -691,6 +691,8 @@ export default function PMSDashboard() {
     { label: "Occupied", value: `${dynamicStats.occupied} (${dynamicStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
     { label: "Arrivals Today", value: todayArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
     { label: "Departures Today", value: todayDepartures.length, icon: TrendingUp, color: "text-purple-600" },
+    ...(dynamicStats.dirty > 0 ? [{ label: "Dirty", value: dynamicStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
+    ...(dynamicStats.maintenance > 0 ? [{ label: "Maintenance", value: dynamicStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
   ];
 
   return (
