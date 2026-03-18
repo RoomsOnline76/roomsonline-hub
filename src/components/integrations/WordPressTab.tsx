@@ -265,18 +265,20 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
         </div>
 
         {/* Action buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button onClick={handleDownloadZip} variant="default" className="gap-2">
+        <div className={showPushUpdate ? "grid grid-cols-2 gap-3" : ""}>
+          <Button onClick={handleDownloadZip} variant="default" className="gap-2 w-full">
             <Download className="h-4 w-4" />
             Download Plugin (.zip)
           </Button>
-          <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
-            {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-            Push Update to All Sites
-          </Button>
+          {showPushUpdate && (
+            <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
+              {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+              Push Update to All Sites
+            </Button>
+          )}
         </div>
         <p className="text-xs text-muted-foreground text-center -mt-2">
-          <strong>Download</strong> for first install. <strong>Push Update</strong> bumps the version — all WordPress sites see the update automatically.
+          <strong>Download</strong> for first install.{showPushUpdate && <> <strong>Push Update</strong> bumps the version — all WordPress sites see the update automatically.</>}
         </p>
 
         <div>
