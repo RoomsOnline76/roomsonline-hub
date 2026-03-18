@@ -1135,8 +1135,8 @@ function MonthCalendarGrid(props: CalendarGridProps) {
 
                   const getMonthAvail = (date: Date) => {
                     const dateStr = format(date, "yyyy-MM-dd");
-                    const booked = bookings.filter(b => {
-                      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                  const booked = bookings.filter(b => {
+                      if (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
                         return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
                       }
                       return false;
