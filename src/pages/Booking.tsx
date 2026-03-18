@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
@@ -1447,10 +1447,10 @@ const Booking = () => {
 
   // Layout wrapper — white-label for integration flows, standard for portal
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
-  const LayoutWrapper = ({ children: c }: { children: React.ReactNode }) =>
+  const wrapLayout = useCallback((children: React.ReactNode) =>
     isIntegration ? (
       <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl}>
-        {c}
+        {children}
       </WhiteLabelLayout>
     ) : (
       <PublicLayout
@@ -1458,24 +1458,24 @@ const Booking = () => {
         backTo={property ? `/property/${property.slug || property.id}` : "/"}
         hideJourneyBuilder
       >
-        {c}
+        {children}
       </PublicLayout>
-    );
+    ), [isIntegration, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
   if (isLoading) {
     return (
-      <LayoutWrapper>
+      wrapLayout(
         <div className="container mx-auto px-4 py-12">
           <Skeleton className="h-8 w-64 mb-4" />
           <Skeleton className="h-96 w-full rounded-lg" />
         </div>
-      </LayoutWrapper>
+      )
     );
   }
 
   if (!property) {
     return (
-      <LayoutWrapper>
+      wrapLayout(
         <div className="container mx-auto px-4 py-24 text-center">
           <h1 className="font-display text-2xl sm:text-3xl mb-4">Property Not Found</h1>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
@@ -1485,7 +1485,7 @@ const Booking = () => {
             <Link to="/">Return to Home</Link>
           </Button>
         </div>
-      </LayoutWrapper>
+      )
     );
   }
 
@@ -1493,7 +1493,7 @@ const Booking = () => {
   const externalSystem = property.external_system?.toLowerCase();
   if (externalSystem === 'nightsbridge') {
     return (
-      <LayoutWrapper>
+      wrapLayout(
         <div className="container mx-auto px-4 py-24 text-center">
           <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
           <h1 className="font-display text-2xl sm:text-3xl mb-4">NightsBridge Booking</h1>
@@ -1504,7 +1504,7 @@ const Booking = () => {
             <Link to={`/property/${property.slug || property.id}`}>Go to Property Page</Link>
           </Button>
         </div>
-      </LayoutWrapper>
+      )
     );
   }
 
@@ -1514,7 +1514,7 @@ const Booking = () => {
     const hasMultipleRoomDates = rooms.some(room => room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut));
     
     return (
-      <LayoutWrapper>
+      wrapLayout(
         <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
           <Card className="max-w-lg mx-auto text-center border-border/50">
             <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
@@ -1572,13 +1572,13 @@ const Booking = () => {
             </CardContent>
           </Card>
         </div>
-      </LayoutWrapper>
+      )
     );
   }
 
   return (
-    <LayoutWrapper>
-      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+    wrapLayout(
+      <><div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="font-display text-2xl sm:text-3xl mb-2">Complete Your Booking</h1>
@@ -2289,7 +2289,7 @@ const Booking = () => {
           isSandbox={true}
         />
       )}
-    </LayoutWrapper>
+      </>)
   );
 };
 
