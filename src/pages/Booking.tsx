@@ -850,6 +850,17 @@ const Booking = () => {
           }
         );
         
+        // Fallback: try matching by room name (wizard rooms use wizard-room-{name} IDs)
+        if (!roomType) {
+          roomType = roomTypesArray.find((rt: any) => {
+            const rtName = rt.room_type_name || rt.roomTypeName || '';
+            return rtName === room.roomTypeName;
+          });
+          if (roomType) {
+            console.log('[Booking] Room matched by name fallback:', room.roomTypeName);
+          }
+        }
+        
         console.log('[Booking] Room match result:', roomType ? 'found' : 'NOT FOUND');
 
         if (!roomType) continue;

@@ -726,9 +726,10 @@ export default function PropertyShowcase() {
       return;
     }
     
-    // For manual rates properties with multiple rooms, go to rooms section
+    // For manual rates properties with multiple rooms, open QuickBookDrawer
+    // (scrollToRooms was a no-op when already at rooms section)
     if (isManualRatesProperty) {
-      scrollToRooms();
+      setQuickBookDrawerOpen(true);
       return;
     }
     
