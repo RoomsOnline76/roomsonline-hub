@@ -170,8 +170,8 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         <CardDescription>
           A persistent bar fixed to the bottom of your website with a <strong>custom calendar date picker</strong>{" "}
           featuring the expanding range selection in your brand colour.
-          When a guest selects dates and clicks <em>Book Now</em>, they are redirected to the{" "}
-          <strong>Sleeping In Africa booking portal</strong> to complete their reservation.
+          When a guest selects dates and clicks <em>Book Now</em>, they are taken to your{" "}
+          <strong>property's branded booking page</strong> to complete their reservation.
           Styled in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
