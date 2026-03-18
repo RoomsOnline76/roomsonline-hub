@@ -45,6 +45,8 @@ import {
   FlaskConical,
   Search,
   Clock,
+  Puzzle,
+  Rocket,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
