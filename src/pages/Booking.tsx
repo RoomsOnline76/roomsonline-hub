@@ -4,6 +4,7 @@ import { applyBrandToDocument, type PropertyBrand } from "@/lib/brandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +82,10 @@ const Booking = () => {
   const { gateway: activeGateway } = useActivePaymentGateway();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Integration detection — when present, use white-label layout
+  const integrationParam = searchParams.get("integration");
+  const isIntegration = !!integrationParam;
 
   // Apply brand colors from URL params (embed flow passes these explicitly)
   const urlBrandColor = searchParams.get("brand_color");
@@ -1400,7 +1405,9 @@ const Booking = () => {
       
       // Fallback: direct navigation (shouldn't happen with payment gate)
       toast.success("Booking request submitted successfully!");
-      navigate(`/booking-confirmation/${data.id}`);
+      const confirmParams = new URLSearchParams();
+      if (integrationParam) confirmParams.set("integration", integrationParam);
+      navigate(`/booking-confirmation/${data.id}${confirmParams.toString() ? `?${confirmParams.toString()}` : ""}`);
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : "Failed to create booking";
@@ -1438,20 +1445,37 @@ const Booking = () => {
     }
   };
 
+  // Layout wrapper — white-label for integration flows, standard for portal
+  const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
+  const LayoutWrapper = ({ children: c }: { children: React.ReactNode }) =>
+    isIntegration ? (
+      <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl}>
+        {c}
+      </WhiteLabelLayout>
+    ) : (
+      <PublicLayout
+        backLabel="Back to Property"
+        backTo={property ? `/property/${property.slug || property.id}` : "/"}
+        hideJourneyBuilder
+      >
+        {c}
+      </PublicLayout>
+    );
+
   if (isLoading) {
     return (
-      <PublicLayout backLabel="Back" backTo="/">
+      <LayoutWrapper>
         <div className="container mx-auto px-4 py-12">
           <Skeleton className="h-8 w-64 mb-4" />
           <Skeleton className="h-96 w-full rounded-lg" />
         </div>
-      </PublicLayout>
+      </LayoutWrapper>
     );
   }
 
   if (!property) {
     return (
-      <PublicLayout>
+      <LayoutWrapper>
         <div className="container mx-auto px-4 py-24 text-center">
           <h1 className="font-display text-2xl sm:text-3xl mb-4">Property Not Found</h1>
           <p className="text-muted-foreground mb-8 max-w-md mx-auto">
@@ -1461,7 +1485,7 @@ const Booking = () => {
             <Link to="/">Return to Home</Link>
           </Button>
         </div>
-      </PublicLayout>
+      </LayoutWrapper>
     );
   }
 
@@ -1469,7 +1493,7 @@ const Booking = () => {
   const externalSystem = property.external_system?.toLowerCase();
   if (externalSystem === 'nightsbridge') {
     return (
-      <PublicLayout backLabel="Back to Property" backTo={`/property/${property.slug || property.id}`}>
+      <LayoutWrapper>
         <div className="container mx-auto px-4 py-24 text-center">
           <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
           <h1 className="font-display text-2xl sm:text-3xl mb-4">NightsBridge Booking</h1>
@@ -1480,7 +1504,7 @@ const Booking = () => {
             <Link to={`/property/${property.slug || property.id}`}>Go to Property Page</Link>
           </Button>
         </div>
-      </PublicLayout>
+      </LayoutWrapper>
     );
   }
 
@@ -1490,7 +1514,7 @@ const Booking = () => {
     const hasMultipleRoomDates = rooms.some(room => room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut));
     
     return (
-      <PublicLayout>
+      <LayoutWrapper>
         <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
           <Card className="max-w-lg mx-auto text-center border-border/50">
             <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
@@ -1536,22 +1560,24 @@ const Booking = () => {
                   </>
                 )}
               </div>
-              <Button onClick={() => navigate("/")} className="w-full sm:w-auto">
-                Return to Home
+              <Button onClick={() => {
+                if (isIntegration) {
+                  window.close();
+                } else {
+                  navigate("/");
+                }
+              }} className="w-full sm:w-auto">
+                {isIntegration ? "Close" : "Return to Home"}
               </Button>
             </CardContent>
           </Card>
         </div>
-      </PublicLayout>
+      </LayoutWrapper>
     );
   }
 
   return (
-    <PublicLayout 
-      backLabel="Back to Property" 
-      backTo={`/property/${property.slug || property.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
-      hideJourneyBuilder
-    >
+    <LayoutWrapper>
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
         {/* Page Header */}
         <div className="mb-8">
@@ -2248,7 +2274,9 @@ const Booking = () => {
           onPaymentSuccess={() => {
             setShowPaymentModal(false);
             if (pendingBookingId) {
-              navigate(`/booking-confirmation/${pendingBookingId}?payment=success`);
+              const cp = new URLSearchParams({ payment: "success" });
+              if (integrationParam) cp.set("integration", integrationParam);
+              navigate(`/booking-confirmation/${pendingBookingId}?${cp.toString()}`);
             }
           }}
           onPaymentCancelled={() => {
@@ -2261,7 +2289,7 @@ const Booking = () => {
           isSandbox={true}
         />
       )}
-    </PublicLayout>
+    </LayoutWrapper>
   );
 };
 

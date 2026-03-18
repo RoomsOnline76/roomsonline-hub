@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { LayoutTemplate, AlertCircle, AlertTriangle } from "lucide-react";
+import { LayoutTemplate, AlertCircle } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface BookingBarTabProps {
@@ -170,8 +170,8 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         <CardDescription>
           A persistent bar fixed to the bottom of your website with a <strong>custom calendar date picker</strong>{" "}
           featuring the expanding range selection in your brand colour.
-          When a guest selects dates and clicks <em>Book Now</em>, they are redirected to the{" "}
-          <strong>Sleeping In Africa booking portal</strong> to complete their reservation.
+          When a guest selects dates and clicks <em>Book Now</em>, they are taken to your{" "}
+          <strong>property's branded booking page</strong> to complete their reservation.
           Styled in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
@@ -180,25 +180,13 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Commission warning */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <span className="text-amber-800 dark:text-amber-200">
-            <strong>Commission applies:</strong> Bookings made through the booking bar are redirected to the Sleeping In Africa portal
-            and incur the commission percentage as specified in your property agreement.
-          </span>
-        </div>
-
-        {/* Redirect route info */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+        {/* Platform fee notice */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 p-3 text-sm">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="text-muted-foreground space-y-1">
-            <p>
-              <strong>Redirect route:</strong> Guest taps the date pill → expanding calendar appears → selects range → clicks Book Now → opens{" "}
-              <code className="bg-muted px-1 rounded text-xs">book.sleepinafrica.roomsonline.co.za/property/{property.slug}</code>{" "}
-              in a new tab with dates pre-filled.
-            </p>
-          </div>
+          <span className="text-muted-foreground">
+            <strong>Platform fee:</strong> A platform fee of 2% (or as per your property agreement)
+            applies to bookings made through the booking bar.
+          </span>
         </div>
 
         <CodeSnippetBlock code={snippet} language="html" title="Floating Bar with Expanding Calendar" />
