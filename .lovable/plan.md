@@ -1,99 +1,86 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+# Plan: White-Label Integration Flow + Responsive Embed Layout + Commission Alignment
 
----
+## Four Issues to Address
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+### Issue 1: ROL Branding Leaking Into Integration Flows
+**Problem:** When a guest arrives via any `/integrations` path (widget, embed, WordPress, direct link, booking bar), the `Booking.tsx` checkout page wraps content in `PublicLayout`, which renders the **ROL logo header** and **ROL footer** with "RoomsOnline" branding. The `BookingConfirmation.tsx` page does the same. The brand CSS variables are applied correctly, but the visual chrome (header logo, footer text, nav links) is all ROL.
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
+**Fix:**
+- Add an `integration` URL parameter passthrough from `EmbedProperty.tsx` → `Booking.tsx` → `BookingConfirmation.tsx`
+- In `Booking.tsx`, detect `integration` param. When present (widget, full_embed, wordpress, direct, booking_bar), render a **white-label layout** instead of `PublicLayout`:
+  - **Header**: Property logo + property name (from brand data already fetched), no ROL logo, no ROL nav links (Journal, About, etc.)
+  - **Footer**: "Powered by ROL'OS" subtle footnote only — no ROL links
+  - **Confirmation page**: Same white-label wrapper when `integration` param is present
+- Pass `integration` param when navigating from `Booking.tsx` to `BookingConfirmation.tsx` (`navigate()` call)
+- **Confirmation emails**: Already handled by the `resolveBranding` helper in edge functions per existing memory. No code changes needed there — the email system already white-labels when `brand_override_enabled` is true.
 
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+**Files to modify:**
+| File | Change |
+|------|--------|
+| `src/pages/Booking.tsx` | Read `integration` param; conditionally use white-label layout instead of `PublicLayout`; pass `integration` to confirmation navigation |
+| `src/pages/BookingConfirmation.tsx` | Read `integration` param; use white-label layout; change "Return to Home" to close tab or back to property |
+| `src/pages/EmbedProperty.tsx` | Already passes `integration` — no change needed |
+| `src/components/integrations/BookingBarTab.tsx` | Already passes `integration=booking_bar` in URL — no change needed |
+| `src/components/integrations/DirectLinkTab.tsx` | Add `integration=direct` to the booking URL |
+| New: `src/components/layout/WhiteLabelLayout.tsx` | Minimal layout component: property logo + name header, "Powered by ROL'OS" footer, no ROL branding |
 
----
+### Issue 2: Embed Layout Not Responsive
+**Problem:** `EmbedProperty.tsx` renders a wide availability grid table with horizontal scroll that looks terrible in narrow iframes (widget at 480px, or even full embed). The table has date columns that force horizontal scrolling.
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+**Fix:** Redesign `EmbedProperty.tsx` to use a **card-based layout** (inspired by NightsBridge) instead of a wide table:
+- **Narrow mode** (< 600px / widget): Stack room cards vertically. Each card shows: thumbnail, room name, guest count, per-night rate, total for selected nights, "Book" button. No date-column grid.
+- **Wide mode** (≥ 600px / full embed): Same card layout but 2-column grid for room cards.
+- Remove the horizontal-scroll date grid entirely — it's not useful in an iframe context. The dates are already selected in the date picker bar at the top.
+- Keep the date picker row, property info section, and branded header.
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+**Files to modify:**
+| File | Change |
+|------|--------|
+| `src/pages/EmbedProperty.tsx` | Replace table-based availability grid with responsive card-based room listing |
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+### Issue 3: Date Pickers in Integration Snippets
+**Problem:** The embed page (`EmbedProperty.tsx`) uses native HTML `<input type="date">` elements. These look different across browsers and don't match the expanding snake calendar used in the booking bar snippet.
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+**Fix:** Replace the native date inputs in `EmbedProperty.tsx` with a custom inline calendar component that matches the booking bar's expanding snake pattern:
+- Build a lightweight inline calendar (similar to the booking bar's vanilla JS calendar but in React) that uses the property's brand color
+- Show check-in/check-out as a pill with expanding snake highlight
+- Calendar opens on click of the date pill, shows month view with range selection
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+**Files to modify:**
+| File | Change |
+|------|--------|
+| `src/pages/EmbedProperty.tsx` | Replace native date inputs with a React inline expanding-snake calendar component |
+| New: `src/components/embed/EmbedDatePicker.tsx` | Reusable date range picker with expanding snake motif for embed contexts |
 
----
+### Issue 4: Commission Rate Information
+**Problem:** Direct link and booking bar tabs show "commission applies" with amber warnings suggesting 10% ROL portal commission. But these integration tools use the property's own website → ROL'OS PMS flow, which should be the **property agreement rate (default 2%)**, not the 10% portal rate. The 10% only applies when guests find and book via the `book.slp.rol.co.za` portal directly.
 
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+**Fix:** Update commission messaging across all integration tabs:
+- **Direct Link, Booking Bar**: These redirect via the ROL portal → should state the commission matches the property agreement (default 2%), not the 10% portal rate. Update copy to clarify.
+- **Widget, Full Embed, WordPress**: These are inline booking → already correctly state "platform fee as per property agreement". Keep as-is.
+- Optionally fetch the actual commission rate from `property_commercial_terms` where `commission_type = 'pms'` and display it (e.g., "Platform fee: 2%").
 
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
-
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
-
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
-
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
-
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
-
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+**Files to modify:**
+| File | Change |
+|------|--------|
+| `src/components/integrations/DirectLinkTab.tsx` | Update commission copy: "Platform fee: 2% (or per your agreement)" — remove amber warning, use neutral info style like widget/embed tabs |
+| `src/components/integrations/BookingBarTab.tsx` | Same — update commission copy to property agreement rate, not portal commission |
+| `src/components/integrations/DirectLinkTab.tsx` | Also update description to remove "Sleeping In Africa" portal references — these are direct property links |
+| `src/components/integrations/BookingBarTab.tsx` | Also update description to remove portal redirect references |
 
 ---
 
-## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
+## Summary of All Files
 
-### Root Cause
-Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
+| File | Action |
+|------|--------|
+| `src/components/layout/WhiteLabelLayout.tsx` | **Create** — minimal property-branded layout |
+| `src/components/embed/EmbedDatePicker.tsx` | **Create** — expanding snake date picker for embeds |
+| `src/pages/Booking.tsx` | **Edit** — detect `integration` param, use WhiteLabelLayout |
+| `src/pages/BookingConfirmation.tsx` | **Edit** — detect `integration` param, use WhiteLabelLayout |
+| `src/pages/EmbedProperty.tsx` | **Edit** — card layout, React date picker, responsive |
+| `src/components/integrations/DirectLinkTab.tsx` | **Edit** — fix commission copy, remove portal references |
+| `src/components/integrations/BookingBarTab.tsx` | **Edit** — fix commission copy, remove portal references |
 
-### Changes
-- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
-- ✅ **Benson adapter**: Calls hydration after cache writes
-- ✅ **HotelBeds adapter**: Calls hydration after cache writes
-- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
-- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
-
----
-
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
