@@ -704,14 +704,72 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   console.log(`[roomsonline-pms-api] Creating reservation for property ${propertyId}`);
 
   // RULE: Never create booking from cached availability alone - validate real-time
-  const roomTypeIds = [...new Set(rooms.map(r => r.room_type_id))];
+  // FIX: Resolve UUID room_type_ids to slug-based external_room_type_ids used in cache
+  const rawRoomTypeIds = [...new Set(rooms.map(r => r.room_type_id))];
+  const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  
+  // Build a map from UUID → slug for any UUID-format room_type_ids
+  const uuidToSlugMap = new Map<string, string>();
+  const uuidIds = rawRoomTypeIds.filter(isUuid);
+  
+  if (uuidIds.length > 0) {
+    console.log(`[roomsonline-pms-api] Resolving ${uuidIds.length} UUID room_type_ids to cache slugs`);
+    
+    // Check hostfully_room_types first (overview table)
+    const { data: hfTypes } = await supabase
+      .from("hostfully_room_types")
+      .select("id, name, linked_rolos_id")
+      .in("id", uuidIds);
+    
+    // Also check rolos_room_types  
+    const { data: rolosTypes } = await supabase
+      .from("rolos_room_types")
+      .select("id, name, linked_overview_id")
+      .in("id", uuidIds);
+    
+    // Check pms_room_types_cache for matching slug IDs
+    const { data: cacheTypes } = await supabase
+      .from("pms_room_types_cache")
+      .select("external_room_type_id, name")
+      .eq("property_id", propertyId)
+      .eq("system_type", SOURCE);
+    
+    const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const cacheSlugMap = new Map<string, string>();
+    for (const ct of (cacheTypes || [])) {
+      cacheSlugMap.set(slugify(ct.name), ct.external_room_type_id);
+      cacheSlugMap.set(ct.external_room_type_id, ct.external_room_type_id);
+    }
+    
+    for (const uuid of uuidIds) {
+      const hfMatch = (hfTypes || []).find(h => h.id === uuid);
+      const rolosMatch = (rolosTypes || []).find(r => r.id === uuid);
+      const name = hfMatch?.name || rolosMatch?.name;
+      
+      if (name) {
+        const slug = slugify(name);
+        const cacheId = cacheSlugMap.get(slug);
+        if (cacheId) {
+          uuidToSlugMap.set(uuid, cacheId);
+          console.log(`[roomsonline-pms-api] Mapped UUID ${uuid} → slug "${cacheId}" (via name "${name}")`);
+        } else {
+          // Use slug directly as the external_room_type_id
+          uuidToSlugMap.set(uuid, slug);
+          console.log(`[roomsonline-pms-api] Mapped UUID ${uuid} → slugified "${slug}" (no cache match)`);
+        }
+      }
+    }
+  }
+  
+  // Resolve room type IDs: use slug if UUID was mapped, otherwise keep original
+  const resolvedRoomTypeIds = rawRoomTypeIds.map(id => uuidToSlugMap.get(id) || id);
   
   const { data: currentAvailability, error: availError } = await supabase
     .from("pms_availability_cache")
     .select("*")
     .eq("property_id", propertyId)
     .eq("system_type", SOURCE)
-    .in("external_room_type_id", roomTypeIds)
+    .in("external_room_type_id", resolvedRoomTypeIds)
     .gte("date", arrival_date)
     .lt("date", departure_date);
 
@@ -723,10 +781,11 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
     );
   }
 
-  // Count required rooms per type
+  // Count required rooms per type (using resolved slug IDs)
   const requiredRooms = new Map<string, number>();
   for (const room of rooms) {
-    requiredRooms.set(room.room_type_id, (requiredRooms.get(room.room_type_id) || 0) + 1);
+    const resolvedId = uuidToSlugMap.get(room.room_type_id) || room.room_type_id;
+    requiredRooms.set(resolvedId, (requiredRooms.get(resolvedId) || 0) + 1);
   }
 
   // Generate date range

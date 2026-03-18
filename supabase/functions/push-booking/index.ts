@@ -243,12 +243,16 @@ Deno.serve(async (req) => {
         }
       } catch (rolError) {
         console.error('Error creating ROL reservation:', rolError);
-        // Fall through to manual mode as fallback
+        // CRITICAL FIX: Even if PMS adapter fails, payment was already processed.
+        // Fall through to manual date-blocking mode to prevent double-bookings.
+        console.log('ROL PMS adapter failed — falling through to manual date-blocking as fallback');
       }
     }
 
-    if (!externalSystem || externalSystem === 'none') {
-      console.log('No external system configured for property - blocking dates and sending owner notification');
+    // Manual mode: block dates for properties without external PMS,
+    // OR as a fallback when the ROL PMS adapter fails (is_rol_property catch above)
+    if (!externalSystem || externalSystem === 'none' || (property.is_rol_property && booking.status !== 'confirmed')) {
+      console.log('Blocking dates in manual mode for property — externalSystem:', externalSystem);
       
       // Mark as confirmed (no PMS to sync to)
       await supabaseClient
