@@ -683,7 +683,7 @@ const Booking = () => {
           if (cacheData && cacheData.length > 0) {
             // Transform cache data into availability format with aliases
             availability = transformCacheToAvailability(cacheData, roomAliases);
-          } else if (!externalSystem || externalSystem === 'none') {
+          } else if (!externalSystem || externalSystem === 'none' || externalSystem === 'roomsonline') {
             // No PMS — check for ROL'OS rate plans first, then wizard rates
             const isRolProperty = !!(property as any).is_rol_property;
             
