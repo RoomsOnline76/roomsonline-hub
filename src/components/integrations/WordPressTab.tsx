@@ -16,7 +16,7 @@ interface WordPressTabProps {
   showPushUpdate?: boolean;
 }
 
-export function WordPressTab({ property }: WordPressTabProps) {
+export function WordPressTab({ property, showPushUpdate = false }: WordPressTabProps) {
   const queryClient = useQueryClient();
   const [pushing, setPushing] = useState(false);
   const brandColor = property.brand_primary_color || "#e91e63";
