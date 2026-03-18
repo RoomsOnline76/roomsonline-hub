@@ -1578,7 +1578,7 @@ const Booking = () => {
 
   return (
     wrapLayout(
-      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+      <>
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="font-display text-2xl sm:text-3xl mb-2">Complete Your Booking</h1>
