@@ -1,47 +1,99 @@
 
+# ROL'OS PMS Module Completion — Implementation Progress
 
-## Three Booking Flow Issues — Diagnosis & Fix Plan
+## Phases 1–8 ✅ COMPLETED (see git history for details)
 
-### Issue 1: Checkout page shows "On request" instead of rates
+---
 
-**Root cause:** When navigating from the property page to `Booking.tsx`, the cost calculation relies on either:
-- `ItineraryContext` having pre-calculated prices (from SmartCart/QuickBookDrawer)
-- `pms_availability_cache` having rate data
-- Wizard/amenities `room_types` having `base_rate`
+## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
 
-For properties where none of these sources have rate data, `calculateCost()` either exits early (no availability data) or finds no matching room types, resulting in `totalCost = 0` → "On request" display.
+### Database Triggers
+- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
+- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
 
-The property in the screenshot ("3 Bedroomed Holiday House(2A)") is likely a manual-rates property where the room type ID in `rooms[]` state doesn't match what's in the synthetic availability. The room IDs from `amenities.room_types` may use different IDs than what `calculateCost` generates.
+### Edge Functions
+- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
+- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
 
-**Fix in `src/pages/Booking.tsx`:**
-- In the wizard rates fallback path (lines ~768-805), ensure room ID matching accounts for the actual IDs used in `amenities.room_types` (like `wizard-room-{name}`) vs what's passed as `roomTypeId` from URL params
-- Add a fallback: if after `calculateCost` completes with `totalCost === 0` but rooms have `base_rate` or `daily_rate` in amenities, compute a simple `rate × nights` total
-- Also ensure the `roomTypeId` from RoomShowcase's `handleCheckAvailability` matches the IDs used in synthetic availability generation
+---
 
-### Issue 2: Room Showcase page has no direct "Book" button — only "View Property" fallback
+## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
 
-**Root cause:** In `RoomShowcase.tsx` line 989-1010, the button logic shows "Book Now" or "Check Availability" only for NightsBridge, Benson, HotelBeds, Hostfully, or manual-rates properties. The fallback is "View Property" which just navigates back. 
+### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
+- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
+- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
+- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
+- ✅ **Generic adapter**: Fallback for custom/manual channels
+- ✅ **Adapter registry**: `getAdapter()` routes by channel name
+- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
+- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
+- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
 
-For a Benson property, `handleCheckAvailability` navigates to an `/availability` route. For manual-rates, it either adds to cart (with dates) or navigates back to property page without dates. The problem is that when there are no URL date params, the user is sent back to the property page with `#rooms-section` — effectively doing nothing useful.
+### Revenue Management — Yield Rules Engine
+- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
+- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
+- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
+- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
 
-**Fix in `src/pages/RoomShowcase.tsx`:**
-- For manual-rates properties without dates: instead of redirecting to property page, show a date picker inline or navigate to `Booking.tsx` directly with the room pre-selected
-- Ensure the button always says "Book Now" or "Select Dates" for bookable properties (not "View Property")
-- For the `handleCheckAvailability` manual-rates path without dates: navigate to `/book/${propertySlug}?roomTypeId=${roomId}&roomTypeName=${roomName}` so the user lands on the booking page and can select dates there
+### Portfolio View — Enhanced Depth
+- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
+- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
+- ✅ KPI grid expanded from 4-col to 5-col layout
 
-### Issue 3: "Add to Journey" button scrolls to room card but doesn't do anything
+### Files Created/Modified
+- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
+- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
+- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
+- Migration: `rolos_yield_rules` table
 
-**Root cause:** In `StickyBookingCTA.tsx`, when `scrollContext === 'rooms'`, the button shows "Add to Journey" but calls `onBook` which is `handleBookProperty`. In PropertyShowcase, `handleBookProperty` for manual-rates with no booked rooms and multiple rooms just calls `scrollToRooms()` — which is what the user already sees. It's a no-op loop.
+---
 
-**Fix in `src/pages/PropertyShowcase.tsx`:**
-- When `handleBookProperty` is triggered while already in the rooms section (for manual-rates, multi-room), open the `QuickBookDrawer` instead of just scrolling
-- Alternative: the StickyBookingCTA "Add to Journey" should trigger the QuickBookDrawer directly
+## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
 
-### Files to Modify
+### TOBI AI — Action Capabilities
+- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
+- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
+- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
+- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
+- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
+- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
 
-| File | Changes |
-|------|---------|
-| `src/pages/Booking.tsx` | Add fallback rate resolution when synthetic availability room IDs don't match; ensure wizard room IDs are consistent |
-| `src/pages/RoomShowcase.tsx` | Fix `handleCheckAvailability` for manual-rates without dates to navigate to booking page instead of looping back; ensure button always shows actionable label |
-| `src/pages/PropertyShowcase.tsx` | Fix `handleBookProperty` for multi-room manual-rates to open QuickBookDrawer instead of just scrolling when already at rooms section |
+### TypeScript Cleanup
+- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
+- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
+- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
+- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
 
+## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
+
+### Phase A — Dead Code Cleanup
+- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
+- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
+- ✅ Removed duplicate `/auth` route in App.tsx
+- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
+
+### Phase B — System Files
+- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
+- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
+
+### Phase C — TypeScript Hardening
+- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
+- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+
+---
+
+## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
+
+### Root Cause
+Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
+
+### Changes
+- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
+- ✅ **Benson adapter**: Calls hydration after cache writes
+- ✅ **HotelBeds adapter**: Calls hydration after cache writes
+- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
+- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
+
+---
+
+## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
