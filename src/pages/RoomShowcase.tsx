@@ -373,8 +373,9 @@ export default function RoomShowcase() {
     return property.amenities?.external_ids?.nightsbridge_bb_id || null;
   };
 
-  // Check if this is a manual rates property (no external PMS)
-  const isManualRatesProperty = property?.external_system === 'none' || (!property?.external_system && room);
+  // Check if this is a manual/self-managed property (including native ROL'OS)
+  const normalizedExternalSystem = property?.external_system?.toLowerCase() || null;
+  const isManualRatesProperty = normalizedExternalSystem === 'none' || normalizedExternalSystem === 'roomsonline' || (!normalizedExternalSystem && !!room);
   
   const handleCheckAvailability = () => {
     // For NightsBridge properties, show modal then redirect to NightsBridge booking
