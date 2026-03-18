@@ -1287,7 +1287,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
             {weekDates.map((date, i) => {
               const dateStr = format(date, "yyyy-MM-dd");
               const dayBookings = bookings.filter(b =>
-                b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id) && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
                 dateStr >= b.check_in_date && dateStr < b.check_out_date
               );
               return (
