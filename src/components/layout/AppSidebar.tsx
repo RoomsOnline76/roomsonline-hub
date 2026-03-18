@@ -130,6 +130,7 @@ const systemItems: NavItem[] = [
   { title: "System Health", icon: HeartPulse, href: "/dev/system-health", requireDev: true },
   { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
   { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDev: true },
+  { title: "Website Integrations", icon: Globe, href: "/admin/integrations", requireDev: true },
   { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
   { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
   { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
