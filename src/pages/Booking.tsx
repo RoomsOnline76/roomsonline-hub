@@ -833,7 +833,7 @@ const Booking = () => {
         // Debug: log available room types and the room we're trying to match
         console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
         
-        const roomType = roomTypesArray.find(
+        let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
             // Direct ID match
