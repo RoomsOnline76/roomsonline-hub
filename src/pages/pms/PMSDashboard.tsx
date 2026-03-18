@@ -559,6 +559,35 @@ export default function PMSDashboard() {
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
   }, [rooms, roomTypes, bookings]);
 
+  // Urgent rooms: dirty/maintenance rooms with same-day arrivals
+  const urgentRooms = useMemo(() => {
+    if (!todayArrivals.length || !rooms.length) return [];
+    const dirtyRooms = rooms.filter(r => r.status === "dirty" || r.status === "maintenance");
+    if (!dirtyRooms.length) return [];
+
+    const results: { room: Room; guestName: string; issue: string }[] = [];
+    for (const arrival of todayArrivals) {
+      const arrivalRtId = (arrival as any).room_type_id as string | null;
+      if (!arrivalRtId) continue;
+      // Match room type by id or linked_overview_id
+      const matchedTypes = roomTypes.filter(
+        rt => rt.id === arrivalRtId || rt.linked_overview_id === arrivalRtId
+      );
+      const matchedTypeIds = new Set(matchedTypes.map(rt => rt.id));
+      const flagged = dirtyRooms.filter(r => r.room_type_id && matchedTypeIds.has(r.room_type_id));
+      for (const room of flagged) {
+        if (!results.some(r => r.room.id === room.id)) {
+          results.push({
+            room,
+            guestName: arrival.guest_name,
+            issue: room.status === "dirty" ? "dirty" : "in maintenance",
+          });
+        }
+      }
+    }
+    return results;
+  }, [todayArrivals, rooms, roomTypes]);
+
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
