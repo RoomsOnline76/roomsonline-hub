@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Link2, ExternalLink, AlertCircle } from "lucide-react";
+import { Link2, ExternalLink, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
