@@ -1144,7 +1144,35 @@ Deno.serve(async (req) => {
     let html: string;
     if (status === "success" && hasCustomTemplate) {
       // Use custom template with variable replacement
-      const processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
+      let processedContent = replaceTemplateVariables(customTemplateContent, booking, property);
+      
+      // If booking is paid, strip hardcoded "not yet paid" text and inject payment confirmation
+      if (booking.payment_status === "paid") {
+        // Remove common hardcoded payment-pending notes from custom templates
+        processedContent = processedContent.replace(
+          /Payment\s*Note\s*[:.]?\s*This\s+reservation\s+has\s+not\s+yet\s+been\s+paid[^<]*/gi,
+          ''
+        );
+        processedContent = processedContent.replace(
+          /An\s+invoice\s+with\s+deposit\s+and\s+settlement\s+amounts\s+will\s+be\s+issued\s+by\s+the\s+property\s+in\s+due\s+course\.?/gi,
+          ''
+        );
+        // Inject payment confirmation block before closing tags
+        const paidAt = booking.paid_at ? formatDate(booking.paid_at) : "Confirmed";
+        const paymentRef = booking.payment_reference || "N/A";
+        const paymentMethod = booking.payment_method || "Online Payment";
+        const paymentBlock = `
+          <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 15px; margin: 15px 0;">
+            <p style="margin: 0 0 5px 0; color: #065f46; font-weight: bold; font-size: 14px;">✅ Payment Confirmed</p>
+            <p style="margin: 0; color: #065f46; font-size: 13px; line-height: 1.5;">
+              Method: ${paymentMethod}<br/>
+              Reference: ${paymentRef}<br/>
+              Date: ${paidAt}
+            </p>
+          </div>`;
+        processedContent = processedContent + paymentBlock;
+      }
+      
       html = wrapCustomTemplate(processedContent, property);
       console.log("Using custom confirmation template");
       // If there's a sync warning, append it to custom template
