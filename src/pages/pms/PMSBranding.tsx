@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Palette, Save, Eye, Upload, Loader2, X, Type, ShieldCheck, AlertTriangle, ExternalLink, Globe } from "lucide-react";
+import { Palette, Save, Eye, Upload, Loader2, X, Type, ShieldCheck, AlertTriangle, ExternalLink, Globe, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
