@@ -81,6 +81,24 @@ const Booking = () => {
   const { gateway: activeGateway } = useActivePaymentGateway();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Apply brand colors from URL params (embed flow passes these explicitly)
+  const urlBrandColor = searchParams.get("brand_color");
+  const urlBrandSecondary = searchParams.get("brand_secondary_color");
+  const urlBrandFont = searchParams.get("brand_font_color");
+
+  useEffect(() => {
+    if (!urlBrandColor) return;
+    const brand: PropertyBrand = {
+      enabled: true,
+      primaryColor: urlBrandColor,
+      secondaryColor: urlBrandSecondary,
+      fontColor: urlBrandFont,
+      propertyId: id || "",
+    };
+    const cleanup = applyBrandToDocument(brand);
+    return cleanup;
+  }, [urlBrandColor, urlBrandSecondary, urlBrandFont, id]);
   
   // Get sticky guest details from context
   const { guestDetails, setGuestDetails, stays, totalPrice: itineraryTotalPrice } = useItinerary();
