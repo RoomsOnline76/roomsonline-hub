@@ -450,7 +450,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
     .from("pms_room_types_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (roomError) {
     console.error("[roomsonline-pms-api] Error fetching room types:", roomError);
