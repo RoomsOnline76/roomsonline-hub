@@ -4,6 +4,7 @@ import { applyBrandToDocument, type PropertyBrand } from "@/lib/brandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
