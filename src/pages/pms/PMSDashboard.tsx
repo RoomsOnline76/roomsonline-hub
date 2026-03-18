@@ -1275,7 +1275,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
       {/* Unassigned bookings */}
       {(() => {
         const unassigned = bookings.filter(b =>
-          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+          (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id) && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
           weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
         );
         if (!unassigned.length) return null;
