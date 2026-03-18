@@ -35,12 +35,12 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Commission notice */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
-          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-          <div className="text-amber-800 dark:text-amber-200">
-            <strong>Commission applies:</strong> Bookings made through this link incur the
-            commission percentage as specified in your property agreement with RoomsOnline.
+        {/* Platform fee notice */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="text-muted-foreground">
+            <strong>Platform fee:</strong> A platform fee of 2% (or as per your property agreement)
+            applies to bookings made through this link.
           </div>
         </div>
 
