@@ -1021,6 +1021,51 @@ const Booking = () => {
         }
       }
 
+      // Fallback: if total is 0 but wizard amenities have base_rate, compute simple rate × nights
+      if (runningTotal === 0 && rooms.length > 0 && property) {
+        const amenitiesData = property.amenities as Record<string, any> | null;
+        const wizardRooms = amenitiesData?.room_types || [];
+        const pmsRateTypes = amenitiesData?.pms_rate_types || [];
+        
+        for (const room of rooms) {
+          const roomCheckIn = room.checkIn || checkIn;
+          const roomCheckOut = room.checkOut || checkOut;
+          const roomNights = roomCheckIn && roomCheckOut 
+            ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
+            : nights;
+          
+          // Find wizard room by ID or name
+          const wizRoom = wizardRooms.find((wr: any) => 
+            (wr.id || wr.room_type_id) === room.roomTypeId || wr.name === room.roomTypeName
+          );
+          
+          if (wizRoom) {
+            // Check linked rate types first
+            let baseRate = 0;
+            if (wizRoom.linkedRateTypes?.length > 0) {
+              const linkedRT = pmsRateTypes.find((rt: any) => rt.id === wizRoom.linkedRateTypes[0]);
+              if (linkedRT?.baseRate) baseRate = linkedRT.baseRate;
+            }
+            if (!baseRate) {
+              baseRate = wizRoom.baseRate || wizRoom.base_rate || wizRoom.daily_rate || 0;
+            }
+            
+            if (baseRate > 0 && roomNights > 0) {
+              const total = baseRate * roomNights;
+              lineItems.push({
+                description: `${room.roomTypeName} (${room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants} guests)`,
+                nights: roomNights,
+                quantity: 1,
+                unitPrice: baseRate,
+                total,
+              });
+              runningTotal += total;
+              console.log('[Booking] Fallback rate applied:', room.roomTypeName, baseRate, '×', roomNights, '=', total);
+            }
+          }
+        }
+      }
+
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
     } catch (error: any) {
