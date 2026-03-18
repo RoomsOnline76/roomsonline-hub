@@ -150,6 +150,9 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property.external_system;
 
+    // Track whether ROL PMS adapter failed so we can fall through to manual blocking
+    let rolAdapterFailed = false;
+
     // Check if this is a ROL'OS native property first
     if (property.is_rol_property) {
       console.log('ROL property detected - creating native reservation via roomsonline-pms-api');
