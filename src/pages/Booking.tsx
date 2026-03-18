@@ -309,18 +309,43 @@ const Booking = () => {
           checkOut: urlCheckOut || undefined,
         }]);
       } else if (roomTypes.length > 0) {
-        const firstRoom = roomTypes[0];
-        setRooms([{
-          roomTypeId: String(firstRoom.id),
-          roomTypeName: firstRoom.name,
-          numberOfAdults: Math.min(initialGuests, firstRoom.maxGuests || 2),
-          numberOfTeens: 0,
-          numberOfChildren: 0,
-          numberOfInfants: 0,
-          numberOfPets: 0,
-          checkIn: urlCheckIn || undefined,
-          checkOut: urlCheckOut || undefined,
-        }]);
+        // For ROL'OS properties without a pre-selected room, try to use hfRoom IDs
+        // which match the synthetic availability builder (avoids ID mismatch)
+        const initRoom = async () => {
+          const firstRoom = roomTypes[0];
+          let bestId = String(firstRoom.id);
+          let bestName = firstRoom.name;
+          let bestMax = firstRoom.maxGuests || 2;
+
+          if (property) {
+            const { data: hfRooms } = await supabase
+              .from("hostfully_room_types")
+              .select("id, name, linked_rolos_id, max_guests, is_active")
+              .eq("property_id", property.id)
+              .eq("is_active", true)
+              .limit(1);
+
+            if (hfRooms && hfRooms.length > 0) {
+              bestId = hfRooms[0].id;
+              bestName = hfRooms[0].name;
+              bestMax = hfRooms[0].max_guests || bestMax;
+              console.log('[Booking] Using hfRoom ID for initialization:', bestId, bestName);
+            }
+          }
+
+          setRooms([{
+            roomTypeId: bestId,
+            roomTypeName: bestName,
+            numberOfAdults: Math.min(initialGuests, bestMax),
+            numberOfTeens: 0,
+            numberOfChildren: 0,
+            numberOfInfants: 0,
+            numberOfPets: 0,
+            checkIn: urlCheckIn || undefined,
+            checkOut: urlCheckOut || undefined,
+          }]);
+        };
+        initRoom();
       }
     }
     // Use pre-selected rate type if available
@@ -638,7 +663,21 @@ const Booking = () => {
             // No PMS — check for ROL'OS rate plans first, then wizard rates
             const isRolProperty = !!(property as any).is_rol_property;
             
-            if (isRolProperty || embedRate) {
+            // Also detect ROL'OS capability by checking for hfRooms with linked_rolos_id
+            let hasLinkedRolos = false;
+            if (!isRolProperty && !embedRate) {
+              const { data: linkedCheck } = await supabase
+                .from("hostfully_room_types")
+                .select("id")
+                .eq("property_id", property.id)
+                .eq("is_active", true)
+                .not("linked_rolos_id", "is", null)
+                .limit(1);
+              hasLinkedRolos = !!(linkedCheck && linkedCheck.length > 0);
+              if (hasLinkedRolos) console.log('[Booking] Detected ROL\'OS-linked rooms without is_rol_property flag');
+            }
+            
+            if (isRolProperty || embedRate || hasLinkedRolos) {
               // ROL'OS property or embed with pre-resolved rate: query rate plans
               console.log('[Booking] ROL\'OS property — resolving rates from rolos_rate_plans');
               
@@ -692,12 +731,29 @@ const Booking = () => {
                 }
               }
               
+              // Build aliases: map amenities room IDs to hfRoom IDs by name match
+              const amenityIdAliases: string[] = [];
+              for (const rt of roomTypes) {
+                const hfMatch = (hfRooms || []).find((h: any) => h.name === rt.name);
+                if (hfMatch && String(rt.id) !== hfMatch.id) {
+                  amenityIdAliases.push(String(rt.id));
+                }
+              }
+              
               // Build synthetic availability from resolved rates
               const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
                 const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
                 const effectiveRate = room.daily_rate ? Number(room.daily_rate) : (rolosPlan?.base_rate ?? 0);
                 const pricingModel = rolosPlan?.pricing_model || "per_unit";
                 const isPerPerson = pricingModel === "per_person";
+                
+                // Collect all IDs that should match this room
+                const aliases: string[] = [];
+                for (const rt of roomTypes) {
+                  if (rt.name === room.name && String(rt.id) !== room.id) {
+                    aliases.push(String(rt.id));
+                  }
+                }
                 
                 const dailyRates: any[] = [];
                 const availArr: any[] = [];
@@ -713,6 +769,7 @@ const Booking = () => {
                 return {
                   room_type_id: room.id,
                   room_type_name: room.name,
+                  room_type_aliases: aliases,
                   rate_types: [{
                     rate_type_id: 'rolos-rate',
                     rate_type_name: 'Standard Rate',
