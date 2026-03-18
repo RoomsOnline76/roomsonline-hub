@@ -595,7 +595,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
     .from("pms_rate_types_cache")
     .select("*")
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching rate types:", error);
