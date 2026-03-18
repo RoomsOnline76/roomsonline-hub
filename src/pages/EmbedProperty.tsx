@@ -315,8 +315,8 @@ export default function EmbedProperty() {
             <div>
               <h3 style={{ fontWeight: 700, fontSize: "14px", color: "#222", margin: "0 0 6px 0" }}>Contact information</h3>
               <div style={{ fontSize: "12px", color: "#555" }}>
-                {property.phone && <div style={{ marginBottom: "2px" }}>📞 {property.phone}</div>}
-                {property.email && <div style={{ marginBottom: "2px" }}>✉️ {property.email}</div>}
+                {(property.amenities as any)?.phone && <div style={{ marginBottom: "2px" }}>📞 {(property.amenities as any).phone}</div>}
+                {(property.amenities as any)?.email && <div style={{ marginBottom: "2px" }}>✉️ {(property.amenities as any).email}</div>}
                 {(property.address || property.city) && (
                   <div>📍 {[property.address, property.city].filter(Boolean).join(", ")}</div>
                 )}
