@@ -99,16 +99,14 @@ const BookingConfirmation = () => {
     ), [isIntegration, propertyName]);
 
   if (isLoading) {
-    return (
     return wrapLayout(
-        <div className="container mx-auto px-4 py-12">
-          <div className="max-w-lg mx-auto">
-            <Skeleton className="h-16 w-16 rounded-full mx-auto mb-6" />
-            <Skeleton className="h-8 w-64 mx-auto mb-4" />
-            <Skeleton className="h-20 w-full" />
-          </div>
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-lg mx-auto">
+          <Skeleton className="h-16 w-16 rounded-full mx-auto mb-6" />
+          <Skeleton className="h-8 w-64 mx-auto mb-4" />
+          <Skeleton className="h-20 w-full" />
         </div>
-    );
+      </div>
     );
   }
 
