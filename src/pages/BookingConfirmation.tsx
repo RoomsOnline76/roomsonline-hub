@@ -39,6 +39,9 @@ const BookingConfirmation = () => {
   const externalRef = searchParams.get("ref");
   // Check for payment status from PayFast redirect
   const paymentStatus = searchParams.get("payment");
+  // Integration detection — white-label layout when present
+  const integrationParam = searchParams.get("integration");
+  const isIntegration = !!integrationParam;
 
   // Fetch booking details
   const { data: booking, isLoading, error, refetch } = useQuery({
