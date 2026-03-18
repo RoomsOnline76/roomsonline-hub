@@ -663,7 +663,21 @@ const Booking = () => {
             // No PMS — check for ROL'OS rate plans first, then wizard rates
             const isRolProperty = !!(property as any).is_rol_property;
             
-            if (isRolProperty || embedRate) {
+            // Also detect ROL'OS capability by checking for hfRooms with linked_rolos_id
+            let hasLinkedRolos = false;
+            if (!isRolProperty && !embedRate) {
+              const { data: linkedCheck } = await supabase
+                .from("hostfully_room_types")
+                .select("id")
+                .eq("property_id", property.id)
+                .eq("is_active", true)
+                .not("linked_rolos_id", "is", null)
+                .limit(1);
+              hasLinkedRolos = !!(linkedCheck && linkedCheck.length > 0);
+              if (hasLinkedRolos) console.log('[Booking] Detected ROL\'OS-linked rooms without is_rol_property flag');
+            }
+            
+            if (isRolProperty || embedRate || hasLinkedRolos) {
               // ROL'OS property or embed with pre-resolved rate: query rate plans
               console.log('[Booking] ROL\'OS property — resolving rates from rolos_rate_plans');
               
