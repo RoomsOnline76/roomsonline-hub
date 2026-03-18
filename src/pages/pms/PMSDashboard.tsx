@@ -728,6 +728,23 @@ export default function PMSDashboard() {
           </div>
         </div>
 
+        {/* Urgent housekeeping alert */}
+        {urgentRooms.length > 0 && (
+          <Card className="border-amber-500/50 bg-amber-500/10">
+            <CardContent className="p-3 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Housekeeping Alert</p>
+                {urgentRooms.map((u) => (
+                  <p key={u.room.id} className="text-sm text-foreground">
+                    <span className="font-medium">{u.room.room_name || u.room.room_number}</span> is {u.issue} — guest <span className="font-medium">{u.guestName}</span> checking in today
+                  </p>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Calendar controls — matching admin style */}
         <Card>
           <CardContent className="p-3">
