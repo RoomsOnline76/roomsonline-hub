@@ -180,25 +180,13 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Commission warning */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
-          <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <span className="text-amber-800 dark:text-amber-200">
-            <strong>Commission applies:</strong> Bookings made through the booking bar are redirected to the Sleeping In Africa portal
-            and incur the commission percentage as specified in your property agreement.
-          </span>
-        </div>
-
-        {/* Redirect route info */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+        {/* Platform fee notice */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/30 p-3 text-sm">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <div className="text-muted-foreground space-y-1">
-            <p>
-              <strong>Redirect route:</strong> Guest taps the date pill → expanding calendar appears → selects range → clicks Book Now → opens{" "}
-              <code className="bg-muted px-1 rounded text-xs">book.sleepinafrica.roomsonline.co.za/property/{property.slug}</code>{" "}
-              in a new tab with dates pre-filled.
-            </p>
-          </div>
+          <span className="text-muted-foreground">
+            <strong>Platform fee:</strong> A platform fee of 2% (or as per your property agreement)
+            applies to bookings made through the booking bar.
+          </span>
         </div>
 
         <CodeSnippetBlock code={snippet} language="html" title="Floating Bar with Expanding Calendar" />
