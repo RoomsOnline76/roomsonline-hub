@@ -150,6 +150,9 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property.external_system;
 
+    // Track whether ROL PMS adapter failed so we can fall through to manual blocking
+    let rolAdapterFailed = false;
+
     // Check if this is a ROL'OS native property first
     if (property.is_rol_property) {
       console.log('ROL property detected - creating native reservation via roomsonline-pms-api');
@@ -246,12 +249,36 @@ Deno.serve(async (req) => {
         // CRITICAL FIX: Even if PMS adapter fails, payment was already processed.
         // Fall through to manual date-blocking mode to prevent double-bookings.
         console.log('ROL PMS adapter failed — falling through to manual date-blocking as fallback');
+        rolAdapterFailed = true;
+
+        // Log the sync failure for observability
+        try {
+          await supabaseClient.from('booking_sync_status').upsert({
+            booking_id: booking_id,
+            external_system: 'roomsonline',
+            sync_status: 'failed',
+            error_message: String(rolError),
+            last_sync_at: new Date().toISOString(),
+            sync_attempts: 1,
+          }, { onConflict: 'booking_id,external_system' });
+          await supabaseClient.from('sync_logs').insert({
+            property_id: property.id,
+            booking_id: booking_id,
+            system_type: 'roomsonline',
+            direction: 'outbound',
+            action: 'create_reservation',
+            status: 'error',
+            error_message: String(rolError),
+          });
+        } catch (logErr) {
+          console.error('Failed to log sync failure:', logErr);
+        }
       }
     }
 
     // Manual mode: block dates for properties without external PMS,
-    // OR as a fallback when the ROL PMS adapter fails (is_rol_property catch above)
-    if (!externalSystem || externalSystem === 'none' || (property.is_rol_property && booking.status !== 'confirmed')) {
+    // OR as a fallback when the ROL PMS adapter fails (rolAdapterFailed flag)
+    if (!externalSystem || externalSystem === 'none' || rolAdapterFailed) {
       console.log('Blocking dates in manual mode for property — externalSystem:', externalSystem);
       
       // Mark as confirmed (no PMS to sync to)

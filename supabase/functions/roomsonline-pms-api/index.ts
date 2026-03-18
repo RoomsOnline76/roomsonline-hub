@@ -428,11 +428,12 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
   const { propertyId, start_date, end_date } = parsed.data;
   console.log(`[roomsonline-pms-api] Fetching availability for property ${propertyId} from ${start_date} to ${end_date}`);
 
+  // FIX: Support both 'roomsonline' and 'rol' system_type for backward compatibility
   const { data: availabilityData, error: availError } = await supabase
     .from("pms_availability_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .gte("date", start_date)
     .lte("date", end_date)
     .order("date", { ascending: true });
@@ -449,7 +450,7 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
     .from("pms_room_types_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (roomError) {
     console.error("[roomsonline-pms-api] Error fetching room types:", roomError);
@@ -542,7 +543,7 @@ async function handleGetRoomTypes(body: { propertyId?: string }, supabase: any):
     .from("pms_room_types_cache")
     .select("*")
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching room types:", error);
@@ -594,7 +595,7 @@ async function handleGetRateTypes(body: { propertyId?: string }, supabase: any):
     .from("pms_rate_types_cache")
     .select("*")
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE);
+    .in("system_type", [SOURCE, "rol"]);
 
   if (error) {
     console.error("[roomsonline-pms-api] Error fetching rate types:", error);
@@ -641,7 +642,7 @@ async function handleGetReservations(body: { propertyId?: string; start_date?: s
     .from("pms_reservations")
     .select("*", { count: "exact" })
     .eq("property_id", body.propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .order("arrival_date", { ascending: true })
     .range(queryOffset, queryOffset + queryLimit - 1);
 
@@ -732,7 +733,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       .from("pms_room_types_cache")
       .select("external_room_type_id, name")
       .eq("property_id", propertyId)
-      .eq("system_type", SOURCE);
+      .in("system_type", [SOURCE, "rol"]);
     
     const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const cacheSlugMap = new Map<string, string>();
@@ -764,11 +765,12 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   // Resolve room type IDs: use slug if UUID was mapped, otherwise keep original
   const resolvedRoomTypeIds = rawRoomTypeIds.map(id => uuidToSlugMap.get(id) || id);
   
+  // FIX: Support both 'roomsonline' and 'rol' system_type for backward compatibility
   const { data: currentAvailability, error: availError } = await supabase
     .from("pms_availability_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .in("external_room_type_id", resolvedRoomTypeIds)
     .gte("date", arrival_date)
     .lt("date", departure_date);

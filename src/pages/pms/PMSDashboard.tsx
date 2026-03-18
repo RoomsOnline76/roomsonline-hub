@@ -134,6 +134,7 @@ interface RoomType {
   is_active: boolean | null;
   max_occupancy: number | null;
   property_type: string | null;
+  linked_overview_id?: string | null;
 }
 
 interface Room {
@@ -280,6 +281,7 @@ export default function PMSDashboard() {
         const overview = overviewMap.get((rt as any).linked_overview_id);
         return {
           ...rt,
+          linked_overview_id: (rt as any).linked_overview_id || null,
           property_type: overview?.property_type || null,
         } as RoomType;
       });
@@ -1133,8 +1135,8 @@ function MonthCalendarGrid(props: CalendarGridProps) {
 
                   const getMonthAvail = (date: Date) => {
                     const dateStr = format(date, "yyyy-MM-dd");
-                    const booked = bookings.filter(b => {
-                      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                  const booked = bookings.filter(b => {
+                      if (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
                         return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
                       }
                       return false;
@@ -1273,7 +1275,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
       {/* Unassigned bookings */}
       {(() => {
         const unassigned = bookings.filter(b =>
-          b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+          (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id) && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
           weekDates.some(d => { const ds = format(d, "yyyy-MM-dd"); return ds >= b.check_in_date && ds < b.check_out_date; })
         );
         if (!unassigned.length) return null;
@@ -1285,7 +1287,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
             {weekDates.map((date, i) => {
               const dateStr = format(date, "yyyy-MM-dd");
               const dayBookings = bookings.filter(b =>
-                b.room_type_id === rt.id && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
+                (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id) && (!b.rolos_room_ids || b.rolos_room_ids.length === 0) &&
                 dateStr >= b.check_in_date && dateStr < b.check_out_date
               );
               return (
@@ -1381,7 +1383,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   const getAvail = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     const booked = bookings.filter(b => {
-      if (b.room_type_id === rt.id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+      if (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
         return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
       }
       return false;
