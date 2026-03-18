@@ -49,6 +49,16 @@ const CHANNEL_API_FIELDS: Record<string, { key: string; label: string; type?: st
     { key: "api_key", label: "API Key", type: "password", placeholder: "NightsBridge API key" },
     { key: "agent_code", label: "Agent Code", placeholder: "Your agent code" },
   ],
+  rental_united: [
+    { key: "api_username", label: "API Username", placeholder: "Rental United username" },
+    { key: "api_password", label: "API Password", type: "password", placeholder: "API password" },
+    { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://rm.rentalsunited.com/api" },
+  ],
+  profitroom: [
+    { key: "api_key", label: "API Key", type: "password", placeholder: "Profitroom API key" },
+    { key: "hotel_id", label: "Hotel ID", placeholder: "Your Profitroom hotel ID" },
+    { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.profitroom.com" },
+  ],
 };
 
 const ALL_CHANNELS = Object.keys(CHANNEL_API_FIELDS);

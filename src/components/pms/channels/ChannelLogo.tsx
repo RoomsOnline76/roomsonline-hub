@@ -8,6 +8,8 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   google_hotels: { label: "Google Hotels", color: "bg-emerald-500", initials: "G" },
   lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk" },
   nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
+  rental_united: { label: "Rental United", color: "bg-indigo-600", initials: "RU" },
+  profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
 };
 
