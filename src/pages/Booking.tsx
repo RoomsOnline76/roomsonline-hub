@@ -2289,7 +2289,7 @@ const Booking = () => {
           isSandbox={true}
         />
       )}
-    </PublicLayout>
+    </LayoutWrapper>
   );
 };
 

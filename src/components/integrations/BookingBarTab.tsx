@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { LayoutTemplate, AlertCircle, AlertTriangle } from "lucide-react";
+import { LayoutTemplate, AlertCircle } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface BookingBarTabProps {

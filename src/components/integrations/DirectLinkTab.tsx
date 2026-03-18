@@ -67,10 +67,10 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
           <ol className="list-decimal list-inside space-y-1">
             <li>Copy the booking URL above</li>
             <li>Paste it into your website's "Book Now" button, email signature, or social media bio</li>
-            <li>When a guest clicks, they are taken to the Sleeping In Africa booking portal</li>
-            <li>The portal redirects them to your property's booking page with live availability</li>
+            <li>When a guest clicks, they are taken to your property's branded booking page</li>
+            <li>The guest browses rooms, selects dates, and completes their reservation</li>
             <li>All bookings are automatically tracked and attributed to your property</li>
-            <li>Commission is calculated per your agreement — no hidden fees</li>
+            <li>A 2% platform fee applies (or as per your agreement) — no hidden fees</li>
           </ol>
         </div>
       </CardContent>

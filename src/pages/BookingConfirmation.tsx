@@ -133,7 +133,7 @@ const BookingConfirmation = () => {
   const paymentCancelled = paymentStatus === "cancelled";
 
   return (
-    <PublicLayout>
+    <LayoutWrapper>
       <div className="container mx-auto px-3 sm:px-4 py-12 sm:py-20">
         <Card className="max-w-lg mx-auto text-center border-border/50">
           <CardContent className="pt-8 pb-8 sm:pt-10 sm:pb-10 px-6 sm:px-8">
@@ -211,13 +211,19 @@ const BookingConfirmation = () => {
                 </div>
               )}
             </div>
-            <Button onClick={() => navigate("/")} className="w-full sm:w-auto">
-              Return to Home
+            <Button onClick={() => {
+              if (isIntegration) {
+                window.close();
+              } else {
+                navigate("/");
+              }
+            }} className="w-full sm:w-auto">
+              {isIntegration ? "Close" : "Return to Home"}
             </Button>
           </CardContent>
         </Card>
       </div>
-    </PublicLayout>
+    </LayoutWrapper>
   );
 };
 
