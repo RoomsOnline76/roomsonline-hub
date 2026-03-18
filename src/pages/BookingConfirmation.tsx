@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 
 // Declare gtag for TypeScript
 declare global {
