@@ -115,6 +115,110 @@ function ColorField({ label, description, value, onChange }: { label: string; de
   );
 }
 
+/* ── Review Platforms Card ── */
+const REVIEW_PLATFORM_TYPES = [
+  { type: "tripadvisor", label: "TripAdvisor", idLabel: "TripAdvisor Location ID", placeholder: "e.g. d12345678" },
+  { type: "google", label: "Google Reviews", idLabel: "Google Place ID", placeholder: "e.g. ChIJ..." },
+  { type: "booking_com", label: "Booking.com", idLabel: "Booking.com URL", placeholder: "https://www.booking.com/hotel/..." },
+];
+
+interface ReviewPlatformEntry { type: string; id?: string; place_id?: string; url?: string; enabled: boolean }
+
+function ReviewPlatformsCard({ propertyId }: { propertyId: string }) {
+  const [platforms, setPlatforms] = useState<ReviewPlatformEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!propertyId) return;
+    (async () => {
+      const { data } = await supabase.from("properties").select("amenities").eq("id", propertyId).single();
+      if (data) {
+        const a = data.amenities as any;
+        const existing = Array.isArray(a?.review_platforms) ? a.review_platforms : [];
+        // Merge with known types
+        const merged = REVIEW_PLATFORM_TYPES.map((pt) => {
+          const found = existing.find((e: any) => e.type === pt.type);
+          if (found) return found;
+          // Auto-populate TripAdvisor from legacy fields
+          if (pt.type === "tripadvisor") {
+            const taId = a?.tripadvisor_id || a?.external_ids?.tripadvisor_id;
+            if (taId) return { type: "tripadvisor", id: String(taId), enabled: true };
+          }
+          return { type: pt.type, enabled: false };
+        });
+        setPlatforms(merged);
+      }
+      setLoaded(true);
+    })();
+  }, [propertyId]);
+
+  const updatePlatform = (type: string, updates: Partial<ReviewPlatformEntry>) => {
+    setPlatforms((prev) => prev.map((p) => (p.type === type ? { ...p, ...updates } : p)));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data: current } = await supabase.from("properties").select("amenities").eq("id", propertyId).single();
+      const amenities = (current?.amenities as any) || {};
+      amenities.review_platforms = platforms;
+      const { error } = await supabase.from("properties").update({ amenities } as any).eq("id", propertyId);
+      if (error) throw error;
+      toast.success("Review platforms saved");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save");
+    }
+    setSaving(false);
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Star className="h-4 w-4 text-primary" /> Review Platforms</CardTitle>
+        <CardDescription>Connect your review platforms to display ratings on your booking pages and embeds.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {REVIEW_PLATFORM_TYPES.map((pt) => {
+          const entry = platforms.find((p) => p.type === pt.type) || { type: pt.type, enabled: false };
+          const idValue = pt.type === "google" ? entry.place_id || "" : pt.type === "booking_com" ? entry.url || "" : entry.id || "";
+          return (
+            <div key={pt.type} className="rounded-lg border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{pt.label}</span>
+                </div>
+                <Switch checked={entry.enabled} onCheckedChange={(v) => updatePlatform(pt.type, { enabled: v })} />
+              </div>
+              {entry.enabled && (
+                <div>
+                  <Label className="text-xs">{pt.idLabel}</Label>
+                  <Input
+                    value={idValue}
+                    placeholder={pt.placeholder}
+                    className="mt-1 text-sm"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (pt.type === "google") updatePlatform(pt.type, { place_id: val });
+                      else if (pt.type === "booking_com") updatePlatform(pt.type, { url: val });
+                      else updatePlatform(pt.type, { id: val });
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <Button onClick={handleSave} disabled={saving} variant="outline" size="sm" className="w-full">
+          <Save className="h-3.5 w-3.5 mr-1.5" />{saving ? "Saving…" : "Save Review Platforms"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PMSBranding() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const { propertyName, propertySlug } = usePMSBrand();
