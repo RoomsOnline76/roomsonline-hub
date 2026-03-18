@@ -91,7 +91,7 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
       btn.style.opacity='1';btn.style.pointerEvents='auto';
       sum.style.display='block';sum.textContent=fmtShort(ci)+' → '+fmtShort(co)+' · '+n+' night'+(n!==1?'s':'');
     }else if(ci){
-      lb.textContent=fmtShort(ci)+' \\u2013 Check-out';
+      lb.textContent=fmtShort(ci)+' – Check-out';
       btn.style.opacity='0.4';btn.style.pointerEvents='none';
       sum.style.display='block';sum.textContent='Select check-out date';
     }else{
