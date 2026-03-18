@@ -1,6 +1,6 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
 import { useBrandOverride } from "@/hooks/useBrandOverride";
-import { applyBrandToDocument, type PropertyBrand } from "@/lib/brandOverride";
+import { applyBrandToDocument, saveBrandToSession, type PropertyBrand } from "@/lib/brandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
