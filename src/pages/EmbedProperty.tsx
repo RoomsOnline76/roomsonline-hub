@@ -98,7 +98,33 @@ export default function EmbedProperty() {
     return diff > 0 ? diff : 0;
   }, [checkIn, checkOut]);
 
-  // Build availability grid data from rooms + rates
+  // Fetch property_availability overrides (stop-sells / manual blocks from bookings)
+  const [availabilityOverrides, setAvailabilityOverrides] = useState<Record<string, Record<string, { available_units: number | null; is_stop_sell: boolean }>>>({});
+
+  useEffect(() => {
+    if (!property?.id || roomTypes.length === 0) return;
+    const fetchOverrides = async () => {
+      const start = new Date(checkIn);
+      const endDate = addDays(start, 30); // fetch 30 days ahead
+      const { data } = await supabase
+        .from("property_availability")
+        .select("room_type, date, available_units, is_stop_sell")
+        .eq("property_id", property.id)
+        .gte("date", format(start, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
+      if (data) {
+        const map: Record<string, Record<string, { available_units: number | null; is_stop_sell: boolean }>> = {};
+        for (const row of data) {
+          if (!map[row.room_type]) map[row.room_type] = {};
+          map[row.room_type][row.date] = { available_units: row.available_units, is_stop_sell: !!row.is_stop_sell };
+        }
+        setAvailabilityOverrides(map);
+      }
+    };
+    fetchOverrides();
+  }, [property?.id, roomTypes, checkIn]);
+
+  // Build availability grid data from rooms + rates + live overrides
   const gridRooms = useMemo(() => {
     if (!checkIn) return [];
     const start = new Date(checkIn);
@@ -119,9 +145,19 @@ export default function EmbedProperty() {
 
       const effectiveRate = rate ?? (rolosPlan?.base_rate ?? wizardRate ?? null);
 
+      // Check overrides by room name AND room ID (both are used as keys)
+      const roomOverrides = availabilityOverrides[room.name] || availabilityOverrides[String(room.id)] || {};
+
       const ratesByDate: Record<string, number | null> = {};
       dates.forEach((d) => {
-        ratesByDate[format(d, "yyyy-MM-dd")] = effectiveRate;
+        const dateKey = format(d, "yyyy-MM-dd");
+        const override = roomOverrides[dateKey];
+        // If stop-sell active or available_units is 0, mark as sold (null)
+        if (override && (override.is_stop_sell || override.available_units === 0)) {
+          ratesByDate[dateKey] = null; // Sold out
+        } else {
+          ratesByDate[dateKey] = effectiveRate;
+        }
       });
 
       return {
@@ -132,7 +168,7 @@ export default function EmbedProperty() {
         ratesByDate,
       };
     });
-  }, [roomTypes, ratePlanMap, checkIn, property]);
+  }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides]);
 
   // TripAdvisor ID resolution
   const tripadvisorId = useMemo(() => {
