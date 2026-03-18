@@ -114,7 +114,7 @@ const BookingConfirmation = () => {
 
   if (error || !booking) {
     return (
-      <LayoutWrapper>
+    return wrapLayout(
         <div className="container mx-auto px-4 py-24 text-center">
           <AlertCircle className="h-16 w-16 text-muted-foreground/30 mx-auto mb-6" />
           <h1 className="font-display text-2xl sm:text-3xl mb-4">Booking Not Found</h1>
@@ -125,7 +125,7 @@ const BookingConfirmation = () => {
             <Link to="/">Return to Home</Link>
           </Button>
         </div>
-      </LayoutWrapper>
+    );
     );
   }
 
