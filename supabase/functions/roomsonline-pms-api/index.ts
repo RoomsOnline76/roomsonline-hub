@@ -428,11 +428,12 @@ async function handleFetchAvailability(body: unknown, supabase: any): Promise<Re
   const { propertyId, start_date, end_date } = parsed.data;
   console.log(`[roomsonline-pms-api] Fetching availability for property ${propertyId} from ${start_date} to ${end_date}`);
 
+  // FIX: Support both 'roomsonline' and 'rol' system_type for backward compatibility
   const { data: availabilityData, error: availError } = await supabase
     .from("pms_availability_cache")
     .select("*")
     .eq("property_id", propertyId)
-    .eq("system_type", SOURCE)
+    .in("system_type", [SOURCE, "rol"])
     .gte("date", start_date)
     .lte("date", end_date)
     .order("date", { ascending: true });
