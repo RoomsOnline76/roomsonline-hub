@@ -11,7 +11,7 @@ interface DirectLinkTabProps {
 
 export function DirectLinkTab({ property }: DirectLinkTabProps) {
   const brandColor = property.brand_primary_color || "#e91e8c";
-  const bookingUrl = `${PUBLIC_DOMAIN}/property/${property.slug}?source=website&integration=direct&property_id=${property.id}`;
+  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=direct&property_id=${property.id}&brand_color=${encodeURIComponent(brandColor)}`;
 
   const htmlSnippet = `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
   style="display:inline-block;padding:12px 24px;background:${brandColor};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">
