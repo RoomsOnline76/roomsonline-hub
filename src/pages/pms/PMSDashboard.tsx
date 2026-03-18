@@ -350,7 +350,7 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, check_in_date, check_out_date, status")
+        .select("id, guest_name, check_in_date, check_out_date, status, room_type_id")
         .eq("property_id", propertyId)
         .eq("check_in_date", today)
         .in("status", ["confirmed", "pending"])
