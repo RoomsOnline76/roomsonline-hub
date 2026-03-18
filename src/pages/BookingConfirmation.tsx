@@ -228,8 +228,7 @@ const BookingConfirmation = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
-    );
+    </div>
   );
 };
 
