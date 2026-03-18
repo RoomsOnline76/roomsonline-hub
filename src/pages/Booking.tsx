@@ -2255,7 +2255,9 @@ const Booking = () => {
           onPaymentSuccess={() => {
             setShowPaymentModal(false);
             if (pendingBookingId) {
-              navigate(`/booking-confirmation/${pendingBookingId}?payment=success`);
+              const cp = new URLSearchParams({ payment: "success" });
+              if (integrationParam) cp.set("integration", integrationParam);
+              navigate(`/booking-confirmation/${pendingBookingId}?${cp.toString()}`);
             }
           }}
           onPaymentCancelled={() => {
