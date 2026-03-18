@@ -185,9 +185,31 @@ export default function EmbedProperty() {
             {roomTypes.map((room) => {
               const rate = room.daily_rate ? Number(room.daily_rate) : null;
               const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
-              const effectiveRate = rate ?? (rolosPlan?.base_rate ?? null);
-              const pricingModel = rolosPlan?.pricing_model;
-              const isPerPerson = pricingModel === "per_person";
+
+              // Fallback for wizard-managed/native rooms when ROL'OS rate-plan lookup is unavailable
+              const amenitiesData = property?.amenities as any;
+              const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
+              const wizardRateTypes = Array.isArray(amenitiesData?.pms_rate_types) ? amenitiesData.pms_rate_types : [];
+              const wizardRoom = wizardRooms.find((wr: any) =>
+                String(wr?.id) === String(room.id) ||
+                String(wr?.pmsRoomId || "") === String(room.id) ||
+                wr?.name === room.name
+              );
+              const linkedRateTypeId = Array.isArray(wizardRoom?.linkedRateTypes)
+                ? wizardRoom.linkedRateTypes[0]
+                : undefined;
+              const linkedRateType = linkedRateTypeId
+                ? wizardRateTypes.find((rt: any) => String(rt?.id) === String(linkedRateTypeId))
+                : null;
+              const wizardRate = linkedRateType?.baseRate != null
+                ? Number(linkedRateType.baseRate)
+                : wizardRoom?.baseRate != null
+                  ? Number(wizardRoom.baseRate)
+                  : null;
+
+              const effectiveRate = rate ?? (rolosPlan?.base_rate ?? wizardRate ?? null);
+              const pricingModel = rolosPlan?.pricing_model || linkedRateType?.pricingModel || linkedRateType?.priceType || wizardRoom?.pricingModel || wizardRoom?.priceType;
+              const isPerPerson = String(pricingModel || "").toLowerCase() === "per_person";
               const totalPrice = effectiveRate && nights > 0 ? effectiveRate * nights : null;
               const thumbnail = room.thumbnail_url || (Array.isArray(room.images) && room.images.length > 0 ? ((room.images[0] as any)?.url || room.images[0]) : null);
 
