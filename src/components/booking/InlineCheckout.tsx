@@ -84,34 +84,60 @@ export function InlineCheckout({
         throw new Error("Failed to save itinerary");
       }
 
-      // Create booking record from first stay
-      const firstStay = stays[0];
-      
-      const { data: booking, error: bookingError } = await supabase
+      // DEDUPLICATION: Check for existing pending booking for same property/dates/email
+      const { data: existingPending } = await supabase
         .from('bookings')
-        .insert({
-          property_id: firstStay.property_id,
-          room_type_id: firstStay.rooms[0]?.room_type_id || null,
-          check_in_date: firstStay.dates.check_in,
-          check_out_date: firstStay.dates.check_out,
-          adults: firstStay.guests.adults,
-          children: firstStay.guests.children,
-          infants: firstStay.guests.infants,
-          guest_name: guestDetails.name,
-          guest_email: guestDetails.email,
-          guest_phone: guestDetails.phone,
-          total_price: totalPrice,
-          status: 'pending',
-          payment_status: 'pending',
-          booking_channel: 'rol-website',
-          special_requests: specialRequests || null,
-        })
         .select('id')
-        .single();
+        .eq('property_id', firstStay.property_id)
+        .eq('check_in_date', firstStay.dates.check_in)
+        .eq('check_out_date', firstStay.dates.check_out)
+        .eq('guest_email', guestDetails.email)
+        .eq('status', 'pending')
+        .eq('payment_status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (bookingError || !booking) {
-        console.error('Booking creation error:', bookingError);
-        throw new Error("Failed to create booking");
+      const bookingPayload = {
+        property_id: firstStay.property_id,
+        room_type_id: firstStay.rooms[0]?.room_type_id || null,
+        check_in_date: firstStay.dates.check_in,
+        check_out_date: firstStay.dates.check_out,
+        adults: firstStay.guests.adults,
+        children: firstStay.guests.children,
+        infants: firstStay.guests.infants,
+        guest_name: guestDetails.name,
+        guest_email: guestDetails.email,
+        guest_phone: guestDetails.phone,
+        total_price: totalPrice,
+        status: 'pending',
+        payment_status: 'pending',
+        booking_channel: 'rol-website',
+        special_requests: specialRequests || null,
+      };
+
+      let booking;
+      if (existingPending) {
+        console.log('[InlineCheckout] Reusing existing pending booking:', existingPending.id);
+        const { data: updated, error: updateErr } = await supabase
+          .from('bookings')
+          .update(bookingPayload)
+          .eq('id', existingPending.id)
+          .select('id')
+          .single();
+        if (updateErr) throw new Error("Failed to update booking");
+        booking = updated;
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from('bookings')
+          .insert(bookingPayload)
+          .select('id')
+          .single();
+        if (insertErr || !inserted) {
+          console.error('Booking creation error:', insertErr);
+          throw new Error("Failed to create booking");
+        }
+        booking = inserted;
       }
 
       // Get PayFast UUID using the booking ID
