@@ -733,7 +733,7 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       .from("pms_room_types_cache")
       .select("external_room_type_id, name")
       .eq("property_id", propertyId)
-      .eq("system_type", SOURCE);
+      .in("system_type", [SOURCE, "rol"]);
     
     const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const cacheSlugMap = new Map<string, string>();
