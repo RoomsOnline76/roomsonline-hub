@@ -1,99 +1,105 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+# Plan: NightsBridge-Style Embed Redesign + Review Platform Configuration
 
----
+## Build Error Fix (Prerequisite)
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
-
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
-
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+The `ERR_MODULE_NOT_FOUND: Cannot find package 'rollup'` error is blocking the dev server. The TS type-check errors are pre-existing (the components do accept `className` — the environment's type resolution is stale). Fix: add `rollup` as a dev dependency in `package.json`.
 
 ---
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+## Part 1: Redesign EmbedProperty.tsx to NightsBridge-Style Layout
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+Referencing the uploaded NightsBridge screenshot, the embed should have these sections in order:
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+### Section A — Branded Header Bar
+Already exists. Keep as-is (property name + logo).
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+### Section B — Date Picker Row + Controls
+Replace current `EmbedDatePicker` pill with a **NightsBridge-style inline row**: `Check-in [DATE PICKER] – Check-out [DATE PICKER] | X NIGHTS | [CHECK AVAILABILITY] | [HIDE CALENDAR]`
+- Use the existing `EmbedDatePicker` calendar dropdown but render as two separate date fields (check-in / check-out) with formatted dates like "WED 18 MAR 2026"
+- Add "Check Availability" button that triggers rate fetch
+- Add "Hide Calendar" / "Show Calendar" toggle
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+### Section C — Availability Calendar Grid (NEW — the key NightsBridge feature)
+Replace the card-based room layout with a **date-column availability table**:
+- **Rows** = Room types
+- **Columns** = Dates (configurable: Day view with ~10 days, Week navigation with ‹ DAY ‹‹ WEEK ›› DAY ›)
+- **Cells** = Rate amount (e.g., "1361.7") or "SOLD" badge (red background)
+- Hover over price shows tooltip with details
+- Table scrolls horizontally if needed but is designed for the visible date range
+- Fetch availability from `pms_availability_cache` OR calculate from `rolos_rate_plans` + `rolos_inventory`
+- Each room row has a small booking icon that links to `/booking/{slug}?roomTypeId=...&checkIn=...&checkOut=...&integration=...`
 
----
+### Section D — Property Info (NightsBridge-style)
+Keep existing but restructure to match screenshot:
+- Left column: Hero image + thumbnail gallery (scrollable row of small images)
+- Right column: "About us" description, "General facilities" list (two-column bullet points), "Contact Information" (phone + email)
 
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
+### Section E — TripAdvisor Reviews (NEW in embed)
+If property has `amenities.external_ids.tripadvisor_id` or `amenities.tripadvisor_id`:
+- Invoke `tripadvisor-api` edge function from the embed page
+- Render the same review widget as `TripAdvisorReviews.tsx` but with inline styles (embed doesn't use Tailwind)
+- Show: TripAdvisor header bar, rating bubbles, review count, subratings grid, distribution bars, recent reviews
 
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
-
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
-
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
-
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
-
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
-
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
+### Section F — Other Review Platforms (NEW)
+If property has configured review platforms (see Part 2), show links/widgets for each:
+- **Google Reviews**: Show Google star rating + review count + link to Google Maps page
+- Other platforms: Show platform logo + rating + link
 
 ---
 
-## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
+## Part 2: Review Platforms Configuration in ROL'OS PMS
 
-### Root Cause
-Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
+### Database Change
+Add `review_platforms` JSONB column to `properties` table (or store in `amenities`). Structure:
+```json
+{
+  "platforms": [
+    { "type": "tripadvisor", "id": "d123456", "enabled": true },
+    { "type": "google", "place_id": "ChIJ...", "enabled": true },
+    { "type": "booking_com", "url": "https://...", "enabled": true }
+  ]
+}
+```
 
-### Changes
-- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
-- ✅ **Benson adapter**: Calls hydration after cache writes
-- ✅ **HotelBeds adapter**: Calls hydration after cache writes
-- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
-- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
+Store in `amenities.review_platforms` to avoid a migration — the amenities JSONB column already exists and is used for extensible config.
+
+### UI: Add "Review Platforms" section to PMSBranding.tsx
+Add a new Card section in the Branding & Stationery page:
+- Title: "Review Platforms"
+- Description: "Connect your review platforms to display ratings on your booking pages and embeds"
+- For each platform type (TripAdvisor, Google Reviews, Booking.com):
+  - Toggle to enable/disable
+  - Platform-specific ID field (TripAdvisor ID, Google Place ID, Booking.com URL)
+  - If TripAdvisor ID exists in `amenities.external_ids.tripadvisor_id`, auto-populate
+- Save alongside existing branding config
 
 ---
 
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
+## Part 3: Availability Data for Calendar Grid
+
+The embed needs per-date, per-room availability. Two sources:
+
+1. **`pms_availability_cache`** — for properties synced with external PMS (Benson, HotelBeds)
+2. **ROL'OS native** — query `rolos_inventory` for availability counts and `rolos_rate_plans` + `rolos_rate_plan_room_types` for rates
+
+The embed will:
+1. On "Check Availability" click (or on load), fetch 10 days of data starting from check-in
+2. For each room type, determine: rate per night and whether units are available (inventory > 0)
+3. Display rate or "SOLD" accordingly
+
+---
+
+## Files Summary
+
+| File | Action |
+|------|--------|
+| `package.json` | **Edit** — add `rollup` to devDependencies |
+| `src/pages/EmbedProperty.tsx` | **Rewrite** — NightsBridge-style layout with calendar grid, property info, reviews |
+| `src/components/embed/EmbedDatePicker.tsx` | **Edit** — add formatted date display mode for NightsBridge header style |
+| `src/components/embed/EmbedAvailabilityGrid.tsx` | **Create** — date-column availability table component |
+| `src/components/embed/EmbedTripAdvisorReviews.tsx` | **Create** — inline-styled TripAdvisor reviews for embed context |
+| `src/components/embed/EmbedReviewPlatforms.tsx` | **Create** — renders configured review platform badges/widgets |
+| `src/pages/pms/PMSBranding.tsx` | **Edit** — add Review Platforms configuration card |
+
