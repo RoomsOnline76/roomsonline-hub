@@ -101,6 +101,7 @@ const Booking = () => {
       fontColor: urlBrandFont,
       propertyId: id || "",
     };
+    saveBrandToSession(brand);
     const cleanup = applyBrandToDocument(brand);
     return cleanup;
   }, [urlBrandColor, urlBrandSecondary, urlBrandFont, id]);

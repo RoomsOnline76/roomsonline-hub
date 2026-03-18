@@ -87,15 +87,16 @@ const BookingConfirmation = () => {
     }
   }, [booking]);
 
-  // Layout wrapper — white-label for integration flows
-  const LayoutWrapper = ({ children: c }: { children: React.ReactNode }) =>
+  // Layout wrapper — stable function to avoid re-mount on state changes
+  const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
+  const wrapLayout = useCallback((children: React.ReactNode) =>
     isIntegration ? (
-      <WhiteLabelLayout propertyName={booking?.properties ? (booking.properties as any).name : undefined}>
-        {c}
+      <WhiteLabelLayout propertyName={propertyName}>
+        {children}
       </WhiteLabelLayout>
     ) : (
-      <PublicLayout>{c}</PublicLayout>
-    );
+      <PublicLayout>{children}</PublicLayout>
+    ), [isIntegration, propertyName]);
 
   if (isLoading) {
     return (
