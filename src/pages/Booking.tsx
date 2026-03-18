@@ -731,12 +731,29 @@ const Booking = () => {
                 }
               }
               
+              // Build aliases: map amenities room IDs to hfRoom IDs by name match
+              const amenityIdAliases: string[] = [];
+              for (const rt of roomTypes) {
+                const hfMatch = (hfRooms || []).find((h: any) => h.name === rt.name);
+                if (hfMatch && String(rt.id) !== hfMatch.id) {
+                  amenityIdAliases.push(String(rt.id));
+                }
+              }
+              
               // Build synthetic availability from resolved rates
               const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
                 const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
                 const effectiveRate = room.daily_rate ? Number(room.daily_rate) : (rolosPlan?.base_rate ?? 0);
                 const pricingModel = rolosPlan?.pricing_model || "per_unit";
                 const isPerPerson = pricingModel === "per_person";
+                
+                // Collect all IDs that should match this room
+                const aliases: string[] = [];
+                for (const rt of roomTypes) {
+                  if (rt.name === room.name && String(rt.id) !== room.id) {
+                    aliases.push(String(rt.id));
+                  }
+                }
                 
                 const dailyRates: any[] = [];
                 const availArr: any[] = [];
@@ -752,6 +769,7 @@ const Booking = () => {
                 return {
                   room_type_id: room.id,
                   room_type_name: room.name,
+                  room_type_aliases: aliases,
                   rate_types: [{
                     rate_type_id: 'rolos-rate',
                     rate_type_name: 'Standard Rate',
