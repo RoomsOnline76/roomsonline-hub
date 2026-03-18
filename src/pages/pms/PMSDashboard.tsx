@@ -134,6 +134,7 @@ interface RoomType {
   is_active: boolean | null;
   max_occupancy: number | null;
   property_type: string | null;
+  linked_overview_id?: string | null;
 }
 
 interface Room {
