@@ -12,6 +12,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
@@ -27,6 +28,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
   return (
     <div className="space-y-4">
+      {/* Payment Provider */}
+      <PropertyPaymentProviderSelect propertyId={property.id} />
+
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="py-4">

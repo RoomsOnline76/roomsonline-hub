@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type PaymentGateway = "payfast" | "paygate";
+export type PaymentGateway =
+  | "payfast" | "paygate" | "peach" | "yoco" | "ozow"
+  | "dpo" | "addpay" | "payflex" | "stitch" | "ikhokha"
+  | "snapscan" | "zapper" | "flutterwave" | "stripe";
 
 interface ActiveGatewayResult {
   gateway: PaymentGateway;
@@ -10,15 +13,31 @@ interface ActiveGatewayResult {
 }
 
 /**
- * Resolves which payment gateway is currently active from supporting_systems.
- * Only one payment system can be active at a time (enforced by DB trigger).
- * 
- * - If "PayGate" is active → returns "paygate" (redirect flow)
- * - If anything else (PayFast Staging/Production) is active → returns "payfast" (onsite modal)
- * - Default fallback: "payfast"
+ * Resolves which payment gateway is currently active.
+ *
+ * Resolution order:
+ * 1. If propertyId is provided, check properties.payment_provider
+ * 2. Fall back to the global supporting_systems payment entry
+ * 3. Default: "payfast"
  */
-export function useActivePaymentGateway(): ActiveGatewayResult {
-  const { data, isLoading } = useQuery({
+export function useActivePaymentGateway(propertyId?: string): ActiveGatewayResult {
+  // Per-property override
+  const { data: propertyProvider, isLoading: propLoading } = useQuery({
+    queryKey: ["property-payment-provider", propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("payment_provider")
+        .eq("id", propertyId!)
+        .single();
+      if (error) return null;
+      return data?.payment_provider || null;
+    },
+    enabled: !!propertyId,
+  });
+
+  // Global fallback
+  const { data: globalData, isLoading: globalLoading } = useQuery({
     queryKey: ["active-payment-gateway"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -27,17 +46,28 @@ export function useActivePaymentGateway(): ActiveGatewayResult {
         .eq("category", "payment")
         .eq("is_active", true)
         .maybeSingle();
-
       if (error) {
         console.error("[PaymentGateway] Error fetching active gateway:", error);
         return null;
       }
       return data;
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 min
+    staleTime: 5 * 60 * 1000,
   });
 
-  const systemName = data?.system_name || "PayFast Staging";
+  const isLoading = (!!propertyId && propLoading) || globalLoading;
+
+  // If property has an explicit provider, use it
+  if (propertyProvider && propertyProvider !== "default") {
+    return {
+      gateway: propertyProvider as PaymentGateway,
+      systemName: propertyProvider,
+      isLoading,
+    };
+  }
+
+  // Global fallback
+  const systemName = globalData?.system_name || "PayFast Staging";
   const isPaygate = systemName.toLowerCase().includes("paygate");
 
   return {

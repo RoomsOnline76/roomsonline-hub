@@ -16,6 +16,7 @@ import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 
 interface Property {
@@ -113,6 +114,9 @@ export default function AdminIntegrations() {
           <div className="space-y-6">
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
+
+            {/* Per-Property Payment Provider */}
+            <PropertyPaymentProviderSelect propertyId={selectedProperty} />
 
             {/* Analytics overview */}
             <IntegrationAnalytics propertyId={selectedProperty} />

@@ -13,6 +13,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -100,6 +101,9 @@ export default function PMSIntegrations() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Payment Provider Selection */}
+        <PropertyPaymentProviderSelect propertyId={propertyId} />
 
         {/* Integration Tabs — Smart Button first with pulsing accent */}
         <Tabs defaultValue="smart_button" className="space-y-4">
