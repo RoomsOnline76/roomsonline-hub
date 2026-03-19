@@ -12,6 +12,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
