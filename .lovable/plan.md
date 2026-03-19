@@ -1,99 +1,48 @@
 
-# ROL'OS PMS Module Completion — Implementation Progress
 
-## Phases 1–8 ✅ COMPLETED (see git history for details)
+# Per-Property Payment Provider Selection
 
----
+## Current State
+- The `properties` table already has a `payment_provider` column (nullable string)
+- Payment gateway is currently resolved globally via `supporting_systems` table + `useActivePaymentGateway` hook
+- The hook only supports "payfast" or "paygate" and ignores the per-property `payment_provider` field entirely
 
-## Phase 9 — Automated Triggers, Gateway Bridge & Night Audit v3.0 ✅ COMPLETED
+## What Changes
 
-### Database Triggers
-- ✅ `auto_queue_booking_message()` — auto-queues templates on booking status change
-- ✅ `auto_create_booking_folio()` — auto-creates folio when booking confirmed (UPDATE + INSERT)
+### 1. New shared component: `PropertyPaymentProviderSelect`
+**File:** `src/components/integrations/PropertyPaymentProviderSelect.tsx`
 
-### Edge Functions
-- ✅ `pms-night-audit` v3.0 — pre-arrival queuing, folio reconciliation, audit summary email via Resend
-- ✅ `pms-financial` v3.0 — `initiate_gateway_payment` (bridges PayFast/PayGate), `reconcile` action
+A reusable card with a dropdown listing all 14 payment providers. Each option shows name + website. Reads/writes `properties.payment_provider`. Default label: "Platform Default (PayFast/PayGate)" when null.
 
----
+Provider list (stored values → display labels):
+`payfast`, `paygate`, `peach`, `yoco`, `ozow`, `dpo`, `addpay`, `payflex`, `stitch`, `ikhokha`, `snapscan`, `zapper`, `flutterwave`, `stripe`
 
-## Phase 10 — Channel Manager, Yield Engine & Portfolio Enhancement ✅ COMPLETED
+### 2. Add to PMS Integrations page
+**File:** `src/pages/pms/PMSIntegrations.tsx`
+- Import `PropertyPaymentProviderSelect`
+- Render it between the Property Context Card and the Integration Tabs
+- Pass `propertyId` prop
 
-### Channel Manager — Adapter Pattern (`pms-channel-sync` v2.0)
-- ✅ **Adapter interface**: `ChannelAdapter` with `pushInventory`, `pullReservations`, `pushRates`
-- ✅ **Booking.com adapter**: OTA_HotelAvailNotifRQ-style XML payload structure, rate push, reservation pull
-- ✅ **Airbnb adapter**: JSON API payload structure for calendar, pricing, reservations
-- ✅ **Generic adapter**: Fallback for custom/manual channels
-- ✅ **Adapter registry**: `getAdapter()` routes by channel name
-- ✅ **Conflict detection**: `detectConflicts()` checks date overlaps before importing reservations
-- ✅ **Rate sync**: New `push_rates` action pushes rate plans through adapters
-- ✅ **Manual sync**: Now runs push_inventory + push_rates + pull_reservations
+### 3. Add to Admin Property Edit (Integrations tab)
+**File:** `src/components/property/PropertyFormIntegrationsTab.tsx`
+- Import `PropertyPaymentProviderSelect`
+- Render it at the top of the integrations tab, above the Widget Toolkit card
+- Pass `propertyId={property.id}` prop
 
-### Revenue Management — Yield Rules Engine
-- ✅ `rolos_yield_rules` table (property_id, name, rule_type, condition JSONB, adjustment_percent, priority, is_active) with RLS
-- ✅ Rule types: `occupancy_threshold`, `day_of_week`, `lead_time`, `season`
-- ✅ UI: New "Yield Rules" tab in `/pms/revenue` with create dialog, toggle, delete, condition display
-- ✅ Hooks: `useYieldRules`, `useUpsertYieldRule`, `useDeleteYieldRule`, `useToggleYieldRule`
+### 4. Add to Admin Integrations page
+**File:** `src/pages/AdminIntegrations.tsx`
+- Import `PropertyPaymentProviderSelect`
+- Render it between the PayFast Environment Toggle and the Integration Analytics
+- Pass `propertyId={selectedProperty}` prop
 
-### Portfolio View — Enhanced Depth
-- ✅ Added **RevPAR** as 5th KPI card (avg across all properties)
-- ✅ Property cards now show 4 metrics: Revenue, Occupancy, ADR, RevPAR
-- ✅ KPI grid expanded from 4-col to 5-col layout
+### 5. Update `useActivePaymentGateway` hook
+**File:** `src/hooks/useActivePaymentGateway.tsx`
+- Accept optional `propertyId` parameter
+- When provided, first check `properties.payment_provider` for that property
+- If property has a specific provider set (not null/not "default"), return that
+- Otherwise fall back to the existing global `supporting_systems` lookup
+- Expand `PaymentGateway` type to include all 14 providers
 
-### Files Created/Modified
-- `supabase/functions/pms-channel-sync/index.ts` — v2.0 adapter pattern rewrite
-- `src/pages/pms/PMSRevenue.tsx` — yield rules tab + hooks
-- `src/pages/pms/PMSPortfolio.tsx` — RevPAR KPI + enhanced property cards
-- Migration: `rolos_yield_rules` table
+### No database migration needed
+The `payment_provider` column already exists on the `properties` table as a nullable string. No schema change required.
 
----
-
-## Phase 11 — TOBI Action Capabilities & TypeScript Cleanup ✅ COMPLETED
-
-### TOBI AI — Action Capabilities
-- ✅ `help-assistant` edge function v2.0: accepts `actionRequest` for direct JSON responses
-- ✅ 4 action types: `trigger_night_audit`, `occupancy_summary`, `todays_arrivals`, `revenue_snapshot`
-- ✅ System prompt updated with ACTION BLOCK format for AI to trigger actions inline
-- ✅ `PMSTobiAssistant.tsx` rewritten: parses action blocks from streamed text, executes via edge function, renders `ActionResultCard` inline
-- ✅ Action result cards: occupancy grid, arrivals/departures list, revenue breakdown with channel split, night audit confirmation
-- ✅ Suggested prompts updated to include "Run the night audit" and "Who's arriving today?"
-
-### TypeScript Cleanup
-- ✅ `useChannelManager.ts`: Replaced all `as any` with typed interfaces (`ChannelConnection`, `ChannelRoomMapping`, `ChannelRateMapping`, `ChannelSyncLog`) + `fromTable()` helper
-- ✅ `PMSRevenue.tsx`: Replaced loose `as any[]` casts with `as unknown as Array<T>` typed assertions
-- ✅ `PMSPortfolio.tsx`: `rolos_rooms` query retains minimal cast (table not in generated types)
-- ✅ Note: Table-name casts (`"table_name" as never`) are unavoidable until ROL'OS tables are added to generated types
-
-## Codebase Audit & Optimization ✅ COMPLETED (2026-03-09)
-
-### Phase A — Dead Code Cleanup
-- ✅ Removed `HomeOld.tsx` (845 lines) and `/home-old` route
-- ✅ Removed `StagingBook.tsx` (627 lines) and `/staging` route
-- ✅ Removed duplicate `/auth` route in App.tsx
-- ✅ Deleted unused `src/components/ui/use-toast.ts` re-export shim
-
-### Phase B — System Files
-- ✅ `robots.txt`: Added disallows for `/pms/`, `/dev/`, `/pulse`, `/journey/`, `/embed/`, `/staff-login`, `/onboarding/`, `/contract/`; allowed `/how-our-booking-engine-works`
-- ✅ `sitemap.xml`: Added `/how-our-booking-engine-works` entry; updated all `lastmod` to 2026-03-09
-
-### Phase C — TypeScript Hardening
-- ✅ `PMSRoomTypes.tsx`: Created `PropertyAmenities`, `OverviewRoomType` interfaces replacing all `as any` casts
-- ✅ `ItineraryContext.tsx`: Replaced `as any` with proper `Database['public']['Tables']['itineraries']` type assertions
-
----
-
-## Phase 12 — Benson/HotelBeds ARI Bridge ✅ COMPLETED (2026-03-17)
-
-### Root Cause
-Benson and HotelBeds adapters wrote ARI to `pms_availability_cache` but nothing hydrated that data into the ROL'OS pipeline tables (`rolos_room_types`, `rolos_rate_plans`, `property_availability`) that the dashboard reads.
-
-### Changes
-- ✅ **New edge function**: `hydrate-pms-cache-to-rolos` — bridges cache → `hostfully_room_types` (triggers auto-sync to `rolos_room_types`/`rolos_rooms`) → `rolos_rate_plans` + `rolos_rate_plan_room_types` → `property_availability`
-- ✅ **Benson adapter**: Calls hydration after cache writes
-- ✅ **HotelBeds adapter**: Calls hydration after cache writes
-- ✅ **Dashboard fallback**: `getRateForDate` now checks `pms_availability_cache` as step 4 when ROL'OS rate chain returns null
-- ✅ **Initial hydration run**: Benson (3 room types, 2 rate plans, 33 avail rows) + HotelBeds (5 room types, 1 rate plan, 70 avail rows)
-
----
-
-## 🏁 ROL'OS PMS Module — ALL PHASES COMPLETE (Phase 1-12)
