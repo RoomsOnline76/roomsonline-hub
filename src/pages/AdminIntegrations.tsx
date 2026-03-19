@@ -115,6 +115,9 @@ export default function AdminIntegrations() {
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
 
+            {/* Per-Property Payment Provider */}
+            <PropertyPaymentProviderSelect propertyId={selectedProperty} />
+
             {/* Analytics overview */}
             <IntegrationAnalytics propertyId={selectedProperty} />
 

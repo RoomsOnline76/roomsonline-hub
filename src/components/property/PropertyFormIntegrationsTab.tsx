@@ -28,6 +28,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
   return (
     <div className="space-y-4">
+      {/* Payment Provider */}
+      <PropertyPaymentProviderSelect propertyId={property.id} />
+
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">
         <CardContent className="py-4">

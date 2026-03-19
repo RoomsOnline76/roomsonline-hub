@@ -102,6 +102,9 @@ export default function PMSIntegrations() {
           </CardContent>
         </Card>
 
+        {/* Payment Provider Selection */}
+        <PropertyPaymentProviderSelect propertyId={propertyId} />
+
         {/* Integration Tabs — Smart Button first with pulsing accent */}
         <Tabs defaultValue="smart_button" className="space-y-4">
           <TabsList className="grid grid-cols-7 w-full max-w-4xl">
