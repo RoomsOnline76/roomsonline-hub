@@ -55,7 +55,19 @@ function sanitizeName(name: string): string {
 function parseUnitName(name: string): { building: string; room: string; type: string } | null {
   if (!name) return null;
   const sanitized = sanitizeName(name);
-  const parts = sanitized.split(' ');
+
+  // Pre-process: expand hyphenated tokens like "102-1BD" into "102 1BD"
+  const expandedParts: string[] = [];
+  for (const token of sanitized.split(' ')) {
+    const hyphenMatch = token.match(/^(\d+[A-Za-z]?)-(.+)$/);
+    if (hyphenMatch) {
+      expandedParts.push(hyphenMatch[1], hyphenMatch[2]);
+    } else {
+      expandedParts.push(token);
+    }
+  }
+
+  const parts = expandedParts;
   if (parts.length < 2) return { building: name, room: '', type: '' };
 
   let roomIndex = -1;
