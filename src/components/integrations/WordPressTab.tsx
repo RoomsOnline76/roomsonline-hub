@@ -376,7 +376,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
                         ) : log.status === "failed" ? (
                           <XCircle className="h-3 w-3 text-destructive" />
                         ) : (
-                          <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                          <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
                         )}
                         <span className="font-mono">{log.event}</span>
                       </div>
