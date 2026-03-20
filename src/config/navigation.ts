@@ -134,6 +134,7 @@ const systemControlSection: NavSection = {
     { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/dev/logs', minRole: 'dev', description: 'Sync and error logs' },
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
     { id: 'task-tracker', title: 'Task Tracker', icon: ClipboardCheck, href: '/dev/tasks', minRole: 'dev', description: 'Dev task board' },
+    { id: 'api-configurator', title: 'API Configurator', icon: Code2, href: '/admin/system/api-configurator', minRole: 'dev', description: 'UI config for WP plugin & embeds' },
   ],
 };
 
