@@ -59,6 +59,12 @@ Before making any modifications, read these files in order:
 - ✅ Extend booking bar configuration
 - ✅ Create new integration channels
 
+### Connect Portal
+- ✅ Update API documentation and code examples
+- ✅ Add new FAQ entries
+- ✅ Extend developer onboarding content
+- ✅ Update pricing and feature pages
+
 ---
 
 ## FORBIDDEN ACTIONS (LLMs MUST NEVER)
