@@ -6,13 +6,12 @@ interface RoomAvailability {
   roomName: string;
   maxGuests?: number;
   beds?: number;
-  /** rate per date key (yyyy-MM-dd) → number | null (null = sold out) */
   ratesByDate: Record<string, number | null>;
 }
 
 interface EmbedAvailabilityGridProps {
   rooms: RoomAvailability[];
-  startDate: string; // yyyy-MM-dd
+  startDate: string;
   visibleDays?: number;
   brandColor: string;
   fontColor: string;
@@ -40,123 +39,129 @@ export function EmbedAvailabilityGrid({
   const canGoBack = !isBefore(addDays(new Date(startDate), offset - 1), today);
 
   return (
-    <div style={{ overflowX: "auto", width: "100%" }}>
+    <div style={{ overflowX: "auto", width: "100%", padding: "4px 0" }}>
       {/* Navigation */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px 0", fontSize: "12px" }}>
-        <NavBtn label="‹‹ Week" onClick={() => setOffset(o => Math.max(o - 7, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
-        <NavBtn label="‹ Day" onClick={() => setOffset(o => Math.max(o - 1, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
-        <span style={{ padding: "0 8px", fontWeight: 600, fontSize: "13px", color: "#333" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px 16px", fontSize: "12px" }}>
+        <NavBtn label="‹‹" onClick={() => setOffset(o => Math.max(o - 7, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
+        <NavBtn label="‹" onClick={() => setOffset(o => Math.max(o - 1, 0))} disabled={!canGoBack} brandColor={brandColor} fontColor={fontColor} />
+        <span style={{ padding: "0 12px", fontWeight: 600, fontSize: "13px", color: "#333", letterSpacing: "-0.01em" }}>
           {format(dates[0], "d MMM")} – {format(dates[dates.length - 1], "d MMM yyyy")}
         </span>
-        <NavBtn label="Day ›" onClick={() => setOffset(o => o + 1)} brandColor={brandColor} fontColor={fontColor} />
-        <NavBtn label="Week ››" onClick={() => setOffset(o => o + 7)} brandColor={brandColor} fontColor={fontColor} />
+        <NavBtn label="›" onClick={() => setOffset(o => o + 1)} brandColor={brandColor} fontColor={fontColor} />
+        <NavBtn label="››" onClick={() => setOffset(o => o + 7)} brandColor={brandColor} fontColor={fontColor} />
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
-        <thead>
-          <tr>
-            <th style={{ ...thStyle, minWidth: "140px", textAlign: "left", background: brandColor, color: fontColor, borderRadius: "6px 0 0 0" }}>
-              Room Type
-            </th>
-            {dates.map((d, i) => {
-              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-              return (
-                <th
-                  key={d.toISOString()}
-                  style={{
-                    ...thStyle,
-                    minWidth: "62px",
-                    textAlign: "center",
-                    background: isWeekend ? darken(brandColor, 0.15) : brandColor,
-                    color: fontColor,
-                    borderRadius: i === dates.length - 1 ? "0 6px 0 0" : undefined,
-                  }}
-                >
-                  <div>{format(d, "EEE")}</div>
-                  <div style={{ fontWeight: 700 }}>{format(d, "d")}</div>
-                  <div style={{ fontSize: "10px", opacity: 0.8 }}>{format(d, "MMM")}</div>
-                </th>
-              );
-            })}
-            <th style={{ ...thStyle, width: "40px", background: brandColor, color: fontColor }} />
-          </tr>
-        </thead>
-        <tbody>
-          {rooms.length === 0 ? (
+      <div style={{ padding: "0 12px 12px" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0", fontSize: "12px" }}>
+          <thead>
             <tr>
-              <td colSpan={dates.length + 2} style={{ padding: "24px", textAlign: "center", color: "#999" }}>
-                No rooms configured. Add rooms in your property setup.
-              </td>
+              <th style={{ ...thStyle, minWidth: "140px", textAlign: "left", background: brandColor, color: fontColor, borderRadius: "8px 0 0 8px" }}>
+                Room Type
+              </th>
+              {dates.map((d, i) => {
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                return (
+                  <th
+                    key={d.toISOString()}
+                    style={{
+                      ...thStyle,
+                      minWidth: "58px",
+                      textAlign: "center",
+                      background: isWeekend ? darken(brandColor, 0.12) : brandColor,
+                      color: fontColor,
+                      borderRadius: i === dates.length - 1 && !onBook ? "0 8px 8px 0" : undefined,
+                    }}
+                  >
+                    <div style={{ fontSize: "10px", opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.04em" }}>{format(d, "EEE")}</div>
+                    <div style={{ fontWeight: 700, fontSize: "14px" }}>{format(d, "d")}</div>
+                    <div style={{ fontSize: "9px", opacity: 0.6, textTransform: "uppercase" }}>{format(d, "MMM")}</div>
+                  </th>
+                );
+              })}
+              {onBook && (
+                <th style={{ ...thStyle, width: "48px", background: brandColor, color: fontColor, borderRadius: "0 8px 8px 0" }} />
+              )}
             </tr>
-          ) : (
-            rooms.map((room, ri) => (
-              <tr key={room.roomId} style={{ background: ri % 2 === 0 ? "#fff" : "#fafafa" }}>
-                <td style={{ ...tdStyle, fontWeight: 600, color: "#333" }}>
-                  <div>{room.roomName}</div>
-                  {(room.maxGuests || room.beds) && (
-                    <div style={{ fontSize: "10px", color: "#888", fontWeight: 400 }}>
-                      {[room.maxGuests && `${room.maxGuests} pax`, room.beds && `${room.beds} bed${room.beds > 1 ? "s" : ""}`].filter(Boolean).join(" · ")}
-                    </div>
-                  )}
-                </td>
-                {dates.map((d) => {
-                  const key = format(d, "yyyy-MM-dd");
-                  const rate = room.ratesByDate[key];
-                  const isSold = rate === null;
-                  const hasRate = rate !== undefined && rate !== null;
-
-                  return (
-                    <td
-                      key={key}
-                      style={{
-                        ...tdStyle,
-                        textAlign: "center",
-                        fontWeight: 600,
-                        background: isSold ? "#fee2e2" : undefined,
-                        color: isSold ? "#dc2626" : hasRate ? "#222" : "#ccc",
-                      }}
-                      title={hasRate ? `${currency}${rate.toLocaleString()} per night` : isSold ? "Sold out" : "No rate"}
-                    >
-                      {isSold ? (
-                        <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase" }}>SOLD</span>
-                      ) : hasRate ? (
-                        <span>{rate.toLocaleString()}</span>
-                      ) : (
-                        "–"
-                      )}
-                    </td>
-                  );
-                })}
-                <td style={{ ...tdStyle, textAlign: "center" }}>
-                  {onBook && (
-                    <button
-                      onClick={() => onBook(room.roomId, room.roomName)}
-                      title={`Book ${room.roomName}`}
-                      style={{
-                        background: brandColor,
-                        color: fontColor,
-                        border: "none",
-                        borderRadius: "4px",
-                        padding: "4px 6px",
-                        cursor: "pointer",
-                        fontSize: "10px",
-                        fontWeight: 700,
-                      }}
-                    >
-                      ✓
-                    </button>
-                  )}
+          </thead>
+          <tbody>
+            {rooms.length === 0 ? (
+              <tr>
+                <td colSpan={dates.length + 2} style={{ padding: "32px", textAlign: "center", color: "#999", fontSize: "13px" }}>
+                  No rooms configured yet.
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              rooms.map((room, ri) => (
+                <tr key={room.roomId} style={{ background: ri % 2 === 0 ? "#fff" : "#fafbfc" }}>
+                  <td style={{ ...tdStyle, fontWeight: 600, color: "#222" }}>
+                    <div style={{ fontSize: "13px" }}>{room.roomName}</div>
+                    {(room.maxGuests || room.beds) && (
+                      <div style={{ fontSize: "10px", color: "#999", fontWeight: 400, marginTop: "1px" }}>
+                        {[room.maxGuests && `${room.maxGuests} guests`, room.beds && `${room.beds} bed${room.beds > 1 ? "s" : ""}`].filter(Boolean).join(" · ")}
+                      </div>
+                    )}
+                  </td>
+                  {dates.map((d) => {
+                    const key = format(d, "yyyy-MM-dd");
+                    const rate = room.ratesByDate[key];
+                    const isSold = rate === null;
+                    const hasRate = rate !== undefined && rate !== null;
+
+                    return (
+                      <td
+                        key={key}
+                        style={{
+                          ...tdStyle,
+                          textAlign: "center",
+                          fontWeight: 600,
+                          background: isSold ? "#fef2f2" : undefined,
+                          color: isSold ? "#ef4444" : hasRate ? "#222" : "#ccc",
+                        }}
+                        title={hasRate ? `${currency}${rate.toLocaleString()} per night` : isSold ? "Sold out" : "No rate"}
+                      >
+                        {isSold ? (
+                          <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>SOLD</span>
+                        ) : hasRate ? (
+                          <span style={{ fontSize: "12px" }}>{rate.toLocaleString()}</span>
+                        ) : (
+                          <span style={{ fontSize: "11px" }}>–</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  {onBook && (
+                    <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <button
+                        onClick={() => onBook(room.roomId, room.roomName)}
+                        title={`Book ${room.roomName}`}
+                        style={{
+                          background: brandColor,
+                          color: fontColor,
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "6px 10px",
+                          cursor: "pointer",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          letterSpacing: "0.02em",
+                          transition: "opacity 0.15s",
+                        }}
+                      >
+                        Book
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-/* ── Small helpers ── */
+/* ── Helpers ── */
 
 function NavBtn({ label, onClick, disabled, brandColor, fontColor }: { label: string; onClick: () => void; disabled?: boolean; brandColor: string; fontColor: string }) {
   return (
@@ -164,15 +169,17 @@ function NavBtn({ label, onClick, disabled, brandColor, fontColor }: { label: st
       onClick={onClick}
       disabled={disabled}
       style={{
-        background: disabled ? "#e5e5e5" : brandColor,
-        color: disabled ? "#999" : fontColor,
+        background: disabled ? "#f0f0f0" : brandColor,
+        color: disabled ? "#bbb" : fontColor,
         border: "none",
-        borderRadius: "4px",
-        padding: "4px 10px",
-        fontSize: "11px",
-        fontWeight: 600,
+        borderRadius: "6px",
+        padding: "5px 10px",
+        fontSize: "13px",
+        fontWeight: 700,
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.5 : 1,
+        transition: "all 0.15s ease",
+        minWidth: "32px",
       }}
     >
       {label}
@@ -190,14 +197,14 @@ function darken(hex: string, amount: number): string {
 }
 
 const thStyle: React.CSSProperties = {
-  padding: "6px 4px",
-  borderBottom: "1px solid #e5e5e5",
+  padding: "8px 4px",
+  borderBottom: "none",
   fontSize: "11px",
   fontWeight: 600,
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "8px 6px",
+  padding: "10px 6px",
   borderBottom: "1px solid #f0f0f0",
   fontSize: "12px",
 };
