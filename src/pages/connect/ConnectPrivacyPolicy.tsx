@@ -302,10 +302,10 @@ export default function ConnectPrivacyPolicy() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium text-foreground w-20">Email</span>
                   <a
-                    href="mailto:privacy@roomsonline.co.za"
+                    href="mailto:connect@roomsonline.co.za"
                     className="text-sm text-primary hover:underline transition-colors"
                   >
-                    privacy@roomsonline.co.za
+                    connect@roomsonline.co.za
                   </a>
                 </div>
                 <div className="flex items-center gap-3">
