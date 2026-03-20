@@ -902,7 +902,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
-        .in("role", ["admin", "dev"]);
+        .in("role", ["admin", "dev", "fearless_leader"]);
 
       const adminStatus = roleData && roleData.length > 0;
       setIsAdmin(adminStatus);
