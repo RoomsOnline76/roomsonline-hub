@@ -349,6 +349,14 @@ Deno.serve(async (req) => {
       case "get_daily_metrics":
         return await handleGetDailyMetrics(body, supabase);
 
+      // Service Charges & Refunds
+      case "apply_service_charges":
+        return await handleApplyServiceCharges(body, supabase);
+      case "process_checkout_refunds":
+        return await handleProcessCheckoutRefunds(body, supabase);
+      case "get_booking_charges":
+        return await handleGetBookingCharges(body, supabase);
+
       // Phase 1: Inventory Calendar
       case "update_inventory":
         return await handleUpdateInventory(body, supabase);
