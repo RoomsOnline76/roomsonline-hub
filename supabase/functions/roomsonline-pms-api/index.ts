@@ -1750,6 +1750,33 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
       );
     }
   }
+  // Process on_checkout refunds before closing folio
+  const { data: pendingRefunds } = await supabase.from("rolos_booking_charges")
+    .select("id, name, amount, folio_transaction_id")
+    .eq("booking_id", booking_id)
+    .eq("is_refundable", true)
+    .eq("refund_timing", "on_checkout")
+    .eq("refund_status", "pending");
+  if (pendingRefunds?.length) {
+    let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+    if (!folio) {
+      const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+      folio = newFolio;
+    }
+    for (const charge of pendingRefunds) {
+      const { data: refundTx } = await supabase.from("rolos_folio_transactions").insert({
+        folio_id: folio.id,
+        transaction_type: "refund",
+        description: `Refund: ${charge.name}`,
+        amount: -Math.abs(charge.amount),
+      }).select("id").single();
+      await supabase.from("rolos_booking_charges").update({
+        refund_status: "processed",
+        refund_transaction_id: refundTx?.id || null,
+      }).eq("id", charge.id);
+    }
+    console.log(`[check_out] Processed ${pendingRefunds.length} on-checkout refund(s)`);
+  }
   // Close folio
   await supabase.from("rolos_folios").update({ status: "closed", closed_at: new Date().toISOString() }).eq("booking_id", booking_id);
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
