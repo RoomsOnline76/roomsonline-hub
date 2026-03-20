@@ -39,8 +39,10 @@ export async function writeIngestion(
   data: TransformedData,
   rolPropertyId: string,
   ownerCredentialId: string,
-  supabase: any
+  supabase: any,
+  options?: { skipRooms?: boolean }
 ): Promise<WriteResult> {
+  const skipRooms = options?.skipRooms ?? false;
   const result: WriteResult = {
     success: false,
     propertyUpdated: false,
