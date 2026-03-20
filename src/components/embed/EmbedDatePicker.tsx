@@ -23,10 +23,6 @@ interface EmbedDatePickerProps {
   fontColor?: string;
 }
 
-/**
- * Expanding-snake date range picker for embed contexts.
- * Renders an inline calendar with the range highlighted as a continuous pill shape.
- */
 export function EmbedDatePicker({
   checkIn,
   checkOut,
@@ -85,40 +81,33 @@ export function EmbedDatePicker({
 
   const label =
     ciDate && coDate
-      ? `${format(ciDate, "d MMM")} – ${format(coDate, "d MMM")} (${nightsCount} night${nightsCount !== 1 ? "s" : ""})`
+      ? `${format(ciDate, "d MMM")} – ${format(coDate, "d MMM")} (${nightsCount}n)`
       : ciDate
         ? `${format(ciDate, "d MMM")} – select checkout`
         : "Select dates";
 
   return (
     <div style={{ position: "relative" }}>
-      {/* Date pill trigger */}
+      {/* Trigger pill */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
           gap: "8px",
           background: brandColor,
           color: fontColor,
           border: "none",
-          padding: "8px 16px",
-          borderRadius: "999px",
-          fontSize: "14px",
-          fontWeight: 500,
+          padding: "7px 16px",
+          borderRadius: "8px",
+          fontSize: "13px",
+          fontWeight: 600,
           cursor: "pointer",
+          transition: "opacity 0.15s",
+          letterSpacing: "-0.01em",
         }}
       >
-        <svg
-          width="16"
-          height="16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          viewBox="0 0 24 24"
-        >
+        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
           <line x1="8" y1="2" x2="8" y2="6" />
@@ -135,89 +124,34 @@ export function EmbedDatePicker({
             top: "100%",
             left: 0,
             zIndex: 50,
-            marginTop: "8px",
-            width: "320px",
+            marginTop: "6px",
+            width: "310px",
             background: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+            borderRadius: "14px",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.06)",
             overflow: "hidden",
           }}
         >
           {/* Month nav */}
-          <div
-            style={{
-              padding: "12px 16px 8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <button
-              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-              style={{
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                fontSize: "18px",
-                color: "#666",
-                padding: "4px 8px",
-                borderRadius: "50%",
-              }}
-            >
-              ‹
-            </button>
-            <span style={{ fontWeight: 600, fontSize: "15px", color: "#111" }}>
+          <div style={{ padding: "14px 16px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <MonthNavBtn label="‹" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} />
+            <span style={{ fontWeight: 700, fontSize: "14px", color: "#111", letterSpacing: "-0.01em" }}>
               {format(currentMonth, "MMMM yyyy")}
             </span>
-            <button
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-              style={{
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                fontSize: "18px",
-                color: "#666",
-                padding: "4px 8px",
-                borderRadius: "50%",
-              }}
-            >
-              ›
-            </button>
+            <MonthNavBtn label="›" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} />
           </div>
 
           {/* Day names */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              padding: "0 12px",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 12px" }}>
             {dayNames.map((d) => (
-              <span
-                key={d}
-                style={{
-                  textAlign: "center",
-                  fontSize: "11px",
-                  color: "#999",
-                  padding: "4px 0",
-                  fontWeight: 500,
-                }}
-              >
+              <span key={d} style={{ textAlign: "center", fontSize: "10px", color: "#aaa", padding: "4px 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 {d}
               </span>
             ))}
           </div>
 
           {/* Days grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              padding: "0 12px 12px",
-              gap: "2px",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "2px 12px 12px", gap: "2px" }}>
             {Array.from({ length: leadingBlanks }).map((_, i) => (
               <span key={`blank-${i}`} />
             ))}
@@ -233,21 +167,13 @@ export function EmbedDatePicker({
               let borderRadius = "50%";
 
               if (isCi && isCo) {
-                bg = brandColor;
-                color = fontColor;
-                borderRadius = "50%";
+                bg = brandColor; color = fontColor; borderRadius = "50%";
               } else if (isCi) {
-                bg = brandColor;
-                color = fontColor;
-                borderRadius = "50% 0 0 50%";
+                bg = brandColor; color = fontColor; borderRadius = "50% 0 0 50%";
               } else if (isCo) {
-                bg = brandColor;
-                color = fontColor;
-                borderRadius = "0 50% 50% 0";
+                bg = brandColor; color = fontColor; borderRadius = "0 50% 50% 0";
               } else if (inRange) {
-                bg = `${brandColor}22`;
-                color = brandColor;
-                borderRadius = "0";
+                bg = `${brandColor}18`; color = brandColor; borderRadius = "0";
               }
 
               return (
@@ -258,14 +184,15 @@ export function EmbedDatePicker({
                   style={{
                     border: "none",
                     background: bg,
-                    color: isPast ? "#ccc" : color,
+                    color: isPast ? "#d0d0d0" : color,
                     width: "100%",
                     aspectRatio: "1",
                     borderRadius,
                     fontSize: "13px",
-                    fontWeight: 500,
+                    fontWeight: isCi || isCo ? 700 : 500,
                     cursor: isPast ? "default" : "pointer",
                     position: "relative",
+                    transition: "background 0.1s, color 0.1s",
                     boxShadow:
                       isToday && !isCi && !isCo && !inRange
                         ? `inset 0 0 0 1.5px ${brandColor}`
@@ -278,16 +205,17 @@ export function EmbedDatePicker({
             })}
           </div>
 
-          {/* Summary */}
+          {/* Summary footer */}
           {ciDate && (
             <div
               style={{
                 padding: "10px 16px",
                 borderTop: "1px solid #f0f0f0",
                 background: "#fafafa",
-                fontSize: "13px",
+                fontSize: "12px",
                 color: "#666",
                 textAlign: "center",
+                fontWeight: 500,
               }}
             >
               {coDate
@@ -298,5 +226,26 @@ export function EmbedDatePicker({
         </div>
       )}
     </div>
+  );
+}
+
+function MonthNavBtn({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border: "none",
+        background: "#f5f5f5",
+        cursor: "pointer",
+        fontSize: "16px",
+        color: "#555",
+        padding: "4px 10px",
+        borderRadius: "8px",
+        fontWeight: 700,
+        transition: "background 0.15s",
+      }}
+    >
+      {label}
+    </button>
   );
 }

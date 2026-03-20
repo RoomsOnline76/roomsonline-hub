@@ -48,7 +48,6 @@ export default function EmbedProperty() {
           .order("name");
         setRoomTypes(rooms || []);
 
-        // Fetch ROL'OS rate plans for rooms that lack a daily rate
         if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
           const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
           const { data: rpRoomTypes } = await supabase
@@ -77,7 +76,6 @@ export default function EmbedProperty() {
     fetchData();
   }, [slug]);
 
-  // Track embed load
   useEffect(() => {
     if (propertyId) {
       supabase.from("integration_logs").insert({
@@ -98,14 +96,13 @@ export default function EmbedProperty() {
     return diff > 0 ? diff : 0;
   }, [checkIn, checkOut]);
 
-  // Fetch property_availability overrides (stop-sells / manual blocks from bookings)
   const [availabilityOverrides, setAvailabilityOverrides] = useState<Record<string, Record<string, { available_units: number | null; is_stop_sell: boolean }>>>({});
 
   useEffect(() => {
     if (!property?.id || roomTypes.length === 0) return;
     const fetchOverrides = async () => {
       const start = new Date(checkIn);
-      const endDate = addDays(start, 30); // fetch 30 days ahead
+      const endDate = addDays(start, 30);
       const { data } = await supabase
         .from("property_availability")
         .select("room_type, date, available_units, is_stop_sell")
@@ -124,7 +121,6 @@ export default function EmbedProperty() {
     fetchOverrides();
   }, [property?.id, roomTypes, checkIn]);
 
-  // Build availability grid data from rooms + rates + live overrides
   const gridRooms = useMemo(() => {
     if (!checkIn) return [];
     const start = new Date(checkIn);
@@ -133,8 +129,6 @@ export default function EmbedProperty() {
     return roomTypes.map((room) => {
       const rate = room.daily_rate ? Number(room.daily_rate) : null;
       const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
-
-      // Wizard fallback
       const amenitiesData = property?.amenities as any;
       const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
       const wizardRateTypes = Array.isArray(amenitiesData?.pms_rate_types) ? amenitiesData.pms_rate_types : [];
@@ -142,19 +136,15 @@ export default function EmbedProperty() {
       const linkedRateTypeId = Array.isArray(wizardRoom?.linkedRateTypes) ? wizardRoom.linkedRateTypes[0] : undefined;
       const linkedRateType = linkedRateTypeId ? wizardRateTypes.find((rt: any) => String(rt?.id) === String(linkedRateTypeId)) : null;
       const wizardRate = linkedRateType?.baseRate != null ? Number(linkedRateType.baseRate) : wizardRoom?.baseRate != null ? Number(wizardRoom.baseRate) : null;
-
       const effectiveRate = rate ?? (rolosPlan?.base_rate ?? wizardRate ?? null);
-
-      // Check overrides by room name AND room ID (both are used as keys)
       const roomOverrides = availabilityOverrides[room.name] || availabilityOverrides[String(room.id)] || {};
 
       const ratesByDate: Record<string, number | null> = {};
       dates.forEach((d) => {
         const dateKey = format(d, "yyyy-MM-dd");
         const override = roomOverrides[dateKey];
-        // If stop-sell active or available_units is 0, mark as sold (null)
         if (override && (override.is_stop_sell || override.available_units === 0)) {
-          ratesByDate[dateKey] = null; // Sold out
+          ratesByDate[dateKey] = null;
         } else {
           ratesByDate[dateKey] = effectiveRate;
         }
@@ -170,19 +160,16 @@ export default function EmbedProperty() {
     });
   }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides]);
 
-  // TripAdvisor ID resolution
   const tripadvisorId = useMemo(() => {
     if (!property?.amenities) return null;
     const a = property.amenities as any;
     return a.tripadvisor_id || a.external_ids?.tripadvisor_id || null;
   }, [property]);
 
-  // Review platforms
   const reviewPlatforms = useMemo(() => {
     if (!property?.amenities) return [];
     const a = property.amenities as any;
     const platforms = a.review_platforms || [];
-    // Auto-include tripadvisor if ID exists but not in platforms
     if (tripadvisorId && !platforms.find((p: any) => p.type === "tripadvisor")) {
       platforms.push({ type: "tripadvisor", id: tripadvisorId, enabled: true });
     }
@@ -237,34 +224,101 @@ export default function EmbedProperty() {
   const facilities = property.amenities?.facilities || property.amenities?.general_facilities || [];
 
   return (
-    <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", background: "#fff", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* ── Section A: Branded Header ── */}
-      <header style={{ background: brandColor, color: fontColor, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+    <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", background: "#f7f8fa", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* ── Header ── */}
+      <header
+        style={{
+          background: brandColor,
+          color: fontColor,
+          padding: "12px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {property.brand_logo_url && (
-            <img src={property.brand_logo_url} alt="" style={{ height: "28px", objectFit: "contain" }} />
+            <img src={property.brand_logo_url} alt="" style={{ height: "32px", objectFit: "contain" }} />
           )}
-          <span style={{ fontWeight: 700, fontSize: "15px" }}>{property.name}</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "16px", letterSpacing: "-0.01em" }}>{property.name}</div>
+            {(property.address || property.city) && (
+              <div style={{ fontSize: "11px", opacity: 0.8 }}>
+                {[property.address, property.city].filter(Boolean).join(", ")}
+              </div>
+            )}
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button onClick={() => setShowPromo(!showPromo)} style={{ background: "none", border: "none", color: fontColor, cursor: "pointer", textDecoration: "underline", fontSize: "11px" }}>
-            {showPromo ? "Hide promo" : "Promo code?"}
-          </button>
-        </div>
+        <button
+          onClick={() => setShowPromo(!showPromo)}
+          style={{
+            background: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            color: fontColor,
+            cursor: "pointer",
+            fontSize: "11px",
+            fontWeight: 600,
+            padding: "5px 12px",
+            borderRadius: "6px",
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          {showPromo ? "Hide promo" : "🏷 Promo code"}
+        </button>
       </header>
 
       {/* Promo row */}
       {showPromo && (
-        <div style={{ background: "#f5f5f5", padding: "6px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <input type="text" placeholder="Enter promo code" value={promoCode} onChange={(e) => setPromoCode(e.target.value)} style={{ padding: "5px 10px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "12px", flex: 1, maxWidth: "180px" }} />
-          <button style={{ background: brandColor, color: fontColor, border: "none", padding: "5px 12px", borderRadius: "4px", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Apply</button>
+        <div style={{ background: "#fff", padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid #eee" }}>
+          <input
+            type="text"
+            placeholder="Enter promo code"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            style={{
+              padding: "7px 12px",
+              border: "1px solid #e0e0e0",
+              borderRadius: "8px",
+              fontSize: "13px",
+              flex: 1,
+              maxWidth: "200px",
+              outline: "none",
+            }}
+          />
+          <button
+            style={{
+              background: brandColor,
+              color: fontColor,
+              border: "none",
+              padding: "7px 16px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Apply
+          </button>
         </div>
       )}
 
-      {/* ── Section B: Date Controls Row (NightsBridge-style) ── */}
-      <div style={{ background: "#f8f8f8", borderBottom: "1px solid #e0e0e0", padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", fontSize: "12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <span style={{ fontWeight: 600, color: "#555" }}>Check-in</span>
+      {/* ── Date Controls ── */}
+      <div
+        style={{
+          background: "#fff",
+          borderBottom: "1px solid #eee",
+          padding: "12px 20px",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+          fontSize: "13px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontWeight: 600, color: "#555", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Dates</span>
           <EmbedDatePicker
             checkIn={checkIn}
             checkOut={checkOut}
@@ -280,23 +334,43 @@ export default function EmbedProperty() {
           />
         </div>
         {nights > 0 && (
-          <span style={{ background: brandColor, color: fontColor, padding: "3px 10px", borderRadius: "10px", fontSize: "11px", fontWeight: 700 }}>
+          <span
+            style={{
+              background: `${brandColor}15`,
+              color: brandColor,
+              padding: "4px 12px",
+              borderRadius: "999px",
+              fontSize: "12px",
+              fontWeight: 700,
+              border: `1px solid ${brandColor}30`,
+            }}
+          >
             {nights} night{nights !== 1 ? "s" : ""}
           </span>
         )}
-        <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
+        <div style={{ marginLeft: "auto" }}>
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            style={{ background: "#fff", border: "1px solid #ddd", borderRadius: "4px", padding: "4px 10px", fontSize: "11px", cursor: "pointer", color: "#555", fontWeight: 500 }}
+            style={{
+              background: showCalendar ? `${brandColor}10` : "#f5f5f5",
+              border: `1px solid ${showCalendar ? `${brandColor}30` : "#e0e0e0"}`,
+              borderRadius: "8px",
+              padding: "6px 14px",
+              fontSize: "12px",
+              cursor: "pointer",
+              color: showCalendar ? brandColor : "#555",
+              fontWeight: 600,
+              transition: "all 0.15s ease",
+            }}
           >
             {showCalendar ? "Hide Calendar" : "Show Calendar"}
           </button>
         </div>
       </div>
 
-      {/* ── Section C: Availability Calendar Grid ── */}
+      {/* ── Availability Grid ── */}
       {showCalendar && (
-        <div style={{ borderBottom: "1px solid #e5e5e5" }}>
+        <div style={{ background: "#fff", borderBottom: "1px solid #eee" }}>
           <EmbedAvailabilityGrid
             rooms={gridRooms}
             startDate={checkIn}
@@ -308,81 +382,127 @@ export default function EmbedProperty() {
         </div>
       )}
 
-      {/* ── Section D: Property Info (NightsBridge-style) ── */}
-      <div style={{ padding: "20px 16px", borderBottom: "1px solid #e5e5e5" }}>
-        <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
-          {/* Left: Images */}
-          <div style={{ flex: "0 0 auto", maxWidth: "320px", width: "100%" }}>
-            {heroImage && (
-              <img src={heroImage} alt={property.name} style={{ width: "100%", height: "200px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px" }} />
-            )}
-            {galleryImages.length > 1 && (
-              <div style={{ display: "flex", gap: "4px", overflowX: "auto" }}>
-                {galleryImages.slice(1).map((img: string, i: number) => (
-                  <img key={i} src={img} alt="" style={{ width: "60px", height: "44px", objectFit: "cover", borderRadius: "4px", flexShrink: 0 }} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right: Info */}
-          <div style={{ flex: 1, minWidth: "220px" }}>
-            {property.description && (
-              <div style={{ marginBottom: "16px" }}>
-                <h3 style={{ fontWeight: 700, fontSize: "14px", color: "#222", margin: "0 0 6px 0" }}>About us</h3>
-                <p style={{ fontSize: "12px", color: "#555", lineHeight: 1.6, margin: 0 }}>{property.description}</p>
-              </div>
-            )}
-
-            {Array.isArray(facilities) && facilities.length > 0 && (
-              <div style={{ marginBottom: "16px" }}>
-                <h3 style={{ fontWeight: 700, fontSize: "14px", color: "#222", margin: "0 0 6px 0" }}>General facilities</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px" }}>
-                  {facilities.map((f: string, i: number) => (
-                    <div key={i} style={{ fontSize: "11px", color: "#555", padding: "2px 0", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: brandColor, fontSize: "8px" }}>●</span> {f}
-                    </div>
+      {/* ── Property Info Card ── */}
+      <div style={{ padding: "20px" }}>
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "12px",
+            overflow: "hidden",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div style={{ display: "flex", gap: "0", flexWrap: "wrap" }}>
+            {/* Left: Images */}
+            <div style={{ flex: "0 0 auto", maxWidth: "340px", width: "100%", padding: "16px" }}>
+              {heroImage && (
+                <img
+                  src={heroImage}
+                  alt={property.name}
+                  style={{
+                    width: "100%",
+                    height: "210px",
+                    objectFit: "cover",
+                    borderRadius: "10px",
+                    marginBottom: "8px",
+                  }}
+                />
+              )}
+              {galleryImages.length > 1 && (
+                <div style={{ display: "flex", gap: "6px", overflowX: "auto" }}>
+                  {galleryImages.slice(1).map((img: string, i: number) => (
+                    <img
+                      key={i}
+                      src={img}
+                      alt=""
+                      style={{
+                        width: "64px",
+                        height: "48px",
+                        objectFit: "cover",
+                        borderRadius: "6px",
+                        flexShrink: 0,
+                        opacity: 0.9,
+                        transition: "opacity 0.15s",
+                      }}
+                    />
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Contact info */}
-            <div>
-              <h3 style={{ fontWeight: 700, fontSize: "14px", color: "#222", margin: "0 0 6px 0" }}>Contact information</h3>
-              <div style={{ fontSize: "12px", color: "#555" }}>
-                {(property.amenities as any)?.phone && <div style={{ marginBottom: "2px" }}>📞 {(property.amenities as any).phone}</div>}
-                {(property.amenities as any)?.email && <div style={{ marginBottom: "2px" }}>✉️ {(property.amenities as any).email}</div>}
-                {(property.address || property.city) && (
-                  <div>📍 {[property.address, property.city].filter(Boolean).join(", ")}</div>
-                )}
+            {/* Right: Info */}
+            <div style={{ flex: 1, minWidth: "240px", padding: "20px 20px 20px 4px" }}>
+              {property.description && (
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>About</h3>
+                  <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.7, margin: 0 }}>{property.description}</p>
+                </div>
+              )}
+
+              {Array.isArray(facilities) && facilities.length > 0 && (
+                <div style={{ marginBottom: "20px" }}>
+                  <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>Facilities</h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {facilities.map((f: string, i: number) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: "11px",
+                          color: "#555",
+                          padding: "4px 10px",
+                          background: "#f5f5f5",
+                          borderRadius: "6px",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contact */}
+              <div>
+                <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>Contact</h3>
+                <div style={{ fontSize: "13px", color: "#555", display: "flex", flexDirection: "column", gap: "4px" }}>
+                  {(property.amenities as any)?.phone && <div>📞 {(property.amenities as any).phone}</div>}
+                  {(property.amenities as any)?.email && <div>✉️ {(property.amenities as any).email}</div>}
+                  {(property.address || property.city) && (
+                    <div>📍 {[property.address, property.city].filter(Boolean).join(", ")}</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Section E: TripAdvisor Reviews ── */}
+      {/* ── Reviews ── */}
       {tripadvisorId && (
-        <div style={{ borderBottom: "1px solid #e5e5e5" }}>
-          <EmbedTripAdvisorReviews tripadvisorId={tripadvisorId} brandColor={brandColor} />
+        <div style={{ padding: "0 20px 16px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            <EmbedTripAdvisorReviews tripadvisorId={tripadvisorId} brandColor={brandColor} />
+          </div>
         </div>
       )}
-
-      {/* ── Section F: Other Review Platforms ── */}
       {reviewPlatforms.length > 0 && !tripadvisorId && (
-        <div style={{ borderBottom: "1px solid #e5e5e5" }}>
-          <EmbedReviewPlatforms platforms={reviewPlatforms} brandColor={brandColor} />
+        <div style={{ padding: "0 20px 16px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            <EmbedReviewPlatforms platforms={reviewPlatforms} brandColor={brandColor} />
+          </div>
         </div>
       )}
       {reviewPlatforms.length > 0 && tripadvisorId && (
-        <div style={{ borderBottom: "1px solid #e5e5e5" }}>
-          <EmbedReviewPlatforms platforms={reviewPlatforms.filter((p: any) => p.type !== "tripadvisor")} brandColor={brandColor} />
+        <div style={{ padding: "0 20px 16px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            <EmbedReviewPlatforms platforms={reviewPlatforms.filter((p: any) => p.type !== "tripadvisor")} brandColor={brandColor} />
+          </div>
         </div>
       )}
 
       {/* Footer */}
-      <footer style={{ borderTop: "1px solid #e5e5e5", padding: "10px 16px", textAlign: "center", marginTop: "auto" }}>
+      <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
         <PoweredByRolOS />
       </footer>
     </div>
