@@ -91,6 +91,7 @@ const ConnectQuickstart = lazy(() => import("./pages/connect/ConnectQuickstart")
 const ConnectWordPress = lazy(() => import("./pages/connect/ConnectWordPress"));
 const ConnectFAQ = lazy(() => import("./pages/connect/ConnectFAQ"));
 const ConnectGetStarted = lazy(() => import("./pages/connect/ConnectGetStarted"));
+const ConnectPrivacyPolicy = lazy(() => import("./pages/connect/ConnectPrivacyPolicy"));
 
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
@@ -608,6 +609,7 @@ const App = () => (
               <Route path="docs/wordpress" element={<ConnectWordPress />} />
               <Route path="faq" element={<ConnectFAQ />} />
               <Route path="get-started" element={<ConnectGetStarted />} />
+              <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/connect" replace /> : <NotFound />} />
