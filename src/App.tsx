@@ -91,6 +91,7 @@ const ConnectQuickstart = lazy(() => import("./pages/connect/ConnectQuickstart")
 const ConnectWordPress = lazy(() => import("./pages/connect/ConnectWordPress"));
 const ConnectFAQ = lazy(() => import("./pages/connect/ConnectFAQ"));
 const ConnectGetStarted = lazy(() => import("./pages/connect/ConnectGetStarted"));
+const ConnectPrivacyPolicy = lazy(() => import("./pages/connect/ConnectPrivacyPolicy"));
 
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
