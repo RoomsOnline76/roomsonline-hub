@@ -4,14 +4,15 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConnectTobiWidget } from "@/components/connect/ConnectTobiWidget";
 import { cn } from "@/lib/utils";
+import { connectPath } from "@/lib/config";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 
 const NAV_LINKS = [
-  { label: "Features", href: "/connect/features" },
-  { label: "Integrations", href: "/connect/integrations" },
-  { label: "Pricing", href: "/connect/pricing" },
-  { label: "Docs", href: "/connect/docs" },
-  { label: "FAQ", href: "/connect/faq" },
+  { label: "Features", href: connectPath("/connect/features") },
+  { label: "Integrations", href: connectPath("/connect/integrations") },
+  { label: "Pricing", href: connectPath("/connect/pricing") },
+  { label: "Docs", href: connectPath("/connect/docs") },
+  { label: "FAQ", href: connectPath("/connect/faq") },
 ];
 
 export function ConnectLayout() {
