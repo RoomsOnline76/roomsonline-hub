@@ -162,7 +162,7 @@ const App = () => (
           <Route
             path="/admin-keys"
             element={
-              <ProtectedRoute requireDev={true}>
+               <ProtectedRoute requireDevOrFearless={true}>
                 <AdminKeys />
               </ProtectedRoute>
             }
