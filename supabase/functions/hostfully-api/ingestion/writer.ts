@@ -163,17 +163,32 @@ export async function writeIngestion(
       }
     }
     
-    // 5. Upsert rooms (if any)
+    // 5. Aggregate rooms by type, then upsert one row per type + unit_map entries
     if (data.rooms.length > 0) {
-      console.log(`[Writer] Upserting ${data.rooms.length} rooms...`);
+      console.log(`[Writer] Aggregating ${data.rooms.length} rooms by type...`);
       
-      const successfulRooms: TransformedRoomData[] = [];
-      
+      // Group by normalized property_type
+      const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[] }>();
       for (const room of data.rooms) {
+        const typeKey = (room.property_type || 'Standard').toUpperCase().trim();
+        if (!typeGroups.has(typeKey)) {
+          typeGroups.set(typeKey, { representative: room, unitUids: [], unitNames: [] });
+        }
+        const group = typeGroups.get(typeKey)!;
+        group.unitUids.push(room.hostfully_room_id);
+        group.unitNames.push(room.name);
+      }
+      
+      console.log(`[Writer] ${data.rooms.length} units → ${typeGroups.size} room types`);
+      
+      for (const [, group] of typeGroups) {
+        const room = group.representative;
+        const typeName = room.property_type || 'Standard';
+        
         const roomData = {
           property_id: rolPropertyId,
-          hostfully_room_id: room.hostfully_room_id,
-          name: room.name,
+          hostfully_room_id: group.unitUids[0],
+          name: typeName,
           description: room.description,
           max_guests: room.max_guests,
           min_guests: room.min_guests,
@@ -188,9 +203,7 @@ export async function writeIngestion(
           extra_guest_fee: room.extra_guest_fee,
           security_deposit: room.security_deposit,
           amenities: room.amenities,
-          // Room category
           property_type: room.property_type,
-          // Extended room fields
           extra_person_policy: room.extra_person_policy,
           bed_configuration: room.bed_configuration || [],
           facilities_raw: room.facilities_raw || [],
@@ -198,41 +211,60 @@ export async function writeIngestion(
           linked_rate_type_ids: room.linked_rate_type_ids || [],
           pms_synced_fields: room.pms_synced_fields,
           last_synced_at: room.last_synced_at,
+          total_units: group.unitUids.length,
           is_active: true,
           updated_at: new Date().toISOString(),
         };
         
-        // Use upsert with conflict on property_id + hostfully_room_id
-        const { error: roomError } = await supabase
+        const { data: upsertedRow, error: roomError } = await supabase
           .from("hostfully_room_types")
           .upsert(roomData, {
             onConflict: 'property_id,hostfully_room_id',
             ignoreDuplicates: false,
-          });
+          })
+          .select("id")
+          .maybeSingle();
         
         if (roomError) {
-          console.error(`[Writer] Room upsert error for ${room.hostfully_room_id}:`, roomError);
-          // Continue with other rooms
+          console.error(`[Writer] Room type upsert error for ${typeName}:`, roomError);
         } else {
           result.roomsUpserted++;
-          successfulRooms.push(room);
+          
+          const roomTypeId = upsertedRow?.id;
+          for (let u = 0; u < group.unitUids.length; u++) {
+            const { error: mapError } = await supabase
+              .from("hostfully_unit_map")
+              .upsert({
+                property_id: rolPropertyId,
+                room_type_id: roomTypeId || group.unitUids[0],
+                hostfully_uid: group.unitUids[u],
+                unit_name: group.unitNames[u],
+                unit_number: '',
+                is_active: true,
+              }, { onConflict: 'hostfully_uid' });
+            if (mapError) {
+              console.error(`[Writer] unit_map error for ${group.unitUids[u]}:`, mapError);
+            }
+          }
         }
       }
       
-      // 5b. Sync rooms to properties.amenities.room_types for calendar/form visibility
-      if (successfulRooms.length > 0) {
-        console.log(`[Writer] Syncing ${successfulRooms.length} rooms to amenities.room_types...`);
-        
-        const roomTypesForAmenities = successfulRooms.map(room => ({
-          id: room.hostfully_room_id,
-          pmsRoomId: room.hostfully_room_id,
+      // 5b. Sync aggregated types to properties.amenities.room_types
+      console.log(`[Writer] Syncing ${typeGroups.size} aggregated types to amenities.room_types...`);
+      
+      const roomTypesForAmenities: any[] = [];
+      for (const [, group] of typeGroups) {
+        const room = group.representative;
+        roomTypesForAmenities.push({
+          id: group.unitUids[0],
+          pmsRoomId: group.unitUids[0],
           pmsRoomType: room.property_type || room.name,
-          name: room.name,
+          name: room.property_type || 'Standard',
           description: room.description || '',
           maxPeople: room.max_guests || 2,
           maxAdults: room.max_guests || 2,
           minGuests: room.min_guests || 1,
-          numRooms: 1,
+          numRooms: group.unitUids.length,
           bedrooms: room.bedrooms || 1,
           bathrooms: room.bathrooms || 1,
           beds: room.beds || 1,
@@ -255,24 +287,23 @@ export async function writeIngestion(
           splitPercent: 0,
           pms_synced_fields: room.pms_synced_fields || [],
           lastSyncedAt: room.last_synced_at,
-        }));
-        
-        // Update amenities with room_types
-        const updatedAmenities = {
-          ...((await supabase.from("properties").select("amenities").eq("id", rolPropertyId).single()).data?.amenities || {}),
-          room_types: roomTypesForAmenities,
-        };
-        
-        const { error: amenityError } = await supabase
-          .from("properties")
-          .update({ amenities: updatedAmenities })
-          .eq("id", rolPropertyId);
-        
-        if (amenityError) {
-          console.error("[Writer] Failed to sync room_types to amenities:", amenityError);
-        } else {
-          console.log(`[Writer] Successfully synced ${roomTypesForAmenities.length} room types to amenities`);
-        }
+        });
+      }
+      
+      const updatedAmenities = {
+        ...((await supabase.from("properties").select("amenities").eq("id", rolPropertyId).single()).data?.amenities || {}),
+        room_types: roomTypesForAmenities,
+      };
+      
+      const { error: amenityError } = await supabase
+        .from("properties")
+        .update({ amenities: updatedAmenities })
+        .eq("id", rolPropertyId);
+      
+      if (amenityError) {
+        console.error("[Writer] Failed to sync room_types to amenities:", amenityError);
+      } else {
+        console.log(`[Writer] Successfully synced ${roomTypesForAmenities.length} aggregated room types to amenities`);
       }
     }
     

@@ -55,7 +55,19 @@ function sanitizeName(name: string): string {
 function parseUnitName(name: string): { building: string; room: string; type: string } | null {
   if (!name) return null;
   const sanitized = sanitizeName(name);
-  const parts = sanitized.split(' ');
+
+  // Pre-process: expand hyphenated tokens like "102-1BD" into "102 1BD"
+  const expandedParts: string[] = [];
+  for (const token of sanitized.split(' ')) {
+    const hyphenMatch = token.match(/^(\d+[A-Za-z]?)-(.+)$/);
+    if (hyphenMatch) {
+      expandedParts.push(hyphenMatch[1], hyphenMatch[2]);
+    } else {
+      expandedParts.push(token);
+    }
+  }
+
+  const parts = expandedParts;
   if (parts.length < 2) return { building: name, room: '', type: '' };
 
   let roomIndex = -1;
@@ -304,14 +316,41 @@ export async function ingestBuildingUnits(
     }
   }
 
-  // 5. Write rooms to hostfully_room_types
-  console.log(`[UnitIngestion] Writing ${allRooms.length} rooms to database...`);
+  // 5. Aggregate units by room type, then write one hostfully_room_types row per type
+  console.log(`[UnitIngestion] Aggregating ${allRooms.length} units by room type...`);
 
+  // Group by normalized property_type
+  const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[]; unitNumbers: string[] }>();
   for (const room of allRooms) {
+    const typeKey = (room.property_type || 'Standard').toUpperCase().trim();
+    if (!typeGroups.has(typeKey)) {
+      typeGroups.set(typeKey, {
+        representative: room,
+        unitUids: [],
+        unitNames: [],
+        unitNumbers: [],
+      });
+    }
+    const group = typeGroups.get(typeKey)!;
+    group.unitUids.push(room.hostfully_room_id);
+    group.unitNames.push(room.name);
+    const parsed = parseUnitName(room.name);
+    group.unitNumbers.push(parsed?.room || '');
+  }
+
+  console.log(`[UnitIngestion] ${allRooms.length} units → ${typeGroups.size} room types`);
+
+  // Write one hostfully_room_types row per type group
+  const writtenTypeIds: string[] = [];
+  for (const [, group] of typeGroups) {
+    const room = group.representative;
+    // Use the type name as the display name instead of the full unit name
+    const typeName = room.property_type || 'Standard';
+
     const roomData: Record<string, unknown> = {
       property_id: rolPropertyId,
-      hostfully_room_id: room.hostfully_room_id,
-      name: room.name,
+      hostfully_room_id: group.unitUids[0], // Representative UID
+      name: typeName,
       description: room.description,
       max_guests: room.max_guests,
       min_guests: room.min_guests,
@@ -335,39 +374,61 @@ export async function ingestBuildingUnits(
       linked_rate_type_ids: room.linked_rate_type_ids || ['per-unit'],
       pms_synced_fields: room.pms_synced_fields,
       last_synced_at: room.last_synced_at,
+      total_units: group.unitUids.length,
       is_active: true,
       updated_at: new Date().toISOString(),
     };
 
-    // Also store daily_rate if available from property data
-    // (TransformedRoomData doesn't have it but we can check)
-
-    const { error: upsertError } = await supabase
+    const { data: upsertedRow, error: upsertError } = await supabase
       .from("hostfully_room_types")
       .upsert(roomData, {
         onConflict: 'property_id,hostfully_room_id',
         ignoreDuplicates: false,
-      });
+      })
+      .select("id")
+      .maybeSingle();
 
     if (upsertError) {
-      console.error(`[UnitIngestion] Failed to upsert room ${room.hostfully_room_id}:`, upsertError);
-      result.errors.push(`DB upsert failed for ${room.name}: ${upsertError.message}`);
+      console.error(`[UnitIngestion] Failed to upsert type ${typeName}:`, upsertError);
+      result.errors.push(`DB upsert failed for type ${typeName}: ${upsertError.message}`);
+    } else {
+      const roomTypeId = upsertedRow?.id;
+      if (roomTypeId) writtenTypeIds.push(roomTypeId);
+
+      // Write hostfully_unit_map entries for each unit in this type group
+      for (let u = 0; u < group.unitUids.length; u++) {
+        const { error: mapError } = await supabase
+          .from("hostfully_unit_map")
+          .upsert({
+            property_id: rolPropertyId,
+            room_type_id: roomTypeId || group.unitUids[0],
+            hostfully_uid: group.unitUids[u],
+            unit_name: group.unitNames[u],
+            unit_number: group.unitNumbers[u],
+            is_active: true,
+          }, {
+            onConflict: 'hostfully_uid',
+          });
+        if (mapError) {
+          console.error(`[UnitIngestion] unit_map error for ${group.unitUids[u]}:`, mapError);
+        }
+      }
     }
   }
 
-  // 6. Sync rooms to properties.amenities.room_types
-  if (allRooms.length > 0) {
-    console.log(`[UnitIngestion] Syncing ${allRooms.length} rooms to amenities.room_types...`);
+  // 6. Sync aggregated room types to properties.amenities.room_types
+  if (typeGroups.size > 0) {
+    console.log(`[UnitIngestion] Syncing ${typeGroups.size} aggregated types to amenities.room_types...`);
 
     // Fetch the freshly written room records to get IDs and daily_rate
     const { data: dbRooms } = await supabase
       .from("hostfully_room_types")
-      .select("id, hostfully_room_id, name, description, max_guests, min_guests, bedrooms, bathrooms, beds, room_size, check_in_time, check_out_time, cleaning_fee, security_deposit, extra_guest_fee, property_type, rate_type, linked_rate_type_ids, facilities_raw, pms_synced_fields, last_synced_at, daily_rate, images, thumbnail_url")
+      .select("id, hostfully_room_id, name, description, max_guests, min_guests, bedrooms, bathrooms, beds, room_size, check_in_time, check_out_time, cleaning_fee, security_deposit, extra_guest_fee, property_type, rate_type, linked_rate_type_ids, facilities_raw, pms_synced_fields, last_synced_at, daily_rate, images, thumbnail_url, total_units")
       .eq("property_id", rolPropertyId)
       .eq("is_active", true);
 
-    const roomTypesForAmenities = (dbRooms || allRooms).map((room: any) => ({
-      id: room.hostfully_room_id || room.hostfully_room_id,
+    const roomTypesForAmenities = (dbRooms || []).map((room: any) => ({
+      id: room.hostfully_room_id || room.id,
       pmsRoomId: room.hostfully_room_id,
       pmsRoomType: room.property_type || room.name,
       name: room.name,
@@ -375,7 +436,7 @@ export async function ingestBuildingUnits(
       maxPeople: room.max_guests || 2,
       maxAdults: room.max_guests || 2,
       minGuests: room.min_guests || 1,
-      numRooms: 1,
+      numRooms: room.total_units || 1,
       bedrooms: room.bedrooms || 1,
       bathrooms: room.bathrooms || 1,
       beds: room.beds || 1,
@@ -425,7 +486,7 @@ export async function ingestBuildingUnits(
     if (amenityError) {
       result.errors.push(`Failed to sync amenities: ${amenityError.message}`);
     } else {
-      console.log(`[UnitIngestion] Synced ${roomTypesForAmenities.length} room types to amenities`);
+      console.log(`[UnitIngestion] Synced ${roomTypesForAmenities.length} aggregated room types to amenities`);
     }
   }
 
