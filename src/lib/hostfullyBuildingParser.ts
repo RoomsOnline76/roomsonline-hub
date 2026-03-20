@@ -66,7 +66,18 @@ export function parsePropertyName(name: string): { building: string; room: strin
     return null;
   }
 
-  const parts = sanitized.split(' ');
+  // Pre-process: expand hyphenated tokens like "102-1BD" into "102 1BD"
+  const expandedParts: string[] = [];
+  for (const token of sanitized.split(' ')) {
+    const hyphenMatch = token.match(/^(\d+[A-Za-z]?)-(.+)$/);
+    if (hyphenMatch) {
+      expandedParts.push(hyphenMatch[1], hyphenMatch[2]);
+    } else {
+      expandedParts.push(token);
+    }
+  }
+  
+  const parts = expandedParts;
   
   if (parts.length < 2) {
     // Can't parse, return whole name as building
