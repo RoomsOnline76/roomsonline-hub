@@ -595,6 +595,18 @@ const App = () => (
             {/* Branded staff login — public route (smart branding via ?property= or localStorage) */}
             <Route path="/staff-login" element={<StaffLogin />} />
             <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
+            {/* ─── Connect Portal (public) ──────────────────────── */}
+            <Route path="/connect" element={<ConnectLayout />}>
+              <Route index element={<ConnectHome />} />
+              <Route path="features" element={<ConnectFeatures />} />
+              <Route path="integrations" element={<ConnectIntegrations />} />
+              <Route path="pricing" element={<ConnectPricing />} />
+              <Route path="docs" element={<ConnectDocs />} />
+              <Route path="docs/quickstart" element={<ConnectQuickstart />} />
+              <Route path="docs/wordpress" element={<ConnectWordPress />} />
+              <Route path="faq" element={<ConnectFAQ />} />
+              <Route path="get-started" element={<ConnectGetStarted />} />
+            </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
