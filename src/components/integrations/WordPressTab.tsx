@@ -2,12 +2,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { Button } from "@/components/ui/button";
-import { Puzzle, AlertCircle, Download, RefreshCw, Rocket } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2 } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 import { useState } from "react";
 
@@ -16,12 +20,24 @@ interface WordPressTabProps {
   showPushUpdate?: boolean;
 }
 
+const WEBHOOK_EVENTS = [
+  { value: "booking.created", label: "Booking Created" },
+  { value: "booking.modified", label: "Booking Modified" },
+  { value: "booking.cancelled", label: "Booking Cancelled" },
+  { value: "room.status.changed", label: "Room Status Changed" },
+  { value: "inventory.updated", label: "Inventory Updated" },
+  { value: "checkout.completed", label: "Checkout Completed" },
+];
+
 export function WordPressTab({ property, showPushUpdate = false }: WordPressTabProps) {
   const queryClient = useQueryClient();
   const [pushing, setPushing] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"idle" | "ok" | "error">("idle");
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const brandColor = property.brand_primary_color || "#e91e63";
 
-  // Fetch current plugin version from integration_configs
   const { data: integrationConfig } = useQuery({
     queryKey: ["wordpress-config", property.id],
     queryFn: async () => {
@@ -35,172 +51,72 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     },
   });
 
-  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "1.0.2";
+  const { data: webhookSub } = useQuery({
+    queryKey: ["webhook-sub", property.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rolos_webhook_subscriptions")
+        .select("*")
+        .eq("property_id", property.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      return data;
+    },
+  });
 
+  const { data: webhookLogs } = useQuery({
+    queryKey: ["webhook-logs", property.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rolos_webhook_logs")
+        .select("*")
+        .eq("property_id", property.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+  });
+
+  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
-  const phpSnippet = `<?php
-/**
- * Plugin Name: RoomsOnline Booking Widget
- * Plugin URI: https://roomsonline.co.za
- * Description: Embed the RoomsOnline booking engine on any page via shortcode.
- * Version: ${currentVersion}
- * Author: RoomsOnline
- * Author URI: https://roomsonline.co.za
- * License: GPL v2 or later
- * Text Domain: rolos-booking
- */
-
-if (!defined('ABSPATH')) {
-    exit;
-}
-
-define('ROLOS_PLUGIN_VERSION', '${currentVersion}');
-define('ROLOS_PROPERTY_ID', '${property.id}');
-define('ROLOS_UPDATE_URL', '${updateUrl}');
-
-if (!function_exists('rolos_booking_activate')) {
-    function rolos_booking_activate() {
-        // Shortcode-only plugin: no setup required on activation.
-    }
-}
-register_activation_hook(__FILE__, 'rolos_booking_activate');
-
-if (!function_exists('rolos_booking_shortcode')) {
-    function rolos_booking_shortcode($atts) {
-        $atts = shortcode_atts(array(
-            'property' => '${property.slug}',
-            'property_id' => '${property.id}',
-            'color' => '${brandColor}',
-            'height' => '520px',
-        ), $atts, 'rolos_booking');
-
-        $base_url = '${PUBLIC_DOMAIN}';
-        $src = esc_url($base_url . '/embed/property/' . $atts['property']
-            . '?integration=wordpress&property_id=' . $atts['property_id']
-            . '&brand_color=' . rawurlencode($atts['color'])
-            . '&mode=embedded');
-
-        return '<div class="rolos-booking-widget">'
-            . '<iframe src="' . $src . '" '
-            . 'style="width:100%;height:' . esc_attr($atts['height']) . ';border:none;border-radius:8px;" '
-            . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
-            . '</div>';
-    }
-}
-add_shortcode('rolos_booking', 'rolos_booking_shortcode');
-
-/* ─── Auto-Updater ─── */
-
-if (!function_exists('rolos_check_for_update')) {
-    function rolos_check_for_update($transient) {
-        if (empty($transient->checked)) {
-            return $transient;
-        }
-
-        $plugin_file = plugin_basename(__FILE__);
-        $response = wp_remote_post(ROLOS_UPDATE_URL, array(
-            'timeout' => 10,
-            'body' => wp_json_encode(array(
-                'action' => 'check',
-                'property_id' => ROLOS_PROPERTY_ID,
-                'current_version' => ROLOS_PLUGIN_VERSION,
-            )),
-            'headers' => array('Content-Type' => 'application/json'),
-        ));
-
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            return $transient;
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        if (!empty($body['new_version']) && version_compare(ROLOS_PLUGIN_VERSION, $body['new_version'], '<')) {
-            $transient->response[$plugin_file] = (object) array(
-                'slug' => 'rolos-booking',
-                'plugin' => $plugin_file,
-                'new_version' => $body['new_version'],
-                'package' => $body['download_url'],
-                'url' => 'https://roomsonline.co.za',
-                'tested' => $body['tested'] ?? '6.7',
-                'requires_php' => $body['requires_php'] ?? '7.4',
-            );
-        }
-
-        return $transient;
-    }
-}
-add_filter('site_transient_update_plugins', 'rolos_check_for_update');
-
-if (!function_exists('rolos_plugin_info')) {
-    function rolos_plugin_info($result, $action, $args) {
-        if ($action !== 'plugin_information' || !isset($args->slug) || $args->slug !== 'rolos-booking') {
-            return $result;
-        }
-
-        $response = wp_remote_post(ROLOS_UPDATE_URL, array(
-            'timeout' => 10,
-            'body' => wp_json_encode(array(
-                'action' => 'info',
-                'property_id' => ROLOS_PROPERTY_ID,
-            )),
-            'headers' => array('Content-Type' => 'application/json'),
-        ));
-
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            return $result;
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        if (empty($body)) {
-            return $result;
-        }
-
-        return (object) array(
-            'name' => 'RoomsOnline Booking Widget',
-            'slug' => 'rolos-booking',
-            'version' => $body['version'] ?? ROLOS_PLUGIN_VERSION,
-            'author' => '<a href="https://roomsonline.co.za">RoomsOnline</a>',
-            'homepage' => 'https://roomsonline.co.za',
-            'requires' => '5.8',
-            'tested' => $body['tested'] ?? '6.7',
-            'requires_php' => $body['requires_php'] ?? '7.4',
-            'download_link' => $body['download_url'] ?? '',
-            'sections' => array(
-                'description' => 'Embed the RoomsOnline booking engine on any WordPress page via a simple shortcode.',
-                'changelog' => $body['changelog'] ?? '<p>Bug fixes and improvements.</p>',
-            ),
-        );
-    }
-}
-add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
-
   const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"]`;
+  const gridShortcode = `[rolos_property_grid limit="12" columns="3"]`;
 
   const handleDownloadZip = async () => {
-    const zip = new JSZip();
-    const folder = zip.folder("rolos-booking");
-    const cleanPhpSnippet = phpSnippet.replace(/^\uFEFF/, "").trimStart();
-    folder?.file("rolos-booking.php", cleanPhpSnippet, { binary: false });
-
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
+    // Download from edge function for multi-file plugin
+    const downloadUrl = `${updateUrl}?download=${property.id}`;
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "rolos-booking.zip";
+    a.href = downloadUrl;
+    a.download = "rolos-pms-plugin.zip";
     a.click();
-    URL.revokeObjectURL(url);
+    toast({ title: "Download started", description: "Your plugin ZIP is being generated." });
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus("idle");
+    try {
+      const { data, error } = await supabase.functions.invoke("roomsonline-pms-api", {
+        body: { action: "health_check" },
+      });
+      if (error) throw error;
+      setConnectionStatus(data?.success ? "ok" : "error");
+    } catch {
+      setConnectionStatus("error");
+    } finally {
+      setTestingConnection(false);
+    }
   };
 
   const handlePushUpdate = async () => {
     setPushing(true);
     try {
-      // Bump version: parse current and increment patch
       const parts = currentVersion.split(".").map(Number);
       parts[2] = (parts[2] || 0) + 1;
       const newVersion = parts.join(".");
 
       if (integrationConfig?.id) {
-        // Update existing config
         const existingConfig = (integrationConfig.config as Record<string, unknown>) || {};
         const { error } = await supabase
           .from("integration_configs")
@@ -208,7 +124,6 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
           .eq("id", integrationConfig.id);
         if (error) throw error;
       } else {
-        // Create config entry
         const { error } = await supabase
           .from("integration_configs")
           .insert({
@@ -223,99 +138,260 @@ add_filter('plugins_api', 'rolos_plugin_info', 20, 3);`.trim();
       queryClient.invalidateQueries({ queryKey: ["wordpress-config", property.id] });
       toast({
         title: "Update pushed!",
-        description: `Version ${newVersion} will be available to all WordPress sites within 12 hours (or when they manually check for updates).`,
+        description: `Version ${newVersion} will be available to all WordPress sites within 12 hours.`,
       });
-    } catch (err) {
-      console.error("Push update error:", err);
+    } catch {
       toast({ title: "Error", description: "Failed to push update.", variant: "destructive" });
     } finally {
       setPushing(false);
     }
   };
 
+  const handleSaveWebhook = async () => {
+    if (!webhookUrl || !selectedEvents.length) {
+      toast({ title: "Missing fields", description: "Enter a URL and select at least one event.", variant: "destructive" });
+      return;
+    }
+
+    const secret = crypto.randomUUID().replace(/-/g, "");
+
+    try {
+      const { error } = await supabase.from("rolos_webhook_subscriptions").upsert({
+        id: webhookSub?.id || undefined,
+        property_id: property.id,
+        url: webhookUrl,
+        secret,
+        events: selectedEvents,
+        is_active: true,
+      });
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["webhook-sub", property.id] });
+      toast({ title: "Webhook saved", description: `Secret: ${secret} — copy it now, it won't be shown again.` });
+    } catch {
+      toast({ title: "Error", description: "Failed to save webhook.", variant: "destructive" });
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!webhookSub?.id) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("rolos-webhook-receiver", {
+        body: { action: "test_ping", subscription_id: webhookSub.id },
+      });
+      if (error) throw error;
+
+      toast({
+        title: data?.success ? "Ping delivered!" : "Ping failed",
+        description: data?.message || "Check your webhook endpoint.",
+        variant: data?.success ? "default" : "destructive",
+      });
+    } catch {
+      toast({ title: "Error", description: "Failed to send test ping.", variant: "destructive" });
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Puzzle className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">WordPress Plugin</CardTitle>
-            <Badge variant="outline" className="text-xs font-mono">v{currentVersion}</Badge>
+    <div className="space-y-4">
+      {/* Main Plugin Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Puzzle className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">ROL'OS PMS Plugin</CardTitle>
+              <Badge variant="outline" className="text-xs font-mono">v{currentVersion}</Badge>
+              <Badge variant="secondary" className="text-xs">Multi-file</Badge>
+            </div>
+            <IntegrationToggle propertyId={property.id} integrationType="wordpress" />
           </div>
-          <IntegrationToggle propertyId={property.id} integrationType="wordpress" />
-        </div>
-        <CardDescription>
-          Install a lightweight WordPress plugin to embed a <strong>full booking engine with availability calendar,
-          room rates, and checkout — all inside the widget</strong>. Guests never leave your WordPress site.
-          The plugin <strong>auto-updates</strong> when you push changes from here.
-          Renders in your brand colour{" "}
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
-            <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
-          </span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Commission info */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
-          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-          <span className="text-muted-foreground">
-            Bookings through this widget use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
-          </span>
-        </div>
-
-        {/* Action buttons */}
-        <div className={showPushUpdate ? "grid grid-cols-2 gap-3" : ""}>
-          <Button onClick={handleDownloadZip} variant="default" className="gap-2 w-full">
-            <Download className="h-4 w-4" />
-            Download Plugin (.zip)
-          </Button>
-          {showPushUpdate && (
-            <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
-              {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              Push Update to All Sites
+          <CardDescription>
+            Full-featured WordPress plugin with <strong>booking engine, property sync, Gutenberg blocks,
+            Elementor widget, and auto-updates</strong>. Includes PHP SDK, settings wizard, and CPT registration.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Connection Status */}
+          <div className="flex items-center gap-3 rounded-lg border p-3">
+            <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={testingConnection} className="gap-1.5">
+              {testingConnection ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : connectionStatus === "ok" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : connectionStatus === "error" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Test API
             </Button>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground text-center -mt-2">
-          <strong>Download</strong> for first install.{showPushUpdate && <> <strong>Push Update</strong> bumps the version — all WordPress sites see the update automatically.</>}
-        </p>
-
-        <div>
-          <h4 className="text-sm font-medium mb-2">Shortcode</h4>
-          <CodeSnippetBlock code={shortcode} language="text" title="WordPress Shortcode" />
-        </div>
-
-        <details className="group">
-          <summary className="text-sm font-medium mb-2 cursor-pointer select-none list-none flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
-            <span className="transition-transform group-open:rotate-90">▶</span>
-            Plugin Code (Reference)
-          </summary>
-          <div className="mt-2">
-            <CodeSnippetBlock code={phpSnippet} language="php" title="rolos-booking.php" />
+            <span className="text-sm text-muted-foreground">
+              {connectionStatus === "ok" && "API is healthy — plugin will connect successfully."}
+              {connectionStatus === "error" && "API unreachable. Check edge function deployment."}
+              {connectionStatus === "idle" && "Verify the PMS API is reachable before distributing the plugin."}
+            </span>
           </div>
-        </details>
 
-        <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-          <h5 className="font-medium text-foreground mb-1">Installation Steps</h5>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>Click <strong>Download Plugin</strong> above</li>
-            <li>In WordPress Admin, go to <strong>Plugins → Add New → Upload Plugin</strong></li>
-            <li>Select the downloaded <code className="bg-muted px-1 rounded">rolos-booking.zip</code> file</li>
-            <li>Click <strong>Install Now</strong>, then <strong>Activate</strong></li>
-            <li>Add the shortcode above to any page or post</li>
-            <li>Optional: Adjust height with <code className="bg-muted px-1 rounded">height="600px"</code></li>
-          </ol>
-          {showPushUpdate && (
-            <p className="mt-3 text-xs">
-              <strong>Auto-Updates:</strong> Once installed, the plugin checks for updates every 12 hours. When you click <strong>Push Update</strong>, all WordPress sites will see the new version in <strong>Dashboard → Updates</strong>.
-            </p>
-          )}
-          <p className="mt-2 text-xs italic">
-            <strong>Note:</strong> This plugin only registers a shortcode — it does not create pages. If you see new pages (e.g. "Hotel Checkout"), they are from your WordPress theme or another plugin.
+          {/* Commission info */}
+          <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
+            <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <span className="text-muted-foreground">
+              Bookings through this plugin use the ROL'OS platform. The platform fee is as per your property agreement.
+            </span>
+          </div>
+
+          {/* Action buttons */}
+          <div className={showPushUpdate ? "grid grid-cols-2 gap-3" : ""}>
+            <Button onClick={handleDownloadZip} variant="default" className="gap-2 w-full">
+              <Download className="h-4 w-4" />
+              Download Full Plugin (.zip)
+            </Button>
+            {showPushUpdate && (
+              <Button onClick={handlePushUpdate} variant="outline" className="gap-2" disabled={pushing}>
+                {pushing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                Push Update to All Sites
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground text-center -mt-2">
+            <strong>Download</strong> generates a multi-file ZIP with API client, sync engine, blocks, and settings wizard.
           </p>
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* Plugin Structure */}
+          <details className="group">
+            <summary className="text-sm font-medium cursor-pointer select-none list-none flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
+              <span className="transition-transform group-open:rotate-90">▶</span>
+              Plugin Structure (10 files)
+            </summary>
+            <div className="mt-2 bg-muted/50 rounded-lg p-3 text-xs font-mono text-muted-foreground space-y-0.5">
+              <p>rolos-pms-plugin/</p>
+              <p className="ml-4">├── rolos-pms-plugin.php <span className="text-foreground">(bootstrap)</span></p>
+              <p className="ml-4">├── readme.txt</p>
+              <p className="ml-4">├── includes/</p>
+              <p className="ml-8">├── class-rolos-api-client.php <span className="text-foreground">(PHP SDK)</span></p>
+              <p className="ml-8">├── class-rolos-sync-engine.php <span className="text-foreground">(CPT + sync)</span></p>
+              <p className="ml-8">├── class-rolos-settings.php <span className="text-foreground">(wizard + settings)</span></p>
+              <p className="ml-8">├── class-rolos-shortcodes.php <span className="text-foreground">(3 shortcodes)</span></p>
+              <p className="ml-8">├── class-rolos-updater.php <span className="text-foreground">(auto-update)</span></p>
+              <p className="ml-8">├── class-rolos-blocks.php <span className="text-foreground">(Gutenberg + Elementor)</span></p>
+              <p className="ml-8">└── class-rolos-elementor-booking.php</p>
+              <p className="ml-4">└── assets/</p>
+              <p className="ml-8">├── rolos-widget.css</p>
+              <p className="ml-8">└── rolos-admin.css</p>
+            </div>
+          </details>
+
+          {/* Shortcodes */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">Shortcodes</h4>
+            <CodeSnippetBlock code={shortcode} language="text" title="Booking Widget" />
+            <CodeSnippetBlock code={gridShortcode} language="text" title="Property Grid" />
+          </div>
+
+          {/* Installation Steps */}
+          <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+            <h5 className="font-medium text-foreground mb-1">Installation Steps</h5>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Click <strong>Download Full Plugin</strong> above</li>
+              <li>In WordPress Admin → <strong>Plugins → Add New → Upload Plugin</strong></li>
+              <li>Select <code className="bg-muted px-1 rounded">rolos-pms-plugin.zip</code> and install</li>
+              <li>Activate — the <strong>Connection Wizard</strong> opens automatically</li>
+              <li>Enter your API endpoint and anon key (from the API tab)</li>
+              <li>Click <strong>Connect & Start Sync</strong> — properties appear as custom posts</li>
+              <li>Add shortcodes to any page, or use the Gutenberg block editor</li>
+            </ol>
+            {showPushUpdate && (
+              <p className="mt-3 text-xs">
+                <strong>Auto-Updates:</strong> The plugin checks for updates every 12 hours. <strong>Push Update</strong> bumps the version globally.
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Webhook Configuration Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Webhook className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Webhook Configuration</CardTitle>
+            {webhookSub && <Badge variant="default" className="text-xs">Active</Badge>}
+          </div>
+          <CardDescription>
+            Receive real-time event notifications when bookings, inventory, or room statuses change.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Webhook URL</Label>
+              <Input
+                placeholder="https://yoursite.com/wp-json/rolos/v1/webhook"
+                value={webhookUrl || webhookSub?.url || ""}
+                onChange={(e) => setWebhookUrl(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Events</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {WEBHOOK_EVENTS.map((evt) => (
+                  <label key={evt.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={selectedEvents.includes(evt.value) || (webhookSub?.events as string[] || []).includes(evt.value)}
+                      onCheckedChange={(checked) => {
+                        setSelectedEvents((prev) =>
+                          checked ? [...prev, evt.value] : prev.filter((e) => e !== evt.value)
+                        );
+                      }}
+                    />
+                    {evt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={handleSaveWebhook} size="sm" className="gap-1.5">
+                <Webhook className="h-3.5 w-3.5" />
+                Save Webhook
+              </Button>
+              {webhookSub && (
+                <Button onClick={handleTestWebhook} variant="outline" size="sm" className="gap-1.5">
+                  <Send className="h-3.5 w-3.5" />
+                  Send Test Ping
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Delivery Logs */}
+          {webhookLogs && webhookLogs.length > 0 && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                  <Eye className="h-3.5 w-3.5" />
+                  Recent Deliveries
+                </h4>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {webhookLogs.map((log: any) => (
+                    <div key={log.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-3 py-1.5">
+                      <div className="flex items-center gap-2">
+                        {log.status === "delivered" ? (
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                        ) : log.status === "failed" ? (
+                          <XCircle className="h-3 w-3 text-destructive" />
+                        ) : (
+                          <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                        )}
+                        <span className="font-mono">{log.event}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        {log.response_status && <span>HTTP {log.response_status}</span>}
+                        <span>{new Date(log.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
