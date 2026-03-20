@@ -127,7 +127,12 @@ Guidelines:
 - If asked about revenue, reference rate plans and recent booking totals
 - Use cat emoji sparingly 🐱
 - Never make up data — only reference what's in the property context below
-- You ARE the PMS assistant — speak as if you're part of the system`;
+- You ARE the PMS assistant — speak as if you're part of the system
+
+CONTRACTS:
+- Owner contracts are managed from Admin → property settings. One contract automatically covers ALL properties linked to the owner's email.
+- Two types: Standard Listing Agreement and ROL'OS PMS Partnership Agreement.
+- Statuses: draft → sent → viewed → signed (or declined/overridden). Admins can override or resend.`;
 
 // ===========================================================================
 // Action Handlers — execute real operations server-side
