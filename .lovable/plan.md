@@ -1,47 +1,40 @@
 
 
-# Fix: Orchestrator Creates "Full Property" Instead of Aggregated Types
+# Fix Calendar Room Type Units for Hostfully Properties
 
-## Root Cause
+## Problem
+The calendar admin view always shows "1" for available units on Hostfully properties despite correct data in the database.
 
-The orchestrator (`full_ingest_property`) calls Hostfully's `/multi-units/unit-types` v3 endpoint which **returns 404 for all properties** — it doesn't exist. The orchestrator then falls through to creating a single synthetic "Full Property" room for every property, overwriting any correctly grouped types.
+**Root cause**: The calendar component (`CalendarAccommodation.tsx`) reads `matchingRoom?.units ?? 1` from `amenities.room_types`, but the ingestion pipeline writes the unit count as `numRooms`, not `units`. Since `units` is never set, it always defaults to 1.
 
-The working path (`ingest_building_units`) — which iterates child UIDs and aggregates by type — is only called from the building import dialog fallback, but the dialog calls `full_ingest_property` first, which "succeeds" with a synthetic room, so the fallback never triggers.
+## Fix
 
-## Fix (3 changes)
-
-### 1. Orchestrator: detect building properties and delegate to unit-ingestion
-**File:** `supabase/functions/hostfully-api/ingestion/orchestrator.ts`
-
-After the `/multi-units/unit-types` call returns 404/empty (line 236-240), check if this ROL property has child units in `hostfully_unit_map`. If it does, this is a building — delegate room creation to `ingestBuildingUnits` and skip synthetic room creation.
-
-```
-Phase 3 logic:
-1. Try /multi-units/unit-types → 404 (as before)
-2. NEW: Query hostfully_unit_map for this rolPropertyId
-3. If unit_map rows exist → call ingestBuildingUnits() for rooms, skip synthetic
-4. If no unit_map rows → check if property has multiple hostfully_room_types already
-5. Only create synthetic "Full Property" if truly standalone (no children)
+### 1. CalendarAccommodation.tsx — read `numRooms` as fallback for `units`
+**Line 1066**: Change `units: matchingRoom?.units ?? 1` to also check `numRooms`:
+```ts
+units: matchingRoom?.units ?? matchingRoom?.numRooms ?? 1,
 ```
 
-### 2. Building import dialog: call `ingest_building_units` instead of `full_ingest_property` for room types
-**File:** `src/components/pms/HostfullyBuildingImportDialog.tsx`
+**Line 1120** (fallback path): Same fix:
+```ts
+units: room.units ?? room.numRooms ?? 1,
+```
 
-Change the import flow to:
-1. First call `full_ingest_property` for property-level data (descriptions, photos, rules, amenities) — but tell it to **skip room creation** via a new `skipRooms: true` parameter
-2. Then call `ingest_building_units` for proper unit-level room type aggregation
+### 2. Writer.ts and unit-ingestion.ts — also write `units` field alongside `numRooms`
+In both writer.ts (line 269) and unit-ingestion.ts (line 439), when building the `roomTypesForAmenities` array, add the `units` field:
+```ts
+units: group.unitUids.length,  // writer.ts
+units: room.total_units || 1,  // unit-ingestion.ts
+```
 
-### 3. Add `skipRooms` flag to orchestrator
-**File:** `supabase/functions/hostfully-api/ingestion/orchestrator.ts`
-
-Accept optional `skipRooms` boolean. When true, skip phases 3/3.5 (multi-unit fetch and synthetic room) and step 5 in the writer. This lets the dialog use orchestrator for property metadata only, then unit-ingestion for rooms.
+This ensures both `numRooms` and `units` are set so the calendar works regardless of which field it reads.
 
 ### Files changed
-- `supabase/functions/hostfully-api/ingestion/orchestrator.ts` — add `skipRooms` param, detect building properties via DB lookup
-- `supabase/functions/hostfully-api/index.ts` — pass `skipRooms` from request body to orchestrator
-- `src/components/pms/HostfullyBuildingImportDialog.tsx` — call `full_ingest_property` with `skipRooms: true`, then `ingest_building_units`
-- `supabase/functions/hostfully-api/ingestion/writer.ts` — respect `skipRooms` flag to skip room writes
+- `src/pages/CalendarAccommodation.tsx` — fallback to `numRooms` when reading units
+- `supabase/functions/hostfully-api/ingestion/writer.ts` — write `units` field to amenities
+- `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` — write `units` field to amenities
 
 ### Deploy
-- Redeploy `hostfully-api` edge function after changes
+- Redeploy `hostfully-api` edge function
+- Re-import affected buildings to update `amenities.room_types` with `units` field
 
