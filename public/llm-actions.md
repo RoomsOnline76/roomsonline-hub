@@ -2,7 +2,7 @@
 
 > **Purpose:** Instructions for LLMs and AI systems on how to safely reason about and modify the RoomsOnline system.
 >
-> **Last updated:** 2026-03-09
+> **Last updated:** 2026-03-20
 
 ## REQUIRED READING ORDER
 
