@@ -81,6 +81,17 @@ const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 
+// Lazy — Connect portal pages
+const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
+const ConnectFeatures = lazy(() => import("./pages/connect/ConnectFeatures"));
+const ConnectIntegrations = lazy(() => import("./pages/connect/ConnectIntegrations"));
+const ConnectPricing = lazy(() => import("./pages/connect/ConnectPricing"));
+const ConnectDocs = lazy(() => import("./pages/connect/ConnectDocs"));
+const ConnectQuickstart = lazy(() => import("./pages/connect/ConnectQuickstart"));
+const ConnectWordPress = lazy(() => import("./pages/connect/ConnectWordPress"));
+const ConnectFAQ = lazy(() => import("./pages/connect/ConnectFAQ"));
+const ConnectGetStarted = lazy(() => import("./pages/connect/ConnectGetStarted"));
+
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
 const PMSRooms = lazy(() => import("./pages/pms/PMSRooms"));
