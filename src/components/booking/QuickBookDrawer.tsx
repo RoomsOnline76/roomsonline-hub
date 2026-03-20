@@ -153,7 +153,7 @@ export function QuickBookDrawer({
     try {
       const today = new Date();
       const endDate = new Date();
-      endDate.setDate(endDate.getDate() + 90); // 3 months
+      endDate.setDate(endDate.getDate() + 395); // 13 months
 
       const selectedRoom = roomTypes.find(r => r.id === selectedRoomId);
       const roomPmsId = selectedRoom?.pmsRoomId || selectedRoomId;
