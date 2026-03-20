@@ -390,8 +390,9 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     // Resolve room name with fallbacks (Hostfully v3 /rooms may not include name)
     const resolvedName = room.name || (room as any).roomName || (room as any).roomType || (room as any).type || `Room ${index + 1}`;
     
-    // Extract room category from unit name (e.g., "101 Studio" -> "Studio")
-    const roomCategory = resolvedName ? resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName : undefined;
+    // Extract room category from unit name (e.g., "SixOnN 117 Studio" -> "Studio")
+    const parsed = parseUnitName(resolvedName);
+    const roomCategory = parsed?.type || (resolvedName ? resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName : undefined);
     
     // Determine rate type from room data
     const rateType = room.rateType || 'per-unit';
