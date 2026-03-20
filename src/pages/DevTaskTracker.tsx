@@ -70,6 +70,9 @@ export default function DevTaskTracker() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" as TaskPriority, assigned_to: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
