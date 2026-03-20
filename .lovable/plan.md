@@ -1,40 +1,53 @@
 
+Fix plan: make Hostfully availability truly per unit-type (not capped at 1)
 
-# Fix Calendar Room Type Units for Hostfully Properties
+What I found
+- The latest import did create correct room type totals (e.g. 20, 16, 11), but `hostfully_unit_map` is empty.
+- Edge logs show repeated DB errors during unit map writes:
+  - `42P10: there is no unique or exclusion constraint matching the ON CONFLICT specification`
+- Root cause: code uses `upsert(..., { onConflict: 'hostfully_uid' })`, but `hostfully_unit_map` has no unique constraint on `hostfully_uid`.
+- Result: availability fetch falls back to one representative UID per type, so daily availability behaves like 0/1 instead of “open units for that type”.
 
-## Problem
-The calendar admin view always shows "1" for available units on Hostfully properties despite correct data in the database.
+Implementation plan
+1) Add the missing DB uniqueness needed for upsert
+- Create a migration to:
+  - de-duplicate `hostfully_unit_map` rows safely (defensive)
+  - add a unique constraint/index on `(property_id, hostfully_uid)`
+- Why composite: safer than global uniqueness and matches property-scoped ingestion.
 
-**Root cause**: The calendar component (`CalendarAccommodation.tsx`) reads `matchingRoom?.units ?? 1` from `amenities.room_types`, but the ingestion pipeline writes the unit count as `numRooms`, not `units`. Since `units` is never set, it always defaults to 1.
+2) Align ingestion upserts with the new constraint
+- Update:
+  - `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
+  - `supabase/functions/hostfully-api/ingestion/writer.ts`
+- Change unit-map upserts to:
+  - `onConflict: 'property_id,hostfully_uid'`
+- Also treat unit-map write failures as real ingestion errors (not just console logs), so “success” can’t hide broken availability again.
 
-## Fix
+3) Prevent stale availability cache from mixing old/new room IDs
+- Clear Hostfully availability cache for the property when a building is re-imported:
+  - `src/components/pms/HostfullyBuildingImportDialog.tsx`
+  - delete from `pms_availability_cache` where `property_id = ... AND system_type = 'hostfully'`
+- This avoids old `external_room_type_id` generations lingering after re-import.
 
-### 1. CalendarAccommodation.tsx — read `numRooms` as fallback for `units`
-**Line 1066**: Change `units: matchingRoom?.units ?? 1` to also check `numRooms`:
-```ts
-units: matchingRoom?.units ?? matchingRoom?.numRooms ?? 1,
-```
+4) Backfill existing Hostfully properties
+- Run `ingest_building_units` for already imported Hostfully properties to repopulate `hostfully_unit_map`.
+- Then run `fetch_availability` once per property to rebuild clean cache with aggregated per-type availability.
 
-**Line 1120** (fallback path): Same fix:
-```ts
-units: room.units ?? room.numRooms ?? 1,
-```
+5) Verify end-to-end
+- DB checks:
+  - `hostfully_unit_map` has rows for each Hostfully building
+  - unit map count aligns with `hostfully_room_types.total_units`
+- API check:
+  - `fetch_availability` returns `available_units` that can exceed 1 for multi-unit types
+- UI check:
+  - `/admin/calendar/accommodation` shows availability per type per day matching expected open-unit counts.
 
-### 2. Writer.ts and unit-ingestion.ts — also write `units` field alongside `numRooms`
-In both writer.ts (line 269) and unit-ingestion.ts (line 439), when building the `roomTypesForAmenities` array, add the `units` field:
-```ts
-units: group.unitUids.length,  // writer.ts
-units: room.total_units || 1,  // unit-ingestion.ts
-```
-
-This ensures both `numRooms` and `units` are set so the calendar works regardless of which field it reads.
-
-### Files changed
-- `src/pages/CalendarAccommodation.tsx` — fallback to `numRooms` when reading units
-- `supabase/functions/hostfully-api/ingestion/writer.ts` — write `units` field to amenities
-- `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` — write `units` field to amenities
-
-### Deploy
-- Redeploy `hostfully-api` edge function
-- Re-import affected buildings to update `amenities.room_types` with `units` field
-
+Technical details
+- Files to update:
+  - `supabase/migrations/<new>_hostfully_unit_map_unique.sql`
+  - `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
+  - `supabase/functions/hostfully-api/ingestion/writer.ts`
+  - `src/components/pms/HostfullyBuildingImportDialog.tsx`
+- Key SQL shape:
+  - dedupe by `(property_id, hostfully_uid)`
+  - add unique index/constraint on `(property_id, hostfully_uid)`
