@@ -36,7 +36,7 @@ export default defineConfig({
         globals: { wp: "wp", jQuery: "jQuery" },
       },
     },
-    minify: "terser",
+    minify: "esbuild",
     sourcemap: false,
   },
   resolve: {
