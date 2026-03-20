@@ -1729,12 +1729,26 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
       );
     } else if (b.status === "checked_in") {
       btns.push(
-        <Button key="checkout" size="sm" onClick={() => handleLifecycleAction("check_out")} disabled={!!actionLoading}>
+        <Button key="checkout" size="sm" onClick={() => setShowCheckoutConfirm(true)} disabled={!!actionLoading}>
           <LogOut className="h-3 w-3 mr-1" />{loading("check_out") ? "..." : "Check Out"}
         </Button>,
       );
     }
-    return btns.length > 0 ? <div className="flex flex-wrap gap-2 mt-2">{btns}</div> : null;
+    return (
+      <>
+        {btns.length > 0 ? <div className="flex flex-wrap gap-2 mt-2">{btns}</div> : null}
+        <CheckoutConfirmationDialog
+          open={showCheckoutConfirm}
+          onOpenChange={setShowCheckoutConfirm}
+          bookingId={booking.id}
+          guestName={booking.guest_name}
+          onConfirm={() => {
+            setShowCheckoutConfirm(false);
+            handleLifecycleAction("check_out");
+          }}
+        />
+      </>
+    );
   };
 
   // Room reassignment dialog
