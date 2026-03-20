@@ -16,7 +16,7 @@ import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
 import { SmartCart } from "@/components/booking/SmartCart";
-// InlineCheckout removed - unified checkout now uses /journey/checkout
+import { InlineCheckoutPanel } from "@/components/booking/InlineCheckoutPanel";
 import { ConciergeErrorBoundary } from "@/components/booking/ConciergeErrorBoundary";
 import { useAIConciergeEnabled } from "@/hooks/useFeatureFlags";
 import { useItinerary } from "@/contexts/ItineraryContext";
@@ -208,13 +208,13 @@ export default function PropertyShowcase() {
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
-  // Calendar availability for 90-day range (for FloatingDateGuestPicker)
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  // Calendar availability for 90-day range
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   
   // AI Concierge state
   const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
   const [aiFailed, setAiFailed] = useState(false);
-  // checkoutOpen state removed - unified checkout now uses /journey/checkout
   const { hasStays } = useItinerary();
 
   // Handle AI concierge error - gracefully fall back to legacy flow
@@ -694,15 +694,15 @@ export default function PropertyShowcase() {
       }
     }
     
-    // For PMS or manual rates properties with booked rooms, go to unified journey checkout
+    // For PMS or manual rates properties with booked rooms, open inline checkout
     if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-      navigate('/journey/checkout');
+      setCheckoutOpen(true);
       return;
     }
     
-    // If SmartCart has items, go to unified journey checkout
+    // If SmartCart has items, open inline checkout panel
     if (hasStays) {
-      navigate('/journey/checkout');
+      setCheckoutOpen(true);
       return;
     }
     
@@ -957,9 +957,20 @@ export default function PropertyShowcase() {
       {/* SmartCart */}
       {hasStays && (
         <SmartCart 
-          onCheckout={() => navigate('/journey/checkout')}
+          onCheckout={() => setCheckoutOpen(true)}
         />
       )}
+
+      {/* Inline Checkout Panel */}
+      <InlineCheckoutPanel
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        onPaymentSuccess={(bookingId) => {
+          setCheckoutOpen(false);
+          navigate(`/booking-confirmation/${bookingId}?payment=success`);
+        }}
+        onPaymentCancelled={() => setCheckoutOpen(false)}
+      />
 
       {/* AI Concierge Mode */}
       {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && !hasStays && (
