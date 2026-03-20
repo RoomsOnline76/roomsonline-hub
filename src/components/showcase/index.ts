@@ -1,4 +1,4 @@
-// Showcase Components - Paris Fashion Week Edition
+// Showcase Components - Fluent-Inspired Edition
 export { RunwayHero } from './RunwayHero';
 export { QuietFacts } from './QuietFacts';
 export { RoomCollection } from './RoomCollection';
@@ -9,4 +9,5 @@ export { ProseFacilities } from './ProseFacilities';
 export { RunwayReviews } from './RunwayReviews';
 export { InvitationMap } from './InvitationMap';
 export { StickyBookingCTA } from './StickyBookingCTA';
+export { BookingSidebar } from './BookingSidebar';
 export { EditorialSkeleton } from './EditorialSkeleton';
