@@ -131,8 +131,10 @@ export async function executeFullIngestion(
   propertyUid: string,
   rolPropertyId: string,
   ownerCredentialId: string,
-  supabase: any
+  supabase: any,
+  options?: { skipRooms?: boolean }
 ): Promise<AdapterResponse<IngestionResult | null>> {
+  const skipRooms = options?.skipRooms ?? false;
   const ACTION = "full_ingest_property";
   
   console.log(`[Orchestrator] Starting ingestion for property ${propertyUid} -> ROL ${rolPropertyId}`);
