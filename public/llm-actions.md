@@ -255,4 +255,4 @@ When extending adapters:
 
 ---
 
-*For AI/LLM consumption — version 2026.03*
+*For AI/LLM consumption — version 2026.03.20*
