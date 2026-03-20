@@ -335,6 +335,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         return null; // Cache is stale
       }
 
+      // Check cache covers the full requested range
+      const cachedDates = new Set(cachedData.map(r => r.date));
+      if (!cachedDates.has(startDateStr) || !cachedDates.has(endDateStr)) {
+        console.log('Cache does not cover full requested range, fetching fresh data');
+        return null;
+      }
+
       // Group cached data by room type
       const roomTypeMap = new Map<string, PMSRoomTypeData>();
       
