@@ -52,7 +52,7 @@ export function ConnectLayout() {
 
           {/* CTAs */}
           <div className="flex items-center gap-2">
-            <Link to="/connect/get-started" className="hidden sm:block">
+            <Link to={connectPath("/connect/get-started")} className="hidden sm:block">
               <Button size="sm" className="font-medium">
                 Get Started
               </Button>
