@@ -84,9 +84,9 @@ export default function AdminApiConfigurator() {
       };
 
       if (row.id) {
-        await supabase.from("rolos_ui_configs").update(payload).eq("id", row.id);
+        await (supabase.from("rolos_ui_configs") as any).update(payload).eq("id", row.id);
       } else {
-        await supabase.from("rolos_ui_configs").insert(payload);
+        await (supabase.from("rolos_ui_configs") as any).insert([payload]);
       }
     }
 
