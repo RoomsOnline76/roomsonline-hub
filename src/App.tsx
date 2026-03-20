@@ -610,7 +610,7 @@ const App = () => (
               <Route path="get-started" element={<ConnectGetStarted />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={isConnectDomain ? <Navigate to="/connect" replace /> : <NotFound />} />
           </Routes>
           </Suspense>
           </BrowserRouter>
