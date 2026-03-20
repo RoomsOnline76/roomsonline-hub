@@ -427,7 +427,7 @@ export function QuickBookDrawer({
       const seasons = propertyAmenities?.seasons || [];
       const seasonRates = propertyAmenities?.season_rates || {};
       
-      for (let i = 0; i < 90; i++) {
+      for (let i = 0; i < 395; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() + i);
         const dateStr = format(date, "yyyy-MM-dd");

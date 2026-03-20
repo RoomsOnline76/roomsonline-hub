@@ -56,7 +56,7 @@ export function EditStayDatesDialog({
 
     const fetchAvailability = async () => {
       const today = new Date();
-      const endDate = addDays(today, 180); // 6 months ahead
+      const endDate = addDays(today, 395); // 13 months ahead
       
       const { data } = await supabase
         .from('property_availability')

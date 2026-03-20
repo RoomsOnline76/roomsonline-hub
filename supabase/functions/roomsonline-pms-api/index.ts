@@ -1949,7 +1949,7 @@ async function handleBackfillInventory(body: any, supabase: any): Promise<Respon
   if (rtError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, rtError.message, "backfill_inventory")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
 
-  const daysToFill = days_ahead || 90;
+  const daysToFill = days_ahead || 395;
   let totalInserted = 0;
 
   for (const rt of (roomTypes || [])) {
