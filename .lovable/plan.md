@@ -1,94 +1,85 @@
 
 
-# ROLOS PMS: Service Charges + Checkout Refund Processing
+# ROL'OS API UI Configurator — `/admin/api-configurator`
 
 ## Summary
 
-Two interconnected features: (1) Auto-apply property-level service charges (cleaning fees, deposits, taxes, surcharges) to booking folios, and (2) Process refundable deposit returns during checkout.
+A new admin page that provides a schema-driven configurator for all ROL'OS API consumer-facing UI elements — Gutenberg blocks, WP admin dashboard, embed widgets, and Smart Book buttons. Configuration is stored per-property in the database and served via a new API action, allowing future UI iterations without code deployments.
 
-## Current State
+## What Gets Configured
 
-- **Property Charges** already exist (`property_charges` table + `ChargeCalculator.ts`) — configured per property with categories (tax, fee, deposit, surcharge, custom) and calculation methods (flat, per night, per person, percentage, etc.)
-- **Folios** exist (`rolos_folios` + `rolos_folio_transactions`) — manual charge/payment recording via `BookingFolioTab`
-- **Refunds** exist (`rolos_refunds` table + `process_refund` action in `pms-financial`) — but only for payment-level refunds, not deposit returns
-- **Checkout** (`handleCheckOut` in `roomsonline-pms-api`) marks rooms dirty, creates cleaning tasks, closes folio — but does NOT process refundable deposits
-- **Gap**: No bridge between `property_charges` and folios. Charges are never auto-applied. No refund-on-checkout flow.
+**1. Gutenberg Blocks** — Toggle which blocks are available (Booking Widget, Property Explorer, Property Card), default attributes (brand color, height, labels)
 
-## Plan
+**2. WP Admin Dashboard** — Toggle visible tabs (Metrics, Housekeeping, Check-in/out, Folios), custom tab labels, which metric cards to show
 
-### 1. New DB table: `rolos_booking_charges`
-Snapshot of applied service charges per booking, linking `property_charges` to `rolos_folio_transactions`.
+**3. Embed Widgets** — Default booking bar style, availability grid columns, calendar month count, custom CSS overrides
+
+**4. Smart Book Button** — Default solution type, platform presets, CTA text options, allowed button styles
+
+**5. API Feature Gates** — Toggle which API actions are exposed per property (e.g. disable `check_in`/`check_out` for properties not using native PMS operations)
+
+## Database
+
+New table `rolos_ui_configs` storing JSON configuration per property per UI component:
 
 ```sql
-CREATE TABLE rolos_booking_charges (
+CREATE TABLE rolos_ui_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  property_id UUID NOT NULL REFERENCES properties(id),
-  charge_id UUID REFERENCES property_charges(id),  -- source charge template
-  folio_transaction_id UUID REFERENCES rolos_folio_transactions(id),
-  name TEXT NOT NULL,
-  category TEXT NOT NULL,  -- tax, fee, deposit, surcharge, custom
-  calculation_method TEXT NOT NULL,
-  amount NUMERIC NOT NULL,
-  is_refundable BOOLEAN DEFAULT false,
-  refund_timing TEXT,  -- on_checkout, after_inspection, manual
-  refund_status TEXT DEFAULT 'pending',  -- pending, processed, waived
-  refund_transaction_id UUID REFERENCES rolos_folio_transactions(id),
-  breakdown TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
+  component_type TEXT NOT NULL, -- 'gutenberg_blocks', 'wp_admin', 'embed_widgets', 'smart_button', 'api_gates'
+  config JSONB NOT NULL DEFAULT '{}',
+  is_active BOOLEAN DEFAULT true,
+  updated_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(property_id, component_type)
 );
-ALTER TABLE rolos_booking_charges ENABLE ROW LEVEL SECURITY;
--- RLS: staff with property access
+-- RLS: admin/dev only
 ```
 
-### 2. Edge function: `apply_service_charges` action (in `roomsonline-pms-api`)
-New action that:
-- Fetches active `property_charges` for the property
-- Uses `ChargeCalculationContext` logic (nights, rooms, adults, children, subtotal) to calculate amounts
-- Creates `rolos_folio_transactions` for each applicable charge
-- Records snapshots in `rolos_booking_charges`
-- Skips if charges already applied (idempotent via `rolos_booking_charges` check)
+Also a global defaults row where `property_id IS NULL` — acts as the fallback config for all properties.
 
-### 3. Edge function: `process_checkout_refunds` action (in `roomsonline-pms-api`)
-New action (also triggered automatically during `check_out`) that:
-- Queries `rolos_booking_charges` where `is_refundable = true AND refund_timing = 'on_checkout' AND refund_status = 'pending'`
-- Creates negative `rolos_folio_transactions` (credit) for each
-- Updates `refund_status` to `'processed'`
-- Updates folio balance
+## New API Action
 
-### 4. Modify `handleCheckOut` in `roomsonline-pms-api`
-Before closing the folio, call the refund processing logic for `on_checkout` deposits. Existing flow remains intact.
+Add `get_ui_config` action to `roomsonline-pms-api` — returns merged config (global defaults + property overrides). This is what WP plugin / embeds call on init to know what to render.
 
-### 5. UI: Enhanced `BookingFolioTab.tsx`
-- Add "Apply Service Charges" button (calls `apply_service_charges`)
-- Show applied charges with category badges and refundable indicators
-- Add "Process Refund" button for individual refundable charges (manual timing)
-- Show refund status on deposit line items
+## Admin Page
 
-### 6. UI: Checkout confirmation enhancement in `PMSDashboard.tsx`
-- When clicking "Check Out", show a confirmation dialog listing:
-  - Outstanding balance
-  - Refundable deposits that will be returned
-  - Net settlement amount
-- Confirm triggers the checkout + auto-refund flow
+New page `src/pages/AdminApiConfigurator.tsx` at route `/admin/api-configurator`, added to the Edit & Audit sidebar group.
 
-### 7. Auto-apply on check-in (optional trigger)
-During `check_in` action, auto-apply service charges to the folio if not already applied. This ensures charges are visible during the stay.
+**Layout**: Property selector (or "Global Defaults") at top, then tabbed sections:
+
+| Tab | Controls |
+|-----|----------|
+| Gutenberg Blocks | Toggle each block on/off, edit default attributes (color, height, labels), preview JSON |
+| WP Admin Dashboard | Toggle tabs (metrics/housekeeping/checkin/folio), rename tab labels, select visible metric cards |
+| Embed Widgets | Calendar config (months shown, date format), booking bar layout, custom CSS textarea |
+| Smart Button | Default CTA text, allowed styles/sizes, platform defaults |
+| API Gates | Checklist of all 40+ API actions with on/off toggles per property |
+
+Each section has:
+- Toggle switches for features
+- Text inputs for labels/overrides
+- JSON preview of the resulting config
+- "Reset to Global Defaults" button
+- Save writes to `rolos_ui_configs`
 
 ## Files to Create/Modify
 
 | File | Action |
 |------|--------|
-| DB migration | Create `rolos_booking_charges` table + RLS |
-| `supabase/functions/roomsonline-pms-api/index.ts` | Add `apply_service_charges` action, `process_checkout_refunds` action, modify `handleCheckOut` |
-| `src/components/pms/BookingFolioTab.tsx` | Add service charge application UI, refund processing, charge badges |
-| `src/components/pms/CheckoutConfirmationDialog.tsx` | New — confirmation dialog with refund summary |
-| `src/pages/pms/PMSDashboard.tsx` | Wire checkout confirmation dialog before `check_out` action |
+| DB migration | Create `rolos_ui_configs` table + RLS + updated_at trigger |
+| `src/pages/AdminApiConfigurator.tsx` | New — main configurator page |
+| `src/components/api-configurator/GutenbergConfigTab.tsx` | New — block toggle/config panel |
+| `src/components/api-configurator/WpAdminConfigTab.tsx` | New — dashboard tab config |
+| `src/components/api-configurator/EmbedConfigTab.tsx` | New — embed widget config |
+| `src/components/api-configurator/SmartButtonConfigTab.tsx` | New — button defaults config |
+| `src/components/api-configurator/ApiGatesTab.tsx` | New — action-level feature gates |
+| `src/App.tsx` | Add route `/admin/api-configurator` |
+| `src/components/layout/AppSidebar.tsx` | Add "API Configurator" to Edit & Audit group |
+| `supabase/functions/roomsonline-pms-api/index.ts` | Add `get_ui_config` action |
 
-## Technical Details
+## How It Enables Future Iterations
 
-- Charge calculation logic will be replicated in the edge function (server-side) rather than importing from `ChargeCalculator.ts` (client-side only). Same algorithm, different runtime.
-- Idempotency: `apply_service_charges` checks `rolos_booking_charges` before inserting to prevent duplicates.
-- Refund flow creates a negative folio transaction (credit), NOT a payment reversal — keeping folio accounting clean.
-- The `on_checkout` refund is automatic; `after_inspection` and `manual` require explicit staff action.
+The configurator decouples UI rendering decisions from code. When a new Gutenberg block or WP admin tab is added in a future release, it just needs a new key in the config schema — the configurator automatically surfaces it for toggling. The WP plugin reads `get_ui_config` on init and conditionally registers only the enabled blocks/tabs/features.
 
