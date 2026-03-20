@@ -124,6 +124,7 @@ const editAuditItems: NavItem[] = [
   { title: "Contract Editor", icon: FileEdit, href: "/admin/contract-editor", requireAdmin: true },
   { title: "Wizard Editor", icon: Wand2, href: "/admin/wizard-editor", requireAdmin: true },
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
+  { title: "API Configurator", icon: Blocks, href: "/admin/api-configurator", requireAdmin: true },
 ];
 
 // System menu - Dev/Fearless Leader technical items
