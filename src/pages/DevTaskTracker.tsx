@@ -143,6 +143,13 @@ export default function DevTaskTracker() {
     fetchTasks();
   };
 
+  const updatePriority = async (id: string, priority: TaskPriority) => {
+    const { error } = await supabase.from("dev_tasks").update({ priority } as any).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Priority → ${PRIORITY_CONFIG[priority].label}`);
+    fetchTasks();
+  };
+
   const archiveTask = async (id: string) => {
     const { error } = await supabase.from("dev_tasks").update({ is_archived: true } as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
@@ -170,8 +177,22 @@ export default function DevTaskTracker() {
     return u?.full_name || u?.email || "Unknown";
   };
 
-  const activeTasks = tasks.filter((t) => !t.is_archived);
-  const archivedTasks = tasks.filter((t) => t.is_archived);
+  const sortByPriority = (a: DevTask, b: DevTask) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+
+  const filterTasks = (taskList: DevTask[]) => {
+    return taskList.filter((t) => {
+      const matchesSearch = !searchQuery || 
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesAssignee = filterAssignee === "all" || 
+        (filterAssignee === "unassigned" ? !t.assigned_to : t.assigned_to === filterAssignee);
+      const matchesPriority = filterPriority === "all" || t.priority === filterPriority;
+      return matchesSearch && matchesAssignee && matchesPriority;
+    });
+  };
+
+  const activeTasks = filterTasks(tasks.filter((t) => !t.is_archived)).sort(sortByPriority);
+  const archivedTasks = filterTasks(tasks.filter((t) => t.is_archived)).sort(sortByPriority);
 
   // Group active tasks by status for kanban-like columns
   const tasksByStatus: Record<TaskStatus, DevTask[]> = {
