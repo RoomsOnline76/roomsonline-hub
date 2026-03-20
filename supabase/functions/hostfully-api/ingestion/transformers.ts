@@ -78,6 +78,49 @@ function shouldWriteField(
 }
 
 // ============================================================================
+// UNIT NAME PARSER (mirrors src/lib/hostfullyBuildingParser.ts)
+// ============================================================================
+
+/**
+ * Parse a unit name like "SixOnN 117 Studio" or "THREE43onB 102-1BD"
+ * into { building, room, type }. Returns null if unparseable.
+ */
+function parseUnitName(name: string): { building: string; room: string; type: string } | null {
+  if (!name || typeof name !== 'string') return null;
+  const sanitized = name.replace(/[\u00A0\u2000-\u200B\u202F\u205F\u3000\t\r\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!sanitized) return null;
+
+  // Expand hyphenated tokens like "102-1BD" → "102", "1BD"
+  const expandedParts: string[] = [];
+  for (const token of sanitized.split(' ')) {
+    const hyphenMatch = token.match(/^(\d+[A-Za-z]?)-(.+)$/);
+    if (hyphenMatch) {
+      expandedParts.push(hyphenMatch[1], hyphenMatch[2]);
+    } else {
+      expandedParts.push(token);
+    }
+  }
+
+  if (expandedParts.length < 2) return null;
+
+  let roomIndex = -1;
+  for (let i = 0; i < expandedParts.length; i++) {
+    if (/^\d+[A-Za-z]?$|^[A-Za-z]?\d+$/.test(expandedParts[i])) {
+      roomIndex = i;
+      break;
+    }
+  }
+
+  if (roomIndex === -1) return null;
+
+  return {
+    building: expandedParts.slice(0, roomIndex).join(' ') || 'Unknown',
+    room: expandedParts[roomIndex],
+    type: expandedParts.slice(roomIndex + 1).join(' ') || 'Standard',
+  };
+}
+
+// ============================================================================
 // TRANSFORM FUNCTIONS
 // ============================================================================
 
@@ -347,8 +390,9 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     // Resolve room name with fallbacks (Hostfully v3 /rooms may not include name)
     const resolvedName = room.name || (room as any).roomName || (room as any).roomType || (room as any).type || `Room ${index + 1}`;
     
-    // Extract room category from unit name (e.g., "101 Studio" -> "Studio")
-    const roomCategory = resolvedName ? resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName : undefined;
+    // Extract room category from unit name (e.g., "SixOnN 117 Studio" -> "Studio")
+    const parsed = parseUnitName(resolvedName);
+    const roomCategory = parsed?.type || (resolvedName ? resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName : undefined);
     
     // Determine rate type from room data
     const rateType = room.rateType || 'per-unit';
