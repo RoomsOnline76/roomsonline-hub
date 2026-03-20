@@ -88,7 +88,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     const downloadUrl = `${updateUrl}?download=${property.id}`;
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = "rolos-pms-plugin.zip";
+    a.download = "rolos-plugin.zip";
     a.click();
     toast({ title: "Download started", description: "Your plugin ZIP is being generated." });
   };
@@ -257,8 +257,8 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
               Plugin Structure (10 files)
             </summary>
             <div className="mt-2 bg-muted/50 rounded-lg p-3 text-xs font-mono text-muted-foreground space-y-0.5">
-              <p>rolos-pms-plugin/</p>
-              <p className="ml-4">├── rolos-pms-plugin.php <span className="text-foreground">(bootstrap)</span></p>
+              <p>rolos-plugin/</p>
+              <p className="ml-4">├── rolos-plugin.php <span className="text-foreground">(bootstrap)</span></p>
               <p className="ml-4">├── readme.txt</p>
               <p className="ml-4">├── includes/</p>
               <p className="ml-8">├── class-rolos-api-client.php <span className="text-foreground">(PHP SDK)</span></p>
@@ -287,7 +287,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <ol className="list-decimal list-inside space-y-1">
               <li>Click <strong>Download Full Plugin</strong> above</li>
               <li>In WordPress Admin → <strong>Plugins → Add New → Upload Plugin</strong></li>
-              <li>Select <code className="bg-muted px-1 rounded">rolos-pms-plugin.zip</code> and install</li>
+              <li>Select <code className="bg-muted px-1 rounded">rolos-plugin.zip</code> and install</li>
               <li>Activate — the <strong>Connection Wizard</strong> opens automatically</li>
               <li>Enter your API endpoint and anon key (from the API tab)</li>
               <li>Click <strong>Connect & Start Sync</strong> — properties appear as custom posts</li>
