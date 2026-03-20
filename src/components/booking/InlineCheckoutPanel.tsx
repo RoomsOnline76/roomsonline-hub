@@ -344,32 +344,7 @@ export function InlineCheckoutPanel({
     </div>
   );
 
-  // Sticky payment footer
-  const PaymentFooter = () => (
-    <div className="fixed bottom-0 left-0 right-0 bg-card/98 backdrop-blur-xl border-t border-border p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] z-[60]">
-      <Button
-        onClick={handlePayment}
-        disabled={isSubmitting || !isFormValid}
-        className="w-full h-12 text-base font-medium rounded-xl gap-2"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            <CreditCard className="h-5 w-5" />
-            Pay {formatPrice(totalPrice)}
-          </>
-        )}
-      </Button>
-      <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
-        <Lock className="h-3 w-3" />
-        <span>Secured by PayFast · 256-bit SSL</span>
-      </div>
-    </div>
-  );
+
 
   // Lock body scroll when panel is open on mobile
   useEffect(() => {
