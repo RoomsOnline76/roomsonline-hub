@@ -420,7 +420,7 @@ export function QuickBookDrawer({
       baseRate = rateType?.baseRate || roomData?.baseRate;
     }
     
-    // For manual properties, synthesize availability for all dates in the next 90 days
+    // For manual properties, synthesize availability for all dates in the next 13 months
     // Dates without explicit records are assumed available (only blocked dates are stored)
     if ((!externalSystem || externalSystem === 'none') && baseRate) {
       const today = new Date();
