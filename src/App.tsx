@@ -79,6 +79,7 @@ const DevFeatures = lazy(() => import("./pages/DevFeatures"));
 const DevTesting = lazy(() => import("./pages/DevTesting"));
 const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
+const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
@@ -446,6 +447,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminReviewQueue />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/api-configurator"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminApiConfigurator />
                 </ProtectedRoute>
               }
             />
