@@ -215,7 +215,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
           {/* Connection Status */}
           <div className="flex items-center gap-3 rounded-lg border p-3">
             <Button variant="outline" size="sm" onClick={handleTestConnection} disabled={testingConnection} className="gap-1.5">
-              {testingConnection ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : connectionStatus === "ok" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : connectionStatus === "error" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {testingConnection ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : connectionStatus === "ok" ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> : connectionStatus === "error" ? <XCircle className="h-3.5 w-3.5 text-destructive" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Test API
             </Button>
             <span className="text-sm text-muted-foreground">
