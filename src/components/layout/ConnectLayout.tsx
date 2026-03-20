@@ -121,7 +121,7 @@ export function ConnectLayout() {
             <div>
               <h4 className="font-semibold text-sm mb-3">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/about" className="hover:text-foreground transition-colors">About</Link></li>
+                <li><Link to="/connect/about" className="hover:text-foreground transition-colors">About</Link></li>
                 <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
                 <li><Link to="/journals" className="hover:text-foreground transition-colors">Journal</Link></li>
               </ul>
