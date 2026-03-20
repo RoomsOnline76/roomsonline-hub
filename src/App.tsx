@@ -613,6 +613,7 @@ const App = () => (
               <Route path="get-started" element={<ConnectGetStarted />} />
               <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
               <Route path="terms-of-service" element={<ConnectTermsOfService />} />
+              <Route path="about" element={<ConnectAbout />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/connect" replace /> : <NotFound />} />
