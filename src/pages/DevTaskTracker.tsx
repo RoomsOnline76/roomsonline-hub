@@ -54,6 +54,8 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string }> = 
   critical: { label: "Critical", color: "text-destructive border-destructive" },
 };
 
+const PRIORITY_ORDER: Record<TaskPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
 const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
   new: "started",
   started: "testing",
