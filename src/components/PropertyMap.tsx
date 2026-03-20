@@ -56,84 +56,92 @@ export function PropertyMap({
     }
   }, [apiKeyReady, apiKey]);
 
-  // Load Google Maps script - only once
+  // Load Google Maps script and initialize map
   useEffect(() => {
-    if (!apiKeyReady || !apiKey) return;
+    if (!apiKeyReady || !apiKey || !mapRef.current || isInitialized) return;
 
-    if (window.google?.maps) {
-      setMapsLoaded(true);
-      return;
-    }
+    let cancelled = false;
 
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setMapsLoaded(true);
-    document.head.appendChild(script);
-  }, [apiKey, apiKeyReady]);
-
-  // Initialize map - only once when mapsLoaded becomes true
-  useEffect(() => {
-    if (!mapRef.current || !mapsLoaded || !window.google?.maps || isInitialized) return;
-
-    try {
-      const initialPosition = latitude && longitude 
-        ? { lat: Number(latitude), lng: Number(longitude) }
-        : { lat: -33.9249, lng: 18.4241 }; // Default to Cape Town
-
-      const newMap = new window.google.maps.Map(mapRef.current, {
-        center: initialPosition,
-        zoom: 15,
-        mapTypeControl: true,
-        streetViewControl: true,
-        fullscreenControl: true,
-        mapId: "PROPERTY_EDIT_MAP",
-      });
-
-      // Listen for authentication errors
-      newMap.addListener("error", (e: any) => {
-        console.error("Google Maps error:", e);
-        setMapError("Map failed to load. Please check API key configuration.");
-      });
-
-      // Create custom draggable pin element
-      const pinElement = document.createElement("div");
-      pinElement.style.cssText = `
-        width: 32px;
-        height: 32px;
-        background-color: #e91e8c;
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        cursor: grab;
-      `;
-
-      const newMarker = new window.google.maps.marker.AdvancedMarkerElement({
-        position: initialPosition,
-        map: newMap,
-        gmpDraggable: true,
-        title: "Property Location",
-        content: pinElement,
-      });
-
-      newMarker.addListener("dragend", () => {
-        const position = newMarker.position;
-        if (position && onLocationUpdateRef.current) {
-          const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
-          const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
-          onLocationUpdateRef.current(lat, lng);
+    const loadAndInit = async () => {
+      try {
+        // Load script if not present
+        if (!window.google?.maps) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
+            script.async = true;
+            script.defer = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Failed to load Google Maps script"));
+            document.head.appendChild(script);
+          });
         }
-      });
 
-      mapInstanceRef.current = newMap;
-      markerInstanceRef.current = newMarker;
-      setIsInitialized(true);
-    } catch (error) {
-      console.error("Failed to initialize Google Maps:", error);
-      setMapError("Failed to initialize map. The API key may not be authorized for this domain.");
-    }
-  }, [mapsLoaded, isInitialized]); // Only depend on mapsLoaded and isInitialized
+        if (cancelled) return;
+
+        // Import required libraries explicitly - this ensures they're fully loaded
+        const [mapsLib, markerLib] = await Promise.all([
+          google.maps.importLibrary("maps") as Promise<google.maps.MapsLibrary>,
+          google.maps.importLibrary("marker") as Promise<google.maps.MarkerLibrary>,
+        ]);
+
+        if (cancelled || !mapRef.current) return;
+
+        const initialPosition = latitude && longitude
+          ? { lat: Number(latitude), lng: Number(longitude) }
+          : { lat: -33.9249, lng: 18.4241 };
+
+        const newMap = new mapsLib.Map(mapRef.current, {
+          center: initialPosition,
+          zoom: 15,
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
+          mapId: "PROPERTY_EDIT_MAP",
+        });
+
+        const pinElement = document.createElement("div");
+        pinElement.style.cssText = `
+          width: 32px; height: 32px;
+          background-color: #e91e8c;
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          cursor: grab;
+        `;
+
+        const newMarker = new markerLib.AdvancedMarkerElement({
+          position: initialPosition,
+          map: newMap,
+          gmpDraggable: true,
+          title: "Property Location",
+          content: pinElement,
+        });
+
+        newMarker.addListener("dragend", () => {
+          const position = newMarker.position;
+          if (position && onLocationUpdateRef.current) {
+            const lat = typeof position.lat === 'function' ? (position as any).lat() : (position as any).lat;
+            const lng = typeof position.lng === 'function' ? (position as any).lng() : (position as any).lng;
+            onLocationUpdateRef.current(lat, lng);
+          }
+        });
+
+        mapInstanceRef.current = newMap;
+        markerInstanceRef.current = newMarker;
+        setMapsLoaded(true);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error("Failed to initialize Google Maps:", error);
+        if (!cancelled) {
+          setMapError("Failed to initialize map. The API key may not be authorized for this domain.");
+        }
+      }
+    };
+
+    loadAndInit();
+    return () => { cancelled = true; };
+  }, [apiKey, apiKeyReady, isInitialized]);
 
   // Update marker position when lat/lng props change (without reinitializing map)
   useEffect(() => {
