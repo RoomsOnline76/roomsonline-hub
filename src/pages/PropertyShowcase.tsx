@@ -694,15 +694,15 @@ export default function PropertyShowcase() {
       }
     }
     
-    // For PMS or manual rates properties with booked rooms, go to unified journey checkout
+    // For PMS or manual rates properties with booked rooms, open inline checkout
     if ((isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && bookedRooms.length > 0) {
-      navigate('/journey/checkout');
+      setCheckoutOpen(true);
       return;
     }
     
-    // If SmartCart has items, go to unified journey checkout
+    // If SmartCart has items, open inline checkout panel
     if (hasStays) {
-      navigate('/journey/checkout');
+      setCheckoutOpen(true);
       return;
     }
     
