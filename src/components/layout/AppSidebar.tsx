@@ -124,7 +124,6 @@ const editAuditItems: NavItem[] = [
   { title: "Contract Editor", icon: FileEdit, href: "/admin/contract-editor", requireAdmin: true },
   { title: "Wizard Editor", icon: Wand2, href: "/admin/wizard-editor", requireAdmin: true },
   { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
-  { title: "API Configurator", icon: Blocks, href: "/admin/api-configurator", requireAdmin: true },
 ];
 
 // System menu - Dev/Fearless Leader technical items
@@ -135,6 +134,7 @@ const systemItems: NavItem[] = [
   { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
   { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
   { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
+  { title: "API Configurator", icon: Blocks, href: "/admin/system/api-configurator", requireDevOrFearless: true },
 ];
 
 // ROL'OS PMS - single direct link to PMS UI (sub-navigation lives inside PMS layout)
