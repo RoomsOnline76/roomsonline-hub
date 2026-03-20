@@ -129,7 +129,7 @@ export function HostfullyBuildingImportDialog({
         let propertyId: string;
 
         if (existingPropId) {
-          // Re-import: clear existing room types and unit maps, then re-ingest
+          // Re-import: clear existing room types, unit maps, and availability cache
           propertyId = existingPropId;
 
           // Delete unit map entries first (FK dependency)
@@ -143,6 +143,13 @@ export function HostfullyBuildingImportDialog({
             .from("hostfully_room_types")
             .delete()
             .eq("property_id", propertyId);
+
+          // Clear stale availability cache to prevent old room ID mismatches
+          await supabase
+            .from("pms_availability_cache")
+            .delete()
+            .eq("property_id", propertyId)
+            .eq("system_type", "hostfully");
 
           // Update property record
           await supabase
