@@ -7282,6 +7282,61 @@ export type Database = {
           },
         ]
       }
+      rolos_ui_configs: {
+        Row: {
+          component_type: string
+          config: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          property_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          component_type: string
+          config?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          property_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          component_type?: string
+          config?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          property_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_ui_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_ui_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_ui_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_waitlist: {
         Row: {
           booked_at: string | null
