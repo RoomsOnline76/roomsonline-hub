@@ -442,13 +442,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       startDate.setDate(startDate.getDate() + diff);
     }
 
+    // Always fetch 90 days ahead to ensure forward navigation has data
     const endDate = new Date(startDate);
-    if (viewMode === "month") {
-      endDate.setMonth(endDate.getMonth() + 1);
-      endDate.setDate(0);
-    } else {
-      endDate.setDate(endDate.getDate() + 8);
-    }
+    endDate.setDate(endDate.getDate() + 90);
 
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
