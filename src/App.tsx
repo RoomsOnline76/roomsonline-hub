@@ -609,6 +609,7 @@ const App = () => (
               <Route path="docs/wordpress" element={<ConnectWordPress />} />
               <Route path="faq" element={<ConnectFAQ />} />
               <Route path="get-started" element={<ConnectGetStarted />} />
+              <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/connect" replace /> : <NotFound />} />
