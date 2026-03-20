@@ -24,7 +24,7 @@ import { toast } from "sonner";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
-// Showcase Components - Paris Fashion Week Edition
+// Showcase Components - Fluent-Inspired Edition
 import {
   RunwayHero,
   QuietFacts,
@@ -35,7 +35,7 @@ import {
   ProseFacilities,
   RunwayReviews,
   InvitationMap,
-  StickyBookingCTA,
+  BookingSidebar,
   EditorialSkeleton,
 } from "@/components/showcase";
 
