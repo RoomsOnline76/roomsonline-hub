@@ -1,17 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import { useBrandOverride } from '@/hooks/useBrandOverride';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, Download, Home, Calendar, Sparkles, Share2, Gift } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { TimelineVisualizer } from '@/components/journey';
-import { ItineraryStay } from '@/contexts/ItineraryContext';
-import { format } from 'date-fns';
-import { toast } from 'sonner';
-// PDF generation uses browser print dialog for better compatibility
+import { useState, useEffect, useRef } from "react";
+import { useBrandOverride } from "@/hooks/useBrandOverride";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Loader2, CheckCircle, AlertCircle, Home, Calendar, Sparkles, Share2, Gift } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { TimelineVisualizer } from "@/components/journey";
+import { ItineraryStay } from "@/contexts/ItineraryContext";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 export default function JourneyConfirmation() {
   useBrandOverride();
@@ -20,103 +18,64 @@ export default function JourneyConfirmation() {
   const [searchParams] = useSearchParams();
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const autoDownloadTriggered = useRef(false);
-  
-  // Check if auto-download was requested via URL param
-  const autoDownload = searchParams.get('action') === 'download';
+  const autoDownload = searchParams.get("action") === "download";
 
   const { data: itinerary, isLoading, error } = useQuery({
-    queryKey: ['itinerary-confirmation', itineraryId],
+    queryKey: ["itinerary-confirmation", itineraryId],
     queryFn: async () => {
-      if (!itineraryId) throw new Error('No itinerary ID');
-      
-      const { data, error } = await supabase
-        .from('itineraries')
-        .select('*, itinerary_bookings(*)')
-        .eq('id', itineraryId)
-        .single();
-      
+      if (!itineraryId) throw new Error("No itinerary ID");
+      const { data, error } = await supabase.from("itineraries").select("*, itinerary_bookings(*)").eq("id", itineraryId).single();
       if (error) throw error;
       return data;
     },
-    enabled: !!itineraryId
+    enabled: !!itineraryId,
   });
 
-  // Check if itinerary is confirmed
   const stays = (itinerary?.stays || []) as unknown as ItineraryStay[];
-  const isConfirmed = itinerary?.status === 'confirmed';
+  const isConfirmed = itinerary?.status === "confirmed";
 
-  // Auto-trigger brochure download if action=download is in URL
   useEffect(() => {
     if (autoDownload && itinerary && isConfirmed && !isGeneratingPdf && !autoDownloadTriggered.current) {
       autoDownloadTriggered.current = true;
-      // Small delay to ensure UI is ready
-      const timer = setTimeout(() => {
-        handleDownloadPdf();
-      }, 500);
+      const timer = setTimeout(() => handleDownloadPdf(), 500);
       return () => clearTimeout(timer);
     }
   }, [autoDownload, itinerary, isConfirmed, isGeneratingPdf]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
 
   const handleDownloadPdf = async () => {
     if (!itineraryId) return;
     setIsGeneratingPdf(true);
-    
     try {
-      console.log('[PDF] Fetching brochure HTML...');
-      const { data, error } = await supabase.functions.invoke('generate-itinerary-pdf', {
-        body: { itinerary_id: itineraryId }
-      });
-      
+      const { data, error } = await supabase.functions.invoke("generate-itinerary-pdf", { body: { itinerary_id: itineraryId } });
       if (error) throw error;
-      if (!data?.html) throw new Error('No brochure content received');
-      
-      console.log('[PDF] HTML received, length:', data.html.length);
-      
-      // Open HTML in new window for printing/saving as PDF
-      // This is more reliable than html2pdf which has issues with fonts and off-screen rendering
-      const printWindow = window.open('', '_blank');
+      if (!data?.html) throw new Error("No brochure content received");
+
+      const printWindow = window.open("", "_blank");
       if (!printWindow) {
-        toast.error('Please allow popups to download your brochure.');
+        toast.error("Please allow popups to download your brochure.");
         return;
       }
-      
-      // Write the full HTML document (includes all styles and fonts)
       printWindow.document.write(data.html);
       printWindow.document.close();
-      
-      // Wait for content to load, then trigger print dialog
-      printWindow.onload = () => {
-        console.log('[PDF] Triggering print dialog...');
-        setTimeout(() => {
-          printWindow.print();
-        }, 500);
-      };
-      
-      // Fallback: trigger print after a delay if onload doesn't fire
-      setTimeout(() => {
-        try {
-          printWindow.print();
-        } catch (e) {
-          console.log('[PDF] Print already triggered or window closed');
-        }
-      }, 2000);
-      
+      printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
+      setTimeout(() => { try { printWindow.print(); } catch {} }, 2000);
       toast.success('Brochure ready! Use "Save as PDF" in the print dialog.');
-      
-    } catch (e) {
-      console.error('[PDF] Generation failed:', e);
-      toast.error('Failed to generate brochure. Please try again.');
+    } catch {
+      toast.error("Failed to generate brochure. Please try again.");
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: "My African Journey", url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied to clipboard!");
     }
   };
 
@@ -125,7 +84,7 @@ export default function JourneyConfirmation() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading your journey...</p>
+          <p className="text-sm text-muted-foreground">Loading your journey…</p>
         </div>
       </div>
     );
@@ -133,203 +92,155 @@ export default function JourneyConfirmation() {
 
   if (error || !itinerary) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h1 className="text-xl font-semibold mb-2">Journey Not Found</h1>
-          <p className="text-muted-foreground mb-6">We couldn't find this itinerary.</p>
-          <Button onClick={() => navigate('/')}>Return Home</Button>
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="h-10 w-10 text-muted-foreground/50" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight mb-3">Journey Not Found</h1>
+          <p className="text-muted-foreground mb-8">We couldn't find this itinerary.</p>
+          <Button onClick={() => navigate("/")} size="lg">Return Home</Button>
         </div>
       </div>
     );
   }
 
-  // stays and isConfirmed are defined above, after the query
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <div className={`py-16 px-4 ${isConfirmed ? 'bg-green-50 dark:bg-green-950/20' : 'bg-orange-50 dark:bg-orange-950/20'}`}>
-        <div className="max-w-3xl mx-auto text-center">
+      {/* Hero */}
+      <div className={`py-16 px-4 ${isConfirmed ? "bg-green-50 dark:bg-green-950/20" : "bg-amber-50 dark:bg-amber-950/20"}`}>
+        <div className="max-w-2xl mx-auto text-center">
           {isConfirmed ? (
-            <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-6" />
+            <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="h-10 w-10 text-green-600" />
+            </div>
           ) : (
-            <AlertCircle className="h-16 w-16 text-orange-600 mx-auto mb-6" />
+            <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="h-10 w-10 text-amber-600" />
+            </div>
           )}
-          
-          <h1 className="text-3xl md:text-4xl font-serif font-semibold mb-4">
-            {isConfirmed ? 'Your Journey is Confirmed!' : 'Booking Status'}
+
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight mb-3">
+            {isConfirmed ? "Your Journey is Confirmed!" : "Booking Status"}
           </h1>
-          
+
           {isConfirmed && (
-            <p className="text-lg font-serif italic text-muted-foreground mb-3">
+            <p className="text-base font-serif italic text-muted-foreground mb-2">
               You're about to sleep in Africa like never before
             </p>
           )}
-          
-          <p className="text-muted-foreground max-w-lg mx-auto">
-            {isConfirmed 
+
+          <p className="text-muted-foreground text-sm max-w-lg mx-auto">
+            {isConfirmed
               ? `We've sent a confirmation email to ${itinerary.guest_email}. Your adventure awaits!`
-              : 'Some bookings may require attention. Please check the details below.'
-            }
+              : "Some bookings may require attention. Please check the details below."}
           </p>
         </div>
       </div>
 
-      <main className="container max-w-4xl py-12">
+      <main className="container max-w-3xl py-12 px-4">
         {/* Timeline */}
-        {stays.length > 0 && (
-          <TimelineVisualizer stays={stays} className="mb-12" />
-        )}
+        {stays.length > 0 && <TimelineVisualizer stays={stays} className="mb-10" />}
 
-        {/* Booking Summary */}
-        <Card className="mb-8">
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-semibold mb-4">Journey Summary</h2>
-            
-            <div className="space-y-4">
-              {stays.map((stay, index) => (
-                <div key={stay.id} className="flex items-start gap-4 p-4 bg-muted/30 rounded-lg">
-                  <div className="h-12 w-12 rounded-lg overflow-hidden flex-shrink-0 bg-muted">
-                    {stay.property_image ? (
-                      <img 
-                        src={stay.property_image} 
-                        alt={stay.property_name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center">
-                        <Calendar className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium">{stay.property_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(stay.dates.check_in), 'MMM d')} – {format(new Date(stay.dates.check_out), 'MMM d, yyyy')}
-                      {' · '}{stay.nights} {stay.nights === 1 ? 'night' : 'nights'}
-                    </p>
-                  </div>
-                  
-                  <div className="text-right">
-                    <p className="font-semibold">{formatCurrency(stay.price_breakdown.total)}</p>
-                  </div>
+        {/* Journey Summary */}
+        <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm mb-8">
+          <div className="px-6 py-4 border-b border-border/40 bg-muted/30">
+            <h2 className="text-lg font-semibold tracking-tight">Journey Summary</h2>
+          </div>
+
+          <div className="divide-y divide-border/30">
+            {stays.map((stay) => (
+              <div key={stay.id} className="flex items-center gap-4 px-6 py-4">
+                <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0 bg-muted">
+                  {stay.property_image ? (
+                    <img src={stay.property_image} alt={stay.property_name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">
+                      <Calendar className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{stay.property_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(stay.dates.check_in), "MMM d")} – {format(new Date(stay.dates.check_out), "MMM d, yyyy")} · {stay.nights}{" "}
+                    {stay.nights === 1 ? "night" : "nights"}
+                  </p>
+                </div>
+                <p className="font-semibold text-sm shrink-0">{formatCurrency(stay.price_breakdown.total)}</p>
+              </div>
+            ))}
+          </div>
 
-            <Separator className="my-6" />
-
-            <div className="flex justify-between items-center text-lg font-semibold">
-              <span>Total</span>
-              <span>{formatCurrency(itinerary.total_price || 0)}</span>
-            </div>
-          </CardContent>
-        </Card>
+          <div className="px-6 py-4 border-t border-border/40 bg-muted/20 flex justify-between items-center">
+            <span className="font-semibold">Total</span>
+            <span className="text-lg font-semibold">{formatCurrency(itinerary.total_price || 0)}</span>
+          </div>
+        </div>
 
         {/* Guest Details */}
-        <Card className="mb-8">
-          <CardContent className="pt-6">
-            <h2 className="text-xl font-semibold mb-4">Guest Details</h2>
-            <div className="grid sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Name</p>
-                <p className="font-medium">{itinerary.guest_name}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Email</p>
-                <p className="font-medium">{itinerary.guest_email}</p>
-              </div>
-              {itinerary.guest_phone && (
-                <div>
-                  <p className="text-muted-foreground">Phone</p>
-                  <p className="font-medium">{itinerary.guest_phone}</p>
-                </div>
-              )}
-              {itinerary.special_requests && (
-                <div className="sm:col-span-2">
-                  <p className="text-muted-foreground">Special Requests</p>
-                  <p className="font-medium">{itinerary.special_requests}</p>
-                </div>
-              )}
+        <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm mb-8">
+          <div className="px-6 py-4 border-b border-border/40 bg-muted/30">
+            <h2 className="text-lg font-semibold tracking-tight">Guest Details</h2>
+          </div>
+          <div className="px-6 py-5 grid sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Name</p>
+              <p className="font-medium">{itinerary.guest_name}</p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Magical Itinerary Section */}
-        {isConfirmed && (
-          <Card className="mb-8 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border-amber-200 dark:border-amber-800">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/50 px-4 py-2 rounded-full mb-4">
-                  <Gift className="h-5 w-5 text-amber-600" />
-                  <span className="text-amber-700 dark:text-amber-300 font-medium">Your Magical Itinerary</span>
-                </div>
-                
-                <h3 className="text-xl font-serif font-semibold mb-4">
-                  Download Your Journey Brochure
-                </h3>
-                
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button
-                    onClick={handleDownloadPdf}
-                    disabled={isGeneratingPdf}
-                    className="gap-2 bg-amber-600 hover:bg-amber-700"
-                    size="lg"
-                  >
-                    {isGeneratingPdf ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Download Your Journey Brochure
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({
-                          title: 'My African Journey',
-                          text: `Check out my upcoming trip!`,
-                          url: window.location.href,
-                        });
-                      } else {
-                        navigator.clipboard.writeText(window.location.href);
-                        toast.success('Link copied to clipboard!');
-                      }
-                    }}
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Share Journey
-                  </Button>
-                </div>
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Email</p>
+              <p className="font-medium">{itinerary.guest_email}</p>
+            </div>
+            {itinerary.guest_phone && (
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Phone</p>
+                <p className="font-medium">{itinerary.guest_phone}</p>
               </div>
-            </CardContent>
-          </Card>
+            )}
+            {itinerary.special_requests && (
+              <div className="sm:col-span-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Special Requests</p>
+                <p className="font-medium">{itinerary.special_requests}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Magical Itinerary Brochure */}
+        {isConfirmed && (
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl overflow-hidden shadow-sm mb-8">
+            <div className="px-6 py-8 text-center">
+              <div className="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/50 px-4 py-1.5 rounded-full mb-4">
+                <Gift className="h-4 w-4 text-amber-600" />
+                <span className="text-amber-700 dark:text-amber-300 text-xs font-semibold uppercase tracking-wider">Your Magical Itinerary</span>
+              </div>
+
+              <h3 className="text-xl font-semibold tracking-tight mb-5">Download Your Journey Brochure</h3>
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="gap-2 bg-amber-600 hover:bg-amber-700" size="lg">
+                  {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Download Brochure
+                </Button>
+                <Button variant="outline" size="lg" className="gap-2" onClick={handleShare}>
+                  <Share2 className="h-4 w-4" />
+                  Share Journey
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        {/* Bottom actions */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
           {!isConfirmed && (
-            <Button
-              variant="outline"
-              onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf}
-              className="gap-2"
-            >
-              {isGeneratingPdf ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="gap-2" size="lg">
+              {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               Download Brochure
             </Button>
           )}
-          
-          <Button onClick={() => navigate('/')} className="gap-2">
+          <Button onClick={() => navigate("/")} className="gap-2" size="lg">
             <Home className="h-4 w-4" />
             Return Home
           </Button>
