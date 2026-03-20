@@ -85,7 +85,7 @@ export function ConnectLayout() {
                   {link.label}
                 </Link>
               ))}
-              <Link to="/connect/get-started" onClick={() => setMobileOpen(false)}>
+              <Link to={connectPath("/connect/get-started")} onClick={() => setMobileOpen(false)}>
                 <Button size="sm" className="w-full mt-2 font-medium">Get Started</Button>
               </Link>
             </nav>
