@@ -102,6 +102,10 @@ const baseRequestSchema = z.object({
     "assign_housekeeping_task",
     "complete_housekeeping_task",
     "get_daily_metrics",
+    // Service Charges & Refunds
+    "apply_service_charges",
+    "process_checkout_refunds",
+    "get_booking_charges",
     // Phase 1: Inventory Calendar
     "update_inventory",
     "check_inventory",
@@ -344,6 +348,14 @@ Deno.serve(async (req) => {
         return await handleCompleteHousekeepingTask(body, supabase);
       case "get_daily_metrics":
         return await handleGetDailyMetrics(body, supabase);
+
+      // Service Charges & Refunds
+      case "apply_service_charges":
+        return await handleApplyServiceCharges(body, supabase);
+      case "process_checkout_refunds":
+        return await handleProcessCheckoutRefunds(body, supabase);
+      case "get_booking_charges":
+        return await handleGetBookingCharges(body, supabase);
 
       // Phase 1: Inventory Calendar
       case "update_inventory":
@@ -1738,6 +1750,33 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
       );
     }
   }
+  // Process on_checkout refunds before closing folio
+  const { data: pendingRefunds } = await supabase.from("rolos_booking_charges")
+    .select("id, name, amount, folio_transaction_id")
+    .eq("booking_id", booking_id)
+    .eq("is_refundable", true)
+    .eq("refund_timing", "on_checkout")
+    .eq("refund_status", "pending");
+  if (pendingRefunds?.length) {
+    let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+    if (!folio) {
+      const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+      folio = newFolio;
+    }
+    for (const charge of pendingRefunds) {
+      const { data: refundTx } = await supabase.from("rolos_folio_transactions").insert({
+        folio_id: folio.id,
+        transaction_type: "refund",
+        description: `Refund: ${charge.name}`,
+        amount: -Math.abs(charge.amount),
+      }).select("id").single();
+      await supabase.from("rolos_booking_charges").update({
+        refund_status: "processed",
+        refund_transaction_id: refundTx?.id || null,
+      }).eq("id", charge.id);
+    }
+    console.log(`[check_out] Processed ${pendingRefunds.length} on-checkout refund(s)`);
+  }
   // Close folio
   await supabase.from("rolos_folios").update({ status: "closed", closed_at: new Date().toISOString() }).eq("booking_id", booking_id);
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
@@ -2021,4 +2060,209 @@ function getDateRange(startDate: string, endDate: string): string[] {
     dates.push(d.toISOString().split("T")[0]);
   }
   return dates;
+}
+
+// ============================================================================
+// SERVICE CHARGES & REFUNDS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleApplyServiceCharges(body: any, supabase: any): Promise<Response> {
+  const { booking_id } = body;
+  if (!booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "apply_service_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  // Get booking details for calculation context
+  const { data: booking, error: bErr } = await supabase.from("bookings")
+    .select("id, property_id, check_in_date, check_out_date, adults, children, infants, total_price, room_type_id, rolos_room_ids")
+    .eq("id", booking_id).single();
+  if (bErr || !booking) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Booking not found", "apply_service_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  }
+
+  // Check idempotency
+  const { data: existing } = await supabase.from("rolos_booking_charges").select("id").eq("booking_id", booking_id).limit(1);
+  if (existing?.length) {
+    return new Response(JSON.stringify(createSuccessResponse({ message: "Charges already applied", skipped: true }, "apply_service_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  // Get active property charges
+  const { data: charges } = await supabase.from("property_charges")
+    .select("*")
+    .eq("property_id", booking.property_id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+  if (!charges?.length) {
+    return new Response(JSON.stringify(createSuccessResponse({ message: "No active charges configured", applied: [] }, "apply_service_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  // Calculate context
+  const nights = Math.max(1, Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / 86400000));
+  const adults = booking.adults || 1;
+  const children = booking.children || 0;
+  const infants = booking.infants || 0;
+  const totalGuests = adults + children;
+  const subtotal = booking.total_price || 0;
+  const roomCount = booking.rolos_room_ids?.length || 1;
+
+  // Ensure folio exists
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+  if (!folio) {
+    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+    folio = newFolio;
+  }
+
+  const applied: any[] = [];
+  for (const charge of charges) {
+    // Check room type applicability
+    if (!charge.applies_to_all_rooms && charge.room_type_ids?.length) {
+      if (!charge.room_type_ids.includes(booking.room_type_id)) continue;
+    }
+    // Check night range
+    if (charge.min_nights && nights < charge.min_nights) continue;
+    if (charge.max_nights && nights > charge.max_nights) continue;
+
+    // Calculate amount
+    let amount = 0;
+    let breakdown = "";
+    const method = charge.calculation_method;
+    const baseAmt = Number(charge.amount) || 0;
+
+    if (method === "flat") {
+      amount = baseAmt;
+      breakdown = `Flat: R${baseAmt}`;
+    } else if (method === "per_night") {
+      amount = baseAmt * nights;
+      breakdown = `R${baseAmt} × ${nights} nights`;
+    } else if (method === "per_person") {
+      const persons = (charge.applies_to_adults !== false ? adults : 0)
+        + (charge.applies_to_children ? children : 0)
+        + (charge.applies_to_infants ? infants : 0);
+      amount = baseAmt * persons;
+      breakdown = `R${baseAmt} × ${persons} guests`;
+    } else if (method === "per_person_per_night") {
+      const persons = (charge.applies_to_adults !== false ? adults : 0)
+        + (charge.applies_to_children ? children : 0)
+        + (charge.applies_to_infants ? infants : 0);
+      amount = baseAmt * persons * nights;
+      breakdown = `R${baseAmt} × ${persons} guests × ${nights} nights`;
+    } else if (method === "per_room") {
+      amount = baseAmt * roomCount;
+      breakdown = `R${baseAmt} × ${roomCount} room(s)`;
+    } else if (method === "per_room_per_night") {
+      amount = baseAmt * roomCount * nights;
+      breakdown = `R${baseAmt} × ${roomCount} room(s) × ${nights} nights`;
+    } else if (method === "percentage") {
+      const applyTo = charge.percentage_apply_to === "total" ? subtotal : subtotal;
+      amount = (baseAmt / 100) * applyTo;
+      breakdown = `${baseAmt}% of R${applyTo}`;
+    }
+
+    // Apply caps
+    if (charge.min_cap && amount < Number(charge.min_cap)) amount = Number(charge.min_cap);
+    if (charge.max_cap && amount > Number(charge.max_cap)) amount = Number(charge.max_cap);
+
+    amount = Math.round(amount * 100) / 100;
+    if (amount <= 0) continue;
+
+    // Create folio transaction
+    const txType = charge.category === "tax" ? "tax" : charge.category === "deposit" ? "deposit" : "charge";
+    const { data: tx } = await supabase.from("rolos_folio_transactions").insert({
+      folio_id: folio.id,
+      transaction_type: txType,
+      description: `${charge.name}${charge.description ? ` - ${charge.description}` : ""}`,
+      amount,
+    }).select("id").single();
+
+    // Record in booking charges
+    const { data: bc } = await supabase.from("rolos_booking_charges").insert({
+      booking_id,
+      property_id: booking.property_id,
+      charge_id: charge.id,
+      folio_transaction_id: tx?.id || null,
+      name: charge.name,
+      category: charge.category,
+      calculation_method: method,
+      amount,
+      is_refundable: charge.is_refundable || false,
+      refund_timing: charge.refund_timing || null,
+      refund_status: charge.is_refundable ? "pending" : null,
+      breakdown,
+    }).select().single();
+
+    applied.push(bc);
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ applied, count: applied.length }, "apply_service_charges")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleProcessCheckoutRefunds(body: any, supabase: any): Promise<Response> {
+  const { booking_id } = body;
+  if (!booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "process_checkout_refunds")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: pendingRefunds } = await supabase.from("rolos_booking_charges")
+    .select("id, name, amount, booking_id")
+    .eq("booking_id", booking_id)
+    .eq("is_refundable", true)
+    .eq("refund_status", "pending");
+
+  if (!pendingRefunds?.length) {
+    return new Response(JSON.stringify(createSuccessResponse({ message: "No pending refunds", processed: [] }, "process_checkout_refunds")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+  if (!folio) {
+    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
+    folio = newFolio;
+  }
+
+  const processed: any[] = [];
+  for (const charge of pendingRefunds) {
+    const { data: refundTx } = await supabase.from("rolos_folio_transactions").insert({
+      folio_id: folio.id,
+      transaction_type: "refund",
+      description: `Refund: ${charge.name}`,
+      amount: -Math.abs(charge.amount),
+    }).select("id").single();
+
+    await supabase.from("rolos_booking_charges").update({
+      refund_status: "processed",
+      refund_transaction_id: refundTx?.id || null,
+    }).eq("id", charge.id);
+
+    processed.push({ charge_id: charge.id, name: charge.name, refund_amount: charge.amount });
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ processed, count: processed.length }, "process_checkout_refunds")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetBookingCharges(body: any, supabase: any): Promise<Response> {
+  const { booking_id } = body;
+  if (!booking_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "get_booking_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { data, error } = await supabase.from("rolos_booking_charges")
+    .select("*")
+    .eq("booking_id", booking_id)
+    .order("created_at", { ascending: true });
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_booking_charges")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+  return new Response(JSON.stringify(createSuccessResponse({ charges: data || [] }, "get_booking_charges")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }

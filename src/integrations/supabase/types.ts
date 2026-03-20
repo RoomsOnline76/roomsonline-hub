@@ -4219,6 +4219,117 @@ export type Database = {
           },
         ]
       }
+      rolos_booking_charges: {
+        Row: {
+          amount: number
+          booking_id: string
+          breakdown: string | null
+          calculation_method: string
+          category: string
+          charge_id: string | null
+          created_at: string | null
+          folio_transaction_id: string | null
+          id: string
+          is_refundable: boolean | null
+          name: string
+          property_id: string
+          refund_status: string | null
+          refund_timing: string | null
+          refund_transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id: string
+          breakdown?: string | null
+          calculation_method: string
+          category: string
+          charge_id?: string | null
+          created_at?: string | null
+          folio_transaction_id?: string | null
+          id?: string
+          is_refundable?: boolean | null
+          name: string
+          property_id: string
+          refund_status?: string | null
+          refund_timing?: string | null
+          refund_transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          breakdown?: string | null
+          calculation_method?: string
+          category?: string
+          charge_id?: string | null
+          created_at?: string | null
+          folio_transaction_id?: string | null
+          id?: string
+          is_refundable?: boolean | null
+          name?: string
+          property_id?: string
+          refund_status?: string | null
+          refund_timing?: string | null
+          refund_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_booking_charges_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "property_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_folio_transaction_id_fkey"
+            columns: ["folio_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folio_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_booking_charges_refund_transaction_id_fkey"
+            columns: ["refund_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_folio_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_booking_rooms: {
         Row: {
           adults: number
