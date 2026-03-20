@@ -200,7 +200,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Puzzle className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">ROL'OS PMS Plugin</CardTitle>
+              <CardTitle className="text-lg">ROL'OS Plugin</CardTitle>
               <Badge variant="outline" className="text-xs font-mono">v{currentVersion}</Badge>
               <Badge variant="secondary" className="text-xs">Multi-file</Badge>
             </div>
