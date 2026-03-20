@@ -1,53 +1,27 @@
 
-Fix plan: make Hostfully availability truly per unit-type (not capped at 1)
 
-What I found
-- The latest import did create correct room type totals (e.g. 20, 16, 11), but `hostfully_unit_map` is empty.
-- Edge logs show repeated DB errors during unit map writes:
-  - `42P10: there is no unique or exclusion constraint matching the ON CONFLICT specification`
-- Root cause: code uses `upsert(..., { onConflict: 'hostfully_uid' })`, but `hostfully_unit_map` has no unique constraint on `hostfully_uid`.
-- Result: availability fetch falls back to one representative UID per type, so daily availability behaves like 0/1 instead of “open units for that type”.
+# Fix: Calendar Only Shows Hostfully Data for Current Month
 
-Implementation plan
-1) Add the missing DB uniqueness needed for upsert
-- Create a migration to:
-  - de-duplicate `hostfully_unit_map` rows safely (defensive)
-  - add a unique constraint/index on `(property_id, hostfully_uid)`
-- Why composite: safer than global uniqueness and matches property-scoped ingestion.
+## Problem
+The calendar fetches availability only for the **visible date range** (current month in month view, or current week + 8 days). When you navigate forward past March, the cache is empty and a new API call is made — but it only covers the new visible window. The Hostfully API itself returns data fine; the issue is the narrow fetch window combined with a 30-minute cache staleness check that causes re-fetches scoped to tiny ranges.
 
-2) Align ingestion upserts with the new constraint
-- Update:
-  - `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
-  - `supabase/functions/hostfully-api/ingestion/writer.ts`
-- Change unit-map upserts to:
-  - `onConflict: 'property_id,hostfully_uid'`
-- Also treat unit-map write failures as real ingestion errors (not just console logs), so “success” can’t hide broken availability again.
+Additionally, when navigating forward, `fetchPmsAvailability(false)` is called (non-forced), so if cache exists for part of the range, it may return partial data and skip the API call.
 
-3) Prevent stale availability cache from mixing old/new room IDs
-- Clear Hostfully availability cache for the property when a building is re-imported:
-  - `src/components/pms/HostfullyBuildingImportDialog.tsx`
-  - delete from `pms_availability_cache` where `property_id = ... AND system_type = 'hostfully'`
-- This avoids old `external_room_type_id` generations lingering after re-import.
+## Fix
 
-4) Backfill existing Hostfully properties
-- Run `ingest_building_units` for already imported Hostfully properties to repopulate `hostfully_unit_map`.
-- Then run `fetch_availability` once per property to rebuild clean cache with aggregated per-type availability.
+### 1. Widen the fetch window (CalendarAccommodation.tsx)
+**Lines 428-444**: Change the date range calculation to always fetch **90 days ahead** from the start of the visible range, regardless of view mode. This ensures forward navigation has pre-fetched data.
 
-5) Verify end-to-end
-- DB checks:
-  - `hostfully_unit_map` has rows for each Hostfully building
-  - unit map count aligns with `hostfully_room_types.total_units`
-- API check:
-  - `fetch_availability` returns `available_units` that can exceed 1 for multi-unit types
-- UI check:
-  - `/admin/calendar/accommodation` shows availability per type per day matching expected open-unit counts.
+```typescript
+// Current: only fetches current month (31 days max)
+// New: fetch 90 days from start of visible range
+const endDate = new Date(startDate);
+endDate.setDate(endDate.getDate() + 90);
+```
 
-Technical details
-- Files to update:
-  - `supabase/migrations/<new>_hostfully_unit_map_unique.sql`
-  - `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
-  - `supabase/functions/hostfully-api/ingestion/writer.ts`
-  - `src/components/pms/HostfullyBuildingImportDialog.tsx`
-- Key SQL shape:
-  - dedupe by `(property_id, hostfully_uid)`
-  - add unique index/constraint on `(property_id, hostfully_uid)`
+### 2. Fix cache freshness check to be range-aware (CalendarAccommodation.tsx)
+**Lines 312-336**: The current cache check loads data for the requested range but checks staleness based on the newest `fetched_at`. If only part of the range has fresh data, it returns that partial data as "fresh" and skips the API call. Fix: also check that the cache covers the full date range (has data for start and end dates).
+
+### Files changed
+- `src/pages/CalendarAccommodation.tsx` — widen fetch range to 90 days, improve cache coverage check
+
