@@ -88,6 +88,7 @@ function rolos_pms_init() {
     new Rolos_Shortcodes();
     new Rolos_Updater();
     new Rolos_Blocks();
+    new Rolos_Admin_Dashboard();
 
     // Handle activation redirect
     if (get_transient('rolos_activation_redirect')) {
