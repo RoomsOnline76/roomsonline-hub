@@ -16,7 +16,7 @@ import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
 import { SmartCart } from "@/components/booking/SmartCart";
-// InlineCheckout removed - unified checkout now uses /journey/checkout
+import { InlineCheckoutPanel } from "@/components/booking/InlineCheckoutPanel";
 import { ConciergeErrorBoundary } from "@/components/booking/ConciergeErrorBoundary";
 import { useAIConciergeEnabled } from "@/hooks/useFeatureFlags";
 import { useItinerary } from "@/contexts/ItineraryContext";
