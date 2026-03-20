@@ -257,8 +257,8 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
               Plugin Structure (10 files)
             </summary>
             <div className="mt-2 bg-muted/50 rounded-lg p-3 text-xs font-mono text-muted-foreground space-y-0.5">
-              <p>rolos-pms-plugin/</p>
-              <p className="ml-4">├── rolos-pms-plugin.php <span className="text-foreground">(bootstrap)</span></p>
+              <p>rolos-plugin/</p>
+              <p className="ml-4">├── rolos-plugin.php <span className="text-foreground">(bootstrap)</span></p>
               <p className="ml-4">├── readme.txt</p>
               <p className="ml-4">├── includes/</p>
               <p className="ml-8">├── class-rolos-api-client.php <span className="text-foreground">(PHP SDK)</span></p>
