@@ -34,17 +34,39 @@ const AUDIENCES = [
 ];
 
 const CAPABILITIES = [
-  { icon: Zap, title: "Real-time Availability", desc: "Live inventory with sub-second queries across all connected properties" },
-  { icon: Globe, title: "Multi-Property Portfolio", desc: "Manage multiple properties from a single dashboard with aggregated KPIs" },
-  { icon: BarChart3, title: "Revenue Analytics", desc: "ADR, RevPAR, occupancy forecasting, and channel performance tracking" },
-  { icon: Blocks, title: "WordPress Native", desc: "Gutenberg blocks, Elementor widgets, and WP admin dashboard integration" },
-  { icon: Shield, title: "Enterprise Security", desc: "Row-level security, encrypted PII, audit logging, and role-based access" },
-  { icon: Code2, title: "Developer-First API", desc: "REST API with 40+ actions, JSON schemas, and code examples in 3 languages" },
+  {
+    icon: Zap,
+    title: "Real-time Availability",
+    desc: "Live inventory with sub-second queries across all connected properties",
+  },
+  {
+    icon: Globe,
+    title: "Multi-Property Portfolio",
+    desc: "Manage multiple properties from a single dashboard with aggregated KPIs",
+  },
+  {
+    icon: BarChart3,
+    title: "Revenue Analytics",
+    desc: "ADR, RevPAR, occupancy forecasting, and channel performance tracking",
+  },
+  {
+    icon: Blocks,
+    title: "WordPress Native",
+    desc: "Gutenberg blocks, Elementor widgets, and WP admin dashboard integration",
+  },
+  {
+    icon: Shield,
+    title: "Enterprise Security",
+    desc: "Row-level security, encrypted PII, audit logging, and role-based access",
+  },
+  {
+    icon: Code2,
+    title: "Developer-First API",
+    desc: "REST API with 40+ actions, JSON schemas, and code examples in 3 languages",
+  },
 ];
 
-const TRUST_LOGOS = [
-  "Hostfully", "NightsBridge", "WordPress", "Elementor",
-];
+const TRUST_LOGOS = ["Hostfully", "NightsBridge", "WordPress", "Elementor"];
 
 export default function ConnectHome() {
   return (
@@ -60,7 +82,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                ROL'OS API v3.0 — Now Available
+                ROL'OS API v3.0 — Available Soon !
               </span>
             </motion.div>
 
@@ -79,7 +101,7 @@ export default function ConnectHome() {
               className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto"
               style={{ textWrap: "pretty" } as React.CSSProperties}
             >
-              One API, 40+ actions — manage rooms, rates, reservations, housekeeping, folios, and guest profiles. 
+              One API, 40+ actions — manage rooms, rates, reservations, housekeeping, folios, and guest profiles.
               Integrate with WordPress, embed on any site, or build custom with our REST API.
             </motion.p>
 
@@ -144,7 +166,9 @@ export default function ConnectHome() {
                   <a.icon className="h-6 w-6 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{a.title}</h3>
-                <p className="text-muted-foreground mb-6" style={{ textWrap: "pretty" } as React.CSSProperties}>{a.desc}</p>
+                <p className="text-muted-foreground mb-6" style={{ textWrap: "pretty" } as React.CSSProperties}>
+                  {a.desc}
+                </p>
                 <Link to={a.href}>
                   <Button variant="outline" className="gap-2">
                     {a.cta} <ArrowRight className="h-3.5 w-3.5" />
@@ -238,9 +262,15 @@ export default function ConnectHome() {
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 30-day free trial</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No credit card</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Full API access</span>
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 30-day free trial
+              </span>
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No credit card
+              </span>
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Full API access
+              </span>
             </div>
           </motion.div>
         </div>
