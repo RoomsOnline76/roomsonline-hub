@@ -693,7 +693,7 @@ class Rolos_Updater {
         if (empty(\$body)) return \$result;
 
         return (object) array(
-            'name' => 'ROL\\'OS PMS Plugin',
+            'name' => 'ROL\\'OS Plugin',
             'slug' => 'rolos',
             'version' => \$body['version'] ?? ROLOS_VERSION,
             'author' => '<a href="https://roomsonline.co.za">RoomsOnline</a>',
