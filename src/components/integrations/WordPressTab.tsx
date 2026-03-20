@@ -88,7 +88,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     const downloadUrl = `${updateUrl}?download=${property.id}`;
     const a = document.createElement("a");
     a.href = downloadUrl;
-    a.download = "rolos-pms-plugin.zip";
+    a.download = "rolos-plugin.zip";
     a.click();
     toast({ title: "Download started", description: "Your plugin ZIP is being generated." });
   };

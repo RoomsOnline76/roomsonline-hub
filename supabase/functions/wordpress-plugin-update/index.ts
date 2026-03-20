@@ -17,14 +17,14 @@ function generateMainPlugin(property: { id: string; slug: string; brand_primary_
   const brandColor = property.brand_primary_color || "#e91e63";
   return `<?php
 /**
- * Plugin Name: ROL'OS PMS Plugin
+ * Plugin Name: ROL'OS Plugin
  * Plugin URI: https://roomsonline.co.za
- * Description: Full-featured ROL'OS PMS integration — booking engine, property sync, availability, and operations dashboard.
+ * Description: Full-featured ROL'OS integration — booking engine, property sync, availability, and operations dashboard.
  * Version: ${version}
  * Author: RoomsOnline
  * Author URI: https://roomsonline.co.za
  * License: GPL v2 or later
- * Text Domain: rolos-pms
+ * Text Domain: rolos
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Tested up to: 6.7
@@ -51,7 +51,7 @@ require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-blocks.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-admin-dashboard.php';
 
 // ─── Activation ───
-function rolos_pms_activate() {
+function rolos_activate() {
     $engine = new Rolos_Sync_Engine();
     $engine->register_cpt();
     flush_rewrite_rules();
@@ -71,16 +71,16 @@ function rolos_pms_activate() {
     // Redirect to wizard on first activation
     set_transient('rolos_activation_redirect', true, 30);
 }
-register_activation_hook(__FILE__, 'rolos_pms_activate');
+register_activation_hook(__FILE__, 'rolos_activate');
 
 // ─── Deactivation ───
-function rolos_pms_deactivate() {
+function rolos_deactivate() {
     wp_clear_scheduled_hook('rolos_daily_sync');
 }
-register_deactivation_hook(__FILE__, 'rolos_pms_deactivate');
+register_deactivation_hook(__FILE__, 'rolos_deactivate');
 
 // ─── Init ───
-function rolos_pms_init() {
+function rolos_init() {
     $engine = new Rolos_Sync_Engine();
     $engine->register_cpt();
 
@@ -99,7 +99,7 @@ function rolos_pms_init() {
         }
     }
 }
-add_action('init', 'rolos_pms_init');
+add_action('init', 'rolos_init');
 
 // ─── Cron hook ───
 add_action('rolos_daily_sync', function() {
@@ -640,7 +640,7 @@ class Rolos_Updater {
     public function check_update(\$transient) {
         if (empty(\$transient->checked)) return \$transient;
 
-        \$plugin_file = plugin_basename(ROLOS_PLUGIN_DIR . 'rolos-pms-plugin.php');
+        \$plugin_file = plugin_basename(ROLOS_PLUGIN_DIR . 'rolos-plugin.php');
         \$response = wp_remote_post(ROLOS_UPDATE_URL, array(
             'timeout' => 10,
             'body' => wp_json_encode(array(
@@ -658,7 +658,7 @@ class Rolos_Updater {
         \$body = json_decode(wp_remote_retrieve_body(\$response), true);
         if (!empty(\$body['new_version']) && version_compare(ROLOS_VERSION, \$body['new_version'], '<')) {
             \$transient->response[\$plugin_file] = (object) array(
-                'slug' => 'rolos-pms',
+                'slug' => 'rolos',
                 'plugin' => \$plugin_file,
                 'new_version' => \$body['new_version'],
                 'package' => \$body['download_url'],
@@ -672,7 +672,7 @@ class Rolos_Updater {
     }
 
     public function plugin_info(\$result, \$action, \$args) {
-        if (\$action !== 'plugin_information' || !isset(\$args->slug) || \$args->slug !== 'rolos-pms') {
+        if (\$action !== 'plugin_information' || !isset(\$args->slug) || \$args->slug !== 'rolos') {
             return \$result;
         }
 
@@ -694,7 +694,7 @@ class Rolos_Updater {
 
         return (object) array(
             'name' => 'ROL\\'OS PMS Plugin',
-            'slug' => 'rolos-pms',
+            'slug' => 'rolos',
             'version' => \$body['version'] ?? ROLOS_VERSION,
             'author' => '<a href="https://roomsonline.co.za">RoomsOnline</a>',
             'homepage' => 'https://roomsonline.co.za',
@@ -961,10 +961,10 @@ serve(async (req) => {
       }
 
       const zip = new JSZip();
-      const folder = zip.folder("rolos-pms-plugin")!;
+      const folder = zip.folder("rolos-plugin")!;
 
       // Main plugin file
-      folder.file("rolos-pms-plugin.php", generateMainPlugin(property, pluginVersion, updateUrl, apiUrl).trimStart().replace(/^\uFEFF/, ""));
+      folder.file("rolos-plugin.php", generateMainPlugin(property, pluginVersion, updateUrl, apiUrl).trimStart().replace(/^\uFEFF/, ""));
 
       // Includes
       const includes = folder.folder("includes")!;
@@ -982,7 +982,7 @@ serve(async (req) => {
       assets.file("rolos-admin.css", generateAdminCss());
 
       // Readme
-      folder.file("readme.txt", `=== ROL'OS PMS Plugin ===
+      folder.file("readme.txt", `=== ROL'OS Plugin ===
 Contributors: roomsonline
 Tags: booking, hotel, pms, property management
 Requires at least: 5.8
@@ -991,11 +991,11 @@ Requires PHP: 7.4
 Stable tag: ${pluginVersion}
 License: GPLv2 or later
 
-Full ROL'OS PMS integration for WordPress — booking engine, property sync, and operations dashboard.
+Full ROL'OS integration for WordPress — booking engine, property sync, and operations dashboard.
 
 == Description ==
 
-The ROL'OS PMS Plugin connects your WordPress site to the ROL'OS Property Management System. Features include:
+The ROL'OS Plugin connects your WordPress site to the ROL'OS Property Management System. Features include:
 
 * **Booking Widget** — Embed a full booking engine via shortcode or Gutenberg block
 * **Property Sync** — Auto-sync room types, rates, and images as WordPress custom posts
@@ -1009,7 +1009,7 @@ The ROL'OS PMS Plugin connects your WordPress site to the ROL'OS Property Manage
 
 1. Upload the plugin ZIP via Plugins → Add New → Upload Plugin
 2. Activate the plugin
-3. Complete the connection wizard (ROL'OS PMS → Settings)
+3. Complete the connection wizard (ROL'OS → Settings)
 4. Add the \`[rolos_booking]\` shortcode to any page
 
 == Changelog ==
@@ -1030,7 +1030,7 @@ The ROL'OS PMS Plugin connects your WordPress site to the ROL'OS Property Manage
         headers: {
           ...corsHeaders,
           "Content-Type": "application/zip",
-          "Content-Disposition": "attachment; filename=rolos-pms-plugin.zip",
+          "Content-Disposition": "attachment; filename=rolos-plugin.zip",
         },
       });
     } catch (zipErr) {
