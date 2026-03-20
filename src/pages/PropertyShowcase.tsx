@@ -12,7 +12,6 @@ import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
-import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
