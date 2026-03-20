@@ -26,6 +26,7 @@ import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 import { BookingFolioTab } from "@/components/pms/BookingFolioTab";
+import { CheckoutConfirmationDialog } from "@/components/pms/CheckoutConfirmationDialog";
 import { BookingInvoice } from "@/components/pms/BookingInvoice";
 import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { callPmsApi } from "@/hooks/usePmsApi";
