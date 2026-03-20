@@ -1,20 +1,43 @@
 
-# Fluent-Inspired Booking Flow Redesign
 
-## Status
+# Extend Availability Calendar to 13 Months Forward
 
-### Phase 1: Property Showcase Simplification ✅ COMPLETE
-- **RunwayHero.tsx** — Simplified to Fluent-style: 70-80vh gallery with nav arrows, dot indicators, property info overlay + price badge. No parallax.
-- **BookingSidebar.tsx** (new) — Sticky sidebar (desktop 340px) / bottom bar (mobile). Dates, guests, price estimate, promo code, CTA. Replaces StickyBookingCTA + FloatingDateGuestPicker.
-- **RoomCollection.tsx** — Horizontal cards (image left, details right) with "Select →" button.
-- **CategoryCollection.tsx** — Same horizontal card treatment for Hostfully categories.
-- **PropertyShowcase.tsx** — 2-column layout: content left + sidebar right (desktop). Mobile gets bottom bar.
+## Summary
 
-### Phase 2: Inline Checkout ✅ COMPLETE
-- **InlineCheckoutPanel.tsx** (new) — Slide-in right panel (desktop) with 3 numbered steps: Your Stay → Your Details → Payment. Full booking creation + PayFast/PayGate payment integration. Deduplication, anonymous auth, itinerary persistence.
-- **PropertyShowcase.tsx** — "Book Now" and SmartCart now open InlineCheckoutPanel instead of navigating to /journey/checkout. Checkout stays on-page.
-- **Booking.tsx** — Preserved as fallback for direct links, embed flows, and white-label integrations.
+Replace all 90-day availability windows with 13-month (395-day) windows across the admin calendar, ROLOS dashboard embeds, property showcase, QuickBookDrawer, and the backfill edge function.
 
-### Phase 3: Embed/Widget Alignment — TODO
-### Phase 4: Confirmation & Email Polish — TODO
-### Phase 5: Mobile Optimization — TODO
+## Changes
+
+### 1. `src/pages/CalendarAccommodation.tsx` (line ~447)
+Change `endDate.setDate(endDate.getDate() + 90)` → `+ 395` (13 months). Update comment.
+
+### 2. `src/pages/PropertyShowcase.tsx` (lines ~452, ~484)
+- Change `addDays(today, 90)` → `addDays(today, 395)`
+- Change `for (let i = 0; i < 90; i++)` → `i < 395`
+- Update comment from "90-day range" to "13-month range"
+
+### 3. `src/components/booking/QuickBookDrawer.tsx` (lines ~156, ~430)
+- Change `endDate.setDate(endDate.getDate() + 90)` → `+ 395`
+- Change `for (let i = 0; i < 90; i++)` → `i < 395`
+- Update comments
+
+### 4. `src/components/journey/EditStayDatesDialog.tsx` (line ~59)
+Change `addDays(today, 180)` → `addDays(today, 395)` to match 13-month window.
+
+### 5. `supabase/functions/roomsonline-pms-api/index.ts` (line ~1952)
+Change backfill default from `days_ahead || 90` → `days_ahead || 395`.
+
+### 6. `supabase/functions/nightsbridge-reservations-sync/index.ts` (line ~109)
+Change default sync window from `+ 90` → `+ 395`.
+
+### 7. `src/components/RoomAvailabilityCalendar.tsx`
+No hard 90-day limit found — it fetches per-month on navigation. Already supports forward navigation. No change needed.
+
+### 8. `src/components/embed/EmbedAvailabilityGrid.tsx`
+No hard limit — uses offset-based navigation with data passed in. No change needed, but parent components feeding it data (EmbedProperty.tsx) should provide 13-month data if applicable.
+
+## Scope
+- **7 files** modified (5 frontend, 2 edge functions)
+- All changes are simple numeric constant replacements (90 → 395, 180 → 395)
+- Edge functions will auto-deploy
+
