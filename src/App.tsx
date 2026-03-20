@@ -160,11 +160,13 @@ const App = () => (
         <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={
-            isSurveyDomain
-              ? <ProjectDiscoverySurvey />
-              : window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
-                ? <Home /> 
-                : <Navigate to="/dashboard/reports" replace />
+            isConnectDomain
+              ? <Navigate to="/connect" replace />
+              : isSurveyDomain
+                ? <ProjectDiscoverySurvey />
+                : window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
+                  ? <Home /> 
+                  : <Navigate to="/dashboard/reports" replace />
           } />
           <Route path="/book" element={<BookRedirect />} />
           <Route path="/property_listing" element={<PropertyListing />} />
