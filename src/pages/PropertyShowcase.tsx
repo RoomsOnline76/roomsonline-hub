@@ -957,9 +957,20 @@ export default function PropertyShowcase() {
       {/* SmartCart */}
       {hasStays && (
         <SmartCart 
-          onCheckout={() => navigate('/journey/checkout')}
+          onCheckout={() => setCheckoutOpen(true)}
         />
       )}
+
+      {/* Inline Checkout Panel */}
+      <InlineCheckoutPanel
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        onPaymentSuccess={(bookingId) => {
+          setCheckoutOpen(false);
+          navigate(`/booking-confirmation/${bookingId}?payment=success`);
+        }}
+        onPaymentCancelled={() => setCheckoutOpen(false)}
+      />
 
       {/* AI Concierge Mode */}
       {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && !hasStays && (
