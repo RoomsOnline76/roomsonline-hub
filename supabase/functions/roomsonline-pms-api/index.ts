@@ -2272,3 +2272,35 @@ async function handleGetBookingCharges(body: any, supabase: any): Promise<Respon
   return new Response(JSON.stringify(createSuccessResponse({ charges: data || [] }, "get_booking_charges")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+// deno-lint-ignore no-explicit-any
+async function handleGetUiConfig(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+
+  // Fetch global defaults (property_id IS NULL)
+  const { data: globalConfigs } = await supabase.from("rolos_ui_configs")
+    .select("component_type, config, is_active")
+    .is("property_id", null);
+
+  let propertyConfigs: any[] = [];
+  if (propertyId) {
+    const { data } = await supabase.from("rolos_ui_configs")
+      .select("component_type, config, is_active")
+      .eq("property_id", propertyId);
+    propertyConfigs = data || [];
+  }
+
+  // Merge: property overrides global
+  const merged: Record<string, any> = {};
+  for (const row of (globalConfigs || [])) {
+    if (row.is_active) merged[row.component_type] = row.config;
+  }
+  for (const row of propertyConfigs) {
+    if (row.is_active) {
+      merged[row.component_type] = { ...(merged[row.component_type] || {}), ...row.config };
+    }
+  }
+
+  return new Response(JSON.stringify(createSuccessResponse({ config: merged, property_id: propertyId || null }, "get_ui_config")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
