@@ -102,6 +102,10 @@ const baseRequestSchema = z.object({
     "assign_housekeeping_task",
     "complete_housekeeping_task",
     "get_daily_metrics",
+    // Service Charges & Refunds
+    "apply_service_charges",
+    "process_checkout_refunds",
+    "get_booking_charges",
     // Phase 1: Inventory Calendar
     "update_inventory",
     "check_inventory",
