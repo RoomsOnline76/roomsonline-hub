@@ -1063,7 +1063,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           allowChildren: matchingRoom?.allowChildren ?? true,
           allowInfants: matchingRoom?.allowInfants ?? true,
           minGuests: matchingRoom?.minGuests ?? 1,
-          units: matchingRoom?.units ?? 1,
+          units: matchingRoom?.units ?? matchingRoom?.numRooms ?? 1,
         };
       });
     }
@@ -1117,7 +1117,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         allowChildren: room.allowChildren ?? true,
         allowInfants: room.allowInfants ?? true,
         minGuests: room.minGuests ?? 1,
-        units: room.units ?? 1,
+        units: room.units ?? room.numRooms ?? 1,
       };
     });
   }, [selectedPropertyData, pmsData]);

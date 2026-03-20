@@ -267,6 +267,7 @@ export async function writeIngestion(
           maxAdults: room.max_guests || 2,
           minGuests: room.min_guests || 1,
           numRooms: group.unitUids.length,
+          units: group.unitUids.length,
           bedrooms: room.bedrooms || 1,
           bathrooms: room.bathrooms || 1,
           beds: room.beds || 1,
