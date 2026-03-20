@@ -208,13 +208,13 @@ export default function PropertyShowcase() {
   const [showLeavingModal, setShowLeavingModal] = useState(false);
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
-  // Calendar availability for 90-day range (for FloatingDateGuestPicker)
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  // Calendar availability for 90-day range
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   
   // AI Concierge state
   const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
   const [aiFailed, setAiFailed] = useState(false);
-  // checkoutOpen state removed - unified checkout now uses /journey/checkout
   const { hasStays } = useItinerary();
 
   // Handle AI concierge error - gracefully fall back to legacy flow
