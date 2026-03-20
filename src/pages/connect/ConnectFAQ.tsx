@@ -43,7 +43,7 @@ const FAQ_CATEGORIES = [
     items: [
       { q: "What analytics are included?", a: "ADR (Average Daily Rate), RevPAR (Revenue per Available Room), occupancy forecasting, channel performance, revenue breakdowns, and guest demographics. The get_daily_metrics API action returns these in real-time." },
       { q: "Can I manage multiple properties?", a: "Yes. Professional plans support up to 3 properties, and Enterprise plans offer unlimited properties with portfolio-level analytics and aggregated KPIs." },
-      { q: "Do you support OTA channel management?", a: "Yes. Connect Booking.com, Airbnb, Expedia, Google Hotels, and more. Rate parity rules, availability sync, and commission tracking are all managed through the channel manager." },
+      { q: "Do you support OTA channel management?", a: "OTA channel management is on our near-term roadmap and actively in development. When launched, it will include connections to Booking.com, Airbnb, Expedia, Google Hotels, and more — with rate parity rules, real-time availability sync, and commission tracking built in. In the meantime, NightsBridge integration provides broad OTA distribution for properties across Southern Africa." },
       { q: "What about revenue management?", a: "ROL'OS includes rate seasons with day-of-week multipliers, rate plans with min/max stay rules, and 14-day demand forecasting based on historical data." },
     ],
   },
