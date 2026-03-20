@@ -110,6 +110,8 @@ const baseRequestSchema = z.object({
     "update_inventory",
     "check_inventory",
     "backfill_inventory",
+    // UI Configurator
+    "get_ui_config",
   ]),
   propertyId: z.string().uuid().optional(),
   // Pagination params
