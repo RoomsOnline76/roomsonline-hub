@@ -451,9 +451,9 @@ const App = () => (
               }
             />
             <Route
-              path="/admin/api-configurator"
+              path="/admin/system/api-configurator"
               element={
-                <ProtectedRoute requireAdmin={true}>
+                <ProtectedRoute requireDevOrFearless={true}>
                   <AdminApiConfigurator />
                 </ProtectedRoute>
               }
