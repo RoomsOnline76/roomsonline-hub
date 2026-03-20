@@ -1,48 +1,45 @@
 
 
-# Per-Property Payment Provider Selection
+# Fix Hostfully Building Import: Type Aggregation & Hyphenated Names
 
-## Current State
-- The `properties` table already has a `payment_provider` column (nullable string)
-- Payment gateway is currently resolved globally via `supporting_systems` table + `useActivePaymentGateway` hook
-- The hook only supports "payfast" or "paygate" and ignores the per-property `payment_provider` field entirely
+## Problems Identified
 
-## What Changes
+### 1. THREE43onB not recognized as a building
+Hostfully unit names use hyphens: `THREE43onB 102-1BD`, `THREE43onB 103-Studio`. The parser regex only matches pure tokens like `102` or `2A` — it fails on `102-1BD` because of the hyphen. Result: no room number found, entire name treated as a standalone building per unit.
 
-### 1. New shared component: `PropertyPaymentProviderSelect`
-**File:** `src/components/integrations/PropertyPaymentProviderSelect.tsx`
+### 2. SixOnN creates individual room rows instead of type groups
+Both `full_ingest_property` (orchestrator → writer) and `ingest_building_units` write **one `hostfully_room_types` row per unit** with `total_units: 1`. The dialog fallback (`createRoomTypesFallback`) correctly groups by type, but gets overwritten by the full ingestion. Current DB shows 189 rows for SixOnN — should be ~4 types. Also, `hostfully_unit_map` has 0 entries for SixOnN, so per-unit availability tracking is broken.
 
-A reusable card with a dropdown listing all 14 payment providers. Each option shows name + website. Reads/writes `properties.payment_provider`. Default label: "Platform Default (PayFast/PayGate)" when null.
+## Changes
 
-Provider list (stored values → display labels):
-`payfast`, `paygate`, `peach`, `yoco`, `ozow`, `dpo`, `addpay`, `payflex`, `stitch`, `ikhokha`, `snapscan`, `zapper`, `flutterwave`, `stripe`
+### 1. Fix parser to handle hyphens — `src/lib/hostfullyBuildingParser.ts`
+In `parsePropertyName()`, before splitting by spaces, replace hyphens between a room number and type with a space:
+- `"THREE43onB 102-1BD"` → split token `"102-1BD"` → detect `"102"` prefix + hyphen → room: `"102"`, type: `"1BD"`
+- Update regex or add a pre-processing step: if a token matches `^\d+[A-Za-z]?-(.+)$`, split it into room number + type
 
-### 2. Add to PMS Integrations page
-**File:** `src/pages/pms/PMSIntegrations.tsx`
-- Import `PropertyPaymentProviderSelect`
-- Render it between the Property Context Card and the Integration Tabs
-- Pass `propertyId` prop
+Also mirror this fix in `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` (which has its own copy of `parseUnitName`).
 
-### 3. Add to Admin Property Edit (Integrations tab)
-**File:** `src/components/property/PropertyFormIntegrationsTab.tsx`
-- Import `PropertyPaymentProviderSelect`
-- Render it at the top of the integrations tab, above the Widget Toolkit card
-- Pass `propertyId={property.id}` prop
+### 2. Aggregate units by type in ingestion writer — `supabase/functions/hostfully-api/ingestion/writer.ts`
+After collecting all room data in step 5 (lines 167-276):
+- Group rooms by normalized `property_type` (room category)
+- Write ONE `hostfully_room_types` row per type group with `total_units` = count of units in that group
+- Use the first unit's details (description, images, max_guests, etc.) as the representative data
+- After writing the aggregated room type row, insert individual entries into `hostfully_unit_map` for each unit UID
 
-### 4. Add to Admin Integrations page
-**File:** `src/pages/AdminIntegrations.tsx`
-- Import `PropertyPaymentProviderSelect`
-- Render it between the PayFast Environment Toggle and the Integration Analytics
-- Pass `propertyId={selectedProperty}` prop
+### 3. Aggregate in unit-ingestion — `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
+Same aggregation logic in `ingestBuildingUnits()` step 5 (lines 307-356):
+- After fetching all unit details into `allRooms`, group by `property_type`
+- Write one `hostfully_room_types` row per type with correct `total_units`
+- Write `hostfully_unit_map` entries for each individual unit UID
 
-### 5. Update `useActivePaymentGateway` hook
-**File:** `src/hooks/useActivePaymentGateway.tsx`
-- Accept optional `propertyId` parameter
-- When provided, first check `properties.payment_provider` for that property
-- If property has a specific provider set (not null/not "default"), return that
-- Otherwise fall back to the existing global `supporting_systems` lookup
-- Expand `PaymentGateway` type to include all 14 providers
+### 4. Aggregate in dialog fallback — `src/components/pms/HostfullyBuildingImportDialog.tsx`
+The `createRoomTypesFallback` already groups correctly — no change needed here. But ensure the `full_ingest_property` call (which currently overwrites the fallback) also respects aggregation.
 
-### No database migration needed
-The `payment_provider` column already exists on the `properties` table as a nullable string. No schema change required.
+### 5. Sync `amenities.room_types` with aggregated data
+In both writer.ts and unit-ingestion.ts, update the `amenities.room_types` sync to use `numRooms: group.unit_count` instead of `numRooms: 1`.
+
+### Summary of files changed
+- `src/lib/hostfullyBuildingParser.ts` — hyphen handling in parser
+- `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` — hyphen handling + type aggregation + unit_map writes
+- `supabase/functions/hostfully-api/ingestion/writer.ts` — type aggregation + unit_map writes
 
