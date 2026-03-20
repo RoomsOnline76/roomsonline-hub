@@ -5,10 +5,11 @@
     "scope": "PMS-agnostic booking engine that unifies multiple Property Management Systems under one interface",
     "primary_function": "Orchestrate bookings across diverse PMS backends while providing consistent UI/UX",
     "version": "2026.03",
-    "last_updated": "2026-03-09",
+    "last_updated": "2026-03-20",
     "domains": {
       "public_booking": "book.sleepinafrica.roomsonline.co.za",
-      "admin_console": "sleepinafrica.roomsonline.co.za"
+      "admin_console": "sleepinafrica.roomsonline.co.za",
+      "developer_portal": "connect.roomsonline.co.za"
     },
     "is_not": [
       "a Property Management System (PMS) — though it includes ROL'OS native PMS for properties without external PMS",
@@ -83,6 +84,7 @@
     "journey_builder": "Multi-stop itinerary planning with multi-property bookings",
     "rolos_native_pms": "Built-in PMS module with rooms, rates, housekeeping, night audit, guests, channels, events, messaging, revenue, portfolio",
     "integration_toolkit": "Embeddable widgets, booking bars, direct links, WordPress plugin for property websites",
+    "connect_portal": "Developer hub with interactive API reference (40+ actions), quickstart guides, and TOBI sales assistant",
     "multi_currency": "ZAR, USD, EUR, GBP with real-time conversion",
     "editorial_content": "Curated property descriptions, travel journals, destination guides",
     "silent_copilot": "Four-layer AI intelligence system: Behavioral Memory, Psychic Admin, Curated Guest, System Guardian"
@@ -93,6 +95,12 @@
       "purpose": "Guest booking interface, property showcase, journey builder",
       "protection": "none (public)",
       "key_components": ["PropertyShowcase", "BookingWidget", "RoomShowcase", "PropertyListing", "JourneyBuilder", "AISearch"]
+    },
+    "connect_portal": {
+      "url_pattern": "connect.roomsonline.co.za/*",
+      "purpose": "Developer documentation, API reference, integration onboarding, sales inquiries",
+      "protection": "none (public)",
+      "key_components": ["ConnectHome", "ConnectDocs", "ConnectFeatures", "ConnectPricing", "ConnectIntegrations", "ConnectFAQ", "ConnectGetStarted", "ConnectTobiWidget"]
     },
     "owner_portal": {
       "url_pattern": "sleepinafrica.roomsonline.co.za/dashboard/*",
@@ -117,6 +125,20 @@
       "purpose": "System monitoring, health checks, debugging, task tracking",
       "protection": "authenticated + dev role",
       "key_components": ["DevOverview", "DevPMS", "DevLogs", "DevFeatures", "DevDanger", "DevTesting", "DevTaskTracker"]
+    }
+  },
+  "connect_api": {
+    "endpoint": "POST /functions/v1/roomsonline-pms-api",
+    "auth": "x-api-key header + propertyId in body",
+    "action_categories": {
+      "property": ["get_property_details", "get_room_types", "get_rate_types", "get_ui_config"],
+      "availability": ["fetch_availability", "set_availability", "get_rates", "set_rates"],
+      "reservations": ["create_reservation", "modify_reservation", "cancel_reservation", "get_reservation", "get_reservations"],
+      "front_desk": ["check_in", "check_out", "get_folio", "add_folio_charge", "process_folio_payment", "apply_service_charges", "get_booking_charges", "process_checkout_refunds"],
+      "housekeeping": ["get_housekeeping_tasks", "update_housekeeping_task"],
+      "night_audit": ["run_night_audit", "get_night_audit_status"],
+      "guests": ["get_guest_profile", "search_guests", "update_guest_profile"],
+      "reporting": ["get_revenue_summary", "get_occupancy_report"]
     }
   },
   "pms_integrations": {
@@ -159,13 +181,15 @@
     "adapter": "Isolated edge function handling PMS-specific API communication, implementing standard contract",
     "cache": "Read-only copy of PMS data stored in ROL database for display performance",
     "rolos": "ROL'OS — ROL's built-in native PMS module for properties without external PMS integration",
+    "connect": "ROL'OS Connect — developer portal and API documentation hub for third-party integrators",
     "sync_logs": "Audit trail table recording all data synchronization between ROL and external PMS",
     "rls": "Row Level Security — PostgreSQL feature for fine-grained data access control",
     "edge_function": "Serverless function running on Supabase infrastructure for backend logic",
     "booking_widget": "Embeddable component for date/guest selection and availability checking",
     "journey": "Multi-stop itinerary combining multiple property stays into a single trip",
     "integration_toolkit": "Suite of embeddable tools (widgets, booking bars, direct links, WordPress plugin) for property websites",
-    "silent_copilot": "Four-layer AI intelligence system providing behavioral memory, proactive admin assistance, curated guest interactions, and system monitoring"
+    "silent_copilot": "Four-layer AI intelligence system providing behavioral memory, proactive admin assistance, curated guest interactions, and system monitoring",
+    "tobi": "TOBI — AI assistant on the Connect portal for technical and commercial inquiries"
   },
   "llm_files": {
     "summary": "/llms.txt",

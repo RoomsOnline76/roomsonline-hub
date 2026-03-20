@@ -1,5 +1,5 @@
 # RoomsOnline Crawler Directives
-# Last updated: 2026-03-09
+# Last updated: 2026-03-20
 
 # Default rules for all crawlers
 User-agent: *
@@ -18,6 +18,20 @@ Allow: /booking-confirmation/
 Allow: /*.js
 Allow: /*.css
 Allow: /*.json
+
+# Connect portal public pages
+Allow: /connect
+Allow: /connect/features
+Allow: /connect/integrations
+Allow: /connect/pricing
+Allow: /connect/docs
+Allow: /connect/docs/quickstart
+Allow: /connect/docs/wordpress
+Allow: /connect/faq
+Allow: /connect/about
+Allow: /connect/get-started
+Allow: /connect/privacy-policy
+Allow: /connect/terms-of-service
 
 # Block admin and protected areas
 Disallow: /admin/
@@ -54,6 +68,14 @@ Allow: /about
 Allow: /contact
 Allow: /how-our-booking-engine-works
 Allow: /booking-confirmation/
+Allow: /connect
+Allow: /connect/features
+Allow: /connect/integrations
+Allow: /connect/pricing
+Allow: /connect/docs
+Allow: /connect/faq
+Allow: /connect/about
+Allow: /connect/get-started
 Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard/
@@ -75,6 +97,12 @@ Allow: /property/
 Allow: /properties
 Allow: /journals/
 Allow: /how-our-booking-engine-works
+Allow: /connect
+Allow: /connect/features
+Allow: /connect/integrations
+Allow: /connect/pricing
+Allow: /connect/docs
+Allow: /connect/faq
 Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard/
@@ -94,6 +122,8 @@ Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
 Allow: /schema-org-site.jsonld
+Allow: /connect
+Allow: /connect/docs
 Disallow: /admin/
 Disallow: /admin-*
 Disallow: /dashboard/
@@ -113,6 +143,8 @@ Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
+Allow: /connect
+Allow: /connect/docs
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth
@@ -131,6 +163,8 @@ Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
+Allow: /connect
+Allow: /connect/docs
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth
@@ -149,6 +183,8 @@ Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llm-context.json
 Allow: /llm-actions.md
+Allow: /connect
+Allow: /connect/docs
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth
@@ -161,6 +197,8 @@ Allow: /
 Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llm-context.json
+Allow: /connect
+Allow: /connect/docs
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth
@@ -172,6 +210,32 @@ User-agent: cohere-ai
 Allow: /
 Allow: /llms.txt
 Allow: /llms-full.txt
+Allow: /connect
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
+# Meta AI
+User-agent: meta-externalagent
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /connect
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
+# Apple Bot (Siri / Spotlight)
+User-agent: Applebot
+Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Allow: /connect
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth
@@ -191,3 +255,4 @@ Allow: /
 # Sitemaps
 Sitemap: https://sleepinafrica.roomsonline.co.za/sitemap.xml
 Sitemap: https://book.sleepinafrica.roomsonline.co.za/sitemap.xml
+Sitemap: https://connect.roomsonline.co.za/sitemap.xml

@@ -2,7 +2,7 @@
 
 > **Purpose:** Instructions for LLMs and AI systems on how to safely reason about and modify the RoomsOnline system.
 >
-> **Last updated:** 2026-03-09
+> **Last updated:** 2026-03-20
 
 ## REQUIRED READING ORDER
 
@@ -58,6 +58,12 @@ Before making any modifications, read these files in order:
 - ✅ Add new embeddable widget types
 - ✅ Extend booking bar configuration
 - ✅ Create new integration channels
+
+### Connect Portal
+- ✅ Update API documentation and code examples
+- ✅ Add new FAQ entries
+- ✅ Extend developer onboarding content
+- ✅ Update pricing and feature pages
 
 ---
 
@@ -249,4 +255,4 @@ When extending adapters:
 
 ---
 
-*For AI/LLM consumption — version 2026.03*
+*For AI/LLM consumption — version 2026.03.20*
