@@ -1588,6 +1588,8 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
   const [unreadyRoomDetails, setUnreadyRoomDetails] = useState<any[]>([]);
   const [reassignRoomIds, setReassignRoomIds] = useState<string[]>([]);
   const [reassignPrice, setReassignPrice] = useState("");
+  // Checkout confirmation state
+  const [showCheckoutConfirm, setShowCheckoutConfirm] = useState(false);
   const [form, setForm] = useState({
     guest_name: booking.guest_name,
     guest_email: booking.guest_email,
