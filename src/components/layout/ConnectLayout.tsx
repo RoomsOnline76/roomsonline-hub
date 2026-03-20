@@ -123,6 +123,7 @@ export function ConnectLayout() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><Link to={connectPath("/connect/about")} className="hover:text-foreground transition-colors">About</Link></li>
                 <li><Link to={connectPath("/connect/get-started")} className="hover:text-foreground transition-colors">Contact</Link></li>
+                <li><Link to={connectPath("/connect/journal")} className="hover:text-foreground transition-colors">Journal</Link></li>
               </ul>
             </div>
             <div>

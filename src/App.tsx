@@ -94,6 +94,7 @@ const ConnectGetStarted = lazy(() => import("./pages/connect/ConnectGetStarted")
 const ConnectPrivacyPolicy = lazy(() => import("./pages/connect/ConnectPrivacyPolicy"));
 const ConnectTermsOfService = lazy(() => import("./pages/connect/ConnectTermsOfService"));
 const ConnectAbout = lazy(() => import("./pages/connect/ConnectAbout"));
+const ConnectJournal = lazy(() => import("./pages/connect/ConnectJournal"));
 
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
@@ -178,6 +179,7 @@ const App = () => (
               <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
               <Route path="terms-of-service" element={<ConnectTermsOfService />} />
               <Route path="about" element={<ConnectAbout />} />
+              <Route path="journal" element={<ConnectJournal />} />
             </Route>
           )}
           <Route path="/" element={
@@ -632,6 +634,7 @@ const App = () => (
               <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
               <Route path="terms-of-service" element={<ConnectTermsOfService />} />
               <Route path="about" element={<ConnectAbout />} />
+              <Route path="journal" element={<ConnectJournal />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
