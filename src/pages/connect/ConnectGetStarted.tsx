@@ -26,11 +26,15 @@ export default function ConnectGetStarted() {
   const [form, setForm] = useState({
     name: "", email: "", company: "", property_count: "", current_pms: "", message: "",
   });
+  const [honeypot, setHoneypot] = useState("");
+  const [loadedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Spam checks: honeypot filled or form submitted in under 3 seconds
+    if (honeypot || Date.now() - loadedAt < 3000) return;
     if (!form.name.trim() || !form.email.trim()) return;
 
     setSubmitting(true);
