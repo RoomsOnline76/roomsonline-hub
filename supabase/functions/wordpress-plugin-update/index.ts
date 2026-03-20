@@ -48,6 +48,7 @@ require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-settings.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-shortcodes.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-updater.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-blocks.php';
+require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-admin-dashboard.php';
 
 // ─── Activation ───
 function rolos_pms_activate() {
