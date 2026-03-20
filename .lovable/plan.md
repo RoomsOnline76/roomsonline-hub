@@ -1,85 +1,200 @@
 
 
-# ROL'OS API UI Configurator — `/admin/api-configurator`
+# ROL'OS Connect Portal — `connect.roomsonline.co.za`
 
 ## Summary
 
-A new admin page that provides a schema-driven configurator for all ROL'OS API consumer-facing UI elements — Gutenberg blocks, WP admin dashboard, embed widgets, and Smart Book buttons. Configuration is stored per-property in the database and served via a new API action, allowing future UI iterations without code deployments.
+Build a public-facing developer/sales portal inspired by HomeRunner.io's structure and UX, tailored for ROL'OS. This is the front door for property managers, web agencies, and developers to discover, evaluate, and integrate with the ROL'OS platform. It includes a full API reference, downloadable documentation, a sales-focused TOBI assistant, and a polished marketing site — all within the existing React codebase, published to `connect.roomsonline.co.za`.
 
-## What Gets Configured
+## Architecture
 
-**1. Gutenberg Blocks** — Toggle which blocks are available (Booking Widget, Property Explorer, Property Card), default attributes (brand color, height, labels)
+The portal will be a new section of routes under `/connect/*`, rendered using a dedicated `ConnectLayout` (no admin sidebar, no auth required — fully public). The domain `connect.roomsonline.co.za` will be pointed at the existing app, with hostname detection routing to the connect portal.
 
-**2. WP Admin Dashboard** — Toggle visible tabs (Metrics, Housekeeping, Check-in/out, Folios), custom tab labels, which metric cards to show
+```text
+connect.roomsonline.co.za
+├── /                   → Hero + value proposition (HomeRunner-style landing)
+├── /features           → Feature showcase (booking engine, PMS ops, analytics)
+├── /integrations       → Supported PMS list + adapter pattern explanation
+├── /pricing            → Pricing tiers + ROI calculator
+├── /docs               → Interactive API reference (40+ actions documented)
+├── /docs/quickstart    → Getting started guide
+├── /docs/wordpress     → WP plugin installation guide
+├── /docs/webhooks      → Webhook events reference
+├── /get-started        → Contact/demo request form
+└── /faq                → Categorized FAQ (Discover, Connect, Grow, Control)
+```
 
-**3. Embed Widgets** — Default booking bar style, availability grid columns, calendar month count, custom CSS overrides
+## What Gets Built
 
-**4. Smart Book Button** — Default solution type, platform presets, CTA text options, allowed button styles
+### 1. Connect Layout Shell
+New `src/components/layout/ConnectLayout.tsx` — clean, modern public layout with:
+- Sticky header with ROL'OS logo, nav links (Features, Integrations, Pricing, Docs, FAQ)
+- "Get a Demo" + "Get Started" CTAs in header
+- Branded footer with links, social, "Powered by Rooms Online"
+- No auth required, no admin sidebar
 
-**5. API Feature Gates** — Toggle which API actions are exposed per property (e.g. disable `check_in`/`check_out` for properties not using native PMS operations)
+### 2. Landing Page (`/connect`)
+HomeRunner-inspired hero section with:
+- Bold headline: "The Native PMS & Booking Engine Built for African Hospitality"
+- Property manager + Web Agency audience cards with CTAs
+- Stats counter (properties managed, countries, booking volume)
+- PMS integration logos (Hostfully, Benson, ROL'OS native)
+- Client logo carousel
+- Portfolio showcase cards (live property websites)
+- FAQ accordion (categorized: Discover, Connect, Grow, Control, Start)
+
+### 3. Features Page (`/connect/features`)
+Feature grid covering:
+- Native PMS operations (housekeeping, check-in/out, folios, night audit)
+- Booking engine (real-time availability, multi-property search)
+- Business intelligence (daily metrics, occupancy, revenue analytics)
+- White-label integration toolkit (direct links, widgets, booking bar, WP plugin)
+- Guest CRM and communication
+- Multi-property portfolio management
+
+### 4. Interactive API Documentation (`/connect/docs`)
+The crown jewel — a developer-grade API reference:
+- Left sidebar navigation with action categories
+- Each of the 40+ actions documented with:
+  - Description, method, endpoint
+  - Request schema (parameters table)
+  - Response schema
+  - Copy-ready code examples (cURL, JavaScript, PHP)
+  - Try-it playground (pre-filled JSON editor)
+- Categories: System, Availability, Reservations, Rooms, Rates, Guests, Folios, Housekeeping, Inventory, Service Charges, Configuration
+- Search/filter across all actions
+- Downloadable PDF master document (generated via button click)
+
+### 5. Quickstart Guide (`/connect/docs/quickstart`)
+Step-by-step onboarding:
+1. Request API credentials
+2. Health check call
+3. Fetch room types
+4. Check availability
+5. Create first reservation
+With copy-ready code at each step.
+
+### 6. WordPress Plugin Guide (`/connect/docs/wordpress`)
+Installation walkthrough with:
+- Download link for `rolos-plugin.zip`
+- Setup wizard screenshots
+- Gutenberg block usage
+- Sync engine explanation
+
+### 7. Pricing Page (`/connect/pricing`)
+- Tier cards (Starter, Professional, Enterprise)
+- Feature comparison matrix
+- ROI calculator widget
+- "Book a Demo" CTA
+
+### 8. Get Started Page (`/connect/get-started`)
+- Contact form (name, email, property count, PMS, message)
+- Discovery call booking info
+- Quick setup process steps
+- Stores submissions in a new `connect_inquiries` table
+
+### 9. TOBI API Assistant
+A ringfenced version of TOBI specifically for the connect portal:
+- New edge function `connect-assistant` with a sales-first system prompt
+- Personality: helpful, knowledgeable about ROL'OS capabilities, commercial-minded
+- Can answer technical API questions with code examples
+- Suggests appropriate integration approaches
+- Guides toward "Get Started" when ready
+- Floating chat widget on all `/connect/*` pages
+- Suggested prompts: "What PMS systems do you support?", "How does the API work?", "Show me a booking flow example", "What does the WP plugin include?"
+
+### 10. Master API Document Download
+- "Download Full API Reference" button in the docs section
+- Generates a comprehensive PDF covering all 40+ actions, schemas, authentication, error codes
+- Served from edge function that builds the document on demand
 
 ## Database
 
-New table `rolos_ui_configs` storing JSON configuration per property per UI component:
-
+**New table: `connect_inquiries`**
 ```sql
-CREATE TABLE rolos_ui_configs (
+CREATE TABLE connect_inquiries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
-  component_type TEXT NOT NULL, -- 'gutenberg_blocks', 'wp_admin', 'embed_widgets', 'smart_button', 'api_gates'
-  config JSONB NOT NULL DEFAULT '{}',
-  is_active BOOLEAN DEFAULT true,
-  updated_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(property_id, component_type)
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  company TEXT,
+  property_count TEXT,
+  current_pms TEXT,
+  message TEXT,
+  source TEXT DEFAULT 'connect_portal',
+  created_at TIMESTAMPTZ DEFAULT now()
 );
--- RLS: admin/dev only
+-- No RLS needed — public insert, admin-only select
 ```
 
-Also a global defaults row where `property_id IS NULL` — acts as the fallback config for all properties.
+## Domain Routing
 
-## New API Action
+Update `src/App.tsx` and `src/lib/config.ts`:
+- Add `CONNECT_DOMAIN = "https://connect.roomsonline.co.za"`
+- Add hostname check: `isConnectDomain = window.location.hostname === 'connect.roomsonline.co.za'`
+- When on connect domain, render only `/connect/*` routes within `ConnectLayout`
+- All routes also accessible at `/connect/*` on the main domain for preview/development
 
-Add `get_ui_config` action to `roomsonline-pms-api` — returns merged config (global defaults + property overrides). This is what WP plugin / embeds call on init to know what to render.
+## New Edge Function
 
-## Admin Page
+**`supabase/functions/connect-assistant/index.ts`**
+- Clone of `help-assistant` with a sales-focused system prompt
+- System prompt includes: full API action catalog, pricing info, integration capabilities, competitive advantages
+- No auth required (public-facing)
+- Rate limited to prevent abuse
 
-New page `src/pages/AdminApiConfigurator.tsx` at route `/admin/api-configurator`, added to the Edit & Audit sidebar group.
+## Files to Create
 
-**Layout**: Property selector (or "Global Defaults") at top, then tabbed sections:
+| File | Purpose |
+|------|---------|
+| `src/components/layout/ConnectLayout.tsx` | Public portal shell (header, footer, TOBI widget) |
+| `src/pages/connect/ConnectHome.tsx` | Landing page |
+| `src/pages/connect/ConnectFeatures.tsx` | Feature showcase |
+| `src/pages/connect/ConnectIntegrations.tsx` | PMS integrations page |
+| `src/pages/connect/ConnectPricing.tsx` | Pricing tiers |
+| `src/pages/connect/ConnectDocs.tsx` | Interactive API reference |
+| `src/pages/connect/ConnectQuickstart.tsx` | Getting started guide |
+| `src/pages/connect/ConnectWordPress.tsx` | WP plugin docs |
+| `src/pages/connect/ConnectFAQ.tsx` | Categorized FAQ |
+| `src/pages/connect/ConnectGetStarted.tsx` | Contact/demo form |
+| `src/components/connect/ConnectHero.tsx` | Hero section component |
+| `src/components/connect/ConnectStats.tsx` | Stats counter |
+| `src/components/connect/ConnectApiReference.tsx` | API action documentation renderer |
+| `src/components/connect/ConnectApiPlayground.tsx` | Try-it code editor |
+| `src/components/connect/ConnectPricingCards.tsx` | Pricing tier cards |
+| `src/components/connect/ConnectTobiWidget.tsx` | Floating TOBI chat for portal |
+| `src/components/connect/ConnectFAQAccordion.tsx` | Categorized FAQ component |
+| `src/components/connect/ApiDocDownloadButton.tsx` | PDF generation trigger |
+| `src/data/rolos-api-actions.ts` | Complete catalog of 40+ API actions with schemas |
+| `supabase/functions/connect-assistant/index.ts` | Sales-focused TOBI edge function |
+| DB migration | `connect_inquiries` table |
 
-| Tab | Controls |
-|-----|----------|
-| Gutenberg Blocks | Toggle each block on/off, edit default attributes (color, height, labels), preview JSON |
-| WP Admin Dashboard | Toggle tabs (metrics/housekeeping/checkin/folio), rename tab labels, select visible metric cards |
-| Embed Widgets | Calendar config (months shown, date format), booking bar layout, custom CSS textarea |
-| Smart Button | Default CTA text, allowed styles/sizes, platform defaults |
-| API Gates | Checklist of all 40+ API actions with on/off toggles per property |
+## Files to Modify
 
-Each section has:
-- Toggle switches for features
-- Text inputs for labels/overrides
-- JSON preview of the resulting config
-- "Reset to Global Defaults" button
-- Save writes to `rolos_ui_configs`
-
-## Files to Create/Modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| DB migration | Create `rolos_ui_configs` table + RLS + updated_at trigger |
-| `src/pages/AdminApiConfigurator.tsx` | New — main configurator page |
-| `src/components/api-configurator/GutenbergConfigTab.tsx` | New — block toggle/config panel |
-| `src/components/api-configurator/WpAdminConfigTab.tsx` | New — dashboard tab config |
-| `src/components/api-configurator/EmbedConfigTab.tsx` | New — embed widget config |
-| `src/components/api-configurator/SmartButtonConfigTab.tsx` | New — button defaults config |
-| `src/components/api-configurator/ApiGatesTab.tsx` | New — action-level feature gates |
-| `src/App.tsx` | Add route `/admin/api-configurator` |
-| `src/components/layout/AppSidebar.tsx` | Add "API Configurator" to Edit & Audit group |
-| `supabase/functions/roomsonline-pms-api/index.ts` | Add `get_ui_config` action |
+| `src/App.tsx` | Add connect domain detection + `/connect/*` routes |
+| `src/lib/config.ts` | Add `CONNECT_DOMAIN` constant |
+| `supabase/config.toml` | Register `connect-assistant` function |
 
-## How It Enables Future Iterations
+## Design Direction
 
-The configurator decouples UI rendering decisions from code. When a new Gutenberg block or WP admin tab is added in a future release, it just needs a new key in the config schema — the configurator automatically surfaces it for toggling. The WP plugin reads `get_ui_config` on init and conditionally registers only the enabled blocks/tabs/features.
+- Color palette: ROL'OS primary brand colors with a deep navy/indigo hero gradient
+- Typography: Clean, modern — Inter/system font stack (already in use)
+- Animations: Subtle entrance animations, counter animations for stats, smooth scroll
+- Mobile-first responsive design
+- Dark sections for hero and feature showcases, light for docs and forms
+- Code blocks with syntax highlighting (already have CodeSnippetBlock component)
+- Trust signals: property counts, client logos, PMS partner logos throughout
+
+## Implementation Order
+
+1. Data layer: `rolos-api-actions.ts` catalog + DB migration
+2. Layout shell: `ConnectLayout` with header, footer, TOBI widget
+3. Landing page: Hero, stats, FAQ, portfolio
+4. API docs: Interactive reference with all 40+ actions
+5. Supporting pages: Features, Integrations, Pricing, WordPress, Quickstart
+6. Get Started form + inquiry storage
+7. Connect-assistant edge function (sales-focused TOBI)
+8. PDF download generation
+9. Domain routing configuration
 
