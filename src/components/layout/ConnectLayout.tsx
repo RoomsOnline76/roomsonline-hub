@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConnectTobiWidget } from "@/components/connect/ConnectTobiWidget";
 import { cn } from "@/lib/utils";
+import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 
 const NAV_LINKS = [
   { label: "Features", href: "/connect/features" },
@@ -23,10 +24,8 @@ export function ConnectLayout() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link to="/connect" className="flex items-center gap-2 shrink-0">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">R</span>
-            </div>
+          <Link to="/connect" className="flex items-center gap-2.5 shrink-0">
+            <img src={rolWreathLogo} alt="ROL'OS" className="h-9 w-9 object-contain rounded-lg" />
             <span className="font-semibold text-lg tracking-tight hidden sm:block">
               ROL'OS <span className="text-muted-foreground font-normal">Connect</span>
             </span>
