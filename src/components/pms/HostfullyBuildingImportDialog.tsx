@@ -183,7 +183,7 @@ export function HostfullyBuildingImportDialog({
           propertyId = newProperty.id;
         }
 
-        // Invoke full ingestion to populate all fields including room types
+        // Step 1: Full ingestion with skipRooms (property metadata only)
         try {
           const { data: ingestResult, error: ingestError } = await supabase.functions.invoke(
             "hostfully-api",
@@ -193,18 +193,41 @@ export function HostfullyBuildingImportDialog({
                 propertyUid: building.sample_hostfully_uid,
                 rol_property_id: propertyId,
                 owner_credential_id: ownerCredentialId,
+                skipRooms: true,
               },
             }
           );
           
           if (ingestError) {
-            console.warn("Full ingestion failed, falling back to type-grouped creation:", ingestError);
-            await createRoomTypesFallback(propertyId, building);
+            console.warn("Full ingestion (metadata) failed:", ingestError);
           } else {
-            console.log("Full ingestion completed:", ingestResult);
+            console.log("Full ingestion (metadata) completed:", ingestResult);
           }
         } catch (ingestErr) {
-          console.warn("Ingestion error, falling back to type-grouped creation:", ingestErr);
+          console.warn("Ingestion metadata error:", ingestErr);
+        }
+
+        // Step 2: Unit-level ingestion for proper room type aggregation
+        try {
+          const { data: unitResult, error: unitError } = await supabase.functions.invoke(
+            "hostfully-api",
+            {
+              body: {
+                action: "ingest_building_units",
+                rol_property_id: propertyId,
+                owner_credential_id: ownerCredentialId,
+              },
+            }
+          );
+
+          if (unitError) {
+            console.warn("Unit ingestion failed, falling back to type-grouped creation:", unitError);
+            await createRoomTypesFallback(propertyId, building);
+          } else {
+            console.log("Unit ingestion completed:", unitResult);
+          }
+        } catch (unitErr) {
+          console.warn("Unit ingestion error, falling back:", unitErr);
           await createRoomTypesFallback(propertyId, building);
         }
 
