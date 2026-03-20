@@ -178,6 +178,7 @@ const App = () => (
               <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
               <Route path="terms-of-service" element={<ConnectTermsOfService />} />
               <Route path="about" element={<ConnectAbout />} />
+              <Route path="journal" element={<ConnectJournal />} />
             </Route>
           )}
           <Route path="/" element={
