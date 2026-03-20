@@ -26,11 +26,15 @@ export default function ConnectGetStarted() {
   const [form, setForm] = useState({
     name: "", email: "", company: "", property_count: "", current_pms: "", message: "",
   });
+  const [honeypot, setHoneypot] = useState("");
+  const [loadedAt] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Spam checks: honeypot filled or form submitted in under 3 seconds
+    if (honeypot || Date.now() - loadedAt < 3000) return;
     if (!form.name.trim() || !form.email.trim()) return;
 
     setSubmitting(true);
@@ -104,6 +108,17 @@ export default function ConnectGetStarted() {
               variants={fadeUp} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Honeypot - hidden from real users */}
+                <div className="absolute opacity-0 -z-10" aria-hidden="true" tabIndex={-1}>
+                  <input
+                    type="text"
+                    name="website_url"
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    tabIndex={-1}
+                  />
+                </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name">Full Name *</Label>
