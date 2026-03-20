@@ -1117,7 +1117,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         allowChildren: room.allowChildren ?? true,
         allowInfants: room.allowInfants ?? true,
         minGuests: room.minGuests ?? 1,
-        units: room.units ?? 1,
+        units: room.units ?? room.numRooms ?? 1,
       };
     });
   }, [selectedPropertyData, pmsData]);

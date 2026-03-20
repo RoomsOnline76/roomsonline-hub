@@ -437,6 +437,7 @@ export async function ingestBuildingUnits(
       maxAdults: room.max_guests || 2,
       minGuests: room.min_guests || 1,
       numRooms: room.total_units || 1,
+      units: room.total_units || 1,
       bedrooms: room.bedrooms || 1,
       bathrooms: room.bathrooms || 1,
       beds: room.beds || 1,
