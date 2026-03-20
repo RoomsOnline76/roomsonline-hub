@@ -1737,7 +1737,7 @@ serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
           );
         }
-        response = await executeFullIngestion(body.propertyUid, body.rol_property_id, creds.owner_credential_id || '', supabase);
+        response = await executeFullIngestion(body.propertyUid, body.rol_property_id, creds.owner_credential_id || '', supabase, { skipRooms: body.skipRooms === true });
         break;
       }
 
