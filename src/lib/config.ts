@@ -10,6 +10,14 @@ export const PUBLIC_DOMAIN = "https://book.sleepinafrica.roomsonline.co.za";
 // The survey domain for project discovery questionnaire
 export const SURVEY_DOMAIN = "https://survey.roomsonline.co.za";
 
+// The connect portal domain for ROL'OS API documentation & sales
+export const CONNECT_DOMAIN = "https://connect.roomsonline.co.za";
+
+// Check if we're on the connect domain
+export const isConnectDomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'connect.roomsonline.co.za'
+);
+
 // Helper to generate branded staff login URL (never use window.location.origin)
 export const getStaffLoginUrl = (propertySlug: string) =>
   `${ADMIN_DOMAIN}/staff-login?property=${propertySlug}`;
