@@ -48,6 +48,7 @@ require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-settings.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-shortcodes.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-updater.php';
 require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-blocks.php';
+require_once ROLOS_PLUGIN_DIR . 'includes/class-rolos-admin-dashboard.php';
 
 // ─── Activation ───
 function rolos_pms_activate() {
@@ -87,6 +88,7 @@ function rolos_pms_init() {
     new Rolos_Shortcodes();
     new Rolos_Updater();
     new Rolos_Blocks();
+    new Rolos_Admin_Dashboard();
 
     // Handle activation redirect
     if (get_transient('rolos_activation_redirect')) {
@@ -859,9 +861,71 @@ function generateAdminCss(): string {
 `;
 }
 
-// ════════════════════════════════════════════════════════════════════
-// Server
-// ════════════════════════════════════════════════════════════════════
+function generateAdminDashboard(): string {
+  return `<?php
+/**
+ * ROL'OS Admin Dashboard — WP Admin operations panel
+ * Loads CDN-hosted React dashboard for housekeeping, check-in/out, folios, and metrics
+ */
+
+if (!defined('ABSPATH')) exit;
+
+class Rolos_Admin_Dashboard {
+
+    public function __construct() {
+        add_action('admin_menu', array(\$this, 'add_dashboard_menu'));
+    }
+
+    public function add_dashboard_menu() {
+        add_submenu_page(
+            'rolos-settings',
+            'Operations Dashboard',
+            '📊 Dashboard',
+            'manage_options',
+            'rolos-dashboard',
+            array(\$this, 'render_dashboard')
+        );
+    }
+
+    public function render_dashboard() {
+        // Enqueue the CDN-hosted admin JS
+        wp_enqueue_script(
+            'rolos-admin-dashboard',
+            ROLOS_CDN_BASE . '/rolos-admin.min.js',
+            array('jquery'),
+            ROLOS_VERSION,
+            true
+        );
+
+        wp_enqueue_style(
+            'rolos-admin-dashboard-style',
+            ROLOS_PLUGIN_URL . 'assets/rolos-admin.css',
+            array(),
+            ROLOS_VERSION
+        );
+
+        // Pass config to JS
+        wp_localize_script('rolos-admin-dashboard', 'rolosAdminConfig', array(
+            'apiUrl' => get_option('rolos_api_url', ''),
+            'anonKey' => Rolos_API_Client::decrypt_key(get_option('rolos_anon_key_enc', '')),
+            'propertyId' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+            'nonce' => wp_create_nonce('rolos_admin'),
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+        ));
+
+        ?>
+        <div class="wrap">
+            <h1>ROL'OS Operations Dashboard</h1>
+            <p class="description">Real-time property operations powered by ROL'OS PMS.</p>
+            <div id="rolos-admin-root" style="margin-top:20px;"></div>
+        </div>
+        <?php
+    }
+}
+`;
+}
+
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -911,7 +975,7 @@ serve(async (req) => {
       includes.file("class-rolos-updater.php", generateUpdater().trimStart().replace(/^\uFEFF/, ""));
       includes.file("class-rolos-blocks.php", generateBlocks().trimStart().replace(/^\uFEFF/, ""));
       includes.file("class-rolos-elementor-booking.php", generateElementorWidget().trimStart().replace(/^\uFEFF/, ""));
-
+      includes.file("class-rolos-admin-dashboard.php", generateAdminDashboard().trimStart().replace(/^\uFEFF/, ""));
       // Assets
       const assets = folder.folder("assets")!;
       assets.file("rolos-widget.css", generateWidgetCss());

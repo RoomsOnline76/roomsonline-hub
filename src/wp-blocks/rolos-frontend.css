@@ -1,0 +1,56 @@
+/* ═══════════════════════════════════════════════════════
+   ROL'OS Frontend — Public-facing styles
+   Enqueued on singular rolos_property and booking pages
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Single Property Template ─── */
+.single-rolos_property .entry-content {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.single-rolos_property .rolos-booking-widget {
+  margin-top: 32px;
+}
+
+/* ─── Archive Grid ─── */
+.post-type-archive-rolos_property .rolos-property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 20px 0;
+}
+
+/* ─── Booking Confirmation ─── */
+.rolos-booking-confirmation {
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 32px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.rolos-booking-confirmation h2 {
+  color: #065f46;
+  margin: 0 0 12px;
+}
+
+.rolos-booking-confirmation p {
+  color: #6b7280;
+  font-size: 15px;
+}
+
+/* ─── Loading Skeleton ─── */
+.rolos-skeleton {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: rolos-shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+@keyframes rolos-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
