@@ -371,6 +371,14 @@ export function InlineCheckoutPanel({
     </div>
   );
 
+  // Lock body scroll when panel is open on mobile
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = ''; };
+    }
+  }, [open]);
+
   return (
     <>
       <AnimatePresence>
@@ -384,45 +392,46 @@ export function InlineCheckoutPanel({
             {/* Backdrop */}
             <div className="absolute inset-0 bg-background/60 backdrop-blur-sm" onClick={onClose} />
 
-            {/* Panel - right-aligned on desktop, bottom sheet on mobile */}
+            {/* Panel — full-screen on mobile, right sidebar on desktop */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className={cn(
-                "absolute right-0 top-0 bottom-0 w-full sm:w-[440px] lg:w-[480px]",
+                "absolute right-0 top-0 bottom-0",
+                "w-full sm:w-[440px] lg:w-[480px]",
                 "bg-background border-l border-border shadow-2xl",
                 "flex flex-col overflow-hidden",
               )}
             >
               {/* Header */}
-              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border safe-area-top">
                 <div>
-                  <h2 className="font-serif text-xl font-light tracking-tight">Checkout</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <h2 className="font-serif text-lg sm:text-xl font-light tracking-tight">Checkout</h2>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
                     {stays.length} stay{stays.length !== 1 ? "s" : ""} · {totalNights} night{totalNights !== 1 ? "s" : ""}
                   </p>
                 </div>
                 <button
                   onClick={onClose}
-                  className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                  className="h-9 w-9 sm:h-8 sm:w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
               {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 sm:py-5 overscroll-contain">
                 <CheckoutContent />
               </div>
 
-              {/* Sticky footer inside panel */}
-              <div className="shrink-0 border-t border-border p-4 bg-card/98">
+              {/* Sticky footer */}
+              <div className="shrink-0 border-t border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:pb-4">
                 <Button
                   onClick={handlePayment}
                   disabled={isSubmitting || !isFormValid}
-                  className="w-full h-12 text-base font-medium rounded-xl gap-2"
+                  className="w-full h-12 sm:h-12 text-base font-medium rounded-xl gap-2"
                 >
                   {isSubmitting ? (
                     <>
@@ -436,7 +445,7 @@ export function InlineCheckoutPanel({
                     </>
                   )}
                 </Button>
-                <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
                   <Lock className="h-3 w-3" />
                   <span>Secured by PayFast · 256-bit SSL</span>
                 </div>
