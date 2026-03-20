@@ -162,9 +162,27 @@ const App = () => (
             <BrowserRouter>
         <Suspense fallback={<PageFallback />}>
         <Routes>
+          {/* On connect domain, mount portal at root */}
+          {isConnectDomain && (
+            <Route path="/" element={<ConnectLayout />}>
+              <Route index element={<ConnectHome />} />
+              <Route path="features" element={<ConnectFeatures />} />
+              <Route path="integrations" element={<ConnectIntegrations />} />
+              <Route path="pricing" element={<ConnectPricing />} />
+              <Route path="docs" element={<ConnectDocs />} />
+              <Route path="docs/quickstart" element={<ConnectQuickstart />} />
+              <Route path="docs/wordpress" element={<ConnectWordPress />} />
+              <Route path="docs/webhooks" element={<ConnectDocs />} />
+              <Route path="faq" element={<ConnectFAQ />} />
+              <Route path="get-started" element={<ConnectGetStarted />} />
+              <Route path="privacy-policy" element={<ConnectPrivacyPolicy />} />
+              <Route path="terms-of-service" element={<ConnectTermsOfService />} />
+              <Route path="about" element={<ConnectAbout />} />
+            </Route>
+          )}
           <Route path="/" element={
             isConnectDomain
-              ? <Navigate to="/connect" replace />
+              ? <Navigate to="/" replace />
               : isSurveyDomain
                 ? <ProjectDiscoverySurvey />
                 : window.location.hostname === 'book.sleepinafrica.roomsonline.co.za' 
