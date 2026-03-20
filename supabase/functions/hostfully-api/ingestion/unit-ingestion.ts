@@ -407,10 +407,12 @@ export async function ingestBuildingUnits(
             unit_number: group.unitNumbers[u],
             is_active: true,
           }, {
-            onConflict: 'hostfully_uid',
+            onConflict: 'property_id,hostfully_uid',
           });
         if (mapError) {
           console.error(`[UnitIngestion] unit_map error for ${group.unitUids[u]}:`, mapError);
+          result.errors.push(`unit_map write failed for ${group.unitUids[u]}: ${mapError.message}`);
+          result.units_failed++;
         }
       }
     }

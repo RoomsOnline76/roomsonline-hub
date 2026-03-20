@@ -243,9 +243,10 @@ export async function writeIngestion(
                 unit_name: group.unitNames[u],
                 unit_number: '',
                 is_active: true,
-              }, { onConflict: 'hostfully_uid' });
+              }, { onConflict: 'property_id,hostfully_uid' });
             if (mapError) {
               console.error(`[Writer] unit_map error for ${group.unitUids[u]}:`, mapError);
+              throw new Error(`unit_map write failed for ${group.unitUids[u]}: ${mapError.message}`);
             }
           }
         }
