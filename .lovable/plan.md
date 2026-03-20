@@ -1,42 +1,47 @@
 
 
-# Fix Room Type Aggregation in Full Ingestion Pipeline
+# Fix: Orchestrator Creates "Full Property" Instead of Aggregated Types
 
 ## Root Cause
 
-The `transformRooms()` function in `transformers.ts` (line 351) extracts `property_type` using a naive regex:
+The orchestrator (`full_ingest_property`) calls Hostfully's `/multi-units/unit-types` v3 endpoint which **returns 404 for all properties** — it doesn't exist. The orchestrator then falls through to creating a single synthetic "Full Property" room for every property, overwriting any correctly grouped types.
+
+The working path (`ingest_building_units`) — which iterates child UIDs and aggregates by type — is only called from the building import dialog fallback, but the dialog calls `full_ingest_property` first, which "succeeds" with a synthetic room, so the fallback never triggers.
+
+## Fix (3 changes)
+
+### 1. Orchestrator: detect building properties and delegate to unit-ingestion
+**File:** `supabase/functions/hostfully-api/ingestion/orchestrator.ts`
+
+After the `/multi-units/unit-types` call returns 404/empty (line 236-240), check if this ROL property has child units in `hostfully_unit_map`. If it does, this is a building — delegate room creation to `ingestBuildingUnits` and skip synthetic room creation.
+
 ```
-const roomCategory = resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName;
-```
-
-For multi-unit buildings where room names are like "SixOnN 117 Studio" or "THREE43onB 102-1BD", this just strips leading digits — but these names don't start with digits, so `roomCategory` becomes the full name. Every unit gets a unique `property_type`, so the writer's aggregation (which groups by `property_type`) produces one row per unit instead of one row per type.
-
-Meanwhile, the building parser (`parsePropertyName` / `parseUnitName`) correctly extracts types like "Studio", "Compact Studio", "1BD" — but `transformRooms` doesn't use it.
-
-## Fix
-
-### `supabase/functions/hostfully-api/ingestion/transformers.ts`
-
-Add a `parseUnitName` function (copy of the one already in `unit-ingestion.ts`, including hyphen expansion) and use it in `transformRooms()` to extract the room type when the property is multi-unit.
-
-Change line 351 from:
-```ts
-const roomCategory = resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName;
-```
-To:
-```ts
-const parsed = parseUnitName(resolvedName);
-const roomCategory = parsed?.type || resolvedName.replace(/^\d+\s*/, '').trim() || resolvedName;
+Phase 3 logic:
+1. Try /multi-units/unit-types → 404 (as before)
+2. NEW: Query hostfully_unit_map for this rolPropertyId
+3. If unit_map rows exist → call ingestBuildingUnits() for rooms, skip synthetic
+4. If no unit_map rows → check if property has multiple hostfully_room_types already
+5. Only create synthetic "Full Property" if truly standalone (no children)
 ```
 
-This ensures "SixOnN 117 Studio" → type "Studio", "THREE43onB 102-1BD" → type "1BD", and standalone properties with synthetic rooms still fall through to the existing logic.
+### 2. Building import dialog: call `ingest_building_units` instead of `full_ingest_property` for room types
+**File:** `src/components/pms/HostfullyBuildingImportDialog.tsx`
+
+Change the import flow to:
+1. First call `full_ingest_property` for property-level data (descriptions, photos, rules, amenities) — but tell it to **skip room creation** via a new `skipRooms: true` parameter
+2. Then call `ingest_building_units` for proper unit-level room type aggregation
+
+### 3. Add `skipRooms` flag to orchestrator
+**File:** `supabase/functions/hostfully-api/ingestion/orchestrator.ts`
+
+Accept optional `skipRooms` boolean. When true, skip phases 3/3.5 (multi-unit fetch and synthetic room) and step 5 in the writer. This lets the dialog use orchestrator for property metadata only, then unit-ingestion for rooms.
 
 ### Files changed
-- `supabase/functions/hostfully-api/ingestion/transformers.ts` — add `parseUnitName` helper + use it in `transformRooms`
+- `supabase/functions/hostfully-api/ingestion/orchestrator.ts` — add `skipRooms` param, detect building properties via DB lookup
+- `supabase/functions/hostfully-api/index.ts` — pass `skipRooms` from request body to orchestrator
+- `src/components/pms/HostfullyBuildingImportDialog.tsx` — call `full_ingest_property` with `skipRooms: true`, then `ingest_building_units`
+- `supabase/functions/hostfully-api/ingestion/writer.ts` — respect `skipRooms` flag to skip room writes
 
 ### Deploy
-- Redeploy `hostfully-api` edge function
-
-### After deploy
-- Re-import affected buildings (THREE43onB, SixOnN) to get correct aggregated room types
+- Redeploy `hostfully-api` edge function after changes
 
