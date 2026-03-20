@@ -131,8 +131,10 @@ export async function executeFullIngestion(
   propertyUid: string,
   rolPropertyId: string,
   ownerCredentialId: string,
-  supabase: any
+  supabase: any,
+  options?: { skipRooms?: boolean }
 ): Promise<AdapterResponse<IngestionResult | null>> {
+  const skipRooms = options?.skipRooms ?? false;
   const ACTION = "full_ingest_property";
   
   console.log(`[Orchestrator] Starting ingestion for property ${propertyUid} -> ROL ${rolPropertyId}`);
@@ -223,45 +225,68 @@ export async function executeFullIngestion(
       ctx.warnings.push(`Photos: ${photosResult.error}`);
     }
     
-    // 5. Phase 3: Fetch bookable units
-    // ALWAYS try multi-unit endpoint first (returns actual bookable units like "101 Studio")
-    // The /rooms endpoint returns physical areas (KITCHEN, BATHROOM) which are NOT bookable
-    console.log(`[Orchestrator] Phase 3: Trying multi-unit endpoint first...`);
-    
-    let roomsResult = await fetchMultiUnits(propertyUid, creds);
-    
-    if (roomsResult.success && roomsResult.data && roomsResult.data.length > 0) {
-      ctx.isMultiUnit = true;
-      console.log(`[Orchestrator] Multi-unit: ${roomsResult.data.length} bookable units found`);
+    // 5. Phase 3: Fetch bookable units (SKIPPED if skipRooms)
+    if (skipRooms) {
+      console.log("[Orchestrator] Phase 3: SKIPPED (skipRooms=true)");
+      ctx.rooms = [];
+      ctx.phasesCompleted.push("rooms-skipped");
     } else {
-      // Fallback to synthetic room from property data (standalone property)
-      console.log("[Orchestrator] No multi-unit types found, will use synthetic room");
-      roomsResult = { success: true, data: [], error: null };
-    }
-    
-    if (roomsResult.success) {
-      ctx.rooms = roomsResult.data;
-      ctx.phasesCompleted.push("rooms");
-    } else {
-      ctx.warnings.push(`Rooms: ${roomsResult.error}`);
-    }
-    
-    // Phase 3.5: Create synthetic room for standalone properties without rooms
-    if (!ctx.isMultiUnit && (!ctx.rooms || ctx.rooms.length === 0)) {
-      console.log("[Orchestrator] Standalone property - creating synthetic room from property data");
+      // ALWAYS try multi-unit endpoint first (returns actual bookable units like "101 Studio")
+      // The /rooms endpoint returns physical areas (KITCHEN, BATHROOM) which are NOT bookable
+      console.log(`[Orchestrator] Phase 3: Trying multi-unit endpoint first...`);
       
-      if (ctx.property) {
-        const prop = ctx.property;
-        ctx.rooms = [{
-          uid: ctx.propertyUid,
-          name: prop.name || "Full Property",
-          description: ctx.descriptions?.description || (prop as any).description || undefined,
-          maxGuests: (prop as any).availability?.maxGuests || (prop as any).maxGuests,
-          bedrooms: prop.bedrooms,
-          bathrooms: prop.bathrooms,
-          beds: prop.beds,
-        }];
-        ctx.phasesCompleted.push("synthetic-room");
+      let roomsResult = await fetchMultiUnits(propertyUid, creds);
+      
+      if (roomsResult.success && roomsResult.data && roomsResult.data.length > 0) {
+        ctx.isMultiUnit = true;
+        console.log(`[Orchestrator] Multi-unit: ${roomsResult.data.length} bookable units found`);
+      } else {
+        // Check if this property already has unit_map entries (i.e. it's a known building)
+        const { data: existingUnits } = await supabase
+          .from("hostfully_unit_map")
+          .select("hostfully_uid")
+          .eq("property_id", rolPropertyId)
+          .limit(1);
+        
+        if (existingUnits && existingUnits.length > 0) {
+          // This is a building with known child units — skip synthetic room creation
+          // The caller should use ingest_building_units for proper room type aggregation
+          console.log("[Orchestrator] Building detected (unit_map exists) — skipping synthetic room. Use ingest_building_units for rooms.");
+          ctx.isMultiUnit = true;
+          ctx.rooms = [];
+          ctx.phasesCompleted.push("rooms-deferred-to-building-ingestion");
+        } else {
+          console.log("[Orchestrator] No multi-unit types found, will use synthetic room");
+          roomsResult = { success: true, data: [], error: null };
+        }
+      }
+      
+      if (!ctx.isMultiUnit || (roomsResult?.success && roomsResult?.data && roomsResult.data.length > 0)) {
+        if (roomsResult?.success) {
+          ctx.rooms = roomsResult.data;
+          ctx.phasesCompleted.push("rooms");
+        } else if (roomsResult) {
+          ctx.warnings.push(`Rooms: ${roomsResult.error}`);
+        }
+      }
+      
+      // Phase 3.5: Create synthetic room for standalone properties without rooms
+      if (!ctx.isMultiUnit && (!ctx.rooms || ctx.rooms.length === 0)) {
+        console.log("[Orchestrator] Standalone property - creating synthetic room from property data");
+        
+        if (ctx.property) {
+          const prop = ctx.property;
+          ctx.rooms = [{
+            uid: ctx.propertyUid,
+            name: prop.name || "Full Property",
+            description: ctx.descriptions?.description || (prop as any).description || undefined,
+            maxGuests: (prop as any).availability?.maxGuests || (prop as any).maxGuests,
+            bedrooms: prop.bedrooms,
+            bathrooms: prop.bathrooms,
+            beds: prop.beds,
+          }];
+          ctx.phasesCompleted.push("synthetic-room");
+        }
       }
     }
     
@@ -297,7 +322,8 @@ export async function executeFullIngestion(
       transformed,
       rolPropertyId,
       ownerCredentialId,
-      supabase
+      supabase,
+      { skipRooms }
     );
     
     if (!writeResult.success) {

@@ -39,8 +39,10 @@ export async function writeIngestion(
   data: TransformedData,
   rolPropertyId: string,
   ownerCredentialId: string,
-  supabase: any
+  supabase: any,
+  options?: { skipRooms?: boolean }
 ): Promise<WriteResult> {
+  const skipRooms = options?.skipRooms ?? false;
   const result: WriteResult = {
     success: false,
     propertyUpdated: false,
@@ -164,7 +166,7 @@ export async function writeIngestion(
     }
     
     // 5. Aggregate rooms by type, then upsert one row per type + unit_map entries
-    if (data.rooms.length > 0) {
+    if (data.rooms.length > 0 && !skipRooms) {
       console.log(`[Writer] Aggregating ${data.rooms.length} rooms by type...`);
       
       // Group by normalized property_type
