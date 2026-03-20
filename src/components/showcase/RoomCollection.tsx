@@ -2,9 +2,10 @@ import { motion } from 'framer-motion';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { staggerRunway, roomCardStrut } from '@/lib/motion';
 import { FormattedPrice } from '@/components/FormattedPrice';
-import { formatRoomCapacity } from '@/lib/editorialUtils';
-import { Bed, Users } from 'lucide-react';
+import { Bed, Users, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatRoomCapacity } from '@/lib/editorialUtils';
 
 interface RoomData {
   id: string;
@@ -29,8 +30,8 @@ interface RoomCollectionProps {
 }
 
 /**
- * Act III: The Collection
- * Asymmetrical masonry grid with staggered scroll-reveal
+ * Fluent-inspired room cards: clean horizontal layout
+ * Image left, details right, "Select" button
  */
 export function RoomCollection({
   rooms,
@@ -45,12 +46,13 @@ export function RoomCollection({
 
   if (rooms.length === 0) {
     return (
-      <section className="runway-section-spacing px-6 sm:px-10 md:px-16 lg:px-20">
-        <div className="max-w-4xl mx-auto text-center">
-          <span className="runway-section">Accommodations</span>
-          <h2 className="runway-room-name mt-4 mb-6">Bespoke {unitLabelPlural.charAt(0).toUpperCase() + unitLabelPlural.slice(1)} Await</h2>
-          <p className="runway-facts">
-            Contact us to discover the perfect {unitLabel} for your journey.
+      <section className="py-12 px-6 sm:px-10">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="font-serif text-2xl font-light mb-4">
+            Accommodations
+          </h2>
+          <p className="text-muted-foreground">
+            Contact us to discover the perfect {unitLabel} for your stay.
           </p>
         </div>
       </section>
@@ -58,34 +60,38 @@ export function RoomCollection({
   }
 
   return (
-    <section 
+    <section
       ref={ref}
-      className="runway-section-spacing px-6 sm:px-10 md:px-16 lg:px-20"
+      className="py-10 sm:py-14"
       id="rooms-section"
     >
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-full">
         {/* Section Header */}
-        <div className="text-center mb-10 sm:mb-14">
-          <span className="runway-section">The Collection</span>
-          <h2 className="runway-room-name mt-3">
-            {rooms.length === 1 
-              ? `Your ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}` 
-              : `${rooms.length} Distinct ${unitLabelPlural.charAt(0).toUpperCase() + unitLabelPlural.slice(1)}`}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="font-serif text-xl sm:text-2xl font-light tracking-tight">
+            {rooms.length === 1
+              ? `Your ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}`
+              : `Choose Your ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}`}
           </h2>
+          {rooms.length > 1 && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {rooms.length} {unitLabelPlural} available
+            </p>
+          )}
         </div>
 
-        {/* Asymmetric Grid */}
+        {/* Room Cards - stacked vertically */}
         <motion.div
           initial="initial"
-          animate={isVisible ? "animate" : "initial"}
+          animate={isVisible ? 'animate' : 'initial'}
           variants={staggerRunway}
-          className="runway-grid"
+          className="space-y-4"
         >
-          {rooms.map((room, index) => {
+          {rooms.map((room) => {
             const rate = getLowestRate(room);
             const availability = getAvailability(room);
-            const roomImages = room.images && room.images.length > 0 
-              ? room.images 
+            const roomImages = room.images && room.images.length > 0
+              ? room.images
               : propertyImages;
             const heroImage = roomImages[0];
             const isUnavailable = availability !== undefined && availability <= 0;
@@ -96,78 +102,93 @@ export function RoomCollection({
                 key={room.id}
                 variants={roomCardStrut}
                 className={cn(
-                  "runway-card group cursor-pointer",
-                  isUnavailable && "opacity-60 pointer-events-none",
-                  // Create asymmetry - first card spans full on mobile
-                  index === 0 && rooms.length > 2 && "md:col-span-2 lg:col-span-1"
+                  "group rounded-xl border border-border/50 bg-card overflow-hidden",
+                  "hover:border-primary/30 hover:shadow-md transition-all duration-300",
+                  "flex flex-col sm:flex-row",
+                  isUnavailable && "opacity-50 pointer-events-none",
                 )}
-                onClick={() => !isUnavailable && onRoomClick(room)}
-                role="button"
-                tabIndex={isUnavailable ? -1 : 0}
-                aria-label={`View ${room.name}`}
               >
                 {/* Image */}
-                <div className="runway-image aspect-[4/3] sm:aspect-[16/10]">
-                  {heroImage ? (
-                    <img
-                      src={heroImage}
-                      alt={room.name}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center">
-                      <Bed className="h-12 w-12 text-muted-foreground/30" />
-                    </div>
-                  )}
-                  
-                  {/* Availability Badge */}
+                <div className="relative sm:w-[220px] lg:w-[260px] shrink-0">
+                  <div className="aspect-[4/3] sm:aspect-auto sm:h-full overflow-hidden">
+                    {heroImage ? (
+                      <img
+                        src={heroImage}
+                        alt={room.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center min-h-[160px]">
+                        <Bed className="h-10 w-10 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Availability badge */}
                   {availability !== undefined && availability > 0 && availability <= 3 && (
-                    <div className="absolute top-3 right-3">
-                      <span className="px-2 py-1 text-xs font-medium bg-background/90 backdrop-blur-sm rounded-full">
-                        {availability} {availability === 1 ? unitLabel : unitLabelPlural} left
+                    <div className="absolute top-3 left-3">
+                      <span className="px-2 py-1 text-xs font-medium bg-destructive/90 text-destructive-foreground rounded-full">
+                        {availability} left
                       </span>
                     </div>
                   )}
                 </div>
 
                 {/* Content */}
-                <div className="p-5 sm:p-6">
-                  <h3 className="runway-room-name mb-2 group-hover:text-primary transition-colors">
-                    {room.name}
-                  </h3>
+                <div className="flex-1 p-4 sm:p-5 flex flex-col justify-between min-w-0">
+                  <div>
+                    <h3 className="font-serif text-lg font-light tracking-tight mb-1.5 group-hover:text-primary transition-colors">
+                      {room.name}
+                    </h3>
 
-                  {/* Capacity as Prose */}
-                  {capacityText && (
-                    <p className="runway-facts text-sm mb-3">
-                      {capacityText}
-                    </p>
-                  )}
+                    {/* Capacity */}
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground mb-2">
+                      {capacityText && (
+                        <div className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          <span>{capacityText}</span>
+                        </div>
+                      )}
+                      {room.roomSize && (
+                        <span>{room.roomSize}m²</span>
+                      )}
+                    </div>
 
-                  {/* Description snippet */}
-                  {room.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                      {room.description}
-                    </p>
-                  )}
+                    {/* Description */}
+                    {room.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {room.description}
+                      </p>
+                    )}
+                  </div>
 
-                  {/* Price */}
-                  <div className="flex items-end justify-between pt-3 border-t border-border/30">
+                  {/* Price + action row */}
+                  <div className="flex items-end justify-between mt-3 pt-3 border-t border-border/30">
                     {rate !== null ? (
                       <div>
-                        <span className="text-xs text-muted-foreground uppercase">From</span>
-                        <div className="runway-price-large">
+                        <span className="text-xs text-muted-foreground">From </span>
+                        <span className="text-lg font-semibold text-foreground">
                           <FormattedPrice amount={rate} />
-                        </div>
-                        <span className="text-xs text-muted-foreground">per night</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground"> /night</span>
                       </div>
                     ) : (
-                      <span className="runway-facts">Contact for rates</span>
+                      <span className="text-sm text-muted-foreground">Contact for rates</span>
                     )}
 
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      <span className="text-sm">{room.maxPeople || room.maxAdults || '—'}</span>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRoomClick(room);
+                      }}
+                      className="shrink-0 gap-1 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-colors"
+                    >
+                      Select
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </motion.article>

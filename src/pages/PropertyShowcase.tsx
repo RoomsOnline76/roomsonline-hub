@@ -12,7 +12,6 @@ import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
-import { FloatingDateGuestPicker } from "@/components/booking/FloatingDateGuestPicker";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
@@ -25,7 +24,7 @@ import { toast } from "sonner";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 
-// Showcase Components - Paris Fashion Week Edition
+// Showcase Components - Fluent-Inspired Edition
 import {
   RunwayHero,
   QuietFacts,
@@ -36,7 +35,7 @@ import {
   ProseFacilities,
   RunwayReviews,
   InvitationMap,
-  StickyBookingCTA,
+  BookingSidebar,
   EditorialSkeleton,
 } from "@/components/showcase";
 
@@ -817,7 +816,7 @@ export default function PropertyShowcase() {
   return (
     <PublicLayout hideHeader hideFooter>
       <div>
-      {/* Act I: The Reveal */}
+      {/* Hero - Fluent-style with price badge */}
       <RunwayHero
         name={property.name}
         tagline={tagline}
@@ -825,73 +824,96 @@ export default function PropertyShowcase() {
         videoUrl={heroMedia.type === 'video' ? heroMedia.src : null}
         gradientFallback={heroMedia.type === 'gradient' ? heroMedia.fallbackGradient : undefined}
         onScrollDown={scrollToRooms}
+        lowestRate={lowestRate}
+        city={property.city}
+        country={property.country}
       />
 
-      {/* Building Introduction (Hostfully multi-unit properties) */}
-      {isHostfullyProperty && (
-        <BuildingIntro
-          description={property.description}
-          address={property.address}
-          city={property.city}
-          checkInTime={property.amenities?.check_in_time}
-          checkOutTime={property.amenities?.check_out_time}
-          totalUnits={roomTypes.length}
-        />
-      )}
+      {/* 2-Column Layout: Content + Booking Sidebar */}
+      <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-14">
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 py-8 sm:py-12">
+          {/* Left: Property Content */}
+          <div className="flex-1 min-w-0">
+            {/* Building Introduction (Hostfully multi-unit properties) */}
+            {isHostfullyProperty && (
+              <BuildingIntro
+                description={property.description}
+                address={property.address}
+                city={property.city}
+                checkInTime={property.amenities?.check_in_time}
+                checkOutTime={property.amenities?.check_out_time}
+                totalUnits={roomTypes.length}
+              />
+            )}
 
-      {/* Act II: The Quiet Facts (non-Hostfully or if no description) */}
-      {!isHostfullyProperty && (
-        <QuietFacts
-          facts={proseFacts}
-          editorialBlurb={editorialBlurb?.content}
-        />
-      )}
+            {/* Quick Facts (non-Hostfully) */}
+            {!isHostfullyProperty && (
+              <QuietFacts
+                facts={proseFacts}
+                editorialBlurb={editorialBlurb?.content}
+              />
+            )}
 
-      {/* Building Photo Gallery (Hostfully multi-unit) */}
-      {isHostfullyProperty && property.images && property.images.length > 1 && (
-        <BuildingGallery
-          images={property.images}
-          propertyName={property.name}
-        />
-      )}
+            {/* Building Photo Gallery (Hostfully multi-unit) */}
+            {isHostfullyProperty && property.images && property.images.length > 1 && (
+              <BuildingGallery
+                images={property.images}
+                propertyName={property.name}
+              />
+            )}
 
-      {/* Act III: The Collection - Category view for Hostfully, individual for others */}
-      {isHostfullyProperty && roomTypes.length > 4 ? (
-        <CategoryCollection
-          rooms={roomTypes}
-          getLowestRate={getLowestRateForRoom}
-          getAvailability={getRemainingAvailability}
-          onRoomClick={handleRoomClick}
-          propertyImages={property.images}
-          unitLabel={unitLabel}
-          unitLabelPlural={unitLabelPlural}
-        />
-      ) : (
-        <RoomCollection
-          rooms={roomTypes}
-          getLowestRate={getLowestRateForRoom}
-          getAvailability={getRemainingAvailability}
-          onRoomClick={handleRoomClick}
-          propertyImages={property.images}
-          unitLabel={unitLabel}
-          unitLabelPlural={unitLabelPlural}
-        />
-      )}
+            {/* Room/Unit Cards */}
+            {isHostfullyProperty && roomTypes.length > 4 ? (
+              <CategoryCollection
+                rooms={roomTypes}
+                getLowestRate={getLowestRateForRoom}
+                getAvailability={getRemainingAvailability}
+                onRoomClick={handleRoomClick}
+                propertyImages={property.images}
+                unitLabel={unitLabel}
+                unitLabelPlural={unitLabelPlural}
+              />
+            ) : (
+              <RoomCollection
+                rooms={roomTypes}
+                getLowestRate={getLowestRateForRoom}
+                getAvailability={getRemainingAvailability}
+                onRoomClick={handleRoomClick}
+                propertyImages={property.images}
+                unitLabel={unitLabel}
+                unitLabelPlural={unitLabelPlural}
+              />
+            )}
 
-      {/* Amenities as Prose */}
-      <ProseFacilities facilities={facilities} />
+            {/* Amenities */}
+            <ProseFacilities facilities={facilities} />
 
-      {/* Act IV: Reviews */}
-      <RunwayReviews editorialRating={property.editorial_rating} />
+            {/* Reviews */}
+            <RunwayReviews editorialRating={property.editorial_rating} />
 
-      {/* TripAdvisor Integration */}
-      {property.amenities?.external_ids?.tripadvisor_id && (
-        <section className="runway-section-spacing px-6 sm:px-10 md:px-16 lg:px-20">
-          <TripAdvisorReviews tripadvisorId={property.amenities.external_ids.tripadvisor_id} />
-        </section>
-      )}
+            {/* TripAdvisor */}
+            {property.amenities?.external_ids?.tripadvisor_id && (
+              <section className="py-10">
+                <TripAdvisorReviews tripadvisorId={property.amenities.external_ids.tripadvisor_id} />
+              </section>
+            )}
+          </div>
 
-      {/* Act V: The Invitation */}
+          {/* Right: Sticky Booking Sidebar (desktop only - mobile gets bottom bar) */}
+          <div className="hidden lg:block w-[340px] shrink-0">
+            <BookingSidebar
+              lowestRate={lowestRate}
+              propertyName={property.name}
+              onBook={handleBookProperty}
+              onViewJourney={() => navigate('/journey/review')}
+              availabilityMap={calendarAvailability}
+              isExternal={isNightsBridgeProperty}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Map & Location */}
       <InvitationMap
         propertyName={property.name}
         city={property.city}
@@ -902,30 +924,27 @@ export default function PropertyShowcase() {
         bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : `Select a ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}`}
       />
 
-      {/* Personalized Recommendations */}
+      {/* Recommendations */}
       <PropertyRecommendations 
         currentPropertyId={property.id} 
         variant="full"
-        className="runway-section-spacing"
+        className="py-12 sm:py-16"
       />
       
-      {/* Spacer for fixed bottom elements */}
-      <div className="h-28 sm:h-24" aria-hidden="true" />
+      {/* Spacer for mobile bottom bar */}
+      <div className="h-24 lg:h-0" aria-hidden="true" />
 
-      {/* Sticky Booking CTA - Only show when AI Concierge is NOT active */}
-      {!(aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty)) && (
-        <StickyBookingCTA
-          onBook={handleBookProperty}
+      {/* Mobile Booking Bar (replaces StickyBookingCTA + FloatingDateGuestPicker) */}
+      <div className="lg:hidden">
+        <BookingSidebar
           lowestRate={lowestRate}
-          isExternal={isNightsBridgeProperty}
-          bookedRoomsCount={bookedRooms.length}
           propertyName={property.name}
-          propertyId={property.id}
-          propertySlug={property.slug || property.id}
-          propertyImage={property.images?.[0]}
-          roomCount={getRoomTypes().length}
+          onBook={handleBookProperty}
+          onViewJourney={() => navigate('/journey/review')}
+          availabilityMap={calendarAvailability}
+          isExternal={isNightsBridgeProperty}
         />
-      )}
+      </div>
 
       {/* NightsBridge Leaving Modal */}
       <LeavingRoomsOnlineModal
@@ -935,14 +954,14 @@ export default function PropertyShowcase() {
         propertyName={property?.name}
       />
       
-      {/* SmartCart - ALWAYS shows when items are added (outside AI conditional for precedence) */}
+      {/* SmartCart */}
       {hasStays && (
         <SmartCart 
           onCheckout={() => navigate('/journey/checkout')}
         />
       )}
 
-      {/* AI Concierge Mode: Show AI-powered booking UI when enabled and not failed */}
+      {/* AI Concierge Mode */}
       {aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && !hasStays && (
         <ConciergeErrorBoundary 
           onFallback={handleFallbackToLegacy}
@@ -961,29 +980,19 @@ export default function PropertyShowcase() {
         </ConciergeErrorBoundary>
       )}
       
-      {/* InlineCheckout removed - unified checkout now uses /journey/checkout */}
-      
-      {/* Legacy Flow: Quick Book Drawer for streamlined booking */}
+      {/* Legacy Quick Book Drawer */}
       {(!aiConciergeEnabled || aiFailed) && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty) && (
-        <>
-          <QuickBookDrawer
-            open={quickBookDrawerOpen}
-            onOpenChange={setQuickBookDrawerOpen}
-            propertyId={property.id}
-            propertySlug={property.slug || property.id}
-            propertyName={property.name}
-            propertyImage={property.images?.[0]}
-            externalSystem={property.external_system || undefined}
-            roomTypes={roomTypes}
-            defaultRoomId={roomTypes.length === 1 ? roomTypes[0].id : undefined}
-          />
-          
-          <FloatingDateGuestPicker
-            onContinue={() => setQuickBookDrawerOpen(true)} 
-            ctaLabel="Book Now"
-            availabilityMap={calendarAvailability}
-          />
-        </>
+        <QuickBookDrawer
+          open={quickBookDrawerOpen}
+          onOpenChange={setQuickBookDrawerOpen}
+          propertyId={property.id}
+          propertySlug={property.slug || property.id}
+          propertyName={property.name}
+          propertyImage={property.images?.[0]}
+          externalSystem={property.external_system || undefined}
+          roomTypes={roomTypes}
+          defaultRoomId={roomTypes.length === 1 ? roomTypes[0].id : undefined}
+        />
       )}
       </div>
     </PublicLayout>
