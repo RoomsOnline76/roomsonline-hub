@@ -108,6 +108,17 @@ export default function ConnectGetStarted() {
               variants={fadeUp} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             >
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Honeypot - hidden from real users */}
+                <div className="absolute opacity-0 -z-10" aria-hidden="true" tabIndex={-1}>
+                  <input
+                    type="text"
+                    name="website_url"
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                    tabIndex={-1}
+                  />
+                </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="name">Full Name *</Label>
