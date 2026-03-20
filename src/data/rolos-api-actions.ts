@@ -42,7 +42,7 @@ function curl(action: string, extra: string = "") {
   -H "x-api-key: YOUR_API_KEY" \\
   -d '{
     "action": "${action}",
-    "property_id": "PROPERTY_UUID"${extra ? ",\\n    " + extra : ""}
+    "propertyId": "PROPERTY_UUID"${extra ? ",\n    " + extra : ""}
   }'`;
 }
 
@@ -55,7 +55,7 @@ function js(action: string, extra: string = "") {
   },
   body: JSON.stringify({
     action: "${action}",
-    property_id: PROPERTY_ID${extra ? ",\\n    " + extra : ""}
+    propertyId: PROPERTY_ID${extra ? ",\n    " + extra : ""}
   }),
 });
 const data = await response.json();`;
@@ -68,8 +68,8 @@ function php(action: string, extra: string = "") {
     'x-api-key'     => $api_key,
   ],
   'body' => json_encode([
-    'action'      => '${action}',
-    'property_id' => $property_id${extra ? ",\\n    " + extra : ""}
+    'action'     => '${action}',
+    'propertyId' => $property_id${extra ? ",\n    " + extra : ""}
   ]),
 ]);
 $data = json_decode(wp_remote_retrieve_body($response), true);`;
@@ -86,7 +86,7 @@ export const API_ACTIONS: ApiAction[] = [
     responseExample: JSON.stringify({
       success: true,
       data: { status: "healthy", version: "3.0.0", server_time: "2026-03-20T12:00:00Z" },
-      source: "rolos_api",
+      source: "roomsonline",
       action: "health_check"
     }, null, 2),
     curlExample: curl("health_check"),
@@ -102,7 +102,7 @@ export const API_ACTIONS: ApiAction[] = [
     responseExample: JSON.stringify({
       success: true,
       data: { actions: ["health_check", "fetch_availability", "...40+ actions"], version: "3.0.0" },
-      source: "rolos_api",
+      source: "roomsonline",
       action: "get_capabilities"
     }, null, 2),
     curlExample: curl("get_capabilities"),
@@ -117,11 +117,9 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Fetch Availability",
     description: "Returns real-time room availability for a given date range. Includes room types, rates, and inventory counts.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "check_in", type: "string (YYYY-MM-DD)", required: true, description: "Check-in date" },
-      { name: "check_out", type: "string (YYYY-MM-DD)", required: true, description: "Check-out date" },
-      { name: "adults", type: "number", required: false, description: "Number of adults (default 2)" },
-      { name: "children", type: "number", required: false, description: "Number of children (default 0)" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "start_date", type: "string (YYYY-MM-DD)", required: true, description: "Start date for availability window" },
+      { name: "end_date", type: "string (YYYY-MM-DD)", required: true, description: "End date for availability window" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -129,27 +127,25 @@ export const API_ACTIONS: ApiAction[] = [
         available_rooms: [
           { room_type_id: "uuid", name: "Deluxe Suite", available_units: 3, rate_per_night: 2500, currency: "ZAR" }
         ],
-        check_in: "2026-04-01", check_out: "2026-04-05", nights: 4
+        start_date: "2026-04-01", end_date: "2026-04-05", nights: 4
       }
     }, null, 2),
-    curlExample: curl("fetch_availability", '"check_in": "2026-04-01",\\n    "check_out": "2026-04-05"'),
-    jsExample: js("fetch_availability", 'check_in: "2026-04-01",\\n    check_out: "2026-04-05"'),
-    phpExample: php("fetch_availability", "'check_in' => '2026-04-01',\\n    'check_out' => '2026-04-05'"),
+    curlExample: curl("fetch_availability", '"start_date": "2026-04-01",\n    "end_date": "2026-04-05"'),
+    jsExample: js("fetch_availability", 'start_date: "2026-04-01",\n    end_date: "2026-04-05"'),
+    phpExample: php("fetch_availability", "'start_date' => '2026-04-01',\n    'end_date' => '2026-04-05'"),
   },
   {
     action: "set_availability",
     category: "availability",
     title: "Set Availability",
-    description: "Manually override availability for a room type on specific dates. Used for block-outs, allotments, and inventory overrides.",
+    description: "Set per-day availability and restrictions for a room type. Each entry in the array specifies a date, unit count, and optional restrictions (stop_sell, min/max stay, lead days, closed to arrival/departure).",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type to update" },
-      { name: "date_from", type: "string (YYYY-MM-DD)", required: true, description: "Start date" },
-      { name: "date_to", type: "string (YYYY-MM-DD)", required: true, description: "End date" },
-      { name: "available_units", type: "number", required: true, description: "Units available" },
+      { name: "availability", type: "array", required: true, description: "Array of { date, available_units, restrictions? }. Restrictions: { stop_sell, min_stay, max_stay, lead_days_advance, lead_days_post, closed_to_arrival, closed_to_departure }" },
     ],
     responseExample: JSON.stringify({ success: true, data: { updated_dates: 5 } }, null, 2),
-    curlExample: curl("set_availability", '"room_type_id": "UUID",\\n    "date_from": "2026-04-01",\\n    "date_to": "2026-04-05",\\n    "available_units": 2'),
+    curlExample: curl("set_availability", '"room_type_id": "UUID",\n    "availability": [\n      { "date": "2026-04-01", "available_units": 2, "restrictions": { "min_stay": 2 } },\n      { "date": "2026-04-02", "available_units": 2 }\n    ]'),
   },
   {
     action: "check_inventory",
@@ -157,7 +153,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Check Inventory",
     description: "Query the inventory calendar for a room type across a date range. Returns per-day unit counts, restrictions, and rate overrides.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type to check" },
       { name: "date_from", type: "string (YYYY-MM-DD)", required: true, description: "Start date" },
       { name: "date_to", type: "string (YYYY-MM-DD)", required: true, description: "End date" },
@@ -173,7 +169,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Update Inventory",
     description: "Bulk update inventory calendar entries. Set availability, minimum stay, close-outs, and rate overrides per day.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type to update" },
       { name: "updates", type: "array", required: true, description: "Array of { date, available, min_stay, closed }" },
     ],
@@ -185,7 +181,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Backfill Inventory",
     description: "Auto-populate the inventory calendar from room type defaults for a given future window. Fills gaps where no manual override exists.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: false, description: "Specific room type (or all)" },
       { name: "days_ahead", type: "number", required: false, description: "Days to backfill (default 365)" },
     ],
@@ -199,7 +195,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Reservations",
     description: "Retrieve bookings for a property. Filter by date range, status, guest name, or booking channel.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "check_in_from", type: "string (YYYY-MM-DD)", required: false, description: "Filter by check-in date start" },
       { name: "check_in_to", type: "string (YYYY-MM-DD)", required: false, description: "Filter by check-in date end" },
       { name: "status", type: "string", required: false, description: "Filter by status: confirmed, pending, cancelled, checked_in, checked_out" },
@@ -223,18 +219,17 @@ export const API_ACTIONS: ApiAction[] = [
     action: "create_reservation",
     category: "reservations",
     title: "Create Reservation",
-    description: "Create a new booking. Validates availability, calculates pricing, and returns the confirmed reservation with a folio.",
+    description: "Create a new booking. Validates availability, calculates pricing, and returns the confirmed reservation with a folio. Uses nested guest and rooms objects.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "room_type_id", type: "UUID", required: true, description: "Room type to book" },
-      { name: "check_in_date", type: "string (YYYY-MM-DD)", required: true, description: "Check-in date" },
-      { name: "check_out_date", type: "string (YYYY-MM-DD)", required: true, description: "Check-out date" },
-      { name: "guest_name", type: "string", required: true, description: "Guest full name" },
-      { name: "guest_email", type: "string", required: true, description: "Guest email address" },
-      { name: "guest_phone", type: "string", required: false, description: "Guest phone number" },
-      { name: "adults", type: "number", required: false, description: "Number of adults (default 2)" },
-      { name: "children", type: "number", required: false, description: "Number of children (default 0)" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "arrival_date", type: "string (YYYY-MM-DD)", required: true, description: "Arrival date" },
+      { name: "departure_date", type: "string (YYYY-MM-DD)", required: true, description: "Departure date" },
+      { name: "room_type_id", type: "UUID", required: true, description: "Primary room type to book" },
+      { name: "rate_type_id", type: "UUID", required: true, description: "Rate plan to apply" },
+      { name: "guest", type: "object", required: true, description: "Guest details: { name: string, email?: string, phone?: string }" },
+      { name: "rooms", type: "array", required: true, description: "Room allocations: [{ room_type_id, adults, teens?, children?, infants? }]" },
       { name: "special_requests", type: "string", required: false, description: "Special requests or notes" },
+      { name: "voucher", type: "string", required: false, description: "Voucher or promo code" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -243,20 +238,20 @@ export const API_ACTIONS: ApiAction[] = [
         folio: { id: "uuid", balance: 10000 }
       }
     }, null, 2),
-    curlExample: curl("create_reservation", '"room_type_id": "UUID",\\n    "check_in_date": "2026-04-01",\\n    "check_out_date": "2026-04-05",\\n    "guest_name": "Themba Nkosi",\\n    "guest_email": "themba@example.com",\\n    "adults": 2'),
+    curlExample: curl("create_reservation", '"arrival_date": "2026-04-01",\n    "departure_date": "2026-04-05",\n    "room_type_id": "UUID",\n    "rate_type_id": "UUID",\n    "guest": { "name": "Themba Nkosi", "email": "themba@example.com" },\n    "rooms": [{ "room_type_id": "UUID", "adults": 2, "children": 0 }]'),
+    jsExample: js("create_reservation", 'arrival_date: "2026-04-01",\n    departure_date: "2026-04-05",\n    room_type_id: "UUID",\n    rate_type_id: "UUID",\n    guest: { name: "Themba Nkosi", email: "themba@example.com" },\n    rooms: [{ room_type_id: "UUID", adults: 2, children: 0 }]'),
+    phpExample: php("create_reservation", "'arrival_date' => '2026-04-01',\n    'departure_date' => '2026-04-05',\n    'room_type_id' => $room_type_id,\n    'rate_type_id' => $rate_type_id,\n    'guest' => ['name' => 'Themba Nkosi', 'email' => 'themba@example.com'],\n    'rooms' => [['room_type_id' => $room_type_id, 'adults' => 2, 'children' => 0]]"),
   },
   {
     action: "modify_reservation",
     category: "reservations",
     title: "Modify Reservation",
-    description: "Update dates, room type, guest count, or special requests on an existing reservation. Recalculates pricing automatically.",
+    description: "Update dates on an existing reservation. Recalculates pricing automatically.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "reservation_id", type: "UUID", required: true, description: "Reservation to modify" },
-      { name: "check_in_date", type: "string (YYYY-MM-DD)", required: false, description: "New check-in date" },
-      { name: "check_out_date", type: "string (YYYY-MM-DD)", required: false, description: "New check-out date" },
-      { name: "room_type_id", type: "UUID", required: false, description: "New room type" },
-      { name: "adults", type: "number", required: false, description: "Updated adult count" },
+      { name: "new_arrival_date", type: "string (YYYY-MM-DD)", required: false, description: "New arrival date" },
+      { name: "new_departure_date", type: "string (YYYY-MM-DD)", required: false, description: "New departure date" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -269,7 +264,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Cancel Reservation",
     description: "Cancel an existing reservation. Releases inventory and records the cancellation reason.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "reservation_id", type: "UUID", required: true, description: "Reservation to cancel" },
       { name: "reason", type: "string", required: false, description: "Cancellation reason" },
     ],
@@ -284,8 +279,8 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Check In Guest",
     description: "Check in a guest. Updates room status to occupied, assigns physical room if not already assigned, and records check-in time.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "reservation_id", type: "UUID", required: true, description: "Reservation to check in" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "booking_id", type: "UUID", required: true, description: "Booking to check in" },
       { name: "room_ids", type: "string[]", required: false, description: "Physical room IDs to assign" },
     ],
     responseExample: JSON.stringify({
@@ -299,8 +294,8 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Check Out Guest",
     description: "Check out a guest. Finalizes the folio, releases the room, triggers housekeeping task creation, and records check-out time.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "reservation_id", type: "UUID", required: true, description: "Reservation to check out" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "booking_id", type: "UUID", required: true, description: "Booking to check out" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -315,7 +310,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Room Types (Adapter)",
     description: "Returns room types from the connected PMS adapter (Hostfully, Benson, or native ROL'OS). Normalised output regardless of source.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -330,7 +325,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get ROL'OS Room Types",
     description: "Returns room types from the native ROL'OS PMS. Includes full configuration: occupancy, amenities, images, and linked rate plans.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -343,7 +338,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Create Room Type",
     description: "Create a new room type in the native ROL'OS PMS. Define name, occupancy limits, amenities, and base pricing.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "name", type: "string", required: true, description: "Room type name" },
       { name: "max_occupancy", type: "number", required: true, description: "Maximum guest count" },
       { name: "default_rate", type: "number", required: false, description: "Default nightly rate" },
@@ -357,7 +352,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Update Room Type",
     description: "Update an existing room type's configuration — name, occupancy, rate, amenities, or active status.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type to update" },
       { name: "name", type: "string", required: false, description: "Updated name" },
       { name: "max_occupancy", type: "number", required: false, description: "Updated occupancy" },
@@ -372,7 +367,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Physical Rooms",
     description: "List all physical rooms (individual units) at a property. Returns room numbers, names, floor, status, and linked room type.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -385,7 +380,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Create Physical Room",
     description: "Add a new physical room unit to a property. Link it to a room type, set floor, and initial status.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Linked room type" },
       { name: "room_number", type: "string", required: true, description: "Room number" },
       { name: "room_name", type: "string", required: false, description: "Room name" },
@@ -399,7 +394,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Update Room Status",
     description: "Change a physical room's operational status. Valid statuses: available, occupied, maintenance, blocked, dirty, inspected.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_id", type: "UUID", required: true, description: "Physical room to update" },
       { name: "status", type: "string", required: true, description: "New status" },
     ],
@@ -413,7 +408,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Rate Types (Adapter)",
     description: "Returns rate types from the connected PMS adapter. Normalised output regardless of PMS source.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -424,15 +419,15 @@ export const API_ACTIONS: ApiAction[] = [
     action: "set_rates",
     category: "rates",
     title: "Set Rates",
-    description: "Update rate pricing for a room type across a date range. Used by channel managers and revenue management tools.",
+    description: "Update rate pricing for a room type by date. Requires a rate_type_id and an array of per-day rate entries with room_amount and optional per-person amounts.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type" },
-      { name: "date_from", type: "string (YYYY-MM-DD)", required: true, description: "Start date" },
-      { name: "date_to", type: "string (YYYY-MM-DD)", required: true, description: "End date" },
-      { name: "rate", type: "number", required: true, description: "Nightly rate" },
+      { name: "rate_type_id", type: "UUID", required: true, description: "Rate plan to price against" },
+      { name: "rates", type: "array", required: true, description: "Array of { date, room_amount, adult_amounts?, teen_amount?, child_amount?, infant_amount?, currency? }" },
     ],
     responseExample: JSON.stringify({ success: true, data: { updated_dates: 14 } }, null, 2),
+    curlExample: curl("set_rates", '"room_type_id": "UUID",\n    "rate_type_id": "UUID",\n    "rates": [\n      { "date": "2026-04-01", "room_amount": 2500, "currency": "ZAR" },\n      { "date": "2026-04-02", "room_amount": 2500, "currency": "ZAR" }\n    ]'),
   },
   {
     action: "get_rate_plans",
@@ -440,7 +435,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Rate Plans",
     description: "List all rate plans for a property. Rate plans define pricing strategies with multipliers, minimum stay rules, and meal inclusions.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -453,7 +448,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Create Rate Plan",
     description: "Create a new rate plan with pricing multiplier, minimum stay, and configuration.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "name", type: "string", required: true, description: "Rate plan name" },
       { name: "code", type: "string", required: true, description: "Rate plan code (e.g. RACK, BAR)" },
       { name: "min_stay", type: "number", required: false, description: "Minimum stay nights" },
@@ -467,7 +462,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Rate Seasons",
     description: "Retrieve seasonal pricing rules for a property. Seasons define date-range multipliers with day-of-week granularity.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -480,7 +475,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Create Rate Season",
     description: "Define a new pricing season with date range, multiplier, and optional day-of-week overrides.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "name", type: "string", required: true, description: "Season name" },
       { name: "start_date", type: "string (YYYY-MM-DD)", required: true, description: "Season start" },
       { name: "end_date", type: "string (YYYY-MM-DD)", required: true, description: "Season end" },
@@ -494,7 +489,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Set Rate Prices",
     description: "Set per-room-type pricing for a specific rate plan and date range. Granular pricing control for revenue management.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "rate_plan_id", type: "UUID", required: true, description: "Rate plan" },
       { name: "room_type_id", type: "UUID", required: true, description: "Room type" },
       { name: "date_from", type: "string (YYYY-MM-DD)", required: true, description: "Start date" },
@@ -511,7 +506,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "List Guest Profiles",
     description: "Search and list guest profiles for a property. Filter by name, email, or VIP status.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "search", type: "string", required: false, description: "Search by name or email" },
       { name: "limit", type: "number", required: false, description: "Max results (default 50)" },
     ],
@@ -527,7 +522,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Guest Profile",
     description: "Retrieve a single guest profile with full details: contact info, stay history, preferences, and notes.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "guest_id", type: "UUID", required: true, description: "Guest profile ID" },
     ],
     responseExample: JSON.stringify({
@@ -541,7 +536,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Create Guest Profile",
     description: "Create a new guest profile in the CRM. Automatically de-duplicates by email if a profile already exists.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "full_name", type: "string", required: true, description: "Guest full name" },
       { name: "email", type: "string", required: true, description: "Email address" },
       { name: "phone", type: "string", required: false, description: "Phone number" },
@@ -555,7 +550,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Update Guest Profile",
     description: "Update guest details — contact information, preferences, VIP status, or notes.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "guest_id", type: "UUID", required: true, description: "Guest to update" },
       { name: "full_name", type: "string", required: false, description: "Updated name" },
       { name: "email", type: "string", required: false, description: "Updated email" },
@@ -569,10 +564,10 @@ export const API_ACTIONS: ApiAction[] = [
     action: "get_folio",
     category: "folios",
     title: "Get Folio",
-    description: "Retrieve the financial folio for a reservation. Includes all charges, payments, adjustments, and running balance.",
+    description: "Retrieve the financial folio for a booking. Includes all charges, payments, adjustments, and running balance.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "reservation_id", type: "UUID", required: true, description: "Reservation ID" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "booking_id", type: "UUID", required: true, description: "Booking ID" },
     ],
     responseExample: JSON.stringify({
       success: true,
@@ -592,8 +587,8 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Add Folio Charge",
     description: "Post a charge to a guest's folio — room service, minibar, spa, extras, or custom charges.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "reservation_id", type: "UUID", required: true, description: "Reservation ID" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "booking_id", type: "UUID", required: true, description: "Booking ID" },
       { name: "description", type: "string", required: true, description: "Charge description" },
       { name: "amount", type: "number", required: true, description: "Charge amount" },
       { name: "category", type: "string", required: false, description: "Charge category (room, food, spa, etc.)" },
@@ -606,8 +601,8 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Process Folio Payment",
     description: "Record a payment against a guest folio. Supports cash, card, EFT, and third-party payment references.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
-      { name: "reservation_id", type: "UUID", required: true, description: "Reservation ID" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "booking_id", type: "UUID", required: true, description: "Booking ID" },
       { name: "amount", type: "number", required: true, description: "Payment amount" },
       { name: "method", type: "string", required: true, description: "Payment method: cash, card, eft, other" },
       { name: "reference", type: "string", required: false, description: "Payment reference number" },
@@ -622,7 +617,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Housekeeping Board",
     description: "Returns today's housekeeping task board. Lists all rooms with their cleaning status, assigned staff, and priority.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "date", type: "string (YYYY-MM-DD)", required: false, description: "Date to query (default today)" },
     ],
     responseExample: JSON.stringify({
@@ -641,7 +636,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Assign Housekeeping Task",
     description: "Assign a cleaning task to a staff member. Set priority and task type (checkout clean, stayover, deep clean).",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "task_id", type: "UUID", required: true, description: "Housekeeping task ID" },
       { name: "staff_id", type: "UUID", required: true, description: "Staff member to assign" },
       { name: "priority", type: "string", required: false, description: "Priority: low, normal, high, urgent" },
@@ -654,7 +649,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Complete Housekeeping Task",
     description: "Mark a housekeeping task as completed. Updates the room status to clean/inspected.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "task_id", type: "UUID", required: true, description: "Task to complete" },
       { name: "notes", type: "string", required: false, description: "Completion notes" },
     ],
@@ -668,7 +663,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Apply Service Charges",
     description: "Batch-apply service charges to a booking. Charges are calculated based on presets (per night, per person, flat fee).",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "booking_id", type: "UUID", required: true, description: "Booking to charge" },
       { name: "charges", type: "array", required: true, description: "Array of { preset_id, quantity, override_amount? }" },
     ],
@@ -680,7 +675,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Booking Charges",
     description: "List all service charges applied to a booking. Includes charge type, amount, calculation method, and timestamps.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "booking_id", type: "UUID", required: true, description: "Booking ID" },
     ],
     responseExample: JSON.stringify({
@@ -694,7 +689,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Process Checkout Refunds",
     description: "Process refunds during checkout. Calculates eligible refund amounts and records the transaction.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "booking_id", type: "UUID", required: true, description: "Booking ID" },
       { name: "refund_items", type: "array", required: true, description: "Array of { charge_id, amount }" },
     ],
@@ -708,7 +703,7 @@ export const API_ACTIONS: ApiAction[] = [
     title: "Get Daily Metrics",
     description: "Returns the daily operational snapshot: occupancy %, ADR, RevPAR, arrivals, departures, and revenue totals.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "date", type: "string (YYYY-MM-DD)", required: false, description: "Date to query (default today)" },
     ],
     responseExample: JSON.stringify({
@@ -734,9 +729,9 @@ export const API_ACTIONS: ApiAction[] = [
     action: "get_ui_config",
     category: "config",
     title: "Get UI Configuration",
-    description: "Returns the merged UI configuration (global defaults + property overrides) for Gutenberg blocks, WP admin dashboard, embed widgets, and Smart Book buttons.",
+    description: "Returns the merged UI configuration (global defaults + property overrides) for Gutenberg blocks, WP admin dashboard, embed widgets, and Smart Book buttons. Also includes API Gates that control which PMS actions are enabled per property.",
     params: [
-      { name: "property_id", type: "UUID", required: true, description: "Property identifier" },
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
       { name: "component_type", type: "string", required: false, description: "Filter by component: gutenberg_blocks, wp_admin, embed_widgets, smart_button, api_gates" },
     ],
     responseExample: JSON.stringify({
@@ -745,7 +740,8 @@ export const API_ACTIONS: ApiAction[] = [
         gutenberg_blocks: { booking_widget: { enabled: true, default_color: "#2563EB" } },
         wp_admin: { metrics_tab: true, housekeeping_tab: true },
         embed_widgets: { calendar_months: 2 },
-        smart_button: { default_cta: "Book Now" }
+        smart_button: { default_cta: "Book Now" },
+        api_gates: { create_reservation: true, modify_reservation: true }
       }
     }, null, 2),
   },
