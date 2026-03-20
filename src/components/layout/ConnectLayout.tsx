@@ -105,32 +105,31 @@ export function ConnectLayout() {
             <div>
               <h4 className="font-semibold text-sm mb-3">Product</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/connect/features" className="hover:text-foreground transition-colors">Features</Link></li>
-                <li><Link to="/connect/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
-                <li><Link to="/connect/integrations" className="hover:text-foreground transition-colors">Integrations</Link></li>
+                <li><Link to={connectPath("/connect/features")} className="hover:text-foreground transition-colors">Features</Link></li>
+                <li><Link to={connectPath("/connect/pricing")} className="hover:text-foreground transition-colors">Pricing</Link></li>
+                <li><Link to={connectPath("/connect/integrations")} className="hover:text-foreground transition-colors">Integrations</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-sm mb-3">Developers</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/connect/docs" className="hover:text-foreground transition-colors">API Reference</Link></li>
-                <li><Link to="/connect/docs/quickstart" className="hover:text-foreground transition-colors">Quickstart</Link></li>
-                <li><Link to="/connect/docs/wordpress" className="hover:text-foreground transition-colors">WordPress Plugin</Link></li>
+                <li><Link to={connectPath("/connect/docs")} className="hover:text-foreground transition-colors">API Reference</Link></li>
+                <li><Link to={connectPath("/connect/docs/quickstart")} className="hover:text-foreground transition-colors">Quickstart</Link></li>
+                <li><Link to={connectPath("/connect/docs/wordpress")} className="hover:text-foreground transition-colors">WordPress Plugin</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-sm mb-3">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/connect/about" className="hover:text-foreground transition-colors">About</Link></li>
-                <li><Link to="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
-                <li><Link to="/journals" className="hover:text-foreground transition-colors">Journal</Link></li>
+                <li><Link to={connectPath("/connect/about")} className="hover:text-foreground transition-colors">About</Link></li>
+                <li><Link to={connectPath("/connect/get-started")} className="hover:text-foreground transition-colors">Contact</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold text-sm mb-3">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/connect/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
-                <li><Link to="/connect/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+                <li><Link to={connectPath("/connect/privacy-policy")} className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+                <li><Link to={connectPath("/connect/terms-of-service")} className="hover:text-foreground transition-colors">Terms of Service</Link></li>
               </ul>
             </div>
           </div>

@@ -18,6 +18,10 @@ export const isConnectDomain = typeof window !== 'undefined' && (
   window.location.hostname === 'connect.roomsonline.co.za'
 );
 
+// Path helper: on connect domain, strip /connect prefix; on main domain, keep it
+export const connectPath = (path: string) =>
+  isConnectDomain ? (path === "/connect" ? "/" : path.replace(/^\/connect/, "")) : path;
+
 // Helper to generate branded staff login URL (never use window.location.origin)
 export const getStaffLoginUrl = (propertySlug: string) =>
   `${ADMIN_DOMAIN}/staff-login?property=${propertySlug}`;
