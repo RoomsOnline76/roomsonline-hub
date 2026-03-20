@@ -1,47 +1,45 @@
 /**
- * Vite config for building WordPress CDN assets (Gutenberg blocks, availability widget, admin dashboard)
+ * Vite config for building WordPress CDN assets
  * 
- * Usage: npx vite build --config vite.wp.config.ts
+ * Usage: bash scripts/build-wp-assets.sh
  * Output: dist/wp-assets/
  * 
- * These files are served from PUBLIC_DOMAIN/wp-assets/ and enqueued by the PHP plugin.
+ * Builds each entry separately since IIFE format doesn't support multiple entries.
  */
 
 import { defineConfig } from "vite";
 import path from "path";
 
+const entry = process.env.WP_ENTRY || "blocks";
+
+const entries: Record<string, { input: string; name: string }> = {
+  blocks: { input: "src/wp-blocks/index.tsx", name: "RolosBlocks" },
+  availability: { input: "src/wp-blocks/availability-widget.ts", name: "RolosAvailability" },
+  admin: { input: "src/wp-admin/index.ts", name: "RolosAdmin" },
+};
+
+const current = entries[entry] || entries.blocks;
+
 export default defineConfig({
   build: {
     outDir: "dist/wp-assets",
-    emptyOutDir: true,
+    emptyOutDir: false,
     lib: {
-      entry: {
-        "rolos-blocks": path.resolve(__dirname, "src/wp-blocks/index.tsx"),
-        "rolos-availability": path.resolve(__dirname, "src/wp-blocks/availability-widget.ts"),
-        "rolos-admin": path.resolve(__dirname, "src/wp-admin/index.ts"),
-      },
+      entry: path.resolve(__dirname, current.input),
       formats: ["iife"],
-      name: "RolosWP",
+      name: current.name,
+      fileName: () => `rolos-${entry}.min.js`,
     },
     rollupOptions: {
-      // WordPress provides these globally — don't bundle them
       external: ["wp", "jQuery"],
       output: {
-        globals: {
-          wp: "wp",
-          jQuery: "jQuery",
-        },
-        entryFileNames: "[name].min.js",
-        // No chunking — each entry is self-contained
-        manualChunks: undefined,
+        globals: { wp: "wp", jQuery: "jQuery" },
       },
     },
     minify: "terser",
     sourcemap: false,
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: { "@": path.resolve(__dirname, "./src") },
   },
 });
