@@ -372,7 +372,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
                     <div key={log.id} className="flex items-center justify-between text-xs bg-muted/50 rounded px-3 py-1.5">
                       <div className="flex items-center gap-2">
                         {log.status === "delivered" ? (
-                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                          <CheckCircle2 className="h-3 w-3 text-primary" />
                         ) : log.status === "failed" ? (
                           <XCircle className="h-3 w-3 text-destructive" />
                         ) : (
