@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConnectTobiWidget } from "@/components/connect/ConnectTobiWidget";
 import { cn } from "@/lib/utils";
+import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 
 const NAV_LINKS = [
   { label: "Features", href: "/connect/features" },
