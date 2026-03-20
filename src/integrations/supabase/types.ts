@@ -7372,6 +7372,138 @@ export type Database = {
           },
         ]
       }
+      rolos_webhook_logs: {
+        Row: {
+          attempts: number | null
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          event: string
+          id: string
+          max_attempts: number | null
+          payload: Json | null
+          property_id: string
+          response_body: string | null
+          response_status: number | null
+          status: string | null
+          subscription_id: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          event: string
+          id?: string
+          max_attempts?: number | null
+          payload?: Json | null
+          property_id: string
+          response_body?: string | null
+          response_status?: number | null
+          status?: string | null
+          subscription_id?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          event?: string
+          id?: string
+          max_attempts?: number | null
+          payload?: Json | null
+          property_id?: string
+          response_body?: string | null
+          response_status?: number | null
+          status?: string | null
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_webhook_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_webhook_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_webhook_logs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_webhook_logs_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_webhook_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_webhook_subscriptions: {
+        Row: {
+          created_at: string | null
+          events: string[]
+          id: string
+          is_active: boolean | null
+          property_id: string
+          secret: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          events?: string[]
+          id?: string
+          is_active?: boolean | null
+          property_id: string
+          secret: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          events?: string[]
+          id?: string
+          is_active?: boolean | null
+          property_id?: string
+          secret?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_webhook_subscriptions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_webhook_subscriptions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_webhook_subscriptions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_yield_rules: {
         Row: {
           adjustment_percent: number
