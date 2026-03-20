@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Shield, Globe, BarChart3, Code2, Blocks, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
