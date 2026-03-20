@@ -1,6 +1,6 @@
 # RoomsOnline (Sleep in Africa) — Full LLM Context
 
-> Last updated: 2026-03-09
+> Last updated: 2026-03-20
 
 ## System Identity
 
@@ -9,6 +9,7 @@ RoomsOnline (ROL) is a PMS-agnostic booking orchestration platform that unifies 
 **Domains:**
 - Public booking: book.sleepinafrica.roomsonline.co.za
 - Admin console: sleepinafrica.roomsonline.co.za
+- Developer portal: connect.roomsonline.co.za
 
 ---
 
@@ -79,6 +80,16 @@ Full property management system for properties without external PMS:
 - Revenue analytics
 - Multi-property portfolio dashboard
 
+### ROL'OS Connect — Developer Portal
+Public-facing developer and integration hub at connect.roomsonline.co.za:
+- **REST API**: Single-endpoint architecture (POST to /roomsonline-pms-api) with 40+ actions
+- **API Actions**: get_property_details, fetch_availability, create_reservation, check_in, check_out, get_folio, add_folio_charge, process_folio_payment, set_rates, set_availability, get_housekeeping_tasks, run_night_audit, and more
+- **Authentication**: API key via x-api-key header + propertyId in request body
+- **Interactive Documentation**: Live API reference with cURL, JavaScript, and PHP examples
+- **Downloadable API Doc**: Complete REST API v3 reference (DOCX)
+- **Sales Assistant (TOBI)**: AI-powered technical and commercial inquiry assistant
+- **WordPress Plugin**: Embeddable booking integration for WordPress sites
+
 ### Integration Toolkit
 Embeddable tools for property websites:
 - Direct booking links
@@ -111,6 +122,8 @@ AI suggestions governed by confidence scoring: only auto-applies at ≥0.9 confi
 
 ## Public URL Structure
 
+### Booking Site (book.sleepinafrica.roomsonline.co.za)
+
 | Path | Purpose |
 |------|---------|
 | `/` | Homepage — hero, AI search, map, segments |
@@ -126,6 +139,59 @@ AI suggestions governed by confidence scoring: only auto-applies at ≥0.9 confi
 | `/how-our-booking-engine-works` | Platform overview |
 | `/privacy-policy` | Privacy policy |
 | `/terms-of-service` | Terms of service |
+
+### Connect Portal (connect.roomsonline.co.za)
+
+| Path | Purpose |
+|------|---------|
+| `/` | Landing page — product overview and CTAs |
+| `/features` | Platform capabilities |
+| `/integrations` | Supported PMS and channel integrations |
+| `/pricing` | Plans and pricing |
+| `/docs` | Interactive API reference (40+ actions) |
+| `/docs/quickstart` | 5-minute integration quickstart |
+| `/docs/wordpress` | WordPress plugin guide |
+| `/faq` | Frequently asked questions |
+| `/about` | About Rooms Online |
+| `/get-started` | Onboarding inquiry form |
+| `/privacy-policy` | Privacy policy |
+| `/terms-of-service` | Terms of service |
+
+---
+
+## ROL'OS Connect API Reference
+
+### Endpoint
+```
+POST https://{SUPABASE_URL}/functions/v1/roomsonline-pms-api
+Headers: x-api-key: YOUR_API_KEY, Content-Type: application/json
+```
+
+### Action Categories
+
+**Property & Configuration:**
+get_property_details, get_room_types, get_rate_types, get_ui_config
+
+**Availability & Rates:**
+fetch_availability, set_availability, get_rates, set_rates
+
+**Reservations:**
+create_reservation, modify_reservation, cancel_reservation, get_reservation, get_reservations
+
+**Front Desk:**
+check_in, check_out, get_folio, add_folio_charge, process_folio_payment, apply_service_charges, get_booking_charges, process_checkout_refunds
+
+**Housekeeping:**
+get_housekeeping_tasks, update_housekeeping_task
+
+**Night Audit:**
+run_night_audit, get_night_audit_status
+
+**Guests:**
+get_guest_profile, search_guests, update_guest_profile
+
+**Revenue & Reporting:**
+get_revenue_summary, get_occupancy_report
 
 ---
 
@@ -155,5 +221,6 @@ AI suggestions governed by confidence scoring: only auto-applies at ≥0.9 confi
 ## Contact
 
 - Email: hello@roomsonline.co.za
+- Developer inquiries: connect@roomsonline.co.za
 - Website: https://roomsonline.co.za
 - Region: Africa-focused, headquartered in South Africa

@@ -7,6 +7,7 @@
 RoomsOnline (ROL) is a multi-PMS booking engine that unifies property management systems under one interface. We connect travelers with handpicked safari lodges, boutique hotels, guest houses, villas, and resorts across Africa.
 
 - Website: https://book.sleepinafrica.roomsonline.co.za
+- Developer Portal: https://connect.roomsonline.co.za
 - Type: SaaS Booking Platform
 - Region: Africa-focused
 - Currencies: ZAR, USD, EUR, GBP
@@ -20,7 +21,30 @@ RoomsOnline (ROL) is a multi-PMS booking engine that unifies property management
 - **Integration Toolkit**: Embeddable booking widgets, direct links, booking bars, and WordPress plugin for property websites.
 - **Journal / Editorial**: Travel stories, destination guides, and curated property features.
 
-## Public Pages
+## ROL'OS Connect — Developer & Integration Portal
+
+ROL'OS Connect (connect.roomsonline.co.za) is the developer hub for property managers and third-party integrators. It provides:
+
+- **REST API**: Single-endpoint architecture with 40+ actions for availability, rates, reservations, guest management, housekeeping, night audit, and more.
+- **Interactive API Reference**: Live documentation with code examples in cURL, JavaScript, and PHP.
+- **PMS Integrations**: Pre-built connectors for NightsBridge, Hostfully, Checkfront, with more planned.
+- **Embeddable Widgets**: JavaScript booking widgets, booking bars, and WordPress plugin for property websites.
+- **Downloadable API Documentation**: Complete REST API v3 reference document.
+
+### Connect Portal Pages
+
+- / — Landing page with product overview
+- /features — Platform capabilities and feature list
+- /integrations — Supported PMS and channel integrations
+- /pricing — Plans and pricing tiers
+- /docs — Interactive API reference with 40+ documented actions
+- /docs/quickstart — 5-minute integration guide
+- /docs/wordpress — WordPress plugin setup
+- /faq — Frequently asked questions
+- /about — About Rooms Online
+- /get-started — Contact and onboarding form
+
+## Public Booking Pages
 
 - / — Homepage with AI-powered property search, interactive map, and curated segments
 - /property/{slug} — Individual property showcase with rooms, availability, and booking
@@ -43,4 +67,5 @@ RoomsOnline (ROL) is a multi-PMS booking engine that unifies property management
 ## Contact
 
 - Email: hello@roomsonline.co.za
+- Developer inquiries: connect@roomsonline.co.za
 - Website: https://roomsonline.co.za

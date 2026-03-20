@@ -1,105 +1,179 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   RoomsOnline Sitemap
-  Last updated: 2026-03-09
+  Last updated: 2026-03-20
   
-  NOTE: For production, this sitemap should be dynamically generated
-  from the database using an edge function that queries:
+  NOTE: For production, property and journal entries should be dynamically
+  generated from the database via an edge function that queries:
   - properties table (where is_active = true AND permanently_deleted_at IS NULL)
   - journals table (where status = 'published')
-  
-  Dynamic generation endpoint: /api/sitemap.xml (to be implemented)
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   
   <!-- ============================================ -->
-  <!-- STATIC PAGES -->
+  <!-- STATIC PAGES — book.sleepinafrica.roomsonline.co.za -->
   <!-- ============================================ -->
   
-  <!-- Homepage -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   
-  <!-- About Us -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/about</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   
-  <!-- Contact -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/contact</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   
-  <!-- Journals Index -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/journals</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   
-  <!-- How Our Booking Engine Works (SEO landing page) -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/how-our-booking-engine-works</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
 
-  <!-- Property Listing -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/property_listing</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   
-  <!-- Privacy Policy -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/privacy-policy</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   
-  <!-- Terms of Service -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/terms-of-service</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
 
-  <!-- LLM context (for AI discoverability) -->
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/llms.txt</loc>
-    <lastmod>2026-03-09</lastmod>
+    <lastmod>2026-03-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.2</priority>
   </url>
   
   <!-- ============================================ -->
+  <!-- CONNECT PORTAL — connect.roomsonline.co.za -->
+  <!-- ============================================ -->
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/features</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/integrations</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/pricing</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/docs</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/docs/quickstart</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/docs/wordpress</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/faq</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/about</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/get-started</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/privacy-policy</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <url>
+    <loc>https://connect.roomsonline.co.za/terms-of-service</loc>
+    <lastmod>2026-03-20</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- ============================================ -->
   <!-- PROPERTY PAGES (Dynamic) -->
-  <!-- In production, generate from properties table -->
   <!-- Query: SELECT slug, updated_at FROM properties 
        WHERE is_active = true AND permanently_deleted_at IS NULL -->
   <!-- ============================================ -->
   
   <!--
-  Example property entries (replace with dynamic generation):
-  
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/property/{slug}</loc>
     <lastmod>{updated_at}</lastmod>
@@ -114,14 +188,11 @@
   
   <!-- ============================================ -->
   <!-- JOURNAL PAGES (Dynamic) -->
-  <!-- In production, generate from journals table -->
   <!-- Query: SELECT slug, updated_at FROM journals 
        WHERE status = 'published' -->
   <!-- ============================================ -->
   
   <!--
-  Example journal entries (replace with dynamic generation):
-  
   <url>
     <loc>https://book.sleepinafrica.roomsonline.co.za/journals/{slug}</loc>
     <lastmod>{updated_at}</lastmod>
