@@ -280,9 +280,20 @@ export default function DevTaskTracker() {
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${priorityCfg.color}`}>
-              {priorityCfg.label}
-            </Badge>
+            <Select
+              value={task.priority}
+              onValueChange={(v) => updatePriority(task.id, v as TaskPriority)}
+            >
+              <SelectTrigger className={`h-5 text-[10px] border px-1.5 py-0 w-auto min-w-[70px] shadow-none rounded-full ${priorityCfg.color}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <User className="h-3 w-3" />
               <Select
