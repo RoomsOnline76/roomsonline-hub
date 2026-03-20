@@ -104,10 +104,10 @@ Deno.serve(async (req) => {
     if (endDate) {
       params.append("to_date", endDate);
     } else {
-      // Default to 90 days ahead
-      const ninetyDaysAhead = new Date();
-      ninetyDaysAhead.setDate(ninetyDaysAhead.getDate() + 90);
-      params.append("to_date", ninetyDaysAhead.toISOString().split("T")[0]);
+      // Default to 13 months (395 days) ahead
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 395);
+      params.append("to_date", futureDate.toISOString().split("T")[0]);
     }
 
     // NightsBridge API call

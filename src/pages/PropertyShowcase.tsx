@@ -449,7 +449,7 @@ export default function PropertyShowcase() {
       // For manual properties, synthesize availability from property_availability table
       if (isManual && amenitiesData) {
         const today = new Date();
-        const endDate = addDays(today, 90);
+        const endDate = addDays(today, 395);
         const todayStr = format(today, "yyyy-MM-dd");
         const endStr = format(endDate, "yyyy-MM-dd");
         
@@ -479,9 +479,9 @@ export default function PropertyShowcase() {
           });
         }
         
-        // Generate 90 days of availability
+        // Generate 13 months (395 days) of availability
         const calendarMap = new Map<string, { available: boolean; rate?: number }>();
-        for (let i = 0; i < 90; i++) {
+        for (let i = 0; i < 395; i++) {
           const date = addDays(today, i);
           const dateStr = format(date, "yyyy-MM-dd");
           const isBlocked = blockedDates.has(dateStr);

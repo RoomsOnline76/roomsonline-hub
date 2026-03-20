@@ -442,9 +442,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       startDate.setDate(startDate.getDate() + diff);
     }
 
-    // Always fetch 90 days ahead to ensure forward navigation has data
+    // Fetch 13 months (395 days) ahead to match Fluent Living availability window
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 90);
+    endDate.setDate(endDate.getDate() + 395);
 
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
