@@ -335,6 +335,13 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
         return null; // Cache is stale
       }
 
+      // Check cache covers the full requested range
+      const cachedDates = new Set(cachedData.map(r => r.date));
+      if (!cachedDates.has(startDateStr) || !cachedDates.has(endDateStr)) {
+        console.log('Cache does not cover full requested range, fetching fresh data');
+        return null;
+      }
+
       // Group cached data by room type
       const roomTypeMap = new Map<string, PMSRoomTypeData>();
       
@@ -435,13 +442,9 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
       startDate.setDate(startDate.getDate() + diff);
     }
 
+    // Always fetch 90 days ahead to ensure forward navigation has data
     const endDate = new Date(startDate);
-    if (viewMode === "month") {
-      endDate.setMonth(endDate.getMonth() + 1);
-      endDate.setDate(0);
-    } else {
-      endDate.setDate(endDate.getDate() + 8);
-    }
+    endDate.setDate(endDate.getDate() + 90);
 
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
