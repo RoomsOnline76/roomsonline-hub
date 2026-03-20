@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight } from "lucide-react";
+import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -54,6 +54,8 @@ const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string }> = 
   critical: { label: "Critical", color: "text-destructive border-destructive" },
 };
 
+const PRIORITY_ORDER: Record<TaskPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+
 const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
   new: "started",
   started: "testing",
@@ -68,6 +70,9 @@ export default function DevTaskTracker() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", priority: "medium" as TaskPriority, assigned_to: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterAssignee, setFilterAssignee] = useState<string>("all");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
@@ -138,6 +143,13 @@ export default function DevTaskTracker() {
     fetchTasks();
   };
 
+  const updatePriority = async (id: string, priority: TaskPriority) => {
+    const { error } = await supabase.from("dev_tasks").update({ priority } as any).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Priority → ${PRIORITY_CONFIG[priority].label}`);
+    fetchTasks();
+  };
+
   const archiveTask = async (id: string) => {
     const { error } = await supabase.from("dev_tasks").update({ is_archived: true } as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
@@ -165,8 +177,22 @@ export default function DevTaskTracker() {
     return u?.full_name || u?.email || "Unknown";
   };
 
-  const activeTasks = tasks.filter((t) => !t.is_archived);
-  const archivedTasks = tasks.filter((t) => t.is_archived);
+  const sortByPriority = (a: DevTask, b: DevTask) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+
+  const filterTasks = (taskList: DevTask[]) => {
+    return taskList.filter((t) => {
+      const matchesSearch = !searchQuery || 
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesAssignee = filterAssignee === "all" || 
+        (filterAssignee === "unassigned" ? !t.assigned_to : t.assigned_to === filterAssignee);
+      const matchesPriority = filterPriority === "all" || t.priority === filterPriority;
+      return matchesSearch && matchesAssignee && matchesPriority;
+    });
+  };
+
+  const activeTasks = filterTasks(tasks.filter((t) => !t.is_archived)).sort(sortByPriority);
+  const archivedTasks = filterTasks(tasks.filter((t) => t.is_archived)).sort(sortByPriority);
 
   // Group active tasks by status for kanban-like columns
   const tasksByStatus: Record<TaskStatus, DevTask[]> = {
@@ -254,9 +280,20 @@ export default function DevTaskTracker() {
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${priorityCfg.color}`}>
-              {priorityCfg.label}
-            </Badge>
+            <Select
+              value={task.priority}
+              onValueChange={(v) => updatePriority(task.id, v as TaskPriority)}
+            >
+              <SelectTrigger className={`h-5 text-[10px] border px-1.5 py-0 w-auto min-w-[70px] shadow-none rounded-full ${priorityCfg.color}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <User className="h-3 w-3" />
               <Select
@@ -366,6 +403,45 @@ export default function DevTaskTracker() {
               </div>
             </DialogContent>
           </Dialog>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tasks…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-9 text-sm"
+            />
+          </div>
+          <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+            <SelectTrigger className="h-9 w-[160px] text-sm">
+              <User className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="All people" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All people</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.full_name || u.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterPriority} onValueChange={setFilterPriority}>
+            <SelectTrigger className="h-9 w-[140px] text-sm">
+              <SelectValue placeholder="All priorities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All priorities</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <Tabs defaultValue="worklist">
