@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
@@ -65,8 +66,8 @@ export default function ConnectGetStarted() {
             We've received your inquiry and will be in touch within 24 hours with your API credentials and onboarding details.
           </p>
           <div className="flex items-center justify-center gap-3">
-            <Link to="/connect/docs/quickstart"><Button variant="outline">Read the Quickstart</Button></Link>
-            <Link to="/connect"><Button>Back to Home</Button></Link>
+            <Link to={connectPath("/connect/docs/quickstart")}><Button variant="outline">Read the Quickstart</Button></Link>
+            <Link to={connectPath("/connect")}><Button>Back to Home</Button></Link>
           </div>
         </motion.div>
       </div>

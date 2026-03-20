@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, CheckCircle2 } from "lucide-react";
@@ -126,7 +127,7 @@ export default function ConnectPricing() {
                   ))}
                 </ul>
 
-                <Link to="/connect/get-started" className="block mt-8">
+                <Link to={connectPath("/connect/get-started")} className="block mt-8">
                   <Button variant={tier.popular ? "default" : "outline"} className="w-full gap-2">
                     {tier.cta} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>

@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Globe, Zap, Users, Target, MapPin, ArrowRight, Heart, Shield, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -297,12 +298,12 @@ export default function ConnectAbout() {
                 experience — there's a place for you in the ROL'OS ecosystem.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link to="/connect/get-started">
+                <Link to={connectPath("/connect/get-started")}>
                   <Button className="gap-2">
                     Get Started <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link to="/connect/docs">
+                <Link to={connectPath("/connect/docs")}>
                   <Button variant="outline">Explore the API</Button>
                 </Link>
               </div>

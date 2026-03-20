@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { motion } from "framer-motion";
 import { Search, Copy, Check, ChevronRight, Code2, ArrowRight, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -148,12 +149,12 @@ export default function ConnectDocs() {
               <p className="text-muted-foreground mt-1">40+ actions for complete property management</p>
             </div>
             <div className="flex gap-2">
-              <Link to="/connect/docs/quickstart">
+              <Link to={connectPath("/connect/docs/quickstart")}>
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <ArrowRight className="h-3.5 w-3.5" /> Quickstart
                 </Button>
               </Link>
-              <Link to="/connect/docs/wordpress">
+              <Link to={connectPath("/connect/docs/wordpress")}>
                 <Button variant="outline" size="sm" className="gap-1.5">
                   WordPress Guide
                 </Button>

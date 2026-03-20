@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
@@ -108,7 +109,7 @@ export default function ConnectFAQ() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Still Have Questions?</h2>
           <p className="text-muted-foreground mb-6">Ask TOBI using the chat widget, or get in touch with our team.</p>
-          <Link to="/connect/get-started">
+          <Link to={connectPath("/connect/get-started")}>
             <Button size="lg" className="gap-2">Contact Us <ArrowRight className="h-4 w-4" /></Button>
           </Link>
         </div>
