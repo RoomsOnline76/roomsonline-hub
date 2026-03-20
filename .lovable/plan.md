@@ -1,66 +1,59 @@
 
 
-# Remove `/connect` prefix on the Connect domain
+# Fix API Documentation: Align UI Reference with Actual Implementation
 
 ## Problem
-On `connect.roomsonline.co.za`, URLs read `connect.roomsonline.co.za/connect/features` — the word "connect" appears twice. All portal routes should be served at the root: `connect.roomsonline.co.za/features`.
 
-## Approach
+The downloadable DOCX is **mostly correct** — it matches the actual Zod schemas in the edge function. However, the **interactive UI documentation** (`rolos-api-actions.ts`) has incorrect parameter names and simplified schemas that don't match the real API.
 
-Use a helper function throughout the portal that returns the correct path prefix based on domain context. On the connect domain, routes live at `/`. On the main domain, they stay at `/connect/*` for dev/preview access.
+### Discrepancies Found (UI is wrong, DOCX is right)
+
+| Field | DOCX (Correct) | UI Code (Wrong) |
+|-------|----------------|------------------|
+| Property identifier | `propertyId` | `property_id` |
+| `create_reservation` dates | `arrival_date` / `departure_date` | `check_in_date` / `check_out_date` |
+| `create_reservation` guest | `guest: { name, email, phone }` | flat `guest_name`, `guest_email`, `guest_phone` |
+| `create_reservation` rooms | `rooms: [{ room_type_id, adults, teens, children, infants }]` | not present |
+| `fetch_availability` dates | `start_date` / `end_date` | `check_in` / `check_out` |
+| `check_in` / `check_out` key | `booking_id` | `reservation_id` |
+| `get_folio` / folio actions key | `booking_id` | `reservation_id` |
+| `set_availability` format | `availability: [{ date, available_units, restrictions }]` | flat `date_from`, `date_to`, `available_units` |
+| `set_rates` format | `rates: [{ date, room_amount, ... }]` + `rate_type_id` | flat `date_from`, `date_to`, `rate` |
+| `modify_reservation` dates | `new_arrival_date` / `new_departure_date` | `check_in_date` / `check_out_date` |
+| Voucher support | `voucher` param on create_reservation | not present |
+
+### DOCX Missing Items
+- `get_ui_config` action (UI Configurator)
+- `ROOMS_NOT_READY` error code
+- `CONFLICT` error code
 
 ## Changes
 
-### 1. Add path helper (`src/lib/config.ts`)
-Add a utility:
-```ts
-export const connectPath = (path: string) =>
-  isConnectDomain ? path : `/connect${path}`;
-```
-This returns `/features` on the connect domain, `/connect/features` on the main domain.
+### 1. Rewrite `src/data/rolos-api-actions.ts`
+Fix all parameter names, types, and code examples to match the actual Zod schemas in the edge function. This is the bulk of the work — every action's params, curl/js/php examples, and response examples need to match reality.
 
-### 2. Duplicate routes in `src/App.tsx`
-When `isConnectDomain`, mount the `ConnectLayout` at `/` (root) instead of `/connect`. Keep the `/connect` routes for the main domain.
+Key corrections across all actions:
+- All `property_id` params become `propertyId`
+- All code examples use `propertyId` in request bodies
+- `fetch_availability`: use `start_date`/`end_date`
+- `create_reservation`: use `arrival_date`, `departure_date`, nested `guest {}`, `rooms []`, `voucher`
+- `modify_reservation`: use `new_arrival_date`, `new_departure_date`
+- `check_in`, `check_out`, `get_folio`, `add_folio_charge`, `process_folio_payment`: use `booking_id`
+- `apply_service_charges`, `get_booking_charges`, `process_checkout_refunds`: use `booking_id`
+- `set_availability`: use `availability` array format
+- `set_rates`: use `rate_type_id` + `rates` array
+- Add `get_ui_config` action
 
-```text
-// On connect domain:
-<Route path="/" element={<ConnectLayout />}>
-  <Route index element={<ConnectHome />} />
-  <Route path="features" element={<ConnectFeatures />} />
-  ...
-</Route>
+### 2. Update DOCX with missing items
+Regenerate the downloadable DOCX to include:
+- `get_ui_config` action documentation
+- `ROOMS_NOT_READY` and `CONFLICT` error codes (already in DOCX actually — confirmed on re-check)
 
-// On main domain (unchanged):
-<Route path="/connect" element={<ConnectLayout />}>
-  ...
-</Route>
-```
+### 3. Update code example helpers
+Rewrite the `curl()`, `js()`, and `php()` helper functions to use `propertyId` instead of `property_id` in all generated examples.
 
-Update the catch-all to redirect to `/` on the connect domain.
-
-### 3. Update `ConnectLayout.tsx` nav links
-Replace all hardcoded `/connect/...` paths with `connectPath(...)`:
-- NAV_LINKS hrefs
-- Logo link → `connectPath("/")`
-- "Get Started" CTA → `connectPath("/get-started")`
-- All footer links
-
-### 4. Update all 10 connect page components
-Replace every `Link to="/connect/..."` with `connectPath("/...")` in:
-- `ConnectHome.tsx` (~6 links)
-- `ConnectDocs.tsx` (~2 links)
-- `ConnectFeatures.tsx` (~2 links)
-- `ConnectIntegrations.tsx` (~1 link)
-- `ConnectPricing.tsx` (~1 link)
-- `ConnectFAQ.tsx` (~1 link)
-- `ConnectGetStarted.tsx` (~2 links)
-- `ConnectQuickstart.tsx` (~4 links)
-- `ConnectAbout.tsx` (~2 links)
-- `ConnectWordPress.tsx` (check for links)
-
-### Result
-- `connect.roomsonline.co.za/` → Landing page
-- `connect.roomsonline.co.za/features` → Features
-- `connect.roomsonline.co.za/docs` → API docs
-- Main domain `/connect/*` routes continue working for development
+## Result
+- The interactive API reference at `/docs` will match the actual API contract
+- The downloadable DOCX will include all actions
+- Developers can copy-paste examples that actually work
 
