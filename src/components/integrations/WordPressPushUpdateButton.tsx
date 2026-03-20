@@ -26,7 +26,7 @@ export function WordPressPushUpdateButton() {
   const currentVersion = configs?.reduce((max, c) => {
     const v = (c.config as Record<string, unknown>)?.plugin_version as string;
     return v && v > max ? v : max;
-  }, "1.0.2") || "1.0.2";
+  }, "2.0.0") || "2.0.0";
 
   const handlePushUpdate = async () => {
     setPushing(true);
