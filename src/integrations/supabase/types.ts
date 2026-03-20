@@ -612,6 +612,45 @@ export type Database = {
           },
         ]
       }
+      connect_inquiries: {
+        Row: {
+          company: string | null
+          created_at: string | null
+          current_pms: string | null
+          email: string
+          id: string
+          message: string | null
+          name: string
+          property_count: string | null
+          source: string | null
+          status: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string | null
+          current_pms?: string | null
+          email: string
+          id?: string
+          message?: string | null
+          name: string
+          property_count?: string | null
+          source?: string | null
+          status?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string | null
+          current_pms?: string | null
+          email?: string
+          id?: string
+          message?: string | null
+          name?: string
+          property_count?: string | null
+          source?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       contract_template_versions: {
         Row: {
           activated_at: string | null
