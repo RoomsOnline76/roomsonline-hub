@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
-import { Plus, CreditCard, Receipt } from "lucide-react";
+import { Plus, CreditCard, Receipt, Zap, RotateCcw, ShieldCheck } from "lucide-react";
 
 interface Transaction {
   id: string;
@@ -19,17 +18,41 @@ interface Transaction {
   created_at: string;
 }
 
+interface BookingCharge {
+  id: string;
+  name: string;
+  category: string;
+  calculation_method: string;
+  amount: number;
+  is_refundable: boolean;
+  refund_timing: string | null;
+  refund_status: string | null;
+  breakdown: string | null;
+  created_at: string;
+}
+
 interface BookingFolioTabProps {
   bookingId: string;
 }
 
+const CATEGORY_COLORS: Record<string, string> = {
+  tax: "bg-amber-500/15 text-amber-700 border-amber-300",
+  fee: "bg-blue-500/15 text-blue-700 border-blue-300",
+  deposit: "bg-violet-500/15 text-violet-700 border-violet-300",
+  surcharge: "bg-rose-500/15 text-rose-700 border-rose-300",
+  custom: "bg-slate-500/15 text-slate-700 border-slate-300",
+};
+
 export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [bookingCharges, setBookingCharges] = useState<BookingCharge[]>([]);
   const [folioStatus, setFolioStatus] = useState<string>("open");
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [applyingCharges, setApplyingCharges] = useState(false);
+  const [processingRefund, setProcessingRefund] = useState<string | null>(null);
 
   const [chargeForm, setChargeForm] = useState({ description: "", amount: "", type: "charge" });
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "cash", reference: "" });
@@ -37,10 +60,16 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
   const fetchFolio = async () => {
     setLoading(true);
     try {
-      const res = await callPmsApi<{ transactions: Transaction[]; status: string }>("get_folio", { booking_id: bookingId });
-      if (res.success && res.data) {
-        setTransactions(res.data.transactions || []);
-        setFolioStatus(res.data.status || "open");
+      const [folioRes, chargesRes] = await Promise.all([
+        callPmsApi<{ transactions: Transaction[]; status: string }>("get_folio", { booking_id: bookingId }),
+        callPmsApi<{ charges: BookingCharge[] }>("get_booking_charges", { booking_id: bookingId }),
+      ]);
+      if (folioRes.success && folioRes.data) {
+        setTransactions(folioRes.data.transactions || []);
+        setFolioStatus(folioRes.data.status || "open");
+      }
+      if (chargesRes.success && chargesRes.data) {
+        setBookingCharges(chargesRes.data.charges || []);
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -92,7 +121,38 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
     setSaving(false);
   };
 
+  const handleApplyServiceCharges = async () => {
+    setApplyingCharges(true);
+    try {
+      const res = await callPmsApi<{ applied: any[]; count: number; skipped?: boolean }>("apply_service_charges", { booking_id: bookingId });
+      if (res.success && res.data) {
+        if (res.data.skipped) {
+          toast.info("Service charges already applied to this booking");
+        } else {
+          toast.success(`${res.data.count} service charge(s) applied`);
+        }
+        fetchFolio();
+      }
+    } catch (e: any) { toast.error(e.message); }
+    setApplyingCharges(false);
+  };
+
+  const handleProcessRefund = async (chargeId: string) => {
+    setProcessingRefund(chargeId);
+    try {
+      const res = await callPmsApi("process_checkout_refunds", { booking_id: bookingId });
+      if (res.success) {
+        toast.success("Refund processed");
+        fetchFolio();
+      }
+    } catch (e: any) { toast.error(e.message); }
+    setProcessingRefund(null);
+  };
+
   if (loading) return <p className="text-sm text-muted-foreground py-4">Loading folio...</p>;
+
+  const hasChargesApplied = bookingCharges.length > 0;
+  const pendingRefunds = bookingCharges.filter(c => c.is_refundable && c.refund_status === "pending");
 
   return (
     <div className="space-y-4">
@@ -106,14 +166,62 @@ export function BookingFolioTab({ bookingId }: BookingFolioTabProps) {
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payments</p>
           <p className="text-sm font-semibold text-green-600">R{totalPayments.toLocaleString()}</p>
         </div>
-        <div className={`rounded-md p-3 text-center ${balance > 0 ? "bg-red-500/10" : "bg-green-500/10"}`}>
+        <div className={`rounded-md p-3 text-center ${balance > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</p>
-          <p className={`text-sm font-bold ${balance > 0 ? "text-red-600" : "text-green-600"}`}>R{balance.toLocaleString()}</p>
+          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-green-600"}`}>R{balance.toLocaleString()}</p>
         </div>
       </div>
 
+      {/* Applied Service Charges */}
+      {hasChargesApplied && (
+        <div className="space-y-1.5">
+          <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Service Charges</h5>
+          <div className="space-y-1">
+            {bookingCharges.map(c => (
+              <div key={c.id} className="flex items-center justify-between text-sm py-1.5 px-2 rounded bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${CATEGORY_COLORS[c.category] || CATEGORY_COLORS.custom}`}>
+                    {c.category}
+                  </Badge>
+                  <div>
+                    <p className="text-xs font-medium">{c.name}</p>
+                    {c.breakdown && <p className="text-[10px] text-muted-foreground">{c.breakdown}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold">R{c.amount.toLocaleString()}</span>
+                  {c.is_refundable && (
+                    c.refund_status === "processed" ? (
+                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-green-500/15 text-green-700 border-green-300">
+                        <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Refunded
+                      </Badge>
+                    ) : c.refund_status === "pending" ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-5 text-[10px] px-1.5"
+                        onClick={() => handleProcessRefund(c.id)}
+                        disabled={processingRefund === c.id}
+                      >
+                        <RotateCcw className="h-2.5 w-2.5 mr-0.5" />
+                        {processingRefund === c.id ? "..." : "Refund"}
+                      </Button>
+                    ) : null
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {folioStatus !== "closed" && (
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {!hasChargesApplied && (
+            <Button size="sm" variant="outline" onClick={handleApplyServiceCharges} disabled={applyingCharges} className="flex-1">
+              <Zap className="h-3 w-3 mr-1" />{applyingCharges ? "Applying..." : "Apply Service Charges"}
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={() => setShowChargeForm(!showChargeForm)} className="flex-1">
             <Plus className="h-3 w-3 mr-1" />Add Charge
           </Button>
