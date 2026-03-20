@@ -287,7 +287,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <ol className="list-decimal list-inside space-y-1">
               <li>Click <strong>Download Full Plugin</strong> above</li>
               <li>In WordPress Admin → <strong>Plugins → Add New → Upload Plugin</strong></li>
-              <li>Select <code className="bg-muted px-1 rounded">rolos-pms-plugin.zip</code> and install</li>
+              <li>Select <code className="bg-muted px-1 rounded">rolos-plugin.zip</code> and install</li>
               <li>Activate — the <strong>Connection Wizard</strong> opens automatically</li>
               <li>Enter your API endpoint and anon key (from the API tab)</li>
               <li>Click <strong>Connect & Start Sync</strong> — properties appear as custom posts</li>
