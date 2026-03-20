@@ -94,6 +94,7 @@ const ConnectGetStarted = lazy(() => import("./pages/connect/ConnectGetStarted")
 const ConnectPrivacyPolicy = lazy(() => import("./pages/connect/ConnectPrivacyPolicy"));
 const ConnectTermsOfService = lazy(() => import("./pages/connect/ConnectTermsOfService"));
 const ConnectAbout = lazy(() => import("./pages/connect/ConnectAbout"));
+const ConnectJournal = lazy(() => import("./pages/connect/ConnectJournal"));
 
 // Lazy PMS pages
 const PMSDashboard = lazy(() => import("./pages/pms/PMSDashboard"));
