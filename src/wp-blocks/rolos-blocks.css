@@ -1,0 +1,124 @@
+/* ═══════════════════════════════════════════════════════
+   ROL'OS Blocks — Editor & Frontend Styles
+   Served from CDN, enqueued by class-rolos-blocks.php
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── Block Editor Previews ─── */
+.wp-block-rolos-booking-widget {
+  position: relative;
+}
+
+.wp-block-rolos-booking-widget iframe {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  pointer-events: none; /* Prevent interaction in editor */
+}
+
+.wp-block-rolos-property-explorer {
+  padding: 0;
+}
+
+.wp-block-rolos-property-card {
+  max-width: 360px;
+}
+
+/* ─── Frontend Widget Styles ─── */
+.rolos-booking-widget {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.rolos-booking-widget iframe {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+}
+
+/* ─── Property Grid ─── */
+.rolos-property-grid {
+  display: grid;
+  gap: 24px;
+}
+
+.rolos-property-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  background: #fff;
+}
+
+.rolos-property-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.rolos-property-card img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.rolos-property-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.rolos-property-card p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.rolos-book-btn {
+  display: inline-block;
+  padding: 8px 20px;
+  color: #fff;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.15s ease;
+}
+
+.rolos-book-btn:hover {
+  opacity: 0.9;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* ─── Availability Widget ─── */
+.rolos-availability-widget {
+  max-width: 480px;
+  margin: 0 auto;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ─── No Properties Fallback ─── */
+.rolos-no-properties {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+  font-size: 15px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .rolos-property-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .rolos-property-card {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .rolos-booking-widget iframe {
+    border-radius: 0;
+  }
+}
