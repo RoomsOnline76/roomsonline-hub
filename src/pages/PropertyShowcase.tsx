@@ -449,7 +449,7 @@ export default function PropertyShowcase() {
       // For manual properties, synthesize availability from property_availability table
       if (isManual && amenitiesData) {
         const today = new Date();
-        const endDate = addDays(today, 90);
+        const endDate = addDays(today, 395);
         const todayStr = format(today, "yyyy-MM-dd");
         const endStr = format(endDate, "yyyy-MM-dd");
         
