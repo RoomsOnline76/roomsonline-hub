@@ -25,7 +25,7 @@ export function ConnectLayout() {
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link to="/connect" className="flex items-center gap-2.5 shrink-0">
+          <Link to={connectPath("/connect")} className="flex items-center gap-2.5 shrink-0">
             <img src={rolWreathLogo} alt="ROL'OS" className="h-9 w-9 object-contain rounded-lg" />
             <span className="font-semibold text-lg tracking-tight hidden sm:block">
               ROL'OS <span className="text-muted-foreground font-normal">Connect</span>
