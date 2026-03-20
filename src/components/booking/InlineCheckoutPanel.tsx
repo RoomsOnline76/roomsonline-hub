@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { CreditCard, Lock, X, Calendar, Users, MapPin, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
