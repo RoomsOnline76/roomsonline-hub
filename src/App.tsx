@@ -112,6 +112,8 @@ const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
 const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
 
 import { PMSShell } from "./components/layout/PMSShell";
+import { ConnectLayout } from "./components/layout/ConnectLayout";
+import { isConnectDomain } from "./lib/config";
 
 const queryClient = new QueryClient();
 
