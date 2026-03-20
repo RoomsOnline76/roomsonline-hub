@@ -367,6 +367,10 @@ Deno.serve(async (req) => {
       case "backfill_inventory":
         return await handleBackfillInventory(body, supabase);
 
+      // UI Configurator
+      case "get_ui_config":
+        return await handleGetUiConfig(body, supabase);
+
       default:
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),

@@ -450,6 +450,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/api-configurator"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminApiConfigurator />
+                </ProtectedRoute>
+              }
+            />
             {/* Journey routes */}
             <Route path="/journey/builder" element={<ItineraryBuilder />} />
             <Route path="/journey/review" element={<JourneyReview />} />
