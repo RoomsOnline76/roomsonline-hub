@@ -913,7 +913,7 @@ serve(async (req) => {
       includes.file("class-rolos-updater.php", generateUpdater().trimStart().replace(/^\uFEFF/, ""));
       includes.file("class-rolos-blocks.php", generateBlocks().trimStart().replace(/^\uFEFF/, ""));
       includes.file("class-rolos-elementor-booking.php", generateElementorWidget().trimStart().replace(/^\uFEFF/, ""));
-
+      includes.file("class-rolos-admin-dashboard.php", generateAdminDashboard().trimStart().replace(/^\uFEFF/, ""));
       // Assets
       const assets = folder.folder("assets")!;
       assets.file("rolos-widget.css", generateWidgetCss());
