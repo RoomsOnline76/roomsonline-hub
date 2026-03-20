@@ -322,7 +322,8 @@ export async function executeFullIngestion(
       transformed,
       rolPropertyId,
       ownerCredentialId,
-      supabase
+      supabase,
+      { skipRooms }
     );
     
     if (!writeResult.success) {
