@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { motion } from "framer-motion";
 import { ArrowRight, Blocks, Download, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,7 @@ export default function ConnectWordPress() {
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            <Link to="/connect/docs" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
+            <Link to={connectPath("/connect/docs")} className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
               ← API Reference
             </Link>
             <div className="flex items-center gap-3 mb-4">
@@ -145,8 +146,8 @@ export default function ConnectWordPress() {
           <h3 className="text-lg font-semibold mb-2">Need Help?</h3>
           <p className="text-sm text-muted-foreground mb-4">Our team can walk you through the setup or build a custom integration.</p>
           <div className="flex items-center justify-center gap-3">
-            <Link to="/connect/get-started"><Button className="gap-2">Get Support <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
-            <Link to="/connect/docs"><Button variant="outline">API Reference</Button></Link>
+            <Link to={connectPath("/connect/get-started")}><Button className="gap-2">Get Support <ArrowRight className="h-3.5 w-3.5" /></Button></Link>
+            <Link to={connectPath("/connect/docs")}><Button variant="outline">API Reference</Button></Link>
           </div>
         </div>
       </div>

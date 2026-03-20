@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,7 @@ export default function ConnectQuickstart() {
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            <Link to="/connect/docs" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
+            <Link to={connectPath("/connect/docs")} className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-block">
               ← API Reference
             </Link>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Quickstart Guide</h1>
@@ -163,8 +164,8 @@ export default function ConnectQuickstart() {
             Explore the full API reference for all 40+ actions, or install the WordPress plugin for instant integration.
           </p>
           <div className="flex items-center justify-center gap-3">
-            <Link to="/connect/docs"><Button size="lg" className="gap-2">Full API Reference <ArrowRight className="h-4 w-4" /></Button></Link>
-            <Link to="/connect/docs/wordpress"><Button variant="outline" size="lg">WordPress Guide</Button></Link>
+            <Link to={connectPath("/connect/docs")}><Button size="lg" className="gap-2">Full API Reference <ArrowRight className="h-4 w-4" /></Button></Link>
+            <Link to={connectPath("/connect/docs/wordpress")}><Button variant="outline" size="lg">WordPress Guide</Button></Link>
           </div>
         </div>
       </section>

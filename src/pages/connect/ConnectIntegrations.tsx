@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, CheckCircle2 } from "lucide-react";
@@ -137,7 +138,7 @@ export default function ConnectIntegrations() {
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
             We're building new adapters regularly. Get in touch and we'll discuss your integration needs.
           </p>
-          <Link to="/connect/get-started">
+          <Link to={connectPath("/connect/get-started")}>
             <Button size="lg" className="gap-2">Contact Us <ArrowRight className="h-4 w-4" /></Button>
           </Link>
         </div>

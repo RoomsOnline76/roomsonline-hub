@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
@@ -109,8 +110,8 @@ export default function ConnectFeatures() {
           <h2 className="text-2xl font-bold mb-3">See It in Action</h2>
           <p className="text-muted-foreground mb-6">Book a demo or dive into the API docs.</p>
           <div className="flex items-center justify-center gap-3">
-            <Link to="/connect/get-started"><Button size="lg" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Button></Link>
-            <Link to="/connect/docs"><Button variant="outline" size="lg">API Reference</Button></Link>
+            <Link to={connectPath("/connect/get-started")}><Button size="lg" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Button></Link>
+            <Link to={connectPath("/connect/docs")}><Button variant="outline" size="lg">API Reference</Button></Link>
           </div>
         </div>
       </section>

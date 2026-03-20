@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Zap, Shield, Globe, BarChart3, Code2, Blocks, CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -87,12 +88,12 @@ export default function ConnectHome() {
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
               className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3"
             >
-              <Link to="/connect/get-started">
+              <Link to={connectPath("/connect/get-started")}>
                 <Button size="lg" className="gap-2 font-medium px-6">
                   Get Started <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/connect/docs">
+              <Link to={connectPath("/connect/docs")}>
                 <Button variant="outline" size="lg" className="gap-2 font-medium px-6">
                   <Code2 className="h-4 w-4" /> API Reference
                 </Button>
@@ -225,12 +226,12 @@ export default function ConnectHome() {
               Start your 30-day free trial. No credit card required. Full API access from day one.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link to="/connect/get-started">
+              <Link to={connectPath("/connect/get-started")}>
                 <Button size="lg" className="gap-2 font-medium">
                   Start Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/connect/docs/quickstart">
+              <Link to={connectPath("/connect/docs/quickstart")}>
                 <Button variant="outline" size="lg" className="gap-2 font-medium">
                   Read the Quickstart
                 </Button>
