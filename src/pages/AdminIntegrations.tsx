@@ -12,6 +12,7 @@ import { WidgetTab } from "@/components/integrations/WidgetTab";
 import { BookingBarTab } from "@/components/integrations/BookingBarTab";
 import { FullEmbedTab } from "@/components/integrations/FullEmbedTab";
 import { WordPressTab } from "@/components/integrations/WordPressTab";
+import { ElementorTab } from "@/components/integrations/ElementorTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
