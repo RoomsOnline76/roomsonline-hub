@@ -129,7 +129,8 @@ export default function EmbedProperty() {
   }, [propertyId, integration]);
 
   const brandColor = brandColorParam ? decodeURIComponent(brandColorParam) : property?.brand_primary_color || "#e91e63";
-  const fontColor = property?.brand_font_color || "#ffffff";
+  const fontColor = brandFontParam ? decodeURIComponent(brandFontParam) : property?.brand_font_color || "#ffffff";
+  const logoUrl = brandLogoParam ? decodeURIComponent(brandLogoParam) : property?.brand_logo_url;
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
