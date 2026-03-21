@@ -1168,6 +1168,15 @@ async function handleModifyReservation(body: unknown, supabase: any): Promise<Re
 
   console.log(`[roomsonline-pms-api] Reservation modified successfully: ${reservation_id}`);
 
+  // Fire webhook event
+  await queueWebhookEvent(supabase, propertyId, "booking.modified", {
+    booking_id: rolosRes?.id || reservation_id,
+    reservation_id,
+    arrival_date: finalArrival,
+    departure_date: finalDeparture,
+    status: existing.status,
+  });
+
   return new Response(
     JSON.stringify(createSuccessResponse({
       reservation_id,
