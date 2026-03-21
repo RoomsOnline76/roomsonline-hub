@@ -550,9 +550,11 @@ export default function EmbedProperty() {
       )}
 
       {/* Footer */}
-      <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
-        <PoweredByRolOS />
-      </footer>
+      {!hidePoweredBy && (
+        <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
+          <PoweredByRolOS />
+        </footer>
+      )}
     </div>
   );
 }
