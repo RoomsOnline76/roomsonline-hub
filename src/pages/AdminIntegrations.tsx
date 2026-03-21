@@ -153,6 +153,7 @@ export default function AdminIntegrations() {
               </TabsContent>
               <TabsContent value="widget">
                 <div className="space-y-4">
+                  <WidgetSetupWizard property={currentProperty} />
                   <WidgetTab property={currentProperty} />
                   <DomainWhitelist propertyId={selectedProperty} integrationType="widget" />
                 </div>

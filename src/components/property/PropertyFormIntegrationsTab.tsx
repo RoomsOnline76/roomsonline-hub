@@ -105,6 +105,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
         </TabsContent>
 
         <TabsContent value="widget" className="space-y-4">
+          <WidgetSetupWizard property={property} />
           <WidgetTab property={property} />
           <IntegrationDocumentation type="widget" />
         </TabsContent>
