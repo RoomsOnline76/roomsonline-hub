@@ -56,9 +56,11 @@ export default function AdminIntegrations() {
 
       const { data: linkedProps } = await supabase
         .from("property_owners")
-        .select("property_id, properties!inner(id, name, slug, brand_primary_color, brand_logo_url)")
-        .eq("user_id", user.id)
-        .eq("properties.is_active" as any, true);
+        .select("property_id, properties(id, name, slug, brand_primary_color, brand_logo_url)")
+        .eq("user_id", user.id);
+
+      // Filter linked props to only active ones
+      const filteredLinkedProps = linkedProps?.filter((lp: any) => lp.properties?.id).map((lp: any) => lp.properties) || [];
 
       const allProps = [
         ...(ownedProps || []),
