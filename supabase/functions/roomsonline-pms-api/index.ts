@@ -1295,6 +1295,16 @@ async function handleCancelReservation(body: unknown, supabase: any): Promise<Re
 
   console.log(`[roomsonline-pms-api] Reservation cancelled successfully: ${reservation_id}`);
 
+  // Fire webhook event
+  await queueWebhookEvent(supabase, propertyId, "booking.cancelled", {
+    booking_id: rolosRes?.id || reservation_id,
+    reservation_id,
+    arrival_date: existing.arrival_date,
+    departure_date: existing.departure_date,
+    status: "cancelled",
+    reason: reason || null,
+  });
+
   return new Response(
     JSON.stringify(createSuccessResponse({
       reservation_id,
