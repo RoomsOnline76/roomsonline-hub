@@ -11,13 +11,16 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { property_id, integration_type, event, metadata } = body;
+    const { property_id, integration_type, event, metadata, source } = body;
 
     if (!property_id || !integration_type || !event) {
       return new Response(JSON.stringify({ error: "property_id, integration_type, and event required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Normalize integration type for rol-embed tracking
+    const normalizedType = integration_type === "rol_embed" ? "rol_embed" : integration_type;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Code2, AlertCircle } from "lucide-react";
+import { Code2, AlertCircle, Zap } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface WidgetTabProps {
@@ -13,7 +13,28 @@ export function WidgetTab({ property }: WidgetTabProps) {
   const encodedColor = encodeURIComponent(brandColor);
   const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}&mode=embedded`;
 
-  const iframeSnippet = `<!-- RoomsOnline Booking Widget -->
+  // Primary snippet — rol-embed.js (recommended)
+  const rolEmbedSnippet = `<!-- ROL'OS Booking Widget (Recommended) -->
+<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
+<div data-rolos-property="${property.slug}"
+     data-brand-color="${brandColor}"></div>`;
+
+  const rolEmbedAdvancedSnippet = `<!-- ROL'OS Booking Widget (Advanced) -->
+<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
+<div data-rolos-property="${property.slug}"
+     data-brand-color="${brandColor}"
+     data-layout="standard"
+     data-height="600"></div>
+
+<script>
+  // Listen for booking completion
+  document.querySelector('[data-rolos-property="${property.slug}"]')
+    .addEventListener('rolos:booking-complete', function(e) {
+      console.log('Booking completed:', e.detail.bookingId);
+    });
+</script>`;
+
+  const iframeSnippet = `<!-- ROL'OS Booking Widget (iframe fallback) -->
 <div id="rolos-booking-widget" style="width:100%;max-width:480px;">
   <iframe 
     src="${embedUrl}" 
@@ -23,19 +44,6 @@ export function WidgetTab({ property }: WidgetTabProps) {
     allow="payment">
   </iframe>
 </div>`;
-
-  const jsSnippet = `<!-- RoomsOnline Booking Widget (JavaScript) -->
-<div id="rolos-widget"></div>
-<script>
-  (function() {
-    var w = document.createElement('iframe');
-    w.src = '${embedUrl}';
-    w.style.cssText = 'width:100%;height:520px;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);';
-    w.title = 'Book ${property.name}';
-    w.loading = 'lazy';
-    document.getElementById('rolos-widget').appendChild(w);
-  })();
-</script>`;
 
   return (
     <Card>
@@ -65,24 +73,58 @@ export function WidgetTab({ property }: WidgetTabProps) {
           </span>
         </div>
 
+        {/* Recommended: rol-embed.js */}
         <div>
-          <h4 className="text-sm font-medium mb-2">iframe Embed (Simplest)</h4>
-          <CodeSnippetBlock code={iframeSnippet} language="html" title="iframe Widget" />
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-medium">One-Line Embed (Recommended)</h4>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">
+            Works on any website — WordPress, Wix, Squarespace, or plain HTML. Auto-resizes and supports multiple widgets per page.
+          </p>
+          <CodeSnippetBlock code={rolEmbedSnippet} language="html" title="rol-embed.js Widget" />
         </div>
 
         <div>
-          <h4 className="text-sm font-medium mb-2">JavaScript Embed</h4>
-          <CodeSnippetBlock code={jsSnippet} language="html" title="JavaScript Widget" />
+          <h4 className="text-sm font-medium mb-2">Advanced (with event listeners)</h4>
+          <CodeSnippetBlock code={rolEmbedAdvancedSnippet} language="html" title="Advanced Widget" />
         </div>
+
+        <details className="group">
+          <summary className="text-sm font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+            Fallback: Raw iframe embed
+          </summary>
+          <div className="mt-2">
+            <CodeSnippetBlock code={iframeSnippet} language="html" title="iframe Widget (Legacy)" />
+          </div>
+        </details>
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
           <h5 className="font-medium text-foreground mb-1">How to install</h5>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Copy either snippet above</li>
+            <li>Copy the <strong>One-Line Embed</strong> snippet above</li>
             <li>Paste it into your website's HTML where you want the widget to appear</li>
             <li>The widget automatically uses your property's brand colours</li>
-            <li>Bookings are tracked with <code className="bg-muted px-1 rounded">integration=widget</code></li>
+            <li>Bookings are tracked with <code className="bg-muted px-1 rounded">integration=rol_embed</code></li>
           </ol>
+        </div>
+
+        <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+          <h5 className="font-medium text-foreground mb-1">Data attributes</h5>
+          <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-rolos-property</code>
+            <span>Property slug (required)</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-brand-color</code>
+            <span>Primary brand colour</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-brand-logo</code>
+            <span>Logo URL override</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-layout</code>
+            <span>compact | standard | full</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-height</code>
+            <span>Initial height in px</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded">data-hide-powered-by</code>
+            <span>true to hide footer</span>
+          </div>
         </div>
       </CardContent>
     </Card>
