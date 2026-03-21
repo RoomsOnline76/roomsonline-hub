@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint, CreditCard, Lock, ChevronRight, BedDouble } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,6 +28,16 @@ import { useItinerary } from "@/contexts/ItineraryContext";
 import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
 import { PayGateRedirect } from "@/components/booking/PayGateRedirect";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { motion } from "framer-motion";
+import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
+import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
+import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
+import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 // Booking form validation schema
 const bookingSchema = z.object({
