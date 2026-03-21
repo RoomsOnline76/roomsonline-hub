@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Code2, AlertCircle, Zap } from "lucide-react";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface WidgetTabProps {
@@ -12,8 +15,8 @@ export function WidgetTab({ property }: WidgetTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const encodedColor = encodeURIComponent(brandColor);
   const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}&mode=embedded`;
+  const [showPreview, setShowPreview] = useState(false);
 
-  // Primary snippet — rol-embed.js (recommended)
   const rolEmbedSnippet = `<!-- ROL'OS Booking Widget (Recommended) -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
 <div data-rolos-property="${property.slug}"
@@ -57,7 +60,7 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </div>
         <CardDescription>
           Embed a full booking engine with <strong>availability calendar, room types, nightly rates, and checkout</strong> —
-          all inside the iframe. Guests complete the entire flow without leaving your website. Renders in your brand colour{" "}
+          all inside the iframe. Renders in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
@@ -72,6 +75,31 @@ export function WidgetTab({ property }: WidgetTabProps) {
             Bookings through this widget use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
           </span>
         </div>
+
+        {/* Preview toggle */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)} className="gap-1.5">
+            {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showPreview ? "Hide Preview" : "Show Preview"}
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+              <ExternalLink className="h-3.5 w-3.5" /> Test in New Tab
+            </a>
+          </Button>
+        </div>
+
+        {showPreview && (
+          <WidgetPreviewFrame title={`${property.name} — Widget`} url="yoursite.com" height={480}>
+            <iframe
+              src={embedUrl}
+              style={{ width: "100%", height: "100%", border: "none" }}
+              title={`${property.name} Widget Preview`}
+              loading="lazy"
+              allow="payment"
+            />
+          </WidgetPreviewFrame>
+        )}
 
         {/* Recommended: rol-embed.js */}
         <div>

@@ -1,7 +1,12 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { Globe, AlertCircle } from "lucide-react";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { Globe, AlertCircle, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface FullEmbedTabProps {
@@ -9,14 +14,17 @@ interface FullEmbedTabProps {
 }
 
 export function FullEmbedTab({ property }: FullEmbedTabProps) {
-  const brandColor = property.brand_primary_color || "#e91e63";
+  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e63");
+  const [height, setHeight] = useState(800);
+  const [showPreview, setShowPreview] = useState(false);
+
   const encodedColor = encodeURIComponent(brandColor);
   const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=embedded&brand_color=${encodedColor}`;
 
   const snippet = `<!-- RoomsOnline Full Booking Engine -->
 <iframe 
   src="${embedUrl}" 
-  style="width:100%;min-height:800px;border:none;border-radius:8px;"
+  style="width:100%;min-height:${height}px;border:none;border-radius:8px;"
   title="${property.name} Booking Engine"
   loading="lazy"
   allow="payment">
@@ -34,8 +42,7 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
         </div>
         <CardDescription>
           Embed the complete booking engine with <strong>availability calendar, room type grid with nightly rates,
-          and full checkout — all inside the iframe</strong>. Guests see live availability and book without ever
-          leaving your website. Rendered in your brand colour{" "}
+          and full checkout — all inside the iframe</strong>. Rendered in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
@@ -50,6 +57,46 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
             Bookings through this embed use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
           </span>
         </div>
+
+        {/* Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/20">
+          <div className="space-y-2">
+            <Label className="text-xs">Brand Colour</Label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="w-8 h-8 rounded border-none cursor-pointer" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{brandColor}</code>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Min Height: {height}px</Label>
+            <Slider value={[height]} onValueChange={([v]) => setHeight(v)} min={500} max={1200} step={50} />
+          </div>
+        </div>
+
+        {/* Preview toggle */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)} className="gap-1.5">
+            {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showPreview ? "Hide Preview" : "Show Preview"}
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={embedUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
+              <ExternalLink className="h-3.5 w-3.5" /> Test in New Tab
+            </a>
+          </Button>
+        </div>
+
+        {showPreview && (
+          <WidgetPreviewFrame title={`${property.name} — Full Booking Engine`} url={`yoursite.com/book`} height={Math.min(height, 500)}>
+            <iframe
+              src={embedUrl}
+              style={{ width: "100%", height: "100%", border: "none" }}
+              title={`${property.name} Preview`}
+              loading="lazy"
+              allow="payment"
+            />
+          </WidgetPreviewFrame>
+        )}
 
         <CodeSnippetBlock code={snippet} language="html" title="Full Embed iframe" />
 
