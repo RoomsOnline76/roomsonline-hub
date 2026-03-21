@@ -412,6 +412,65 @@ Error response format:
       "Use HTTPS exclusively for all API requests",
     ],
   },
+  elementor: {
+    title: "Elementor Widgets",
+    overview: "ROL'OS provides three native Elementor widgets — Booking Widget, Property Card, and Availability Grid. They appear under the 'ROL'OS' category in the Elementor widget panel and use your existing shortcodes as the render backend.",
+    useCases: [
+      "Drag-and-drop booking engine into any Elementor page",
+      "Property showcase cards on landing pages",
+      "Availability calendars on room-type pages",
+      "Multi-property portfolios with individual cards",
+    ],
+    quickStart: [
+      "Install the ROL'OS Plugin and ensure Elementor is active",
+      "Open the Elementor editor on any page",
+      "Search 'ROL'OS' in the widget panel — 3 widgets appear",
+      "Drag a widget onto your page and configure via the sidebar controls",
+    ],
+    advanced: [
+      {
+        title: "Widget Controls Reference",
+        content: `Booking Widget:
+• Property ID — UUID of the property
+• Layout — compact, standard, or full
+• Brand Color — color picker
+• Button Text — customizable CTA
+• Height — iframe height
+• Custom CSS Class — additional styling
+
+Property Card:
+• Property ID — UUID
+• Show Price — toggle
+• Show Availability — toggle
+• Card Style — minimal or detailed
+• Button Color — color picker
+
+Availability Grid:
+• Property ID — UUID
+• Months to Display — 1 to 6
+• Color Scheme — color picker`,
+      },
+      {
+        title: "Shortcode Fallback",
+        content: `If Elementor is not active, you can use these shortcodes directly:
+
+[rolos_booking_widget property_id="UUID" color="#2563EB" layout="standard"]
+[rolos_property_card property_id="UUID"]
+[rolos_availability property_id="UUID" months="2"]`,
+      },
+    ],
+    troubleshooting: [
+      { issue: "Widgets don't appear in Elementor", solution: "Ensure both the ROL'OS Plugin and Elementor are activated. Deactivate and reactivate the ROL'OS Plugin to re-register widgets." },
+      { issue: "Widget shows blank in editor", solution: "Check that the Property ID is correct. The widget renders via shortcodes — verify shortcodes work outside Elementor first." },
+      { issue: "Styles don't match my theme", solution: "Use the Brand Color and Custom CSS Class controls to align with your theme. Elementor's built-in spacing/padding controls also apply." },
+    ],
+    bestPractices: [
+      "Use the compact layout for sidebars and the full layout for dedicated booking pages",
+      "Set brand colours to match your site theme for a seamless look",
+      "Test the booking flow end-to-end after embedding",
+      "Keep the ROL'OS Plugin updated for the latest widget features",
+    ],
+  },
 };
 
 export function IntegrationDocumentation({ type }: IntegrationDocumentationProps) {
