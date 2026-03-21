@@ -844,6 +844,37 @@ export const API_ACTIONS: ApiAction[] = [
     jsExample: js("get_webhook_logs", 'limit: 20'),
   },
 
+  // ─── Widget / Embed ─────────────────────────────────────────────────
+  {
+    action: "booking_widget_config",
+    category: "config",
+    title: "Get Widget Configuration",
+    description: "Public endpoint — returns property branding, room summaries, and pre-built embed snippets for the `rol-embed.js` universal booking widget. No authentication required. Responses are cached for 5 minutes.",
+    params: [
+      { name: "slug", type: "string", required: true, description: "Property slug (URL-friendly name)" },
+    ],
+    responseExample: JSON.stringify({
+      property: {
+        id: "uuid",
+        name: "Ocean View Lodge",
+        slug: "ocean-view-lodge",
+        brand: { primary_color: "#2563eb", logo_url: "https://..." },
+      },
+      rooms: [{ id: "uuid", name: "Deluxe Suite", daily_rate: 2500, max_guests: 4 }],
+      widget_enabled: true,
+      embed_url: "https://book.sleepinafrica.roomsonline.co.za/embed/property/ocean-view-lodge",
+      snippet: {
+        simple: '<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>\n<div data-rolos-property="ocean-view-lodge"></div>',
+      },
+    }, null, 2),
+    curlExample: `curl "https://YOUR_PROJECT.supabase.co/functions/v1/booking-widget-api?slug=ocean-view-lodge"`,
+    jsExample: `const res = await fetch(
+  "https://YOUR_PROJECT.supabase.co/functions/v1/booking-widget-api?slug=ocean-view-lodge"
+);
+const config = await res.json();
+console.log(config.snippet.simple);`,
+  },
+
   // ─── Configuration ──────────────────────────────────────────────────
   {
     action: "get_ui_config",

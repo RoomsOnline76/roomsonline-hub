@@ -8,6 +8,13 @@ import { EmbedAvailabilityGrid } from "@/components/embed/EmbedAvailabilityGrid"
 import { EmbedTripAdvisorReviews } from "@/components/embed/EmbedTripAdvisorReviews";
 import { EmbedReviewPlatforms } from "@/components/embed/EmbedReviewPlatforms";
 
+// postMessage helper for iframe ↔ parent communication
+function postToParent(data: Record<string, unknown>) {
+  if (window.parent !== window) {
+    window.parent.postMessage(data, "*");
+  }
+}
+
 export default function EmbedProperty() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -15,6 +22,13 @@ export default function EmbedProperty() {
   const mode = searchParams.get("mode") || "widget";
   const brandColorParam = searchParams.get("brand_color");
   const propertyId = searchParams.get("property_id");
+
+  // Enhanced white-label params from rol-embed.js
+  const brandLogoParam = searchParams.get("brand_logo");
+  const brandSecondaryParam = searchParams.get("brand_secondary_color");
+  const brandFontParam = searchParams.get("brand_font_color");
+  const layoutParam = searchParams.get("layout") || "standard";
+  const hidePoweredBy = searchParams.get("hide_powered_by") === "1";
 
   const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
@@ -27,6 +41,33 @@ export default function EmbedProperty() {
   const [checkOut, setCheckOut] = useState<string>(format(addDays(today, 2), "yyyy-MM-dd"));
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
+
+  // Resize observer — post height changes to parent
+  useEffect(() => {
+    if (window.parent === window) return;
+    const observer = new ResizeObserver(() => {
+      postToParent({ type: "rolos:resize", height: document.body.scrollHeight, slug });
+    });
+    observer.observe(document.body);
+    return () => observer.disconnect();
+  }, [slug]);
+
+  // Listen for parent messages (setDates, setPromo)
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      if (!e.data || typeof e.data.type !== "string") return;
+      if (e.data.type === "rolos:setDates") {
+        if (e.data.checkIn) setCheckIn(e.data.checkIn);
+        if (e.data.checkOut) setCheckOut(e.data.checkOut);
+      }
+      if (e.data.type === "rolos:setPromo" && e.data.code) {
+        setPromoCode(e.data.code);
+        setShowPromo(true);
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -88,7 +129,8 @@ export default function EmbedProperty() {
   }, [propertyId, integration]);
 
   const brandColor = brandColorParam ? decodeURIComponent(brandColorParam) : property?.brand_primary_color || "#e91e63";
-  const fontColor = property?.brand_font_color || "#ffffff";
+  const fontColor = brandFontParam ? decodeURIComponent(brandFontParam) : property?.brand_font_color || "#ffffff";
+  const logoUrl = brandLogoParam ? decodeURIComponent(brandLogoParam) : property?.brand_logo_url;
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
@@ -183,6 +225,9 @@ export default function EmbedProperty() {
     const effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
     const pricingModel = rolosPlan?.pricing_model || null;
 
+    // Notify parent of step change
+    postToParent({ type: "rolos:step-change", step: "checkout", slug });
+
     const params = new URLSearchParams({
       roomTypeId: roomId,
       roomTypeName: roomName,
@@ -239,7 +284,10 @@ export default function EmbedProperty() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {property.brand_logo_url && (
+          {logoUrl && (
+            <img src={logoUrl} alt="" style={{ height: "32px", objectFit: "contain" }} />
+          )}
+          {!logoUrl && property.brand_logo_url && (
             <img src={property.brand_logo_url} alt="" style={{ height: "32px", objectFit: "contain" }} />
           )}
           <div>
@@ -502,9 +550,11 @@ export default function EmbedProperty() {
       )}
 
       {/* Footer */}
-      <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
-        <PoweredByRolOS />
-      </footer>
+      {!hidePoweredBy && (
+        <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
+          <PoweredByRolOS />
+        </footer>
+      )}
     </div>
   );
 }

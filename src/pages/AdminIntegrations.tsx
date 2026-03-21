@@ -16,6 +16,7 @@ import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 
@@ -152,6 +153,7 @@ export default function AdminIntegrations() {
               </TabsContent>
               <TabsContent value="widget">
                 <div className="space-y-4">
+                  <WidgetSetupWizard property={currentProperty} />
                   <WidgetTab property={currentProperty} />
                   <DomainWhitelist propertyId={selectedProperty} integrationType="widget" />
                 </div>

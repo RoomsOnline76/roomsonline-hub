@@ -54,6 +54,24 @@ const BookingConfirmation = () => {
     enabled: !!bookingId,
   });
 
+  // Post booking-complete to parent iframe when on an integration
+  useEffect(() => {
+    if (booking && isIntegration && window.parent !== window) {
+      const propertySlug = (booking as any).properties?.slug;
+      window.parent.postMessage({
+        type: "rolos:booking-complete",
+        bookingId: booking.id,
+        confirmationNumber: booking.external_reservation_id || booking.id,
+        slug: propertySlug || "",
+      }, "*");
+      window.parent.postMessage({
+        type: "rolos:step-change",
+        step: "confirmation",
+        slug: propertySlug || "",
+      }, "*");
+    }
+  }, [booking, isIntegration]);
+
   useEffect(() => {
     if (paymentStatus === "success") {
       const timer = setTimeout(() => refetch(), 2000);

@@ -12,6 +12,7 @@ import { WordPressTab } from "@/components/integrations/WordPressTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
+import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 
 interface PropertyFormIntegrationsTabProps {
@@ -104,6 +105,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
         </TabsContent>
 
         <TabsContent value="widget" className="space-y-4">
+          <WidgetSetupWizard property={property} />
           <WidgetTab property={property} />
           <IntegrationDocumentation type="widget" />
         </TabsContent>
