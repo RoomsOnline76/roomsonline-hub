@@ -57,7 +57,14 @@ const CAPABILITIES = {
   supports_rate_fetch: true,
   supports_create_booking: true,
   supports_modify_booking: "limited" as const,
-  supports_webhooks: false,
+  supports_webhooks: true,
+  webhook_events: [
+    "booking.created",
+    "booking.modified",
+    "booking.cancelled",
+    "booking.checked_in",
+    "booking.checked_out",
+  ],
 };
 
 // ============================================================================
