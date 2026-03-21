@@ -35,6 +35,7 @@ export default function EmbedProperty() {
   const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string }>>({});
   const [loading, setLoading] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
   const [checkIn, setCheckIn] = useState<string>(format(today, "yyyy-MM-dd"));
@@ -264,8 +265,8 @@ export default function EmbedProperty() {
   }
 
   const images = Array.isArray(property.images) ? property.images : [];
-  const heroImage = images.length > 0 ? ((images[0] as any)?.url || images[0]) : null;
   const galleryImages = images.slice(0, 6).map((img: any) => img?.url || img);
+  const heroImage = galleryImages.length > 0 ? galleryImages[activeImageIndex] || galleryImages[0] : null;
   const facilities = property.amenities?.facilities || property.amenities?.general_facilities || [];
 
   return (
@@ -458,19 +459,22 @@ export default function EmbedProperty() {
               )}
               {galleryImages.length > 1 && (
                 <div style={{ display: "flex", gap: "6px", overflowX: "auto" }}>
-                  {galleryImages.slice(1).map((img: string, i: number) => (
+                  {galleryImages.map((img: string, i: number) => (
                     <img
                       key={i}
                       src={img}
                       alt=""
+                      onClick={() => setActiveImageIndex(i)}
                       style={{
                         width: "64px",
                         height: "48px",
                         objectFit: "cover",
                         borderRadius: "6px",
                         flexShrink: 0,
-                        opacity: 0.9,
-                        transition: "opacity 0.15s",
+                        cursor: "pointer",
+                        opacity: i === activeImageIndex ? 1 : 0.6,
+                        border: i === activeImageIndex ? `2px solid ${brandColor}` : "2px solid transparent",
+                        transition: "all 0.15s",
                       }}
                     />
                   ))}
