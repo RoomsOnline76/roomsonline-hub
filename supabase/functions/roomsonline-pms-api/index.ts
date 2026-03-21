@@ -384,6 +384,18 @@ Deno.serve(async (req) => {
       case "get_ui_config":
         return await handleGetUiConfig(body, supabase);
 
+      // Webhooks
+      case "subscribe_webhook":
+        return await handleSubscribeWebhook(body, supabase);
+      case "unsubscribe_webhook":
+        return await handleUnsubscribeWebhook(body, supabase);
+      case "list_webhook_subscriptions":
+        return await handleListWebhookSubscriptions(body, supabase);
+      case "test_webhook":
+        return await handleTestWebhook(body, supabase);
+      case "get_webhook_logs":
+        return await handleGetWebhookLogs(body, supabase);
+
       default:
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
