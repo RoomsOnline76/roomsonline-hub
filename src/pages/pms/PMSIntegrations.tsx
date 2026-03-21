@@ -108,7 +108,7 @@ export default function PMSIntegrations() {
 
         {/* Integration Tabs — Smart Button first with pulsing accent */}
         <Tabs defaultValue="smart_button" className="space-y-4">
-          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
+          <TabsList className="grid grid-cols-8 w-full max-w-5xl">
             <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative smart-button-tab">
               <Sparkles className="h-3.5 w-3.5" />
               Smart Button
@@ -136,6 +136,10 @@ export default function PMSIntegrations() {
             <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
               <Puzzle className="h-3.5 w-3.5" />
               WordPress
+            </TabsTrigger>
+            <TabsTrigger value="elementor" className="gap-1.5 text-xs">
+              <Blocks className="h-3.5 w-3.5" />
+              Elementor
             </TabsTrigger>
             <TabsTrigger value="api" className="gap-1.5 text-xs">
               <Terminal className="h-3.5 w-3.5" />
