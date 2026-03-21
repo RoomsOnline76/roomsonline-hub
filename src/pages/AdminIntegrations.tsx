@@ -180,6 +180,9 @@ export default function AdminIntegrations() {
               <TabsContent value="wordpress">
                 <WordPressTab property={currentProperty} showPushUpdate={true} />
               </TabsContent>
+              <TabsContent value="elementor">
+                <ElementorTab property={currentProperty} />
+              </TabsContent>
               <TabsContent value="api">
                 <ApiTab property={currentProperty} />
               </TabsContent>

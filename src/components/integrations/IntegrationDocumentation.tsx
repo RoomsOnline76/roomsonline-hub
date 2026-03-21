@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookOpen, CheckCircle2, AlertCircle, Lightbulb, Code2, Zap, Shield, ExternalLink } from "lucide-react";
 
 interface IntegrationDocumentationProps {
-  type: "direct" | "widget" | "booking_bar" | "full_embed" | "wordpress" | "api";
+  type: "direct" | "widget" | "booking_bar" | "full_embed" | "wordpress" | "api" | "elementor";
 }
 
 const documentationContent: Record<string, {

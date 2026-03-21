@@ -131,6 +131,11 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           <IntegrationDocumentation type="wordpress" />
         </TabsContent>
 
+        <TabsContent value="elementor" className="space-y-4">
+          <ElementorTab property={property} />
+          <IntegrationDocumentation type="elementor" />
+        </TabsContent>
+
         <TabsContent value="api" className="space-y-4">
           <ApiTab property={property} />
           <IntegrationDocumentation type="api" />
