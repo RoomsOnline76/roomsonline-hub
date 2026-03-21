@@ -36,7 +36,6 @@ export function usePmsPropertyId() {
         const { data } = await supabase
           .from("properties")
           .select("id, name")
-          .eq("is_rol_property", true)
           .eq("is_active", true)
           .order("name");
         rolProperties = data || [];
