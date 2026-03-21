@@ -31,6 +31,7 @@ export const API_CATEGORIES = [
   { key: "charges", label: "Service Charges", icon: "🧾" },
   { key: "inventory", label: "Inventory Calendar", icon: "📊" },
   { key: "metrics", label: "Metrics & Analytics", icon: "📈" },
+  { key: "webhooks", label: "Webhooks", icon: "🔔" },
   { key: "config", label: "Configuration", icon: "🔧" },
 ] as const;
 
