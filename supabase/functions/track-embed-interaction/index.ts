@@ -29,9 +29,9 @@ serve(async (req) => {
 
     await supabase.from("integration_logs").insert({
       property_id,
-      integration_type,
+      integration_type: normalizedType,
       event,
-      metadata: metadata || {},
+      metadata: { ...(metadata || {}), ...(source ? { source } : {}) },
     });
 
     return new Response(JSON.stringify({ ok: true }), {
