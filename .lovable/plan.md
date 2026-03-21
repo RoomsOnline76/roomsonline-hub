@@ -1,81 +1,58 @@
 
 
-# Interactive Widget Configurators with Visual Previews
+# Fluent Booking Flow Unification
 
 ## Problem
-Currently, only the **Smart Button** and **Widget Setup Wizard** offer interactive configuration with live previews. The remaining five integration types — Direct Link, Widget (code tab), Booking Bar, Full Embed, and Elementor — only show static code snippets with no visual sample of what the output looks like. Owners cannot see or test these tools before deploying them.
+The "Fluent-Inspired Booking Flow Redesign" was only applied to `PropertyShowcase.tsx`. Two critical surfaces still use the old pre-Fluent design:
 
-## Solution
-Add a **visual preview panel** and **interactive controls** to every integration tab so owners can configure, preview, and test each embeddable tool directly within the system.
+1. **`EmbedProperty.tsx`** (564 lines) — Uses raw inline `style={}` objects, no motion, no Fluent components. This is what owners embed on their websites via widgets, iframes, booking bar, direct links, and Elementor.
+
+2. **`Booking.tsx`** (2329 lines) — Traditional Card-based checkout form with dropdowns and grids. No numbered steps, no motion, no editorial feel. This is the main checkout page for `book.sleepinafrica.roomsonline.co.za` AND the page embed widgets redirect to for checkout.
+
+The Fluent showcase flow is: **RunwayHero → RoomCollection → BookingSidebar → InlineCheckoutPanel** (3-step numbered flow: Your Stay → Your Details → Payment).
+
+The embed and booking pages completely bypass this design language.
 
 ## Changes
 
-### 1. Upgrade `ElementorTab.tsx` — Full interactive configurator
-Replace static widget cards with an interactive configurator per widget type:
-- **Controls panel**: Brand color picker, layout selector, height slider, months-to-display for availability grid, show/hide toggles for property card
-- **Live preview**: Renders a styled mockup of each widget (booking widget shows a miniature calendar + room card + book button; property card shows a card with image placeholder, price, and availability badge; availability grid shows a mini month grid with colored cells)
-- **Shortcode generator**: Updates dynamically as controls change
-- **"Test in new tab" button**: Opens the actual embed URL with current config
+### 1. Redesign `EmbedProperty.tsx` — Fluent embed widget
+Replace raw inline styles with Tailwind + Fluent design patterns:
+- **Header**: Use the same clean brand bar but with Tailwind classes and motion entrance
+- **Date Controls**: Replace raw inputs with the `EmbedDatePicker` + expanding snake motif already imported
+- **Availability Grid**: Keep `EmbedAvailabilityGrid` but wrap in Fluent card styling with `framer-motion` reveal
+- **Room Cards**: Replace the flat property info card with a mini `RoomCollection`-style layout — horizontal cards with images, capacity badges, rate, and "Book" CTA
+- **Property Info**: Use editorial prose style (similar to `QuietFacts` / `BuildingIntro`) instead of raw divs
+- **Gallery**: Add motion fade transitions between images (currently just swaps `src`)
+- **Footer/Reviews**: Wrap in Fluent card containers with subtle shadows
+- Keep all existing functionality (postMessage, resize observer, rate resolution, availability overrides)
 
-### 2. Upgrade `BookingBarTab.tsx` — Add visual preview
-- Add a **contained preview area** that renders the booking bar inside a mock browser frame (not fixed to page bottom) so owners can see exactly what it looks like
-- Add color picker and position controls (bottom/top)
-- Preview updates live as brand color changes
+### 2. Redesign `Booking.tsx` — Fluent checkout page
+This is the biggest change. Transform the 2329-line traditional form into a Fluent stepped checkout:
+- **Replace the 3-column Card layout** with the same numbered-step pattern used by `InlineCheckoutPanel`: Step 1 (Your Stay summary), Step 2 (Guest Details), Step 3 (Payment)
+- **Property header**: Add a mini hero banner with property image, name, dates, and guest count (similar to the confirmation card in InlineCheckoutPanel)
+- **Room selection**: Replace the Select dropdown + stepper grid with `LuxuryRoomCard`-style horizontal cards (already exists in `/components/booking/`)
+- **Guest details**: Clean single-column form with motion reveal, matching InlineCheckoutPanel's styling
+- **Cost summary**: Sticky sidebar on desktop / collapsible bottom sheet on mobile, matching `BookingSidebar` aesthetic
+- **Mobile**: Full bottom-sheet pattern with sticky CTA, matching the Fluent mobile booking bar
+- **Motion**: Add `framer-motion` entrance animations for each section
+- Preserve ALL business logic: cost calculation, availability checking, PMS push, payment gateway routing, date reselection dialog, deduplication, embed rate passthrough
 
-### 3. Upgrade `FullEmbedTab.tsx` — Add live iframe preview
-- Add a "Show Preview" toggle (like WidgetSetupWizard has)
-- When toggled, render the actual embed iframe in a bordered container with height control
-- Add brand color picker that regenerates the snippet and preview URL
+### 3. Create shared Fluent booking primitives
+Extract reusable pieces to avoid duplication:
+- **`FluentStepIndicator`** — The numbered step dots (1 · 2 · 3) with active/completed states, reusable across InlineCheckoutPanel and Booking.tsx
+- **`FluentBookingHeader`** — Mini property banner (image + name + dates + guests) used at top of checkout pages
+- **`FluentGuestForm`** — The guest details form (name/email/phone) with consistent styling, used by both Booking.tsx and InlineCheckoutPanel
 
-### 4. Upgrade `DirectLinkTab.tsx` — Add button preview
-- Show a live-rendered preview of the "Book Now" button with the current brand color
-- Add button style controls: solid/outline/pill, size small/medium/large (similar to SmartBookButtonGenerator but simpler)
-- "Test link" button that opens the booking URL in a new tab
-
-### 5. Upgrade `WidgetTab.tsx` — Add inline preview
-- Add a collapsible live preview iframe (matches WidgetSetupWizard pattern)
-- The WidgetSetupWizard already handles customization; WidgetTab just needs the preview toggle for the default snippet
-
-### 6. Create `WidgetPreviewFrame.tsx` — Shared preview component
-A reusable component that renders a mock browser chrome (URL bar, dots) around an iframe or rendered content. Used by all tabs for visual consistency:
-- Props: `title`, `url`, `children` (for rendered mockups), `height`, `showUrlBar`
-- Gives owners context that this is what it looks like "on their site"
-
-## Visual Design
-Each tab will follow this layout pattern:
-```text
-┌─────────────────────────────────────────┐
-│  [Icon] Integration Name    [Toggle]    │
-│  Description with brand colour swatch   │
-├─────────────────────────────────────────┤
-│  ┌─ Controls ─────────────────────────┐ │
-│  │ Brand Color [picker] Layout [▼]    │ │
-│  │ Height [slider]  Options [toggles] │ │
-│  └────────────────────────────────────┘ │
-│                                         │
-│  ┌─ Live Preview ─────────────────────┐ │
-│  │ ● ● ●  ┃ yoursite.com            │ │
-│  │ ┌─────────────────────────────────┐│ │
-│  │ │  [Rendered widget / iframe]     ││ │
-│  │ └─────────────────────────────────┘│ │
-│  └────────────────────────────────────┘ │
-│                                         │
-│  ┌─ Code Snippet ────────────────────┐  │
-│  │ <script src="...">  [Copy]        │  │
-│  └───────────────────────────────────┘  │
-│                                         │
-│  [Test in New Tab]                      │
-└─────────────────────────────────────────┘
-```
+### 4. Update embed → booking handoff
+When `EmbedProperty.tsx` calls `handleBookRoom()` and redirects to `/booking/{slug}`, ensure the Booking page detects the `integration` param and renders in the Fluent white-label mode with the same brand colours passed through.
 
 ## Files
-1. **Create** `src/components/integrations/WidgetPreviewFrame.tsx` — Reusable mock-browser preview wrapper
-2. **Rewrite** `src/components/integrations/ElementorTab.tsx` — Interactive configurator with mockup previews for all 3 widget types
-3. **Modify** `src/components/integrations/BookingBarTab.tsx` — Add contained preview + color control
-4. **Modify** `src/components/integrations/FullEmbedTab.tsx` — Add preview toggle + color picker
-5. **Modify** `src/components/integrations/DirectLinkTab.tsx` — Add button preview + style controls
-6. **Modify** `src/components/integrations/WidgetTab.tsx` — Add collapsible iframe preview
+1. **Create** `src/components/booking/FluentStepIndicator.tsx` — Shared step indicator
+2. **Create** `src/components/booking/FluentBookingHeader.tsx` — Mini property hero for checkout
+3. **Create** `src/components/booking/FluentGuestForm.tsx` — Shared guest form component
+4. **Rewrite** `src/pages/EmbedProperty.tsx` — Fluent embed with Tailwind + motion
+5. **Rewrite** `src/pages/Booking.tsx` — Fluent stepped checkout (preserve all business logic)
 
-## Result
-Every embeddable integration tool becomes fully testable within the platform. Owners and ROL'OS PMS users can visually configure, preview, and validate each widget before copying the code to their site.
+## Scope Note
+This is a large visual overhaul of two core pages. All existing business logic (PMS integration, payment gateways, cost calculation, availability checking, deduplication, embed rate passthrough, white-label branding) will be preserved exactly — only the presentation layer changes. The plan prioritizes using existing Fluent components (`LuxuryRoomCard`, `BookingSidebar` patterns, `InlineCheckoutPanel` step pattern) rather than creating new design systems.
 
