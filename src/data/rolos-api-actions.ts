@@ -31,6 +31,7 @@ export const API_CATEGORIES = [
   { key: "charges", label: "Service Charges", icon: "🧾" },
   { key: "inventory", label: "Inventory Calendar", icon: "📊" },
   { key: "metrics", label: "Metrics & Analytics", icon: "📈" },
+  { key: "webhooks", label: "Webhooks", icon: "🔔" },
   { key: "config", label: "Configuration", icon: "🔧" },
 ] as const;
 
@@ -722,6 +723,125 @@ export const API_ACTIONS: ApiAction[] = [
     }, null, 2),
     curlExample: curl("get_daily_metrics", '"date": "2026-03-20"'),
     jsExample: js("get_daily_metrics", 'date: "2026-03-20"'),
+  },
+
+  // ─── Webhooks ──────────────────────────────────────────────────────────
+  {
+    action: "subscribe_webhook",
+    category: "webhooks",
+    title: "Subscribe Webhook",
+    description: "Register a webhook URL to receive real-time push notifications for booking events. The endpoint must accept POST requests. All deliveries include an HMAC-SHA256 signature in the `X-ROL-Signature` header for verification. Supported events: `booking.created`, `booking.modified`, `booking.cancelled`, `booking.checked_in`, `booking.checked_out`, or `*` for all events.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "url", type: "string", required: true, description: "Webhook endpoint URL (must be HTTPS)" },
+      { name: "secret", type: "string", required: true, description: "Shared secret for HMAC-SHA256 signature verification" },
+      { name: "events", type: "string[]", required: true, description: "Events to subscribe to: booking.created, booking.modified, booking.cancelled, booking.checked_in, booking.checked_out, or * for all" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        subscription: {
+          id: "uuid",
+          property_id: "uuid",
+          url: "https://example.com/webhook",
+          events: ["booking.created", "booking.cancelled"],
+          is_active: true,
+          created_at: "2026-03-21T10:00:00Z"
+        }
+      }
+    }, null, 2),
+    curlExample: curl("subscribe_webhook", '"url": "https://example.com/webhook",\n    "secret": "whsec_your_secret_key",\n    "events": ["booking.created", "booking.modified", "booking.cancelled"]'),
+    jsExample: js("subscribe_webhook", 'url: "https://example.com/webhook",\n    secret: "whsec_your_secret_key",\n    events: ["booking.created", "booking.modified", "booking.cancelled"]'),
+    phpExample: php("subscribe_webhook", "'url' => 'https://example.com/webhook',\n    'secret' => 'whsec_your_secret_key',\n    'events' => ['booking.created', 'booking.modified', 'booking.cancelled']"),
+  },
+  {
+    action: "unsubscribe_webhook",
+    category: "webhooks",
+    title: "Unsubscribe Webhook",
+    description: "Deactivate a webhook subscription. The subscription record is retained for audit purposes but will no longer receive deliveries.",
+    params: [
+      { name: "subscription_id", type: "UUID", required: true, description: "Subscription ID to deactivate" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: { subscription_id: "uuid", is_active: false }
+    }, null, 2),
+    curlExample: `curl -X POST "${BASE_URL}" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{
+    "action": "unsubscribe_webhook",
+    "subscription_id": "SUBSCRIPTION_UUID"
+  }'`,
+  },
+  {
+    action: "list_webhook_subscriptions",
+    category: "webhooks",
+    title: "List Webhook Subscriptions",
+    description: "List all webhook subscriptions for a property, including active and inactive ones.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        subscriptions: [{
+          id: "uuid",
+          url: "https://example.com/webhook",
+          events: ["booking.created", "booking.cancelled"],
+          is_active: true,
+          created_at: "2026-03-21T10:00:00Z"
+        }]
+      }
+    }, null, 2),
+    curlExample: curl("list_webhook_subscriptions"),
+    jsExample: js("list_webhook_subscriptions"),
+  },
+  {
+    action: "test_webhook",
+    category: "webhooks",
+    title: "Test Webhook (Ping)",
+    description: "Send a test ping to a webhook endpoint to verify connectivity and signature verification. Sends a `test.ping` event with a sample payload.",
+    params: [
+      { name: "subscription_id", type: "UUID", required: true, description: "Subscription to test" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: { delivered: true, status_code: 200, message: "Ping delivered successfully" }
+    }, null, 2),
+    curlExample: `curl -X POST "${BASE_URL}" \\
+  -H "Content-Type: application/json" \\
+  -H "x-api-key: YOUR_API_KEY" \\
+  -d '{
+    "action": "test_webhook",
+    "subscription_id": "SUBSCRIPTION_UUID"
+  }'`,
+  },
+  {
+    action: "get_webhook_logs",
+    category: "webhooks",
+    title: "Get Webhook Delivery Logs",
+    description: "Retrieve delivery logs for a property's webhooks. Shows status (pending, delivered, failed), HTTP response codes, attempt counts, and error messages. Use for debugging failed deliveries — the system retries up to 3 times automatically.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+      { name: "limit", type: "number", required: false, description: "Max results (default 50)" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        logs: [{
+          id: "uuid",
+          event: "booking.created",
+          status: "delivered",
+          response_status: 200,
+          attempts: 1,
+          created_at: "2026-03-21T10:00:00Z",
+          delivered_at: "2026-03-21T10:00:01Z"
+        }]
+      }
+    }, null, 2),
+    curlExample: curl("get_webhook_logs", '"limit": 20'),
+    jsExample: js("get_webhook_logs", 'limit: 20'),
   },
 
   // ─── Configuration ──────────────────────────────────────────────────
