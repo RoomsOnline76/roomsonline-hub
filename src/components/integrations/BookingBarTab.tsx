@@ -1,7 +1,12 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
-import { LayoutTemplate, AlertCircle } from "lucide-react";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { LayoutTemplate, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface BookingBarTabProps {
@@ -9,13 +14,20 @@ interface BookingBarTabProps {
 }
 
 export function BookingBarTab({ property }: BookingBarTabProps) {
-  const brandColor = property.brand_primary_color || "#e91e8c";
+  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e8c");
+  const [position, setPosition] = useState<"bottom" | "top">("bottom");
+  const [showPreview, setShowPreview] = useState(false);
+
   const encodedColor = encodeURIComponent(brandColor);
   const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodedColor}`;
 
+  const posStyle = position === "top" ? "position:fixed;top:0;left:0;right:0;" : "position:fixed;bottom:0;left:0;right:0;";
+  const shadowDir = position === "top" ? "box-shadow:0 4px 20px rgba(0,0,0,0.18);" : "box-shadow:0 -4px 20px rgba(0,0,0,0.18);";
+  const calPos = position === "top" ? "top:100%;margin-top:8px;" : "bottom:100%;margin-bottom:8px;";
+
   const snippet = `<!-- RoomsOnline Floating Booking Bar with Calendar -->
-<div id="rolos-booking-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;font-family:system-ui,-apple-system,sans-serif;">
-  <div style="background:${brandColor};box-shadow:0 -4px 20px rgba(0,0,0,0.18);padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
+<div id="rolos-booking-bar" style="${posStyle}z-index:9999;font-family:system-ui,-apple-system,sans-serif;">
+  <div style="background:${brandColor};${shadowDir}padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;">
     <button id="rolos-date-btn" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;padding:8px 16px;border-radius:999px;font-size:14px;font-weight:500;cursor:pointer;backdrop-filter:blur(4px);transition:all 0.2s;">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       <span id="rolos-date-label">Select dates</span>
@@ -26,7 +38,7 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
   </div>
 
   <!-- Calendar Popup -->
-  <div id="rolos-cal" style="display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;width:340px;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.2);overflow:hidden;animation:rolosFadeIn 0.25s ease-out;">
+  <div id="rolos-cal" style="display:none;position:absolute;${calPos}left:50%;transform:translateX(-50%);width:340px;background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.2);overflow:hidden;animation:rolosFadeIn 0.25s ease-out;">
     <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between;">
       <button id="rolos-prev-month" style="border:none;background:none;cursor:pointer;padding:6px;border-radius:50%;color:#666;font-size:18px;">&#8249;</button>
       <span id="rolos-month-label" style="font-weight:600;font-size:15px;color:#111;"></span>
@@ -120,7 +132,6 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
     }
   }
 
-  /* Wire up all buttons via addEventListener — no inline onclick needed */
   document.getElementById('rolos-date-btn').addEventListener('click',function(){
     var c=document.getElementById('rolos-cal');
     c.style.display=c.style.display==='none'?'block':'none';
@@ -146,7 +157,6 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
     document.getElementById('rolos-cal').style.display='none';
   });
 
-  /* Hover effects for nav buttons */
   ['rolos-prev-month','rolos-next-month'].forEach(function(id){
     var el=document.getElementById(id);
     el.addEventListener('mouseover',function(){el.style.background='#f3f4f6';});
@@ -168,11 +178,8 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           <IntegrationToggle propertyId={property.id} integrationType="booking_bar" />
         </div>
         <CardDescription>
-          A persistent bar fixed to the bottom of your website with a <strong>custom calendar date picker</strong>{" "}
-          featuring the expanding range selection in your brand colour.
-          When a guest selects dates and clicks <em>Book Now</em>, they are taken to your{" "}
-          <strong>property's branded booking page</strong> to complete their reservation.
-          Styled in your brand colour{" "}
+          A persistent bar fixed to the {position} of your website with a <strong>custom calendar date picker</strong>{" "}
+          featuring the expanding range selection in your brand colour{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
@@ -189,6 +196,67 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           </span>
         </div>
 
+        {/* Controls */}
+        <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/20">
+          <div className="space-y-2">
+            <Label className="text-xs">Brand Colour</Label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="w-8 h-8 rounded border-none cursor-pointer" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{brandColor}</code>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Position</Label>
+            <Select value={position} onValueChange={(v) => setPosition(v as "bottom" | "top")}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="bottom">Bottom</SelectItem>
+                <SelectItem value="top">Top</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Preview toggle */}
+        <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)} className="gap-1.5">
+          {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {showPreview ? "Hide Preview" : "Show Preview"}
+        </Button>
+
+        {showPreview && (
+          <WidgetPreviewFrame title="Booking Bar Preview" url="yoursite.com" height={160}>
+            <div className="relative h-full bg-muted/30">
+              {/* Page content mockup */}
+              <div className="p-4 space-y-2">
+                <div className="h-3 w-3/4 bg-muted rounded" />
+                <div className="h-3 w-1/2 bg-muted rounded" />
+                <div className="h-3 w-2/3 bg-muted rounded" />
+              </div>
+              {/* Bar */}
+              <div
+                className="absolute left-0 right-0"
+                style={{
+                  [position]: 0,
+                  background: brandColor,
+                  padding: "8px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  boxShadow: position === "top" ? "0 4px 12px rgba(0,0,0,0.15)" : "0 -4px 12px rgba(0,0,0,0.15)",
+                }}
+              >
+                <span className="text-white/80 text-xs border border-white/30 rounded-full px-3 py-1 bg-white/10">
+                  📅 Select dates
+                </span>
+                <span className="text-xs font-bold rounded-full px-4 py-1.5 bg-white" style={{ color: brandColor }}>
+                  Book Now
+                </span>
+              </div>
+            </div>
+          </WidgetPreviewFrame>
+        )}
+
         <CodeSnippetBlock code={snippet} language="html" title="Floating Bar with Expanding Calendar" />
 
         <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
@@ -196,7 +264,7 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           <ol className="list-decimal list-inside space-y-1">
             <li>Copy the snippet above</li>
             <li>Paste it just before <code className="bg-muted px-1 rounded">&lt;/body&gt;</code> in your website</li>
-            <li>The bar appears fixed at the bottom with a date pill in your brand colour</li>
+            <li>The bar appears fixed at the {position} with a date pill in your brand colour</li>
             <li>Guests tap the pill → calendar expands with the "snake" range selector → select check-in and check-out</li>
             <li>Click <strong>Book Now</strong> to redirect to the booking portal with dates pre-filled</li>
           </ol>

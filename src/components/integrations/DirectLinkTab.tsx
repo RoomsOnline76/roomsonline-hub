@@ -1,20 +1,46 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
+import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Link2, ExternalLink, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface DirectLinkTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
 }
 
+type BtnStyle = "solid" | "outline" | "pill";
+type BtnSize = "sm" | "md" | "lg";
+
+const SIZE_MAP: Record<BtnSize, string> = {
+  sm: "padding:8px 16px;font-size:13px;",
+  md: "padding:12px 24px;font-size:14px;",
+  lg: "padding:16px 32px;font-size:16px;",
+};
+
+function buildBtnCss(color: string, style: BtnStyle, size: BtnSize) {
+  const base = `display:inline-block;text-decoration:none;font-weight:600;transition:all 0.2s;${SIZE_MAP[size]}`;
+  const radius = style === "pill" ? "border-radius:999px;" : "border-radius:6px;";
+  if (style === "outline") {
+    return `${base}${radius}background:transparent;color:${color};border:2px solid ${color};`;
+  }
+  return `${base}${radius}background:${color};color:#fff;border:none;`;
+}
+
 export function DirectLinkTab({ property }: DirectLinkTabProps) {
-  const brandColor = property.brand_primary_color || "#e91e8c";
+  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e8c");
+  const [btnStyle, setBtnStyle] = useState<BtnStyle>("solid");
+  const [btnSize, setBtnSize] = useState<BtnSize>("md");
+
   const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=direct&property_id=${property.id}&brand_color=${encodeURIComponent(brandColor)}`;
 
+  const btnCss = buildBtnCss(brandColor, btnStyle, btnSize);
   const htmlSnippet = `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
-  style="display:inline-block;padding:12px 24px;background:${brandColor};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">
+  style="${btnCss}">
   Book Now
 </a>`;
 
@@ -44,6 +70,56 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
           </div>
         </div>
 
+        {/* Controls */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg border border-border bg-muted/20">
+          <div className="space-y-2">
+            <Label className="text-xs">Brand Colour</Label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} className="w-8 h-8 rounded border-none cursor-pointer" />
+              <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{brandColor}</code>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Button Style</Label>
+            <Select value={btnStyle} onValueChange={(v) => setBtnStyle(v as BtnStyle)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="solid">Solid</SelectItem>
+                <SelectItem value="outline">Outline</SelectItem>
+                <SelectItem value="pill">Pill</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs">Button Size</Label>
+            <Select value={btnSize} onValueChange={(v) => setBtnSize(v as BtnSize)}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sm">Small</SelectItem>
+                <SelectItem value="md">Medium</SelectItem>
+                <SelectItem value="lg">Large</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Button Preview */}
+        <WidgetPreviewFrame title="Button Preview" url="yoursite.com" height={120}>
+          <div className="flex items-center justify-center h-full">
+            <a
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...Object.fromEntries(btnCss.split(";").filter(Boolean).map((s) => {
+                const [k, ...v] = s.split(":");
+                return [k.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase()), v.join(":").trim()];
+              })) }}
+            >
+              Book Now
+            </a>
+          </div>
+        </WidgetPreviewFrame>
+
         <div>
           <h4 className="text-sm font-medium mb-2">Your Booking URL</h4>
           <CodeSnippetBlock code={bookingUrl} language="text" title="Direct Link" />
@@ -57,7 +133,7 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
         <div className="flex items-center gap-2 pt-2">
           <Button variant="outline" size="sm" asChild>
             <a href={bookingUrl} target="_blank" rel="noopener noreferrer" className="gap-1.5">
-              <ExternalLink className="h-3.5 w-3.5" /> Preview Link
+              <ExternalLink className="h-3.5 w-3.5" /> Test Link
             </a>
           </Button>
         </div>
