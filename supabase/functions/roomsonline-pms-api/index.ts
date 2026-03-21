@@ -119,6 +119,12 @@ const baseRequestSchema = z.object({
     "backfill_inventory",
     // UI Configurator
     "get_ui_config",
+    // Webhooks
+    "subscribe_webhook",
+    "unsubscribe_webhook",
+    "list_webhook_subscriptions",
+    "test_webhook",
+    "get_webhook_logs",
   ]),
   propertyId: z.string().uuid().optional(),
   // Pagination params
