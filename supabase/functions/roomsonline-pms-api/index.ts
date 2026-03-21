@@ -1766,6 +1766,18 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
     if (extraIds.length) await supabase.from("rolos_rooms").update({ status: "occupied" }).in("id", extraIds);
   }
 
+  // Fire webhook event
+  if (booking) {
+    await queueWebhookEvent(supabase, booking.property_id, "booking.checked_in", {
+      booking_id,
+      guest_name: booking.guest_name,
+      arrival_date: booking.check_in_date,
+      departure_date: booking.check_out_date,
+      status: "checked_in",
+      rooms_assigned: finalRoomIds,
+    });
+  }
+
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
