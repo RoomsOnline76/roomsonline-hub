@@ -60,6 +60,7 @@ export function usePmsPropertyId() {
           .from("properties")
           .select("id, name")
           .eq("is_rol_property", true)
+          .eq("is_active", true)
           .order("name");
 
         if (profile?.email && linkedIds.length > 0) {
