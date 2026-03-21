@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles } from "lucide-react";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -12,6 +12,7 @@ import { WidgetTab } from "@/components/integrations/WidgetTab";
 import { BookingBarTab } from "@/components/integrations/BookingBarTab";
 import { FullEmbedTab } from "@/components/integrations/FullEmbedTab";
 import { WordPressTab } from "@/components/integrations/WordPressTab";
+import { ElementorTab } from "@/components/integrations/ElementorTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationAnalytics } from "@/components/integrations/IntegrationAnalytics";
 import { DomainWhitelist } from "@/components/integrations/DomainWhitelist";
@@ -124,7 +125,7 @@ export default function AdminIntegrations() {
 
             {/* Integration tabs */}
             <Tabs defaultValue="direct" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-7">
+              <TabsList className="grid w-full grid-cols-8">
                 <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
                   <Link2 className="h-3.5 w-3.5" /> Direct Link
                 </TabsTrigger>
@@ -142,6 +143,9 @@ export default function AdminIntegrations() {
                 </TabsTrigger>
                 <TabsTrigger value="wordpress" className="flex items-center gap-1.5 text-xs">
                   <Puzzle className="h-3.5 w-3.5" /> WordPress
+                </TabsTrigger>
+                <TabsTrigger value="elementor" className="flex items-center gap-1.5 text-xs">
+                  <Blocks className="h-3.5 w-3.5" /> Elementor
                 </TabsTrigger>
                 <TabsTrigger value="api" className="flex items-center gap-1.5 text-xs">
                   <Terminal className="h-3.5 w-3.5" /> API
@@ -175,6 +179,9 @@ export default function AdminIntegrations() {
               </TabsContent>
               <TabsContent value="wordpress">
                 <WordPressTab property={currentProperty} showPushUpdate={true} />
+              </TabsContent>
+              <TabsContent value="elementor">
+                <ElementorTab property={currentProperty} />
               </TabsContent>
               <TabsContent value="api">
                 <ApiTab property={currentProperty} />

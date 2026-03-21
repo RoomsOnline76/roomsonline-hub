@@ -13,7 +13,7 @@ const fadeUp = {
 const FEATURES = [
   "Automatic property data sync via cron",
   "Gutenberg blocks for booking widgets and property cards",
-  "Elementor widgets (coming soon)",
+  "Elementor widgets — Booking, Property Card, and Availability Grid",
   "WP Admin operations dashboard",
   "Remote update system — always up to date",
   "Encrypted API key storage",
@@ -115,6 +115,34 @@ export default function ConnectWordPress() {
               </div>
             </li>
           </ol>
+        </motion.div>
+
+        {/* Elementor Widgets */}
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+          variants={fadeUp} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <h2 className="text-xl font-semibold mb-4">Elementor Widgets</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            If you use Elementor, ROL'OS registers three native drag-and-drop widgets under a dedicated "ROL'OS" category:
+          </p>
+          <ul className="space-y-3 text-sm">
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+              <div><strong>Booking Widget</strong> — Full booking engine with layout, brand color, button text, and height controls</div>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+              <div><strong>Property Card</strong> — Showcase card with price/availability toggles and minimal or detailed styles</div>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+              <div><strong>Availability Grid</strong> — Multi-month calendar showing real-time availability (1–6 months)</div>
+            </li>
+          </ul>
+          <p className="text-sm text-muted-foreground mt-3">
+            Open the Elementor editor → search "ROL'OS" in the widget panel → drag onto your page.
+          </p>
         </motion.div>
 
         {/* Gutenberg blocks */}

@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks } from "lucide-react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
 import { BookingBarTab } from "@/components/integrations/BookingBarTab";
 import { FullEmbedTab } from "@/components/integrations/FullEmbedTab";
 import { WordPressTab } from "@/components/integrations/WordPressTab";
+import { ElementorTab } from "@/components/integrations/ElementorTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
@@ -107,7 +108,7 @@ export default function PMSIntegrations() {
 
         {/* Integration Tabs — Smart Button first with pulsing accent */}
         <Tabs defaultValue="smart_button" className="space-y-4">
-          <TabsList className="grid grid-cols-7 w-full max-w-4xl">
+          <TabsList className="grid grid-cols-8 w-full max-w-5xl">
             <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative smart-button-tab">
               <Sparkles className="h-3.5 w-3.5" />
               Smart Button
@@ -135,6 +136,10 @@ export default function PMSIntegrations() {
             <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
               <Puzzle className="h-3.5 w-3.5" />
               WordPress
+            </TabsTrigger>
+            <TabsTrigger value="elementor" className="gap-1.5 text-xs">
+              <Blocks className="h-3.5 w-3.5" />
+              Elementor
             </TabsTrigger>
             <TabsTrigger value="api" className="gap-1.5 text-xs">
               <Terminal className="h-3.5 w-3.5" />
@@ -169,6 +174,11 @@ export default function PMSIntegrations() {
           <TabsContent value="wordpress" className="space-y-4">
             <WordPressTab property={property} />
             <IntegrationDocumentation type="wordpress" />
+          </TabsContent>
+
+          <TabsContent value="elementor" className="space-y-4">
+            <ElementorTab property={property} />
+            <IntegrationDocumentation type="elementor" />
           </TabsContent>
 
           <TabsContent value="api" className="space-y-4">
