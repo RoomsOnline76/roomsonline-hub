@@ -1,32 +1,60 @@
 
 
-# Add Contract Knowledge to TOBI's System Prompts
+# Add Webhook Support to ROL'OS API
 
-## Problem
-TOBI gave incorrect information about contracts because neither the generic nor PMS system prompts contain any contract documentation. TOBI is instructed "never make up features" — so without contract knowledge, it guesses wrong.
+## Current State
+The webhook **infrastructure** already exists — `rolos_webhook_subscriptions` and `rolos_webhook_logs` tables, the `rolos-webhook-receiver` edge function with subscribe/unsubscribe/queue/deliver/test-ping/get-logs actions, and HMAC-SHA256 signing. However, it's completely disconnected from the PMS API.
 
-## Fix
-Add a **CONTRACT MANAGEMENT** section to the `GENERIC_SYSTEM_PROMPT` in `supabase/functions/help-assistant/index.ts` documenting the actual system capabilities:
+## What's Missing
 
-### Content to add (after the existing guidelines, before the closing quote):
+1. **PMS API doesn't expose webhook actions** — `supports_webhooks: false`, no webhook actions in the Zod schema
+2. **No automatic event firing** — when a booking is created/modified/cancelled/checked-in/checked-out, nothing queues a webhook event
+3. **No API documentation** — the interactive docs at `/docs` have no "Webhooks" category
 
-**CONTRACT MANAGEMENT (Admin Feature):**
-- Owner contracts are managed from the Admin panel under property settings
-- When sending a contract, the system **automatically includes ALL properties** linked to that owner's email address
-- Multi-property contracts are fully supported — one contract covers all of an owner's properties
-- Two contract types available: **Standard Listing Agreement** and **ROL'OS PMS Partnership Agreement**
-- Contract statuses: draft → sent → viewed → signed (or declined/overridden)
-- Admins can override the contract requirement with a reason
-- Admins can resend contracts if needed
-- Signed contracts are permanently accessible via the signing token
-- Contract notifications go to the owner and the admin team
+## Changes
 
-### Also add to `PMS_SYSTEM_PROMPT`:
-A shorter reference noting that contracts are managed from the Admin panel and cover all properties for a given owner.
+### 1. Wire webhook actions into `roomsonline-pms-api/index.ts`
+- Set `supports_webhooks: true`
+- Add 5 new actions to the Zod enum: `subscribe_webhook`, `unsubscribe_webhook`, `test_webhook`, `get_webhook_logs`, `list_webhook_subscriptions`
+- Each action delegates to the existing `rolos-webhook-receiver` function internally (calling Supabase tables directly, same logic)
+- Add Zod schemas for each action's parameters
 
-### Also update `connect-assistant` prompt:
-The Connect assistant should not need contract knowledge (it's sales-facing), so no changes needed there.
+### 2. Auto-queue webhook events on booking changes
+- Add a helper function inside the PMS API that fires `queue_event` after successful booking operations
+- Hook it into `create_reservation`, `modify_reservation`, `cancel_reservation`, `check_in`, and `check_out` handlers
+- Events: `booking.created`, `booking.modified`, `booking.cancelled`, `booking.checked_in`, `booking.checked_out`
+- Payload includes booking ID, property ID, guest name, dates, and status
+
+### 3. Add "Webhooks" category to API docs (`src/data/rolos-api-actions.ts`)
+- New category: `{ key: "webhooks", label: "Webhooks", icon: "🔔" }`
+- Document all 5 actions with params, response examples, and curl/js/php code snippets
+- Include supported event types list and HMAC signature verification guidance in descriptions
+
+### 4. Update the downloadable DOCX reference
+- Regenerate `public/docs/ROLOS-Developer-REST-API-v3.docx` to include the Webhooks section
+
+## Webhook Event Payload Format
+```json
+{
+  "event": "booking.created",
+  "property_id": "uuid",
+  "payload": {
+    "booking_id": "uuid",
+    "guest_name": "John Doe",
+    "arrival_date": "2026-04-01",
+    "departure_date": "2026-04-05",
+    "status": "confirmed",
+    "total_amount": 4500,
+    "rooms": [...]
+  },
+  "timestamp": "2026-03-21T10:00:00Z",
+  "delivery_id": "uuid"
+}
+```
+Headers: `X-ROL-Signature` (HMAC-SHA256), `X-ROL-Event`, `X-ROL-Delivery`
 
 ## Result
-TOBI will accurately describe that contracts automatically include all owner properties, eliminating the disconnect between what the system does and what TOBI says.
+- Developers can register webhook URLs via the API and receive real-time push notifications for all booking lifecycle events
+- Existing `rolos-webhook-receiver` infrastructure handles queuing, retries (3 attempts), and delivery logging
+- Full documentation in both interactive UI and downloadable DOCX
 
