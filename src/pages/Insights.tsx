@@ -65,7 +65,7 @@ const Insights = () => {
   const { data: properties = [] } = useQuery({
     queryKey: ["insights-properties"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("properties").select("id, name, city, country, property_type");
+      const { data, error } = await supabase.from("properties").select("id, name, city, country, property_type").eq("is_active", true);
       if (error) throw error;
       return data || [];
     },

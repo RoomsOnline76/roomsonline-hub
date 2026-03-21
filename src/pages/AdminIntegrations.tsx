@@ -59,9 +59,12 @@ export default function AdminIntegrations() {
         .select("property_id, properties(id, name, slug, brand_primary_color, brand_logo_url)")
         .eq("user_id", user.id);
 
+      // Filter linked props to only active ones
+      const filteredLinkedProps = linkedProps?.filter((lp: any) => lp.properties?.id).map((lp: any) => lp.properties) || [];
+
       const allProps = [
         ...(ownedProps || []),
-        ...(linkedProps?.map((lp: any) => lp.properties).filter(Boolean) || []),
+        ...filteredLinkedProps,
       ];
 
       const unique = Array.from(new Map(allProps.map((p) => [p.id, p])).values());
