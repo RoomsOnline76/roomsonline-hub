@@ -13,7 +13,7 @@ const fadeUp = {
 const FEATURES = [
   "Automatic property data sync via cron",
   "Gutenberg blocks for booking widgets and property cards",
-  "Elementor widgets (coming soon)",
+  "Elementor widgets — Booking, Property Card, and Availability Grid",
   "WP Admin operations dashboard",
   "Remote update system — always up to date",
   "Encrypted API key storage",

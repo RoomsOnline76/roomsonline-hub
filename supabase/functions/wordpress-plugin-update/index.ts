@@ -773,45 +773,201 @@ class Rolos_Blocks {
 function generateElementorWidget(): string {
   return `<?php
 /**
- * ROL'OS Elementor Booking Widget
+ * ROL'OS Elementor Widgets — Booking Widget, Property Card, Availability Grid
+ * Registers under a custom "ROL'OS" Elementor category.
  */
 
 if (!defined('ABSPATH')) exit;
 
+// ── Register ROL'OS Elementor Category ──
+add_action('elementor/elements/categories_registered', function(\$elements_manager) {
+    \$elements_manager->add_category('rolos', array(
+        'title' => 'ROL\\'OS',
+        'icon'  => 'eicon-globe',
+    ));
+});
+
+// ════════════════════════════════════════════════════════════════
+// 1. ROL'OS Booking Widget
+// ════════════════════════════════════════════════════════════════
 class Rolos_Elementor_Booking_Widget extends \\Elementor\\Widget_Base {
 
     public function get_name() { return 'rolos_booking'; }
     public function get_title() { return 'ROL\\'OS Booking'; }
     public function get_icon() { return 'eicon-calendar'; }
-    public function get_categories() { return array('general'); }
+    public function get_categories() { return array('rolos'); }
+    public function get_keywords() { return array('rolos', 'booking', 'hotel', 'reservation'); }
 
     protected function register_controls() {
-        \$this->start_controls_section('content', array(
-            'label' => 'Booking Widget',
+        // ── Content Section ──
+        \$this->start_controls_section('content_section', array(
+            'label' => 'Booking Settings',
+            'tab'   => \\Elementor\\Controls_Manager::TAB_CONTENT,
         ));
 
         \$this->add_control('property_id', array(
-            'label' => 'Property ID',
-            'type' => \\Elementor\\Controls_Manager::TEXT,
+            'label'   => 'Property ID',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
             'default' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+            'description' => 'UUID of the ROL\\'OS property',
+        ));
+
+        \$this->add_control('layout', array(
+            'label'   => 'Layout',
+            'type'    => \\Elementor\\Controls_Manager::SELECT,
+            'default' => 'standard',
+            'options' => array(
+                'compact'  => 'Compact (date picker + book button)',
+                'standard' => 'Standard (rooms + calendar)',
+                'full'     => 'Full (gallery + rooms + calendar)',
+            ),
+        ));
+
+        \$this->add_control('brand_color', array(
+            'label'   => 'Brand Color',
+            'type'    => \\Elementor\\Controls_Manager::COLOR,
+            'default' => ROLOS_DEFAULT_BRAND_COLOR,
+        ));
+
+        \$this->add_control('button_text', array(
+            'label'   => 'Button Text',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
+            'default' => 'Book Now',
         ));
 
         \$this->add_control('height', array(
-            'label' => 'Height',
-            'type' => \\Elementor\\Controls_Manager::TEXT,
+            'label'   => 'Height',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
             'default' => '520px',
+        ));
+
+        \$this->add_control('custom_css_class', array(
+            'label'   => 'Custom CSS Class',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
+            'default' => '',
         ));
 
         \$this->end_controls_section();
     }
 
     protected function render() {
-        \$settings = \$this->get_settings_for_display();
-        echo do_shortcode('[rolos_booking property_id="' . esc_attr(\$settings['property_id']) . '" height="' . esc_attr(\$settings['height']) . '"]');
+        \$s = \$this->get_settings_for_display();
+        echo do_shortcode('[rolos_booking_widget property_id="' . esc_attr(\$s['property_id']) . '" height="' . esc_attr(\$s['height']) . '" color="' . esc_attr(\$s['brand_color']) . '" layout="' . esc_attr(\$s['layout']) . '"]');
     }
 }
 
-\\Elementor\\Plugin::instance()->widgets_manager->register(new Rolos_Elementor_Booking_Widget());
+// ════════════════════════════════════════════════════════════════
+// 2. ROL'OS Property Card Widget
+// ════════════════════════════════════════════════════════════════
+class Rolos_Elementor_Property_Card extends \\Elementor\\Widget_Base {
+
+    public function get_name() { return 'rolos_property_card'; }
+    public function get_title() { return 'ROL\\'OS Property Card'; }
+    public function get_icon() { return 'eicon-image-box'; }
+    public function get_categories() { return array('rolos'); }
+    public function get_keywords() { return array('rolos', 'property', 'card', 'hotel'); }
+
+    protected function register_controls() {
+        \$this->start_controls_section('content_section', array(
+            'label' => 'Property Card Settings',
+            'tab'   => \\Elementor\\Controls_Manager::TAB_CONTENT,
+        ));
+
+        \$this->add_control('property_id', array(
+            'label'   => 'Property ID',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
+            'default' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+        ));
+
+        \$this->add_control('show_price', array(
+            'label'   => 'Show Price',
+            'type'    => \\Elementor\\Controls_Manager::SWITCHER,
+            'default' => 'yes',
+        ));
+
+        \$this->add_control('show_availability', array(
+            'label'   => 'Show Availability',
+            'type'    => \\Elementor\\Controls_Manager::SWITCHER,
+            'default' => 'yes',
+        ));
+
+        \$this->add_control('card_style', array(
+            'label'   => 'Card Style',
+            'type'    => \\Elementor\\Controls_Manager::SELECT,
+            'default' => 'detailed',
+            'options' => array(
+                'minimal'  => 'Minimal',
+                'detailed' => 'Detailed',
+            ),
+        ));
+
+        \$this->add_control('button_color', array(
+            'label'   => 'Button Color',
+            'type'    => \\Elementor\\Controls_Manager::COLOR,
+            'default' => ROLOS_DEFAULT_BRAND_COLOR,
+        ));
+
+        \$this->end_controls_section();
+    }
+
+    protected function render() {
+        \$s = \$this->get_settings_for_display();
+        echo do_shortcode('[rolos_property_card property_id="' . esc_attr(\$s['property_id']) . '" show_price="' . (\$s['show_price'] === 'yes' ? '1' : '0') . '" show_availability="' . (\$s['show_availability'] === 'yes' ? '1' : '0') . '" style="' . esc_attr(\$s['card_style']) . '"]');
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 3. ROL'OS Availability Grid Widget
+// ════════════════════════════════════════════════════════════════
+class Rolos_Elementor_Availability_Grid extends \\Elementor\\Widget_Base {
+
+    public function get_name() { return 'rolos_availability_grid'; }
+    public function get_title() { return 'ROL\\'OS Availability Grid'; }
+    public function get_icon() { return 'eicon-date'; }
+    public function get_categories() { return array('rolos'); }
+    public function get_keywords() { return array('rolos', 'availability', 'calendar', 'grid'); }
+
+    protected function register_controls() {
+        \$this->start_controls_section('content_section', array(
+            'label' => 'Availability Grid Settings',
+            'tab'   => \\Elementor\\Controls_Manager::TAB_CONTENT,
+        ));
+
+        \$this->add_control('property_id', array(
+            'label'   => 'Property ID',
+            'type'    => \\Elementor\\Controls_Manager::TEXT,
+            'default' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+        ));
+
+        \$this->add_control('months', array(
+            'label'   => 'Months to Display',
+            'type'    => \\Elementor\\Controls_Manager::NUMBER,
+            'default' => 2,
+            'min'     => 1,
+            'max'     => 6,
+        ));
+
+        \$this->add_control('color_scheme', array(
+            'label'   => 'Color Scheme',
+            'type'    => \\Elementor\\Controls_Manager::COLOR,
+            'default' => ROLOS_DEFAULT_BRAND_COLOR,
+        ));
+
+        \$this->end_controls_section();
+    }
+
+    protected function render() {
+        \$s = \$this->get_settings_for_display();
+        echo do_shortcode('[rolos_availability property_id="' . esc_attr(\$s['property_id']) . '" months="' . esc_attr(\$s['months']) . '"]');
+    }
+}
+
+// ── Register all widgets ──
+add_action('elementor/widgets/register', function(\$widgets_manager) {
+    \$widgets_manager->register(new Rolos_Elementor_Booking_Widget());
+    \$widgets_manager->register(new Rolos_Elementor_Property_Card());
+    \$widgets_manager->register(new Rolos_Elementor_Availability_Grid());
+});
 `;
 }
 
