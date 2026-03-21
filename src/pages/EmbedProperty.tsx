@@ -225,6 +225,9 @@ export default function EmbedProperty() {
     const effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
     const pricingModel = rolosPlan?.pricing_model || null;
 
+    // Notify parent of step change
+    postToParent({ type: "rolos:step-change", step: "checkout", slug });
+
     const params = new URLSearchParams({
       roomTypeId: roomId,
       roomTypeName: roomName,
