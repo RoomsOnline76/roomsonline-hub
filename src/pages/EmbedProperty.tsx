@@ -284,7 +284,10 @@ export default function EmbedProperty() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {property.brand_logo_url && (
+          {logoUrl && (
+            <img src={logoUrl} alt="" style={{ height: "32px", objectFit: "contain" }} />
+          )}
+          {!logoUrl && property.brand_logo_url && (
             <img src={property.brand_logo_url} alt="" style={{ height: "32px", objectFit: "contain" }} />
           )}
           <div>
