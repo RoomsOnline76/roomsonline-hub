@@ -1011,6 +1011,18 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
 
   console.log(`[roomsonline-pms-api] Reservation created successfully: ${reservationId}`);
 
+  // Fire webhook event
+  await queueWebhookEvent(supabase, propertyId, "booking.created", {
+    booking_id: rolosRes?.id || reservationId,
+    reservation_id: reservationId,
+    guest_name: guest.name,
+    arrival_date,
+    departure_date,
+    status: "confirmed",
+    total_amount: totalAmount,
+    rooms,
+  });
+
   return new Response(
     JSON.stringify(createSuccessResponse({
       reservation_id: reservationId,
