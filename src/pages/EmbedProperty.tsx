@@ -35,6 +35,7 @@ export default function EmbedProperty() {
   const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string }>>({});
   const [loading, setLoading] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
   const [checkIn, setCheckIn] = useState<string>(format(today, "yyyy-MM-dd"));
