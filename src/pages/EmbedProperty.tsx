@@ -459,19 +459,22 @@ export default function EmbedProperty() {
               )}
               {galleryImages.length > 1 && (
                 <div style={{ display: "flex", gap: "6px", overflowX: "auto" }}>
-                  {galleryImages.slice(1).map((img: string, i: number) => (
+                  {galleryImages.map((img: string, i: number) => (
                     <img
                       key={i}
                       src={img}
                       alt=""
+                      onClick={() => setActiveImageIndex(i)}
                       style={{
                         width: "64px",
                         height: "48px",
                         objectFit: "cover",
                         borderRadius: "6px",
                         flexShrink: 0,
-                        opacity: 0.9,
-                        transition: "opacity 0.15s",
+                        cursor: "pointer",
+                        opacity: i === activeImageIndex ? 1 : 0.6,
+                        border: i === activeImageIndex ? `2px solid ${brandColor}` : "2px solid transparent",
+                        transition: "all 0.15s",
                       }}
                     />
                   ))}
