@@ -54,11 +54,10 @@ export function usePmsPropertyId() {
 
         const linkedIds = owned?.map((o) => o.property_id) || [];
 
-        // Fetch ROL properties where user is primary owner OR linked owner
+        // Fetch active properties where user is primary owner OR linked owner
         let query = supabase
           .from("properties")
           .select("id, name")
-          .eq("is_rol_property", true)
           .eq("is_active", true)
           .order("name");
 
