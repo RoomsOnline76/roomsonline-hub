@@ -264,8 +264,10 @@ export default function EmbedProperty() {
   }
 
   const images = Array.isArray(property.images) ? property.images : [];
-  const heroImage = images.length > 0 ? ((images[0] as any)?.url || images[0]) : null;
   const galleryImages = images.slice(0, 6).map((img: any) => img?.url || img);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const heroImage = galleryImages.length > 0 ? galleryImages[activeImageIndex] || galleryImages[0] : null;
+  const facilities = property.amenities?.facilities || property.amenities?.general_facilities || [];
   const facilities = property.amenities?.facilities || property.amenities?.general_facilities || [];
 
   return (
