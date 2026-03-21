@@ -64,7 +64,7 @@ export default function AdminIntegrations() {
 
       const allProps = [
         ...(ownedProps || []),
-        ...(linkedProps?.map((lp: any) => lp.properties).filter(Boolean) || []),
+        ...filteredLinkedProps,
       ];
 
       const unique = Array.from(new Map(allProps.map((p) => [p.id, p])).values());
