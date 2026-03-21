@@ -85,11 +85,11 @@ export function MobileBottomNav() {
                 <span className="text-[10px] font-medium">More</span>
               </button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="h-[60vh]">
-              <SheetHeader>
+            <SheetContent side="bottom" className="h-[60vh] flex flex-col">
+              <SheetHeader className="shrink-0">
                 <SheetTitle>Navigation</SheetTitle>
               </SheetHeader>
-              <div className="mt-4 space-y-6 overflow-y-auto">
+              <div className="mt-4 space-y-6 overflow-y-auto flex-1 min-h-0 pb-6">
                 {accessibleSections.map((section) => {
                   const accessibleItems = section.items.filter(item => 
                     hasMinRole(userRole, item.minRole)
