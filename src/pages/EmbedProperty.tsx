@@ -7,6 +7,11 @@ import { EmbedDatePicker } from "@/components/embed/EmbedDatePicker";
 import { EmbedAvailabilityGrid } from "@/components/embed/EmbedAvailabilityGrid";
 import { EmbedTripAdvisorReviews } from "@/components/embed/EmbedTripAdvisorReviews";
 import { EmbedReviewPlatforms } from "@/components/embed/EmbedReviewPlatforms";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
@@ -250,16 +255,16 @@ export default function EmbedProperty() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fafafa" }}>
-        <div style={{ animation: "pulse 2s infinite", color: "#999", fontSize: "14px" }}>Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!property) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#fafafa" }}>
-        <p style={{ color: "#999" }}>Property not found</p>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <p className="text-muted-foreground text-sm">Property not found</p>
       </div>
     );
   }
@@ -270,31 +275,26 @@ export default function EmbedProperty() {
   const facilities = property.amenities?.facilities || property.amenities?.general_facilities || [];
 
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", background: "#f7f8fa", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* ── Header ── */}
-      <header
-        style={{
-          background: brandColor,
-          color: fontColor,
-          padding: "12px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "8px",
-        }}
+    <div className="font-sans bg-background min-h-screen flex flex-col">
+      {/* ── Branded Header ── */}
+      <motion.header
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-4 sm:px-5 py-3 flex items-center justify-between flex-wrap gap-2"
+        style={{ background: brandColor, color: fontColor }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {logoUrl && (
-            <img src={logoUrl} alt="" style={{ height: "32px", objectFit: "contain" }} />
-          )}
-          {!logoUrl && property.brand_logo_url && (
-            <img src={property.brand_logo_url} alt="" style={{ height: "32px", objectFit: "contain" }} />
+        <div className="flex items-center gap-3">
+          {(logoUrl || property.brand_logo_url) && (
+            <img
+              src={logoUrl || property.brand_logo_url}
+              alt=""
+              className="h-8 object-contain"
+            />
           )}
           <div>
-            <div style={{ fontWeight: 700, fontSize: "16px", letterSpacing: "-0.01em" }}>{property.name}</div>
+            <div className="font-semibold text-base tracking-tight">{property.name}</div>
             {(property.address || property.city) && (
-              <div style={{ fontSize: "11px", opacity: 0.8 }}>
+              <div className="text-[11px] opacity-80">
                 {[property.address, property.city].filter(Boolean).join(", ")}
               </div>
             )}
@@ -302,72 +302,55 @@ export default function EmbedProperty() {
         </div>
         <button
           onClick={() => setShowPromo(!showPromo)}
+          className="text-[11px] font-semibold px-3 py-1.5 rounded-md border backdrop-blur-sm transition-colors"
           style={{
-            background: "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.25)",
+            background: "rgba(255,255,255,0.12)",
+            borderColor: "rgba(255,255,255,0.2)",
             color: fontColor,
-            cursor: "pointer",
-            fontSize: "11px",
-            fontWeight: 600,
-            padding: "5px 12px",
-            borderRadius: "6px",
-            backdropFilter: "blur(4px)",
           }}
         >
           {showPromo ? "Hide promo" : "🏷 Promo code"}
         </button>
-      </header>
+      </motion.header>
 
-      {/* Promo row */}
-      {showPromo && (
-        <div style={{ background: "#fff", padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px", borderBottom: "1px solid #eee" }}>
-          <input
-            type="text"
-            placeholder="Enter promo code"
-            value={promoCode}
-            onChange={(e) => setPromoCode(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              border: "1px solid #e0e0e0",
-              borderRadius: "8px",
-              fontSize: "13px",
-              flex: 1,
-              maxWidth: "200px",
-              outline: "none",
-            }}
-          />
-          <button
-            style={{
-              background: brandColor,
-              color: fontColor,
-              border: "none",
-              padding: "7px 16px",
-              borderRadius: "8px",
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+      {/* Promo Row */}
+      <AnimatePresence>
+        {showPromo && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-card border-b border-border overflow-hidden"
           >
-            Apply
-          </button>
-        </div>
-      )}
+            <div className="px-4 sm:px-5 py-2.5 flex items-center gap-2">
+              <Input
+                type="text"
+                placeholder="Enter promo code"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                className="h-8 text-xs max-w-[200px]"
+              />
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                style={{ background: brandColor, color: fontColor }}
+              >
+                Apply
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Date Controls ── */}
-      <div
-        style={{
-          background: "#fff",
-          borderBottom: "1px solid #eee",
-          padding: "12px 20px",
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          flexWrap: "wrap",
-          fontSize: "13px",
-        }}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="bg-card border-b border-border px-4 sm:px-5 py-3 flex items-center gap-3 flex-wrap text-sm"
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ fontWeight: 600, color: "#555", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Dates</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dates</span>
           <EmbedDatePicker
             checkIn={checkIn}
             checkOut={checkOut}
@@ -384,128 +367,213 @@ export default function EmbedProperty() {
         </div>
         {nights > 0 && (
           <span
+            className="text-xs font-bold px-3 py-1 rounded-full"
             style={{
               background: `${brandColor}15`,
               color: brandColor,
-              padding: "4px 12px",
-              borderRadius: "999px",
-              fontSize: "12px",
-              fontWeight: 700,
               border: `1px solid ${brandColor}30`,
             }}
           >
             {nights} night{nights !== 1 ? "s" : ""}
           </span>
         )}
-        <div style={{ marginLeft: "auto" }}>
-          <button
+        <div className="ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowCalendar(!showCalendar)}
-            style={{
-              background: showCalendar ? `${brandColor}10` : "#f5f5f5",
-              border: `1px solid ${showCalendar ? `${brandColor}30` : "#e0e0e0"}`,
-              borderRadius: "8px",
-              padding: "6px 14px",
-              fontSize: "12px",
-              cursor: "pointer",
-              color: showCalendar ? brandColor : "#555",
-              fontWeight: 600,
-              transition: "all 0.15s ease",
-            }}
+            className="h-8 text-xs font-semibold"
+            style={showCalendar ? {
+              background: `${brandColor}10`,
+              borderColor: `${brandColor}30`,
+              color: brandColor,
+            } : undefined}
           >
             {showCalendar ? "Hide Calendar" : "Show Calendar"}
-          </button>
+          </Button>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Availability Grid ── */}
-      {showCalendar && (
-        <div style={{ background: "#fff", borderBottom: "1px solid #eee" }}>
-          <EmbedAvailabilityGrid
-            rooms={gridRooms}
-            startDate={checkIn}
-            visibleDays={10}
-            brandColor={brandColor}
-            fontColor={fontColor}
-            onBook={(roomId, roomName) => handleBookRoom(roomId, roomName)}
-          />
-        </div>
+      <AnimatePresence>
+        {showCalendar && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-card border-b border-border overflow-hidden"
+          >
+            <EmbedAvailabilityGrid
+              rooms={gridRooms}
+              startDate={checkIn}
+              visibleDays={10}
+              brandColor={brandColor}
+              fontColor={fontColor}
+              onBook={(roomId, roomName) => handleBookRoom(roomId, roomName)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Room Cards (Fluent horizontal cards) ── */}
+      {roomTypes.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="px-4 sm:px-5 py-4 space-y-3"
+        >
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">Rooms & Suites</h3>
+          <div className="space-y-3">
+            {roomTypes.map((room) => {
+              const rate = room.daily_rate ? Number(room.daily_rate) : null;
+              const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+              const amenitiesData = property?.amenities as any;
+              const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
+              const wizardRoom = wizardRooms.find((wr: any) => String(wr?.id) === String(room.id) || wr?.name === room.name);
+              const wizardRate = wizardRoom?.baseRate || wizardRoom?.base_rate || null;
+              const effectiveRate = rate ?? rolosPlan?.base_rate ?? wizardRate ?? null;
+              const roomImages = Array.isArray(room.images)
+                ? room.images.map((img: any) => img?.url || img).filter(Boolean)
+                : [];
+              const thumb = roomImages[0] || room.thumbnail_url || heroImage;
+
+              return (
+                <motion.div
+                  key={room.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col sm:flex-row">
+                    {/* Room Image */}
+                    {thumb && (
+                      <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-muted">
+                        <img
+                          src={thumb}
+                          alt={room.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {/* Room Info */}
+                    <div className="flex-1 p-3 sm:p-4 flex flex-col justify-between">
+                      <div>
+                        <h4 className="font-semibold text-sm text-foreground">{room.name}</h4>
+                        {room.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{room.description}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          {room.max_guests && (
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {room.max_guests} guests
+                            </span>
+                          )}
+                          {room.beds && (
+                            <span className="flex items-center gap-1">
+                              <BedDouble className="h-3 w-3" />
+                              {room.beds} bed{room.beds !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {room.bathrooms && (
+                            <span className="flex items-center gap-1">
+                              <Bath className="h-3 w-3" />
+                              {room.bathrooms}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-3">
+                        {effectiveRate != null && (
+                          <div className="text-foreground">
+                            <span className="font-bold text-base">R{effectiveRate.toLocaleString()}</span>
+                            <span className="text-xs text-muted-foreground ml-1">/ night</span>
+                          </div>
+                        )}
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs font-semibold rounded-lg"
+                          style={{ background: brandColor, color: fontColor }}
+                          onClick={() => handleBookRoom(room.id, room.name)}
+                        >
+                          Book Now
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
       )}
 
-      {/* ── Property Info Card ── */}
-      <div style={{ padding: "20px" }}>
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: "12px",
-            overflow: "hidden",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-          }}
-        >
-          <div style={{ display: "flex", gap: "0", flexWrap: "wrap" }}>
-            {/* Left: Images */}
-            <div style={{ flex: "0 0 auto", maxWidth: "340px", width: "100%", padding: "16px" }}>
-              {heroImage && (
-                <img
-                  src={heroImage}
-                  alt={property.name}
-                  style={{
-                    width: "100%",
-                    height: "210px",
-                    objectFit: "cover",
-                    borderRadius: "10px",
-                    marginBottom: "8px",
-                  }}
-                />
-              )}
-              {galleryImages.length > 1 && (
-                <div style={{ display: "flex", gap: "6px", overflowX: "auto" }}>
-                  {galleryImages.map((img: string, i: number) => (
-                    <img
-                      key={i}
-                      src={img}
-                      alt=""
-                      onClick={() => setActiveImageIndex(i)}
-                      style={{
-                        width: "64px",
-                        height: "48px",
-                        objectFit: "cover",
-                        borderRadius: "6px",
-                        flexShrink: 0,
-                        cursor: "pointer",
-                        opacity: i === activeImageIndex ? 1 : 0.6,
-                        border: i === activeImageIndex ? `2px solid ${brandColor}` : "2px solid transparent",
-                        transition: "all 0.15s",
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+      {/* ── Property Info (Editorial style) ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="px-4 sm:px-5 py-4"
+      >
+        <div className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
+          <div className="flex flex-col md:flex-row">
+            {/* Gallery */}
+            {heroImage && (
+              <div className="md:w-[340px] shrink-0 p-4">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={activeImageIndex}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    src={heroImage}
+                    alt={property.name}
+                    className="w-full h-52 object-cover rounded-lg"
+                  />
+                </AnimatePresence>
+                {galleryImages.length > 1 && (
+                  <div className="flex gap-1.5 mt-2 overflow-x-auto">
+                    {galleryImages.map((img: string, i: number) => (
+                      <img
+                        key={i}
+                        src={img}
+                        alt=""
+                        onClick={() => setActiveImageIndex(i)}
+                        className={cn(
+                          "w-16 h-12 object-cover rounded-md shrink-0 cursor-pointer transition-all border-2",
+                          i === activeImageIndex
+                            ? "opacity-100"
+                            : "opacity-60 hover:opacity-80 border-transparent"
+                        )}
+                        style={i === activeImageIndex ? { borderColor: brandColor } : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Right: Info */}
-            <div style={{ flex: 1, minWidth: "240px", padding: "20px 20px 20px 4px" }}>
+            {/* Info */}
+            <div className="flex-1 min-w-0 p-4 md:p-5 md:pl-2 space-y-5">
               {property.description && (
-                <div style={{ marginBottom: "20px" }}>
-                  <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>About</h3>
-                  <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.7, margin: 0 }}>{property.description}</p>
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">About</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{property.description}</p>
                 </div>
               )}
 
               {Array.isArray(facilities) && facilities.length > 0 && (
-                <div style={{ marginBottom: "20px" }}>
-                  <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>Facilities</h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">Facilities</h3>
+                  <div className="flex flex-wrap gap-1.5">
                     {facilities.map((f: string, i: number) => (
                       <span
                         key={i}
-                        style={{
-                          fontSize: "11px",
-                          color: "#555",
-                          padding: "4px 10px",
-                          background: "#f5f5f5",
-                          borderRadius: "6px",
-                          fontWeight: 500,
-                        }}
+                        className="text-[11px] text-muted-foreground px-2.5 py-1 bg-muted rounded-md font-medium"
                       >
                         {f}
                       </span>
@@ -516,38 +584,51 @@ export default function EmbedProperty() {
 
               {/* Contact */}
               <div>
-                <h3 style={{ fontWeight: 700, fontSize: "15px", color: "#111", margin: "0 0 8px 0", letterSpacing: "-0.01em" }}>Contact</h3>
-                <div style={{ fontSize: "13px", color: "#555", display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {(property.amenities as any)?.phone && <div>📞 {(property.amenities as any).phone}</div>}
-                  {(property.amenities as any)?.email && <div>✉️ {(property.amenities as any).email}</div>}
+                <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">Contact</h3>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  {(property.amenities as any)?.phone && (
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="h-3 w-3" />
+                      {(property.amenities as any).phone}
+                    </div>
+                  )}
+                  {(property.amenities as any)?.email && (
+                    <div className="flex items-center gap-1.5">
+                      <Mail className="h-3 w-3" />
+                      {(property.amenities as any).email}
+                    </div>
+                  )}
                   {(property.address || property.city) && (
-                    <div>📍 {[property.address, property.city].filter(Boolean).join(", ")}</div>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3 w-3" />
+                      {[property.address, property.city].filter(Boolean).join(", ")}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Reviews ── */}
       {tripadvisorId && (
-        <div style={{ padding: "0 20px 16px" }}>
-          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+        <div className="px-4 sm:px-5 pb-4">
+          <div className="bg-card rounded-xl overflow-hidden border border-border/50 shadow-sm">
             <EmbedTripAdvisorReviews tripadvisorId={tripadvisorId} brandColor={brandColor} />
           </div>
         </div>
       )}
       {reviewPlatforms.length > 0 && !tripadvisorId && (
-        <div style={{ padding: "0 20px 16px" }}>
-          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+        <div className="px-4 sm:px-5 pb-4">
+          <div className="bg-card rounded-xl overflow-hidden border border-border/50 shadow-sm">
             <EmbedReviewPlatforms platforms={reviewPlatforms} brandColor={brandColor} />
           </div>
         </div>
       )}
       {reviewPlatforms.length > 0 && tripadvisorId && (
-        <div style={{ padding: "0 20px 16px" }}>
-          <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+        <div className="px-4 sm:px-5 pb-4">
+          <div className="bg-card rounded-xl overflow-hidden border border-border/50 shadow-sm">
             <EmbedReviewPlatforms platforms={reviewPlatforms.filter((p: any) => p.type !== "tripadvisor")} brandColor={brandColor} />
           </div>
         </div>
@@ -555,7 +636,7 @@ export default function EmbedProperty() {
 
       {/* Footer */}
       {!hidePoweredBy && (
-        <footer style={{ padding: "16px 20px", textAlign: "center", marginTop: "auto" }}>
+        <footer className="py-4 px-5 text-center mt-auto">
           <PoweredByRolOS />
         </footer>
       )}

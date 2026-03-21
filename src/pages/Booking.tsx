@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint, CreditCard, Lock, ChevronRight, BedDouble } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,6 +28,16 @@ import { useItinerary } from "@/contexts/ItineraryContext";
 import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
 import { PayGateRedirect } from "@/components/booking/PayGateRedirect";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { motion } from "framer-motion";
+import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
+import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
+import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
+import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 // Booking form validation schema
 const bookingSchema = z.object({
@@ -1609,598 +1619,329 @@ const Booking = () => {
     );
   }
 
+  // Get property image for header
+  const propertyImages = Array.isArray(property.images) ? property.images : [];
+  const firstImage = propertyImages.length > 0
+    ? (typeof propertyImages[0] === 'string' ? propertyImages[0] : (propertyImages[0] as any)?.url)
+    : null;
+
+  const STEPS = [
+    { number: 1, label: "Your Stay" },
+    { number: 2, label: "Your Details" },
+    { number: 3, label: "Payment" },
+  ];
+
+  // Determine current step based on form state
+  const currentStep = isFormValid ? 3 : (rooms.length > 0 ? 2 : 1);
+
   return (
     wrapLayout(
-      <><div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="font-display text-2xl sm:text-3xl mb-2">Complete Your Booking</h1>
-          <p className="text-muted-foreground">
-            {property.name} • {property.city}, {property.country}
-          </p>
-        </div>
+      <><div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10 max-w-2xl">
+        {/* Fluent Step Indicator */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <FluentStepIndicator steps={STEPS} currentStep={currentStep} />
+        </motion.div>
 
-        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Booking Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Guest Details */}
-            <Card className="border-border/50">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg">Guest Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:gap-4">
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="guest_name" className="text-xs sm:text-sm">Full Name *</Label>
-                    <Input
-                      id="guest_name"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      onBlur={() => setGuestDetails({ name: guestName })}
-                      placeholder="John Smith"
-                      className={cn("h-9 sm:h-10 text-sm", formErrors.guest_name && "border-destructive")}
-                    />
-                    {formErrors.guest_name && (
-                      <p className="text-xs text-destructive">{formErrors.guest_name}</p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <Label htmlFor="guest_email" className="text-xs sm:text-sm">Email Address *</Label>
-                    <Input
-                      id="guest_email"
-                      type="email"
-                      value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
-                      onBlur={() => setGuestDetails({ email: guestEmail })}
-                      placeholder="john@example.com"
-                      className={cn("h-9 sm:h-10 text-sm", formErrors.guest_email && "border-destructive")}
-                    />
-                    {formErrors.guest_email && (
-                      <p className="text-xs text-destructive">{formErrors.guest_email}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="guest_phone" className="text-xs sm:text-sm">Phone Number *</Label>
-                  <Input
-                    id="guest_phone"
-                    type="tel"
-                    value={guestPhone}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    onBlur={() => setGuestDetails({ phone: guestPhone })}
-                    placeholder="+27 12 345 6789"
-                    className={cn("h-9 sm:h-10 text-sm", formErrors.guest_phone && "border-destructive")}
-                  />
-                  {formErrors.guest_phone && (
-                    <p className="text-xs text-destructive">{formErrors.guest_phone}</p>
-                  )}
-                  <p className="text-[10px] sm:text-xs text-muted-foreground">
-                    Include country code (e.g., +27)
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Property Header */}
+        <FluentBookingHeader
+          propertyName={property.name}
+          propertyImage={firstImage}
+          location={[property.city, property.country].filter(Boolean).join(", ")}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          totalGuests={totalGuests}
+          rooms={rooms.length}
+          className="mb-6"
+        />
 
-            {/* Rate Type Selection */}
-            {rateTypes.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Rate Type</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Select value={selectedRateType} onValueChange={setSelectedRateType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select rate type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rateTypes.map((rt) => (
-                        <SelectItem key={rt.id} value={String(rt.id)}>
-                          {rt.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
+        <div className="space-y-6 pb-32 lg:pb-6">
+          {/* ── Step 1: Your Stay (Room Summary) ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center">1</span>
+              <h3 className="font-medium">Your Stay</h3>
+            </div>
+
+            {/* Rate Type Selection (if applicable) */}
+            {rateTypes.length > 1 && (
+              <div className="rounded-xl border border-border/50 bg-card p-4">
+                <Label className="text-xs text-muted-foreground">Rate Type</Label>
+                <Select value={selectedRateType} onValueChange={setSelectedRateType}>
+                  <SelectTrigger className="mt-1 h-9">
+                    <SelectValue placeholder="Select rate type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rateTypes.map((rt) => (
+                      <SelectItem key={rt.id} value={String(rt.id)}>
+                        {rt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
-            {/* Room Selection */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Rooms & Guests</CardTitle>
-                  <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
-                    {rooms.map((room, index) => {
-                      const roomType = roomTypes.find(rt => String(rt.id) === room.roomTypeId);
-                      const roomGuestCount = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
-                      return (
-                        <p key={index}>
-                          {roomType?.name || room.roomTypeName || 'Select room type'} - {roomGuestCount} Guest{roomGuestCount !== 1 ? 's' : ''}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={addRoom}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Room
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {rooms.map((room, index) => {
-                  const roomType = roomTypes.find(rt => String(rt.id) === room.roomTypeId);
-                  
-                  return (
-                    <div key={index} className="border rounded-lg p-4 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">
-                            {roomType?.name || room.roomTypeName || `Room ${index + 1}`}
-                          </h4>
-                          {/* Show per-room dates or fallback to default dates */}
-                          {(room.checkIn || checkIn) && (room.checkOut || checkOut) && (
-                            <span className="text-sm text-muted-foreground">
-                              {format(parseISO(room.checkIn || checkIn!), "d MMM")} - {format(parseISO(room.checkOut || checkOut!), "d MMM yyyy")}
-                              {room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut) && (
-                                <span className="text-xs ml-2 text-primary">(custom dates)</span>
-                              )}
-                            </span>
+            {/* Room Cards */}
+            {rooms.map((room, index) => {
+              const roomType = roomTypes.find(rt => String(rt.id) === room.roomTypeId);
+              const maxGuestsForRoom = roomType?.maxGuests || roomType?.maxPeople || 10;
+              const allowTeens = roomType?.allowTeens !== false;
+              const allowChildren = roomType?.allowChildren !== false;
+              const allowInfants = roomType?.allowInfants !== false;
+              const currentRoomTotal = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
+              const isAtMaxCapacity = currentRoomTotal >= maxGuestsForRoom;
+              const roomCheckIn = room.checkIn || checkIn;
+              const roomCheckOut = room.checkOut || checkOut;
+
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="rounded-xl border border-border/50 bg-card p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-sm">{roomType?.name || room.roomTypeName || `Room ${index + 1}`}</h4>
+                      {roomCheckIn && roomCheckOut && (
+                        <span className="text-xs text-muted-foreground">
+                          {format(parseISO(roomCheckIn), "d MMM")} – {format(parseISO(roomCheckOut), "d MMM yyyy")}
+                          {room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut) && (
+                            <span className="text-primary ml-1">(custom dates)</span>
                           )}
-                        </div>
-                        {rooms.length > 1 && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => removeRoom(index)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Room Type Selection */}
-                      {roomTypes.length > 0 && (
-                        <div className="space-y-2">
-                          <Label>Room Type</Label>
-                          <Select 
-                            value={room.roomTypeId} 
-                            onValueChange={(value) => updateRoom(index, 'roomTypeId', value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select room type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {roomTypes.map((rt) => (
-                                <SelectItem key={rt.id} value={String(rt.id)}>
-                                  {rt.name} {rt.maxGuests ? `(Max ${rt.maxGuests} guests)` : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      {/* Guest Counts - Respect room rules */}
-                      {(() => {
-                        // Get room type constraints
-                        const maxGuestsForRoom = roomType?.maxGuests || roomType?.maxPeople || 10;
-                        const allowTeens = roomType?.allowTeens !== false; // Default true if undefined
-                        const allowChildren = roomType?.allowChildren !== false;
-                        const allowInfants = roomType?.allowInfants !== false;
-                        
-                        // Calculate current total for this room
-                        const currentRoomTotal = room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants;
-                        const isAtMaxCapacity = currentRoomTotal >= maxGuestsForRoom;
-                        
-                        return (
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-                            {/* Adults (required, min 1) */}
-                            <div className="space-y-2">
-                              <Label className="text-xs sm:text-sm">Adults *</Label>
-                              <div className="flex items-center gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  className="h-10 w-10 sm:h-8 sm:w-8"
-                                  onClick={() => adjustGuestCount(index, 'numberOfAdults', -1)}
-                                  disabled={room.numberOfAdults <= 1}
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
-                                <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfAdults}</span>
-                                <Button 
-                                  variant="outline" 
-                                  size="icon" 
-                                  className="h-10 w-10 sm:h-8 sm:w-8"
-                                  onClick={() => adjustGuestCount(index, 'numberOfAdults', 1)}
-                                  disabled={isAtMaxCapacity}
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Teens - only show if allowed */}
-                            {allowTeens && (
-                              <div className="space-y-2">
-                                <Label className="text-xs sm:text-sm">Teens</Label>
-                                <div className="flex items-center gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfTeens', -1)}
-                                    disabled={room.numberOfTeens <= 0}
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
-                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfTeens}</span>
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfTeens', 1)}
-                                    disabled={isAtMaxCapacity}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Children - only show if allowed */}
-                            {allowChildren && (
-                              <div className="space-y-2">
-                                <Label className="text-xs sm:text-sm">Children</Label>
-                                <div className="flex items-center gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfChildren', -1)}
-                                    disabled={room.numberOfChildren <= 0}
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
-                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfChildren}</span>
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfChildren', 1)}
-                                    disabled={isAtMaxCapacity}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Infants - only show if allowed */}
-                            {allowInfants && (
-                              <div className="space-y-2">
-                                <Label className="text-xs sm:text-sm">Infants</Label>
-                                <div className="flex items-center gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfInfants', -1)}
-                                    disabled={room.numberOfInfants <= 0}
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
-                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfInfants}</span>
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfInfants', 1)}
-                                    disabled={isAtMaxCapacity}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Pets - only show if property allows pets */}
-                            {(amenities?.pets_allowed || roomType?.allowPets) && (
-                              <div className="space-y-2">
-                                <Label className="text-xs sm:text-sm flex items-center gap-1">
-                                  <PawPrint className="h-3 w-3" />
-                                  Pets
-                                </Label>
-                                <div className="flex items-center gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfPets', -1)}
-                                    disabled={room.numberOfPets <= 0}
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
-                                  <span className="w-8 text-center font-medium text-sm sm:text-base">{room.numberOfPets}</span>
-                                  <Button 
-                                    variant="outline" 
-                                    size="icon" 
-                                    className="h-10 w-10 sm:h-8 sm:w-8"
-                                    onClick={() => adjustGuestCount(index, 'numberOfPets', 1)}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-
-            {/* Voucher & Special Requests (Optional) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Additional Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="voucher">Voucher Code (Optional)</Label>
-                  <Input
-                    id="voucher"
-                    value={voucher}
-                    onChange={(e) => setVoucher(e.target.value)}
-                    placeholder="Enter voucher or promo code if applicable"
-                    maxLength={100}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="special_requests">Special Requests (Optional)</Label>
-                  <Textarea
-                    id="special_requests"
-                    value={specialRequests}
-                    onChange={(e) => setSpecialRequests(e.target.value)}
-                    placeholder="Any special requests or dietary requirements..."
-                    rows={4}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Special requests are subject to availability and may incur additional charges.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Mobile Sticky Footer - Submit Button */}
-            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 z-40 safe-area-bottom">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">
-                    {totalCost > 0 ? <FormattedPrice amount={totalCost} /> : 'Price on request'}
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {nights} night{nights !== 1 ? 's' : ''} • {totalGuests} guest{totalGuests !== 1 ? 's' : ''}
-                  </p>
-                </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="flex-shrink-0">
-                        <Button 
-                          className="h-12 px-6 text-base" 
-                          onClick={() => createBookingMutation.mutate()}
-                          disabled={createBookingMutation.isPending || !isFormValid}
-                        >
-                          {createBookingMutation.isPending ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Processing
-                            </>
-                          ) : (
-                            'Confirm'
-                          )}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {!isFormValid && missingFields.length > 0 && (
-                      <TooltipContent side="top" className="max-w-xs">
-                        <div className="space-y-1">
-                          <p className="font-medium text-xs">Missing required fields:</p>
-                          <ul className="text-xs list-disc pl-3 space-y-0.5">
-                            {missingFields.map((field, i) => (
-                              <li key={i}>{field}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </div>
-            {/* Spacer for mobile sticky footer */}
-            <div className="lg:hidden h-24" />
-          </div>
-
-          {/* Booking Summary */}
-          <div>
-            <Card className="sticky top-4">
-              <CardHeader>
-                <CardTitle className="text-lg">Booking Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h4 className="font-medium">{property.name}</h4>
-                  <p className="text-sm text-muted-foreground">{property.city}, {property.country}</p>
-                </div>
-
-                {checkIn && checkOut && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {format(parseISO(checkIn), "MMM d, yyyy")} - {format(parseISO(checkOut), "MMM d, yyyy")}
-                    </span>
-                  </div>
-                )}
-
-                {nights > 0 && (
-                  <p className="text-sm text-muted-foreground">{nights} night{nights !== 1 ? 's' : ''}</p>
-                )}
-
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span>{totalGuests} guest{totalGuests !== 1 ? 's' : ''}</span>
-                </div>
-
-                {rooms.length > 0 && (
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium">{rooms.length} Room{rooms.length !== 1 ? 's' : ''}</p>
-                    {rooms.map((room, i) => {
-                      const roomCheckIn = room.checkIn || checkIn;
-                      const roomCheckOut = room.checkOut || checkOut;
-                      const hasCustomDates = room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut);
-                      return (
-                        <div key={i} className="text-muted-foreground text-xs">
-                          <p>
-                            Room {i + 1}: {room.roomTypeName || 'Standard'} 
-                            ({room.numberOfAdults}A
-                            {room.numberOfTeens > 0 && `, ${room.numberOfTeens}T`}
-                            {room.numberOfChildren > 0 && `, ${room.numberOfChildren}C`}
-                            {room.numberOfInfants > 0 && `, ${room.numberOfInfants}I`})
-                          </p>
-                          {hasCustomDates && roomCheckIn && roomCheckOut && (
-                            <p className="text-primary text-[10px]">
-                              {format(parseISO(roomCheckIn), "d MMM")} - {format(parseISO(roomCheckOut), "d MMM")}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Rate Type */}
-                {selectedRateType && rateTypes.length > 0 && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Rate:</span>{" "}
-                    <span className="font-medium">
-                      {rateTypes.find(rt => String(rt.id) === selectedRateType)?.name || preSelectedRateTypeName || 'Standard'}
-                    </span>
-                  </div>
-                )}
-
-                {/* Cost Breakdown */}
-                <div className="border-t pt-4 space-y-4">
-                  {calculatingCost ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-sm text-muted-foreground">Calculating...</span>
-                    </div>
-                  ) : costBreakdown.length > 0 ? (
-                    <>
-                      {/* Room Charges from API */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Room Charges</p>
-                        {costBreakdown.map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-sm">
-                            <div className="text-muted-foreground">
-                              <p>{item.description}</p>
-                              <p className="text-xs">{item.nights} nights × <FormattedPrice amount={item.unitPrice} /></p>
-                            </div>
-                            <span className="font-medium"><FormattedPrice amount={item.total} /></span>
-                          </div>
-                        ))}
-                      </div>
-                      
-                      {/* Other Charges (not from API) */}
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Other Charges</p>
-                        <div className="flex justify-between text-sm text-muted-foreground">
-                          <span>Service fee</span>
-                          <span><FormattedPrice amount={0} /></span>
-                        </div>
-                        <div className="flex justify-between text-sm text-muted-foreground">
-                          <span>Tourism levy</span>
-                          <span>Included</span>
-                        </div>
-                      </div>
-                      
-                      {/* Total */}
-                      <div className="border-t pt-3 flex justify-between items-center">
-                        <span className="font-semibold">Total</span>
-                        <span className="text-xl font-bold"><FormattedPrice amount={totalCost} /></span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Total</span>
-                      <span className="text-xl font-bold">
-                        {preSelectedTotalCost !== null 
-                          ? <FormattedPrice amount={preSelectedTotalCost} />
-                          : totalCost > 0
-                          ? <FormattedPrice amount={totalCost} />
-                          : 'On request'}
-                      </span>
-                    </div>
-                  )}
-                  {costBreakdown.length === 0 && preSelectedTotalCost === null && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Final price will be confirmed by the property
-                    </p>
-                  )}
-                </div>
-
-                {/* Submit Button (Desktop) */}
-                <div className="hidden lg:block pt-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="block">
-                          <Button 
-                            className="w-full" 
-                            size="lg"
-                            onClick={() => createBookingMutation.mutate()}
-                            disabled={createBookingMutation.isPending || !isFormValid}
-                          >
-                            {createBookingMutation.isPending ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              'Confirm Booking'
-                            )}
-                          </Button>
                         </span>
-                      </TooltipTrigger>
-                      {!isFormValid && missingFields.length > 0 && (
-                        <TooltipContent side="top" className="max-w-xs">
-                          <div className="space-y-1">
-                            <p className="font-medium text-xs">Missing required fields:</p>
-                            <ul className="text-xs list-disc pl-3 space-y-0.5">
-                              {missingFields.map((field, i) => (
-                                <li key={i}>{field}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        </TooltipContent>
                       )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-
-                {createBookingMutation.isError && (
-                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>Please check the form for errors</span>
+                    </div>
+                    {rooms.length > 1 && (
+                      <Button variant="ghost" size="sm" onClick={() => removeRoom(index)} className="text-destructive hover:text-destructive text-xs h-7">
+                        Remove
+                      </Button>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {/* Room Type Selection (if multiple) */}
+                  {roomTypes.length > 1 && (
+                    <Select value={room.roomTypeId} onValueChange={(v) => updateRoom(index, 'roomTypeId', v)}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select room type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roomTypes.map((rt) => (
+                          <SelectItem key={rt.id} value={String(rt.id)}>
+                            {rt.name} {rt.maxGuests ? `(Max ${rt.maxGuests})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {/* Guest Steppers (Fluent style) */}
+                  <div className="divide-y divide-border/30">
+                    <GuestCountStepper
+                      label="Adults"
+                      sublabel="Ages 13+"
+                      value={room.numberOfAdults}
+                      min={1}
+                      max={isAtMaxCapacity ? room.numberOfAdults : maxGuestsForRoom}
+                      onChange={(v) => {
+                        const newRooms = [...rooms];
+                        newRooms[index] = { ...newRooms[index], numberOfAdults: v };
+                        setRooms(newRooms);
+                      }}
+                    />
+                    {allowTeens && (
+                      <GuestCountStepper
+                        label="Teens"
+                        sublabel="Ages 13-17"
+                        value={room.numberOfTeens}
+                        max={isAtMaxCapacity ? room.numberOfTeens : maxGuestsForRoom - currentRoomTotal + room.numberOfTeens}
+                        onChange={(v) => {
+                          const newRooms = [...rooms];
+                          newRooms[index] = { ...newRooms[index], numberOfTeens: v };
+                          setRooms(newRooms);
+                        }}
+                      />
+                    )}
+                    {allowChildren && (
+                      <GuestCountStepper
+                        label="Children"
+                        sublabel="Ages 2-12"
+                        value={room.numberOfChildren}
+                        max={isAtMaxCapacity ? room.numberOfChildren : maxGuestsForRoom - currentRoomTotal + room.numberOfChildren}
+                        onChange={(v) => {
+                          const newRooms = [...rooms];
+                          newRooms[index] = { ...newRooms[index], numberOfChildren: v };
+                          setRooms(newRooms);
+                        }}
+                      />
+                    )}
+                    {allowInfants && (
+                      <GuestCountStepper
+                        label="Infants"
+                        sublabel="Under 2"
+                        value={room.numberOfInfants}
+                        max={isAtMaxCapacity ? room.numberOfInfants : maxGuestsForRoom - currentRoomTotal + room.numberOfInfants}
+                        onChange={(v) => {
+                          const newRooms = [...rooms];
+                          newRooms[index] = { ...newRooms[index], numberOfInfants: v };
+                          setRooms(newRooms);
+                        }}
+                      />
+                    )}
+                    {(amenities?.pets_allowed || roomType?.allowPets) && (
+                      <GuestCountStepper
+                        label="Pets"
+                        sublabel="Service animals always welcome"
+                        value={room.numberOfPets}
+                        max={4}
+                        onChange={(v) => {
+                          const newRooms = [...rooms];
+                          newRooms[index] = { ...newRooms[index], numberOfPets: v };
+                          setRooms(newRooms);
+                        }}
+                      />
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+              <Plus className="h-3 w-3 mr-1" /> Add another room
+            </Button>
+          </motion.div>
+
+          {/* ── Step 2: Your Details ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center">2</span>
+              <h3 className="font-medium">Your Details</h3>
+            </div>
+
+            <FluentGuestForm
+              guestName={guestName}
+              guestEmail={guestEmail}
+              guestPhone={guestPhone}
+              specialRequests={specialRequests}
+              voucher={voucher}
+              onNameChange={setGuestName}
+              onEmailChange={setGuestEmail}
+              onPhoneChange={setGuestPhone}
+              onSpecialRequestsChange={setSpecialRequests}
+              onVoucherChange={setVoucher}
+              onBlur={() => setGuestDetails({ name: guestName, email: guestEmail, phone: guestPhone })}
+              errors={formErrors}
+              showVoucher
+            />
+          </motion.div>
+
+          {/* ── Step 3: Payment Summary ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-3"
+          >
+            <div className="flex items-center gap-2">
+              <span className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center">3</span>
+              <h3 className="font-medium">Payment</h3>
+            </div>
+
+            <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+              {calculatingCost ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Calculating price...</span>
+                </div>
+              ) : costBreakdown.length > 0 ? (
+                <>
+                  {costBreakdown.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <div>
+                        <p className="text-foreground">{item.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.nights} night{item.nights !== 1 ? "s" : ""} × <FormattedPrice amount={item.unitPrice} />
+                        </p>
+                      </div>
+                      <span className="font-medium"><FormattedPrice amount={item.total} /></span>
+                    </div>
+                  ))}
+
+                  <div className="flex justify-between text-xs text-muted-foreground pt-1">
+                    <span>Service fee</span>
+                    <span><FormattedPrice amount={0} /></span>
+                  </div>
+
+                  <div className="border-t border-border/50 pt-3 flex justify-between items-center">
+                    <span className="font-semibold">Total</span>
+                    <span className="text-xl font-bold"><FormattedPrice amount={totalCost} /></span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Total</span>
+                  <span className="text-xl font-bold">
+                    {preSelectedTotalCost !== null
+                      ? <FormattedPrice amount={preSelectedTotalCost} />
+                      : totalCost > 0
+                      ? <FormattedPrice amount={totalCost} />
+                      : 'On request'}
+                  </span>
+                </div>
+              )}
+              {costBreakdown.length === 0 && preSelectedTotalCost === null && totalCost === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Final price will be confirmed by the property
+                </p>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* ── Sticky Footer CTA ── */}
+        <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
+          <div className="max-w-2xl mx-auto">
+            <Button
+              onClick={() => createBookingMutation.mutate()}
+              disabled={createBookingMutation.isPending || !isFormValid}
+              className="w-full h-12 text-base font-medium rounded-xl gap-2"
+            >
+              {createBookingMutation.isPending ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="h-5 w-5" />
+                  Confirm & Pay {totalCost > 0 ? <FormattedPrice amount={totalCost} /> : (preSelectedTotalCost ? <FormattedPrice amount={preSelectedTotalCost} /> : '')}
+                </>
+              )}
+            </Button>
+            <div className="flex items-center justify-center gap-2 mt-2 text-[10px] sm:text-xs text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span>Secured payment · 256-bit SSL</span>
+            </div>
+            {createBookingMutation.isError && (
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg mt-3">
+                <AlertCircle className="h-4 w-4" />
+                <span>Please check the form for errors</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2219,7 +1960,6 @@ const Booking = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              {/* Check-in Date Picker */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Check-in</Label>
                 <Popover>
@@ -2241,8 +1981,6 @@ const Booking = () => {
                   </PopoverContent>
                 </Popover>
               </div>
-              
-              {/* Check-out Date Picker */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Check-out</Label>
                 <Popover>
@@ -2266,33 +2004,19 @@ const Booking = () => {
               </div>
             </div>
           </div>
-          
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowDateReselectDialog(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleDateReselection}
-              disabled={!pendingCheckIn || !pendingCheckOut}
-            >
-              Update Dates
-            </Button>
+            <Button variant="outline" onClick={() => setShowDateReselectDialog(false)}>Cancel</Button>
+            <Button onClick={handleDateReselection} disabled={!pendingCheckIn || !pendingCheckOut}>Update Dates</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Payment Gateway - routes based on active system */}
+      {/* Payment Gateway */}
       {activeGateway === "paygate" ? (
         <PayGateRedirect
           isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setPendingBookingId(null);
-          }}
-          onPaymentInitiated={() => {
-            // PayGate redirects away - booking confirmation handled on return URL
-            setShowPaymentModal(false);
-          }}
+          onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
+          onPaymentInitiated={() => setShowPaymentModal(false)}
           bookingId={pendingBookingId || ""}
           amount={pendingPaymentAmount}
           propertyName={property?.name || ""}
@@ -2300,10 +2024,7 @@ const Booking = () => {
       ) : (
         <PayFastOnsiteModal
           isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setPendingBookingId(null);
-          }}
+          onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
           onPaymentSuccess={() => {
             setShowPaymentModal(false);
             if (pendingBookingId) {
