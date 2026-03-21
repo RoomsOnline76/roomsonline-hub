@@ -2384,3 +2384,193 @@ async function handleGetUiConfig(body: any, supabase: any): Promise<Response> {
   return new Response(JSON.stringify(createSuccessResponse({ config: merged, property_id: propertyId || null }, "get_ui_config")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+// ============================================================================
+// WEBHOOK HELPERS & HANDLERS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function queueWebhookEvent(supabase: any, propertyId: string, event: string, payload: Record<string, unknown>) {
+  try {
+    // Find active subscriptions for this property+event
+    const { data: subs } = await supabase
+      .from("rolos_webhook_subscriptions")
+      .select("*")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+
+    const matchingSubs = (subs || []).filter((s: any) =>
+      s.events.includes(event) || s.events.includes("*")
+    );
+
+    if (!matchingSubs.length) return;
+
+    const logs = matchingSubs.map((sub: any) => ({
+      subscription_id: sub.id,
+      property_id: propertyId,
+      event,
+      payload,
+      status: "pending",
+      attempts: 0,
+      max_attempts: 3,
+    }));
+
+    const { error } = await supabase.from("rolos_webhook_logs").insert(logs);
+    if (error) {
+      console.error(`[webhook] Failed to queue ${event} event:`, error.message);
+    } else {
+      console.log(`[webhook] Queued ${logs.length} delivery(ies) for ${event}`);
+    }
+  } catch (err) {
+    console.error(`[webhook] Error queuing ${event}:`, err);
+  }
+}
+
+async function hmacSign(secret: string, payload: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleSubscribeWebhook(body: any, supabase: any): Promise<Response> {
+  const { propertyId, url, secret, events } = body;
+  if (!propertyId || !url || !secret || !events?.length) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId, url, secret, and events[] required", "subscribe_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("rolos_webhook_subscriptions")
+    .upsert({ property_id: propertyId, url, secret, events, is_active: true, updated_at: new Date().toISOString() }, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "subscribe_webhook")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ subscription: data }, "subscribe_webhook")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleUnsubscribeWebhook(body: any, supabase: any): Promise<Response> {
+  const { subscription_id } = body;
+  if (!subscription_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "subscription_id required", "unsubscribe_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { error } = await supabase
+    .from("rolos_webhook_subscriptions")
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq("id", subscription_id);
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "unsubscribe_webhook")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ subscription_id, is_active: false }, "unsubscribe_webhook")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleListWebhookSubscriptions(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "list_webhook_subscriptions")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("rolos_webhook_subscriptions")
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false });
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "list_webhook_subscriptions")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ subscriptions: data || [] }, "list_webhook_subscriptions")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleTestWebhook(body: any, supabase: any): Promise<Response> {
+  const { subscription_id } = body;
+  if (!subscription_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "subscription_id required", "test_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: sub } = await supabase
+    .from("rolos_webhook_subscriptions")
+    .select("*")
+    .eq("id", subscription_id)
+    .single();
+
+  if (!sub) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Subscription not found", "test_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  }
+
+  const testPayload = JSON.stringify({
+    event: "test.ping",
+    property_id: sub.property_id,
+    payload: { message: "This is a test webhook from ROL'OS", timestamp: new Date().toISOString() },
+    delivery_id: "test-" + crypto.randomUUID(),
+  });
+
+  const signature = await hmacSign(sub.secret, testPayload);
+
+  try {
+    const resp = await fetch(sub.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-ROL-Signature": signature,
+        "X-ROL-Event": "test.ping",
+      },
+      body: testPayload,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    return new Response(JSON.stringify(createSuccessResponse({
+      delivered: resp.ok,
+      status_code: resp.status,
+      message: resp.ok ? "Ping delivered successfully" : `Ping failed with HTTP ${resp.status}`,
+    }, "test_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (err) {
+    return new Response(JSON.stringify(createSuccessResponse({
+      delivered: false,
+      message: err instanceof Error ? err.message : "Connection failed",
+    }, "test_webhook")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetWebhookLogs(body: any, supabase: any): Promise<Response> {
+  const { propertyId, limit: logLimit } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_webhook_logs")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("rolos_webhook_logs")
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false })
+    .limit(logLimit || 50);
+
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_webhook_logs")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+
+  return new Response(JSON.stringify(createSuccessResponse({ logs: data || [] }, "get_webhook_logs")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
