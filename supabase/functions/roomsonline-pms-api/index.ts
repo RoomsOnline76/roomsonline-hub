@@ -1853,6 +1853,18 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
   }
   // Close folio
   await supabase.from("rolos_folios").update({ status: "closed", closed_at: new Date().toISOString() }).eq("booking_id", booking_id);
+
+  // Fire webhook event
+  if (booking) {
+    await queueWebhookEvent(supabase, booking.property_id, "booking.checked_out", {
+      booking_id,
+      guest_name: booking.guest_name,
+      arrival_date: booking.check_in_date,
+      departure_date: booking.check_out_date,
+      status: "checked_out",
+    });
+  }
+
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
