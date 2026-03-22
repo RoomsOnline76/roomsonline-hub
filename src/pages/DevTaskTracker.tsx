@@ -73,6 +73,36 @@ export default function DevTaskTracker() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  const sendTaskReport = async () => {
+    if (filterAssignee === "all" || filterAssignee === "unassigned") {
+      toast.error("Select a specific person to email their task report");
+      return;
+    }
+    const assignee = users.find((u) => u.id === filterAssignee);
+    if (!assignee) { toast.error("Assignee not found"); return; }
+
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-task-report", {
+        body: {
+          assignee_id: filterAssignee,
+          include_statuses: ["new", "started", "testing", "completed"],
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`Task report emailed to ${assignee.full_name || assignee.email}`);
+      } else {
+        throw new Error(data?.error || "Failed to send");
+      }
+    } catch (err: any) {
+      toast.error(`Email failed: ${err.message}`);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
