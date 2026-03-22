@@ -471,7 +471,17 @@ export default function DevTaskTracker() {
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="low">Low</SelectItem>
             </SelectContent>
-          </Select>
+           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 text-sm gap-1.5"
+            disabled={filterAssignee === "all" || filterAssignee === "unassigned" || sendingEmail}
+            onClick={sendTaskReport}
+          >
+            {sendingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Email Report
+          </Button>
         </div>
 
         <Tabs defaultValue="worklist">
