@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight, Search } from "lucide-react";
+import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight, Search, Mail, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -73,6 +73,36 @@ export default function DevTaskTracker() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  const sendTaskReport = async () => {
+    if (filterAssignee === "all" || filterAssignee === "unassigned") {
+      toast.error("Select a specific person to email their task report");
+      return;
+    }
+    const assignee = users.find((u) => u.id === filterAssignee);
+    if (!assignee) { toast.error("Assignee not found"); return; }
+
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-task-report", {
+        body: {
+          assignee_id: filterAssignee,
+          include_statuses: ["new", "started", "testing", "completed"],
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`Task report emailed to ${assignee.full_name || assignee.email}`);
+      } else {
+        throw new Error(data?.error || "Failed to send");
+      }
+    } catch (err: any) {
+      toast.error(`Email failed: ${err.message}`);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
@@ -441,7 +471,17 @@ export default function DevTaskTracker() {
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="low">Low</SelectItem>
             </SelectContent>
-          </Select>
+           </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 text-sm gap-1.5"
+            disabled={filterAssignee === "all" || filterAssignee === "unassigned" || sendingEmail}
+            onClick={sendTaskReport}
+          >
+            {sendingEmail ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Email Report
+          </Button>
         </div>
 
         <Tabs defaultValue="worklist">
