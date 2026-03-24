@@ -185,6 +185,98 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_mappings: {
+        Row: {
+          description: string | null
+          field: string | null
+          id: string
+          strategy: Database["public"]["Enums"]["billing_strategy"] | null
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          field?: string | null
+          id?: string
+          strategy?: Database["public"]["Enums"]["billing_strategy"] | null
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          field?: string | null
+          id?: string
+          strategy?: Database["public"]["Enums"]["billing_strategy"] | null
+          value?: string | null
+        }
+        Relationships: []
+      }
+      billing_transactions: {
+        Row: {
+          amount: number
+          calculated_by: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          metadata: Json | null
+          owner_id: string | null
+          property_id: string | null
+          reference_id: string | null
+          type: string
+        }
+        Insert: {
+          amount: number
+          calculated_by?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          owner_id?: string | null
+          property_id?: string | null
+          reference_id?: string | null
+          type: string
+        }
+        Update: {
+          amount?: number
+          calculated_by?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          metadata?: Json | null
+          owner_id?: string | null
+          property_id?: string | null
+          reference_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_transactions_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "billing_transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_transactions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       book_page_images: {
         Row: {
           alt_text: string | null
@@ -2074,6 +2166,53 @@ export type Database = {
           },
         ]
       }
+      owner_invoices: {
+        Row: {
+          created_at: string | null
+          id: string
+          net_payout: number | null
+          owner_id: string | null
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          status: string | null
+          total_commission: number | null
+          total_fees: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          net_payout?: number | null
+          owner_id?: string | null
+          pdf_url?: string | null
+          period_end: string
+          period_start: string
+          status?: string | null
+          total_commission?: number | null
+          total_fees?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          net_payout?: number | null
+          owner_id?: string | null
+          pdf_url?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string | null
+          total_commission?: number | null
+          total_fees?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_invoices_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       owner_pms_credentials: {
         Row: {
           api_key: string | null
@@ -3321,6 +3460,96 @@ export type Database = {
           },
           {
             foreignKeyName: "property_bank_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_billing_configs: {
+        Row: {
+          billing_start_date: string | null
+          billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          commission_rate: number | null
+          created_at: string | null
+          custom_overrides: Json | null
+          id: string
+          linked_contract_id: string | null
+          owner_id: string | null
+          payment_facilitator_enabled: boolean | null
+          property_id: string
+          subscription_fee_monthly: number | null
+          transaction_fee_percentage: number | null
+          updated_at: string | null
+          volume_tier_json: Json | null
+          white_label_allowed: boolean | null
+        }
+        Insert: {
+          billing_start_date?: string | null
+          billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          commission_rate?: number | null
+          created_at?: string | null
+          custom_overrides?: Json | null
+          id?: string
+          linked_contract_id?: string | null
+          owner_id?: string | null
+          payment_facilitator_enabled?: boolean | null
+          property_id: string
+          subscription_fee_monthly?: number | null
+          transaction_fee_percentage?: number | null
+          updated_at?: string | null
+          volume_tier_json?: Json | null
+          white_label_allowed?: boolean | null
+        }
+        Update: {
+          billing_start_date?: string | null
+          billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          commission_rate?: number | null
+          created_at?: string | null
+          custom_overrides?: Json | null
+          id?: string
+          linked_contract_id?: string | null
+          owner_id?: string | null
+          payment_facilitator_enabled?: boolean | null
+          property_id?: string
+          subscription_fee_monthly?: number | null
+          transaction_fee_percentage?: number | null
+          updated_at?: string | null
+          volume_tier_json?: Json | null
+          white_label_allowed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_billing_configs_linked_contract_id_fkey"
+            columns: ["linked_contract_id"]
+            isOneToOne: false
+            referencedRelation: "contract_template_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_billing_configs_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_billing_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_billing_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_billing_configs_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: true
             referencedRelation: "public_properties"
@@ -8816,6 +9045,14 @@ export type Database = {
         | "cron"
         | "db_trigger"
       audit_user_role: "admin" | "dev" | "owner" | "system"
+      billing_strategy:
+        | "default"
+        | "widget"
+        | "rolos_pms"
+        | "portfolio_aggregator"
+        | "enterprise_white_label"
+        | "volume_tiered"
+        | "payment_facilitator"
       channel_connection_status: "active" | "paused" | "error" | "disconnected"
       channel_name:
         | "booking_com"
@@ -9044,6 +9281,15 @@ export const Constants = {
         "db_trigger",
       ],
       audit_user_role: ["admin", "dev", "owner", "system"],
+      billing_strategy: [
+        "default",
+        "widget",
+        "rolos_pms",
+        "portfolio_aggregator",
+        "enterprise_white_label",
+        "volume_tiered",
+        "payment_facilitator",
+      ],
       channel_connection_status: ["active", "paused", "error", "disconnected"],
       channel_name: [
         "booking_com",
