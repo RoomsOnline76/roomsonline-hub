@@ -618,6 +618,7 @@ const App = () => (
             />
             {/* Embeddable booking widget — public route */}
             <Route path="/embed/property/:slug" element={<EmbedProperty />} />
+            <Route path="/embed/portfolio/:portfolioSlug" element={<EmbedPortfolio />} />
             {/* Branded staff login — public route (smart branding via ?property= or localStorage) */}
             <Route path="/staff-login" element={<StaffLogin />} />
             <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
