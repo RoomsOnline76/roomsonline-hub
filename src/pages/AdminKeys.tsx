@@ -288,6 +288,16 @@ export default function AdminKeys() {
   const [savingProfitroom, setSavingProfitroom] = useState(false);
   const [togglingProfitroom, setTogglingProfitroom] = useState(false);
 
+  // Rentals United-specific state
+  const [rentalsunitedCredentials, setRentalsunitedCredentials] = useState<PMSCredentials | null>(null);
+  const [rentalsunitedUsername, setRentalsunitedUsername] = useState("");
+  const [rentalsunitedApiKey, setRentalsunitedApiKey] = useState("");
+  const [rentalsunitedEndpointUrl, setRentalsunitedEndpointUrl] = useState("");
+  const [editingRentalsunited, setEditingRentalsunited] = useState(false);
+  const [savingRentalsunited, setSavingRentalsunited] = useState(false);
+  const [togglingRentalsunited, setTogglingRentalsunited] = useState(false);
+  const [testingRentalsunited, setTestingRentalsunited] = useState(false);
+
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
   const [sendingStatusReport, setSendingStatusReport] = useState(false);
