@@ -81,6 +81,7 @@ interface ROLSpecData {
   who_its_not_for: string;
   owner_notes: string;
   navigation_tags: string[];
+  collections?: Collection[];
 }
 
 interface PropertyContext {
