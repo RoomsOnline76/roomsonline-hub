@@ -156,6 +156,11 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
               <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">
                 {getMemberCount(p.id)}
               </Badge>
+              {p.slug && (
+                <Badge variant="outline" className="ml-0.5 text-[8px] h-4 px-1 font-mono">
+                  {p.slug}
+                </Badge>
+              )}
             </Button>
             <Button
               variant="ghost"
