@@ -7,6 +7,7 @@ import { FormattedPrice } from '@/components/FormattedPrice';
 import { ArrowRight, ExternalLink, Check, MapPin, Compass, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useItinerary } from '@/contexts/ItineraryContext';
+import { AffiliateNotice } from '@/components/AffiliateNotice';
 
 interface StickyBookingCTAProps {
   onBook: () => void;
@@ -175,6 +176,11 @@ export function StickyBookingCTA({
                   {getButtonContent()}
                 </Button>
               </div>
+              {isExternal && (
+                <div className="hidden sm:block">
+                  <AffiliateNotice />
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
