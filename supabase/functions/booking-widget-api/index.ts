@@ -30,7 +30,7 @@ serve(async (req) => {
     // Fetch public property data
     const { data: property, error } = await supabase
       .from("properties")
-      .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, external_system, description, address, city, images")
+      .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, external_system, description, address, city, images, collections")
       .eq("slug", slug)
       .eq("is_active", true)
       .single();
