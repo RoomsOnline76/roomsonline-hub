@@ -55,7 +55,7 @@ export default function AdminPortfolios() {
         .from("property_portfolios" as any)
         .select("*")
         .order("name");
-      return (data || []) as Portfolio[];
+      return (data || []) as unknown as Portfolio[];
     },
   });
 
