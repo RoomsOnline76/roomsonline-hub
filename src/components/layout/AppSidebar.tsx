@@ -126,7 +126,7 @@ const adminItems: NavItem[] = [
   { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
   { title: "Portfolios", icon: FolderOpen, href: "/admin/portfolios", requireAdmin: true },
   { title: "Review Queue", icon: ClipboardCheck, href: "/admin/review-queue", requireAdmin: true },
-  
+  { title: "Billing Defaults", icon: CreditCard, href: "/admin/billing-defaults", requireDev: true },
 ];
 
 // Edit & Audit menu - Admin only content management
