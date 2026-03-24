@@ -242,6 +242,15 @@
     getWidgets: function () {
       return Object.keys(widgets);
     },
+    getPortfolios: function () {
+      return Object.keys(portfolioWidgets);
+    },
+    initPortfolio: function () {
+      var containers = document.querySelectorAll('[' + PORTFOLIO_ATTR + ']');
+      for (var i = 0; i < containers.length; i++) {
+        createPortfolioWidget(containers[i]);
+      }
+    },
   };
 
   // Auto-init
