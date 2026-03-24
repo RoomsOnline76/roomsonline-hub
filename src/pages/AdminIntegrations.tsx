@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
 import { BookingBarTab } from "@/components/integrations/BookingBarTab";
