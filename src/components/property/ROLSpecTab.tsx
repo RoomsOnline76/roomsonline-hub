@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Info, Compass, Loader2, Sparkles, Upload, Video, X } from "lucide-react";
+import { Info, Compass, Loader2, Sparkles, Upload, Video, X, Layers } from "lucide-react";
+import { CollectionsManager, type Collection } from "./CollectionsManager";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +81,7 @@ interface ROLSpecData {
   who_its_not_for: string;
   owner_notes: string;
   navigation_tags: string[];
+  collections?: Collection[];
 }
 
 interface PropertyContext {
@@ -286,6 +288,13 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
           >
             <Compass className="h-3.5 w-3.5" />
             Navigation
+          </TabsTrigger>
+          <TabsTrigger 
+            value="collections" 
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Collections
           </TabsTrigger>
         </TabsList>
 
@@ -615,6 +624,14 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="collections" className="mt-4">
+          <CollectionsManager
+            collections={data.collections || []}
+            onChange={(collections) => updateField("collections", collections)}
+            onDirty={onDirty}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "description": "RoomsOnline PMS implementation ruleset",
   "pms_rules": [
     {
@@ -132,9 +132,27 @@
       "source": "admin_only",
       "authoritative": false,
       "notes": "Marketing/editorial only."
+    },
+    "collections": {
+      "source": "admin_only",
+      "authoritative": false,
+      "notes": "Multi-brand website collections. Managed entirely in admin. Never sourced from PMS."
+    },
+    "multi_unit_config": {
+      "source": "admin_only",
+      "authoritative": false,
+      "notes": "Hotel-style multi-unit auto-assignment config. Admin-managed, independent of PMS."
+    },
+    "portfolio_group": {
+      "source": "admin_only",
+      "authoritative": false,
+      "notes": "Portfolio grouping for consolidated reporting. No PMS equivalent."
     }
   },
   "changelog": [
+    "v1.2: Added collections field (multi-brand) as admin_only",
+    "v1.2: Added multi_unit_config field (auto-assignment) as admin_only",
+    "v1.2: Added portfolio_group field (multi-property groups) as admin_only",
     "v1.1: Added explicit rules for charge_types and payment_types",
     "v1.1: Clarified handling of check-in/check-out times",
     "v1.1: Defined star_rating as seed-only with PMS exceptions (Cloudbeds, Little Hotelier)",

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, differenceInDays, parseISO } from "date-fns";
+import { PortfolioManager } from "@/components/portfolio/PortfolioManager";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
@@ -36,9 +37,30 @@ export default function PMSPortfolio() {
   const { properties, loading: propLoading } = usePmsPropertyId();
   const [, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
+
+  // Fetch portfolio members for filtering
+  const { data: portfolioMembers = [] } = useQuery({
+    queryKey: ["portfolio-members-filter", selectedPortfolioId],
+    queryFn: async () => {
+      if (!selectedPortfolioId) return [];
+      const { data } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("property_id")
+        .eq("portfolio_id", selectedPortfolioId);
+      return (data || []).map((m: any) => m.property_id) as string[];
+    },
+    enabled: !!selectedPortfolioId,
+  });
+
+  // Filter properties by portfolio
+  const filteredProperties = useMemo(() => {
+    if (!selectedPortfolioId || portfolioMembers.length === 0) return properties;
+    return properties.filter(p => portfolioMembers.includes(p.id));
+  }, [properties, selectedPortfolioId, portfolioMembers]);
 
   // Fetch bookings for all properties in last 30 days
   const { data: allBookings = [], isLoading: bookingsLoading } = useQuery({
@@ -74,7 +96,7 @@ export default function PMSPortfolio() {
   });
 
   const summaries = useMemo<PropertySummary[]>(() => {
-    return properties.map(prop => {
+    return filteredProperties.map(prop => {
       const bookings = allBookings.filter((b: any) => b.property_id === prop.id);
       const active = bookings.filter((b: any) => b.status !== "cancelled" && b.status !== "failed");
       const rooms = allRooms.filter((r: any) => r.property_id === prop.id);
@@ -109,7 +131,7 @@ export default function PMSPortfolio() {
         todayDepartures,
       };
     }).sort((a, b) => b.revenue - a.revenue);
-  }, [properties, allBookings, allRooms, today]);
+  }, [filteredProperties, allBookings, allRooms, today]);
 
   const totals = useMemo(() => {
     const avgRevpar = summaries.length > 0
@@ -159,6 +181,12 @@ export default function PMSPortfolio() {
             {format(subDays(new Date(), 30), "dd MMM")} – {format(new Date(), "dd MMM yyyy")}
           </Badge>
         </div>
+
+        {/* Portfolio filter */}
+        <PortfolioManager
+          selectedPortfolioId={selectedPortfolioId}
+          onSelect={setSelectedPortfolioId}
+        />
 
         {/* Portfolio KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
