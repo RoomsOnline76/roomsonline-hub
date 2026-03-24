@@ -23,6 +23,7 @@ interface PortfolioWidgetTabProps {
 
 export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
   const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#2563eb");
   const [brandLogo, setBrandLogo] = useState("");
