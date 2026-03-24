@@ -435,6 +435,14 @@ const App = () => (
             <Route path="/onboarding/:token" element={<PropertyOnboarding />} />
             {/* Admin contract and onboarding management */}
             <Route
+              path="/admin/portfolios"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPortfolios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/contracts"
               element={
                 <ProtectedRoute requireAdmin={true}>

@@ -98,6 +98,7 @@ const adminSection: NavSection = {
     { id: 'payments', title: 'Payments', icon: CreditCard, href: '/admin/payments', minRole: 'admin' },
     { id: 'contracts', title: 'Contracts', icon: FileSignature, href: '/admin/contracts', minRole: 'admin' },
     { id: 'onboarding', title: 'Onboarding', icon: Sparkles, href: '/admin/onboarding', minRole: 'admin' },
+    { id: 'portfolios', title: 'Portfolios', icon: FolderOpen, href: '/admin/portfolios', minRole: 'admin' },
     { id: 'review-queue', title: 'Review Queue', icon: ClipboardCheck, href: '/admin/review-queue', minRole: 'admin' },
     { id: 'admin-system', title: 'System Config', icon: Settings, href: '/admin/system', minRole: 'admin' },
   ],

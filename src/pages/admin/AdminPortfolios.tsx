@@ -65,7 +65,7 @@ export default function AdminPortfolios() {
       const { data } = await supabase
         .from("property_portfolio_members" as any)
         .select("*");
-      return (data || []) as PortfolioMember[];
+      return (data || []) as unknown as PortfolioMember[];
     },
   });
 
