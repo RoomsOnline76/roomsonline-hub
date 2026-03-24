@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
+import { AffiliateNotice } from "@/components/AffiliateNotice";
 
 interface LeavingRoomsOnlineModalProps {
   open: boolean;
@@ -45,6 +46,7 @@ export default function LeavingRoomsOnlineModal({
           <p className="text-sm text-muted-foreground">
             This property uses a third-party booking system. You will complete your reservation on their secure booking platform.
           </p>
+          <AffiliateNotice />
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">

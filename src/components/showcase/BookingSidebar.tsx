@@ -17,6 +17,7 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { AffiliateNotice } from '@/components/AffiliateNotice';
 
 interface BookingSidebarProps {
   lowestRate?: number | null;
@@ -279,6 +280,8 @@ export function BookingSidebar({
       >
         {hasDates ? 'Book Now' : 'Check Availability'}
       </Button>
+
+      {isExternal && <AffiliateNotice />}
 
       {/* Journey link */}
       {hasStays && onViewJourney && (
