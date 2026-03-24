@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { AdminShell } from "@/components/layout/AdminShell";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, DollarSign } from "lucide-react";
+import { Loader2, Save, DollarSign, ArrowLeft } from "lucide-react";
 import { useBillingDefaults, BillingDefault } from "@/hooks/useBillingDefaults";
+import { useAuth } from "@/hooks/useAuth";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
   default: { label: "Default (Commission)", description: "Standard listing/PMS commission model" },
@@ -85,10 +86,37 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
 }
 
 export default function AdminBillingDefaults() {
+  const navigate = useNavigate();
+  const { isDev, isFearlessLeader, loading: authLoading } = useAuth();
   const { defaults, isLoading, update } = useBillingDefaults();
 
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isDev && !isFearlessLeader) {
+    navigate("/admin/dashboard");
+    return null;
+  }
+
   return (
-    <AdminShell title="Billing Defaults" description="Set platform-wide default rates for each billing strategy. Per-property overrides take priority.">
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold">Billing Defaults</h1>
+          <p className="text-sm text-muted-foreground">
+            Platform-wide default rates per billing strategy. Per-property overrides take priority.
+          </p>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center p-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -105,6 +133,6 @@ export default function AdminBillingDefaults() {
           ))}
         </div>
       )}
-    </AdminShell>
+    </div>
   );
 }
