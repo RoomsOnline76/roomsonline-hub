@@ -13,6 +13,7 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const slug = url.searchParams.get("slug");
+    const collectionSlug = url.searchParams.get("collection");
 
     if (!slug) {
       return new Response(JSON.stringify({ error: "slug parameter required" }), {
