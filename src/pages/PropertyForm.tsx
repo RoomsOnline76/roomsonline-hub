@@ -9215,7 +9215,13 @@ export default function PropertyForm() {
                       </TabsContent>
                     )}
 
-                    {/* Overview Sub-tab */}
+                    {/* Billing Sub-tab */}
+                    {(isAdmin || isDev) && (
+                      <TabsContent value="billing">
+                        <BillingConfigTab propertyId={id!} />
+                      </TabsContent>
+                    )}
+
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
                         const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
