@@ -102,6 +102,7 @@ const workspaceItems: NavItem[] = [
   { title: "Properties", icon: Building2, href: "/admin/property-overview" },
   { title: "Calendar", icon: CalendarDays, href: "/admin/calendar/accommodation" },
   { title: "Bookings", icon: BookOpen, href: "/admin/bookings" },
+  { title: "Integrations", icon: Code2, href: "/admin/integrations" },
 ];
 
 const insightsItems: NavItem[] = [
