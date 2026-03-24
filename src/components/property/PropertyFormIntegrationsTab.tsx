@@ -62,7 +62,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
       {/* Integration Tabs */}
       <Tabs defaultValue="smart_button" className="space-y-4">
-        <TabsList className="grid grid-cols-8 w-full">
+        <TabsList className="grid grid-cols-9 w-full">
           <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative">
             <Sparkles className="h-3.5 w-3.5" />
             Smart Button
