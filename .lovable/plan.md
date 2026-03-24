@@ -1,157 +1,100 @@
 
 
-# Multi-Brand Collections, Multi-Unit Auto-Assignment & Portfolio Groups
+# Multi-Property Portfolio Widget — Book/Widget/API Access
 
-## Overview
-This is a three-pillar feature set that extends the existing PMS-agnostic architecture without touching any booking UI, calendar, or `fetchPmsAvailability()` layer. All new data is additive (JSONB columns, one new table) and all new logic lives in edge functions and admin forms only.
+## Problem
+All current booking widgets, embed snippets, and API endpoints are **single-property scoped** — each `<div data-rolos-property="slug">` targets exactly one property. There is no way for an owner with multiple properties (or a portfolio group spanning multiple PMS systems) to embed a **single portal widget** that lists all their properties together with search, filtering, and per-property booking — the kind of experience a hotel group or vacation rental management company needs on their website.
 
-## Technical Design
+## Solution
+Create a **Portfolio Widget** layer across all integration surfaces — a new embed page, a new `rol-embed.js` attribute, a new API endpoint, and admin UI to configure and generate portfolio snippets.
 
-### Pillar 1: Multi-Brand / Multi-Website Collections
+```text
+┌──────────────────────────────────────┐
+│ Owner's Website                      │
+│ <div data-rolos-portfolio="my-group" │
+│      data-brand-color="#xxx">        │
+└──────────────┬───────────────────────┘
+               │ iframe
+               ▼
+┌──────────────────────────────────────┐
+│ /embed/portfolio/:portfolioSlug      │
+│ Property grid → filter → select     │
+│ → redirects to /embed/property/:slug │
+│   for individual booking             │
+└──────────────┬───────────────────────┘
+               │ Supabase
+               ▼
+┌──────────────────────────────────────┐
+│ property_portfolios                  │
+│ property_portfolio_members           │
+│ properties (any PMS)                 │
+└──────────────────────────────────────┘
+```
 
-**Database migration:**
-- Add `collections JSONB DEFAULT '[]'` column to `properties` table
-- Each entry: `{ collection_id, name, slug, branding: { primary_color, logo_url }, pricing_rules: { markup_percent, markup_flat }, availability_rules: { stop_sell, min_stay, max_stay }, navigation_tags: [], is_active }`
-- Add optional `collection_id TEXT` column to `pms_mappings` for external mapping support
-- Update `public_properties` view to include `collections`
+## Changes
 
-**UI — PropertyForm ROLSpecTab extension:**
-- Add "Collections" card below Navigation Tags
-- Reuse the tag-toggle pattern: add/remove collection objects via a mini form (name, slug, brand color picker, pricing overrides, availability rules)
-- Each collection shows as an expandable card with inline editing
-- Auto-generate `collection_id` as slugified name
+### 1. Create `EmbedPortfolio.tsx` — Multi-property embed page
+New route: `/embed/portfolio/:portfolioSlug`
+- Fetches portfolio by slug → gets member properties with images, city, rates, room counts
+- Renders a filterable, branded grid of property cards (hero image, name, city, starting rate, "View & Book" button)
+- Search bar + city filter dropdown
+- Brand theming from URL params (same pattern as `EmbedProperty.tsx`)
+- Clicking a property card navigates to `/embed/property/:propertySlug` (existing single-property embed)
+- PostMessage resize protocol (same as `EmbedProperty.tsx`)
+- Responsive: 1-col mobile, 2-col tablet, 3-col desktop
+- Fluent design language with `framer-motion` reveals
 
-**Edge function awareness:**
-- `booking-widget-api` and embed routes accept optional `?collection=slug` param
-- When present, the embed reads `property.collections` and applies that collection's branding/pricing overrides
-- No changes to `push-booking`, `roomsonline-pms-api`, or any PMS adapter
+### 2. Create `booking-portfolio-api` edge function
+Public API endpoint returning portfolio metadata:
+- `?portfolio=slug` → returns `{ portfolio: { name, branding }, properties: [{ slug, name, city, hero_image, starting_rate, room_count }], snippet }`
+- Uses `property_portfolios` + `property_portfolio_members` + `properties` tables
+- Cached 5 min (same pattern as `booking-widget-api`)
 
-### Pillar 2: Multi-Unit Auto-Assignment Engine
+### 3. Extend `rol-embed.js` — Portfolio mode
+Add support for `data-rolos-portfolio="slug"` attribute alongside existing `data-rolos-property`:
+- Detects portfolio containers during scan
+- Creates iframe pointing to `/embed/portfolio/:slug` with brand params
+- Same resize/event protocol
+- `window.RolosBooking.initPortfolio()` programmatic API
 
-**Database migration:**
-- Add columns to `pms_mappings`: `parent_room_type_id TEXT`, `child_unit_ids JSONB DEFAULT '[]'`, `assignment_mode TEXT DEFAULT 'none'` (values: `none`, `round_robin`, `lowest_occupancy`, `manual`)
-- Add `multi<lov-plan>
+### 4. Add Portfolio route to `App.tsx`
+Register `/embed/portfolio/:portfolioSlug` → `EmbedPortfolio`
 
-# Multi-Brand Collections, Multi-Unit Auto-Assignment & Portfolio Groups
+### 5. Database migration — Add `slug` to `property_portfolios`
+The table already has a `slug` column. Add a migration to ensure portfolios have auto-generated slugs (same pattern as `set_property_slug` trigger).
 
-## Overview
-Three-pillar feature set extending the existing PMS-agnostic architecture. All new data is additive (JSONB columns, one new table). All new logic lives in edge functions and admin forms only. Zero changes to booking UI, calendar, or `fetchPmsAvailability()`.
+### 6. Create `PortfolioWidgetTab.tsx` — Admin configurator
+New integration tab component for portfolio-level widgets:
+- Portfolio selector dropdown (from `property_portfolios`)
+- Brand color picker + logo URL
+- Layout options (grid/list)
+- Live preview in `WidgetPreviewFrame`
+- Code snippet generator for `data-rolos-portfolio` and iframe fallback
+- "Test in New Tab" button
 
-## Technical Design
+### 7. Add "Portfolio" tab to integration pages
+Add a 9th tab to both `PropertyFormIntegrationsTab.tsx` and `PMSIntegrations.tsx`:
+- Icon: `Building2`
+- Label: "Portfolio"
+- Renders `PortfolioWidgetTab` with the current property's portfolio context
 
-### Pillar 1: Multi-Brand / Multi-Website Collections
-
-**Database migration:**
-- Add `collections JSONB DEFAULT '[]'` to `properties` table
-- Each entry: `{ collection_id, name, slug, branding: { primary_color, logo_url }, pricing_rules: { markup_percent, markup_flat }, availability_rules: { stop_sell, min_stay, max_stay }, navigation_tags: [], is_active }`
-- Add optional `collection_id TEXT` to `pms_mappings`
-- Update `public_properties` view to include `collections`
-
-**UI — ROLSpecTab extension:**
-- Add "Collections" card below Navigation Tags
-- Add/remove collection objects via expandable mini-forms (name, slug, brand color, pricing overrides, availability rules)
-- Reuse existing tag-toggle and color-picker patterns
-
-**Edge function awareness:**
-- `booking-widget-api` and embed routes accept optional `?collection=slug` param
-- When present, apply collection's branding/pricing overrides in the embed layer
-- No changes to `push-booking` or any PMS adapter
-
-### Pillar 2: Multi-Unit Auto-Assignment Engine
-
-**Database migration:**
-- Add to `pms_mappings`: `parent_room_type_id TEXT`, `child_unit_ids JSONB DEFAULT '[]'`, `assignment_mode TEXT DEFAULT 'none'` (values: `none`, `round_robin`, `lowest_occupancy`, `manual`)
-- Add `multi_unit_config JSONB` to `properties` (stores `{ enabled: boolean, default_mode: string }`)
-
-**Push-booking extension (atomic sub-step):**
-- After live PMS availability verification and before PMS reservation creation
-- If property has `multi_unit_config.enabled = true` and the booked room_type has child units in `pms_mappings`:
-  - Query `property_availability` for child unit occupancy in the date range
-  - Apply assignment algorithm (round_robin: track last-assigned; lowest_occupancy: pick unit with fewest booked nights)
-  - Set `assigned_unit_id` on the booking record
-  - Pass assigned unit to PMS adapter's `create_reservation` if the adapter supports it
-- Fallback: if no units configured or assignment fails, proceed normally (room-type level booking)
-
-**UI — PropertyForm admin section:**
-- Add "Multi-Unit Configuration" card in the property admin area (visible when property has room types with multiple physical units)
-- Toggle to enable multi-unit mode
-- Per room-type: define child units (name, external ID) and assignment mode
-- Read-only display of current assignment stats
-
-### Pillar 3: Multi-Property Portfolio Groups
-
-**Database migration:**
-- Create `property_portfolios` table:
-  ```sql
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE,
-  owner_id UUID REFERENCES auth.users(id),
-  parent_portfolio_id UUID REFERENCES property_portfolios(id),
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-  ```
-- Create `property_portfolio_members` junction table:
-  ```sql
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  portfolio_id UUID REFERENCES property_portfolios(id) ON DELETE CASCADE,
-  property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
-  UNIQUE(portfolio_id, property_id)
-  ```
-- RLS: owners see their portfolios; admins/devs see all
-- Enable realtime on both tables
-
-**UI — PMSPortfolio.tsx enhancement:**
-- Add portfolio filter/selector above the existing property grid
-- "Create Portfolio" button → name + select properties modal
-- When a portfolio is selected, KPI cards and chart filter to that portfolio's members only
-- Existing per-property cards remain unchanged
-
-**UI — PropertyForm:**
-- Add "Portfolio" dropdown in general tab to assign property to one or more portfolios
-
-**Insights/Dashboard integration:**
-- `dashboard-insights` edge function accepts optional `portfolio_id` param
-- Aggregates KPIs across portfolio member properties
-- PMSPortfolio page passes portfolio filter when active
-
-**Cross-property search:**
-- Extend `ai-property-search` to accept `portfolio_id` filter for scoped results
-
-### Pillar 4: Config & Documentation Updates
-
-**`pms-implementation-master.json`:**
-- Add to `global_field_rules`: `collections`, `multi_unit_config`, `portfolio_group` — all marked `source: "admin_only"`, `authoritative: false`
-
-**API docs (`rolos-api-actions.ts`):**
-- Document collection-aware embed parameters
-- Document multi-unit assignment response fields
-- Document portfolio endpoints
+### 8. Extend `PortfolioManager.tsx` — Slug management
+Add slug field (auto-generated from name, editable) to portfolio creation dialog so portfolios are addressable via the embed URL.
 
 ## Files Summary
 
 | Action | File | Purpose |
 |--------|------|---------|
-| Migration | SQL | Add `collections` + `multi_unit_config` to properties, `collection_id`/unit columns to pms_mappings, create portfolio tables + RLS |
-| Modify | `src/components/property/ROLSpecTab.tsx` | Collections manager UI |
-| Create | `src/components/property/MultiUnitConfigPanel.tsx` | Multi-unit assignment config |
-| Create | `src/components/property/PortfolioSelector.tsx` | Portfolio assignment dropdown |
-| Create | `src/components/portfolio/PortfolioManager.tsx` | Create/edit portfolio modal |
-| Modify | `src/pages/pms/PMSPortfolio.tsx` | Portfolio filter + scoped KPIs |
-| Modify | `supabase/functions/push-booking/index.ts` | Auto-assignment sub-step |
-| Modify | `supabase/functions/booking-widget-api/index.ts` | Collection-aware branding |
-| Modify | `supabase/functions/dashboard-insights/index.ts` | Portfolio-scoped aggregation |
-| Modify | `src/pages/EmbedProperty.tsx` | Read collection param for branding |
-| Modify | `src/config/pms-implementation-master.json` | New field rules |
-| Modify | `src/data/rolos-api-actions.ts` | API documentation |
+| Create | `src/pages/EmbedPortfolio.tsx` | Multi-property embed page with filterable grid |
+| Create | `supabase/functions/booking-portfolio-api/index.ts` | Public portfolio metadata API |
+| Create | `src/components/integrations/PortfolioWidgetTab.tsx` | Admin portfolio widget configurator |
+| Modify | `public/rol-embed.js` | Add `data-rolos-portfolio` support |
+| Modify | `src/App.tsx` | Add `/embed/portfolio/:portfolioSlug` route |
+| Modify | `src/components/property/PropertyFormIntegrationsTab.tsx` | Add Portfolio tab |
+| Modify | `src/pages/pms/PMSIntegrations.tsx` | Add Portfolio tab |
+| Modify | `src/components/portfolio/PortfolioManager.tsx` | Add slug field to creation |
+| Migration | SQL | Add slug trigger for `property_portfolios` |
 
-## Acceptance Criteria Mapping
-1. Collections require zero booking/calendar UI changes — branding applied at embed layer only
-2. Auto-assignment runs after live PMS verification, before reservation creation — never from cache
-3. Portfolio features fully optional — single-property flows untouched (no portfolio = no filter)
-4. All new tables have RLS (owner-scoped + admin/dev override)
-5. PMS adapters unchanged — only `push-booking` gets optional unit assignment passthrough
-6. New fields marked `admin_only` in `pms-implementation-master.json`
-7. Snake_case throughout, audit logging via existing triggers
+## Result
+Owners with multiple properties across any combination of PMS systems can embed a single branded portal widget on their website — visitors browse all properties, filter by city, and book directly. Works via one-line snippet (`data-rolos-portfolio`), iframe, API, WordPress, and Elementor.
 
