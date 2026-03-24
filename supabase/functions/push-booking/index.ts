@@ -153,6 +153,96 @@ Deno.serve(async (req) => {
     // Track whether ROL PMS adapter failed so we can fall through to manual blocking
     let rolAdapterFailed = false;
 
+    // ─── MULTI-UNIT AUTO-ASSIGNMENT SUB-STEP ───────────────────────────
+    // Runs AFTER live availability verification, BEFORE reservation creation.
+    // Only activates when property has multi_unit_config.enabled = true.
+    let assignedUnitId: string | null = null;
+    const multiUnitConfig = property.multi_unit_config as { enabled?: boolean; default_mode?: string } | null;
+    
+    if (multiUnitConfig?.enabled) {
+      try {
+        console.log('Multi-unit mode enabled — attempting auto-assignment');
+        const roomTypeId = booking.room_type_id;
+        
+        if (roomTypeId) {
+          // Get pms_mappings for this room type to find child units
+          const { data: mappings } = await supabaseClient
+            .from('pms_mappings')
+            .select('child_unit_ids, assignment_mode')
+            .eq('property_id', property.id)
+            .eq('internal_id', roomTypeId)
+            .single();
+          
+          const childUnits = (mappings?.child_unit_ids || []) as Array<{ unit_id: string; unit_name: string }>;
+          const mode = mappings?.assignment_mode || multiUnitConfig.default_mode || 'round_robin';
+          
+          if (childUnits.length > 0) {
+            if (mode === 'round_robin') {
+              // Get the last assigned unit for this room type
+              const { data: lastBooking } = await supabaseClient
+                .from('bookings')
+                .select('ai_metadata')
+                .eq('property_id', property.id)
+                .eq('room_type_id', roomTypeId)
+                .not('ai_metadata->assigned_unit_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+              
+              const lastAssigned = (lastBooking?.ai_metadata as any)?.assigned_unit_id;
+              const lastIndex = lastAssigned 
+                ? childUnits.findIndex(u => u.unit_id === lastAssigned)
+                : -1;
+              const nextIndex = (lastIndex + 1) % childUnits.length;
+              assignedUnitId = childUnits[nextIndex].unit_id;
+              console.log(`Round-robin assigned unit: ${childUnits[nextIndex].unit_name} (${assignedUnitId})`);
+              
+            } else if (mode === 'lowest_occupancy') {
+              // Count booked nights per unit in the booking date range
+              const unitOccupancy = new Map<string, number>();
+              for (const unit of childUnits) {
+                const { count } = await supabaseClient
+                  .from('property_availability')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('property_id', property.id)
+                  .eq('room_type', unit.unit_id)
+                  .gte('date', booking.check_in_date)
+                  .lt('date', booking.check_out_date)
+                  .eq('available_units', 0);
+                unitOccupancy.set(unit.unit_id, count || 0);
+              }
+              
+              // Pick unit with fewest booked nights
+              let minOcc = Infinity;
+              let bestUnit = childUnits[0];
+              for (const unit of childUnits) {
+                const occ = unitOccupancy.get(unit.unit_id) || 0;
+                if (occ < minOcc) { minOcc = occ; bestUnit = unit; }
+              }
+              assignedUnitId = bestUnit.unit_id;
+              console.log(`Lowest-occupancy assigned unit: ${bestUnit.unit_name} (${assignedUnitId})`);
+            }
+            
+            // Persist assignment in booking metadata
+            if (assignedUnitId) {
+              await supabaseClient.from('bookings').update({
+                ai_metadata: {
+                  ...(booking.ai_metadata as object || {}),
+                  assigned_unit_id: assignedUnitId,
+                  assignment_mode: mode,
+                  assigned_at: new Date().toISOString(),
+                },
+              }).eq('id', booking.id);
+            }
+          }
+        }
+      } catch (unitError) {
+        console.error('Multi-unit assignment error (non-fatal):', unitError);
+        // Non-fatal — booking proceeds at room-type level
+      }
+    }
+    // ─── END MULTI-UNIT AUTO-ASSIGNMENT ────────────────────────────────
+
     // Check if this is a ROL'OS native property first
     if (property.is_rol_property) {
       console.log('ROL property detected - creating native reservation via roomsonline-pms-api');
