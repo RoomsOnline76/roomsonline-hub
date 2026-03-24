@@ -190,6 +190,10 @@ export default function PMSIntegrations() {
             <ApiTab property={property} />
             <IntegrationDocumentation type="api" />
           </TabsContent>
+
+          <TabsContent value="portfolio" className="space-y-4">
+            <PortfolioWidgetTab property={property} />
+          </TabsContent>
         </Tabs>
       </div>
     </>

@@ -269,7 +269,7 @@
       for (var i = 0; i < mutations.length; i++) {
         var added = mutations[i].addedNodes;
         for (var j = 0; j < added.length; j++) {
-          if (added[j].nodeType === 1 && (added[j].hasAttribute(ATTR) || added[j].querySelector('[' + ATTR + ']'))) {
+          if (added[j].nodeType === 1 && (added[j].hasAttribute(ATTR) || added[j].querySelector('[' + ATTR + ']') || added[j].hasAttribute(PORTFOLIO_ATTR) || added[j].querySelector('[' + PORTFOLIO_ATTR + ']'))) {
             shouldInit = true;
             break;
           }
