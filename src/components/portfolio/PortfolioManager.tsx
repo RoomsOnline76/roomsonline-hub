@@ -72,7 +72,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
 
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name, slug, owner_id: user?.user?.id } as any)
+        .insert({ name, slug: autoSlug, owner_id: user?.user?.id } as any)
         .select()
         .single();
 
