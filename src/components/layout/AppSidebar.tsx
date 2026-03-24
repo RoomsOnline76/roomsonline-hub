@@ -382,22 +382,29 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* ROL'OS PMS - single direct link */}
+        {/* ROL'OS PMS - collapsible with sub-items */}
         {hasRolProperties && (
           <div>
-            <NavLink item={{ title: "ROL'OS PMS", icon: BedDouble, href: "/pms" }} />
+            <CollapsibleMenu
+              title="ROL'OS PMS"
+              icon={BedDouble}
+              items={pmsItems}
+              open={pmsOpen}
+              onOpenChange={setPmsOpen}
+            />
           </div>
         )}
 
-        {/* Settings - Admin only (not collapsible, always visible) */}
+        {/* Administration - Admin only (collapsible) */}
         {isAdmin && (
           <div>
-            <SectionLabel>Admin</SectionLabel>
-            <div className="space-y-1">
-              {coreSettingsItems.map((item) => (
-                <NavLink key={item.href} item={item} />
-              ))}
-              {pendingRequests > 0 && (
+            <CollapsibleMenu
+              title="Administration"
+              icon={Users}
+              items={adminItems}
+              open={adminOpen}
+              onOpenChange={setAdminOpen}
+              extraItems={pendingRequests > 0 ? (
                 <NavLink
                   item={{
                     title: "Access Requests",
@@ -407,8 +414,8 @@ export function AppSidebar() {
                     requireAdmin: true,
                   }}
                 />
-              )}
-            </div>
+              ) : undefined}
+            />
           </div>
         )}
 
