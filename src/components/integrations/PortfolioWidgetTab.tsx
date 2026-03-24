@@ -124,6 +124,15 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
                 )}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 mt-1"
+              onClick={() => navigate("/admin/portfolios")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Manage Portfolios
+            </Button>
           </div>
 
           {/* Config controls */}

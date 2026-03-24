@@ -212,6 +212,9 @@ export default function AdminIntegrations() {
               <TabsContent value="api">
                 <ApiTab property={currentProperty} />
               </TabsContent>
+              <TabsContent value="portfolio">
+                <PortfolioWidgetTab property={currentProperty} />
+              </TabsContent>
             </Tabs>
           </div>
         ) : null}
