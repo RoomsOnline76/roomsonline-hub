@@ -81,6 +81,7 @@ const DevTesting = lazy(() => import("./pages/DevTesting"));
 const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
+const AdminPortfolios = lazy(() => import("./pages/admin/AdminPortfolios"));
 
 // Lazy — Connect portal pages
 const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
@@ -433,6 +434,14 @@ const App = () => (
             {/* Property onboarding - requires auth */}
             <Route path="/onboarding/:token" element={<PropertyOnboarding />} />
             {/* Admin contract and onboarding management */}
+            <Route
+              path="/admin/portfolios"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminPortfolios />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/admin/contracts"
               element={
