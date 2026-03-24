@@ -2370,6 +2370,9 @@ export type Database = {
       }
       pms_mappings: {
         Row: {
+          assignment_mode: string | null
+          child_unit_ids: Json | null
+          collection_id: string | null
           created_at: string | null
           external_id: string
           external_name: string | null
@@ -2379,11 +2382,15 @@ export type Database = {
           is_active: boolean | null
           mapping_type: string
           metadata: Json | null
+          parent_room_type_id: string | null
           property_id: string | null
           system_type: string
           updated_at: string | null
         }
         Insert: {
+          assignment_mode?: string | null
+          child_unit_ids?: Json | null
+          collection_id?: string | null
           created_at?: string | null
           external_id: string
           external_name?: string | null
@@ -2393,11 +2400,15 @@ export type Database = {
           is_active?: boolean | null
           mapping_type: string
           metadata?: Json | null
+          parent_room_type_id?: string | null
           property_id?: string | null
           system_type: string
           updated_at?: string | null
         }
         Update: {
+          assignment_mode?: string | null
+          child_unit_ids?: Json | null
+          collection_id?: string | null
           created_at?: string | null
           external_id?: string
           external_name?: string | null
@@ -2407,6 +2418,7 @@ export type Database = {
           is_active?: boolean | null
           mapping_type?: string
           metadata?: Json | null
+          parent_room_type_id?: string | null
           property_id?: string | null
           system_type?: string
           updated_at?: string | null
@@ -2905,6 +2917,7 @@ export type Database = {
           checkfront_property_code: string | null
           city: string
           cloudbeds_property_id: string | null
+          collections: Json | null
           commercial_model: string | null
           country: string
           created_at: string | null
@@ -2929,6 +2942,7 @@ export type Database = {
           littlehotelier_region: string | null
           longitude: number | null
           max_guests: number
+          multi_unit_config: Json | null
           name: string
           navigation_tags: string[] | null
           owner_email: string | null
@@ -2975,6 +2989,7 @@ export type Database = {
           checkfront_property_code?: string | null
           city: string
           cloudbeds_property_id?: string | null
+          collections?: Json | null
           commercial_model?: string | null
           country: string
           created_at?: string | null
@@ -2999,6 +3014,7 @@ export type Database = {
           littlehotelier_region?: string | null
           longitude?: number | null
           max_guests?: number
+          multi_unit_config?: Json | null
           name: string
           navigation_tags?: string[] | null
           owner_email?: string | null
@@ -3045,6 +3061,7 @@ export type Database = {
           checkfront_property_code?: string | null
           city?: string
           cloudbeds_property_id?: string | null
+          collections?: Json | null
           commercial_model?: string | null
           country?: string
           created_at?: string | null
@@ -3069,6 +3086,7 @@ export type Database = {
           littlehotelier_region?: string | null
           longitude?: number | null
           max_guests?: number
+          multi_unit_config?: Json | null
           name?: string
           navigation_tags?: string[] | null
           owner_email?: string | null
@@ -3829,6 +3847,97 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_portfolio_members: {
+        Row: {
+          created_at: string | null
+          id: string
+          portfolio_id: string
+          property_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          portfolio_id: string
+          property_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          portfolio_id?: string
+          property_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_portfolio_members_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_portfolio_members_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_portfolio_members_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_portfolio_members_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_portfolios: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          owner_id: string | null
+          parent_portfolio_id: string | null
+          slug: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          owner_id?: string | null
+          parent_portfolio_id?: string | null
+          slug?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          owner_id?: string | null
+          parent_portfolio_id?: string | null
+          slug?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_portfolios_parent_portfolio_id_fkey"
+            columns: ["parent_portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
             referencedColumns: ["id"]
           },
         ]
@@ -8533,6 +8642,7 @@ export type Database = {
           brand_primary_color: string | null
           brand_secondary_color: string | null
           city: string | null
+          collections: Json | null
           country: string | null
           created_at: string | null
           description: string | null
@@ -8564,6 +8674,7 @@ export type Database = {
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           city?: string | null
+          collections?: Json | null
           country?: string | null
           created_at?: string | null
           description?: string | null
@@ -8595,6 +8706,7 @@ export type Database = {
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
           city?: string | null
+          collections?: Json | null
           country?: string | null
           created_at?: string | null
           description?: string | null
