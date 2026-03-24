@@ -115,11 +115,18 @@ const insightsItems: NavItem[] = [
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireDevOrFearless: true },
 ];
 
-// Settings - Admin only
-const coreSettingsItems: NavItem[] = [
-  { title: "Team", icon: Users, href: "/admin-users", requireAdmin: true },
+// Administration - Admin only (matches navigation.ts adminSection)
+const adminItems: NavItem[] = [
+  { title: "Admin Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", requireAdmin: true },
+  { title: "All Bookings", icon: BookOpen, href: "/admin/all-bookings", requireAdmin: true },
+  { title: "All Properties", icon: Building2, href: "/admin/all-properties", requireAdmin: true },
+  { title: "Users", icon: Users, href: "/admin-users", requireAdmin: true },
+  { title: "Payments", icon: CreditCard, href: "/admin/payments", requireAdmin: true },
   { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
   { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
+  { title: "Portfolios", icon: FolderOpen, href: "/admin/portfolios", requireAdmin: true },
+  { title: "Review Queue", icon: ClipboardCheck, href: "/admin/review-queue", requireAdmin: true },
+  { title: "System Config", icon: Settings, href: "/admin/system", requireAdmin: true },
 ];
 
 // Edit & Audit menu - Admin only content management
@@ -142,7 +149,16 @@ const systemItems: NavItem[] = [
   { title: "API Configurator", icon: Blocks, href: "/admin/system/api-configurator", requireDevOrFearless: true },
 ];
 
-// ROL'OS PMS - single direct link to PMS UI (sub-navigation lives inside PMS layout)
+// ROL'OS PMS sub-items (matches navigation.ts pmsSection)
+const pmsItems: NavItem[] = [
+  { title: "PMS Dashboard", icon: LayoutDashboard, href: "/pms" },
+  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
+  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
+  { title: "Guests", icon: Users, href: "/pms/guests" },
+  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
+  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
+  { title: "Integrations", icon: Code2, href: "/pms/integrations" },
+];
 
 export function AppSidebar() {
   const location = useLocation();
