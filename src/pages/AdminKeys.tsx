@@ -313,6 +313,7 @@ export default function AdminKeys() {
     fetchLittlehotelierCredentials();
     fetchHotelbedsCredentials();
     fetchProfitroomCredentials();
+    fetchRentalsunitedCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
