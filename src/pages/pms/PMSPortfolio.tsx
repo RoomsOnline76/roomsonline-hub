@@ -96,7 +96,7 @@ export default function PMSPortfolio() {
   });
 
   const summaries = useMemo<PropertySummary[]>(() => {
-    return properties.map(prop => {
+    return filteredProperties.map(prop => {
       const bookings = allBookings.filter((b: any) => b.property_id === prop.id);
       const active = bookings.filter((b: any) => b.status !== "cancelled" && b.status !== "failed");
       const rooms = allRooms.filter((r: any) => r.property_id === prop.id);
@@ -131,7 +131,7 @@ export default function PMSPortfolio() {
         todayDepartures,
       };
     }).sort((a, b) => b.revenue - a.revenue);
-  }, [properties, allBookings, allRooms, today]);
+  }, [filteredProperties, allBookings, allRooms, today]);
 
   const totals = useMemo(() => {
     const avgRevpar = summaries.length > 0
