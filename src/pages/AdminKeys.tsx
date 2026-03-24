@@ -76,6 +76,7 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "roomkey":
     case "roomracoon":
     case "profitroom":
+    case "rentalsunited":
       return BedDouble;
     case "google":
       return MapPin;
