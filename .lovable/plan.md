@@ -1,70 +1,31 @@
 
 
-# Rentals United — Admin Card, Adapter Build & Tracking
+# Reorder Sidebar Sections for Admin/Dev Users & Hide System Config
 
-## Overview
-Unhide Rentals United, add a full custom card to AdminKeys (matching ProfitRoom pattern), and build out the `rentalsunited-api` edge function as a working XML adapter against the Rentals United API.
+## Problem
+For admin/dev users, Administration should be the primary section at the top of the sidebar, expanded by default. Current order doesn't reflect admin workflow priority. Also, the "System Config" item links to an empty page and should be hidden.
 
 ## Changes
 
-### 1. Unhide Rentals United in config
-- `src/lib/pmsSystemsConfig.ts`: Remove `hidden: true` from the `rentalsunited` entry
-- `src/components/pms/channels/ChannelLogo.tsx`: Fix key inconsistency — rename `rental_united` to `rentalsunited` so it matches everywhere
+### 1. Reorder `navigationConfig` in `src/config/navigation.ts`
 
-### 2. Add Rentals United custom card to AdminKeys
-Following the ProfitRoom card pattern exactly:
+Change the array order from:
+`[workspace, insights, pms, admin, editAudit, systemControl]`
 
-**State (in `AdminKeys.tsx`):**
-- `rentalsunitedCredentials`, `rentalsunitedApiKey`, `rentalsunitedUsername`, `rentalsunitedEndpointUrl`
-- `rentalsunitedEnvironment`, `editingRentalsunited`, `savingRentalsunited`, `togglingRentalsunited`
+To:
+`[admin, pms, workspace, insights, systemControl, editAudit]`
 
-**Handlers:**
-- `fetchRentalsunitedCredentials()` — query `pms_credentials` where `system_type = 'rentalsunited'`
-- `handleSaveRentalsunitedCredentials()` — upsert with `api_key`, `username`, `base_url`
-- `handleToggleRentalsunited()` — toggle `is_active`
+This puts Administration first, ROL'OS PMS second, Workspace third, then Insights, System Control, and Edit & Audit last.
 
-**Card renderer `renderRentalsunitedCard()`:**
-- Icon: `BedDouble`, title "Rentals United", badge "XML API"
-- `IntegrationStatusDropdown` for tracker status
-- `Switch` for on/off toggle
-- `EnvironmentToggle` (sandbox/production)
-- Credential fields: API Username, API Password (stored as api_key), Endpoint URL
-- `PMSProgressToggles`, `PMSContactDetails`, `PMSDevNotes`
-- "Field Mappings" button → `/admin/pms-config/rentalsunited`
-- "Test Connection" button → calls edge function health_check
+### 2. Make Administration expanded by default
+- Set `collapsible: false` (already set) — keeps it always expanded for admin/dev users
 
-**Insert into render:** Replace `{/* Rentals United hidden */}` comment with `{renderRentalsunitedCard()}`
+### 3. Hide "System Config" item
+- Remove the `admin-system` entry (`{ id: 'admin-system', title: 'System Config', ... }`) from the `adminSection.items` array since it points to an empty page (currently redirects to `/admin/dashboard` anyway)
 
-### 3. Expand `rentalsunited-api` edge function
-Build the XML adapter following the RU developer docs:
-
-**Authentication:** XML body with `<Authentication><ApiKey>` or `<UserName>/<Password>` tags, POST to the configured endpoint URL.
-
-**Supported actions:**
-- `health_check` — existing, enhanced to actually call RU's service connection endpoint
-- `list_properties` — `Pull_ListOwnerProp_RQ` XML call
-- `get_property` — `Pull_ListSpecProp_RQ` for single property details
-- `get_availability` — `Pull_ListPropertyAvailabilityCalendar_RQ`
-- `get_prices` — `Pull_ListPropertyPrices_RQ`
-- `list_reservations` — `Pull_ListReservations_RQ`
-
-**XML helper functions:** Build/parse XML using string templates (no external deps needed for simple XML). Include proper error parsing from RU's `<Status ID="1">` error responses.
-
-**Credentials:** Read from `pms_credentials` table where `system_type = 'rentalsunited'`, using the authenticated user's property mapping or global credentials.
-
-### 4. Update `RolosChannelApiCards.tsx`
-Fix the key from `rental_united` to `rentalsunited` to match the system-wide convention.
-
-### 5. Add `rentalsunited` to `getPMSIcon` switch
-Add case in AdminKeys icon mapper.
-
-## Files Summary
+## Files
 
 | Action | File | Purpose |
 |--------|------|---------|
-| Modify | `src/lib/pmsSystemsConfig.ts` | Remove `hidden: true` |
-| Modify | `src/pages/AdminKeys.tsx` | Add RU state, handlers, card renderer |
-| Modify | `supabase/functions/rentalsunited-api/index.ts` | Full XML adapter with 6 actions |
-| Modify | `src/components/integrations/RolosChannelApiCards.tsx` | Fix key `rental_united` → `rentalsunited` |
-| Modify | `src/components/pms/channels/ChannelLogo.tsx` | Fix key `rental_united` → `rentalsunited` |
+| Modify | `src/config/navigation.ts` | Reorder sections, remove System Config item |
 
