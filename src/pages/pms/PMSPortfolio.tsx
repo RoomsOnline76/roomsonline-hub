@@ -182,6 +182,12 @@ export default function PMSPortfolio() {
           </Badge>
         </div>
 
+        {/* Portfolio filter */}
+        <PortfolioManager
+          selectedPortfolioId={selectedPortfolioId}
+          onSelect={setSelectedPortfolioId}
+        />
+
         {/* Portfolio KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>

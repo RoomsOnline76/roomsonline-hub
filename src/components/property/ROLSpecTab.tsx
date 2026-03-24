@@ -625,6 +625,14 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="collections" className="mt-4">
+          <CollectionsManager
+            collections={data.collections || []}
+            onChange={(collections) => updateField("collections", collections)}
+            onDirty={onDirty}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
