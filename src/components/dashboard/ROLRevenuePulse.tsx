@@ -27,6 +27,7 @@ import { RiskIndicators } from "./RiskIndicators";
 import { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 import { PortfolioDemandForecast } from "./PortfolioDemandForecast";
 import { AccountingDashboard } from "@/components/insights/AccountingDashboard";
+import { BillingPulseCard } from "./BillingPulseCard";
 import { BankExportDashboard } from "@/components/bank-export";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { supabase } from "@/integrations/supabase/client";
