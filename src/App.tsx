@@ -82,6 +82,7 @@ const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const AdminPortfolios = lazy(() => import("./pages/admin/AdminPortfolios"));
+const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
 
 // Lazy — Connect portal pages
 const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
@@ -507,6 +508,14 @@ const App = () => (
               element={
                 <ProtectedRoute requireAdmin={true}>
                   <AdminReviewQueue />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/billing-defaults"
+              element={
+                <ProtectedRoute requireDevOrFearless={true}>
+                  <AdminBillingDefaults />
                 </ProtectedRoute>
               }
             />

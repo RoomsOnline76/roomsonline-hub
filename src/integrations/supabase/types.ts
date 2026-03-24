@@ -185,6 +185,53 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_global_defaults: {
+        Row: {
+          default_commission_rate: number | null
+          default_subscription_fee: number | null
+          default_transaction_fee: number | null
+          id: string
+          notes: string | null
+          payment_facilitator_fee: number | null
+          strategy: Database["public"]["Enums"]["billing_strategy"]
+          updated_at: string | null
+          updated_by: string | null
+          white_label_monthly_fee: number | null
+        }
+        Insert: {
+          default_commission_rate?: number | null
+          default_subscription_fee?: number | null
+          default_transaction_fee?: number | null
+          id?: string
+          notes?: string | null
+          payment_facilitator_fee?: number | null
+          strategy: Database["public"]["Enums"]["billing_strategy"]
+          updated_at?: string | null
+          updated_by?: string | null
+          white_label_monthly_fee?: number | null
+        }
+        Update: {
+          default_commission_rate?: number | null
+          default_subscription_fee?: number | null
+          default_transaction_fee?: number | null
+          id?: string
+          notes?: string | null
+          payment_facilitator_fee?: number | null
+          strategy?: Database["public"]["Enums"]["billing_strategy"]
+          updated_at?: string | null
+          updated_by?: string | null
+          white_label_monthly_fee?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_global_defaults_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_mappings: {
         Row: {
           description: string | null
@@ -3484,6 +3531,7 @@ export type Database = {
           updated_at: string | null
           volume_tier_json: Json | null
           white_label_allowed: boolean | null
+          white_label_monthly_fee: number | null
         }
         Insert: {
           billing_start_date?: string | null
@@ -3501,6 +3549,7 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_monthly_fee?: number | null
         }
         Update: {
           billing_start_date?: string | null
@@ -3518,6 +3567,7 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_monthly_fee?: number | null
         }
         Relationships: [
           {

@@ -1,0 +1,138 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Save, DollarSign, ArrowLeft } from "lucide-react";
+import { useBillingDefaults, BillingDefault } from "@/hooks/useBillingDefaults";
+import { useAuth } from "@/hooks/useAuth";
+
+const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
+  default: { label: "Default (Commission)", description: "Standard listing/PMS commission model" },
+  widget: { label: "Widget (Tiered)", description: "Volume-based commission tiers for embeds" },
+  rolos_pms: { label: "ROL'OS PMS", description: "Monthly subscription + per-booking fee" },
+  portfolio_aggregator: { label: "Portfolio Aggregator", description: "Reduced rate for multi-property owners" },
+  enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly fee, zero commission" },
+  volume_tiered: { label: "Volume Tiered", description: "Sliding scale based on unit count" },
+  payment_facilitator: { label: "Payment Facilitator", description: "Transaction fee only" },
+};
+
+function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
+  const meta = STRATEGY_LABELS[item.strategy] || { label: item.strategy, description: "" };
+  const [commission, setCommission] = useState(item.default_commission_rate?.toString() ?? "");
+  const [subscription, setSubscription] = useState(item.default_subscription_fee?.toString() ?? "");
+  const [transaction, setTransaction] = useState(item.default_transaction_fee?.toString() ?? "");
+  const [whiteLabel, setWhiteLabel] = useState(item.white_label_monthly_fee?.toString() ?? "");
+  const [payFac, setPayFac] = useState(item.payment_facilitator_fee?.toString() ?? "");
+  const [notes, setNotes] = useState(item.notes ?? "");
+
+  const handleSave = () => {
+    onSave({
+      id: item.id,
+      default_commission_rate: commission ? parseFloat(commission) : null,
+      default_subscription_fee: subscription ? parseFloat(subscription) : null,
+      default_transaction_fee: transaction ? parseFloat(transaction) : null,
+      white_label_monthly_fee: whiteLabel ? parseFloat(whiteLabel) : null,
+      payment_facilitator_fee: payFac ? parseFloat(payFac) : null,
+      notes: notes || null,
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-primary" />
+          {meta.label}
+        </CardTitle>
+        <CardDescription className="text-xs">{meta.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Commission Rate (%)</Label>
+            <Input type="number" step="0.5" min="0" max="100" value={commission} onChange={(e) => setCommission(e.target.value)} placeholder="—" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Subscription Fee (ZAR/mo)</Label>
+            <Input type="number" step="100" min="0" value={subscription} onChange={(e) => setSubscription(e.target.value)} placeholder="—" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Transaction Fee (%)</Label>
+            <Input type="number" step="0.1" min="0" max="100" value={transaction} onChange={(e) => setTransaction(e.target.value)} placeholder="—" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">White-Label Fee (ZAR/mo)</Label>
+            <Input type="number" step="50" min="0" value={whiteLabel} onChange={(e) => setWhiteLabel(e.target.value)} placeholder="0" className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label className="text-xs">Payment Facilitator Fee (%)</Label>
+            <Input type="number" step="0.1" min="0" max="100" value={payFac} onChange={(e) => setPayFac(e.target.value)} placeholder="2.5" className="h-8 text-sm" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Notes</Label>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-xs" placeholder="Internal notes about this strategy's defaults..." />
+        </div>
+        <Button onClick={handleSave} disabled={saving} size="sm" className="w-full">
+          {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+          Save Defaults
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function AdminBillingDefaults() {
+  const navigate = useNavigate();
+  const { isDev, isFearlessLeader, loading: authLoading } = useAuth();
+  const { defaults, isLoading, update } = useBillingDefaults();
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isDev && !isFearlessLeader) {
+    navigate("/admin/dashboard");
+    return null;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-xl font-bold">Billing Defaults</h1>
+          <p className="text-sm text-muted-foreground">
+            Platform-wide default rates per billing strategy. Per-property overrides take priority.
+          </p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {defaults.map((item) => (
+            <StrategyCard
+              key={item.id}
+              item={item}
+              onSave={(d) => update.mutate(d)}
+              saving={update.isPending}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

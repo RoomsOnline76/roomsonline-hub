@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Save } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
+import { useBillingDefaults } from "@/hooks/useBillingDefaults";
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
@@ -23,8 +24,18 @@ interface BillingConfigTabProps {
   propertyId: string;
 }
 
+function GlobalHint({ value, label }: { value: number | null | undefined; label: string }) {
+  if (value == null) return null;
+  return (
+    <p className="text-[10px] text-muted-foreground">
+      Global default: {value}{label}
+    </p>
+  );
+}
+
 export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
   const { config, isLoading, upsert } = useBillingConfig(propertyId);
+  const { getDefaultsForStrategy } = useBillingDefaults();
 
   const [strategy, setStrategy] = useState("default");
   const [commissionRate, setCommissionRate] = useState("");
@@ -32,6 +43,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
   const [transactionFee, setTransactionFee] = useState("");
   const [paymentFacilitator, setPaymentFacilitator] = useState(false);
   const [whiteLabel, setWhiteLabel] = useState(false);
+  const [whiteLabelFee, setWhiteLabelFee] = useState("");
   const [volumeTiers, setVolumeTiers] = useState("");
   const [billingStartDate, setBillingStartDate] = useState("");
 
@@ -43,10 +55,13 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
       setTransactionFee(config.transaction_fee_percentage?.toString() || "");
       setPaymentFacilitator(config.payment_facilitator_enabled || false);
       setWhiteLabel(config.white_label_allowed || false);
+      setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
       setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
       setBillingStartDate(config.billing_start_date || "");
     }
   }, [config]);
+
+  const globalDefaults = getDefaultsForStrategy(strategy);
 
   const handleSave = () => {
     let volumeTierJson = null;
@@ -66,9 +81,10 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
       transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
       payment_facilitator_enabled: paymentFacilitator,
       white_label_allowed: whiteLabel,
+      white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       volume_tier_json: volumeTierJson,
       billing_start_date: billingStartDate || null,
-    });
+    } as any);
   };
 
   if (isLoading) {
@@ -112,7 +128,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
 
         {/* Commission Rate */}
         {showCommission && (
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Commission Rate (%)</Label>
             <Input
               type="number"
@@ -121,14 +137,15 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               max="100"
               value={commissionRate}
               onChange={(e) => setCommissionRate(e.target.value)}
-              placeholder={strategy === "default" ? "10" : "5"}
+              placeholder={globalDefaults?.default_commission_rate?.toString() ?? (strategy === "default" ? "10" : "5")}
             />
+            <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
         )}
 
         {/* Subscription Fee */}
         {showSubscription && (
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Monthly Subscription Fee (ZAR)</Label>
             <Input
               type="number"
@@ -136,14 +153,15 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               min="0"
               value={subscriptionFee}
               onChange={(e) => setSubscriptionFee(e.target.value)}
-              placeholder="0"
+              placeholder={globalDefaults?.default_subscription_fee?.toString() ?? "0"}
             />
+            <GlobalHint value={globalDefaults?.default_subscription_fee} label=" ZAR" />
           </div>
         )}
 
         {/* Transaction Fee */}
         {showTransactionFee && (
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Transaction Fee (%)</Label>
             <Input
               type="number"
@@ -152,8 +170,9 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               max="100"
               value={transactionFee}
               onChange={(e) => setTransactionFee(e.target.value)}
-              placeholder="2.5"
+              placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
             />
+            <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
           </div>
         )}
 
@@ -191,6 +210,22 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
             <Label className="text-xs cursor-pointer">White-label Allowed</Label>
           </div>
         </div>
+
+        {/* White-label Fee (shown when toggle is on) */}
+        {whiteLabel && (
+          <div className="space-y-1">
+            <Label>White-Label Monthly Fee (ZAR)</Label>
+            <Input
+              type="number"
+              step="50"
+              min="0"
+              value={whiteLabelFee}
+              onChange={(e) => setWhiteLabelFee(e.target.value)}
+              placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
+            />
+            <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
+          </div>
+        )}
 
         {/* Billing Start Date */}
         <div className="space-y-2">
