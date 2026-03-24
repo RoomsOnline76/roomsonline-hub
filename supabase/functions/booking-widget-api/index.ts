@@ -60,6 +60,24 @@ serve(async (req) => {
 
     const embedBaseUrl = `https://book.sleepinafrica.roomsonline.co.za/embed/property/${property.slug}`;
 
+    // Apply collection branding overrides if requested
+    let brandOverrides: any = null;
+    if (collectionSlug && Array.isArray(property.collections)) {
+      const collection = property.collections.find(
+        (c: any) => c.slug === collectionSlug && c.is_active
+      );
+      if (collection) {
+        brandOverrides = {
+          collection_id: collection.collection_id,
+          name: collection.name,
+          primary_color: collection.branding?.primary_color,
+          logo_url: collection.branding?.logo_url,
+          pricing_rules: collection.pricing_rules,
+          availability_rules: collection.availability_rules,
+        };
+      }
+    }
+
     const response = {
       property: {
         id: property.id,
@@ -69,16 +87,17 @@ serve(async (req) => {
         address: property.address,
         city: property.city,
         brand: {
-          primary_color: property.brand_primary_color,
+          primary_color: brandOverrides?.primary_color || property.brand_primary_color,
           secondary_color: property.brand_secondary_color,
           font_color: property.brand_font_color,
-          logo_url: property.brand_logo_url,
+          logo_url: brandOverrides?.logo_url || property.brand_logo_url,
         },
         external_system: property.external_system,
         hero_image: Array.isArray(property.images) && property.images.length > 0
           ? ((property.images[0] as any)?.url || property.images[0])
           : null,
       },
+      collection: brandOverrides,
       rooms: (rooms || []).map((r: any) => ({
         id: r.id,
         name: r.name,
@@ -87,7 +106,7 @@ serve(async (req) => {
         thumbnail_url: r.thumbnail_url,
       })),
       widget_enabled: config?.is_active ?? true,
-      embed_url: embedBaseUrl,
+      embed_url: embedBaseUrl + (collectionSlug ? `?collection=${collectionSlug}` : ''),
       snippet: {
         simple: `<script src="https://widget.roomsonline.co.za/rol-embed.js"><\/script>\n<div data-rolos-property="${property.slug}"></div>`,
         branded: `<script src="https://widget.roomsonline.co.za/rol-embed.js"><\/script>\n<div data-rolos-property="${property.slug}"${property.brand_primary_color ? `\n     data-brand-color="${property.brand_primary_color}"` : ''}${property.brand_logo_url ? `\n     data-brand-logo="${property.brand_logo_url}"` : ''}></div>`,

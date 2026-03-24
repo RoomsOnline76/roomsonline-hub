@@ -150,6 +150,9 @@
     }
   },
   "changelog": [
+    "v1.2: Added collections field (multi-brand) as admin_only",
+    "v1.2: Added multi_unit_config field (auto-assignment) as admin_only",
+    "v1.2: Added portfolio_group field (multi-property groups) as admin_only",
     "v1.1: Added explicit rules for charge_types and payment_types",
     "v1.1: Clarified handling of check-in/check-out times",
     "v1.1: Defined star_rating as seed-only with PMS exceptions (Cloudbeds, Little Hotelier)",
