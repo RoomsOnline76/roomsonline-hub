@@ -289,6 +289,13 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
             <Compass className="h-3.5 w-3.5" />
             Navigation
           </TabsTrigger>
+          <TabsTrigger 
+            value="collections" 
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Collections
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-4 mt-4">
