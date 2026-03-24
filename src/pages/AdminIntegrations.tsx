@@ -31,15 +31,32 @@ interface Property {
 }
 
 export default function AdminIntegrations() {
-  const { user } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
   const [loading, setLoading] = useState(true);
+  const isInternalUser = isAdmin || isDev || isFearlessLeader;
 
   useEffect(() => {
     if (!user) return;
     const fetchProperties = async () => {
+      if (isInternalUser) {
+        // Admin/dev/fearless leader sees all active properties
+        const { data } = await supabase
+          .from("properties")
+          .select("id, name, slug, brand_primary_color, brand_logo_url")
+          .eq("is_active", true)
+          .order("name");
+        
+        setProperties(data || []);
+        if (!selectedProperty && data && data.length > 0) {
+          setSelectedProperty(data[0].id);
+        }
+        setLoading(false);
+        return;
+      }
+
       const { data: profileData } = await supabase
         .from("profiles")
         .select("email")
@@ -76,7 +93,7 @@ export default function AdminIntegrations() {
       setLoading(false);
     };
     fetchProperties();
-  }, [user]);
+  }, [user, isInternalUser]);
 
   useEffect(() => {
     if (selectedProperty) {
