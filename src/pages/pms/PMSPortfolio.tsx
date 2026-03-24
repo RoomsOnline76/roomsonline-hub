@@ -37,9 +37,30 @@ export default function PMSPortfolio() {
   const { properties, loading: propLoading } = usePmsPropertyId();
   const [, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
+
+  // Fetch portfolio members for filtering
+  const { data: portfolioMembers = [] } = useQuery({
+    queryKey: ["portfolio-members-filter", selectedPortfolioId],
+    queryFn: async () => {
+      if (!selectedPortfolioId) return [];
+      const { data } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("property_id")
+        .eq("portfolio_id", selectedPortfolioId);
+      return (data || []).map((m: any) => m.property_id) as string[];
+    },
+    enabled: !!selectedPortfolioId,
+  });
+
+  // Filter properties by portfolio
+  const filteredProperties = useMemo(() => {
+    if (!selectedPortfolioId || portfolioMembers.length === 0) return properties;
+    return properties.filter(p => portfolioMembers.includes(p.id));
+  }, [properties, selectedPortfolioId, portfolioMembers]);
 
   // Fetch bookings for all properties in last 30 days
   const { data: allBookings = [], isLoading: bookingsLoading } = useQuery({
