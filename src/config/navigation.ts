@@ -161,12 +161,12 @@ const pmsSection: NavSection = {
 
 // Complete navigation configuration
 export const navigationConfig: NavSection[] = [
+  adminSection,
+  pmsSection,
   workspaceSection,
   insightsSection,
-  pmsSection,
-  adminSection,
-  editAuditSection,
   systemControlSection,
+  editAuditSection,
 ];
 
 // Mobile bottom nav items - simplified for touch
