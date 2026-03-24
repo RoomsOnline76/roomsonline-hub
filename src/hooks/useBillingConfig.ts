@@ -43,7 +43,7 @@ export function useBillingConfig(propertyId: string | undefined) {
     mutationFn: async (config: Partial<BillingConfig> & { property_id: string }) => {
       const { data, error } = await supabase
         .from("property_billing_configs")
-        .upsert(config, { onConflict: "property_id" })
+        .upsert(config as any, { onConflict: "property_id" })
         .select()
         .single();
 
