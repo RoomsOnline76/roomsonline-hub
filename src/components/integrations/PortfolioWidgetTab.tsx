@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Copy, ExternalLink, Building2, Check, Palette } from "lucide-react";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 
 interface PortfolioWidgetTabProps {
@@ -22,6 +23,7 @@ interface PortfolioWidgetTabProps {
 
 export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
   const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#2563eb");
   const [brandLogo, setBrandLogo] = useState("");
@@ -122,6 +124,15 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
                 )}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 mt-1"
+              onClick={() => navigate("/admin/portfolios")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Manage Portfolios
+            </Button>
           </div>
 
           {/* Config controls */}

@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks } from "lucide-react";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -21,6 +21,7 @@ import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookBut
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
+import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface Property {
   id: string;
@@ -147,7 +148,7 @@ export default function AdminIntegrations() {
 
             {/* Integration tabs */}
             <Tabs defaultValue="direct" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-8">
+              <TabsList className="grid w-full grid-cols-9">
                 <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
                   <Link2 className="h-3.5 w-3.5" /> Direct Link
                 </TabsTrigger>
@@ -171,6 +172,9 @@ export default function AdminIntegrations() {
                 </TabsTrigger>
                 <TabsTrigger value="api" className="flex items-center gap-1.5 text-xs">
                   <Terminal className="h-3.5 w-3.5" /> API
+                </TabsTrigger>
+                <TabsTrigger value="portfolio" className="flex items-center gap-1.5 text-xs">
+                  <Building2 className="h-3.5 w-3.5" /> Portfolio
                 </TabsTrigger>
               </TabsList>
 
@@ -207,6 +211,9 @@ export default function AdminIntegrations() {
               </TabsContent>
               <TabsContent value="api">
                 <ApiTab property={currentProperty} />
+              </TabsContent>
+              <TabsContent value="portfolio">
+                <PortfolioWidgetTab property={currentProperty} />
               </TabsContent>
             </Tabs>
           </div>
