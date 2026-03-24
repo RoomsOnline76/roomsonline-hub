@@ -21,6 +21,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
 
   // Fetch portfolios
@@ -62,7 +63,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const slug = name
+      const autoSlug = slug.trim() || name
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
         .replace(/\s+/g, "-");
@@ -71,7 +72,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
 
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name, slug, owner_id: user?.user?.id } as any)
+        .insert({ name, slug: autoSlug, owner_id: user?.user?.id } as any)
         .select()
         .single();
 
@@ -94,6 +95,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
       toast({ title: "Portfolio created", description: `"${name}" has been created` });
       setOpen(false);
       setName("");
+      setSlug("");
       setSelectedProperties([]);
     },
     onError: (err: any) => {
@@ -154,6 +156,11 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
               <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">
                 {getMemberCount(p.id)}
               </Badge>
+              {p.slug && (
+                <Badge variant="outline" className="ml-0.5 text-[8px] h-4 px-1 font-mono">
+                  {p.slug}
+                </Badge>
+              )}
             </Button>
             <Button
               variant="ghost"
@@ -188,6 +195,18 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
                 placeholder="e.g. Western Cape Collection"
                 className="text-sm"
               />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Slug (for embed URL)</Label>
+              <Input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="auto-generated from name"
+                className="text-sm font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Leave blank to auto-generate. Used in embed URLs.
+              </p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Select Properties</Label>

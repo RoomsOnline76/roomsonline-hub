@@ -30,6 +30,7 @@ import PublicJournals from "./pages/PublicJournals";
 import PMSComparison from "./pages/PMSComparison";
 import PropertyListing from "./pages/PropertyListing";
 import EmbedProperty from "./pages/EmbedProperty";
+import EmbedPortfolio from "./pages/EmbedPortfolio";
 import StaffLogin from "./pages/StaffLogin";
 import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
@@ -617,6 +618,7 @@ const App = () => (
             />
             {/* Embeddable booking widget — public route */}
             <Route path="/embed/property/:slug" element={<EmbedProperty />} />
+            <Route path="/embed/portfolio/:portfolioSlug" element={<EmbedPortfolio />} />
             {/* Branded staff login — public route (smart branding via ?property= or localStorage) */}
             <Route path="/staff-login" element={<StaffLogin />} />
             <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />

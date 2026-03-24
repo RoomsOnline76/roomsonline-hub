@@ -8754,6 +8754,10 @@ export type Database = {
         Args: { journal_id: string; journal_title: string }
         Returns: string
       }
+      generate_portfolio_slug: {
+        Args: { portfolio_id: string; portfolio_name: string }
+        Returns: string
+      }
       generate_property_slug: {
         Args: { property_id: string; property_name: string }
         Returns: string

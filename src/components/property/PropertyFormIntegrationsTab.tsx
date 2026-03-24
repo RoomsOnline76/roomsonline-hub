@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
@@ -15,6 +15,7 @@ import { IntegrationDocumentation } from "@/components/integrations/IntegrationD
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
+import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
@@ -61,7 +62,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
       {/* Integration Tabs */}
       <Tabs defaultValue="smart_button" className="space-y-4">
-        <TabsList className="grid grid-cols-8 w-full">
+        <TabsList className="grid grid-cols-9 w-full">
           <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative">
             <Sparkles className="h-3.5 w-3.5" />
             Smart Button
@@ -97,6 +98,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           <TabsTrigger value="api" className="gap-1.5 text-xs">
             <Terminal className="h-3.5 w-3.5" />
             API
+          </TabsTrigger>
+          <TabsTrigger value="portfolio" className="gap-1.5 text-xs">
+            <Building2 className="h-3.5 w-3.5" />
+            Portfolio
           </TabsTrigger>
         </TabsList>
 
@@ -139,6 +144,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
         <TabsContent value="api" className="space-y-4">
           <ApiTab property={property} />
           <IntegrationDocumentation type="api" />
+        </TabsContent>
+
+        <TabsContent value="portfolio" className="space-y-4">
+          <PortfolioWidgetTab property={property} />
         </TabsContent>
       </Tabs>
     </div>

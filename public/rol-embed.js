@@ -38,10 +38,12 @@
   var BASE = 'https://book.sleepinafrica.roomsonline.co.za';
   var VERSION = '1.0.0';
   var ATTR = 'data-rolos-property';
+  var PORTFOLIO_ATTR = 'data-rolos-portfolio';
   var INIT_ATTR = 'data-rolos-initialized';
 
   // Track all active widgets by slug
   var widgets = {};
+  var portfolioWidgets = {};
 
   function getAttr(el, name, fallback) {
     var val = el.getAttribute(name);
@@ -173,10 +175,57 @@
     }
   }
 
+  function createPortfolioWidget(container) {
+    if (container.getAttribute(INIT_ATTR)) return;
+    var slug = getAttr(container, PORTFOLIO_ATTR);
+    if (!slug) return;
+
+    var config = {
+      brandColor: getAttr(container, 'data-brand-color'),
+      brandLogo: getAttr(container, 'data-brand-logo'),
+      layout: getAttr(container, 'data-layout', 'grid'),
+      height: getAttr(container, 'data-height', '700'),
+    };
+
+    var params = new URLSearchParams();
+    if (config.brandColor) params.set('brand_color', config.brandColor);
+    if (config.brandLogo) params.set('brand_logo', config.brandLogo);
+    if (config.layout) params.set('layout', config.layout);
+    params.set('embed_version', VERSION);
+    var src = BASE + '/embed/portfolio/' + encodeURIComponent(slug) + '?' + params.toString();
+
+    var iframe = document.createElement('iframe');
+    iframe.src = src;
+    iframe.style.cssText = 'width:100%;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);transition:height 0.2s ease;';
+    iframe.style.height = config.height + 'px';
+    iframe.setAttribute('loading', 'lazy');
+    iframe.setAttribute('allow', 'payment');
+    iframe.setAttribute('title', 'Browse & Book Properties');
+    iframe.setAttribute('data-rolos-portfolio-slug', slug);
+
+    var loader = document.createElement('div');
+    loader.style.cssText = 'display:flex;align-items:center;justify-content:center;height:' + config.height + 'px;background:#fafafa;border-radius:8px;font-family:system-ui,sans-serif;color:#999;font-size:14px;';
+    loader.textContent = 'Loading portfolio...';
+    container.appendChild(loader);
+
+    iframe.onload = function () {
+      if (loader.parentNode) loader.parentNode.removeChild(loader);
+      emitEvent(container, 'rolos:loaded', { portfolio: slug });
+    };
+
+    container.appendChild(iframe);
+    container.setAttribute(INIT_ATTR, 'true');
+    portfolioWidgets[slug] = { container: container, iframe: iframe, config: config };
+  }
+
   function init() {
     var containers = document.querySelectorAll('[' + ATTR + ']');
     for (var i = 0; i < containers.length; i++) {
       createWidget(containers[i]);
+    }
+    var portfolioContainers = document.querySelectorAll('[' + PORTFOLIO_ATTR + ']');
+    for (var j = 0; j < portfolioContainers.length; j++) {
+      createPortfolioWidget(portfolioContainers[j]);
     }
   }
 
@@ -192,6 +241,15 @@
     },
     getWidgets: function () {
       return Object.keys(widgets);
+    },
+    getPortfolios: function () {
+      return Object.keys(portfolioWidgets);
+    },
+    initPortfolio: function () {
+      var containers = document.querySelectorAll('[' + PORTFOLIO_ATTR + ']');
+      for (var i = 0; i < containers.length; i++) {
+        createPortfolioWidget(containers[i]);
+      }
     },
   };
 
@@ -211,7 +269,7 @@
       for (var i = 0; i < mutations.length; i++) {
         var added = mutations[i].addedNodes;
         for (var j = 0; j < added.length; j++) {
-          if (added[j].nodeType === 1 && (added[j].hasAttribute(ATTR) || added[j].querySelector('[' + ATTR + ']'))) {
+          if (added[j].nodeType === 1 && (added[j].hasAttribute(ATTR) || added[j].querySelector('[' + ATTR + ']') || added[j].hasAttribute(PORTFOLIO_ATTR) || added[j].querySelector('[' + PORTFOLIO_ATTR + ']'))) {
             shouldInit = true;
             break;
           }
