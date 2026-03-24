@@ -28,6 +28,7 @@ import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import PublicJournals from "./pages/PublicJournals";
 import PMSComparison from "./pages/PMSComparison";
+import AffiliateDisclosure from "./pages/AffiliateDisclosure";
 import PropertyListing from "./pages/PropertyListing";
 import EmbedProperty from "./pages/EmbedProperty";
 import EmbedPortfolio from "./pages/EmbedPortfolio";
@@ -368,6 +369,7 @@ const App = () => (
           <Route path="/booking-confirmation/:bookingId" element={<BookingConfirmation />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/affiliate-disclosure" element={<AffiliateDisclosure />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<ContactUs />} />
           <Route path="/how-our-booking-engine-works" element={<PMSComparison />} />

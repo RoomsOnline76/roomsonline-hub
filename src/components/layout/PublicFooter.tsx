@@ -42,6 +42,12 @@ export function PublicFooter() {
             >
               Terms
             </Link>
+            <Link
+              to="/affiliate-disclosure"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Affiliate Disclosure
+            </Link>
           </nav>
 
           {/* Copyright */}
