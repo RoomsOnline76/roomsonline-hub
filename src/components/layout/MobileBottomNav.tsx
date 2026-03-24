@@ -22,13 +22,14 @@ export function MobileBottomNav() {
 
   const isActive = (href: string) => location.pathname === href;
 
-  // Build visible nav items based on role
-  const visibleItems: NavItem[] = [...mobileNavItems];
+  // Build visible nav items based on role - admin/dev get Admin first
+  const visibleItems: NavItem[] = [];
   
-  // Add admin item if user has admin+ role
   if (hasMinRole(userRole, 'admin')) {
     visibleItems.push(adminMobileNavItem);
   }
+  
+  visibleItems.push(...mobileNavItems);
   
   // Add system item if user has dev role
   if (hasMinRole(userRole, 'dev')) {
