@@ -96,6 +96,7 @@ import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
+import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -7897,6 +7898,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
                       {(isAdmin || isDev) && <TabsTrigger value="commission">Commission</TabsTrigger>}
+                      {(isAdmin || isDev) && <TabsTrigger value="billing">Billing</TabsTrigger>}
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
@@ -9214,7 +9216,13 @@ export default function PropertyForm() {
                       </TabsContent>
                     )}
 
-                    {/* Overview Sub-tab */}
+                    {/* Billing Sub-tab */}
+                    {(isAdmin || isDev) && (
+                      <TabsContent value="billing">
+                        <BillingConfigTab propertyId={id!} />
+                      </TabsContent>
+                    )}
+
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
                         const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);

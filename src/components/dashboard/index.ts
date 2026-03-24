@@ -7,3 +7,4 @@ export { RiskIndicators } from "./RiskIndicators";
 export { PropertyAcquisitionTracker } from "./PropertyAcquisitionTracker";
 export { NarrativeSummary } from "./NarrativeSummary";
 export { SystemAlertsPanel } from "./SystemAlertsPanel";
+export { BillingPulseCard } from "./BillingPulseCard";

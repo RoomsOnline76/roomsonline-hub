@@ -1,0 +1,63 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export interface BillingConfig {
+  id: string;
+  property_id: string;
+  owner_id: string | null;
+  billing_strategy: string;
+  commission_rate: number | null;
+  subscription_fee_monthly: number | null;
+  transaction_fee_percentage: number | null;
+  payment_facilitator_enabled: boolean;
+  white_label_allowed: boolean;
+  volume_tier_json: Record<string, number> | null;
+  billing_start_date: string | null;
+  linked_contract_id: string | null;
+  custom_overrides: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useBillingConfig(propertyId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["billing-config", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return null;
+      const { data, error } = await supabase
+        .from("property_billing_configs")
+        .select("*")
+        .eq("property_id", propertyId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as BillingConfig | null;
+    },
+    enabled: !!propertyId,
+  });
+
+  const upsert = useMutation({
+    mutationFn: async (config: Partial<BillingConfig> & { property_id: string }) => {
+      const { data, error } = await supabase
+        .from("property_billing_configs")
+        .upsert(config as any, { onConflict: "property_id" })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
+      toast.success("Billing configuration saved");
+    },
+    onError: (error) => {
+      toast.error("Failed to save billing config", { description: error.message });
+    },
+  });
+
+  return { config: query.data, isLoading: query.isLoading, error: query.error, upsert };
+}
