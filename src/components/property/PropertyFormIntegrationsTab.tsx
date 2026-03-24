@@ -99,6 +99,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
             <Terminal className="h-3.5 w-3.5" />
             API
           </TabsTrigger>
+          <TabsTrigger value="portfolio" className="gap-1.5 text-xs">
+            <Building2 className="h-3.5 w-3.5" />
+            Portfolio
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="smart_button" className="space-y-4">
