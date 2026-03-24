@@ -197,6 +197,18 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
               />
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Slug (for embed URL)</Label>
+              <Input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="auto-generated from name"
+                className="text-sm font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Leave blank to auto-generate. Used in embed URLs.
+              </p>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Select Properties</Label>
               <ScrollArea className="h-48 border border-border rounded-md p-2">
                 {properties.map((prop) => (
