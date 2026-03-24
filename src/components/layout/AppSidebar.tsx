@@ -364,6 +364,42 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
+        {/* Administration - Admin only (always expanded, shown first) */}
+        {isAdmin && (
+          <div>
+            <SectionLabel>Administration</SectionLabel>
+            <div className="space-y-1">
+              {adminItems.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+              {pendingRequests > 0 && (
+                <NavLink
+                  item={{
+                    title: "Access Requests",
+                    icon: Bell,
+                    href: "/admin/access-requests",
+                    badge: pendingRequests,
+                    requireAdmin: true,
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ROL'OS PMS - collapsible with sub-items */}
+        {hasRolProperties && (
+          <div>
+            <CollapsibleMenu
+              title="ROL'OS PMS"
+              icon={BedDouble}
+              items={pmsItems}
+              open={pmsOpen}
+              onOpenChange={setPmsOpen}
+            />
+          </div>
+        )}
+
         {/* Workspace */}
         <div>
           <SectionLabel>Workspace</SectionLabel>
@@ -383,43 +419,6 @@ export function AppSidebar() {
             ))}
           </div>
         </div>
-
-        {/* ROL'OS PMS - collapsible with sub-items */}
-        {hasRolProperties && (
-          <div>
-            <CollapsibleMenu
-              title="ROL'OS PMS"
-              icon={BedDouble}
-              items={pmsItems}
-              open={pmsOpen}
-              onOpenChange={setPmsOpen}
-            />
-          </div>
-        )}
-
-        {/* Administration - Admin only (collapsible) */}
-        {isAdmin && (
-          <div>
-            <CollapsibleMenu
-              title="Administration"
-              icon={Users}
-              items={adminItems}
-              open={adminOpen}
-              onOpenChange={setAdminOpen}
-              extraItems={pendingRequests > 0 ? (
-                <NavLink
-                  item={{
-                    title: "Access Requests",
-                    icon: Bell,
-                    href: "/admin/access-requests",
-                    badge: pendingRequests,
-                    requireAdmin: true,
-                  }}
-                />
-              ) : undefined}
-            />
-          </div>
-        )}
 
         {/* System - Dev/Fearless Leader (collapsible, collapsed by default) */}
         {(isDev || isFearlessLeader) && (
