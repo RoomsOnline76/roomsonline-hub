@@ -1,0 +1,212 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Save } from "lucide-react";
+import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
+
+const STRATEGY_OPTIONS = [
+  { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
+  { value: "widget", label: "Widget (Tiered)", description: "Volume-based commission tiers" },
+  { value: "rolos_pms", label: "ROL'OS PMS", description: "Monthly subscription + per-booking fee" },
+  { value: "portfolio_aggregator", label: "Portfolio Aggregator", description: "Reduced rate for multi-property" },
+  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Flat fee, zero commission" },
+  { value: "volume_tiered", label: "Volume Tiered", description: "Rate based on unit count" },
+  { value: "payment_facilitator", label: "Payment Facilitator", description: "Transaction fee only" },
+];
+
+interface BillingConfigTabProps {
+  propertyId: string;
+}
+
+export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
+  const { config, isLoading, upsert } = useBillingConfig(propertyId);
+
+  const [strategy, setStrategy] = useState("default");
+  const [commissionRate, setCommissionRate] = useState("");
+  const [subscriptionFee, setSubscriptionFee] = useState("");
+  const [transactionFee, setTransactionFee] = useState("");
+  const [paymentFacilitator, setPaymentFacilitator] = useState(false);
+  const [whiteLabel, setWhiteLabel] = useState(false);
+  const [volumeTiers, setVolumeTiers] = useState("");
+  const [billingStartDate, setBillingStartDate] = useState("");
+
+  useEffect(() => {
+    if (config) {
+      setStrategy(config.billing_strategy || "default");
+      setCommissionRate(config.commission_rate?.toString() || "");
+      setSubscriptionFee(config.subscription_fee_monthly?.toString() || "");
+      setTransactionFee(config.transaction_fee_percentage?.toString() || "");
+      setPaymentFacilitator(config.payment_facilitator_enabled || false);
+      setWhiteLabel(config.white_label_allowed || false);
+      setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
+      setBillingStartDate(config.billing_start_date || "");
+    }
+  }, [config]);
+
+  const handleSave = () => {
+    let volumeTierJson = null;
+    if (volumeTiers.trim()) {
+      try {
+        volumeTierJson = JSON.parse(volumeTiers);
+      } catch {
+        return;
+      }
+    }
+
+    upsert.mutate({
+      property_id: propertyId,
+      billing_strategy: strategy as BillingConfig["billing_strategy"],
+      commission_rate: commissionRate ? parseFloat(commissionRate) : null,
+      subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
+      transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
+      payment_facilitator_enabled: paymentFacilitator,
+      white_label_allowed: whiteLabel,
+      volume_tier_json: volumeTierJson,
+      billing_start_date: billingStartDate || null,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const showCommission = ["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy);
+  const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
+  const showTransactionFee = ["payment_facilitator"].includes(strategy);
+  const showVolumeTiers = strategy === "volume_tiered";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Strategy Selection */}
+        <div className="space-y-2">
+          <Label>Billing Strategy</Label>
+          <Select value={strategy} onValueChange={setStrategy}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STRATEGY_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <div>
+                    <span>{opt.label}</span>
+                    <span className="text-xs text-muted-foreground ml-2">— {opt.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Commission Rate */}
+        {showCommission && (
+          <div className="space-y-2">
+            <Label>Commission Rate (%)</Label>
+            <Input
+              type="number"
+              step="0.5"
+              min="0"
+              max="100"
+              value={commissionRate}
+              onChange={(e) => setCommissionRate(e.target.value)}
+              placeholder={strategy === "default" ? "10" : "5"}
+            />
+          </div>
+        )}
+
+        {/* Subscription Fee */}
+        {showSubscription && (
+          <div className="space-y-2">
+            <Label>Monthly Subscription Fee (ZAR)</Label>
+            <Input
+              type="number"
+              step="100"
+              min="0"
+              value={subscriptionFee}
+              onChange={(e) => setSubscriptionFee(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+        )}
+
+        {/* Transaction Fee */}
+        {showTransactionFee && (
+          <div className="space-y-2">
+            <Label>Transaction Fee (%)</Label>
+            <Input
+              type="number"
+              step="0.1"
+              min="0"
+              max="100"
+              value={transactionFee}
+              onChange={(e) => setTransactionFee(e.target.value)}
+              placeholder="2.5"
+            />
+          </div>
+        )}
+
+        {/* Volume Tiers */}
+        {showVolumeTiers && (
+          <div className="space-y-2">
+            <Label>Volume Tiers (JSON)</Label>
+            <Textarea
+              value={volumeTiers}
+              onChange={(e) => setVolumeTiers(e.target.value)}
+              placeholder='{"0-50": 8, "51-200": 5, "201+": 2}'
+              rows={4}
+              className="font-mono text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Keys are unit ranges, values are commission rates
+            </p>
+          </div>
+        )}
+
+        {/* Toggles */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={paymentFacilitator}
+              onCheckedChange={setPaymentFacilitator}
+            />
+            <Label className="text-xs cursor-pointer">Payment Facilitator</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={whiteLabel}
+              onCheckedChange={setWhiteLabel}
+            />
+            <Label className="text-xs cursor-pointer">White-label Allowed</Label>
+          </div>
+        </div>
+
+        {/* Billing Start Date */}
+        <div className="space-y-2">
+          <Label>Billing Start Date</Label>
+          <Input
+            type="date"
+            value={billingStartDate}
+            onChange={(e) => setBillingStartDate(e.target.value)}
+          />
+        </div>
+
+        <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
+          {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+          Save Billing Config
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
