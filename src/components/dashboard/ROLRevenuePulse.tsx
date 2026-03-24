@@ -333,6 +333,9 @@ export function ROLRevenuePulse() {
 
       {/* Property Acquisition & PMS Distribution */}
       <PropertyAcquisitionTracker />
+
+      {/* Billing Summary */}
+      <BillingPulseCard />
       </TabsContent>
 
       <TabsContent value="bank-exports" className="mt-0">
