@@ -1,47 +1,52 @@
 
 
-# Promotional Brand Showcase — 3-Page PDF
+# Add Inline Affiliate Disclosure — Tastefully, Only Where Needed
 
-## Design Philosophy: "Equatorial Luxe"
+## Where Booking.com Affiliate Links Actually Appear
 
-A visual movement rooted in the collision of African warmth and technological precision. ROL Pink (#e91e8c) as the dominant chromatic signature, deployed against deep charcoal and ivory fields. The aesthetic channels editorial fashion spreads — generous negative space, monumental typography, and systematic geometric patterns that evoke both circuitry and the rhythms of the savanna.
+After reviewing the codebase, external (NightsBridge/Booking.com) links appear in exactly these surfaces:
 
-## The Three Pages
+1. **`LeavingRoomsOnlineModal`** — the interstitial shown when users click to book externally
+2. **`StickyBookingCTA`** — when `isExternal=true`, shows "Book Now" with external link icon
+3. **`BookingSidebar`** — receives `isExternal` prop on property pages
+4. **`PublicFooter`** — already links to `/affiliate-disclosure`
 
-### Page 1 — ROL'OS Connect (Developer Portal)
-- Deep charcoal (#1A1A2E) background
-- Large geometric grid pattern in subtle pink lines (evoking API architecture)
-- "ROL'OS Connect" in massive Italiana/Instrument Serif typography
-- Stats displayed as monumental numbers (40+ Actions, 6 Countries, 99.9% Uptime, <200ms)
-- URL as thin monospace label at bottom
-- Tagline: "The Native PMS & Booking Engine for African Hospitality"
+The itinerary builder and non-external property pages do **not** link to Booking.com and need nothing.
 
-### Page 2 — Sleep in Africa (Booking Portal)
-- Full warm gradient backdrop (deep green to golden amber, evoking the safari landscape)
-- "Sleep in Africa" in large elegant serif
-- Category icons arranged in a rhythmic horizontal band
-- Curated collection positioning text
-- URL as accent label
-- Visual motif: organic rounded forms contrasting the geometric first page
+## Design Approach: Subtle, Not Terrible
 
-### Page 3 — ROL'OS Backend (Admin Console)
-- Clean ivory/white background with pink architectural line-work
-- "ROL'OS" wreath logo prominent
-- Feature grid: PMS · Billing · Integrations · Analytics · Contracts · Onboarding
-- "Rooms Done Right" tagline
-- Systematic, Swiss-grid feel conveying operational power
+- **Create a reusable `<AffiliateNotice />` component** — a single `text-xs text-muted-foreground` line, conditionally rendered only when `isExternal` is true
+- **No garish banners** — just a quiet footnote-style line beneath the relevant CTA
+- Keep it legally compliant but visually unobtrusive
 
-## Technical Approach
-- Generate using ReportLab (Python) with registered TTF fonts (Italiana for display, Instrument Sans for body, Geist Mono for URLs)
-- A4 landscape format (841.89 x 595.28 pts) for widescreen presentation feel
-- Each page is a self-contained composition
-- ROL Pink (#E91E8C) as primary accent throughout
-- Output to `/mnt/documents/roomsonline-brand-showcase.pdf`
-- QA via pdftoppm conversion and visual inspection
+## Changes
+
+### 1. Create `src/components/AffiliateNotice.tsx`
+A tiny reusable component with a `Link` to `/affiliate-disclosure`:
+```
+As a Booking.com affiliate, we earn from qualifying bookings.
+This comes at no extra cost to you. Learn more.
+```
+Styled as `text-xs text-muted-foreground/70` — barely visible unless you look for it.
+
+### 2. Add to `LeavingRoomsOnlineModal` (most important)
+Place the notice inside the modal body, below the existing "third-party booking system" text. This is the moment of highest intent — legally the most important placement.
+
+### 3. Add to `BookingSidebar` (when `isExternal`)
+Below the CTA button, render `<AffiliateNotice />` only when `isExternal={true}`.
+
+### 4. Add to `StickyBookingCTA` (when `isExternal`)
+Below the main CTA button area, same conditional render.
+
+### 5. Footer already handled
+`/affiliate-disclosure` link already exists in the footer.
 
 ## Files
-| Output | Path |
-|--------|------|
-| Design Philosophy | `/mnt/documents/equatorial-luxe-philosophy.md` |
-| Brand Showcase PDF | `/mnt/documents/roomsonline-brand-showcase.pdf` |
+
+| Action | File | Purpose |
+|--------|------|---------|
+| Create | `src/components/AffiliateNotice.tsx` | Reusable inline disclosure |
+| Modify | `src/components/LeavingRoomsOnlineModal.tsx` | Add notice in modal body |
+| Modify | `src/components/showcase/BookingSidebar.tsx` | Add notice below CTA when external |
+| Modify | `src/components/showcase/StickyBookingCTA.tsx` | Add notice below CTA when external |
 
