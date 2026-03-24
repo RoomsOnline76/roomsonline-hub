@@ -1512,6 +1512,88 @@ export default function AdminKeys() {
     setTogglingProfitroom(false);
   };
 
+  // Rentals United handlers
+  const fetchRentalsunitedCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "rentalsunited")
+      .maybeSingle();
+
+    if (!error && data) {
+      setRentalsunitedCredentials(data);
+    }
+  };
+
+  const handleSaveRentalsunitedCredentials = async () => {
+    setSavingRentalsunited(true);
+
+    const credData = {
+      system_type: "rentalsunited",
+      environment: "production" as const,
+      api_key: rentalsunitedApiKey || rentalsunitedCredentials?.api_key || null,
+      username: rentalsunitedUsername || rentalsunitedCredentials?.username || null,
+      base_url: rentalsunitedEndpointUrl || rentalsunitedCredentials?.base_url || "https://rm.rentalsunited.com/api/Handler.ashx",
+      is_active: true,
+    };
+
+    let error;
+    if (rentalsunitedCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", rentalsunitedCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Rentals United credentials have been updated successfully",
+      });
+      setEditingRentalsunited(false);
+      setRentalsunitedApiKey("");
+      setRentalsunitedUsername("");
+      setRentalsunitedEndpointUrl("");
+      fetchRentalsunitedCredentials();
+    }
+    setSavingRentalsunited(false);
+  };
+
+  const handleToggleRentalsunited = async (enabled: boolean) => {
+    setTogglingRentalsunited(true);
+    if (rentalsunitedCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", rentalsunitedCredentials.id);
+    }
+    toast({
+      title: enabled ? "Rentals United enabled" : "Rentals United disabled",
+      description: `Rentals United integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchRentalsunitedCredentials();
+    setTogglingRentalsunited(false);
+  };
+
+  const handleTestRentalsunited = async () => {
+    setTestingRentalsunited(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("rentalsunited-api", {
+        body: { action: "health_check", test_mode: true },
+      });
+      if (error) throw error;
+      toast({
+        title: data?.healthy ? "Connection Healthy" : "Connection Issue",
+        description: data?.message || "Health check completed",
+        variant: data?.healthy ? "default" : "destructive",
+      });
+    } catch (err: any) {
+      toast({ title: "Test Failed", description: err.message, variant: "destructive" });
+    }
+    setTestingRentalsunited(false);
+  };
+
+
   const handleCloudbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
     setCloudbedsEnvironment(newEnv);
     if (cloudbedsCredentials) {
