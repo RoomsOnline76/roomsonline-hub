@@ -1,30 +1,70 @@
 
 
-# Add Portfolio Tab to Admin Integrations Page
+# Rentals United — Admin Card, Adapter Build & Tracking
 
-## Problem
-The `/admin/integrations` page is missing the **Portfolio** tab that exists on both `PropertyFormIntegrationsTab` and `PMSIntegrations`. An owner with multiple properties (possibly across different PMS systems) currently has no way to configure a combined portfolio embed from this page — they'd have to know about `/admin/portfolios` separately.
-
-The Portfolio Widget tab already exists and works well (`PortfolioWidgetTab.tsx`) — it lets a user select a portfolio, configure branding, and get embed snippets. It just needs to be added to the Admin Integrations page alongside the existing 8 tabs.
+## Overview
+Unhide Rentals United, add a full custom card to AdminKeys (matching ProfitRoom pattern), and build out the `rentalsunited-api` edge function as a working XML adapter against the Rentals United API.
 
 ## Changes
 
-### 1. Add Portfolio tab to `src/pages/AdminIntegrations.tsx`
-- Import `PortfolioWidgetTab` and `Building2` icon
-- Add a 9th tab trigger: "Portfolio" with `Building2` icon (matching the other integration pages)
-- Add the `TabsContent` rendering `<PortfolioWidgetTab property={currentProperty} />`
-- Update grid from `grid-cols-8` to `grid-cols-9`
+### 1. Unhide Rentals United in config
+- `src/lib/pmsSystemsConfig.ts`: Remove `hidden: true` from the `rentalsunited` entry
+- `src/components/pms/channels/ChannelLogo.tsx`: Fix key inconsistency — rename `rental_united` to `rentalsunited` so it matches everywhere
 
-### 2. Add inline portfolio creation shortcut
-- Below the portfolio selector in `PortfolioWidgetTab.tsx`, add a "Create Portfolio" link/button that navigates to `/admin/portfolios` — so owners and admins can quickly create a new portfolio if none exist yet, without needing to discover the standalone page
+### 2. Add Rentals United custom card to AdminKeys
+Following the ProfitRoom card pattern exactly:
 
-This is a small UI gap fix — all the underlying portfolio infrastructure (tables, embed page, edge function, `rol-embed.js` support) is already built and working.
+**State (in `AdminKeys.tsx`):**
+- `rentalsunitedCredentials`, `rentalsunitedApiKey`, `rentalsunitedUsername`, `rentalsunitedEndpointUrl`
+- `rentalsunitedEnvironment`, `editingRentalsunited`, `savingRentalsunited`, `togglingRentalsunited`
 
-## Owner Workflow After Fix
-1. Go to `/admin/integrations`
-2. Select any property → click **Portfolio** tab
-3. See portfolios this property belongs to (or all portfolios for admin/dev)
-4. Select a portfolio → configure brand color, logo, layout
-5. Copy the one-line snippet or iframe code
-6. Paste on their website → visitors see all portfolio properties with search/filter and per-property booking
+**Handlers:**
+- `fetchRentalsunitedCredentials()` — query `pms_credentials` where `system_type = 'rentalsunited'`
+- `handleSaveRentalsunitedCredentials()` — upsert with `api_key`, `username`, `base_url`
+- `handleToggleRentalsunited()` — toggle `is_active`
+
+**Card renderer `renderRentalsunitedCard()`:**
+- Icon: `BedDouble`, title "Rentals United", badge "XML API"
+- `IntegrationStatusDropdown` for tracker status
+- `Switch` for on/off toggle
+- `EnvironmentToggle` (sandbox/production)
+- Credential fields: API Username, API Password (stored as api_key), Endpoint URL
+- `PMSProgressToggles`, `PMSContactDetails`, `PMSDevNotes`
+- "Field Mappings" button → `/admin/pms-config/rentalsunited`
+- "Test Connection" button → calls edge function health_check
+
+**Insert into render:** Replace `{/* Rentals United hidden */}` comment with `{renderRentalsunitedCard()}`
+
+### 3. Expand `rentalsunited-api` edge function
+Build the XML adapter following the RU developer docs:
+
+**Authentication:** XML body with `<Authentication><ApiKey>` or `<UserName>/<Password>` tags, POST to the configured endpoint URL.
+
+**Supported actions:**
+- `health_check` — existing, enhanced to actually call RU's service connection endpoint
+- `list_properties` — `Pull_ListOwnerProp_RQ` XML call
+- `get_property` — `Pull_ListSpecProp_RQ` for single property details
+- `get_availability` — `Pull_ListPropertyAvailabilityCalendar_RQ`
+- `get_prices` — `Pull_ListPropertyPrices_RQ`
+- `list_reservations` — `Pull_ListReservations_RQ`
+
+**XML helper functions:** Build/parse XML using string templates (no external deps needed for simple XML). Include proper error parsing from RU's `<Status ID="1">` error responses.
+
+**Credentials:** Read from `pms_credentials` table where `system_type = 'rentalsunited'`, using the authenticated user's property mapping or global credentials.
+
+### 4. Update `RolosChannelApiCards.tsx`
+Fix the key from `rental_united` to `rentalsunited` to match the system-wide convention.
+
+### 5. Add `rentalsunited` to `getPMSIcon` switch
+Add case in AdminKeys icon mapper.
+
+## Files Summary
+
+| Action | File | Purpose |
+|--------|------|---------|
+| Modify | `src/lib/pmsSystemsConfig.ts` | Remove `hidden: true` |
+| Modify | `src/pages/AdminKeys.tsx` | Add RU state, handlers, card renderer |
+| Modify | `supabase/functions/rentalsunited-api/index.ts` | Full XML adapter with 6 actions |
+| Modify | `src/components/integrations/RolosChannelApiCards.tsx` | Fix key `rental_united` → `rentalsunited` |
+| Modify | `src/components/pms/channels/ChannelLogo.tsx` | Fix key `rental_united` → `rentalsunited` |
 
