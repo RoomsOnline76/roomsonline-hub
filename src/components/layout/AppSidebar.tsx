@@ -34,6 +34,9 @@ import {
   CheckSquare,
   Blocks,
   Code2,
+  CreditCard,
+  ClipboardCheck,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -112,11 +115,18 @@ const insightsItems: NavItem[] = [
   { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireDevOrFearless: true },
 ];
 
-// Settings - Admin only
-const coreSettingsItems: NavItem[] = [
-  { title: "Team", icon: Users, href: "/admin-users", requireAdmin: true },
+// Administration - Admin only (matches navigation.ts adminSection)
+const adminItems: NavItem[] = [
+  { title: "Admin Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", requireAdmin: true },
+  { title: "All Bookings", icon: BookOpen, href: "/admin/all-bookings", requireAdmin: true },
+  { title: "All Properties", icon: Building2, href: "/admin/all-properties", requireAdmin: true },
+  { title: "Users", icon: Users, href: "/admin-users", requireAdmin: true },
+  { title: "Payments", icon: CreditCard, href: "/admin/payments", requireAdmin: true },
   { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
   { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
+  { title: "Portfolios", icon: FolderOpen, href: "/admin/portfolios", requireAdmin: true },
+  { title: "Review Queue", icon: ClipboardCheck, href: "/admin/review-queue", requireAdmin: true },
+  { title: "System Config", icon: Settings, href: "/admin/system", requireAdmin: true },
 ];
 
 // Edit & Audit menu - Admin only content management
@@ -139,7 +149,16 @@ const systemItems: NavItem[] = [
   { title: "API Configurator", icon: Blocks, href: "/admin/system/api-configurator", requireDevOrFearless: true },
 ];
 
-// ROL'OS PMS - single direct link to PMS UI (sub-navigation lives inside PMS layout)
+// ROL'OS PMS sub-items (matches navigation.ts pmsSection)
+const pmsItems: NavItem[] = [
+  { title: "PMS Dashboard", icon: LayoutDashboard, href: "/pms" },
+  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
+  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
+  { title: "Guests", icon: Users, href: "/pms/guests" },
+  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
+  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
+  { title: "Integrations", icon: Code2, href: "/pms/integrations" },
+];
 
 export function AppSidebar() {
   const location = useLocation();
@@ -151,6 +170,8 @@ export function AppSidebar() {
   });
   const [systemOpen, setSystemOpen] = useState(false);
   const [editAuditOpen, setEditAuditOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [pmsOpen, setPmsOpen] = useState(false);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
@@ -363,22 +384,29 @@ export function AppSidebar() {
           </div>
         </div>
 
-        {/* ROL'OS PMS - single direct link */}
+        {/* ROL'OS PMS - collapsible with sub-items */}
         {hasRolProperties && (
           <div>
-            <NavLink item={{ title: "ROL'OS PMS", icon: BedDouble, href: "/pms" }} />
+            <CollapsibleMenu
+              title="ROL'OS PMS"
+              icon={BedDouble}
+              items={pmsItems}
+              open={pmsOpen}
+              onOpenChange={setPmsOpen}
+            />
           </div>
         )}
 
-        {/* Settings - Admin only (not collapsible, always visible) */}
+        {/* Administration - Admin only (collapsible) */}
         {isAdmin && (
           <div>
-            <SectionLabel>Admin</SectionLabel>
-            <div className="space-y-1">
-              {coreSettingsItems.map((item) => (
-                <NavLink key={item.href} item={item} />
-              ))}
-              {pendingRequests > 0 && (
+            <CollapsibleMenu
+              title="Administration"
+              icon={Users}
+              items={adminItems}
+              open={adminOpen}
+              onOpenChange={setAdminOpen}
+              extraItems={pendingRequests > 0 ? (
                 <NavLink
                   item={{
                     title: "Access Requests",
@@ -388,8 +416,8 @@ export function AppSidebar() {
                     requireAdmin: true,
                   }}
                 />
-              )}
-            </div>
+              ) : undefined}
+            />
           </div>
         )}
 
