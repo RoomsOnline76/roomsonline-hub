@@ -95,6 +95,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
       toast({ title: "Portfolio created", description: `"${name}" has been created` });
       setOpen(false);
       setName("");
+      setSlug("");
       setSelectedProperties([]);
     },
     onError: (err: any) => {
