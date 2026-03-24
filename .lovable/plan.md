@@ -1,100 +1,47 @@
 
 
-# Global Billing Defaults & Per-Property Override System
+# Promotional Brand Showcase — 3-Page PDF
 
-## The Gap
+## Design Philosophy: "Equatorial Luxe"
 
-Right now there is **no global defaults table** and **no admin page** for the fearless leader to set platform-wide billing rates. Every property gets hardcoded fallbacks (10% commission, 2% PMS, etc.) baked into the edge function. There's also no pricing model for add-ons like white-label — the toggle exists but has no associated fee.
+A visual movement rooted in the collision of African warmth and technological precision. ROL Pink (#e91e8c) as the dominant chromatic signature, deployed against deep charcoal and ivory fields. The aesthetic channels editorial fashion spreads — generous negative space, monumental typography, and systematic geometric patterns that evoke both circuitry and the rhythms of the savanna.
 
-The `billing_mappings` table exists but is empty and has no UI.
+## The Three Pages
 
-## Design
+### Page 1 — ROL'OS Connect (Developer Portal)
+- Deep charcoal (#1A1A2E) background
+- Large geometric grid pattern in subtle pink lines (evoking API architecture)
+- "ROL'OS Connect" in massive Italiana/Instrument Serif typography
+- Stats displayed as monumental numbers (40+ Actions, 6 Countries, 99.9% Uptime, <200ms)
+- URL as thin monospace label at bottom
+- Tagline: "The Native PMS & Booking Engine for African Hospitality"
 
-### Two-tier resolution: Global → Property
+### Page 2 — Sleep in Africa (Booking Portal)
+- Full warm gradient backdrop (deep green to golden amber, evoking the safari landscape)
+- "Sleep in Africa" in large elegant serif
+- Category icons arranged in a rhythmic horizontal band
+- Curated collection positioning text
+- URL as accent label
+- Visual motif: organic rounded forms contrasting the geometric first page
 
-```text
-┌──────────────────────────────┐
-│  billing_global_defaults     │  ← Fearless Leader sets once
-│  (one row per strategy)      │
-│  default_commission: 10%     │
-│  white_label_fee: R500/mo    │
-│  pms_booking_fee: 2%         │
-└──────────┬───────────────────┘
-           │ fallback
-           ▼
-┌──────────────────────────────┐
-│  property_billing_configs    │  ← Per-property override (negotiated)
-│  commission_rate: 7%         │  ← NULL = use global default
-│  white_label_fee: NULL       │  ← NULL = use global default
-└──────────────────────────────┘
-```
+### Page 3 — ROL'OS Backend (Admin Console)
+- Clean ivory/white background with pink architectural line-work
+- "ROL'OS" wreath logo prominent
+- Feature grid: PMS · Billing · Integrations · Analytics · Contracts · Onboarding
+- "Rooms Done Right" tagline
+- Systematic, Swiss-grid feel conveying operational power
 
-The edge function resolves: **property override → global default → hardcoded fallback**.
-
-## Changes
-
-### 1. New table: `billing_global_defaults`
-
-```sql
-CREATE TABLE billing_global_defaults (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  strategy billing_strategy NOT NULL UNIQUE,
-  default_commission_rate numeric(5,2),
-  default_subscription_fee numeric(10,2),
-  default_transaction_fee numeric(5,2),
-  white_label_monthly_fee numeric(10,2) DEFAULT 0,
-  payment_facilitator_fee numeric(5,2) DEFAULT 2.5,
-  notes text,
-  updated_at timestamptz DEFAULT now(),
-  updated_by uuid REFERENCES profiles(id)
-);
-```
-
-RLS: Only `fearless_leader` and `dev` can write. All authenticated can read.
-
-Seed with current hardcoded values (e.g., default strategy → 10% commission, white_label_fee → 0).
-
-### 2. Add `white_label_monthly_fee` column to `property_billing_configs`
-
-Currently white-label is just a boolean toggle with no associated cost. Add a nullable `white_label_monthly_fee` column — NULL means "use global default", a value means "negotiated override".
-
-### 3. New page: `/admin/billing-defaults`
-
-- Restricted to `fearless_leader` and `dev` roles
-- Shows a card per billing strategy with editable default rates
-- Each card displays: default commission %, subscription fee, transaction fee, white-label fee, payment facilitator fee
-- Save updates `billing_global_defaults`
-- Add to Administration menu in navigation config
-
-### 4. Update `BillingConfigTab` (per-property)
-
-- Show global defaults as placeholder values in each input field
-- When a field is empty/null, display "(using global: X%)" helper text
-- Add white-label monthly fee field (shown when white-label toggle is on)
-- Make it clear which values are overrides vs defaults
-
-### 5. Update `calculate-billing` edge function
-
-Change resolution order:
-1. `property_billing_configs` value (if not null)
-2. `billing_global_defaults` for the strategy
-3. Hardcoded fallback
-
-Also: when `white_label_allowed = true`, add a separate `billing_transactions` entry for the white-label monthly fee (type: `white_label_fee`).
-
-### 6. Add to navigation
-
-Add "Billing Defaults" item under Administration section, gated to `fearless_leader` + `dev`.
+## Technical Approach
+- Generate using ReportLab (Python) with registered TTF fonts (Italiana for display, Instrument Sans for body, Geist Mono for URLs)
+- A4 landscape format (841.89 x 595.28 pts) for widescreen presentation feel
+- Each page is a self-contained composition
+- ROL Pink (#E91E8C) as primary accent throughout
+- Output to `/mnt/documents/roomsonline-brand-showcase.pdf`
+- QA via pdftoppm conversion and visual inspection
 
 ## Files
-
-| Action | File | Purpose |
-|--------|------|---------|
-| Migration | SQL | `billing_global_defaults` table + `white_label_monthly_fee` column + seed |
-| Create | `src/pages/AdminBillingDefaults.tsx` | Global defaults management page |
-| Create | `src/hooks/useBillingDefaults.ts` | CRUD hook for global defaults |
-| Modify | `src/components/property/BillingConfigTab.tsx` | Show global defaults as placeholders, add white-label fee field |
-| Modify | `supabase/functions/calculate-billing/index.ts` | 3-tier resolution + white-label fee logging |
-| Modify | `src/config/navigation.ts` | Add Billing Defaults nav item |
-| Modify | `src/App.tsx` | Add route |
+| Output | Path |
+|--------|------|
+| Design Philosophy | `/mnt/documents/equatorial-luxe-philosophy.md` |
+| Brand Showcase PDF | `/mnt/documents/roomsonline-brand-showcase.pdf` |
 
