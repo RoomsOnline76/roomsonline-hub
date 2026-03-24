@@ -148,7 +148,7 @@ export default function AdminIntegrations() {
 
             {/* Integration tabs */}
             <Tabs defaultValue="direct" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-8">
+              <TabsList className="grid w-full grid-cols-9">
                 <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
                   <Link2 className="h-3.5 w-3.5" /> Direct Link
                 </TabsTrigger>
