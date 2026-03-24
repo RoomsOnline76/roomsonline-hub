@@ -15,6 +15,7 @@ import { IntegrationDocumentation } from "@/components/integrations/IntegrationD
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
+import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
