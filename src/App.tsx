@@ -429,6 +429,18 @@ const App = () => (
             path="/admin/supporting-systems"
             element={<Navigate to="/admin-keys" replace />}
           />
+          <Route
+            path="/admin/all-bookings"
+            element={<Navigate to="/admin/bookings" replace />}
+          />
+          <Route
+            path="/admin/all-properties"
+            element={<Navigate to="/admin/property-overview" replace />}
+          />
+          <Route
+            path="/admin/system"
+            element={<Navigate to="/admin/dashboard" replace />}
+          />
             {/* Contract signing - public route */}
             <Route path="/contract/sign/:token" element={<ContractSign />} />
             {/* Property onboarding - requires auth */}

@@ -388,5 +388,6 @@ export default function AdminPortfolios() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </AppLayout>
   );
 }
