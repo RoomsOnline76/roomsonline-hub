@@ -21,6 +21,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
 
   // Fetch portfolios
