@@ -4706,7 +4706,7 @@ export default function AdminKeys() {
           </AccordionItem>
           {/* Little Hotelier hidden - no longer required */}
           {renderNightsbridgeCard()}
-          {/* Rentals United hidden - no longer required */}
+          {renderRentalsunitedCard()}
           {renderProfitroomCard()}
           {renderPlaceholderPMSCard(
             "RoomKey",
