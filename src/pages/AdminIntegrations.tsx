@@ -21,6 +21,7 @@ import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookBut
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
+import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface Property {
   id: string;
