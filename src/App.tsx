@@ -512,6 +512,14 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/billing-defaults"
+              element={
+                <ProtectedRoute requireDevOrFearless={true}>
+                  <AdminBillingDefaults />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/system/api-configurator"
               element={
                 <ProtectedRoute requireDevOrFearless={true}>

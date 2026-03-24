@@ -50,6 +50,24 @@ serve(async (req) => {
 
     const strategy = config?.billing_strategy || 'default';
 
+    // Fetch global defaults for the strategy (3-tier resolution)
+    const { data: globalDefaults } = await supabase
+      .from("billing_global_defaults")
+      .select("*")
+      .eq("strategy", strategy)
+      .single();
+
+    // Resolve helper: property override → global default → hardcoded fallback
+    const resolve = (
+      propertyVal: number | null | undefined,
+      globalVal: number | null | undefined,
+      fallback: number
+    ): number => {
+      if (propertyVal != null) return propertyVal;
+      if (globalVal != null) return globalVal;
+      return fallback;
+    };
+
     // Fetch booking details if booking_id provided
     let booking = null;
     if (booking_id) {
@@ -68,28 +86,28 @@ serve(async (req) => {
 
     switch (strategy) {
       case 'default':
-        result = await calcDefault(supabase, property_id, booking, bookingAmount, config);
+        result = await calcDefault(supabase, property_id, booking, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'widget':
-        result = await calcWidget(supabase, property_id, bookingAmount, config);
+        result = await calcWidget(supabase, property_id, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'rolos_pms':
-        result = await calcRolosPms(supabase, property_id, booking, bookingAmount, config, event_type);
+        result = await calcRolosPms(bookingAmount, config, globalDefaults, resolve, event_type);
         break;
       case 'portfolio_aggregator':
-        result = await calcPortfolio(supabase, property_id, bookingAmount, config);
+        result = await calcPortfolio(bookingAmount, config, globalDefaults, resolve);
         break;
       case 'enterprise_white_label':
-        result = await calcEnterprise(config, event_type);
+        result = await calcEnterprise(config, globalDefaults, resolve, event_type);
         break;
       case 'volume_tiered':
-        result = await calcVolumeTiered(supabase, property_id, bookingAmount, config);
+        result = await calcVolumeTiered(supabase, property_id, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'payment_facilitator':
-        result = await calcPaymentFacilitator(bookingAmount, config);
+        result = await calcPaymentFacilitator(bookingAmount, config, globalDefaults, resolve);
         break;
       default:
-        result = await calcDefault(supabase, property_id, booking, bookingAmount, config);
+        result = await calcDefault(supabase, property_id, booking, bookingAmount, config, globalDefaults, resolve);
     }
 
     // Log to billing_transactions
@@ -108,6 +126,28 @@ serve(async (req) => {
 
     if (txError) {
       console.error("Failed to log billing transaction:", txError);
+    }
+
+    // Log white-label fee as separate transaction if enabled
+    if (config?.white_label_allowed && event_type === 'subscription') {
+      const wlFee = resolve(
+        config?.white_label_monthly_fee,
+        globalDefaults?.white_label_monthly_fee,
+        0
+      );
+      if (wlFee > 0) {
+        await supabase
+          .from("billing_transactions")
+          .insert({
+            property_id,
+            owner_id: config?.owner_id || null,
+            type: 'white_label_fee',
+            amount: wlFee,
+            currency: 'ZAR',
+            calculated_by: 'billing-calc-white-label',
+            metadata: { source: 'white_label_addon', monthly_fee: wlFee },
+          });
+      }
     }
 
     // Also update booking commission fields if this is a booking event
@@ -140,6 +180,8 @@ serve(async (req) => {
 
 // ── Strategy Calculators ──
 
+type ResolveFn = (prop: number | null | undefined, global: number | null | undefined, fallback: number) => number;
+
 const PMS_INTEGRATION_TYPES = ['rolos', 'widget', 'embed', 'api', 'wordpress', 'booking_bar'];
 const PMS_CHANNELS = ['direct', 'widget', 'embed', 'api'];
 
@@ -156,10 +198,10 @@ function resolveCommissionType(booking: any): 'listing' | 'pms' {
 }
 
 async function calcDefault(
-  supabase: any, propertyId: string, booking: any, amount: number, config: any
+  supabase: any, propertyId: string, booking: any, amount: number, config: any, globals: any, resolve: ResolveFn
 ): Promise<BillingResult> {
   const commissionType = resolveCommissionType(booking);
-  const defaultRate = commissionType === 'pms' ? 2 : 10;
+  const hardcodedDefault = commissionType === 'pms' ? 2 : 10;
 
   // Check commercial terms first
   const checkInDate = booking?.check_in_date || new Date().toISOString().split('T')[0];
@@ -173,7 +215,8 @@ async function calcDefault(
     .order("effective_from", { ascending: false })
     .limit(1);
 
-  const rate = terms?.[0]?.revenue_share_percent ?? config?.commission_rate ?? defaultRate;
+  const rate = terms?.[0]?.revenue_share_percent
+    ?? resolve(config?.commission_rate, globals?.default_commission_rate, hardcodedDefault);
   const commission = amount * (rate / 100);
 
   return {
@@ -184,15 +227,13 @@ async function calcDefault(
 }
 
 async function calcWidget(
-  supabase: any, propertyId: string, amount: number, config: any
+  supabase: any, propertyId: string, amount: number, config: any, globals: any, resolve: ResolveFn
 ): Promise<BillingResult> {
-  // Fetch widget tier mappings
   const { data: mappings } = await supabase
     .from("billing_mappings")
     .select("field, value")
     .eq("strategy", "widget");
 
-  // Count monthly bookings for tier resolution
   const monthStart = new Date();
   monthStart.setDate(1);
   const { count } = await supabase
@@ -202,9 +243,8 @@ async function calcWidget(
     .gte("created_at", monthStart.toISOString());
 
   const monthlyVolume = count || 0;
-  let rate = config?.commission_rate ?? 8;
+  let rate = resolve(config?.commission_rate, globals?.default_commission_rate, 8);
 
-  // Apply tier from mappings if available
   if (mappings && mappings.length > 0) {
     for (const m of mappings) {
       if (m.field === 'tier_threshold') {
@@ -229,18 +269,18 @@ async function calcWidget(
 }
 
 async function calcRolosPms(
-  supabase: any, propertyId: string, booking: any, amount: number, config: any, eventType: string
+  amount: number, config: any, globals: any, resolve: ResolveFn, eventType: string
 ): Promise<BillingResult> {
   if (eventType === 'subscription') {
+    const fee = resolve(config?.subscription_fee_monthly, globals?.default_subscription_fee, 0);
     return {
-      amount: config?.subscription_fee_monthly ?? 0,
+      amount: fee,
       type: 'subscription',
       metadata: { period: 'monthly' },
     };
   }
 
-  // Per-booking fee
-  const rate = config?.commission_rate ?? 2;
+  const rate = resolve(config?.commission_rate, globals?.default_commission_rate, 2);
   return {
     amount: amount * (rate / 100),
     type: 'commission',
@@ -249,9 +289,9 @@ async function calcRolosPms(
 }
 
 async function calcPortfolio(
-  supabase: any, propertyId: string, amount: number, config: any
+  amount: number, config: any, globals: any, resolve: ResolveFn
 ): Promise<BillingResult> {
-  const rate = config?.commission_rate ?? 5;
+  const rate = resolve(config?.commission_rate, globals?.default_commission_rate, 5);
   return {
     amount: amount * (rate / 100),
     type: 'commission',
@@ -259,15 +299,15 @@ async function calcPortfolio(
   };
 }
 
-async function calcEnterprise(config: any, eventType: string): Promise<BillingResult> {
+async function calcEnterprise(config: any, globals: any, resolve: ResolveFn, eventType: string): Promise<BillingResult> {
   if (eventType === 'subscription') {
+    const fee = resolve(config?.subscription_fee_monthly, globals?.default_subscription_fee, 0);
     return {
-      amount: config?.subscription_fee_monthly ?? 0,
+      amount: fee,
       type: 'subscription',
       metadata: { period: 'monthly', source: 'enterprise_white_label' },
     };
   }
-  // 0% commission for enterprise
   return {
     amount: 0,
     type: 'commission',
@@ -276,11 +316,10 @@ async function calcEnterprise(config: any, eventType: string): Promise<BillingRe
 }
 
 async function calcVolumeTiered(
-  supabase: any, propertyId: string, amount: number, config: any
+  supabase: any, propertyId: string, amount: number, config: any, globals: any, resolve: ResolveFn
 ): Promise<BillingResult> {
-  let rate = config?.commission_rate ?? 10;
+  let rate = resolve(config?.commission_rate, globals?.default_commission_rate, 10);
 
-  // Get unit count from property
   const { data: property } = await supabase
     .from("properties")
     .select("total_rooms")
@@ -289,7 +328,6 @@ async function calcVolumeTiered(
 
   const unitCount = property?.total_rooms ?? 1;
 
-  // Apply volume tiers from config
   if (config?.volume_tier_json) {
     try {
       const tiers = config.volume_tier_json as Record<string, number>;
@@ -316,8 +354,8 @@ async function calcVolumeTiered(
   };
 }
 
-async function calcPaymentFacilitator(amount: number, config: any): Promise<BillingResult> {
-  const rate = config?.transaction_fee_percentage ?? 2.5;
+async function calcPaymentFacilitator(amount: number, config: any, globals: any, resolve: ResolveFn): Promise<BillingResult> {
+  const rate = resolve(config?.transaction_fee_percentage, globals?.default_transaction_fee, 2.5);
   return {
     amount: amount * (rate / 100),
     type: 'transaction_fee',
