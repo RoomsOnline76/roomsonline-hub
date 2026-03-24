@@ -896,7 +896,6 @@ console.log(config.snippet.simple);`,
       }
     }, null, 2),
   },
-];
 
   // ─── Collections & Portfolio ──────────────────────────────────────────
   {
