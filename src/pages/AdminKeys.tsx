@@ -76,6 +76,7 @@ const getPMSIcon = (systemType: string | null): LucideIcon => {
     case "roomkey":
     case "roomracoon":
     case "profitroom":
+    case "rentalsunited":
       return BedDouble;
     case "google":
       return MapPin;
@@ -287,6 +288,16 @@ export default function AdminKeys() {
   const [savingProfitroom, setSavingProfitroom] = useState(false);
   const [togglingProfitroom, setTogglingProfitroom] = useState(false);
 
+  // Rentals United-specific state
+  const [rentalsunitedCredentials, setRentalsunitedCredentials] = useState<PMSCredentials | null>(null);
+  const [rentalsunitedUsername, setRentalsunitedUsername] = useState("");
+  const [rentalsunitedApiKey, setRentalsunitedApiKey] = useState("");
+  const [rentalsunitedEndpointUrl, setRentalsunitedEndpointUrl] = useState("");
+  const [editingRentalsunited, setEditingRentalsunited] = useState(false);
+  const [savingRentalsunited, setSavingRentalsunited] = useState(false);
+  const [togglingRentalsunited, setTogglingRentalsunited] = useState(false);
+  const [testingRentalsunited, setTestingRentalsunited] = useState(false);
+
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
   const [sendingStatusReport, setSendingStatusReport] = useState(false);
@@ -302,6 +313,7 @@ export default function AdminKeys() {
     fetchLittlehotelierCredentials();
     fetchHotelbedsCredentials();
     fetchProfitroomCredentials();
+    fetchRentalsunitedCredentials();
     fetchResendConfig();
     fetchTripadvisorConfig();
     fetchGlobalSettings();
@@ -1499,6 +1511,88 @@ export default function AdminKeys() {
     fetchProfitroomCredentials();
     setTogglingProfitroom(false);
   };
+
+  // Rentals United handlers
+  const fetchRentalsunitedCredentials = async () => {
+    const { data, error } = await supabase
+      .from("pms_credentials")
+      .select("*")
+      .eq("system_type", "rentalsunited")
+      .maybeSingle();
+
+    if (!error && data) {
+      setRentalsunitedCredentials(data);
+    }
+  };
+
+  const handleSaveRentalsunitedCredentials = async () => {
+    setSavingRentalsunited(true);
+
+    const credData = {
+      system_type: "rentalsunited",
+      environment: "production" as const,
+      api_key: rentalsunitedApiKey || rentalsunitedCredentials?.api_key || null,
+      username: rentalsunitedUsername || rentalsunitedCredentials?.username || null,
+      base_url: rentalsunitedEndpointUrl || rentalsunitedCredentials?.base_url || "https://rm.rentalsunited.com/api/Handler.ashx",
+      is_active: true,
+    };
+
+    let error;
+    if (rentalsunitedCredentials) {
+      const result = await supabase.from("pms_credentials").update(credData).eq("id", rentalsunitedCredentials.id);
+      error = result.error;
+    } else {
+      const result = await supabase.from("pms_credentials").insert(credData);
+      error = result.error;
+    }
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({
+        title: "Credentials saved",
+        description: "Rentals United credentials have been updated successfully",
+      });
+      setEditingRentalsunited(false);
+      setRentalsunitedApiKey("");
+      setRentalsunitedUsername("");
+      setRentalsunitedEndpointUrl("");
+      fetchRentalsunitedCredentials();
+    }
+    setSavingRentalsunited(false);
+  };
+
+  const handleToggleRentalsunited = async (enabled: boolean) => {
+    setTogglingRentalsunited(true);
+    if (rentalsunitedCredentials) {
+      await supabase.from("pms_credentials").update({ is_active: enabled }).eq("id", rentalsunitedCredentials.id);
+    }
+    toast({
+      title: enabled ? "Rentals United enabled" : "Rentals United disabled",
+      description: `Rentals United integration is now ${enabled ? "active" : "inactive"}`,
+    });
+    fetchRentalsunitedCredentials();
+    setTogglingRentalsunited(false);
+  };
+
+  const handleTestRentalsunited = async () => {
+    setTestingRentalsunited(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("rentalsunited-api", {
+        body: { action: "health_check", test_mode: true },
+      });
+      if (error) throw error;
+      toast({
+        title: data?.healthy ? "Connection Healthy" : "Connection Issue",
+        description: data?.message || "Health check completed",
+        variant: data?.healthy ? "default" : "destructive",
+      });
+    } catch (err: any) {
+      toast({ title: "Test Failed", description: err.message, variant: "destructive" });
+    }
+    setTestingRentalsunited(false);
+  };
+
 
   const handleCloudbedsEnvironmentChange = async (newEnv: "staging" | "production") => {
     setCloudbedsEnvironment(newEnv);
@@ -3786,6 +3880,195 @@ export default function AdminKeys() {
     </Dialog>
   );
 
+  // Rentals United card renderer
+  const renderRentalsunitedCard = () => {
+    const isConfigured = !!(rentalsunitedCredentials?.api_key && rentalsunitedCredentials?.username);
+
+    return (
+      <AccordionItem
+        value="rentalsunited"
+        className={`border rounded-lg px-4 ${!rentalsunitedCredentials?.is_active ? "opacity-60" : ""}`}
+      >
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <BedDouble className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Rentals United</span>
+              <Badge variant="outline" className="text-xs">
+                XML API
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType="rentalsunited"
+                  currentStatus={trackerData.rentalsunited?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
+              <div className="flex items-center gap-2 mr-2" onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  checked={rentalsunitedCredentials?.is_active ?? false}
+                  onCheckedChange={handleToggleRentalsunited}
+                  disabled={togglingRentalsunited || !isConfigured}
+                  className={!isConfigured ? "opacity-50" : ""}
+                />
+                <span className="text-xs text-muted-foreground">{rentalsunitedCredentials?.is_active ? "On" : "Off"}</span>
+              </div>
+              {isConfigured ? (
+                <Badge className="flex items-center gap-1 bg-green-100 text-green-800 hover:bg-green-100">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Configured
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Not Configured
+                </Badge>
+              )}
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Channel manager and distribution platform for vacation rentals — XML API integration
+            </p>
+
+            {/* Active Environment Toggle */}
+            <EnvironmentToggle
+              systemType="rentalsunited"
+              currentEnvironment={trackerData.rentalsunited?.active_environment || 'sandbox'}
+              onEnvironmentChange={(env) => handleUnifiedEnvironmentChange('rentalsunited', env)}
+            />
+
+            {editingRentalsunited ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ru-username">API Username</Label>
+                  <Input
+                    id="ru-username"
+                    value={rentalsunitedUsername}
+                    onChange={(e) => setRentalsunitedUsername(e.target.value)}
+                    placeholder={rentalsunitedCredentials?.username ? "••••••••" : "Enter API username"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ru-apikey">API Password</Label>
+                  <Input
+                    id="ru-apikey"
+                    type="password"
+                    value={rentalsunitedApiKey}
+                    onChange={(e) => setRentalsunitedApiKey(e.target.value)}
+                    placeholder={rentalsunitedCredentials?.api_key ? "••••••••" : "Enter API password"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ru-endpoint">Endpoint URL</Label>
+                  <Input
+                    id="ru-endpoint"
+                    value={rentalsunitedEndpointUrl}
+                    onChange={(e) => setRentalsunitedEndpointUrl(e.target.value)}
+                    placeholder={rentalsunitedCredentials?.base_url || "https://rm.rentalsunited.com/api/Handler.ashx"}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveRentalsunitedCredentials} disabled={savingRentalsunited}>
+                    {savingRentalsunited ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingRentalsunited(false);
+                      setRentalsunitedApiKey("");
+                      setRentalsunitedUsername("");
+                      setRentalsunitedEndpointUrl("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <Label className="text-muted-foreground">Username</Label>
+                    <p className={`font-medium ${rentalsunitedCredentials?.username ? "text-green-600" : ""}`}>
+                      {rentalsunitedCredentials?.username ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Password</Label>
+                    <p className={`font-medium ${rentalsunitedCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {rentalsunitedCredentials?.api_key ? "Configured" : "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Endpoint</Label>
+                    <p className="font-medium text-xs truncate">{rentalsunitedCredentials?.base_url || "Default"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <p className="font-medium">{rentalsunitedCredentials?.is_active ? "Active" : "Inactive"}</p>
+                  </div>
+                </div>
+
+                <PMSProgressToggles
+                  systemType="rentalsunited"
+                  trackerData={trackerData.rentalsunited}
+                  onUpdated={fetchTrackerData}
+                />
+
+                {/* PMS IT Contact */}
+                <PMSContactDetails
+                  systemType="rentalsunited"
+                  initialData={{
+                    contact_name: trackerData["rentalsunited"]?.contact_name,
+                    contact_tel: trackerData["rentalsunited"]?.contact_tel,
+                    contact_email: trackerData["rentalsunited"]?.contact_email,
+                  }}
+                  onUpdated={() => fetchTrackerData()}
+                />
+
+                {/* Dev Notes */}
+                <PMSDevNotes systemType="rentalsunited" />
+
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditingRentalsunited(true)}>
+                    {isConfigured ? "Update Credentials" : "Configure"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => navigate("/admin/pms-config/rentalsunited")}
+                    disabled={!isConfigured}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Field Mappings
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleTestRentalsunited}
+                    disabled={testingRentalsunited || !isConfigured}
+                  >
+                    {testingRentalsunited ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Test Connection
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   // ProfitRoom card renderer
   const renderProfitroomCard = () => {
     const isConfigured = !!profitroomCredentials?.api_key;
@@ -4423,7 +4706,7 @@ export default function AdminKeys() {
           </AccordionItem>
           {/* Little Hotelier hidden - no longer required */}
           {renderNightsbridgeCard()}
-          {/* Rentals United hidden - no longer required */}
+          {renderRentalsunitedCard()}
           {renderProfitroomCard()}
           {renderPlaceholderPMSCard(
             "RoomKey",

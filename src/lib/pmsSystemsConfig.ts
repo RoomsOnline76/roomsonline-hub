@@ -123,7 +123,6 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     description: 'Channel manager and distribution platform for vacation rentals',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
-    hidden: true, // No longer required
   },
   {
     key: 'roomkey',
