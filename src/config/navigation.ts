@@ -29,6 +29,7 @@ import {
   FlaskConical,
   BedDouble,
   Code2,
+  FolderOpen,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
