@@ -63,7 +63,7 @@ export function PortfolioManager({ onSelect, selectedPortfolioId }: PortfolioMan
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const slug = name
+      const autoSlug = slug.trim() || name
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
         .replace(/\s+/g, "-");
