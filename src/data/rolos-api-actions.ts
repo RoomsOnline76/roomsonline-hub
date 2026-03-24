@@ -898,7 +898,34 @@ console.log(config.snippet.simple);`,
   },
 ];
 
-// Helper to get actions by category
+  // ─── Collections & Portfolio ──────────────────────────────────────────
+  {
+    action: "get_collections",
+    category: "config",
+    title: "Get Collections",
+    description: "Returns the multi-brand collections configured for a property. Each collection includes branding overrides, pricing rules, and availability rules.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: { collections: [{ collection_id: "luxury-escapes", name: "Luxury Escapes", slug: "luxury-escapes", is_active: true }] }
+    }, null, 2),
+  },
+  {
+    action: "get_portfolio_properties",
+    category: "config",
+    title: "Get Portfolio Properties",
+    description: "Returns all properties in a given portfolio group for consolidated reporting and cross-property search.",
+    params: [
+      { name: "portfolio_id", type: "UUID", required: true, description: "Portfolio group identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: { properties: [{ id: "uuid", name: "Mountain Lodge" }], total: 1 }
+    }, null, 2),
+  },
+];
 export function getActionsByCategory(category: string): ApiAction[] {
   return API_ACTIONS.filter(a => a.category === category);
 }
