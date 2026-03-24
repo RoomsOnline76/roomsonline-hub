@@ -38,10 +38,12 @@
   var BASE = 'https://book.sleepinafrica.roomsonline.co.za';
   var VERSION = '1.0.0';
   var ATTR = 'data-rolos-property';
+  var PORTFOLIO_ATTR = 'data-rolos-portfolio';
   var INIT_ATTR = 'data-rolos-initialized';
 
   // Track all active widgets by slug
   var widgets = {};
+  var portfolioWidgets = {};
 
   function getAttr(el, name, fallback) {
     var val = el.getAttribute(name);
