@@ -30,6 +30,8 @@ import {
   BedDouble,
   Code2,
   FolderOpen,
+  Megaphone,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
