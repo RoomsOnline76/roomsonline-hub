@@ -9220,6 +9220,9 @@ export default function PropertyForm() {
                     {(isAdmin || isDev) && (
                       <TabsContent value="billing">
                         <BillingConfigTab propertyId={id!} />
+                        <div className="mt-4">
+                          <ReferralSection propertyId={id!} />
+                        </div>
                       </TabsContent>
                     )}
 
