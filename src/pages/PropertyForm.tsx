@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -7680,6 +7681,9 @@ export default function PropertyForm() {
                           Conference
                         </TabsTrigger>
                       )}
+                      <TabsTrigger value="vouchers" className="text-xs h-6">
+                        Vouchers
+                      </TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </CardHeader>
@@ -7915,6 +7919,10 @@ export default function PropertyForm() {
                     <div className="text-center py-6 text-xs text-muted-foreground">
                       Event/Wedding specials coming soon...
                     </div>
+                  )}
+
+                  {specialsCategory === "vouchers" && propertyId && (
+                    <PromoCodesTab propertyId={propertyId} />
                   )}
                 </CardContent>
               </Card>
