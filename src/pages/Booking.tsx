@@ -26,7 +26,9 @@ import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
-import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
+import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
+import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
@@ -88,7 +90,9 @@ interface CostLineItem {
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
   useBrandOverride(id);
-  const { gateway: activeGateway } = useActivePaymentGateway();
+  const { gateways: activeGateways } = useActivePaymentGateways(id);
+  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
+  const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -2012,7 +2016,7 @@ const Booking = () => {
 
       {/* Payment Gateway */}
       <PaymentGatewayRouter
-        gateway={activeGateway}
+        gateway={effectiveGateway}
         isOpen={showPaymentModal}
         onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
         onPaymentSuccess={() => {
