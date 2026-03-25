@@ -319,8 +319,20 @@ export async function ingestBuildingUnits(
   // 5. Aggregate units by room type, then write one hostfully_room_types row per type
   console.log(`[UnitIngestion] Aggregating ${allRooms.length} units by room type...`);
 
+  // Fetch existing room types to match by name (prevents duplicates on re-import)
+  const { data: existingRoomTypes } = await supabase
+    .from("hostfully_room_types")
+    .select("id, name, property_type, hostfully_room_id")
+    .eq("property_id", rolPropertyId);
+
+  const existingByType = new Map<string, { id: string; hostfully_room_id: string }>();
+  for (const existing of (existingRoomTypes || [])) {
+    const key = (existing.property_type || existing.name || '').toUpperCase().trim();
+    if (key) existingByType.set(key, { id: existing.id, hostfully_room_id: existing.hostfully_room_id });
+  }
+
   // Group by normalized property_type
-  const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[]; unitNumbers: string[] }>();
+  const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[]; unitNumbers: string[]; allImages: Array<{ url: string; alt?: string; order?: number; category?: string }> }>();
   for (const room of allRooms) {
     const typeKey = (room.property_type || 'Standard').toUpperCase().trim();
     if (!typeGroups.has(typeKey)) {
@@ -329,6 +341,7 @@ export async function ingestBuildingUnits(
         unitUids: [],
         unitNames: [],
         unitNumbers: [],
+        allImages: [],
       });
     }
     const group = typeGroups.get(typeKey)!;
@@ -336,20 +349,32 @@ export async function ingestBuildingUnits(
     group.unitNames.push(room.name);
     const parsed = parseUnitName(room.name);
     group.unitNumbers.push(parsed?.room || '');
+    // Merge images from all units in the type group (dedup by URL)
+    if (Array.isArray(room.images)) {
+      for (const img of room.images as any[]) {
+        const imgUrl = typeof img === 'string' ? img : img?.url;
+        if (imgUrl && !group.allImages.some(existing => existing.url === imgUrl)) {
+          group.allImages.push(typeof img === 'string' ? { url: img } : img);
+        }
+      }
+    }
   }
 
   console.log(`[UnitIngestion] ${allRooms.length} units → ${typeGroups.size} room types`);
 
   // Write one hostfully_room_types row per type group
   const writtenTypeIds: string[] = [];
-  for (const [, group] of typeGroups) {
+  for (const [typeKey, group] of typeGroups) {
     const room = group.representative;
-    // Use the type name as the display name instead of the full unit name
     const typeName = room.property_type || 'Standard';
+
+    // Use existing row's hostfully_room_id if we already have this type
+    const existingMatch = existingByType.get(typeKey);
+    const hostfullyRoomId = existingMatch?.hostfully_room_id || group.unitUids[0];
 
     const roomData: Record<string, unknown> = {
       property_id: rolPropertyId,
-      hostfully_room_id: group.unitUids[0], // Representative UID
+      hostfully_room_id: hostfullyRoomId,
       name: typeName,
       description: room.description,
       max_guests: room.max_guests,
@@ -365,7 +390,7 @@ export async function ingestBuildingUnits(
       extra_guest_fee: room.extra_guest_fee,
       security_deposit: room.security_deposit,
       amenities: room.amenities,
-      images: room.images || [],
+      images: group.allImages.length > 0 ? group.allImages : (room.images || []),
       property_type: room.property_type,
       extra_person_policy: room.extra_person_policy,
       bed_configuration: room.bed_configuration || [],
@@ -379,29 +404,50 @@ export async function ingestBuildingUnits(
       updated_at: new Date().toISOString(),
     };
 
-    const { data: upsertedRow, error: upsertError } = await supabase
-      .from("hostfully_room_types")
-      .upsert(roomData, {
-        onConflict: 'property_id,hostfully_room_id',
-        ignoreDuplicates: false,
-      })
-      .select("id")
-      .maybeSingle();
+    let upsertedRowId: string | undefined;
 
-    if (upsertError) {
-      console.error(`[UnitIngestion] Failed to upsert type ${typeName}:`, upsertError);
-      result.errors.push(`DB upsert failed for type ${typeName}: ${upsertError.message}`);
+    if (existingMatch) {
+      // UPDATE existing row by ID to avoid duplicate key issues
+      const { error: updateError } = await supabase
+        .from("hostfully_room_types")
+        .update(roomData)
+        .eq("id", existingMatch.id);
+
+      if (updateError) {
+        console.error(`[UnitIngestion] Failed to update type ${typeName}:`, updateError);
+        result.errors.push(`DB update failed for type ${typeName}: ${updateError.message}`);
+      } else {
+        upsertedRowId = existingMatch.id;
+        if (upsertedRowId) writtenTypeIds.push(upsertedRowId);
+      }
     } else {
-      const roomTypeId = upsertedRow?.id;
-      if (roomTypeId) writtenTypeIds.push(roomTypeId);
+      // INSERT new row
+      const { data: upsertedRow, error: upsertError } = await supabase
+        .from("hostfully_room_types")
+        .upsert(roomData, {
+          onConflict: 'property_id,hostfully_room_id',
+          ignoreDuplicates: false,
+        })
+        .select("id")
+        .maybeSingle();
 
+      if (upsertError) {
+        console.error(`[UnitIngestion] Failed to upsert type ${typeName}:`, upsertError);
+        result.errors.push(`DB upsert failed for type ${typeName}: ${upsertError.message}`);
+      } else {
+        upsertedRowId = upsertedRow?.id;
+        if (upsertedRowId) writtenTypeIds.push(upsertedRowId);
+      }
+    }
+
+    if (upsertedRowId) {
       // Write hostfully_unit_map entries for each unit in this type group
       for (let u = 0; u < group.unitUids.length; u++) {
         const { error: mapError } = await supabase
           .from("hostfully_unit_map")
           .upsert({
             property_id: rolPropertyId,
-            room_type_id: roomTypeId || group.unitUids[0],
+            room_type_id: upsertedRowId,
             hostfully_uid: group.unitUids[u],
             unit_name: group.unitNames[u],
             unit_number: group.unitNumbers[u],
