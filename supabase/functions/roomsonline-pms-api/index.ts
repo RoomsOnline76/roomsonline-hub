@@ -256,11 +256,87 @@ function createErrorResponse(
 // MAIN HANDLER
 // ============================================================================
 
+// ============================================================================
+// RATE LIMITER
+// ============================================================================
+
+async function checkRateLimit(
+  supabase: ReturnType<typeof createClient>,
+  propertyId: string | undefined,
+  endpoint: string
+): Promise<{ allowed: boolean; limit: number; remaining: number; resetAt: string; headers: Record<string, string> }> {
+  if (!propertyId) return { allowed: true, limit: 0, remaining: 0, resetAt: "", headers: {} };
+
+  // Fetch rate limit config for this property
+  const { data: rl } = await supabase
+    .from("api_rate_limits")
+    .select("*")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const perMinute = rl?.requests_per_minute ?? 60;
+  const perHour = rl?.requests_per_hour ?? 1000;
+
+  // Count requests in last minute
+  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+  const { count: minuteCount } = await supabase
+    .from("api_request_log")
+    .select("*", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("endpoint", endpoint)
+    .gte("created_at", oneMinuteAgo);
+
+  const currentMinute = minuteCount ?? 0;
+  const remaining = Math.max(0, perMinute - currentMinute);
+  const resetAt = new Date(Date.now() + 60_000).toISOString();
+
+  const rateLimitHeaders: Record<string, string> = {
+    "X-RateLimit-Limit": String(perMinute),
+    "X-RateLimit-Remaining": String(remaining),
+    "X-RateLimit-Reset": resetAt,
+    "X-Api-Version": "v1",
+  };
+
+  if (currentMinute >= perMinute) {
+    return { allowed: false, limit: perMinute, remaining: 0, resetAt, headers: { ...rateLimitHeaders, "Retry-After": "60" } };
+  }
+
+  return { allowed: true, limit: perMinute, remaining, resetAt, headers: rateLimitHeaders };
+}
+
+async function logApiRequest(
+  supabase: ReturnType<typeof createClient>,
+  propertyId: string | undefined,
+  action: string,
+  statusCode: number,
+  responseTimeMs: number,
+  req: Request,
+  errorCode?: string
+) {
+  try {
+    await supabase.from("api_request_log").insert({
+      property_id: propertyId || null,
+      api_version: "v1",
+      action,
+      status_code: statusCode,
+      response_time_ms: responseTimeMs,
+      ip_address: req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || null,
+      user_agent: req.headers.get("user-agent") || null,
+      error_code: errorCode || null,
+      endpoint: "roomsonline-pms-api",
+    });
+  } catch (e) {
+    console.error("[api-request-log] Failed to log:", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -272,6 +348,8 @@ Deno.serve(async (req) => {
     const baseResult = baseRequestSchema.safeParse(body);
     if (!baseResult.success) {
       console.error("[roomsonline-pms-api] Validation error:", baseResult.error);
+      const elapsed = Date.now() - startTime;
+      logApiRequest(supabase, undefined, "unknown", 400, elapsed, req, ERROR_CODES.INVALID_REQUEST);
       return new Response(
         JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "Invalid request format", "unknown", baseResult.error.errors)),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
@@ -279,6 +357,20 @@ Deno.serve(async (req) => {
     }
 
     const { action } = baseResult.data;
+    const propertyId = body.propertyId;
+
+    // Rate limit check
+    const rateCheck = await checkRateLimit(supabase, propertyId, "roomsonline-pms-api");
+    if (!rateCheck.allowed) {
+      const elapsed = Date.now() - startTime;
+      logApiRequest(supabase, propertyId, action, 429, elapsed, req, "RATE_LIMITED");
+      return new Response(
+        JSON.stringify(createErrorResponse("RATE_LIMITED", "Rate limit exceeded. Try again later.", action)),
+        { headers: { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" }, status: 429 }
+      );
+    }
+
+    const mergedHeaders = { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" };
 
     switch (action) {
       case "get_capabilities":
@@ -399,11 +491,19 @@ Deno.serve(async (req) => {
       default:
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          { headers: { ...mergedHeaders }, status: 400 }
         );
     }
+
+    // Log successful request
+    const elapsed = Date.now() - startTime;
+    const response = result as Response;
+    logApiRequest(supabase, propertyId, action, response.status, elapsed, req);
+    return response;
   } catch (error) {
     console.error("[roomsonline-pms-api] Unhandled error:", error);
+    const elapsed = Date.now() - startTime;
+    logApiRequest(supabase, undefined, "unknown", 500, elapsed, req, ERROR_CODES.INTERNAL_ADAPTER_ERROR);
     return new Response(
       JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Internal server error", "unknown", String(error))),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
