@@ -165,7 +165,7 @@ export function usePropertyCharges(propertyId: string | null) {
 
         const chargesToInsert = sourceCharges.map(charge => {
           let mappedRoomTypeIds: string[] = [];
-          let mappedOverrides: Record<string, unknown> = {};
+          let mappedOverrides: Record<string, Json> = {};
           let appliesToAllRooms = charge.applies_to_all_rooms;
 
           if (!charge.applies_to_all_rooms && charge.room_type_ids?.length) {
