@@ -1,42 +1,41 @@
 
 
-# Add Property Charges to Booking Checkout
+# Fix Font Readability Preview: Short Hex & Contrast Fallback
 
-## Problem
-The booking checkout page (`Booking.tsx`) calculates room rates but never fetches or applies property charges (taxes, fees, deposits, surcharges). All the infrastructure exists — `useChargesForBooking` hook, `calculateCharges()` engine, and types — but none of it is wired into the booking flow.
+## Root Cause
 
-## Changes
+`getLuminance()` returns `0` when the hex string is shorter than 6 characters (e.g. `#fff`, `#FFF`). Zero luminance is treated as pure black, producing a 21:1 contrast ratio against white — completely wrong. The browser, however, correctly renders `#fff` as white, so the text is invisible while the badge says "AA Pass".
 
-### File: `src/pages/Booking.tsx`
+The same bug exists in `hexToRgb()` (used for the RGB input fields).
 
-1. **Import** `useChargesForBooking` from `@/hooks/usePropertyCharges` and `calculateCharges`, `getChargeTotals` from `@/components/charges/ChargeCalculator`
+## Fix (single file: `src/components/property/BrandingTab.tsx`)
 
-2. **Fetch charges** using `useChargesForBooking(property?.id)` at the component level
-
-3. **Apply charges after room cost calculation** (after line ~1164 where `setCostBreakdown` / `setTotalCost` are set):
-   - Build a `ChargeCalculationContext` from the booking data (subtotal, nights, rooms count, adults, children, infants, roomTypeId)
-   - Call `calculateCharges(charges, context)` to get applicable charges
-   - Append each calculated charge as a `CostLineItem` to the breakdown
-   - Add charge totals to `runningTotal`
-
-4. **Display charges in the Payment step** (lines ~1874-1895):
-   - Charges already appear as line items in `costBreakdown` — they'll render automatically
-   - Add a subtle separator or label between room rates and charges for clarity (e.g., a thin divider with "Taxes & Fees" heading when charges exist)
-   - Show refundable deposit amounts with a small "(refundable)" tag
-
-5. **Include charges in the booking submission** — ensure `totalCost` sent to payment includes charges, and snapshot the charges in the booking's `ai_metadata` or a dedicated field for the confirmation page
-
-### New state
-- `chargesTotal` (number) — stored separately so the summary can show "Accommodation: X" + "Taxes & Fees: Y" = "Total: Z"
-
-### Charge display in Step 3 (Payment)
-```text
-Studio (2 guests)                    R 4,308.00
-──────────────────────────────────────
-Tourism Levy (2%)                       R 86.16
-Cleaning Fee                            R 350.00
-Security Deposit (refundable)           R 500.00
-──────────────────────────────────────
-Total                               R 5,244.16
+### 1. Add a hex normaliser function
+Expand 3-digit hex (`#abc`) to 6-digit (`#aabbcc`) before any parsing:
+```typescript
+function normalizeHex(hex: string): string {
+  const clean = hex.replace("#", "");
+  if (clean.length === 3) {
+    return "#" + clean[0]+clean[0] + clean[1]+clean[1] + clean[2]+clean[2];
+  }
+  return "#" + clean;
+}
 ```
+
+### 2. Use normaliser in `getLuminance` and `hexToRgb`
+Call `normalizeHex()` at the top of both functions so all downstream parsing works with 6-digit values.
+
+### 3. Add automatic fallback colour in `FontPreviewCard`
+When contrast ratio is below AA (< 4.5), compute and display a suggested fallback:
+- If bg is light → suggest dark font (e.g. `#1a1a2e`)
+- If bg is dark → suggest light font (e.g. `#ffffff`)
+- Show the fallback as a second preview line: "Suggested fallback: [swatch] #1a1a2e (ratio X:1)"
+
+### 4. Visual indicator for failing previews
+When contrast fails, add a subtle warning border and show the fallback text alongside the original, so the user can see both and optionally adopt the better colour.
+
+## Impact
+- Fixes the 21:1 false positive for short hex values
+- Adds actionable guidance when contrast is poor
+- No new files, no database changes
 
