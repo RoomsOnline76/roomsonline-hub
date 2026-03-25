@@ -51,6 +51,7 @@ import {
   Cloud,
   Key,
   ChevronsUpDown,
+  XCircle,
 } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StarRating } from "@/components/StarRating";
@@ -99,7 +100,6 @@ import { CommissionTab } from "@/components/property/CommissionTab";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
-import { XCircle } from "lucide-react";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
