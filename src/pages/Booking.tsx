@@ -1910,22 +1910,31 @@ const Booking = () => {
                 </div>
               ) : costBreakdown.length > 0 ? (
                 <>
-                  {costBreakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <div>
-                        <p className="text-foreground">{item.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.nights} night{item.nights !== 1 ? "s" : ""} × <FormattedPrice amount={item.unitPrice} />
-                        </p>
+                  {costBreakdown.map((item, idx) => {
+                    const isCharge = item.nights === 0;
+                    const prevItem = idx > 0 ? costBreakdown[idx - 1] : null;
+                    const showDivider = isCharge && prevItem && prevItem.nights > 0;
+                    return (
+                      <div key={idx}>
+                        {showDivider && (
+                          <div className="border-t border-border/30 my-2 pt-2">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Taxes & Fees</p>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm">
+                          <div>
+                            <p className="text-foreground">{item.description}</p>
+                            {!isCharge && (
+                              <p className="text-xs text-muted-foreground">
+                                {item.nights} night{item.nights !== 1 ? "s" : ""} × <FormattedPrice amount={item.unitPrice} />
+                              </p>
+                            )}
+                          </div>
+                          <span className="font-medium"><FormattedPrice amount={item.total} /></span>
+                        </div>
                       </div>
-                      <span className="font-medium"><FormattedPrice amount={item.total} /></span>
-                    </div>
-                  ))}
-
-                  <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                    <span>Service fee</span>
-                    <span><FormattedPrice amount={0} /></span>
-                  </div>
+                    );
+                  })}
 
                   <div className="border-t border-border/50 pt-3 flex justify-between items-center">
                     <span className="font-semibold">Total</span>
