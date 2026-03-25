@@ -2826,8 +2826,8 @@ export default function PropertyForm() {
     description: 'general', address: 'general', city: 'general', country: 'general',
     external_id: 'general', nightsbridge_property_code: 'general', hostfully_property_code: 'general',
     images: 'images',
-    'amenities.bank_name': 'info-facilities', 'amenities.telephone': 'info-facilities',
-    'amenities.contact_email': 'info-facilities',
+    'amenities.bank_name': 'info-facilities', 'amenities.telephone': 'general',
+    'amenities.contact_email': 'general',
     'amenities.room_types': 'rooms',
     'amenities.check_in_time': 'house-rules',
   };
