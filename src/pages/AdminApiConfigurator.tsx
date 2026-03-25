@@ -7,15 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
-import { Save, RotateCcw, Blocks, LayoutDashboard, Globe, MousePointerClick, Shield } from "lucide-react";
+import { Save, RotateCcw, Blocks, LayoutDashboard, Globe, MousePointerClick, Shield, Gauge } from "lucide-react";
 
 import { GutenbergConfigTab, type GutenbergConfig, GUTENBERG_DEFAULTS } from "@/components/api-configurator/GutenbergConfigTab";
 import { WpAdminConfigTab, type WpAdminConfig, WP_ADMIN_DEFAULTS } from "@/components/api-configurator/WpAdminConfigTab";
 import { EmbedConfigTab, type EmbedConfig, EMBED_DEFAULTS } from "@/components/api-configurator/EmbedConfigTab";
 import { SmartButtonConfigTab, type SmartButtonConfig, SMART_BUTTON_DEFAULTS } from "@/components/api-configurator/SmartButtonConfigTab";
 import { ApiGatesTab, type ApiGatesConfig, API_GATES_DEFAULTS } from "@/components/api-configurator/ApiGatesTab";
+import { RateLimitsTab, type RateLimitsConfig, RATE_LIMITS_DEFAULTS } from "@/components/api-configurator/RateLimitsTab";
 
-type ComponentType = "gutenberg_blocks" | "wp_admin" | "embed_widgets" | "smart_button" | "api_gates";
+type ComponentType = "gutenberg_blocks" | "wp_admin" | "embed_widgets" | "smart_button" | "api_gates" | "rate_limits";
 
 interface ConfigRow {
   id?: string;
@@ -24,7 +25,7 @@ interface ConfigRow {
   is_active: boolean;
 }
 
-const COMPONENT_TYPES: ComponentType[] = ["gutenberg_blocks", "wp_admin", "embed_widgets", "smart_button", "api_gates"];
+const COMPONENT_TYPES: ComponentType[] = ["gutenberg_blocks", "wp_admin", "embed_widgets", "smart_button", "api_gates", "rate_limits"];
 
 export default function AdminApiConfigurator() {
   const { user } = useAuth();
@@ -102,6 +103,7 @@ export default function AdminApiConfigurator() {
       embed_widgets: EMBED_DEFAULTS as unknown as Record<string, unknown>,
       smart_button: SMART_BUTTON_DEFAULTS as unknown as Record<string, unknown>,
       api_gates: API_GATES_DEFAULTS as unknown as Record<string, unknown>,
+      rate_limits: RATE_LIMITS_DEFAULTS as unknown as Record<string, unknown>,
     };
     updateConfig(type, defaults[type]);
     toast.info("Reset to defaults (unsaved)");
@@ -155,6 +157,7 @@ export default function AdminApiConfigurator() {
               <TabsTrigger value="embed_widgets" className="gap-1"><Globe className="h-3.5 w-3.5" />Embeds</TabsTrigger>
               <TabsTrigger value="smart_button" className="gap-1"><MousePointerClick className="h-3.5 w-3.5" />Smart Button</TabsTrigger>
               <TabsTrigger value="api_gates" className="gap-1"><Shield className="h-3.5 w-3.5" />API Gates</TabsTrigger>
+              <TabsTrigger value="rate_limits" className="gap-1"><Gauge className="h-3.5 w-3.5" />Rate Limits</TabsTrigger>
             </TabsList>
 
             <TabsContent value="gutenberg_blocks">
@@ -180,6 +183,11 @@ export default function AdminApiConfigurator() {
             <TabsContent value="api_gates">
               <div className="flex justify-end mb-3"><Button variant="ghost" size="sm" onClick={() => resetToDefaults("api_gates")}><RotateCcw className="h-3.5 w-3.5 mr-1" />Reset</Button></div>
               <ApiGatesTab config={configs.api_gates?.config as unknown as ApiGatesConfig} onChange={(c) => updateConfig("api_gates", c as unknown as Record<string, unknown>)} />
+            </TabsContent>
+
+            <TabsContent value="rate_limits">
+              <div className="flex justify-end mb-3"><Button variant="ghost" size="sm" onClick={() => resetToDefaults("rate_limits")}><RotateCcw className="h-3.5 w-3.5 mr-1" />Reset</Button></div>
+              <RateLimitsTab config={configs.rate_limits?.config as unknown as RateLimitsConfig} onChange={(c) => updateConfig("rate_limits", c as unknown as Record<string, unknown>)} />
             </TabsContent>
           </Tabs>
         )}

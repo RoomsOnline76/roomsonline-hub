@@ -6,8 +6,59 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
 };
 
+// Rate limit check helper
+async function checkRateLimit(supabase: ReturnType<typeof createClient>, propertyId: string) {
+  const { data: rl } = await supabase
+    .from("api_rate_limits")
+    .select("*")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const perMinute = rl?.requests_per_minute ?? 60;
+  const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
+  const { count } = await supabase
+    .from("api_request_log")
+    .select("*", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("endpoint", "wordpress-plugin-api")
+    .gte("created_at", oneMinuteAgo);
+
+  const current = count ?? 0;
+  const remaining = Math.max(0, perMinute - current);
+  const resetAt = new Date(Date.now() + 60_000).toISOString();
+
+  return {
+    allowed: current < perMinute,
+    headers: {
+      "X-RateLimit-Limit": String(perMinute),
+      "X-RateLimit-Remaining": String(remaining),
+      "X-RateLimit-Reset": resetAt,
+      "X-Api-Version": "v1",
+      ...(current >= perMinute ? { "Retry-After": "60" } : {}),
+    },
+  };
+}
+
+async function logRequest(supabase: ReturnType<typeof createClient>, propertyId: string, action: string, statusCode: number, ms: number, req: Request, errorCode?: string) {
+  try {
+    await supabase.from("api_request_log").insert({
+      property_id: propertyId,
+      api_version: "v1",
+      action,
+      status_code: statusCode,
+      response_time_ms: ms,
+      ip_address: req.headers.get("x-forwarded-for") || null,
+      user_agent: req.headers.get("user-agent") || null,
+      error_code: errorCode || null,
+      endpoint: "wordpress-plugin-api",
+    });
+  } catch (_) { /* best effort */ }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const startTime = Date.now();
 
   try {
     const apiKey = req.headers.get("x-api-key");
@@ -38,6 +89,16 @@ serve(async (req) => {
     if (!config.is_active) {
       return new Response(JSON.stringify({ error: "Integration is disabled" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Rate limit check
+    const rateCheck = await checkRateLimit(supabase, config.property_id);
+    if (!rateCheck.allowed) {
+      const elapsed = Date.now() - startTime;
+      logRequest(supabase, config.property_id, "rate_limited", 429, elapsed, req, "RATE_LIMITED");
+      return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+        status: 429, headers: { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" },
       });
     }
 
@@ -101,8 +162,10 @@ serve(async (req) => {
       });
     }
 
+    const elapsed = Date.now() - startTime;
+    logRequest(supabase, config.property_id, action || "unknown", 400, elapsed, req);
     return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400, headers: { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("wordpress-plugin-api error:", e);
