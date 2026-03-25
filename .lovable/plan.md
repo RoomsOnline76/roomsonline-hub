@@ -1,73 +1,41 @@
 
 
-# Admin Voucher Management + PMS Adapter Integration
+# Room-Level Charges: Add Room Type Selector to Charge Editor
 
-## Summary
-Add a "Vouchers" sub-tab to the property form's Specials tab for CRUD management of promo codes, and extend PMS adapters that support promo/discount APIs.
-
-## PMS Adapter Audit Results
-| Adapter | Promo/Voucher API Support | Action |
-|---------|--------------------------|--------|
-| **Hostfully** | No promo/coupon endpoints in their API | None |
-| **Benson** | `voucher` field on reservations (booking reference, not promo codes) | None — it's a booking voucher, not a discount code |
-| **ROL'OS PMS** | `voucher` field on reservations (same — booking reference) | None |
-| **Cloudbeds** | No promo endpoints found | None |
-| **Checkfront** | No promo endpoints found | None |
-| **Little Hotelier** | No promo endpoints found | None |
-| **HotelBeds** | No promo endpoints found | None |
-| **RentalsUnited** | No promo endpoints found | None |
-| **NightsBridge** | No promo endpoints found | None |
-
-**Conclusion**: None of the current PMS adapters expose a promo/discount code API. The `voucher` field in Benson and ROL'OS PMS is a reservation reference number, not a promotional discount. Voucher/promo management is ROL'OS-only for now.
+## Current State
+The `property_charges` table already has `applies_to_all_rooms` (boolean) and `room_type_ids` (string array) columns. The `ChargeCalculator.ts` already filters charges by `roomTypeId` at booking time. **However, the UI never lets users pick which rooms a charge applies to** — the "Applies to All Rooms" toggle exists but turning it off shows nothing.
 
 ## Changes
 
-### 1. New component: `src/components/property/PromoCodesTab.tsx`
-A self-contained CRUD component for managing promo codes per property:
-- **List view**: Table showing code, discount, validity dates, uses, status (active/inactive toggle)
-- **Add/Edit dialog**: Form with fields for code (auto-uppercase), discount type (percentage/fixed), discount value, description, valid_from, valid_until, max_uses, conditions checkboxes (non_refundable, min_nights)
-- **Delete**: With confirmation
-- **Data**: Fetches from `promo_codes` table filtered by `property_id`
-- Uses `supabase` client directly with React Query for CRUD
+### 1. Modify `ChargeEditor.tsx` — Add room type multi-select
+When `applies_to_all_rooms` is toggled OFF, show a checkbox list of the property's room types (fetched from `rolos_room_types` for the given `propertyId`). Each checked room type populates `room_type_ids`. Also allow per-room **amount overrides** via an optional amount field next to each room type.
 
-### 2. Modify: `src/pages/PropertyForm.tsx`
-- Add "Vouchers" as a new sub-tab inside the existing **Specials** tab (alongside Accommodations, Conference, Event/Wedding)
-- Add `<TabsTrigger value="vouchers">Vouchers</TabsTrigger>` to the Specials sub-tabs
-- Render `<PromoCodesTab propertyId={propertyId} />` when `specialsCategory === "vouchers"`
+- Fetch room types: `supabase.from('rolos_room_types').select('id, name').eq('property_id', propertyId)`
+- Render checkboxes with room name + optional override amount input
+- Pass `propertyId` is already a prop
 
-### 3. RLS policy update
-The existing `promo_codes` table needs an **authenticated write** policy so property owners can manage their own codes:
+### 2. Add `room_charge_overrides` column to `property_charges`
+New JSONB column to store per-room amount overrides:
 ```sql
-CREATE POLICY "Owners can manage their promo codes"
-ON public.promo_codes FOR ALL TO authenticated
-USING (
-  property_id IN (
-    SELECT id FROM public.properties WHERE owner_id = auth.uid()
-  )
-  OR public.has_role(auth.uid(), 'admin')
-  OR public.has_role(auth.uid(), 'dev')
-)
-WITH CHECK (
-  property_id IN (
-    SELECT id FROM public.properties WHERE owner_id = auth.uid()
-  )
-  OR public.has_role(auth.uid(), 'admin')
-  OR public.has_role(auth.uid(), 'dev')
-);
+ALTER TABLE public.property_charges 
+ADD COLUMN room_charge_overrides jsonb DEFAULT '{}';
+-- Format: { "room-type-uuid": 150.00, "other-room-uuid": 200.00 }
 ```
 
-### 4. Edge function: No changes needed
-The `validate-voucher` function already handles validation. No PMS adapters support promo code APIs, so no adapter changes required.
+### 3. Update `ChargeCalculator.ts` — Use room-specific amounts
+In `calculateChargeAmount()`, check if `charge.room_charge_overrides[context.roomTypeId]` exists. If so, use that amount instead of `charge.amount` for the calculation.
 
-## PromoCodesTab UI Layout
-```text
-┌──────────────────────────────────────────────┐
-│ [+ Add Voucher Code]                         │
-├──────┬────────┬───────────┬──────┬──────┬────┤
-│ Code │ Type   │ Value     │ Used │ Max  │ ⚙  │
-├──────┼────────┼───────────┼──────┼──────┼────┤
-│ NR15 │ %      │ 15%       │ 3    │ 100  │ ✏🗑│
-│ FLAT │ Fixed  │ R 500     │ 0    │ —    │ ✏🗑│
-└──────┴────────┴───────────┴──────┴──────┴────┘
-```
+### 4. Update `PropertyCharge` type
+Add `room_charge_overrides?: Record<string, number> | null` to the interface.
+
+### 5. Update `AdditionalChargesManager.tsx` — Show room scope in table
+Add a small indicator in the charges table showing "All Rooms" vs "X rooms" badge, so admins can see at a glance which charges are room-specific.
+
+### 6. Update `usePropertyCharges.tsx` — Include new field in copy
+Add `room_charge_overrides` to the field list in `copyCharges` mutation.
+
+## No other changes needed
+- The booking engine (`Booking.tsx`) already passes `roomTypeId` in the charge context
+- RLS policies remain unchanged
+- The `validate-voucher` edge function is unaffected
 
