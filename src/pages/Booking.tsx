@@ -1212,7 +1212,7 @@ const Booking = () => {
     if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
       calculateCost();
     }
-  }, [property?.id, rooms, selectedRateType, checkIn, checkOut]);
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
