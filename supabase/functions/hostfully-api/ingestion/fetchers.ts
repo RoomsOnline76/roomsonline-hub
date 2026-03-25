@@ -146,14 +146,17 @@ export async function fetchRules(
 }
 
 /**
- * 4. Fetch available amenities (master list)
- * GET /available-amenities
+ * 4. Fetch property-specific amenities
+ * GET /properties/{propertyUid}/amenities
+ * Falls back to master list if property-specific endpoint fails
  */
-export async function fetchAvailableAmenities(
+export async function fetchPropertyAmenities(
+  propertyUid: string,
   creds: HostfullyCredentials
 ): Promise<{ success: boolean; data: HostfullyAmenityPayload[] | null; error: string | null }> {
+  // Try property-specific amenities first
   const result = await hostfullyFetch<{ amenities?: HostfullyAmenityPayload[] } | HostfullyAmenityPayload[]>(
-    `/available-amenities`,
+    `/properties/${propertyUid}/amenities`,
     creds
   );
   
@@ -161,10 +164,26 @@ export async function fetchAvailableAmenities(
     const amenities = Array.isArray(result.data) 
       ? result.data 
       : (result.data as { amenities?: HostfullyAmenityPayload[] }).amenities || [];
+    if (amenities.length > 0) {
+      return { success: true, data: amenities, error: null };
+    }
+  }
+  
+  // Fallback: master amenity list
+  console.log(`[Hostfully Fetcher] Property amenities empty, falling back to master list`);
+  const fallback = await hostfullyFetch<{ amenities?: HostfullyAmenityPayload[] } | HostfullyAmenityPayload[]>(
+    `/available-amenities`,
+    creds
+  );
+  
+  if (fallback.success && fallback.data) {
+    const amenities = Array.isArray(fallback.data) 
+      ? fallback.data 
+      : (fallback.data as { amenities?: HostfullyAmenityPayload[] }).amenities || [];
     return { success: true, data: amenities, error: null };
   }
   
-  return { success: result.success, data: [], error: result.error };
+  return { success: fallback.success, data: [], error: fallback.error };
 }
 
 /**

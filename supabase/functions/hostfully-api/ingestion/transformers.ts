@@ -188,18 +188,24 @@ function transformPropertyCore(ctx: IngestionContext): Partial<TransformedProper
 }
 
 /**
- * Transform descriptions
+ * Transform descriptions — with fallback to core property payload
+ * Returns description AND adds 'description' to locked fields
  */
-function transformDescriptions(ctx: IngestionContext): Partial<TransformedPropertyData> {
-  const result: Partial<TransformedPropertyData> = {};
+function transformDescriptions(ctx: IngestionContext): Partial<TransformedPropertyData> & { descriptionLocked?: boolean } {
+  const result: Partial<TransformedPropertyData> & { descriptionLocked?: boolean } = {};
   
-  if (!ctx.descriptions) return result;
+  // Try descriptions endpoint first
+  const descText = ctx.descriptions?.description;
   
-  const desc = ctx.descriptions;
+  // Fallback to core property fields
+  const fallback = descText 
+    || (ctx.property as any)?.description 
+    || (ctx.property as any)?.summary 
+    || null;
   
-  // Main description (SEED_ONLY - only if empty)
-  if (desc.description) {
-    result.description = desc.description;
+  if (fallback) {
+    result.description = fallback;
+    result.descriptionLocked = true;
   }
   
   return result;
@@ -252,26 +258,139 @@ function transformRules(ctx: IngestionContext): Record<string, unknown> {
 }
 
 /**
- * Transform amenities list into facilities array
+ * Hostfully amenity name → ROL facility label mapping
+ */
+const HOSTFULLY_AMENITY_MAP: Record<string, string> = {
+  // Connectivity
+  'WIFI': 'Free WiFi',
+  'INTERNET': 'Free WiFi',
+  'WIRELESS_INTERNET': 'Free WiFi',
+  // Pool & Spa
+  'SWIMMING_POOL': 'Outdoor Swimming Pool',
+  'POOL': 'Outdoor Swimming Pool',
+  'INDOOR_POOL': 'Indoor Swimming Pool',
+  'HOT_TUB': 'Hot Tub / Jacuzzi',
+  'JACUZZI': 'Hot Tub / Jacuzzi',
+  'SPA': 'Spa',
+  'SAUNA': 'Sauna',
+  // Kitchen & Dining
+  'KITCHEN': 'Kitchen',
+  'KITCHENETTE': 'Kitchenette',
+  'DISHWASHER': 'Dishwasher',
+  'MICROWAVE': 'Microwave',
+  'OVEN': 'Oven',
+  'COFFEE_MAKER': 'Coffee Machine',
+  'COFFEE_MACHINE': 'Coffee Machine',
+  // Climate
+  'AIR_CONDITIONING': 'Air Conditioning',
+  'HEATING': 'Heating',
+  'FIREPLACE': 'Fireplace',
+  'CEILING_FAN': 'Ceiling Fan',
+  'FAN': 'Ceiling Fan',
+  // Laundry
+  'WASHER': 'Washing Machine',
+  'WASHING_MACHINE': 'Washing Machine',
+  'DRYER': 'Tumble Dryer',
+  'IRON': 'Iron & Ironing Board',
+  // Entertainment
+  'TV': 'TV',
+  'CABLE_TV': 'Satellite / Cable TV',
+  'SATELLITE_TV': 'Satellite / Cable TV',
+  'SMART_TV': 'Smart TV',
+  'NETFLIX': 'Netflix',
+  'STREAMING': 'Streaming Services',
+  // Parking & Transport
+  'PARKING': 'Free Parking',
+  'FREE_PARKING': 'Free Parking',
+  'GARAGE': 'Garage',
+  'EV_CHARGER': 'EV Charging',
+  // Outdoor
+  'GARDEN': 'Garden',
+  'PATIO': 'Patio / Deck',
+  'DECK': 'Patio / Deck',
+  'BALCONY': 'Balcony',
+  'TERRACE': 'Terrace',
+  'BBQ': 'Braai / BBQ',
+  'BARBECUE': 'Braai / BBQ',
+  'GRILL': 'Braai / BBQ',
+  'OUTDOOR_DINING': 'Outdoor Dining Area',
+  // Safety
+  'SMOKE_DETECTOR': 'Smoke Detector',
+  'CARBON_MONOXIDE_DETECTOR': 'Carbon Monoxide Detector',
+  'FIRE_EXTINGUISHER': 'Fire Extinguisher',
+  'FIRST_AID_KIT': 'First Aid Kit',
+  'SECURITY_CAMERAS': 'Security Cameras',
+  'SAFE': 'Safe',
+  // Accessibility
+  'WHEELCHAIR_ACCESSIBLE': 'Wheelchair Accessible',
+  'ELEVATOR': 'Elevator / Lift',
+  'LIFT': 'Elevator / Lift',
+  // Fitness
+  'GYM': 'Gym / Fitness Centre',
+  'FITNESS_CENTER': 'Gym / Fitness Centre',
+  // Business
+  'WORKSPACE': 'Dedicated Workspace',
+  'DESK': 'Dedicated Workspace',
+  // Comfort
+  'HAIR_DRYER': 'Hair Dryer',
+  'TOILETRIES': 'Toiletries Provided',
+  'TOWELS': 'Towels Provided',
+  'LINEN': 'Linen Provided',
+  'BED_LINEN': 'Linen Provided',
+  // Baby & Child
+  'CRIB': 'Cot / Crib',
+  'HIGH_CHAIR': 'High Chair',
+  'BABY_BATH': 'Baby Bath',
+  // Views
+  'SEA_VIEW': 'Sea View',
+  'OCEAN_VIEW': 'Sea View',
+  'MOUNTAIN_VIEW': 'Mountain View',
+  'LAKE_VIEW': 'Lake View',
+  'CITY_VIEW': 'City View',
+  // Pets
+  'PET_FRIENDLY': 'Pet Friendly',
+  'PETS_ALLOWED': 'Pet Friendly',
+};
+
+/**
+ * Transform amenities list into facilities array using mapping table
  */
 function transformAmenities(ctx: IngestionContext): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   
   if (!ctx.amenities || !Array.isArray(ctx.amenities)) return result;
   
-  // Extract facility names
-  const facilities = ctx.amenities
-    .filter(a => a.type)
-    .map(a => a.type);
+  const mappedFacilities: string[] = [];
+  const unmappedRaw: string[] = [];
   
-  if (facilities.length > 0) {
-    result.facilities = facilities;
+  for (const amenity of ctx.amenities) {
+    const key = (amenity.type || amenity.name || '').toUpperCase().replace(/[\s-]+/g, '_');
+    const mapped = HOSTFULLY_AMENITY_MAP[key];
+    if (mapped) {
+      if (!mappedFacilities.includes(mapped)) {
+        mappedFacilities.push(mapped);
+      }
+    } else if (key) {
+      unmappedRaw.push(amenity.type || amenity.name || key);
+    }
+  }
+  
+  if (mappedFacilities.length > 0) {
+    result.facilities = mappedFacilities;
+  }
+  
+  // Store raw amenities for reference
+  if (unmappedRaw.length > 0) {
+    result.hostfully_raw_amenities = unmappedRaw;
   }
   
   // Extract highlights
   const highlights = ctx.amenities
     .filter(a => a.highlight)
-    .map(a => a.type || a.description)
+    .map(a => {
+      const key = (a.type || '').toUpperCase().replace(/[\s-]+/g, '_');
+      return HOSTFULLY_AMENITY_MAP[key] || a.type || a.description;
+    })
     .filter(Boolean);
   
   if (highlights.length > 0) {
@@ -573,14 +692,21 @@ export function transformFullIngestion(ctx: IngestionContext): TransformedData {
     delete propertyCore.lockedFieldNames;
   }
   
-  // 2. Transform descriptions
+  // 2. Transform descriptions (with fallback to core property data)
   const descriptions = transformDescriptions(ctx);
+  if (descriptions.descriptionLocked) {
+    allLockedFields.push('description');
+    delete descriptions.descriptionLocked;
+  }
   
   // 3. Transform rules -> amenities
   const rulesAmenities = transformRules(ctx);
   
   // 4. Transform amenities -> facilities
   const facilitiesAmenities = transformAmenities(ctx);
+  if (facilitiesAmenities.facilities) {
+    allLockedFields.push('facilities');
+  }
   
   // 5. Transform media -> images
   const images = transformMedia(ctx);

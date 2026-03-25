@@ -19,7 +19,7 @@ import {
   fetchProperty,
   fetchDescriptions,
   fetchRules,
-  fetchAvailableAmenities,
+  fetchPropertyAmenities,
   fetchPhotos,
   fetchRooms,
   fetchMultiUnits,
@@ -193,7 +193,7 @@ export async function executeFullIngestion(
     const [descriptionsResult, rulesResult, amenitiesResult, photosResult] = await Promise.all([
       fetchDescriptions(propertyUid, creds),
       fetchRules(propertyUid, creds),
-      fetchAvailableAmenities(creds),
+      fetchPropertyAmenities(propertyUid, creds),
       fetchPhotos(propertyUid, creds),
     ]);
     
