@@ -98,6 +98,8 @@ import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormI
 import { CommissionTab } from "@/components/property/CommissionTab";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
+import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
+import { XCircle } from "lucide-react";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -2815,6 +2817,32 @@ export default function PropertyForm() {
 
   // Active tab state
   const [activeTab, setActiveTab] = useState("general");
+
+  // Quality gate blocker awareness
+  const { data: activationReadiness } = useActivationReadiness(propertyId || '');
+  
+  const FIELD_TO_TAB: Record<string, string> = {
+    owner_email: 'general', name: 'general', property_type: 'general',
+    description: 'general', address: 'general', city: 'general', country: 'general',
+    external_id: 'general', nightsbridge_property_code: 'general', hostfully_property_code: 'general',
+    images: 'images',
+    'amenities.bank_name': 'info-facilities', 'amenities.telephone': 'info-facilities',
+    'amenities.contact_email': 'info-facilities',
+    'amenities.room_types': 'rooms',
+    'amenities.check_in_time': 'house-rules',
+  };
+
+  const tabsWithBlockers = useMemo(() => {
+    const set = new Set<string>();
+    if (!activationReadiness?.blockers) return set;
+    for (const b of activationReadiness.blockers) {
+      if (b.field) {
+        const tab = FIELD_TO_TAB[b.field];
+        if (tab) set.add(tab);
+      }
+    }
+    return set;
+  }, [activationReadiness?.blockers]);
 
   // House Style state
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
