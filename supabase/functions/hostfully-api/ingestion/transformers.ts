@@ -704,6 +704,9 @@ export function transformFullIngestion(ctx: IngestionContext): TransformedData {
   
   // 4. Transform amenities -> facilities
   const facilitiesAmenities = transformAmenities(ctx);
+  if (facilitiesAmenities.facilities) {
+    allLockedFields.push('facilities');
+  }
   
   // 5. Transform media -> images
   const images = transformMedia(ctx);
