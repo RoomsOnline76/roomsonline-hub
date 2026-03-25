@@ -68,7 +68,15 @@ export function useOwnerContract(ownerEmail: string | undefined) {
         .order("name");
 
       if (error) throw error;
-      return data || [];
+      
+      // Deduplicate by name (keep earliest created record)
+      const seen = new Set<string>();
+      return (data || []).filter((p) => {
+        const key = p.name?.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     },
     enabled: !!ownerEmail,
   });
