@@ -181,6 +181,37 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
       { key: "webhook_secret", label: "Webhook Secret", placeholder: "whsec_...", sensitive: true },
     ],
   },
+  {
+    value: "paypal",
+    label: "PayPal",
+    website: "https://www.paypal.com",
+    docsUrl: "https://developer.paypal.com/docs/api/orders/v2/",
+    credentials: [
+      { key: "client_id", label: "Client ID", placeholder: "PayPal client ID" },
+      { key: "client_secret", label: "Client Secret", placeholder: "PayPal client secret", sensitive: true },
+      { key: "environment", label: "Environment", placeholder: "sandbox or live" },
+    ],
+  },
+  {
+    value: "klarna",
+    label: "Klarna (BNPL)",
+    website: "https://www.klarna.com",
+    docsUrl: "https://docs.klarna.com/",
+    credentials: [
+      { key: "username", label: "API Username", placeholder: "Klarna API username" },
+      { key: "password", label: "API Password", placeholder: "Klarna API password", sensitive: true },
+    ],
+  },
+  {
+    value: "affirm",
+    label: "Affirm (BNPL)",
+    website: "https://www.affirm.com",
+    docsUrl: "https://docs.affirm.com/",
+    credentials: [
+      { key: "public_api_key", label: "Public API Key", placeholder: "Affirm public key" },
+      { key: "private_api_key", label: "Private API Key", placeholder: "Affirm private key", sensitive: true },
+    ],
+  },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────
