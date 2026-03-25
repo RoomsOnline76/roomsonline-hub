@@ -548,6 +548,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/docs/api"
+              element={
+                <ProtectedRoute requireDevOrFearless={true}>
+                  <ApiDocsViewer />
+                </ProtectedRoute>
+              }
+            />
             {/* Journey routes */}
             <Route path="/journey/builder" element={<ItineraryBuilder />} />
             <Route path="/journey/review" element={<JourneyReview />} />
