@@ -83,7 +83,7 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const conditions: Record<string, unknown> = {};
+      const conditions: Record<string, boolean | number> = {};
       if (form.non_refundable) conditions.non_refundable = true;
       if (form.min_nights) conditions.min_nights = Number(form.min_nights);
 
@@ -96,7 +96,7 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
         valid_from: form.valid_from || null,
         valid_until: form.valid_until || null,
         max_uses: form.max_uses ? Number(form.max_uses) : null,
-        conditions,
+        conditions: conditions as unknown as import("@/integrations/supabase/types").Json,
       };
 
       if (editingId) {
@@ -108,7 +108,7 @@ export function PromoCodesTab({ propertyId }: { propertyId: string }) {
       } else {
         const { error } = await supabase
           .from("promo_codes")
-          .insert(payload);
+          .insert([payload]);
         if (error) throw error;
       }
     },
