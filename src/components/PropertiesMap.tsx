@@ -74,8 +74,10 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
       const activeSystemTypes = activePmsSystems?.map(s => s.system_type) || [];
       
       const { data, error } = await supabase
-        .from("public_properties")
+        .from("properties")
         .select("id, name, slug, latitude, longitude, city, country, price_per_night, property_type, images, external_system, external_id, navigation_tags")
+        .eq("is_active", true)
+        .eq("show_on_website", true)
         .not("latitude", "is", null)
         .not("longitude", "is", null);
 
