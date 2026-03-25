@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +43,7 @@ const DEFAULT_CHARGE: Omit<PropertyCharge, 'id' | 'property_id' | 'created_at' |
   applies_to_all_rooms: true,
   room_type_ids: [],
   rate_type_ids: [],
+  room_charge_overrides: {},
   min_nights: 0,
   max_nights: 0,
   applies_to_adults: true,
@@ -80,6 +83,22 @@ export function ChargeEditor({
   const [refundOpen, setRefundOpen] = useState(false);
   const isEditing = !!charge;
 
+  // Fetch room types for this property
+  const { data: roomTypes = [] } = useQuery({
+    queryKey: ['rolos-room-types', propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rolos_room_types')
+        .select('id, name')
+        .eq('property_id', propertyId)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+    enabled: !!propertyId,
+  });
+
   useEffect(() => {
     if (charge) {
       setFormData({
@@ -95,6 +114,7 @@ export function ChargeEditor({
         applies_to_all_rooms: charge.applies_to_all_rooms,
         room_type_ids: charge.room_type_ids || [],
         rate_type_ids: charge.rate_type_ids || [],
+        room_charge_overrides: charge.room_charge_overrides || {},
         min_nights: charge.min_nights,
         max_nights: charge.max_nights,
         applies_to_adults: charge.applies_to_adults,
@@ -411,9 +431,79 @@ export function ChargeEditor({
               <Switch
                 id="applies_to_all_rooms"
                 checked={formData.applies_to_all_rooms}
-                onCheckedChange={checked => setFormData(prev => ({ ...prev, applies_to_all_rooms: checked }))}
+                onCheckedChange={checked => {
+                  setFormData(prev => ({
+                    ...prev,
+                    applies_to_all_rooms: checked,
+                    room_type_ids: checked ? [] : prev.room_type_ids,
+                    room_charge_overrides: checked ? {} : prev.room_charge_overrides,
+                  }));
+                }}
               />
             </div>
+
+            {!formData.applies_to_all_rooms && roomTypes.length > 0 && (
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                <Label className="text-sm font-medium">Select Room Types</Label>
+                <div className="space-y-3">
+                  {roomTypes.map(rt => {
+                    const isSelected = formData.room_type_ids.includes(rt.id);
+                    const overrideAmount = formData.room_charge_overrides?.[rt.id];
+                    return (
+                      <div key={rt.id} className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`room-${rt.id}`}
+                            checked={isSelected}
+                            onCheckedChange={checked => {
+                              setFormData(prev => {
+                                const ids = checked
+                                  ? [...prev.room_type_ids, rt.id]
+                                  : prev.room_type_ids.filter(id => id !== rt.id);
+                                const overrides = { ...(prev.room_charge_overrides || {}) };
+                                if (!checked) delete overrides[rt.id];
+                                return { ...prev, room_type_ids: ids, room_charge_overrides: overrides };
+                              });
+                            }}
+                          />
+                          <Label htmlFor={`room-${rt.id}`} className="text-sm flex-1">{rt.name}</Label>
+                          {isSelected && (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-28 h-8 text-sm"
+                              placeholder={`Default: ${formData.amount}`}
+                              value={overrideAmount ?? ''}
+                              onChange={e => {
+                                setFormData(prev => {
+                                  const overrides = { ...(prev.room_charge_overrides || {}) };
+                                  if (e.target.value === '') {
+                                    delete overrides[rt.id];
+                                  } else {
+                                    overrides[rt.id] = parseFloat(e.target.value) || 0;
+                                  }
+                                  return { ...prev, room_charge_overrides: overrides };
+                                });
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave amount blank to use the default. Enter a value to override for that room type.
+                </p>
+              </div>
+            )}
+
+            {!formData.applies_to_all_rooms && roomTypes.length === 0 && (
+              <p className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-lg">
+                No room types configured for this property. Add room types first.
+              </p>
+            )}
 
             <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
               <Label className="text-sm font-medium">Night Range</Label>

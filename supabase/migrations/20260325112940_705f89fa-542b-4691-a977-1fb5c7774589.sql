@@ -1,0 +1,1 @@
+ALTER TABLE public.property_charges ADD COLUMN room_charge_overrides jsonb DEFAULT '{}';

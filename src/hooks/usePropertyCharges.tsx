@@ -166,6 +166,7 @@ export function usePropertyCharges(propertyId: string | null) {
           applies_to_all_rooms: charge.applies_to_all_rooms,
           room_type_ids: charge.room_type_ids,
           rate_type_ids: charge.rate_type_ids,
+          room_charge_overrides: charge.room_charge_overrides,
           min_nights: charge.min_nights,
           max_nights: charge.max_nights,
           applies_to_adults: charge.applies_to_adults,

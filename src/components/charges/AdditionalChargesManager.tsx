@@ -209,11 +209,18 @@ export function AdditionalChargesManager({
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{charge.name}</div>
-                      {charge.is_refundable && (
-                        <Badge variant="outline" className="text-[10px] mt-1 bg-green-50 text-green-700 border-green-200">
-                          Refundable
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {charge.is_refundable && (
+                          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
+                            Refundable
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px]">
+                          {charge.applies_to_all_rooms
+                            ? 'All Rooms'
+                            : `${charge.room_type_ids?.length || 0} Room${(charge.room_type_ids?.length || 0) !== 1 ? 's' : ''}`}
                         </Badge>
-                      )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge className={CATEGORY_COLORS[charge.category]}>
