@@ -1959,10 +1959,21 @@ const Booking = () => {
               onEmailChange={setGuestEmail}
               onPhoneChange={setGuestPhone}
               onSpecialRequestsChange={setSpecialRequests}
-              onVoucherChange={setVoucher}
+              onVoucherChange={(v) => {
+                setVoucher(v);
+                // Reset voucher state when code changes
+                if (voucherStatus !== "idle") {
+                  setVoucherStatus("idle");
+                  setVoucherResult(null);
+                  setVoucherDiscount(0);
+                }
+              }}
               onBlur={() => setGuestDetails({ name: guestName, email: guestEmail, phone: guestPhone })}
               errors={formErrors}
               showVoucher
+              voucherStatus={voucherStatus}
+              voucherResult={voucherResult}
+              onApplyVoucher={handleApplyVoucher}
             />
           </motion.div>
 
@@ -2012,9 +2023,26 @@ const Booking = () => {
                     );
                   })}
 
+                  {/* Voucher discount line */}
+                  {voucherDiscount > 0 && voucherResult && (
+                    <div className="border-t border-dashed border-border/30 pt-2">
+                      <div className="flex justify-between text-sm">
+                        <div>
+                          <p className="text-green-600 font-medium">
+                            Voucher: {voucher.toUpperCase()} ({voucherResult.discount_type === "percentage" ? `-${voucherResult.discount_value}%` : `- R ${voucherResult.discount_value}`})
+                          </p>
+                          {voucherResult.conditions?.non_refundable && (
+                            <p className="text-xs text-amber-600">⚠️ This booking is non-refundable</p>
+                          )}
+                        </div>
+                        <span className="font-medium text-green-600">- <FormattedPrice amount={voucherDiscount} /></span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="border-t border-border/50 pt-3 flex justify-between items-center">
                     <span className="font-semibold">Total</span>
-                    <span className="text-xl font-bold"><FormattedPrice amount={totalCost} /></span>
+                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost - voucherDiscount)} /></span>
                   </div>
                 </>
               ) : (
