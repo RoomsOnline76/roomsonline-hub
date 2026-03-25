@@ -1,14 +1,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 // ── Provider registry with credential schemas ──────────────────────────────────
 
@@ -16,7 +17,7 @@ interface CredentialField {
   key: string;
   label: string;
   placeholder: string;
-  sensitive?: boolean; // masked by default
+  sensitive?: boolean;
   helpUrl?: string;
 }
 
@@ -27,20 +28,12 @@ interface ProviderDef {
   description?: string;
   docsUrl?: string;
   credentials: CredentialField[];
+  region: "sa" | "international";
 }
 
-const PAYMENT_PROVIDERS: ProviderDef[] = [
+const SA_PROVIDERS: ProviderDef[] = [
   {
-    value: "default",
-    label: "Platform Default",
-    website: null,
-    description: "Uses the global PayFast/PayGate setting",
-    credentials: [],
-  },
-  {
-    value: "payfast",
-    label: "PayFast",
-    website: "https://payfast.io",
+    value: "payfast", label: "PayFast", website: "https://payfast.io", region: "sa",
     docsUrl: "https://developers.payfast.co.za/",
     credentials: [
       { key: "merchant_id", label: "Merchant ID", placeholder: "e.g. 10000100" },
@@ -49,9 +42,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "paygate",
-    label: "PayGate",
-    website: "https://www.paygate.co.za",
+    value: "paygate", label: "PayGate", website: "https://www.paygate.co.za", region: "sa",
     docsUrl: "https://developer.paygate.co.za/",
     credentials: [
       { key: "paygate_id", label: "PayGate ID", placeholder: "e.g. 10011072130" },
@@ -59,9 +50,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "peach",
-    label: "Peach Payments",
-    website: "https://www.peachpayments.com",
+    value: "peach", label: "Peach Payments", website: "https://www.peachpayments.com", region: "sa",
     docsUrl: "https://developer.peachpayments.com/",
     credentials: [
       { key: "entity_id", label: "Entity ID", placeholder: "Channel entity ID" },
@@ -70,9 +59,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "yoco",
-    label: "Yoco",
-    website: "https://www.yoco.com",
+    value: "yoco", label: "Yoco", website: "https://www.yoco.com", region: "sa",
     docsUrl: "https://developer.yoco.com/",
     credentials: [
       { key: "public_key", label: "Public Key", placeholder: "pk_live_..." },
@@ -80,9 +67,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "ozow",
-    label: "Ozow",
-    website: "https://ozow.com",
+    value: "ozow", label: "Ozow", website: "https://ozow.com", region: "sa",
     docsUrl: "https://hub.ozow.com/docs/",
     credentials: [
       { key: "site_code", label: "Site Code", placeholder: "Your Ozow site code" },
@@ -91,9 +76,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "dpo",
-    label: "DPO Pay",
-    website: "https://dpogroup.com",
+    value: "dpo", label: "DPO Pay", website: "https://dpogroup.com", region: "sa",
     docsUrl: "https://docs.dpopay.com/",
     credentials: [
       { key: "company_token", label: "Company Token", placeholder: "Your DPO company token", sensitive: true },
@@ -101,9 +84,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "addpay",
-    label: "AddPay",
-    website: "https://www.addpay.africa",
+    value: "addpay", label: "AddPay", website: "https://www.addpay.africa", region: "sa",
     docsUrl: "https://cnp-developer.addpay.cloud/",
     credentials: [
       { key: "api_key", label: "API Key", placeholder: "CNP API key", sensitive: true },
@@ -111,9 +92,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "payflex",
-    label: "Payflex (BNPL)",
-    website: "https://payflex.co.za",
+    value: "payflex", label: "Payflex (BNPL)", website: "https://payflex.co.za", region: "sa",
     docsUrl: "https://docs.payflex.co.za/",
     credentials: [
       { key: "merchant_id", label: "Merchant ID", placeholder: "Payflex merchant ID" },
@@ -121,9 +100,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "stitch",
-    label: "Stitch",
-    website: "https://www.stitch.money",
+    value: "stitch", label: "Stitch", website: "https://www.stitch.money", region: "sa",
     docsUrl: "https://stitch.money/docs/",
     credentials: [
       { key: "client_id", label: "Client ID", placeholder: "OAuth client ID" },
@@ -131,9 +108,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "ikhokha",
-    label: "iKhokha (iK Pay)",
-    website: "https://www.ikhokha.com",
+    value: "ikhokha", label: "iKhokha (iK Pay)", website: "https://www.ikhokha.com", region: "sa",
     docsUrl: "https://developer.ikhokha.com/",
     credentials: [
       { key: "application_id", label: "Application ID", placeholder: "iK Pay application ID" },
@@ -141,9 +116,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "snapscan",
-    label: "SnapScan",
-    website: "https://www.snapscan.co.za",
+    value: "snapscan", label: "SnapScan", website: "https://www.snapscan.co.za", region: "sa",
     docsUrl: "https://developer.getsnapscan.com/",
     credentials: [
       { key: "merchant_id", label: "Merchant ID", placeholder: "SnapScan merchant reference" },
@@ -151,29 +124,17 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "zapper",
-    label: "Zapper",
-    website: "https://www.zapper.com",
+    value: "zapper", label: "Zapper", website: "https://www.zapper.com", region: "sa",
     credentials: [
       { key: "merchant_id", label: "Merchant ID", placeholder: "Zapper merchant ID" },
       { key: "site_id", label: "Site ID", placeholder: "Zapper site ID" },
     ],
   },
+];
+
+const INTERNATIONAL_PROVIDERS: ProviderDef[] = [
   {
-    value: "flutterwave",
-    label: "Flutterwave",
-    website: "https://flutterwave.com",
-    docsUrl: "https://developer.flutterwave.com/",
-    credentials: [
-      { key: "public_key", label: "Public Key", placeholder: "FLWPUBK-..." },
-      { key: "secret_key", label: "Secret Key", placeholder: "FLWSECK-...", sensitive: true },
-      { key: "encryption_key", label: "Encryption Key", placeholder: "Card encryption key", sensitive: true },
-    ],
-  },
-  {
-    value: "stripe",
-    label: "Stripe",
-    website: "https://stripe.com/za",
+    value: "stripe", label: "Stripe", website: "https://stripe.com", region: "international",
     docsUrl: "https://docs.stripe.com/api",
     credentials: [
       { key: "publishable_key", label: "Publishable Key", placeholder: "pk_live_..." },
@@ -182,9 +143,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "paypal",
-    label: "PayPal",
-    website: "https://www.paypal.com",
+    value: "paypal", label: "PayPal", website: "https://www.paypal.com", region: "international",
     docsUrl: "https://developer.paypal.com/docs/api/orders/v2/",
     credentials: [
       { key: "client_id", label: "Client ID", placeholder: "PayPal client ID" },
@@ -193,9 +152,16 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "klarna",
-    label: "Klarna (BNPL)",
-    website: "https://www.klarna.com",
+    value: "flutterwave", label: "Flutterwave", website: "https://flutterwave.com", region: "international",
+    docsUrl: "https://developer.flutterwave.com/",
+    credentials: [
+      { key: "public_key", label: "Public Key", placeholder: "FLWPUBK-..." },
+      { key: "secret_key", label: "Secret Key", placeholder: "FLWSECK-...", sensitive: true },
+      { key: "encryption_key", label: "Encryption Key", placeholder: "Card encryption key", sensitive: true },
+    ],
+  },
+  {
+    value: "klarna", label: "Klarna (BNPL)", website: "https://www.klarna.com", region: "international",
     docsUrl: "https://docs.klarna.com/",
     credentials: [
       { key: "username", label: "API Username", placeholder: "Klarna API username" },
@@ -203,9 +169,7 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
   {
-    value: "affirm",
-    label: "Affirm (BNPL)",
-    website: "https://www.affirm.com",
+    value: "affirm", label: "Affirm (BNPL)", website: "https://www.affirm.com", region: "international",
     docsUrl: "https://docs.affirm.com/",
     credentials: [
       { key: "public_api_key", label: "Public API Key", placeholder: "Affirm public key" },
@@ -213,6 +177,8 @@ const PAYMENT_PROVIDERS: ProviderDef[] = [
     ],
   },
 ];
+
+const ALL_PROVIDERS = [...SA_PROVIDERS, ...INTERNATIONAL_PROVIDERS];
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -224,27 +190,42 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
   const queryClient = useQueryClient();
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>({});
   const [credentialValues, setCredentialValues] = useState<Record<string, string>>({});
-  const [hasChanges, setHasChanges] = useState(false);
+  const [hasCredChanges, setHasCredChanges] = useState(false);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 
-  // ── Fetch current provider ────────────────────────────────────────────────
+  // ── Fetch current providers ───────────────────────────────────────────────
 
-  const { data: currentProvider, isLoading } = useQuery({
-    queryKey: ["property-payment-provider", propertyId],
+  const { data: propertyData, isLoading } = useQuery({
+    queryKey: ["property-payment-providers", propertyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("payment_provider")
+        .select("payment_provider, payment_providers")
         .eq("id", propertyId)
         .single();
       if (error) throw error;
-      return data?.payment_provider || "default";
+      return data;
     },
     enabled: !!propertyId,
   });
 
-  // ── Fetch saved credentials from integration_configs ──────────────────────
+  // Sync from DB
+  useEffect(() => {
+    if (!propertyData) return;
+    const arr = (propertyData as any).payment_providers as string[] | null;
+    if (arr && arr.length > 0) {
+      setSelectedProviders(arr);
+    } else if (propertyData.payment_provider && propertyData.payment_provider !== "default") {
+      setSelectedProviders([propertyData.payment_provider]);
+    } else {
+      setSelectedProviders([]);
+    }
+  }, [propertyData]);
 
-  const { data: savedCredentials, isLoading: credsLoading } = useQuery({
+  // ── Fetch saved credentials ───────────────────────────────────────────────
+
+  const { data: savedCredentials } = useQuery({
     queryKey: ["payment-credentials", propertyId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -259,39 +240,39 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     enabled: !!propertyId,
   });
 
-  // Sync saved credentials into local state when loaded
   useEffect(() => {
     if (savedCredentials) {
       setCredentialValues(savedCredentials);
-      setHasChanges(false);
+      setHasCredChanges(false);
     }
   }, [savedCredentials]);
 
-  // ── Update provider mutation ──────────────────────────────────────────────
+  // ── Save providers mutation ───────────────────────────────────────────────
 
-  const providerMutation = useMutation({
-    mutationFn: async (provider: string) => {
-      const value = provider === "default" ? null : provider;
+  const providersMutation = useMutation({
+    mutationFn: async (providers: string[]) => {
       const { error } = await supabase
         .from("properties")
-        .update({ payment_provider: value })
+        .update({
+          payment_providers: providers,
+          payment_provider: providers.length > 0 ? providers[0] : null,
+        } as any)
         .eq("id", propertyId);
       if (error) throw error;
     },
-    onSuccess: (_, provider) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["property-payment-providers", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["property-payment-provider", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["active-payment-gateway"] });
-      const label = PAYMENT_PROVIDERS.find(p => p.value === provider)?.label || provider;
-      toast.success(`Payment provider updated to ${label}`);
+      toast.success("Payment providers updated");
     },
-    onError: () => toast.error("Failed to update payment provider"),
+    onError: () => toast.error("Failed to update payment providers"),
   });
 
   // ── Save credentials mutation ─────────────────────────────────────────────
 
   const credentialsMutation = useMutation({
     mutationFn: async (creds: Record<string, string>) => {
-      // Upsert into integration_configs
       const { data: existing } = await supabase
         .from("integration_configs")
         .select("id")
@@ -319,17 +300,21 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-credentials", propertyId] });
-      setHasChanges(false);
+      setHasCredChanges(false);
       toast.success("Payment credentials saved securely");
     },
     onError: () => toast.error("Failed to save credentials"),
   });
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const selected = currentProvider || "default";
-  const selectedProvider = PAYMENT_PROVIDERS.find(p => p.value === selected);
-  const credentialFields = selectedProvider?.credentials || [];
+  const toggleProvider = (value: string) => {
+    const next = selectedProviders.includes(value)
+      ? selectedProviders.filter(p => p !== value)
+      : [...selectedProviders, value];
+    setSelectedProviders(next);
+    providersMutation.mutate(next);
+  };
 
   const toggleFieldVisibility = (key: string) => {
     setVisibleFields(prev => ({ ...prev, [key]: !prev[key] }));
@@ -337,155 +322,194 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
 
   const updateField = (key: string, value: string) => {
     setCredentialValues(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  const maskValue = (value: string) => {
-    if (!value) return "";
-    if (value.length <= 6) return "••••••";
-    return value.slice(0, 3) + "•".repeat(Math.min(value.length - 6, 12)) + value.slice(-3);
+    setHasCredChanges(true);
   };
 
   const handleSaveCredentials = () => {
-    // Only save fields relevant to the current provider
-    const relevantKeys = credentialFields.map(f => f.key);
+    // Save all credential values for all selected providers
+    const relevantKeys = new Set<string>();
+    selectedProviders.forEach(pv => {
+      const def = ALL_PROVIDERS.find(p => p.value === pv);
+      def?.credentials.forEach(f => relevantKeys.add(f.key));
+    });
     const filtered: Record<string, string> = {};
     for (const key of relevantKeys) {
-      if (credentialValues[key]) {
-        filtered[key] = credentialValues[key];
-      }
+      if (credentialValues[key]) filtered[key] = credentialValues[key];
     }
     credentialsMutation.mutate(filtered);
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render provider group ─────────────────────────────────────────────────
+
+  const renderGroup = (label: string, icon: React.ReactNode, providers: ProviderDef[]) => (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="space-y-1">
+        {providers.map((p) => {
+          const isSelected = selectedProviders.includes(p.value);
+          const isExpanded = expandedProvider === p.value && isSelected;
+
+          return (
+            <div key={p.value} className="space-y-0">
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors cursor-pointer",
+                  isSelected
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-border/50 hover:border-border"
+                )}
+                onClick={() => {
+                  if (isSelected && p.credentials.length > 0) {
+                    setExpandedProvider(isExpanded ? null : p.value);
+                  }
+                }}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggleProvider(p.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{p.label}</span>
+                    {isSelected && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        Active
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {p.docsUrl && (
+                    <a
+                      href={p.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-primary"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {isSelected && p.credentials.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {isExpanded ? "▲" : "▼"}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Inline credential fields */}
+              {isExpanded && p.credentials.length > 0 && (
+                <div className="ml-9 space-y-2 py-2 pl-2 border-l-2 border-primary/20">
+                  {p.credentials.map((field) => {
+                    const isSensitive = field.sensitive !== false;
+                    const isVisible = visibleFields[field.key] || !isSensitive;
+                    const currentValue = credentialValues[field.key] || "";
+
+                    return (
+                      <div key={field.key} className="space-y-1">
+                        <Label htmlFor={`cred-${p.value}-${field.key}`} className="text-xs font-medium">
+                          {field.label}
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id={`cred-${p.value}-${field.key}`}
+                            type={isVisible ? "text" : "password"}
+                            value={currentValue}
+                            onChange={(e) => updateField(field.key, e.target.value)}
+                            placeholder={field.placeholder}
+                            className="pr-10 text-sm font-mono h-8"
+                          />
+                          {isSensitive && (
+                            <button
+                              type="button"
+                              onClick={() => toggleFieldVisibility(field.key)}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              {isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // ── Main render ───────────────────────────────────────────────────────────
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-primary" />
-            <div>
-              <CardTitle className="text-base">Payment Provider</CardTitle>
-              <CardDescription className="text-xs">
-                Select which payment gateway processes bookings for this property
-              </CardDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedProvider?.docsUrl && (
-              <a
-                href={selectedProvider.docsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-              >
-                Docs
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            {selectedProvider?.website && (
-              <a
-                href={selectedProvider.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-              >
-                Visit
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5 text-primary" />
+          <div>
+            <CardTitle className="text-base">Payment Providers</CardTitle>
+            <CardDescription className="text-xs">
+              Select one or more payment gateways for this property. Guests will choose at checkout.
+            </CardDescription>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Provider selector */}
-        <Select
-          value={selected}
-          onValueChange={(v) => providerMutation.mutate(v)}
-          disabled={isLoading || providerMutation.isPending}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select payment provider" />
-          </SelectTrigger>
-          <SelectContent>
-            {PAYMENT_PROVIDERS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>
-                <div className="flex items-center gap-2">
-                  <span>{p.label}</span>
-                  {p.value === "default" && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      Recommended
-                    </Badge>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Credential fields */}
-        {credentialFields.length > 0 && (
-          <div className="space-y-3 pt-2 border-t">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              <p className="text-xs text-muted-foreground">
-                Enter your <strong>{selectedProvider?.label}</strong> API credentials below. These are stored securely per-property.
-              </p>
-            </div>
-
-            {credentialFields.map((field) => {
-              const isSensitive = field.sensitive !== false;
-              const isVisible = visibleFields[field.key] || !isSensitive;
-              const currentValue = credentialValues[field.key] || "";
-
-              return (
-                <div key={field.key} className="space-y-1.5">
-                  <Label htmlFor={`cred-${field.key}`} className="text-xs font-medium">
-                    {field.label}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id={`cred-${field.key}`}
-                      type={isVisible ? "text" : "password"}
-                      value={currentValue}
-                      onChange={(e) => updateField(field.key, e.target.value)}
-                      placeholder={field.placeholder}
-                      className="pr-10 text-sm font-mono"
-                    />
-                    {isSensitive && (
-                      <button
-                        type="button"
-                        onClick={() => toggleFieldVisibility(field.key)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {isVisible ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            <Button
-              onClick={handleSaveCredentials}
-              disabled={!hasChanges || credentialsMutation.isPending}
-              size="sm"
-              className="w-full gap-2"
-            >
-              {credentialsMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Save Credentials
-            </Button>
+      <CardContent className="space-y-5">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
+        ) : (
+          <>
+            {renderGroup(
+              "South African",
+              <MapPin className="h-3.5 w-3.5" />,
+              SA_PROVIDERS
+            )}
+
+            {renderGroup(
+              "International",
+              <Globe className="h-3.5 w-3.5" />,
+              INTERNATIONAL_PROVIDERS
+            )}
+
+            {selectedProviders.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">
+                No providers selected — the platform default (PayFast) will be used.
+              </p>
+            )}
+
+            {/* Save credentials button */}
+            {hasCredChanges && (
+              <div className="flex items-center gap-2 pt-2 border-t">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground flex-1">
+                  Credentials are stored securely per-property.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={handleSaveCredentials}
+                  disabled={credentialsMutation.isPending}
+                  className="gap-1.5"
+                >
+                  {credentialsMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save Credentials
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
