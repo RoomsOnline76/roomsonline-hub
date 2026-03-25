@@ -11,8 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { PayFastOnsiteModal } from "./PayFastOnsiteModal";
-import { PayGateRedirect } from "./PayGateRedirect";
+import { PaymentGatewayRouter } from "./PaymentGatewayRouter";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import {

@@ -13,8 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { FormattedPrice } from "@/components/FormattedPrice";
-import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
-import { PayGateRedirect } from "@/components/booking/PayGateRedirect";
+import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { toast } from "sonner";
 import { 
@@ -487,7 +486,7 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure payment via {activeGateway === "paygate" ? "PayGate" : "PayFast"}</span>
+                      <span>Secure payment via {activeGateway === "payfast" ? "PayFast" : activeGateway.charAt(0).toUpperCase() + activeGateway.slice(1)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -516,31 +515,21 @@ export default function JourneyCheckout() {
       </div>
 
       {/* Payment Modal - routes based on active gateway */}
-      {paymentBookingId && activeGateway === "paygate" ? (
-        <PayGateRedirect
-          isOpen={showPayFastModal}
-          onClose={() => setShowPayFastModal(false)}
-          onPaymentInitiated={() => {
-            // PayGate redirects away, booking confirmation handled on return
-            setShowPayFastModal(false);
-          }}
-          bookingId={paymentBookingId}
-          amount={totalPrice}
-          propertyName={`Journey: ${stays.length} destinations`}
-        />
-      ) : paymentBookingId ? (
-        <PayFastOnsiteModal
+      {paymentBookingId && (
+        <PaymentGatewayRouter
+          gateway={activeGateway}
           isOpen={showPayFastModal}
           onClose={() => setShowPayFastModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentCancelled={handlePaymentCancelled}
+          onPaymentInitiated={() => setShowPayFastModal(false)}
           bookingId={paymentBookingId}
           amount={totalPrice}
           propertyName={`Journey: ${stays.length} destinations`}
           isSandbox={true}
           uuid={paymentUuid || undefined}
         />
-      ) : null}
+      )}
     </PublicLayout>
   );
 }
