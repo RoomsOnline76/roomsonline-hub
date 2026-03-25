@@ -341,9 +341,30 @@ Deno.serve(async (req) => {
           .single();
         if (ppErr) throw ppErr;
 
-        // Determine which gateway to call
+        // Determine which gateway to call — look up registry first
         const selectedGateway = igGateway || "payfast";
-        const gatewayFnName = selectedGateway === "paygate" ? "paygate-api" : "payfast-api";
+
+        // Gateway key → edge function name mapping
+        const gatewayFnMap: Record<string, string> = {
+          payfast: "payfast-api",
+          paygate: "paygate-api",
+          stripe: "stripe-gateway",
+          paypal: "paypal-gateway",
+          flutterwave: "flutterwave-gateway",
+          peach: "peach-gateway",
+          yoco: "yoco-gateway",
+          ozow: "ozow-gateway",
+          dpo: "dpo-gateway",
+          addpay: "addpay-gateway",
+          payflex: "payflex-gateway",
+          stitch: "stitch-gateway",
+          ikhokha: "ikhokha-gateway",
+          snapscan: "snapscan-gateway",
+          zapper: "zapper-gateway",
+          klarna: "klarna-gateway",
+          affirm: "affirm-gateway",
+        };
+        const gatewayFnName = gatewayFnMap[selectedGateway] || "payfast-api";
 
         // Build gateway request payload
         const gatewayPayload: Record<string, unknown> = {
