@@ -24,6 +24,7 @@ export interface PropertyCharge {
   applies_to_all_rooms: boolean;
   room_type_ids: string[];
   rate_type_ids: string[];
+  room_charge_overrides?: Record<string, number> | null;
   min_nights: number;
   max_nights: number;
   applies_to_adults: boolean;
@@ -127,6 +128,11 @@ function calculateChargeAmount(
   let amount = 0;
   let breakdown = '';
 
+  // Use room-specific override if available
+  const baseAmount = (context.roomTypeId && charge.room_charge_overrides?.[context.roomTypeId] != null)
+    ? charge.room_charge_overrides[context.roomTypeId]
+    : charge.amount;
+
   // Count applicable persons based on charge settings
   let personCount = 0;
   if (charge.applies_to_adults) personCount += context.adults;
@@ -135,42 +141,42 @@ function calculateChargeAmount(
 
   switch (charge.calculation_method) {
     case 'flat_per_stay':
-      amount = charge.amount;
+      amount = baseAmount;
       breakdown = `${charge.name}: flat fee`;
       break;
 
     case 'per_night':
-      amount = charge.amount * context.nights;
-      breakdown = `${charge.name}: ${formatCurrency(charge.amount, charge.currency)} × ${context.nights} nights`;
+      amount = baseAmount * context.nights;
+      breakdown = `${charge.name}: ${formatCurrency(baseAmount, charge.currency)} × ${context.nights} nights`;
       break;
 
     case 'per_room_per_night':
-      amount = charge.amount * context.rooms * context.nights;
-      breakdown = `${charge.name}: ${formatCurrency(charge.amount, charge.currency)} × ${context.rooms} rooms × ${context.nights} nights`;
+      amount = baseAmount * context.rooms * context.nights;
+      breakdown = `${charge.name}: ${formatCurrency(baseAmount, charge.currency)} × ${context.rooms} rooms × ${context.nights} nights`;
       break;
 
     case 'per_person':
-      amount = charge.amount * personCount;
-      breakdown = `${charge.name}: ${formatCurrency(charge.amount, charge.currency)} × ${personCount} guests`;
+      amount = baseAmount * personCount;
+      breakdown = `${charge.name}: ${formatCurrency(baseAmount, charge.currency)} × ${personCount} guests`;
       break;
 
     case 'per_person_per_night':
-      amount = charge.amount * personCount * context.nights;
-      breakdown = `${charge.name}: ${formatCurrency(charge.amount, charge.currency)} × ${personCount} guests × ${context.nights} nights`;
+      amount = baseAmount * personCount * context.nights;
+      breakdown = `${charge.name}: ${formatCurrency(baseAmount, charge.currency)} × ${personCount} guests × ${context.nights} nights`;
       break;
 
     case 'percentage_of_accommodation':
-      amount = context.subtotal * (charge.amount / 100);
+      amount = context.subtotal * (baseAmount / 100);
       
       // Apply min/max caps
       if (charge.min_cap && amount < charge.min_cap) {
         amount = charge.min_cap;
-        breakdown = `${charge.name}: ${charge.amount}% (min ${formatCurrency(charge.min_cap, charge.currency)})`;
+        breakdown = `${charge.name}: ${baseAmount}% (min ${formatCurrency(charge.min_cap, charge.currency)})`;
       } else if (charge.max_cap && amount > charge.max_cap) {
         amount = charge.max_cap;
-        breakdown = `${charge.name}: ${charge.amount}% (max ${formatCurrency(charge.max_cap, charge.currency)})`;
+        breakdown = `${charge.name}: ${baseAmount}% (max ${formatCurrency(charge.max_cap, charge.currency)})`;
       } else {
-        breakdown = `${charge.name}: ${charge.amount}% of ${formatCurrency(context.subtotal, charge.currency)}`;
+        breakdown = `${charge.name}: ${baseAmount}% of ${formatCurrency(context.subtotal, charge.currency)}`;
       }
       break;
   }

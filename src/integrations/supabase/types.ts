@@ -3900,6 +3900,7 @@ export type Database = {
           rate_type_ids: string[] | null
           refund_timing: string | null
           refund_type: string | null
+          room_charge_overrides: Json | null
           room_type_ids: string[] | null
           updated_at: string | null
         }
@@ -3931,6 +3932,7 @@ export type Database = {
           rate_type_ids?: string[] | null
           refund_timing?: string | null
           refund_type?: string | null
+          room_charge_overrides?: Json | null
           room_type_ids?: string[] | null
           updated_at?: string | null
         }
@@ -3962,6 +3964,7 @@ export type Database = {
           rate_type_ids?: string[] | null
           refund_timing?: string | null
           refund_type?: string | null
+          room_charge_overrides?: Json | null
           room_type_ids?: string[] | null
           updated_at?: string | null
         }
