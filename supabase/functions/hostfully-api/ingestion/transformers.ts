@@ -282,13 +282,33 @@ function transformAmenities(ctx: IngestionContext): Record<string, unknown> {
 }
 
 /**
- * Transform photos into images array
- * Falls back to pictureLink from property data if /photos endpoint is empty
+ * Photo categories considered "room-level" vs "property-level"
+ */
+const ROOM_PHOTO_CATEGORIES = new Set([
+  'room', 'bedroom', 'bathroom', 'interior', 'living_room', 'kitchen',
+  'ROOM', 'BEDROOM', 'BATHROOM', 'INTERIOR', 'LIVING_ROOM', 'KITCHEN',
+]);
+
+const PROPERTY_PHOTO_CATEGORIES = new Set([
+  'property', 'exterior', 'view', 'pool', 'garden', 'entrance', 'building',
+  'PROPERTY', 'EXTERIOR', 'VIEW', 'POOL', 'GARDEN', 'ENTRANCE', 'BUILDING',
+]);
+
+/**
+ * Classify a photo as property-level or room-level
+ */
+function isRoomPhoto(category?: string): boolean {
+  if (!category) return false;
+  return ROOM_PHOTO_CATEGORIES.has(category);
+}
+
+/**
+ * Transform photos into property-level images array
+ * Only includes property/exterior photos. Room photos go to room types.
  */
 function transformMedia(ctx: IngestionContext): PropertyImage[] {
-  // First, try the photos endpoint
   if (ctx.photos && Array.isArray(ctx.photos) && ctx.photos.length > 0) {
-    return ctx.photos
+    const allPhotos = ctx.photos
       .filter(p => p.originalImageUrl || p.url)
       .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
       .map((photo, index) => ({
@@ -297,9 +317,20 @@ function transformMedia(ctx: IngestionContext): PropertyImage[] {
         order: photo.order ?? index,
         category: photo.category || 'property',
       }));
+
+    // If categories exist, split property vs room photos
+    const hasCategories = ctx.photos.some(p => p.category && p.category !== 'property');
+    if (hasCategories) {
+      const propertyPhotos = allPhotos.filter(p => !isRoomPhoto(p.category));
+      // If all photos are room photos, return all (property needs at least some images)
+      return propertyPhotos.length > 0 ? propertyPhotos : allPhotos;
+    }
+    
+    // No category metadata — all go to property
+    return allPhotos;
   }
   
-  // Fallback: Use pictureLink from property data (common for sandbox/sample properties)
+  // Fallback: Use pictureLink from property data
   if (ctx.property) {
     const pictureLink = ctx.property.pictureLink || ctx.property.picture;
     if (pictureLink) {
@@ -313,6 +344,26 @@ function transformMedia(ctx: IngestionContext): PropertyImage[] {
   }
   
   return [];
+}
+
+/**
+ * Extract room-level photos from context for room types
+ */
+function extractRoomPhotos(ctx: IngestionContext): PropertyImage[] {
+  if (!ctx.photos || !Array.isArray(ctx.photos) || ctx.photos.length === 0) return [];
+  
+  const hasCategories = ctx.photos.some(p => p.category && p.category !== 'property');
+  if (!hasCategories) return []; // No category metadata, can't split
+  
+  return ctx.photos
+    .filter(p => (p.originalImageUrl || p.url) && isRoomPhoto(p.category))
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+    .map((photo, index) => ({
+      url: photo.originalImageUrl || photo.url || '',
+      alt: photo.caption || '',
+      order: photo.order ?? index,
+      category: photo.category || 'room',
+    }));
 }
 
 /**
@@ -380,6 +431,7 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
   
   const fees = ctx.fees || [];
   const syncedAt = new Date().toISOString();
+  const roomPhotos = extractRoomPhotos(ctx);
   
   return ctx.rooms.map((room, index) => {
     const lockedFields: string[] = [];
@@ -403,6 +455,22 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
     // Extract raw amenities for correlation
     const facilitiesRaw = room.amenities || [];
     
+    // Assign room-level photos: use per-room photos from API if available,
+    // otherwise use extracted room category photos from property photos endpoint
+    const perRoomPhotos = room.photos
+      ? room.photos
+          .filter((p: any) => p.originalImageUrl || p.url)
+          .sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999))
+          .map((p: any, i: number) => ({
+            url: p.originalImageUrl || p.url || '',
+            alt: p.caption || resolvedName,
+            order: p.order ?? i,
+            category: p.category || 'room',
+          }))
+      : roomPhotos.length > 0
+        ? roomPhotos
+        : undefined;
+
     const transformed: TransformedRoomData = {
       hostfully_room_id: room.uid,
       name: resolvedName,
@@ -420,6 +488,7 @@ function transformRooms(ctx: IngestionContext): TransformedRoomData[] {
       extra_guest_fee: getFeeByType(fees, 'EXTRA_GUEST'),
       security_deposit: getFeeByType(fees, 'SECURITY_DEPOSIT'),
       amenities: room.amenities ? { items: room.amenities } : undefined,
+      images: perRoomPhotos,
       // Room category
       property_type: roomCategory,
       // Extended fields
