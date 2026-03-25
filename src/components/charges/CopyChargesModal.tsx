@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertTriangle, Building2 } from "lucide-react";
+import { Loader2, AlertTriangle, Building2, Info } from "lucide-react";
 import { usePropertyCharges } from "@/hooks/usePropertyCharges";
 import type { PropertyCharge } from "./ChargeCalculator";
 
@@ -167,7 +167,7 @@ export function CopyChargesModal({
 
             {/* Warning for replace mode */}
             {copyMode === 'replace' && propertiesWithExistingCharges.length > 0 && (
-              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
+              <div className="flex items-start gap-2 p-3 bg-amber-500/10 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
                 <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-medium">Warning</p>
@@ -175,6 +175,16 @@ export function CopyChargesModal({
                     {propertiesWithExistingCharges.length} selected propert{propertiesWithExistingCharges.length === 1 ? 'y has' : 'ies have'} existing charges that will be deleted.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Room mapping info */}
+            {sourceCharges.some(c => !c.applies_to_all_rooms && (c.room_type_ids?.length || 0) > 0) && (
+              <div className="flex items-start gap-2 p-3 bg-blue-500/10 text-blue-800 dark:text-blue-200 rounded-lg text-sm">
+                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p className="text-xs">
+                  Room-specific charges will be matched by name. Unmatched rooms will default to "All Rooms".
+                </p>
               </div>
             )}
 

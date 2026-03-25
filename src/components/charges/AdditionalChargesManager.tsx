@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -40,6 +40,7 @@ import {
   GripVertical
 } from "lucide-react";
 import { usePropertyCharges } from "@/hooks/usePropertyCharges";
+import { usePropertyRoomTypes } from "@/hooks/usePropertyRoomTypes";
 import { ChargeEditor } from "./ChargeEditor";
 import { ChargePreview } from "./ChargePreview";
 import { CopyChargesModal } from "./CopyChargesModal";
@@ -80,7 +81,14 @@ export function AdditionalChargesManager({
     toggleChargeActive,
   } = usePropertyCharges(propertyId);
 
-  const [editorOpen, setEditorOpen] = useState(false);
+  const { data: roomTypes = [] } = usePropertyRoomTypes(propertyId);
+
+  // Build a map of room IDs to names for display
+  const roomNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    roomTypes.forEach(rt => { map[rt.id] = rt.name; });
+    return map;
+  }, [roomTypes]);
   const [editingCharge, setEditingCharge] = useState<PropertyCharge | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [chargeToDelete, setChargeToDelete] = useState<PropertyCharge | null>(null);
@@ -211,15 +219,40 @@ export function AdditionalChargesManager({
                       <div className="font-medium">{charge.name}</div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {charge.is_refundable && (
-                          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/30">
                             Refundable
                           </Badge>
                         )}
-                        <Badge variant="outline" className="text-[10px]">
-                          {charge.applies_to_all_rooms
-                            ? 'All Rooms'
-                            : `${charge.room_type_ids?.length || 0} Room${(charge.room_type_ids?.length || 0) !== 1 ? 's' : ''}`}
-                        </Badge>
+                        {charge.applies_to_all_rooms ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            All Rooms
+                          </Badge>
+                        ) : (() => {
+                          const roomIds = charge.room_type_ids || [];
+                          const names = roomIds.map(id => roomNameMap[id]).filter(Boolean);
+                          const maxShow = 2;
+                          const shown = names.slice(0, maxShow);
+                          const remaining = names.length - maxShow;
+                          return (
+                            <>
+                              {shown.map((name, i) => (
+                                <Badge key={i} variant="outline" className="text-[10px]">
+                                  {name}
+                                </Badge>
+                              ))}
+                              {remaining > 0 && (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground" title={names.slice(maxShow).join(', ')}>
+                                  +{remaining} more
+                                </Badge>
+                              )}
+                              {names.length === 0 && roomIds.length > 0 && (
+                                <Badge variant="outline" className="text-[10px] text-destructive border-destructive/30">
+                                  {roomIds.length} unresolved
+                                </Badge>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>
