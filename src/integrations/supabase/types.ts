@@ -2468,6 +2468,54 @@ export type Database = {
           },
         ]
       }
+      payment_gateway_registry: {
+        Row: {
+          created_at: string
+          display_name: string
+          docs_url: string | null
+          edge_function_name: string
+          gateway_key: string
+          id: string
+          is_active: boolean
+          is_international: boolean
+          payment_method: string
+          supported_countries: string[]
+          supported_currencies: string[]
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          docs_url?: string | null
+          edge_function_name: string
+          gateway_key: string
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          payment_method?: string
+          supported_countries?: string[]
+          supported_currencies?: string[]
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          docs_url?: string | null
+          edge_function_name?: string
+          gateway_key?: string
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          payment_method?: string
+          supported_countries?: string[]
+          supported_currencies?: string[]
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       payment_transactions: {
         Row: {
           amount: number

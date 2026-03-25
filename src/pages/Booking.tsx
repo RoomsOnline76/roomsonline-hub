@@ -25,8 +25,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
-import { PayFastOnsiteModal } from "@/components/booking/PayFastOnsiteModal";
-import { PayGateRedirect } from "@/components/booking/PayGateRedirect";
+import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
@@ -2012,37 +2011,29 @@ const Booking = () => {
       </Dialog>
 
       {/* Payment Gateway */}
-      {activeGateway === "paygate" ? (
-        <PayGateRedirect
-          isOpen={showPaymentModal}
-          onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
-          onPaymentInitiated={() => setShowPaymentModal(false)}
-          bookingId={pendingBookingId || ""}
-          amount={pendingPaymentAmount}
-          propertyName={property?.name || ""}
-        />
-      ) : (
-        <PayFastOnsiteModal
-          isOpen={showPaymentModal}
-          onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
-          onPaymentSuccess={() => {
-            setShowPaymentModal(false);
-            if (pendingBookingId) {
-              const cp = new URLSearchParams({ payment: "success" });
-              if (integrationParam) cp.set("integration", integrationParam);
-              navigate(`/booking-confirmation/${pendingBookingId}?${cp.toString()}`);
-            }
-          }}
-          onPaymentCancelled={() => {
-            setShowPaymentModal(false);
-            toast.info("Payment cancelled. Your booking is saved - you can pay later.");
-          }}
-          bookingId={pendingBookingId || ""}
-          amount={pendingPaymentAmount}
-          propertyName={property?.name || ""}
-          isSandbox={true}
-        />
-      )}
+      <PaymentGatewayRouter
+        gateway={activeGateway}
+        isOpen={showPaymentModal}
+        onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
+        onPaymentSuccess={() => {
+          setShowPaymentModal(false);
+          if (pendingBookingId) {
+            const cp = new URLSearchParams({ payment: "success" });
+            if (integrationParam) cp.set("integration", integrationParam);
+            navigate(`/booking-confirmation/${pendingBookingId}?${cp.toString()}`);
+          }
+        }}
+        onPaymentCancelled={() => {
+          setShowPaymentModal(false);
+          toast.info("Payment cancelled. Your booking is saved - you can pay later.");
+        }}
+        onPaymentInitiated={() => setShowPaymentModal(false)}
+        bookingId={pendingBookingId || ""}
+        amount={pendingPaymentAmount}
+        propertyName={property?.name || ""}
+        propertyId={property?.id}
+        isSandbox={true}
+      />
       </>)
   );
 };

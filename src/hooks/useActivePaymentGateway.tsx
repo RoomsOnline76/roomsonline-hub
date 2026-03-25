@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export type PaymentGateway =
   | "payfast" | "paygate" | "peach" | "yoco" | "ozow"
   | "dpo" | "addpay" | "payflex" | "stitch" | "ikhokha"
-  | "snapscan" | "zapper" | "flutterwave" | "stripe";
+  | "snapscan" | "zapper" | "flutterwave" | "stripe"
+  | "paypal" | "klarna" | "affirm";
 
 interface ActiveGatewayResult {
   gateway: PaymentGateway;
@@ -66,12 +67,40 @@ export function useActivePaymentGateway(propertyId?: string): ActiveGatewayResul
     };
   }
 
-  // Global fallback
+  // Global fallback — resolve from system_name
   const systemName = globalData?.system_name || "PayFast Staging";
-  const isPaygate = systemName.toLowerCase().includes("paygate");
+  const sysLower = systemName.toLowerCase();
+
+  // Map known system names to gateway keys
+  const gatewayMap: Record<string, PaymentGateway> = {
+    paygate: "paygate",
+    stripe: "stripe",
+    paypal: "paypal",
+    flutterwave: "flutterwave",
+    peach: "peach",
+    yoco: "yoco",
+    ozow: "ozow",
+    dpo: "dpo",
+    addpay: "addpay",
+    payflex: "payflex",
+    stitch: "stitch",
+    ikhokha: "ikhokha",
+    snapscan: "snapscan",
+    zapper: "zapper",
+    klarna: "klarna",
+    affirm: "affirm",
+  };
+
+  let resolvedGateway: PaymentGateway = "payfast";
+  for (const [key, gw] of Object.entries(gatewayMap)) {
+    if (sysLower.includes(key)) {
+      resolvedGateway = gw;
+      break;
+    }
+  }
 
   return {
-    gateway: isPaygate ? "paygate" : "payfast",
+    gateway: resolvedGateway,
     systemName,
     isLoading,
   };

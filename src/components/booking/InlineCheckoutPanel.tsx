@@ -11,8 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { PayFastOnsiteModal } from "./PayFastOnsiteModal";
-import { PayGateRedirect } from "./PayGateRedirect";
+import { PaymentGatewayRouter } from "./PaymentGatewayRouter";
 import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import {
@@ -430,31 +429,20 @@ export function InlineCheckoutPanel({
         )}
       </AnimatePresence>
 
-      {/* Payment Modals */}
-      {activeGateway === "paygate" ? (
-        <PayGateRedirect
-          isOpen={showPaymentModal}
-          onClose={() => { setShowPaymentModal(false); setBookingId(null); }}
-          onPaymentInitiated={() => setShowPaymentModal(false)}
-          bookingId={bookingId || ""}
-          amount={pendingPaymentAmount}
-          propertyName={firstStay?.property_name || ""}
-        />
-      ) : (
-        payFastUuid && bookingId && (
-          <PayFastOnsiteModal
-            isOpen={showPaymentModal}
-            onClose={() => { setShowPaymentModal(false); setPayFastUuid(null); setBookingId(null); }}
-            onPaymentSuccess={handlePaymentSuccess}
-            onPaymentCancelled={handlePaymentCancelled}
-            bookingId={bookingId}
-            amount={pendingPaymentAmount}
-            propertyName={firstStay?.property_name || ""}
-            isSandbox={true}
-            uuid={payFastUuid}
-          />
-        )
-      )}
+      {/* Payment Modal */}
+      <PaymentGatewayRouter
+        gateway={activeGateway}
+        isOpen={showPaymentModal}
+        onClose={() => { setShowPaymentModal(false); setPayFastUuid(null); setBookingId(null); }}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentCancelled={handlePaymentCancelled}
+        onPaymentInitiated={() => setShowPaymentModal(false)}
+        bookingId={bookingId || ""}
+        amount={pendingPaymentAmount}
+        propertyName={firstStay?.property_name || ""}
+        isSandbox={true}
+        uuid={payFastUuid || undefined}
+      />
     </>
   );
 }
