@@ -188,18 +188,24 @@ function transformPropertyCore(ctx: IngestionContext): Partial<TransformedProper
 }
 
 /**
- * Transform descriptions
+ * Transform descriptions — with fallback to core property payload
+ * Returns description AND adds 'description' to locked fields
  */
-function transformDescriptions(ctx: IngestionContext): Partial<TransformedPropertyData> {
-  const result: Partial<TransformedPropertyData> = {};
+function transformDescriptions(ctx: IngestionContext): Partial<TransformedPropertyData> & { descriptionLocked?: boolean } {
+  const result: Partial<TransformedPropertyData> & { descriptionLocked?: boolean } = {};
   
-  if (!ctx.descriptions) return result;
+  // Try descriptions endpoint first
+  const descText = ctx.descriptions?.description;
   
-  const desc = ctx.descriptions;
+  // Fallback to core property fields
+  const fallback = descText 
+    || (ctx.property as any)?.description 
+    || (ctx.property as any)?.summary 
+    || null;
   
-  // Main description (SEED_ONLY - only if empty)
-  if (desc.description) {
-    result.description = desc.description;
+  if (fallback) {
+    result.description = fallback;
+    result.descriptionLocked = true;
   }
   
   return result;

@@ -19,7 +19,7 @@ import {
   fetchProperty,
   fetchDescriptions,
   fetchRules,
-  fetchAvailableAmenities,
+  fetchPropertyAmenities,
   fetchPhotos,
   fetchRooms,
   fetchMultiUnits,
