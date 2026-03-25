@@ -169,27 +169,52 @@ export async function writeIngestion(
     if (data.rooms.length > 0 && !skipRooms) {
       console.log(`[Writer] Aggregating ${data.rooms.length} rooms by type...`);
       
+      // Fetch existing room types for this property to match by name (prevents duplicates)
+      const { data: existingRoomTypes } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, property_type, hostfully_room_id")
+        .eq("property_id", rolPropertyId);
+      
+      const existingByType = new Map<string, { id: string; hostfully_room_id: string }>();
+      for (const existing of (existingRoomTypes || [])) {
+        const key = (existing.property_type || existing.name || '').toUpperCase().trim();
+        if (key) existingByType.set(key, { id: existing.id, hostfully_room_id: existing.hostfully_room_id });
+      }
+      
       // Group by normalized property_type
-      const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[] }>();
+      const typeGroups = new Map<string, { representative: TransformedRoomData; unitUids: string[]; unitNames: string[]; allImages: Array<{ url: string; alt?: string; order?: number; category?: string }> }>();
       for (const room of data.rooms) {
         const typeKey = (room.property_type || 'Standard').toUpperCase().trim();
         if (!typeGroups.has(typeKey)) {
-          typeGroups.set(typeKey, { representative: room, unitUids: [], unitNames: [] });
+          typeGroups.set(typeKey, { representative: room, unitUids: [], unitNames: [], allImages: [] });
         }
         const group = typeGroups.get(typeKey)!;
         group.unitUids.push(room.hostfully_room_id);
         group.unitNames.push(room.name);
+        // Collect images from all units, dedup by URL later
+        if (Array.isArray(room.images)) {
+          for (const img of room.images as any[]) {
+            const imgUrl = typeof img === 'string' ? img : img?.url;
+            if (imgUrl && !group.allImages.some(existing => (typeof existing === 'string' ? existing : existing.url) === imgUrl)) {
+              group.allImages.push(typeof img === 'string' ? { url: img } : img);
+            }
+          }
+        }
       }
       
       console.log(`[Writer] ${data.rooms.length} units → ${typeGroups.size} room types`);
       
-      for (const [, group] of typeGroups) {
+      for (const [typeKey, group] of typeGroups) {
         const room = group.representative;
         const typeName = room.property_type || 'Standard';
         
+        // Use existing row's hostfully_room_id if we already have this type
+        const existingMatch = existingByType.get(typeKey);
+        const hostfullyRoomId = existingMatch?.hostfully_room_id || group.unitUids[0];
+        
         const roomData = {
           property_id: rolPropertyId,
-          hostfully_room_id: group.unitUids[0],
+          hostfully_room_id: hostfullyRoomId,
           name: typeName,
           description: room.description,
           max_guests: room.max_guests,
@@ -205,6 +230,7 @@ export async function writeIngestion(
           extra_guest_fee: room.extra_guest_fee,
           security_deposit: room.security_deposit,
           amenities: room.amenities,
+          images: group.allImages.length > 0 ? group.allImages : (room.images || []),
           property_type: room.property_type,
           extra_person_policy: room.extra_person_policy,
           bed_configuration: room.bed_configuration || [],
@@ -218,27 +244,47 @@ export async function writeIngestion(
           updated_at: new Date().toISOString(),
         };
         
-        const { data: upsertedRow, error: roomError } = await supabase
-          .from("hostfully_room_types")
-          .upsert(roomData, {
-            onConflict: 'property_id,hostfully_room_id',
-            ignoreDuplicates: false,
-          })
-          .select("id")
-          .maybeSingle();
+        let upsertedRowId: string | undefined;
         
-        if (roomError) {
-          console.error(`[Writer] Room type upsert error for ${typeName}:`, roomError);
-        } else {
-          result.roomsUpserted++;
+        if (existingMatch) {
+          // UPDATE existing row by ID to avoid duplicate key issues
+          const { error: updateError } = await supabase
+            .from("hostfully_room_types")
+            .update(roomData)
+            .eq("id", existingMatch.id);
           
-          const roomTypeId = upsertedRow?.id;
+          if (updateError) {
+            console.error(`[Writer] Room type update error for ${typeName}:`, updateError);
+          } else {
+            result.roomsUpserted++;
+            upsertedRowId = existingMatch.id;
+          }
+        } else {
+          // INSERT new row
+          const { data: upsertedRow, error: roomError } = await supabase
+            .from("hostfully_room_types")
+            .upsert(roomData, {
+              onConflict: 'property_id,hostfully_room_id',
+              ignoreDuplicates: false,
+            })
+            .select("id")
+            .maybeSingle();
+          
+          if (roomError) {
+            console.error(`[Writer] Room type upsert error for ${typeName}:`, roomError);
+          } else {
+            result.roomsUpserted++;
+            upsertedRowId = upsertedRow?.id;
+          }
+        }
+        
+        if (upsertedRowId) {
           for (let u = 0; u < group.unitUids.length; u++) {
             const { error: mapError } = await supabase
               .from("hostfully_unit_map")
               .upsert({
                 property_id: rolPropertyId,
-                room_type_id: roomTypeId || group.unitUids[0],
+                room_type_id: upsertedRowId,
                 hostfully_uid: group.unitUids[u],
                 unit_name: group.unitNames[u],
                 unit_number: '',
