@@ -524,6 +524,22 @@ const App = () => (
               }
             />
             <Route
+              path="/admin/sales-reps"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminSalesReps />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/commission-reports"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminCommissionReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/system/api-configurator"
               element={
                 <ProtectedRoute requireDevOrFearless={true}>
