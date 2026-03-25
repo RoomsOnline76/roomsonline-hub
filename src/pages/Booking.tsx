@@ -26,6 +26,7 @@ import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
+import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
@@ -2030,7 +2031,7 @@ const Booking = () => {
         bookingId={pendingBookingId || ""}
         amount={pendingPaymentAmount}
         propertyName={property?.name || ""}
-        propertyId={propertyId}
+        propertyId={property?.id}
         isSandbox={true}
       />
       </>)
