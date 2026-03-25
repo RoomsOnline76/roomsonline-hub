@@ -107,6 +107,134 @@ export type Database = {
         }
         Relationships: []
       }
+      api_rate_limits: {
+        Row: {
+          burst_limit: number
+          created_at: string
+          daily_limit: number
+          id: string
+          is_active: boolean
+          property_id: string
+          requests_per_hour: number
+          requests_per_minute: number
+          updated_at: string
+        }
+        Insert: {
+          burst_limit?: number
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          is_active?: boolean
+          property_id: string
+          requests_per_hour?: number
+          requests_per_minute?: number
+          updated_at?: string
+        }
+        Update: {
+          burst_limit?: number
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          is_active?: boolean
+          property_id?: string
+          requests_per_hour?: number
+          requests_per_minute?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_rate_limits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "api_rate_limits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_rate_limits_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_request_log: {
+        Row: {
+          action: string
+          api_key_id: string | null
+          api_version: string
+          created_at: string
+          endpoint: string
+          error_code: string | null
+          id: string
+          ip_address: string | null
+          property_id: string | null
+          request_body_size: number | null
+          response_time_ms: number | null
+          status_code: number
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          api_key_id?: string | null
+          api_version?: string
+          created_at?: string
+          endpoint?: string
+          error_code?: string | null
+          id?: string
+          ip_address?: string | null
+          property_id?: string | null
+          request_body_size?: number | null
+          response_time_ms?: number | null
+          status_code: number
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          api_key_id?: string | null
+          api_version?: string
+          created_at?: string
+          endpoint?: string
+          error_code?: string | null
+          id?: string
+          ip_address?: string | null
+          property_id?: string | null
+          request_body_size?: number | null
+          response_time_ms?: number | null
+          status_code?: number
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_request_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "api_request_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_request_log_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action_type: Database["public"]["Enums"]["audit_action_type"]
@@ -1402,6 +1530,7 @@ export type Database = {
         Row: {
           allowed_domains: string[] | null
           api_key: string | null
+          api_version: string
           config: Json | null
           created_at: string | null
           id: string
@@ -1413,6 +1542,7 @@ export type Database = {
         Insert: {
           allowed_domains?: string[] | null
           api_key?: string | null
+          api_version?: string
           config?: Json | null
           created_at?: string | null
           id?: string
@@ -1424,6 +1554,7 @@ export type Database = {
         Update: {
           allowed_domains?: string[] | null
           api_key?: string | null
+          api_version?: string
           config?: Json | null
           created_at?: string | null
           id?: string
