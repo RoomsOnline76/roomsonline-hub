@@ -4,9 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CopyBrandingModal } from "./CopyBrandingModal";
 
 export interface BrandingData {
   brand_logo_url: string;
@@ -22,6 +23,7 @@ interface BrandingTabProps {
   propertyId: string | null;
   onDirty: () => void;
   canToggleBrand?: boolean;
+  ownerEmail?: string;
 }
 
 /** Calculate relative luminance (WCAG 2.0) */
@@ -186,9 +188,10 @@ function FontPreviewCard({
   );
 }
 
-export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBrand = false }: BrandingTabProps) {
+export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBrand = false, ownerEmail }: BrandingTabProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
 
   const updateField = <K extends keyof BrandingData>(field: K, value: BrandingData[K]) => {
     onChange({ ...data, [field]: value });
