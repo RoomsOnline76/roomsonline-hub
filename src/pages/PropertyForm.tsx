@@ -97,6 +97,7 @@ import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
+import { ReferralSection } from "@/components/property/ReferralSection";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -9220,6 +9221,9 @@ export default function PropertyForm() {
                     {(isAdmin || isDev) && (
                       <TabsContent value="billing">
                         <BillingConfigTab propertyId={id!} />
+                        <div className="mt-4">
+                          <ReferralSection propertyId={id!} />
+                        </div>
                       </TabsContent>
                     )}
 

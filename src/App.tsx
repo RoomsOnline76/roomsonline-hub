@@ -84,6 +84,8 @@ const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const AdminPortfolios = lazy(() => import("./pages/admin/AdminPortfolios"));
 const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
+const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
+const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 
 // Lazy — Connect portal pages
 const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
@@ -518,6 +520,22 @@ const App = () => (
               element={
                 <ProtectedRoute requireDevOrFearless={true}>
                   <AdminBillingDefaults />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/sales-reps"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminSalesReps />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/commission-reports"
+              element={
+                <ProtectedRoute requireAdmin={true}>
+                  <AdminCommissionReports />
                 </ProtectedRoute>
               }
             />

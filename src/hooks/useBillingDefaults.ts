@@ -10,6 +10,10 @@ export interface BillingDefault {
   default_transaction_fee: number | null;
   white_label_monthly_fee: number | null;
   payment_facilitator_fee: number | null;
+  referral_first_year_rate: number | null;
+  referral_residual_rate: number | null;
+  referral_residual_months: number | null;
+  referral_clawback_days: number | null;
   notes: string | null;
   updated_at: string;
   updated_by: string | null;
