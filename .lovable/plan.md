@@ -1,47 +1,36 @@
 
 
-# Fix Hostfully Booking Rate Matching (Room ID Mismatch)
+# Copy Branding to Other Properties
 
-## Problem
+Add a "Copy Branding" modal to the Branding tab, following the same pattern as the existing `CopyChargesModal` used for Additional Charges.
 
-The booking checkout shows "On request" (no rates) because of a **room type ID mismatch** between the availability response and the booking page.
+## What It Does
 
-- The URL passes `roomTypeId=155e611a-...` which is the **Hostfully UID** (`pmsRoomId` from amenities)
-- The Hostfully availability response returns `room_type_id: 6fcaf88a-...` which is the **database table ID** (`hostfully_room_types.id`)
-- These don't match, so the room lookup fails silently and cost = 0
+Lets users copy their current property's branding (logo URL, primary/secondary/font colours, and brand override toggle) to one or more of their other properties in a single action. Includes a preview of what will be copied and a confirmation step.
 
-## Root Cause
+## Changes
 
-In `supabase/functions/hostfully-api/index.ts` line 1031:
-```javascript
-room_type_id: roomType.id,  // DB table ID (6fcaf88a-...)
-```
+### 1. New component: `src/components/property/CopyBrandingModal.tsx`
+- Mirrors `CopyChargesModal` structure (dialog, property list with checkboxes, select all/clear)
+- Accepts current `BrandingData` and `sourcePropertyId` as props
+- Fetches other properties via `owner_email` (same query pattern as charges modal)
+- Shows a mini swatch preview of the colours being copied
+- On confirm, updates each selected property's branding columns (`brand_logo_url`, `brand_primary_color`, `brand_secondary_color`, `brand_font_color`, `brand_override_enabled`) via Supabase
+- Uses `useMutation` with toast feedback
 
-But the booking page uses `pmsRoomId` (the Hostfully UID `155e611a-...`) as the canonical room ID everywhere.
+### 2. Modify: `src/components/property/BrandingTab.tsx`
+- Add a "Copy to Other Properties" button (only shown when `propertyId` exists and branding has content)
+- Wire up the `CopyBrandingModal` with the current branding data
+- Need to pass `ownerEmail` as a new prop (or fetch it internally from the property)
 
-## Fix
+### 3. Modify: `src/pages/PropertyForm.tsx`
+- Pass `ownerEmail` to the `BrandingTab` component (already available from the form's property data)
 
-Two changes to ensure matching works:
+### 4. Export update: `src/components/property/index.ts`
+- Export `CopyBrandingModal`
 
-### 1. Hostfully edge function: use `hostfully_room_id` as `room_type_id`
-
-In `supabase/functions/hostfully-api/index.ts` at line 1031, change:
-```javascript
-room_type_id: roomType.hostfully_room_id,
-```
-
-This aligns the availability response with what the booking page expects (`pmsRoomId`).
-
-### 2. Add alias fallback in the same response
-
-Also add the DB table ID as an alias so other consumers still work:
-```javascript
-room_type_aliases: [roomType.id],
-```
-
-## Files
-
-| Action | File |
-|--------|------|
-| Modify | `supabase/functions/hostfully-api/index.ts` |
+## Technical Notes
+- The copy performs a direct `supabase.from('properties').update(...)` on the target property rows — no new tables or migrations needed
+- RLS already allows property owners to update their own properties
+- The modal fetches properties matching `owner_email` excluding the source property (same pattern as charges)
 
