@@ -4502,6 +4502,7 @@ export default function PropertyForm() {
                 .map((tab) => {
                   const isActive = activeTab === tab.value;
                   const Icon = tab.icon;
+                  const hasBlocker = tabsWithBlockers.has(tab.value);
 
                   if (isActive) {
                     return (
@@ -4509,15 +4510,19 @@ export default function PropertyForm() {
                         key={tab.value}
                         value={tab.value}
                         className={cn(
-                          "gap-1 text-xs py-1",
+                          "gap-1 text-xs py-1 relative",
                           tab.highlight &&
                             "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
                           tab.highlightBlue &&
                             "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
+                          hasBlocker && "ring-2 ring-destructive/60",
                         )}
                       >
                         <Icon className="h-3 w-3" />
                         {tab.label}
+                        {hasBlocker && (
+                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                        )}
                       </TabsTrigger>
                     );
                   }
