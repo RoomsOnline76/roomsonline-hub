@@ -34,6 +34,9 @@ import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
+import { useChargesForBooking } from "@/hooks/usePropertyCharges";
+import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
+import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -199,6 +202,9 @@ const Booking = () => {
     },
     enabled: !!id,
   });
+
+  // Fetch property charges (taxes, fees, deposits, surcharges)
+  const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
   // Fetch cached room types from database (fallback if not in amenities)
   const { data: cachedRoomTypes } = useQuery({
@@ -1161,6 +1167,38 @@ const Booking = () => {
         }
       }
 
+      // Apply property charges (taxes, fees, deposits, surcharges)
+      if (propertyCharges && propertyCharges.length > 0 && runningTotal > 0) {
+        const totalAdults = rooms.reduce((s, r) => s + r.numberOfAdults, 0);
+        const totalChildren = rooms.reduce((s, r) => s + r.numberOfChildren, 0);
+        const totalInfants = rooms.reduce((s, r) => s + r.numberOfInfants, 0);
+        const chargeContext: ChargeCalculationContext = {
+          subtotal: runningTotal,
+          nights: nights,
+          rooms: rooms.length,
+          adults: totalAdults,
+          children: totalChildren,
+          infants: totalInfants,
+          roomTypeId: rooms[0]?.roomTypeId,
+          rateTypeId: selectedRateType || undefined,
+        };
+        const calculatedCharges = calculateCharges(propertyCharges, chargeContext);
+        for (const cc of calculatedCharges) {
+          const label = cc.charge.is_refundable
+            ? `${cc.charge.name} (refundable)`
+            : cc.charge.name;
+          lineItems.push({
+            description: label,
+            nights: 0,
+            quantity: 1,
+            unitPrice: cc.calculatedAmount,
+            total: cc.calculatedAmount,
+          });
+          runningTotal += cc.calculatedAmount;
+        }
+        console.log('[Booking] Applied', calculatedCharges.length, 'property charges, new total:', runningTotal);
+      }
+
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
     } catch (error: any) {
@@ -1174,7 +1212,7 @@ const Booking = () => {
     if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
       calculateCost();
     }
-  }, [property?.id, rooms, selectedRateType, checkIn, checkOut]);
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
@@ -1367,6 +1405,36 @@ const Booking = () => {
       bookingData.room_type_id = rooms[0]?.roomTypeId || null;
       bookingData.rate_type_id = selectedRateType;
       bookingData.voucher = voucher || null;
+
+      // Snapshot charges breakdown for the booking record
+      if (propertyCharges && propertyCharges.length > 0) {
+        const totalAdults = rooms.reduce((s, r) => s + r.numberOfAdults, 0);
+        const totalChildren = rooms.reduce((s, r) => s + r.numberOfChildren, 0);
+        const totalInfants = rooms.reduce((s, r) => s + r.numberOfInfants, 0);
+        const chargeItems = costBreakdown.filter(i => i.nights === 0);
+        const accommodationSubtotal = totalPrice - chargeItems.reduce((s, i) => s + i.total, 0);
+        const chargeCtx: ChargeCalculationContext = {
+          subtotal: accommodationSubtotal > 0 ? accommodationSubtotal : totalPrice,
+          nights,
+          rooms: rooms.length,
+          adults: totalAdults,
+          children: totalChildren,
+          infants: totalInfants,
+          roomTypeId: rooms[0]?.roomTypeId,
+          rateTypeId: selectedRateType || undefined,
+        };
+        const snapshotCharges = calculateCharges(propertyCharges, chargeCtx);
+        if (snapshotCharges.length > 0) {
+          bookingData.charges_breakdown = snapshotCharges.map(cc => ({
+            name: cc.charge.name,
+            category: cc.charge.category,
+            calculation_method: cc.charge.calculation_method,
+            amount: cc.calculatedAmount,
+            is_refundable: cc.charge.is_refundable,
+            breakdown: cc.breakdown,
+          }));
+        }
+      }
       
       // For HotelBeds, include the rate_key in rooms array for push-booking to extract
       const pmsSystem = property?.external_system?.toLowerCase();
@@ -1872,22 +1940,31 @@ const Booking = () => {
                 </div>
               ) : costBreakdown.length > 0 ? (
                 <>
-                  {costBreakdown.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <div>
-                        <p className="text-foreground">{item.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.nights} night{item.nights !== 1 ? "s" : ""} × <FormattedPrice amount={item.unitPrice} />
-                        </p>
+                  {costBreakdown.map((item, idx) => {
+                    const isCharge = item.nights === 0;
+                    const prevItem = idx > 0 ? costBreakdown[idx - 1] : null;
+                    const showDivider = isCharge && prevItem && prevItem.nights > 0;
+                    return (
+                      <div key={idx}>
+                        {showDivider && (
+                          <div className="border-t border-border/30 my-2 pt-2">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Taxes & Fees</p>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm">
+                          <div>
+                            <p className="text-foreground">{item.description}</p>
+                            {!isCharge && (
+                              <p className="text-xs text-muted-foreground">
+                                {item.nights} night{item.nights !== 1 ? "s" : ""} × <FormattedPrice amount={item.unitPrice} />
+                              </p>
+                            )}
+                          </div>
+                          <span className="font-medium"><FormattedPrice amount={item.total} /></span>
+                        </div>
                       </div>
-                      <span className="font-medium"><FormattedPrice amount={item.total} /></span>
-                    </div>
-                  ))}
-
-                  <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                    <span>Service fee</span>
-                    <span><FormattedPrice amount={0} /></span>
-                  </div>
+                    );
+                  })}
 
                   <div className="border-t border-border/50 pt-3 flex justify-between items-center">
                     <span className="font-semibold">Total</span>
