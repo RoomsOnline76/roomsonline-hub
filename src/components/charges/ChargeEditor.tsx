@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { usePropertyRoomTypes } from "@/hooks/usePropertyRoomTypes";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,49 +82,8 @@ export function ChargeEditor({
   const [refundOpen, setRefundOpen] = useState(false);
   const isEditing = !!charge;
 
-  // Fetch room types for this property (fallback chain: rolos → hostfully → amenities)
-  const { data: roomTypes = [] } = useQuery({
-    queryKey: ['charge-editor-room-types', propertyId],
-    queryFn: async () => {
-      // 1. Try rolos_room_types first
-      const { data: rolosData } = await supabase
-        .from('rolos_room_types')
-        .select('id, name')
-        .eq('property_id', propertyId)
-        .eq('is_active', true)
-        .order('name');
-      if (rolosData && rolosData.length > 0) {
-        return rolosData as { id: string; name: string }[];
-      }
-
-      // 2. Fallback to hostfully_room_types
-      const { data: hostfullyData } = await supabase
-        .from('hostfully_room_types')
-        .select('id, name')
-        .eq('property_id', propertyId)
-        .eq('is_active', true)
-        .order('name');
-      if (hostfullyData && hostfullyData.length > 0) {
-        return hostfullyData as { id: string; name: string }[];
-      }
-
-      // 3. Fallback to properties.amenities.room_types JSON
-      const { data: property } = await supabase
-        .from('properties')
-        .select('amenities')
-        .eq('id', propertyId)
-        .single();
-      const amenities = property?.amenities as { room_types?: Array<{ id?: string; name?: string }> } | null;
-      if (Array.isArray(amenities?.room_types)) {
-        return amenities!.room_types
-          .filter((rt) => rt?.name)
-          .map((rt, idx) => ({ id: rt.id || `amenity-${idx}`, name: String(rt.name) }));
-      }
-
-      return [];
-    },
-    enabled: !!propertyId,
-  });
+  // Fetch room types for this property using shared fallback chain
+  const { data: roomTypes = [] } = usePropertyRoomTypes(propertyId);
 
   useEffect(() => {
     if (charge) {
