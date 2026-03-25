@@ -102,10 +102,10 @@ export function QualityGateIndicator({
       : "text-yellow-600";
 
   const statusBg = passed 
-    ? "bg-green-50 border-green-200" 
+    ? "bg-green-500/10 border-green-500/30" 
     : blockers.length > 0 
-      ? "bg-red-50 border-red-200" 
-      : "bg-yellow-50 border-yellow-200";
+      ? "bg-destructive/10 border-destructive/30" 
+      : "bg-yellow-500/10 border-yellow-500/30";
 
   const StatusIcon = passed 
     ? CheckCircle2 
@@ -160,7 +160,7 @@ export function QualityGateIndicator({
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center gap-3">
-            <div className={cn("p-1.5 rounded-full", passed ? "bg-green-100" : blockers.length > 0 ? "bg-red-100" : "bg-yellow-100")}>
+            <div className={cn("p-1.5 rounded-full", passed ? "bg-green-500/20" : blockers.length > 0 ? "bg-destructive/20" : "bg-yellow-500/20")}>
               <StatusIcon className={cn("h-5 w-5", statusColor)} />
             </div>
             <div>
