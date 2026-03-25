@@ -3327,6 +3327,7 @@ export type Database = {
           owner_notes: string | null
           owner_pms_credential_id: string | null
           payment_provider: string | null
+          payment_providers: string[] | null
           permanently_deleted_at: string | null
           pms_managed_fields: string[] | null
           pms_readiness: string | null
@@ -3399,6 +3400,7 @@ export type Database = {
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
           payment_provider?: string | null
+          payment_providers?: string[] | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
@@ -3471,6 +3473,7 @@ export type Database = {
           owner_notes?: string | null
           owner_pms_credential_id?: string | null
           payment_provider?: string | null
+          payment_providers?: string[] | null
           permanently_deleted_at?: string | null
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
