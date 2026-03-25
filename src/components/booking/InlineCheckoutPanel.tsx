@@ -12,7 +12,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PaymentGatewayRouter } from "./PaymentGatewayRouter";
-import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { PaymentMethodSelector } from "./PaymentMethodSelector";
+import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
+import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import {
   Drawer,
@@ -50,7 +52,9 @@ export function InlineCheckoutPanel({
     totalPrice, totalNights, saveToDatabase,
   } = useItinerary();
   const { formatPrice } = useCurrency();
-  const { gateway: activeGateway } = useActivePaymentGateway();
+  const { gateways: activeGateways } = useActivePaymentGateways();
+  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
+  const activeGateway = selectedGateway || activeGateways[0] || "payfast";
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
@@ -339,6 +343,15 @@ export function InlineCheckoutPanel({
             <span className="text-xl font-bold"><FormattedPrice amount={totalPrice} /></span>
           </div>
         </div>
+
+        {/* Payment method selector (multi-gateway) */}
+        {activeGateways.length > 1 && (
+          <PaymentMethodSelector
+            gateways={activeGateways}
+            selected={activeGateway}
+            onSelect={setSelectedGateway}
+          />
+        )}
       </div>
     </div>
   );

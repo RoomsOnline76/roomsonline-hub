@@ -26,7 +26,9 @@ import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { useItinerary } from "@/contexts/ItineraryContext";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
-import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
+import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
+import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
@@ -88,7 +90,9 @@ interface CostLineItem {
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
   useBrandOverride(id);
-  const { gateway: activeGateway } = useActivePaymentGateway();
+  const { gateways: activeGateways } = useActivePaymentGateways(id);
+  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
+  const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -1911,6 +1915,21 @@ const Booking = () => {
           </motion.div>
         </div>
 
+        {/* ── Payment Method Selector (multi-gateway) ── */}
+        {activeGateways.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mt-4"
+          >
+            <PaymentMethodSelector
+              gateways={activeGateways}
+              selected={effectiveGateway}
+              onSelect={setSelectedGateway}
+            />
+          </motion.div>
+        )}
+
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
           <div className="max-w-2xl mx-auto">
@@ -2012,7 +2031,7 @@ const Booking = () => {
 
       {/* Payment Gateway */}
       <PaymentGatewayRouter
-        gateway={activeGateway}
+        gateway={effectiveGateway}
         isOpen={showPaymentModal}
         onClose={() => { setShowPaymentModal(false); setPendingBookingId(null); }}
         onPaymentSuccess={() => {

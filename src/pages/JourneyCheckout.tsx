@@ -14,7 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
-import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
+import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
+import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
@@ -30,7 +32,9 @@ import {
 export default function JourneyCheckout() {
   useBrandOverride();
   const navigate = useNavigate();
-  const { gateway: activeGateway } = useActivePaymentGateway();
+  const { gateways: activeGateways } = useActivePaymentGateways();
+  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
+  const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
   const { currency } = useCurrency();
   const { 
     stays, 
@@ -235,49 +239,12 @@ export default function JourneyCheckout() {
       
       console.log('[JourneyCheckout] Booking created:', tempBooking.id);
 
-      // Step 5: Initiate payment based on active gateway
-      if (activeGateway === "paygate") {
-        // PayGate redirect flow - just store the booking info, the modal handles the rest
-        console.log('[JourneyCheckout] Using PayGate redirect flow');
-        setPendingItineraryId(itineraryId);
-        setPaymentBookingId(tempBooking.id);
-        setShowPayFastModal(true);
-        setIsSubmitting(false);
-      } else {
-        // PayFast onsite modal flow
-        console.log('[JourneyCheckout] Initiating PayFast payment for booking:', tempBooking.id);
-        
-        const { data: paymentData, error: paymentError } = await supabase.functions.invoke('payfast-api', {
-          body: {
-            action: 'initiate_onsite_payment',
-            booking_id: tempBooking.id,
-          },
-        });
-
-        console.log('[JourneyCheckout] PayFast response:', { data: paymentData, error: paymentError });
-
-        if (paymentError) {
-          console.error('[JourneyCheckout] PayFast API error:', paymentError);
-          throw new Error(`Payment service error: ${paymentError.message || 'Unknown error'}`);
-        }
-        
-        if (!paymentData?.success) {
-          console.error('[JourneyCheckout] PayFast returned failure:', paymentData);
-          throw new Error(paymentData?.details || paymentData?.error || "Failed to initiate payment");
-        }
-        
-        if (!paymentData.uuid) {
-          console.error('[JourneyCheckout] No UUID received from PayFast');
-          throw new Error("Payment system did not return a valid session");
-        }
-
-        // Store pending data and show PayFast modal
-        setPendingItineraryId(itineraryId);
-        setPaymentBookingId(tempBooking.id);
-        setPaymentUuid(paymentData.uuid);
-        setShowPayFastModal(true);
-        setIsSubmitting(false);
-      }
+      // Step 5: Initiate payment — store booking info, the PaymentGatewayRouter handles all gateway logic
+      console.log('[JourneyCheckout] Opening payment modal for booking:', tempBooking.id, 'gateway:', effectiveGateway);
+      setPendingItineraryId(itineraryId);
+      setPaymentBookingId(tempBooking.id);
+      setShowPayFastModal(true);
+      setIsSubmitting(false);
 
     } catch (error) {
       console.error('Booking error:', error);
@@ -464,6 +431,15 @@ export default function JourneyCheckout() {
                       </span>
                     </div>
 
+                    {/* Payment method selector (multi-gateway) */}
+                    {activeGateways.length > 1 && (
+                      <PaymentMethodSelector
+                        gateways={activeGateways}
+                        selected={effectiveGateway}
+                        onSelect={setSelectedGateway}
+                      />
+                    )}
+
                     <Button
                       onClick={handleCompleteBooking}
                       disabled={isSubmitting || isValidating}
@@ -486,7 +462,7 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure payment via {activeGateway === "payfast" ? "PayFast" : activeGateway.charAt(0).toUpperCase() + activeGateway.slice(1)}</span>
+                      <span>Secure payment via {effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -517,7 +493,7 @@ export default function JourneyCheckout() {
       {/* Payment Modal - routes based on active gateway */}
       {paymentBookingId && (
         <PaymentGatewayRouter
-          gateway={activeGateway}
+          gateway={effectiveGateway}
           isOpen={showPayFastModal}
           onClose={() => setShowPayFastModal(false)}
           onPaymentSuccess={handlePaymentSuccess}
