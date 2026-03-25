@@ -4,9 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { CopyBrandingModal } from "./CopyBrandingModal";
 
 export interface BrandingData {
   brand_logo_url: string;
@@ -22,6 +23,7 @@ interface BrandingTabProps {
   propertyId: string | null;
   onDirty: () => void;
   canToggleBrand?: boolean;
+  ownerEmail?: string;
 }
 
 /** Calculate relative luminance (WCAG 2.0) */
@@ -186,9 +188,10 @@ function FontPreviewCard({
   );
 }
 
-export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBrand = false }: BrandingTabProps) {
+export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBrand = false, ownerEmail }: BrandingTabProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
 
   const updateField = <K extends keyof BrandingData>(field: K, value: BrandingData[K]) => {
     onChange({ ...data, [field]: value });
@@ -227,8 +230,19 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
 
   const hasColors = !!(data.brand_primary_color || data.brand_secondary_color || data.brand_font_color);
 
+  const showCopyButton = !!propertyId && !!ownerEmail && (hasColors || !!data.brand_logo_url);
+
   return (
     <div className="space-y-4">
+      {/* Copy to other properties */}
+      {showCopyButton && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setCopyModalOpen(true)}>
+            <Copy className="h-4 w-4 mr-2" />
+            Copy to Other Properties
+          </Button>
+        </div>
+      )}
       {/* Brand Override Toggle */}
       <Card>
         <CardContent className="py-4 px-4">
@@ -407,6 +421,16 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {propertyId && ownerEmail && (
+        <CopyBrandingModal
+          open={copyModalOpen}
+          onOpenChange={setCopyModalOpen}
+          sourcePropertyId={propertyId}
+          brandingData={data}
+          ownerEmail={ownerEmail}
+        />
       )}
     </div>
   );

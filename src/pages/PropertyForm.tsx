@@ -6234,6 +6234,7 @@ export default function PropertyForm() {
                 propertyId={propertyId}
                 onDirty={() => setIsDirty(true)}
                 canToggleBrand={isAdmin || isDev}
+                ownerEmail={formData.owner_email}
               />
             </TabsContent>
 
