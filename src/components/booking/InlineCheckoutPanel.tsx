@@ -353,6 +353,7 @@ export function InlineCheckoutPanel({
           />
         )}
       </div>
+    </div>
   );
 
 
