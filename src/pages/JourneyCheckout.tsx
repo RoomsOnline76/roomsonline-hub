@@ -453,7 +453,7 @@ export default function JourneyCheckout() {
                     {/* Trust badges */}
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
                       <Shield className="h-4 w-4" />
-                      <span>Secure payment via {activeGateway === "payfast" ? "PayFast" : activeGateway.charAt(0).toUpperCase() + activeGateway.slice(1)}</span>
+                      <span>Secure payment via {effectiveGateway === "payfast" ? "PayFast" : effectiveGateway.charAt(0).toUpperCase() + effectiveGateway.slice(1)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -484,7 +484,7 @@ export default function JourneyCheckout() {
       {/* Payment Modal - routes based on active gateway */}
       {paymentBookingId && (
         <PaymentGatewayRouter
-          gateway={activeGateway}
+          gateway={effectiveGateway}
           isOpen={showPayFastModal}
           onClose={() => setShowPayFastModal(false)}
           onPaymentSuccess={handlePaymentSuccess}

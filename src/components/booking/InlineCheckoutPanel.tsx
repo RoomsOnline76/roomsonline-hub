@@ -12,7 +12,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PaymentGatewayRouter } from "./PaymentGatewayRouter";
-import { useActivePaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { PaymentMethodSelector } from "./PaymentMethodSelector";
+import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
+import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import {
   Drawer,
