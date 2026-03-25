@@ -431,9 +431,79 @@ export function ChargeEditor({
               <Switch
                 id="applies_to_all_rooms"
                 checked={formData.applies_to_all_rooms}
-                onCheckedChange={checked => setFormData(prev => ({ ...prev, applies_to_all_rooms: checked }))}
+                onCheckedChange={checked => {
+                  setFormData(prev => ({
+                    ...prev,
+                    applies_to_all_rooms: checked,
+                    room_type_ids: checked ? [] : prev.room_type_ids,
+                    room_charge_overrides: checked ? {} : prev.room_charge_overrides,
+                  }));
+                }}
               />
             </div>
+
+            {!formData.applies_to_all_rooms && roomTypes.length > 0 && (
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                <Label className="text-sm font-medium">Select Room Types</Label>
+                <div className="space-y-3">
+                  {roomTypes.map(rt => {
+                    const isSelected = formData.room_type_ids.includes(rt.id);
+                    const overrideAmount = formData.room_charge_overrides?.[rt.id];
+                    return (
+                      <div key={rt.id} className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`room-${rt.id}`}
+                            checked={isSelected}
+                            onCheckedChange={checked => {
+                              setFormData(prev => {
+                                const ids = checked
+                                  ? [...prev.room_type_ids, rt.id]
+                                  : prev.room_type_ids.filter(id => id !== rt.id);
+                                const overrides = { ...(prev.room_charge_overrides || {}) };
+                                if (!checked) delete overrides[rt.id];
+                                return { ...prev, room_type_ids: ids, room_charge_overrides: overrides };
+                              });
+                            }}
+                          />
+                          <Label htmlFor={`room-${rt.id}`} className="text-sm flex-1">{rt.name}</Label>
+                          {isSelected && (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-28 h-8 text-sm"
+                              placeholder={`Default: ${formData.amount}`}
+                              value={overrideAmount ?? ''}
+                              onChange={e => {
+                                setFormData(prev => {
+                                  const overrides = { ...(prev.room_charge_overrides || {}) };
+                                  if (e.target.value === '') {
+                                    delete overrides[rt.id];
+                                  } else {
+                                    overrides[rt.id] = parseFloat(e.target.value) || 0;
+                                  }
+                                  return { ...prev, room_charge_overrides: overrides };
+                                });
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave amount blank to use the default. Enter a value to override for that room type.
+                </p>
+              </div>
+            )}
+
+            {!formData.applies_to_all_rooms && roomTypes.length === 0 && (
+              <p className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-lg">
+                No room types configured for this property. Add room types first.
+              </p>
+            )}
 
             <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
               <Label className="text-sm font-medium">Night Range</Label>
