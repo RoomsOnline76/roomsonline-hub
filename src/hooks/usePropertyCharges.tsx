@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { fetchPropertyRoomTypes } from "@/hooks/usePropertyRoomTypes";
 import type { PropertyCharge, ChargePreset } from "@/components/charges/ChargeCalculator";
+import type { Json } from "@/integrations/supabase/types";
 
 export function usePropertyCharges(propertyId: string | null) {
   const queryClient = useQueryClient();
