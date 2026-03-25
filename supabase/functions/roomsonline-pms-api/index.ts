@@ -372,134 +372,170 @@ Deno.serve(async (req) => {
 
     const mergedHeaders = { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" };
 
+    let result: Response;
+
     switch (action) {
       case "get_capabilities":
-        return handleGetCapabilities();
-
+        result = handleGetCapabilities();
+        break;
       case "health_check":
-        return handleHealthCheck(supabase);
-
+        result = handleHealthCheck(supabase);
+        break;
       case "fetch_availability":
-        return await handleFetchAvailability(body, supabase);
-
+        result = await handleFetchAvailability(body, supabase);
+        break;
       case "get_room_types":
-        return await handleGetRoomTypes(body, supabase);
-
+        result = await handleGetRoomTypes(body, supabase);
+        break;
       case "get_rate_types":
-        return await handleGetRateTypes(body, supabase);
-
+        result = await handleGetRateTypes(body, supabase);
+        break;
       case "get_reservations":
-        return await handleGetReservations(body, supabase);
-
+        result = await handleGetReservations(body, supabase);
+        break;
       case "create_reservation":
-        return await handleCreateReservation(body, supabase);
-
+        result = await handleCreateReservation(body, supabase);
+        break;
       case "modify_reservation":
-        return await handleModifyReservation(body, supabase);
-
+        result = await handleModifyReservation(body, supabase);
+        break;
       case "cancel_reservation":
-        return await handleCancelReservation(body, supabase);
-
+        result = await handleCancelReservation(body, supabase);
+        break;
       case "set_availability":
-        return await handleSetAvailability(body, supabase);
-
+        result = await handleSetAvailability(body, supabase);
+        break;
       case "set_rates":
-        return await handleSetRates(body, supabase);
-
-      // ROL'OS Native PMS actions
+        result = await handleSetRates(body, supabase);
+        break;
       case "get_physical_rooms":
-        return await handleGetPhysicalRooms(body, supabase);
+        result = await handleGetPhysicalRooms(body, supabase);
+        break;
       case "create_physical_room":
-        return await handleCreatePhysicalRoom(body, supabase);
+        result = await handleCreatePhysicalRoom(body, supabase);
+        break;
       case "update_room_status":
-        return await handleUpdateRoomStatus(body, supabase);
+        result = await handleUpdateRoomStatus(body, supabase);
+        break;
       case "get_rolos_room_types":
-        return await handleGetRolosRoomTypes(body, supabase);
+        result = await handleGetRolosRoomTypes(body, supabase);
+        break;
       case "create_rolos_room_type":
-        return await handleCreateRolosRoomType(body, supabase);
+        result = await handleCreateRolosRoomType(body, supabase);
+        break;
       case "update_rolos_room_type":
-        return await handleUpdateRolosRoomType(body, supabase);
+        result = await handleUpdateRolosRoomType(body, supabase);
+        break;
       case "get_rate_plans":
-        return await handleGetRatePlans(body, supabase);
+        result = await handleGetRatePlans(body, supabase);
+        break;
       case "create_rate_plan":
-        return await handleCreateRatePlan(body, supabase);
+        result = await handleCreateRatePlan(body, supabase);
+        break;
       case "get_rate_seasons":
-        return await handleGetRateSeasons(body, supabase);
+        result = await handleGetRateSeasons(body, supabase);
+        break;
       case "create_rate_season":
-        return await handleCreateRateSeason(body, supabase);
+        result = await handleCreateRateSeason(body, supabase);
+        break;
       case "set_rate_prices":
-        return await handleSetRatePrices(body, supabase);
+        result = await handleSetRatePrices(body, supabase);
+        break;
       case "get_guest_profiles":
-        return await handleGetGuestProfiles(body, supabase);
+        result = await handleGetGuestProfiles(body, supabase);
+        break;
       case "get_guest_profile":
-        return await handleGetGuestProfile(body, supabase);
+        result = await handleGetGuestProfile(body, supabase);
+        break;
       case "create_guest_profile":
-        return await handleCreateGuestProfile(body, supabase);
+        result = await handleCreateGuestProfile(body, supabase);
+        break;
       case "update_guest_profile":
-        return await handleUpdateGuestProfile(body, supabase);
+        result = await handleUpdateGuestProfile(body, supabase);
+        break;
       case "check_in":
-        return await handleCheckIn(body, supabase);
+        result = await handleCheckIn(body, supabase);
+        break;
       case "check_out":
-        return await handleCheckOut(body, supabase);
+        result = await handleCheckOut(body, supabase);
+        break;
       case "get_folio":
-        return await handleGetFolio(body, supabase);
+        result = await handleGetFolio(body, supabase);
+        break;
       case "add_folio_charge":
-        return await handleAddFolioCharge(body, supabase);
+        result = await handleAddFolioCharge(body, supabase);
+        break;
       case "process_folio_payment":
-        return await handleProcessFolioPayment(body, supabase);
+        result = await handleProcessFolioPayment(body, supabase);
+        break;
       case "get_housekeeping_board":
-        return await handleGetHousekeepingBoard(body, supabase);
+        result = await handleGetHousekeepingBoard(body, supabase);
+        break;
       case "assign_housekeeping_task":
-        return await handleAssignHousekeepingTask(body, supabase);
+        result = await handleAssignHousekeepingTask(body, supabase);
+        break;
       case "complete_housekeeping_task":
-        return await handleCompleteHousekeepingTask(body, supabase);
+        result = await handleCompleteHousekeepingTask(body, supabase);
+        break;
       case "get_daily_metrics":
-        return await handleGetDailyMetrics(body, supabase);
-
-      // Service Charges & Refunds
+        result = await handleGetDailyMetrics(body, supabase);
+        break;
       case "apply_service_charges":
-        return await handleApplyServiceCharges(body, supabase);
+        result = await handleApplyServiceCharges(body, supabase);
+        break;
       case "process_checkout_refunds":
-        return await handleProcessCheckoutRefunds(body, supabase);
+        result = await handleProcessCheckoutRefunds(body, supabase);
+        break;
       case "get_booking_charges":
-        return await handleGetBookingCharges(body, supabase);
-
-      // Phase 1: Inventory Calendar
+        result = await handleGetBookingCharges(body, supabase);
+        break;
       case "update_inventory":
-        return await handleUpdateInventory(body, supabase);
+        result = await handleUpdateInventory(body, supabase);
+        break;
       case "check_inventory":
-        return await handleCheckInventory(body, supabase);
+        result = await handleCheckInventory(body, supabase);
+        break;
       case "backfill_inventory":
-        return await handleBackfillInventory(body, supabase);
-
-      // UI Configurator
+        result = await handleBackfillInventory(body, supabase);
+        break;
       case "get_ui_config":
-        return await handleGetUiConfig(body, supabase);
-
-      // Webhooks
+        result = await handleGetUiConfig(body, supabase);
+        break;
       case "subscribe_webhook":
-        return await handleSubscribeWebhook(body, supabase);
+        result = await handleSubscribeWebhook(body, supabase);
+        break;
       case "unsubscribe_webhook":
-        return await handleUnsubscribeWebhook(body, supabase);
+        result = await handleUnsubscribeWebhook(body, supabase);
+        break;
       case "list_webhook_subscriptions":
-        return await handleListWebhookSubscriptions(body, supabase);
+        result = await handleListWebhookSubscriptions(body, supabase);
+        break;
       case "test_webhook":
-        return await handleTestWebhook(body, supabase);
+        result = await handleTestWebhook(body, supabase);
+        break;
       case "get_webhook_logs":
-        return await handleGetWebhookLogs(body, supabase);
-
-      default:
+        result = await handleGetWebhookLogs(body, supabase);
+        break;
+      default: {
+        const elapsed = Date.now() - startTime;
+        logApiRequest(supabase, propertyId, action, 400, elapsed, req, ERROR_CODES.INVALID_REQUEST);
         return new Response(
           JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
           { headers: { ...mergedHeaders }, status: 400 }
         );
+      }
     }
 
-    // Log successful request
+    // Log and return with rate limit headers
     const elapsed = Date.now() - startTime;
-    const response = result as Response;
-    logApiRequest(supabase, propertyId, action, response.status, elapsed, req);
-    return response;
+    logApiRequest(supabase, propertyId, action, result.status, elapsed, req);
+
+    // Clone response to add rate limit headers
+    const body2 = await result.text();
+    return new Response(body2, {
+      status: result.status,
+      headers: { ...Object.fromEntries(result.headers.entries()), ...rateCheck.headers },
+    });
   } catch (error) {
     console.error("[roomsonline-pms-api] Unhandled error:", error);
     const elapsed = Date.now() - startTime;
