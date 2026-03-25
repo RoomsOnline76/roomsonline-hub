@@ -1,22 +1,35 @@
 
 
-# Fix: Room Types Not Showing in Charge Editor
+# Better Room Labels on Charges + Smart Copy Across Properties
 
-## Problem
-The Charge Editor fetches room types only from the `rolos_room_types` table, but most properties store their room types in `amenities.room_types` JSON or `hostfully_room_types`. The "SIX ON N" property has 4 room types in amenities but 0 in `rolos_room_types`, so the editor shows "No room types configured."
+## Two Problems
 
-## Solution
-Update the `ChargeEditor.tsx` room types query to use a **fallback chain**: first try `rolos_room_types`, then `hostfully_room_types`, then extract from `properties.amenities.room_types` JSON.
+1. **Room badge is opaque** — shows "3 Rooms" but not *which* rooms. You have to open the editor to find out.
+2. **Copy breaks room assignments** — `room_type_ids` are UUIDs specific to the source property. When copied to another property, those UUIDs don't exist, so room-specific charges silently apply to nothing.
 
 ## Changes
 
-### Modify `src/components/charges/ChargeEditor.tsx`
-Update the `useQuery` for room types to:
-1. Query `rolos_room_types` (current behavior)
-2. If empty, query `hostfully_room_types` for the property
-3. If still empty, query `properties.amenities` and extract `room_types` array, mapping each entry to `{ id, name }`
+### 1. Show room names in charge list (`AdditionalChargesManager.tsx`)
+- Fetch room types for the property using the same fallback chain (rolos → hostfully → amenities) already used in ChargeEditor
+- Extract this into a shared hook: `usePropertyRoomTypes(propertyId)`
+- In the charges table, replace the generic "3 Rooms" badge with actual room names as small badges (e.g., `Studio`, `Two bedroom`, `One bedroom`). If more than 3 rooms, show first 2 + "+1 more" tooltip.
 
-This mirrors the same fallback logic used in `PMSRoomTypes.tsx`'s `syncFromOverview`. The returned shape stays `{ id: string; name: string }[]` so nothing else changes.
+### 2. New shared hook: `src/hooks/usePropertyRoomTypes.ts`
+Extract the room-type fallback query from `ChargeEditor.tsx` into a reusable hook so both `AdditionalChargesManager` and `ChargeEditor` use the same logic. Returns `{ id, name }[]`.
 
-### Single file change — no DB migration needed
+### 3. Smart copy with room name matching (`usePropertyCharges.tsx`)
+When copying charges to target properties:
+- Fetch the target property's room types (using the same fallback chain)
+- For each charge that has `applies_to_all_rooms = false`:
+  - Match source room type **names** to target room type **names** (case-insensitive)
+  - Remap `room_type_ids` to target UUIDs for matched rooms
+  - Remap `room_charge_overrides` keys similarly
+  - If some source rooms have no match in the target, still copy the charge with only the matched rooms
+  - If zero rooms match, set `applies_to_all_rooms = true` as a safe fallback and add a toast warning
+- Fetch source room types once before the loop, target room types per property
+
+### 4. Update `CopyChargesModal.tsx` — Show mapping info
+Add a small info note when room-specific charges exist: "Room-specific charges will be matched by name. Unmatched rooms will default to all rooms."
+
+## No DB migration needed
 
