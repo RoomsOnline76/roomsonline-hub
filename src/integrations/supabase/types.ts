@@ -193,6 +193,10 @@ export type Database = {
           id: string
           notes: string | null
           payment_facilitator_fee: number | null
+          referral_clawback_days: number | null
+          referral_first_year_rate: number | null
+          referral_residual_months: number | null
+          referral_residual_rate: number | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
           updated_at: string | null
           updated_by: string | null
@@ -205,6 +209,10 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          referral_clawback_days?: number | null
+          referral_first_year_rate?: number | null
+          referral_residual_months?: number | null
+          referral_residual_rate?: number | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
           updated_at?: string | null
           updated_by?: string | null
@@ -217,6 +225,10 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          referral_clawback_days?: number | null
+          referral_first_year_rate?: number | null
+          referral_residual_months?: number | null
+          referral_residual_rate?: number | null
           strategy?: Database["public"]["Enums"]["billing_strategy"]
           updated_at?: string | null
           updated_by?: string | null
@@ -4288,6 +4300,77 @@ export type Database = {
           },
         ]
       }
+      property_referrals: {
+        Row: {
+          clawback_until: string | null
+          converted_at: string | null
+          created_at: string
+          id: string
+          lead_notes: string | null
+          lead_source: Database["public"]["Enums"]["lead_source"]
+          property_id: string
+          referral_date: string
+          rep_id: string
+          status: Database["public"]["Enums"]["referral_status"]
+          updated_at: string
+        }
+        Insert: {
+          clawback_until?: string | null
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          lead_notes?: string | null
+          lead_source?: Database["public"]["Enums"]["lead_source"]
+          property_id: string
+          referral_date?: string
+          rep_id: string
+          status?: Database["public"]["Enums"]["referral_status"]
+          updated_at?: string
+        }
+        Update: {
+          clawback_until?: string | null
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          lead_notes?: string | null
+          lead_source?: Database["public"]["Enums"]["lead_source"]
+          property_id?: string
+          referral_date?: string
+          rep_id?: string
+          status?: Database["public"]["Enums"]["referral_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_referrals_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_referrals_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_referrals_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_referrals_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "sales_reps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_staff: {
         Row: {
           created_at: string
@@ -4348,6 +4431,150 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rep_commission_entries: {
+        Row: {
+          amount: number
+          base_revenue: number
+          clawback_reason: string | null
+          commission_type: string
+          created_at: string
+          id: string
+          period_end: string
+          period_start: string
+          property_id: string
+          rate_applied: number
+          referral_id: string
+          rep_id: string
+          status: Database["public"]["Enums"]["commission_entry_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          base_revenue?: number
+          clawback_reason?: string | null
+          commission_type: string
+          created_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          property_id: string
+          rate_applied: number
+          referral_id: string
+          rep_id: string
+          status?: Database["public"]["Enums"]["commission_entry_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          base_revenue?: number
+          clawback_reason?: string | null
+          commission_type?: string
+          created_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          property_id?: string
+          rate_applied?: number
+          referral_id?: string
+          rep_id?: string
+          status?: Database["public"]["Enums"]["commission_entry_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_commission_entries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rep_commission_entries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_entries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_entries_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "property_referrals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_entries_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "sales_reps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rep_commission_reports: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          generated_at: string
+          id: string
+          notes: string | null
+          paid_at: string | null
+          period_month: string
+          rep_id: string
+          status: Database["public"]["Enums"]["commission_report_status"]
+          total_amount: number
+          total_entries: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          generated_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          period_month: string
+          rep_id: string
+          status?: Database["public"]["Enums"]["commission_report_status"]
+          total_amount?: number
+          total_entries?: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          generated_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          period_month?: string
+          rep_id?: string
+          status?: Database["public"]["Enums"]["commission_report_status"]
+          total_amount?: number
+          total_entries?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_commission_reports_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_reports_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "sales_reps"
             referencedColumns: ["id"]
           },
         ]
@@ -8047,6 +8274,59 @@ export type Database = {
           },
         ]
       }
+      sales_reps: {
+        Row: {
+          commission_tier: Database["public"]["Enums"]["commission_tier"]
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          is_active: boolean
+          notes: string | null
+          phone: string | null
+          quarterly_target: number | null
+          rep_code: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          commission_tier?: Database["public"]["Enums"]["commission_tier"]
+          created_at?: string
+          display_name: string
+          email: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          phone?: string | null
+          quarterly_target?: number | null
+          rep_code: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          commission_tier?: Database["public"]["Enums"]["commission_tier"]
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          phone?: string | null
+          quarterly_target?: number | null
+          rep_code?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_reps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supporting_systems: {
         Row: {
           account_owner: string | null
@@ -9122,6 +9402,13 @@ export type Database = {
         | "pull_reservations"
         | "push_rates"
         | "full_sync"
+      commission_entry_status: "pending" | "approved" | "paid" | "clawed_back"
+      commission_report_status:
+        | "draft"
+        | "pending_approval"
+        | "approved"
+        | "paid"
+      commission_tier: "base" | "accelerated" | "elite"
       component_type: "pms" | "internal" | "external" | "infrastructure"
       dev_task_priority: "low" | "medium" | "high" | "critical"
       dev_task_status: "new" | "started" | "testing" | "completed"
@@ -9136,6 +9423,15 @@ export type Database = {
       health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
       invoice_status: "draft" | "issued" | "paid" | "overdue" | "cancelled"
+      lead_source:
+        | "cold_call"
+        | "referral"
+        | "event"
+        | "inbound"
+        | "partner"
+        | "social_media"
+        | "existing_client"
+        | "other"
       payment_method:
         | "cash"
         | "card"
@@ -9170,6 +9466,7 @@ export type Database = {
         | "seasonal"
         | "demand"
         | "manual_override"
+      referral_status: "pending" | "qualified" | "converted" | "churned"
       refund_status: "pending" | "approved" | "processed" | "rejected"
       rolos_reservation_status:
         | "pending"
@@ -9362,6 +9659,14 @@ export const Constants = {
         "push_rates",
         "full_sync",
       ],
+      commission_entry_status: ["pending", "approved", "paid", "clawed_back"],
+      commission_report_status: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "paid",
+      ],
+      commission_tier: ["base", "accelerated", "elite"],
       component_type: ["pms", "internal", "external", "infrastructure"],
       dev_task_priority: ["low", "medium", "high", "critical"],
       dev_task_status: ["new", "started", "testing", "completed"],
@@ -9377,6 +9682,16 @@ export const Constants = {
       health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
       invoice_status: ["draft", "issued", "paid", "overdue", "cancelled"],
+      lead_source: [
+        "cold_call",
+        "referral",
+        "event",
+        "inbound",
+        "partner",
+        "social_media",
+        "existing_client",
+        "other",
+      ],
       payment_method: [
         "cash",
         "card",
@@ -9416,6 +9731,7 @@ export const Constants = {
         "demand",
         "manual_override",
       ],
+      referral_status: ["pending", "qualified", "converted", "churned"],
       refund_status: ["pending", "approved", "processed", "rejected"],
       rolos_reservation_status: [
         "pending",
