@@ -34,6 +34,9 @@ import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
+import { useChargesForBooking } from "@/hooks/usePropertyCharges";
+import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
+import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
 import {
   Collapsible,
   CollapsibleContent,
