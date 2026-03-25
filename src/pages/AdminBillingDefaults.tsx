@@ -26,6 +26,10 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
   const [transaction, setTransaction] = useState(item.default_transaction_fee?.toString() ?? "");
   const [whiteLabel, setWhiteLabel] = useState(item.white_label_monthly_fee?.toString() ?? "");
   const [payFac, setPayFac] = useState(item.payment_facilitator_fee?.toString() ?? "");
+  const [refFirstYear, setRefFirstYear] = useState(item.referral_first_year_rate?.toString() ?? "");
+  const [refResidual, setRefResidual] = useState(item.referral_residual_rate?.toString() ?? "");
+  const [refMonths, setRefMonths] = useState(item.referral_residual_months?.toString() ?? "");
+  const [refClawback, setRefClawback] = useState(item.referral_clawback_days?.toString() ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
 
   const handleSave = () => {
@@ -36,6 +40,10 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       default_transaction_fee: transaction ? parseFloat(transaction) : null,
       white_label_monthly_fee: whiteLabel ? parseFloat(whiteLabel) : null,
       payment_facilitator_fee: payFac ? parseFloat(payFac) : null,
+      referral_first_year_rate: refFirstYear ? parseFloat(refFirstYear) : null,
+      referral_residual_rate: refResidual ? parseFloat(refResidual) : null,
+      referral_residual_months: refMonths ? parseInt(refMonths) : null,
+      referral_clawback_days: refClawback ? parseInt(refClawback) : null,
       notes: notes || null,
     });
   };
@@ -70,6 +78,28 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
           <div className="space-y-1 col-span-2">
             <Label className="text-xs">Payment Facilitator Fee (%)</Label>
             <Input type="number" step="0.1" min="0" max="100" value={payFac} onChange={(e) => setPayFac(e.target.value)} placeholder="2.5" className="h-8 text-sm" />
+          </div>
+        </div>
+        {/* Referral Commission Defaults */}
+        <div className="border-t pt-3 mt-2">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Referral Commission Defaults</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">First-Year Rate (%)</Label>
+              <Input type="number" step="0.5" min="0" max="100" value={refFirstYear} onChange={(e) => setRefFirstYear(e.target.value)} placeholder="20" className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Residual Rate (%)</Label>
+              <Input type="number" step="0.5" min="0" max="100" value={refResidual} onChange={(e) => setRefResidual(e.target.value)} placeholder="5" className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Residual Duration (months)</Label>
+              <Input type="number" step="1" min="0" value={refMonths} onChange={(e) => setRefMonths(e.target.value)} placeholder="12" className="h-8 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Clawback Period (days)</Label>
+              <Input type="number" step="1" min="0" value={refClawback} onChange={(e) => setRefClawback(e.target.value)} placeholder="90" className="h-8 text-sm" />
+            </div>
           </div>
         </div>
         <div className="space-y-1">

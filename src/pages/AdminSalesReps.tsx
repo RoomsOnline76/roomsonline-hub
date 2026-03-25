@@ -77,7 +77,7 @@ function RepForm({ rep, onSave, saving, onCancel }: {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Commission Tier</Label>
-          <Select value={form.commission_tier} onValueChange={(v) => setForm({ ...form, commission_tier: v })}>
+          <Select value={form.commission_tier} onValueChange={(v: "base" | "accelerated" | "elite") => setForm({ ...form, commission_tier: v })}>
             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="base">Base (20% / 5%)</SelectItem>

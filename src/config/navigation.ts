@@ -101,6 +101,8 @@ const adminSection: NavSection = {
     { id: 'portfolios', title: 'Portfolios', icon: FolderOpen, href: '/admin/portfolios', minRole: 'admin' },
     { id: 'review-queue', title: 'Review Queue', icon: ClipboardCheck, href: '/admin/review-queue', minRole: 'admin' },
     { id: 'billing-defaults', title: 'Billing Defaults', icon: CreditCard, href: '/admin/billing-defaults', minRole: 'dev', description: 'Global billing strategy rates' },
+    { id: 'sales-reps', title: 'Sales Reps', icon: Users, href: '/admin/sales-reps', minRole: 'admin', description: 'Property acquisition team' },
+    { id: 'commission-reports', title: 'Commission Reports', icon: TrendingUp, href: '/admin/commission-reports', minRole: 'admin', description: 'Monthly commission approvals' },
   ],
 };
 

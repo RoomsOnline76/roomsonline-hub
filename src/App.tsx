@@ -84,6 +84,8 @@ const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const AdminPortfolios = lazy(() => import("./pages/admin/AdminPortfolios"));
 const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
+const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
+const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 
 // Lazy — Connect portal pages
 const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
