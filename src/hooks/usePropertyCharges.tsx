@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { fetchPropertyRoomTypes } from "@/hooks/usePropertyRoomTypes";
 import type { PropertyCharge, ChargePreset } from "@/components/charges/ChargeCalculator";
 
 export function usePropertyCharges(propertyId: string | null) {
@@ -131,7 +132,7 @@ export function usePropertyCharges(propertyId: string | null) {
     },
   });
 
-  // Copy charges to other properties
+  // Copy charges to other properties with smart room name matching
   const copyCharges = useMutation({
     mutationFn: async ({ 
       sourceCharges, 
@@ -142,47 +143,83 @@ export function usePropertyCharges(propertyId: string | null) {
       targetPropertyIds: string[]; 
       mode: 'replace' | 'merge';
     }) => {
+      // Fetch source room types once for name mapping
+      const sourceRoomTypes = propertyId ? await fetchPropertyRoomTypes(propertyId) : [];
+      const sourceRoomNameById: Record<string, string> = {};
+      sourceRoomTypes.forEach(rt => { sourceRoomNameById[rt.id] = rt.name; });
+
+      let unmatchedWarnings = 0;
+
       for (const targetPropertyId of targetPropertyIds) {
         if (mode === 'replace') {
-          // Delete existing charges first
           await supabase
             .from('property_charges')
             .delete()
             .eq('property_id', targetPropertyId);
         }
 
-        // Insert charges for target property
-        const chargesToInsert = sourceCharges.map(charge => ({
-          property_id: targetPropertyId,
-          name: charge.name,
-          internal_code: charge.internal_code,
-          category: charge.category,
-          calculation_method: charge.calculation_method,
-          amount: charge.amount,
-          currency: charge.currency,
-          percentage_apply_to: charge.percentage_apply_to,
-          min_cap: charge.min_cap,
-          max_cap: charge.max_cap,
-          applies_to_all_rooms: charge.applies_to_all_rooms,
-          room_type_ids: charge.room_type_ids,
-          rate_type_ids: charge.rate_type_ids,
-          room_charge_overrides: charge.room_charge_overrides,
-          min_nights: charge.min_nights,
-          max_nights: charge.max_nights,
-          applies_to_adults: charge.applies_to_adults,
-          applies_to_children: charge.applies_to_children,
-          applies_to_infants: charge.applies_to_infants,
-          is_refundable: charge.is_refundable,
-          refund_timing: charge.refund_timing,
-          refund_type: charge.refund_type,
-          partial_refund_percentage: charge.partial_refund_percentage,
-          description: charge.description,
-          display_order: charge.display_order,
-          is_active: charge.is_active,
-        }));
+        // Fetch target room types for name-based matching
+        const targetRoomTypes = await fetchPropertyRoomTypes(targetPropertyId);
+        const targetRoomByName: Record<string, string> = {};
+        targetRoomTypes.forEach(rt => { targetRoomByName[rt.name.toLowerCase()] = rt.id; });
+
+        const chargesToInsert = sourceCharges.map(charge => {
+          let mappedRoomTypeIds: string[] = [];
+          let mappedOverrides: Record<string, unknown> = {};
+          let appliesToAllRooms = charge.applies_to_all_rooms;
+
+          if (!charge.applies_to_all_rooms && charge.room_type_ids?.length) {
+            for (const srcId of charge.room_type_ids) {
+              const srcName = sourceRoomNameById[srcId];
+              if (!srcName) continue;
+              const targetId = targetRoomByName[srcName.toLowerCase()];
+              if (targetId) {
+                mappedRoomTypeIds.push(targetId);
+                // Remap overrides
+                const overrides = charge.room_charge_overrides as Record<string, unknown> | null;
+                if (overrides?.[srcId]) {
+                  mappedOverrides[targetId] = overrides[srcId];
+                }
+              }
+            }
+            if (mappedRoomTypeIds.length === 0) {
+              // No matches — fall back to all rooms
+              appliesToAllRooms = true;
+              unmatchedWarnings++;
+            }
+          }
+
+          return {
+            property_id: targetPropertyId,
+            name: charge.name,
+            internal_code: charge.internal_code,
+            category: charge.category,
+            calculation_method: charge.calculation_method,
+            amount: charge.amount,
+            currency: charge.currency,
+            percentage_apply_to: charge.percentage_apply_to,
+            min_cap: charge.min_cap,
+            max_cap: charge.max_cap,
+            applies_to_all_rooms: appliesToAllRooms,
+            room_type_ids: appliesToAllRooms ? [] : mappedRoomTypeIds,
+            rate_type_ids: charge.rate_type_ids,
+            room_charge_overrides: appliesToAllRooms ? {} : mappedOverrides,
+            min_nights: charge.min_nights,
+            max_nights: charge.max_nights,
+            applies_to_adults: charge.applies_to_adults,
+            applies_to_children: charge.applies_to_children,
+            applies_to_infants: charge.applies_to_infants,
+            is_refundable: charge.is_refundable,
+            refund_timing: charge.refund_timing,
+            refund_type: charge.refund_type,
+            partial_refund_percentage: charge.partial_refund_percentage,
+            description: charge.description,
+            display_order: charge.display_order,
+            is_active: charge.is_active,
+          };
+        });
 
         if (mode === 'merge') {
-          // Get existing charges to check for duplicates
           const { data: existingCharges } = await supabase
             .from('property_charges')
             .select('internal_code')
@@ -198,9 +235,14 @@ export function usePropertyCharges(propertyId: string | null) {
           await supabase.from('property_charges').insert(chargesToInsert);
         }
       }
+
+      return { unmatchedWarnings };
     },
-    onSuccess: (_, { targetPropertyIds }) => {
+    onSuccess: (result, { targetPropertyIds }) => {
       toast.success(`Charges copied to ${targetPropertyIds.length} properties`);
+      if (result.unmatchedWarnings > 0) {
+        toast.warning(`${result.unmatchedWarnings} charge(s) had no matching rooms and were set to "All Rooms"`);
+      }
     },
     onError: (error) => {
       toast.error("Failed to copy charges: " + error.message);
