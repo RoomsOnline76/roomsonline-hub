@@ -52,7 +52,9 @@ export function InlineCheckoutPanel({
     totalPrice, totalNights, saveToDatabase,
   } = useItinerary();
   const { formatPrice } = useCurrency();
-  const { gateway: activeGateway } = useActivePaymentGateway();
+  const { gateways: activeGateways } = useActivePaymentGateways();
+  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
+  const activeGateway = selectedGateway || activeGateways[0] || "payfast";
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [payFastUuid, setPayFastUuid] = useState<string | null>(null);
