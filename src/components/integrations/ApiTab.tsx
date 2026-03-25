@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { Terminal, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { ApiUsageCard } from "./ApiUsageCard";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -120,6 +121,8 @@ export function ApiTab({ property }: ApiTabProps) {
             <li><code className="bg-muted px-1 rounded">create_booking_redirect</code> — Generate a booking URL with tracking</li>
           </ul>
         </div>
+
+        <ApiUsageCard propertyId={property.id} />
       </CardContent>
     </Card>
   );
