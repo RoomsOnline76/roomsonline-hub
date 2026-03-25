@@ -67,6 +67,7 @@ const workspaceSection: NavSection = {
     { id: 'properties', title: 'My Properties', icon: Building2, href: '/admin/property-overview', minRole: 'owner' },
     { id: 'calendar', title: 'Calendar', icon: CalendarDays, href: '/admin/calendar/accommodation', minRole: 'owner' },
     { id: 'bookings', title: 'Bookings', icon: BookOpen, href: '/admin/bookings', minRole: 'owner' },
+    { id: 'promotion', title: 'Promotion', icon: Megaphone, href: '/admin/promotion', minRole: 'owner', description: 'Marketing campaigns' },
     { id: 'integrations', title: 'Integrations', icon: Code2, href: '/admin/integrations', minRole: 'owner', description: 'Website booking widgets & API' },
   ],
 };
@@ -102,6 +103,7 @@ const adminSection: NavSection = {
     { id: 'onboarding', title: 'Onboarding', icon: Sparkles, href: '/admin/onboarding', minRole: 'admin' },
     { id: 'portfolios', title: 'Portfolios', icon: FolderOpen, href: '/admin/portfolios', minRole: 'admin' },
     { id: 'review-queue', title: 'Review Queue', icon: ClipboardCheck, href: '/admin/review-queue', minRole: 'admin' },
+    { id: 'access-requests', title: 'Access Requests', icon: Bell, href: '/admin/access-requests', minRole: 'admin', description: 'Pending access requests' },
     { id: 'billing-defaults', title: 'Billing Defaults', icon: CreditCard, href: '/admin/billing-defaults', minRole: 'dev', description: 'Global billing strategy rates' },
     { id: 'sales-reps', title: 'Sales Reps', icon: Users, href: '/admin/sales-reps', minRole: 'admin', description: 'Property acquisition team' },
     { id: 'commission-reports', title: 'Commission Reports', icon: TrendingUp, href: '/admin/commission-reports', minRole: 'admin', description: 'Monthly commission approvals' },
@@ -141,6 +143,7 @@ const systemControlSection: NavSection = {
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
     { id: 'task-tracker', title: 'Task Tracker', icon: ClipboardCheck, href: '/dev/tasks', minRole: 'dev', description: 'Dev task board' },
     { id: 'api-configurator', title: 'API Configurator', icon: Code2, href: '/admin/system/api-configurator', minRole: 'dev', description: 'UI config for WP plugin & embeds' },
+    { id: 'api-docs', title: 'API Docs', icon: FileText, href: '/docs/api', minRole: 'dev', description: 'OpenAPI specification viewer' },
   ],
 };
 
