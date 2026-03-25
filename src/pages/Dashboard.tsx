@@ -1688,6 +1688,16 @@ const Dashboard = () => {
                   stats,
                   chartData,
                   propertyBreakdown,
+                  conversionData: nbSessionStats ? {
+                    totalThisMonth: nbSessionStats.totalThisMonth,
+                    matchedThisMonth: nbSessionStats.matchedThisMonth,
+                    pendingThisMonth: nbSessionStats.pendingThisMonth,
+                    expiredThisMonth: nbSessionStats.expiredThisMonth,
+                    momChange: nbSessionStats.momChange,
+                    conversionRate: nbSessionStats.totalThisMonth > 0
+                      ? (nbSessionStats.matchedThisMonth / nbSessionStats.totalThisMonth) * 100
+                      : 0,
+                  } : undefined,
                 },
               }),
             });
