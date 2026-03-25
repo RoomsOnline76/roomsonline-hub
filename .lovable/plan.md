@@ -1,28 +1,52 @@
 
 
-# Fix Contact Information Blocker Mapping
+# Reorder Administration Menu Items
 
-## Problem
+## Current Order (flat, no logical grouping)
+Admin Dashboard, All Bookings, All Properties, Users, Payments, Contracts, Onboarding, Portfolios, Review Queue, Access Requests, Billing Defaults, Sales Reps, Commission Reports
 
-Two issues causing the false blocker:
+## Proposed Order (grouped by workflow)
 
-1. **FIELD_TO_TAB mapping is wrong**: `amenities.telephone` and `amenities.contact_email` are mapped to `info-facilities`, but the actual contact form fields (Telephone, Contact Email) live on the **General** tab (~line 5082).
+```text
+── Administration ──────────────────────
+   Admin Dashboard          (overview first)
+   
+   ── Properties ──
+   All Properties           (core asset)
+   All Bookings             (tied to properties)
+   Onboarding               (new property pipeline)
+   Contracts                (formalise relationship)
+   Review Queue             (quality gate)
+   Portfolios               (grouping/org)
+   
+   ── People ──
+   Users                    (platform users)
+   Access Requests          (user management)
+   Sales Reps               (acquisition team)
+   
+   ── Finance ──
+   Payments                 (transaction tracking)
+   Billing Defaults         (rate config - dev)
+   Commission Reports       (rep payouts)
+```
 
-2. **Quality gate checks wrong paths**: `checkContactInfo()` looks for `amenities.telephone` and `amenities.contact_email` at the root of the amenities object. But the form saves contact data to **nested** paths: `amenities.contact.telephone` and `amenities.contact.email`. The root `amenities.telephone` is also set, but `contact_email` is only saved as `amenities.contact.email` — so the gate never finds it.
+## Change
 
-## Changes
+**File**: `src/config/navigation.ts` — reorder the `items` array in `adminSection`:
 
-### 1. Fix `FIELD_TO_TAB` in `PropertyForm.tsx`
-- Move `amenities.telephone` and `amenities.contact_email` from `info-facilities` to `general`
+1. Admin Dashboard
+2. All Properties
+3. All Bookings
+4. Onboarding
+5. Contracts
+6. Review Queue
+7. Portfolios
+8. Users
+9. Access Requests
+10. Sales Reps
+11. Payments
+12. Billing Defaults
+13. Commission Reports
 
-### 2. Fix `checkContactInfo()` in `check-activation-readiness/index.ts`
-- Also check `amenities.contact?.email` and `amenities.contact?.telephone` paths
-- This matches how the form actually persists the data
-
-## Files
-
-| Action | File | Purpose |
-|--------|------|---------|
-| Modify | `src/pages/PropertyForm.tsx` | Fix FIELD_TO_TAB: contact fields → `general` tab |
-| Modify | `supabase/functions/check-activation-readiness/index.ts` | Check nested `contact.email` / `contact.telephone` paths |
+This follows the natural admin workflow: overview → property lifecycle → people → money. No new files, no structural changes — just reordering the existing array.
 
