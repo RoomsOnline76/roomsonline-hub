@@ -4450,6 +4450,22 @@ export default function PropertyForm() {
             </div>
           </div>
 
+          {/* Blocker Banner */}
+          {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
+            <Alert className="border-destructive/50 bg-destructive/5">
+              <XCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="flex items-center gap-2 text-xs">
+                <span className="font-medium text-destructive">
+                  {activationReadiness.blockers.length} blocker{activationReadiness.blockers.length > 1 ? 's' : ''} preventing activation
+                </span>
+                <span className="text-muted-foreground">—</span>
+                <span className="text-muted-foreground">
+                  {activationReadiness.blockers.map(b => b.name).join(' · ')}
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
