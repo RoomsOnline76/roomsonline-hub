@@ -429,31 +429,20 @@ export function InlineCheckoutPanel({
         )}
       </AnimatePresence>
 
-      {/* Payment Modals */}
-      {activeGateway === "paygate" ? (
-        <PayGateRedirect
-          isOpen={showPaymentModal}
-          onClose={() => { setShowPaymentModal(false); setBookingId(null); }}
-          onPaymentInitiated={() => setShowPaymentModal(false)}
-          bookingId={bookingId || ""}
-          amount={pendingPaymentAmount}
-          propertyName={firstStay?.property_name || ""}
-        />
-      ) : (
-        payFastUuid && bookingId && (
-          <PayFastOnsiteModal
-            isOpen={showPaymentModal}
-            onClose={() => { setShowPaymentModal(false); setPayFastUuid(null); setBookingId(null); }}
-            onPaymentSuccess={handlePaymentSuccess}
-            onPaymentCancelled={handlePaymentCancelled}
-            bookingId={bookingId}
-            amount={pendingPaymentAmount}
-            propertyName={firstStay?.property_name || ""}
-            isSandbox={true}
-            uuid={payFastUuid}
-          />
-        )
-      )}
+      {/* Payment Modal */}
+      <PaymentGatewayRouter
+        gateway={activeGateway}
+        isOpen={showPaymentModal}
+        onClose={() => { setShowPaymentModal(false); setPayFastUuid(null); setBookingId(null); }}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentCancelled={handlePaymentCancelled}
+        onPaymentInitiated={() => setShowPaymentModal(false)}
+        bookingId={bookingId || ""}
+        amount={pendingPaymentAmount}
+        propertyName={firstStay?.property_name || ""}
+        isSandbox={true}
+        uuid={payFastUuid || undefined}
+      />
     </>
   );
 }
