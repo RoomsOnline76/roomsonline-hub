@@ -94,18 +94,22 @@ const adminSection: NavSection = {
   minRole: 'admin',
   collapsible: false,
   items: [
+    // Overview
     { id: 'admin-dashboard', title: 'Admin Dashboard', icon: LayoutDashboard, href: '/admin/dashboard', minRole: 'admin', description: 'Overview of platform operations' },
-    { id: 'all-bookings', title: 'All Bookings', icon: BookOpen, href: '/admin/all-bookings', minRole: 'admin' },
+    // Property lifecycle
     { id: 'all-properties', title: 'All Properties', icon: Building2, href: '/admin/all-properties', minRole: 'admin' },
-    { id: 'team', title: 'Users', icon: Users, href: '/admin-users', minRole: 'admin' },
-    { id: 'payments', title: 'Payments', icon: CreditCard, href: '/admin/payments', minRole: 'admin' },
-    { id: 'contracts', title: 'Contracts', icon: FileSignature, href: '/admin/contracts', minRole: 'admin' },
+    { id: 'all-bookings', title: 'All Bookings', icon: BookOpen, href: '/admin/all-bookings', minRole: 'admin' },
     { id: 'onboarding', title: 'Onboarding', icon: Sparkles, href: '/admin/onboarding', minRole: 'admin' },
-    { id: 'portfolios', title: 'Portfolios', icon: FolderOpen, href: '/admin/portfolios', minRole: 'admin' },
+    { id: 'contracts', title: 'Contracts', icon: FileSignature, href: '/admin/contracts', minRole: 'admin' },
     { id: 'review-queue', title: 'Review Queue', icon: ClipboardCheck, href: '/admin/review-queue', minRole: 'admin' },
+    { id: 'portfolios', title: 'Portfolios', icon: FolderOpen, href: '/admin/portfolios', minRole: 'admin' },
+    // People & access
+    { id: 'team', title: 'Users', icon: Users, href: '/admin-users', minRole: 'admin' },
     { id: 'access-requests', title: 'Access Requests', icon: Bell, href: '/admin/access-requests', minRole: 'admin', description: 'Pending access requests' },
-    { id: 'billing-defaults', title: 'Billing Defaults', icon: CreditCard, href: '/admin/billing-defaults', minRole: 'dev', description: 'Global billing strategy rates' },
     { id: 'sales-reps', title: 'Sales Reps', icon: Users, href: '/admin/sales-reps', minRole: 'admin', description: 'Property acquisition team' },
+    // Finance
+    { id: 'payments', title: 'Payments', icon: CreditCard, href: '/admin/payments', minRole: 'admin' },
+    { id: 'billing-defaults', title: 'Billing Defaults', icon: CreditCard, href: '/admin/billing-defaults', minRole: 'dev', description: 'Global billing strategy rates' },
     { id: 'commission-reports', title: 'Commission Reports', icon: TrendingUp, href: '/admin/commission-reports', minRole: 'admin', description: 'Monthly commission approvals' },
   ],
 };
