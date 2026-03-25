@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,7 @@ const DEFAULT_CHARGE: Omit<PropertyCharge, 'id' | 'property_id' | 'created_at' |
   applies_to_all_rooms: true,
   room_type_ids: [],
   rate_type_ids: [],
+  room_charge_overrides: {},
   min_nights: 0,
   max_nights: 0,
   applies_to_adults: true,
@@ -80,6 +82,22 @@ export function ChargeEditor({
   const [refundOpen, setRefundOpen] = useState(false);
   const isEditing = !!charge;
 
+  // Fetch room types for this property
+  const { data: roomTypes = [] } = useQuery({
+    queryKey: ['rolos-room-types', propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rolos_room_types')
+        .select('id, name')
+        .eq('property_id', propertyId)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data as { id: string; name: string }[];
+    },
+    enabled: !!propertyId,
+  });
+
   useEffect(() => {
     if (charge) {
       setFormData({
@@ -95,6 +113,7 @@ export function ChargeEditor({
         applies_to_all_rooms: charge.applies_to_all_rooms,
         room_type_ids: charge.room_type_ids || [],
         rate_type_ids: charge.rate_type_ids || [],
+        room_charge_overrides: charge.room_charge_overrides || {},
         min_nights: charge.min_nights,
         max_nights: charge.max_nights,
         applies_to_adults: charge.applies_to_adults,
