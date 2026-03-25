@@ -214,7 +214,7 @@ export interface TransformedRoomData {
   extra_guest_fee?: number;
   security_deposit?: number;
   amenities?: unknown;
-  images?: unknown;
+  images?: Array<{ url: string; alt?: string; order?: number; category?: string }> | unknown;
   
   // Extended room fields
   extra_person_policy?: string;
