@@ -26,9 +26,19 @@ interface BrandingTabProps {
   ownerEmail?: string;
 }
 
+/** Expand 3-digit hex to 6-digit */
+function normalizeHex(hex: string): string {
+  const clean = hex.replace("#", "");
+  if (clean.length === 3) {
+    return "#" + clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  }
+  return "#" + clean;
+}
+
 /** Calculate relative luminance (WCAG 2.0) */
 function getLuminance(hex: string): number {
-  const clean = hex.replace("#", "");
+  const normalized = normalizeHex(hex);
+  const clean = normalized.replace("#", "");
   if (clean.length < 6) return 0;
   const r = parseInt(clean.substring(0, 2), 16) / 255;
   const g = parseInt(clean.substring(2, 4), 16) / 255;
@@ -71,7 +81,8 @@ function ContrastBadge({ ratio }: { ratio: number }) {
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const clean = hex.replace("#", "");
+  const normalized = normalizeHex(hex);
+  const clean = normalized.replace("#", "");
   if (clean.length !== 6) return null;
   const r = parseInt(clean.substring(0, 2), 16);
   const g = parseInt(clean.substring(2, 4), 16);
@@ -145,6 +156,12 @@ function ColorField({
   );
 }
 
+/** Suggest a fallback font colour for a given background */
+function suggestFallback(bgHex: string): string {
+  const lum = getLuminance(bgHex);
+  return lum > 0.4 ? "#1a1a2e" : "#ffffff";
+}
+
 function FontPreviewCard({
   bgColor,
   bgLabel,
@@ -155,6 +172,10 @@ function FontPreviewCard({
   fontColor: string;
 }) {
   const contrast = bgColor && fontColor ? getContrastRatio(bgColor, fontColor) : null;
+  const failsAA = contrast !== null && contrast < 4.5;
+  const fallback = failsAA ? suggestFallback(bgColor) : null;
+  const fallbackContrast = fallback ? getContrastRatio(bgColor, fallback) : null;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -162,7 +183,7 @@ function FontPreviewCard({
         {contrast !== null && <ContrastBadge ratio={contrast} />}
       </div>
       <div
-        className="rounded-lg border border-border p-5 space-y-2"
+        className={`rounded-lg border p-5 space-y-2 ${failsAA ? "border-destructive/50" : "border-border"}`}
         style={{ backgroundColor: bgColor || "#ffffff" }}
       >
         <h3
@@ -184,6 +205,17 @@ function FontPreviewCard({
           Subtle caption text at reduced opacity
         </p>
       </div>
+      {failsAA && fallback && fallbackContrast && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Suggested fallback:</span>
+          <span
+            className="inline-block h-4 w-4 rounded border border-border"
+            style={{ backgroundColor: fallback }}
+          />
+          <span className="font-mono">{fallback}</span>
+          <ContrastBadge ratio={fallbackContrast} />
+        </div>
+      )}
     </div>
   );
 }
