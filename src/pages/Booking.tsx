@@ -1442,7 +1442,7 @@ const Booking = () => {
         children: rooms.reduce((sum, r) => sum + r.numberOfChildren, 0),
         infants: rooms.reduce((sum, r) => sum + r.numberOfInfants, 0),
         pets: rooms.reduce((sum, r) => sum + r.numberOfPets, 0),
-        total_price: totalPrice,
+        total_price: Math.max(0, totalPrice - voucherDiscount),
         status: 'pending',
       } as any;
 
