@@ -1,43 +1,28 @@
 
 
-# Highlight Blocker Fields in Edit Property Page
+# Fix Contact Information Blocker Mapping
 
 ## Problem
 
-When a property has outstanding quality gate blockers preventing showcase activation, there's no visual indication on the edit property page showing which tabs/sections need attention. Admins have to mentally cross-reference the quality gate results with the form tabs.
+Two issues causing the false blocker:
 
-## Solution
+1. **FIELD_TO_TAB mapping is wrong**: `amenities.telephone` and `amenities.contact_email` are mapped to `info-facilities`, but the actual contact form fields (Telephone, Contact Email) live on the **General** tab (~line 5082).
 
-Use the existing `useActivationReadiness` hook in `PropertyForm.tsx` to fetch blocker data, then:
-1. Add a red dot/badge on tabs that contain blocker fields
-2. Wrap the relevant form sections with a highlighted border when they contain a blocker field
-3. Show a compact blocker summary banner at the top of the form (only when blockers exist)
-
-## Field → Tab Mapping
-
-| Blocker `field` value | Tab |
-|---|---|
-| `owner_email`, `name`, `property_type`, `description`, `address`, `city`, `country`, `external_id`, `*_property_code` | `general` |
-| `images` | `images` |
-| `amenities.bank_name`, `amenities.telephone`, `amenities.contact_email` | `info-facilities` |
-| `amenities.room_types` | `rooms` |
-| `amenities.check_in_time` | `house-rules` |
+2. **Quality gate checks wrong paths**: `checkContactInfo()` looks for `amenities.telephone` and `amenities.contact_email` at the root of the amenities object. But the form saves contact data to **nested** paths: `amenities.contact.telephone` and `amenities.contact.email`. The root `amenities.telephone` is also set, but `contact_email` is only saved as `amenities.contact.email` — so the gate never finds it.
 
 ## Changes
 
-### 1. Modify `src/pages/PropertyForm.tsx`
+### 1. Fix `FIELD_TO_TAB` in `PropertyForm.tsx`
+- Move `amenities.telephone` and `amenities.contact_email` from `info-facilities` to `general`
 
-- Import `useActivationReadiness` from `@/components/property/QualityGateIndicator`
-- Call the hook when in edit mode with `propertyId`
-- Create a `FIELD_TO_TAB` mapping object
-- Compute `tabsWithBlockers: Set<string>` from blocker field values
-- On each tab trigger: if `tabsWithBlockers.has(tab.value)`, show a red dot indicator
-- Add a compact alert banner below the header when blockers exist, showing count and listing blocker names with "Fix" buttons that navigate to the correct tab
-- On the active tab content: wrap sections containing blocker fields with a `ring-2 ring-destructive/50 rounded-lg` border and a small label showing what's missing
+### 2. Fix `checkContactInfo()` in `check-activation-readiness/index.ts`
+- Also check `amenities.contact?.email` and `amenities.contact?.telephone` paths
+- This matches how the form actually persists the data
 
 ## Files
 
 | Action | File | Purpose |
 |--------|------|---------|
-| Modify | `src/pages/PropertyForm.tsx` | Add blocker awareness: red dots on tabs, highlight sections, banner |
+| Modify | `src/pages/PropertyForm.tsx` | Fix FIELD_TO_TAB: contact fields → `general` tab |
+| Modify | `supabase/functions/check-activation-readiness/index.ts` | Check nested `contact.email` / `contact.telephone` paths |
 
