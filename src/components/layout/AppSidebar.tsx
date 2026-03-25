@@ -1,57 +1,28 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Building2,
-  CalendarDays,
-  BookOpen,
-  BarChart3,
-  Search,
-  Users,
-  Settings,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   LogOut,
-  KeyRound,
   Bell,
-  Newspaper,
-  FileSearch,
   HelpCircle,
-  HeartPulse,
-  BookOpenCheck,
-  UserCircle,
-  Server,
-  PenSquare,
-  FileSignature,
-  FileEdit,
-  Wand2,
-  Sparkles,
-  TrendingUp,
-  Database,
-  Flag,
   BedDouble,
-  CheckSquare,
-  Blocks,
-  Code2,
-  CreditCard,
-  ClipboardCheck,
-  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { StatusIndicator } from "@/components/ui/status-indicator";
 import rolLogo from "@/assets/rol-logo.png";
 import { useHelp } from "@/contexts/HelpContext";
 import { ProfileModal } from "@/components/ProfileModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { RoleIndicator } from "./RoleIndicator";
+import { navigationConfig, type NavItem, type NavSection } from "@/config/navigation";
+import { hasMinRole, type UserRole } from "@/lib/permissions";
 
 // Separate component to handle optional HelpContext
 function HelpNavSection({ collapsed }: { collapsed: boolean }) {
@@ -87,78 +58,9 @@ function HelpNavSection({ collapsed }: { collapsed: boolean }) {
       </div>
     );
   } catch {
-    // HelpContext not available - don't render help nav
     return null;
   }
 }
-
-interface NavItem {
-  title: string;
-  icon: React.ElementType;
-  href: string;
-  badge?: number;
-  requireAdmin?: boolean;
-  requireDev?: boolean;
-  requireDevOrFearless?: boolean;
-}
-
-const workspaceItems: NavItem[] = [
-  { title: "Properties", icon: Building2, href: "/admin/property-overview" },
-  { title: "Calendar", icon: CalendarDays, href: "/admin/calendar/accommodation" },
-  { title: "Bookings", icon: BookOpen, href: "/admin/bookings" },
-  { title: "Integrations", icon: Code2, href: "/admin/integrations" },
-];
-
-const insightsItems: NavItem[] = [
-  { title: "Property Pulse", icon: BarChart3, href: "/dashboard/reports" },
-  { title: "Revenue Pulse", icon: TrendingUp, href: "/pulse", requireDevOrFearless: true },
-  { title: "Intelligence", icon: Search, href: "/dashboard/insights", requireDevOrFearless: true },
-];
-
-// Administration - Admin only (matches navigation.ts adminSection)
-const adminItems: NavItem[] = [
-  { title: "Admin Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", requireAdmin: true },
-  { title: "All Bookings", icon: BookOpen, href: "/admin/all-bookings", requireAdmin: true },
-  { title: "All Properties", icon: Building2, href: "/admin/all-properties", requireAdmin: true },
-  { title: "Users", icon: Users, href: "/admin-users", requireAdmin: true },
-  { title: "Payments", icon: CreditCard, href: "/admin/payments", requireAdmin: true },
-  { title: "Contracts", icon: FileSignature, href: "/admin/contracts", requireAdmin: true },
-  { title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", requireAdmin: true },
-  { title: "Portfolios", icon: FolderOpen, href: "/admin/portfolios", requireAdmin: true },
-  { title: "Review Queue", icon: ClipboardCheck, href: "/admin/review-queue", requireAdmin: true },
-  { title: "Billing Defaults", icon: CreditCard, href: "/admin/billing-defaults", requireDev: true },
-];
-
-// Edit & Audit menu - Admin only content management
-const editAuditItems: NavItem[] = [
-  { title: "Journals", icon: Newspaper, href: "/admin/journals", requireAdmin: true },
-  { title: "Help Articles", icon: BookOpenCheck, href: "/admin/help-articles", requireAdmin: true },
-  { title: "Contract Editor", icon: FileEdit, href: "/admin/contract-editor", requireAdmin: true },
-  { title: "Wizard Editor", icon: Wand2, href: "/admin/wizard-editor", requireAdmin: true },
-  { title: "Audit Log", icon: FileSearch, href: "/admin/audit", requireAdmin: true },
-];
-
-// System menu - Dev/Fearless Leader technical items
-const systemItems: NavItem[] = [
-  { title: "System Health", icon: HeartPulse, href: "/dev/system-health", requireDev: true },
-  { title: "PMS Control", icon: Server, href: "/dev/pms", requireDev: true },
-  { title: "Integrations", icon: KeyRound, href: "/admin-keys", requireDevOrFearless: true },
-  { title: "Data & Logs", icon: Database, href: "/dev/logs", requireDev: true },
-  { title: "Feature Flags", icon: Flag, href: "/dev/features", requireDev: true },
-  { title: "Task Tracker", icon: CheckSquare, href: "/dev/tasks", requireDevOrFearless: true },
-  { title: "API Configurator", icon: Blocks, href: "/admin/system/api-configurator", requireDevOrFearless: true },
-];
-
-// ROL'OS PMS sub-items (matches navigation.ts pmsSection)
-const pmsItems: NavItem[] = [
-  { title: "PMS Dashboard", icon: LayoutDashboard, href: "/pms" },
-  { title: "Rooms", icon: BedDouble, href: "/pms/rooms" },
-  { title: "Rate Plans", icon: TrendingUp, href: "/pms/rate-plans" },
-  { title: "Guests", icon: Users, href: "/pms/guests" },
-  { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping" },
-  { title: "Reports", icon: BarChart3, href: "/pms/reports" },
-  { title: "Integrations", icon: Code2, href: "/pms/integrations" },
-];
 
 export function AppSidebar() {
   const location = useLocation();
@@ -168,10 +70,7 @@ export function AppSidebar() {
     const saved = localStorage.getItem("sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
   });
-  const [systemOpen, setSystemOpen] = useState(false);
-  const [editAuditOpen, setEditAuditOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
-  const [pmsOpen, setPmsOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [pendingRequests, setPendingRequests] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [hasRolProperties, setHasRolProperties] = useState(false);
@@ -186,12 +85,10 @@ export function AppSidebar() {
     }
   }, [isAdmin]);
 
-  // Check if user has access to any ROL properties
   useEffect(() => {
     const checkRolProperties = async () => {
       if (!user) return;
       if (isDev || isAdmin) {
-        // Admins/devs always see PMS
         setHasRolProperties(true);
         return;
       }
@@ -213,12 +110,19 @@ export function AppSidebar() {
   };
 
   const isActive = (href: string) => location.pathname === href;
-  
-  const canAccess = (item: NavItem) => {
-    if (item.requireDev && !isDev) return false;
-    if (item.requireDevOrFearless && !isDev && !isFearlessLeader) return false;
-    if (item.requireAdmin && !isAdmin) return false;
-    return true;
+
+  const canAccessItem = (item: NavItem) => {
+    return hasMinRole(userRole as UserRole, item.minRole);
+  };
+
+  const canAccessSection = (section: NavSection) => {
+    // PMS section has special visibility logic
+    if (section.id === 'pms' && !hasRolProperties) return false;
+    return hasMinRole(userRole as UserRole, section.minRole);
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
   const getInitials = () => {
@@ -233,11 +137,18 @@ export function AppSidebar() {
     navigate("/auth");
   };
 
+  // Get badge for a nav item (special case: access requests)
+  const getBadge = (item: NavItem): number | undefined => {
+    if (item.id === 'access-requests' && pendingRequests > 0) return pendingRequests;
+    return item.badge;
+  };
+
   const NavLink = ({ item }: { item: NavItem }) => {
-    if (!canAccess(item)) return null;
+    if (!canAccessItem(item)) return null;
     
     const active = isActive(item.href);
     const Icon = item.icon;
+    const badge = getBadge(item);
 
     const link = (
       <button
@@ -253,9 +164,9 @@ export function AppSidebar() {
         {!collapsed && (
           <>
             <span className="flex-1 text-left">{item.title}</span>
-            {item.badge && item.badge > 0 && (
+            {badge && badge > 0 && (
               <span className="h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
-                {item.badge}
+                {badge}
               </span>
             )}
           </>
@@ -269,9 +180,9 @@ export function AppSidebar() {
           <TooltipTrigger asChild>{link}</TooltipTrigger>
           <TooltipContent side="right" className="flex items-center gap-2">
             {item.title}
-            {item.badge && item.badge > 0 && (
+            {badge && badge > 0 && (
               <span className="h-4 min-w-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-medium flex items-center justify-center">
-                {item.badge}
+                {badge}
               </span>
             )}
           </TooltipContent>
@@ -293,51 +204,59 @@ export function AppSidebar() {
     );
   };
 
-  // Collapsible menu component
-  const CollapsibleMenu = ({ 
-    title, 
-    icon: Icon, 
-    items, 
-    open, 
-    onOpenChange,
-    extraItems,
-  }: { 
-    title: string; 
-    icon: React.ElementType; 
-    items: NavItem[]; 
-    open: boolean; 
-    onOpenChange: (open: boolean) => void;
-    extraItems?: React.ReactNode;
-  }) => {
-    const hasVisibleItems = items.some(item => canAccess(item)) || extraItems;
-    if (!hasVisibleItems) return null;
+  const renderSection = (section: NavSection) => {
+    if (!canAccessSection(section)) return null;
 
+    const visibleItems = section.items.filter(canAccessItem);
+    if (visibleItems.length === 0) return null;
+
+    const SectionIcon = section.icon;
+
+    if (section.collapsible) {
+      const isOpen = collapsedSections[section.id] ?? (section.defaultOpen ?? false);
+
+      return (
+        <div key={section.id}>
+          <Collapsible open={isOpen} onOpenChange={() => toggleSection(section.id)}>
+            <CollapsibleTrigger asChild>
+              <button
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                  "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  "text-sidebar-foreground/70"
+                )}
+              >
+                <SectionIcon className="h-4 w-4 shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+                      {section.label}
+                    </span>
+                    <ChevronDown className={cn("h-3 w-3 transition-transform", isOpen && "rotate-180")} />
+                  </>
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-1 mt-1">
+              {visibleItems.map((item) => (
+                <NavLink key={item.id} item={item} />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      );
+    }
+
+    // Non-collapsible: flat list with section label
     return (
-      <Collapsible open={open} onOpenChange={onOpenChange}>
-        <CollapsibleTrigger asChild>
-          <button
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-              "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              "text-sidebar-foreground/70"
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">{title}</span>
-                <ChevronDown className={cn("h-3 w-3 transition-transform", open && "rotate-180")} />
-              </>
-            )}
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1 mt-1">
-          {items.map((item) => (
-            <NavLink key={item.href} item={item} />
+      <div key={section.id}>
+        <SectionLabel>{section.label}</SectionLabel>
+        <div className="space-y-1">
+          {visibleItems.map((item) => (
+            <NavLink key={item.id} item={item} />
           ))}
-          {extraItems}
-        </CollapsibleContent>
-      </Collapsible>
+        </div>
+      </div>
     );
   };
 
@@ -362,123 +281,9 @@ export function AppSidebar() {
         {!collapsed && <RoleIndicator role={userRole} className="self-start" />}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation - rendered dynamically from navigationConfig */}
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
-        {/* Administration - Admin only (always expanded, shown first) */}
-        {isAdmin && (
-          <div>
-            <SectionLabel>Administration</SectionLabel>
-            <div className="space-y-1">
-              {adminItems.map((item) => (
-                <NavLink key={item.href} item={item} />
-              ))}
-              {pendingRequests > 0 && (
-                <NavLink
-                  item={{
-                    title: "Access Requests",
-                    icon: Bell,
-                    href: "/admin/access-requests",
-                    badge: pendingRequests,
-                    requireAdmin: true,
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ROL'OS PMS - collapsible with sub-items */}
-        {hasRolProperties && (
-          <div>
-            <CollapsibleMenu
-              title="ROL'OS PMS"
-              icon={BedDouble}
-              items={pmsItems}
-              open={pmsOpen}
-              onOpenChange={setPmsOpen}
-            />
-          </div>
-        )}
-
-        {/* Workspace */}
-        <div>
-          <SectionLabel>Workspace</SectionLabel>
-          <div className="space-y-1">
-            {workspaceItems.map((item) => (
-              <NavLink key={item.href} item={item} />
-            ))}
-          </div>
-        </div>
-
-        {/* Insights */}
-        <div>
-          <SectionLabel>Insights</SectionLabel>
-          <div className="space-y-1">
-            {insightsItems.map((item) => (
-              <NavLink key={item.href} item={item} />
-            ))}
-          </div>
-        </div>
-
-        {/* System - Dev/Fearless Leader (collapsible, collapsed by default) */}
-        {(isDev || isFearlessLeader) && (
-          <div>
-            <Collapsible open={systemOpen} onOpenChange={setSystemOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    "text-sidebar-foreground/70"
-                  )}
-                >
-                  <Server className="h-4 w-4 shrink-0" />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">System</span>
-                      <ChevronDown className={cn("h-3 w-3 transition-transform", systemOpen && "rotate-180")} />
-                    </>
-                  )}
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1 mt-1">
-                {systemItems.map((item) => (
-                  <NavLink key={item.href} item={item} />
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        )}
-
-        {/* Edit & Audit - Admin only (collapsible, collapsed by default) */}
-        {isAdmin && (
-          <div>
-            <Collapsible open={editAuditOpen} onOpenChange={setEditAuditOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    "text-sidebar-foreground/70"
-                  )}
-                >
-                  <PenSquare className="h-4 w-4 shrink-0" />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">Edit & Audit</span>
-                      <ChevronDown className={cn("h-3 w-3 transition-transform", editAuditOpen && "rotate-180")} />
-                    </>
-                  )}
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1 mt-1">
-                {editAuditItems.map((item) => (
-                  <NavLink key={item.href} item={item} />
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        )}
+        {navigationConfig.map(renderSection)}
 
         {/* Help - visible to all authenticated users */}
         <HelpNavSection collapsed={collapsed} />
