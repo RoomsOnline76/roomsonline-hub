@@ -89,6 +89,8 @@ export function AdditionalChargesManager({
     roomTypes.forEach(rt => { map[rt.id] = rt.name; });
     return map;
   }, [roomTypes]);
+
+  const [editorOpen, setEditorOpen] = useState(false);
   const [editingCharge, setEditingCharge] = useState<PropertyCharge | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [chargeToDelete, setChargeToDelete] = useState<PropertyCharge | null>(null);
