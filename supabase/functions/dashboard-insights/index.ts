@@ -29,32 +29,35 @@ serve(async (req) => {
     }
     
     const { prompt, dashboardData } = validationResult.data;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     console.log("Processing dashboard insights request:", { prompt, dataKeys: Object.keys(dashboardData || {}) });
 
-    const systemPrompt = `You are a hospitality analytics expert analyzing booking and revenue data for a hotel/property management system. 
+    const systemPrompt = `You are a hospitality analytics expert analyzing booking and revenue data for a hotel/property management system.
 Your role is to provide concise, actionable insights based on the data provided.
 
 Guidelines:
-- Be extremely concise - max 2-3 sentences
+- Be concise — max 3-4 sentences, use markdown formatting (bold, bullets)
 - Focus on the most impactful insight
 - Use specific numbers and percentages
 - Highlight trends, anomalies, or opportunities
 - Format currency as ZAR (R)
 - If asked about forecasts, explain trends
 - Identify top drivers and key patterns
+- When conversion/session data is available, analyse booking intent vs actual conversions
+- When PMS distribution data is provided, note integration health patterns
+- When sync status is available, flag properties with connectivity issues that may affect revenue
 
 Example outputs:
-- "Top driver: December bookings peaked at +25% vs November, driven by holiday demand."
-- "Revenue gap: Weekday occupancy (42%) trails weekends (78%) - consider corporate rates."
-- "Alert: Cancellations up 15% this month - review booking policies."`;
+- "**Top driver:** December bookings peaked at +25% vs November, driven by holiday demand."
+- "**Revenue gap:** Weekday occupancy (42%) trails weekends (78%) — consider corporate rates."
+- "**Conversion alert:** Only 34% of booking intents converted this month — investigate drop-off on top 3 properties."`;
 
-    const userPrompt = `Here is the current dashboard data:
+    let userPrompt = `Here is the current dashboard data:
 
 Stats:
 - Total Bookings: ${dashboardData.stats?.totalBookings || 0}
@@ -85,31 +88,51 @@ ${dashboardData.chartData?.slice(-12).map((d: any) =>
 Property Breakdown:
 ${dashboardData.propertyBreakdown?.slice(0, 5).map((p: any) => 
   `${p.name}: ${p.bookings} bookings, R${p.revenue.toLocaleString()}`
-).join('\n') || 'No breakdown'}
+).join('\n') || 'No breakdown'}`;
 
-User Question: ${prompt}
+    // Add conversion data if available
+    if (dashboardData.conversionData) {
+      const cd = dashboardData.conversionData;
+      userPrompt += `\n\nConversion Funnel (NightsBridge Sessions):
+- Total Sessions This Month: ${cd.totalThisMonth || 0}
+- Matched (Converted): ${cd.matchedThisMonth || 0}
+- Pending: ${cd.pendingThisMonth || 0}
+- Expired (Dropped Off): ${cd.expiredThisMonth || 0}
+- Month-on-Month Change: ${cd.momChange?.toFixed(1) || 0}%`;
+      if (cd.conversionRate != null) {
+        userPrompt += `\n- Conversion Rate: ${cd.conversionRate.toFixed(1)}%`;
+      }
+    }
 
-Provide a concise analytical insight addressing the user's question.`;
+    // Add PMS distribution if available
+    if (dashboardData.pmsDistribution) {
+      userPrompt += `\n\nPMS Distribution:`;
+      Object.entries(dashboardData.pmsDistribution).forEach(([pms, count]) => {
+        userPrompt += `\n- ${pms}: ${count} properties`;
+      });
+    }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    userPrompt += `\n\nUser Question: ${prompt}\n\nProvide a concise analytical insight addressing the user's question. Use markdown formatting.`;
+
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "grok-3-mini-fast",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 200,
+        max_tokens: 300,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("xAI API error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
@@ -124,7 +147,7 @@ Provide a concise analytical insight addressing the user's question.`;
         });
       }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`xAI API error: ${response.status}`);
     }
 
     const data = await response.json();

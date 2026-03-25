@@ -352,6 +352,30 @@ export function ROLRevenuePulse() {
         placeholder="e.g., What's driving our revenue this month?"
         onAnalyze={async (prompt) => {
           try {
+            // Fetch conversion funnel data
+            let conversionData = null;
+            try {
+              const now = new Date();
+              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+              const { data: sessions, error: sessErr } = await supabase
+                .from("nightsbridge_booking_sessions")
+                .select("status")
+                .gte("created_at", startOfMonth);
+              if (!sessErr && sessions) {
+                const total = sessions.length;
+                const matched = sessions.filter((s: any) => s.status === "matched").length;
+                const pending = sessions.filter((s: any) => s.status === "pending").length;
+                const expired = sessions.filter((s: any) => s.status === "expired").length;
+                conversionData = {
+                  totalThisMonth: total,
+                  matchedThisMonth: matched,
+                  pendingThisMonth: pending,
+                  expiredThisMonth: expired,
+                  conversionRate: total > 0 ? (matched / total) * 100 : 0,
+                };
+              }
+            } catch { /* non-critical */ }
+
             const { data: fnData, error: fnError } = await supabase.functions.invoke(
               "revenue-pulse-insights",
               {
@@ -364,6 +388,7 @@ export function ROLRevenuePulse() {
                     timeline: data?.timeline,
                     dateRange,
                     showYoY,
+                    conversionData,
                   },
                 },
               }

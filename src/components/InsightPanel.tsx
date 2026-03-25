@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet";
 import { Sparkles, Send, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
 
 interface InsightPanelProps {
   title?: string;
@@ -69,7 +70,7 @@ export function InsightPanel({
           </Button>
         )}
       </SheetTrigger>
-      <SheetContent className={cn("w-[400px] sm:w-[540px]", className)}>
+      <SheetContent className={cn("w-[400px] sm:w-[540px] flex flex-col", className)}>
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -78,7 +79,7 @@ export function InsightPanel({
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4 flex-1 overflow-hidden flex flex-col">
           {/* Input */}
           <div className="flex gap-2">
             <Input
@@ -101,17 +102,19 @@ export function InsightPanel({
           {/* Current insight */}
           {insight && (
             <div className="rounded-lg bg-muted/50 p-4 animate-fade-in">
-              <p className="text-sm leading-relaxed">{insight}</p>
+              <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed">
+                <ReactMarkdown>{insight}</ReactMarkdown>
+              </div>
             </div>
           )}
 
           {/* History */}
           {history.length > 0 && (
-            <div className="space-y-3 pt-4 border-t">
+            <div className="space-y-3 pt-4 border-t flex-1 overflow-hidden flex flex-col">
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Previous Insights
               </h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto">
+              <div className="space-y-3 overflow-y-auto flex-1">
                 {history.slice().reverse().map((item, index) => (
                   <div
                     key={index}
@@ -120,9 +123,9 @@ export function InsightPanel({
                     <p className="text-xs font-medium text-primary">
                       {item.prompt}
                     </p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {item.response}
-                    </p>
+                    <div className="prose prose-xs dark:prose-invert max-w-none text-xs text-muted-foreground leading-relaxed">
+                      <ReactMarkdown>{item.response}</ReactMarkdown>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -138,6 +141,13 @@ export function InsightPanel({
               </p>
             </div>
           )}
+        </div>
+
+        {/* Footer attribution */}
+        <div className="pt-3 border-t mt-auto">
+          <p className="text-[10px] text-muted-foreground/50 text-center">
+            Powered by Grok
+          </p>
         </div>
       </SheetContent>
     </Sheet>

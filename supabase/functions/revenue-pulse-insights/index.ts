@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const systemPrompt = `You are the ROL Revenue Pulse analyst, an expert in hospitality revenue management and commission tracking for Rooms Online (ROL).
+const systemPrompt = `You are the ROL Revenue Pulse analyst, an expert in hospitality revenue management, commission tracking, and conversion optimisation for Rooms Online (ROL).
 
 Your role is to analyze revenue data and provide actionable financial insights. You have access to:
 - GBV (Gross Booking Value): Total revenue from bookings
@@ -13,14 +13,19 @@ Your role is to analyze revenue data and provide actionable financial insights. 
 - Channel breakdown: Revenue by booking source (direct, OTA, etc.)
 - Top properties: Highest revenue-generating properties
 - Risk indicators: Cancellation rates, sync failures, underperforming properties
+- Conversion funnel: Booking intent sessions vs actual bookings (NightsBridge widget data)
+- Sync health: PMS connectivity status across the portfolio
 
 Guidelines:
-- Be concise and action-oriented
+- Be concise and action-oriented — use markdown formatting (bold, bullets, line breaks)
 - Focus on trends, anomalies, and opportunities
 - Provide specific recommendations when possible
 - Use ZAR currency format for South African context
 - Highlight any concerning patterns in risk indicators
-- Compare Y-on-Y performance when that data is provided`;
+- Compare Y-on-Y performance when that data is provided
+- When conversion data is available, analyze intent-to-booking conversion rates and identify drop-off points
+- When sync health data is present, correlate connectivity issues with revenue gaps
+- Structure responses with clear headings and bullet points for readability`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,16 +34,16 @@ serve(async (req) => {
 
   try {
     const { prompt, context } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY is not configured");
     }
 
     // Build context-aware message
     let contextMessage = "";
     if (context) {
-      const { tier1, tier2, tier3, timeline, dateRange, showYoY } = context;
+      const { tier1, tier2, tier3, timeline, dateRange, showYoY, conversionData, syncHealth } = context;
       
       if (tier1) {
         contextMessage += `\n\nCurrent KPIs (${dateRange?.start} to ${dateRange?.end}):
@@ -69,19 +74,39 @@ serve(async (req) => {
 - Low Performing Properties: ${tier3.lowPerformingProperties || 0}`;
       }
 
+      if (conversionData) {
+        contextMessage += `\n\nConversion Funnel (NightsBridge Sessions):
+- Total Sessions This Month: ${conversionData.totalThisMonth || 0}
+- Matched (Converted): ${conversionData.matchedThisMonth || 0}
+- Pending: ${conversionData.pendingThisMonth || 0}
+- Expired (Dropped Off): ${conversionData.expiredThisMonth || 0}
+- Month-on-Month Change: ${conversionData.momChange?.toFixed(1) || 0}%`;
+        if (conversionData.conversionRate != null) {
+          contextMessage += `\n- Conversion Rate: ${conversionData.conversionRate.toFixed(1)}%`;
+        }
+      }
+
+      if (syncHealth) {
+        contextMessage += `\n\nSync Health:
+- Total Properties: ${syncHealth.totalProperties || 0}
+- Connected (Active Sync): ${syncHealth.connectedCount || 0}
+- Sync Errors: ${syncHealth.errorCount || 0}
+- Last Failure: ${syncHealth.lastFailure || 'None'}`;
+      }
+
       if (showYoY) {
         contextMessage += `\n\nY-on-Y comparison is enabled.`;
       }
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${XAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "grok-3-mini-fast",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `${prompt}${contextMessage}` },
@@ -105,8 +130,8 @@ serve(async (req) => {
         );
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("xAI API error:", response.status, errorText);
+      throw new Error(`xAI API error: ${response.status}`);
     }
 
     const aiResponse = await response.json();
