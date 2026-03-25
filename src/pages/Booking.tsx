@@ -1167,6 +1167,38 @@ const Booking = () => {
         }
       }
 
+      // Apply property charges (taxes, fees, deposits, surcharges)
+      if (propertyCharges && propertyCharges.length > 0 && runningTotal > 0) {
+        const totalAdults = rooms.reduce((s, r) => s + r.numberOfAdults, 0);
+        const totalChildren = rooms.reduce((s, r) => s + r.numberOfChildren, 0);
+        const totalInfants = rooms.reduce((s, r) => s + r.numberOfInfants, 0);
+        const chargeContext: ChargeCalculationContext = {
+          subtotal: runningTotal,
+          nights: nights,
+          rooms: rooms.length,
+          adults: totalAdults,
+          children: totalChildren,
+          infants: totalInfants,
+          roomTypeId: rooms[0]?.roomTypeId,
+          rateTypeId: selectedRateType || undefined,
+        };
+        const calculatedCharges = calculateCharges(propertyCharges, chargeContext);
+        for (const cc of calculatedCharges) {
+          const label = cc.charge.is_refundable
+            ? `${cc.charge.name} (refundable)`
+            : cc.charge.name;
+          lineItems.push({
+            description: label,
+            nights: 0,
+            quantity: 1,
+            unitPrice: cc.calculatedAmount,
+            total: cc.calculatedAmount,
+          });
+          runningTotal += cc.calculatedAmount;
+        }
+        console.log('[Booking] Applied', calculatedCharges.length, 'property charges, new total:', runningTotal);
+      }
+
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
     } catch (error: any) {
