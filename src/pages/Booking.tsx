@@ -33,6 +33,7 @@ import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
+import type { VoucherStatus, VoucherResult } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
@@ -156,6 +157,11 @@ const Booking = () => {
   const [rooms, setRooms] = useState<RoomBooking[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  
+  // Voucher validation state
+  const [voucherStatus, setVoucherStatus] = useState<VoucherStatus>("idle");
+  const [voucherResult, setVoucherResult] = useState<VoucherResult | null>(null);
+  const [voucherDiscount, setVoucherDiscount] = useState<number>(0);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [externalReservationId, setExternalReservationId] = useState<string | null>(null);
   
