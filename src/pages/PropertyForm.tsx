@@ -51,6 +51,7 @@ import {
   Cloud,
   Key,
   ChevronsUpDown,
+  XCircle,
 } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { StarRating } from "@/components/StarRating";
@@ -98,6 +99,7 @@ import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormI
 import { CommissionTab } from "@/components/property/CommissionTab";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
+import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
@@ -2816,6 +2818,32 @@ export default function PropertyForm() {
   // Active tab state
   const [activeTab, setActiveTab] = useState("general");
 
+  // Quality gate blocker awareness
+  const { data: activationReadiness } = useActivationReadiness(propertyId || '');
+  
+  const FIELD_TO_TAB: Record<string, string> = {
+    owner_email: 'general', name: 'general', property_type: 'general',
+    description: 'general', address: 'general', city: 'general', country: 'general',
+    external_id: 'general', nightsbridge_property_code: 'general', hostfully_property_code: 'general',
+    images: 'images',
+    'amenities.bank_name': 'info-facilities', 'amenities.telephone': 'info-facilities',
+    'amenities.contact_email': 'info-facilities',
+    'amenities.room_types': 'rooms',
+    'amenities.check_in_time': 'house-rules',
+  };
+
+  const tabsWithBlockers = useMemo(() => {
+    const set = new Set<string>();
+    if (!activationReadiness?.blockers) return set;
+    for (const b of activationReadiness.blockers) {
+      if (b.field) {
+        const tab = FIELD_TO_TAB[b.field];
+        if (tab) set.add(tab);
+      }
+    }
+    return set;
+  }, [activationReadiness?.blockers]);
+
   // House Style state
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const [isLogoUploading, setIsLogoUploading] = useState(false);
@@ -4422,6 +4450,22 @@ export default function PropertyForm() {
             </div>
           </div>
 
+          {/* Blocker Banner */}
+          {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
+            <Alert className="border-destructive/50 bg-destructive/5">
+              <XCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="flex items-center gap-2 text-xs">
+                <span className="font-medium text-destructive">
+                  {activationReadiness.blockers.length} blocker{activationReadiness.blockers.length > 1 ? 's' : ''} preventing activation
+                </span>
+                <span className="text-muted-foreground">—</span>
+                <span className="text-muted-foreground">
+                  {activationReadiness.blockers.map(b => b.name).join(' · ')}
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
@@ -4458,6 +4502,7 @@ export default function PropertyForm() {
                 .map((tab) => {
                   const isActive = activeTab === tab.value;
                   const Icon = tab.icon;
+                  const hasBlocker = tabsWithBlockers.has(tab.value);
 
                   if (isActive) {
                     return (
@@ -4465,15 +4510,19 @@ export default function PropertyForm() {
                         key={tab.value}
                         value={tab.value}
                         className={cn(
-                          "gap-1 text-xs py-1",
+                          "gap-1 text-xs py-1 relative",
                           tab.highlight &&
                             "bg-primary/10 text-primary border border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
                           tab.highlightBlue &&
                             "bg-blue-500/10 text-blue-600 border border-blue-500/30 data-[state=active]:bg-blue-600 data-[state=active]:text-white",
+                          hasBlocker && "ring-2 ring-destructive/60",
                         )}
                       >
                         <Icon className="h-3 w-3" />
                         {tab.label}
+                        {hasBlocker && (
+                          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                        )}
                       </TabsTrigger>
                     );
                   }
@@ -4484,16 +4533,19 @@ export default function PropertyForm() {
                         <TabsTrigger
                           value={tab.value}
                           className={cn(
-                            "px-2 py-1",
+                            "px-2 py-1 relative",
                             tab.highlight && "bg-primary/10 text-primary border border-primary/30",
                             tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
                           )}
                         >
                           <Icon className="h-3 w-3" />
+                          {hasBlocker && (
+                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                          )}
                         </TabsTrigger>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="text-xs">{tab.label}</p>
+                        <p className="text-xs">{tab.label}{hasBlocker ? ' ⚠️' : ''}</p>
                       </TooltipContent>
                     </Tooltip>
                   );
