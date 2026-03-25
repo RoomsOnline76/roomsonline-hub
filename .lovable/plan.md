@@ -1,52 +1,47 @@
 
 
-# Reorder Administration Menu Items
+# Fix Hostfully Booking Rate Matching (Room ID Mismatch)
 
-## Current Order (flat, no logical grouping)
-Admin Dashboard, All Bookings, All Properties, Users, Payments, Contracts, Onboarding, Portfolios, Review Queue, Access Requests, Billing Defaults, Sales Reps, Commission Reports
+## Problem
 
-## Proposed Order (grouped by workflow)
+The booking checkout shows "On request" (no rates) because of a **room type ID mismatch** between the availability response and the booking page.
 
-```text
-── Administration ──────────────────────
-   Admin Dashboard          (overview first)
-   
-   ── Properties ──
-   All Properties           (core asset)
-   All Bookings             (tied to properties)
-   Onboarding               (new property pipeline)
-   Contracts                (formalise relationship)
-   Review Queue             (quality gate)
-   Portfolios               (grouping/org)
-   
-   ── People ──
-   Users                    (platform users)
-   Access Requests          (user management)
-   Sales Reps               (acquisition team)
-   
-   ── Finance ──
-   Payments                 (transaction tracking)
-   Billing Defaults         (rate config - dev)
-   Commission Reports       (rep payouts)
+- The URL passes `roomTypeId=155e611a-...` which is the **Hostfully UID** (`pmsRoomId` from amenities)
+- The Hostfully availability response returns `room_type_id: 6fcaf88a-...` which is the **database table ID** (`hostfully_room_types.id`)
+- These don't match, so the room lookup fails silently and cost = 0
+
+## Root Cause
+
+In `supabase/functions/hostfully-api/index.ts` line 1031:
+```javascript
+room_type_id: roomType.id,  // DB table ID (6fcaf88a-...)
 ```
 
-## Change
+But the booking page uses `pmsRoomId` (the Hostfully UID `155e611a-...`) as the canonical room ID everywhere.
 
-**File**: `src/config/navigation.ts` — reorder the `items` array in `adminSection`:
+## Fix
 
-1. Admin Dashboard
-2. All Properties
-3. All Bookings
-4. Onboarding
-5. Contracts
-6. Review Queue
-7. Portfolios
-8. Users
-9. Access Requests
-10. Sales Reps
-11. Payments
-12. Billing Defaults
-13. Commission Reports
+Two changes to ensure matching works:
 
-This follows the natural admin workflow: overview → property lifecycle → people → money. No new files, no structural changes — just reordering the existing array.
+### 1. Hostfully edge function: use `hostfully_room_id` as `room_type_id`
+
+In `supabase/functions/hostfully-api/index.ts` at line 1031, change:
+```javascript
+room_type_id: roomType.hostfully_room_id,
+```
+
+This aligns the availability response with what the booking page expects (`pmsRoomId`).
+
+### 2. Add alias fallback in the same response
+
+Also add the DB table ID as an alias so other consumers still work:
+```javascript
+room_type_aliases: [roomType.id],
+```
+
+## Files
+
+| Action | File |
+|--------|------|
+| Modify | `supabase/functions/hostfully-api/index.ts` |
 
