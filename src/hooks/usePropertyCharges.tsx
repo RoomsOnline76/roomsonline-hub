@@ -177,7 +177,7 @@ export function usePropertyCharges(propertyId: string | null) {
               if (targetId) {
                 mappedRoomTypeIds.push(targetId);
                 // Remap overrides
-                const overrides = charge.room_charge_overrides as Record<string, unknown> | null;
+                const overrides = charge.room_charge_overrides as Record<string, Json> | null;
                 if (overrides?.[srcId]) {
                   mappedOverrides[targetId] = overrides[srcId];
                 }
