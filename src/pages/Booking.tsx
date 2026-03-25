@@ -203,6 +203,9 @@ const Booking = () => {
     enabled: !!id,
   });
 
+  // Fetch property charges (taxes, fees, deposits, surcharges)
+  const { data: propertyCharges } = useChargesForBooking(property?.id || null);
+
   // Fetch cached room types from database (fallback if not in amenities)
   const { data: cachedRoomTypes } = useQuery({
     queryKey: ["cached-room-types", property?.id],
