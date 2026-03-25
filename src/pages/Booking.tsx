@@ -1915,6 +1915,21 @@ const Booking = () => {
           </motion.div>
         </div>
 
+        {/* ── Payment Method Selector (multi-gateway) ── */}
+        {activeGateways.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mt-4"
+          >
+            <PaymentMethodSelector
+              gateways={activeGateways}
+              selected={effectiveGateway}
+              onSelect={setSelectedGateway}
+            />
+          </motion.div>
+        )}
+
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
           <div className="max-w-2xl mx-auto">
