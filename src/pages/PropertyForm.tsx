@@ -4533,16 +4533,19 @@ export default function PropertyForm() {
                         <TabsTrigger
                           value={tab.value}
                           className={cn(
-                            "px-2 py-1",
+                            "px-2 py-1 relative",
                             tab.highlight && "bg-primary/10 text-primary border border-primary/30",
                             tab.highlightBlue && "bg-blue-500/10 text-blue-600 border border-blue-500/30",
                           )}
                         >
                           <Icon className="h-3 w-3" />
+                          {hasBlocker && (
+                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                          )}
                         </TabsTrigger>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="text-xs">{tab.label}</p>
+                        <p className="text-xs">{tab.label}{hasBlocker ? ' ⚠️' : ''}</p>
                       </TooltipContent>
                     </Tooltip>
                   );
