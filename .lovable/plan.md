@@ -1,68 +1,53 @@
 
 
-# Multi-Gateway Payment Provider Selection
+# Fix Desktop Sidebar — Sync Missing Menu Items
 
-## Problem
+## Root Cause
 
-Currently `properties.payment_provider` is a single `text` column — each property can only have one active gateway. The request is to allow multiple gateways per property, group them by SA/International in the selector UI, and let guests choose their preferred payment method at checkout.
+The desktop sidebar (`AppSidebar.tsx`) has its own **hardcoded navigation arrays** (lines 105-161) that are completely independent from `navigation.ts` (which the mobile nav uses). Every time a new page is added to `navigation.ts`, the desktop sidebar falls out of sync.
 
-## Database Change
+## Missing Items in Desktop Sidebar
 
-**Migration**: Add `payment_providers text[] DEFAULT '{}'` column to `properties` table. Keep the existing `payment_provider` (singular) column for backward compatibility — the hook will check the array first, fall back to the singular column.
+Comparing `AppSidebar.tsx` arrays against `navigation.ts` and `App.tsx` routes:
 
-No junction table needed — a simple array of gateway keys (e.g. `{"payfast","stripe","paypal"}`) is sufficient for this use case and avoids join complexity.
+| Page | Route | In `navigation.ts` | In `AppSidebar.tsx` |
+|------|-------|--------------------|--------------------|
+| Sales Reps | `/admin/sales-reps` | Yes | **No** |
+| Commission Reports | `/admin/commission-reports` | Yes | **No** |
+| Access Requests | `/admin/access-requests` | No (conditional) | Only when badge > 0 |
+| API Docs | `/docs/api` | No | No |
+| Dev Testing | `/dev/testing` | No | No |
+| Promotion | `/admin/promotion` | No | No |
 
-## Architecture
+The first two are the critical missing links. Access Requests currently only shows when there are pending requests — it should always be visible for admins. API Docs and Dev Testing are utility pages that could optionally be added to System Control.
 
-```text
-Admin sets multiple providers → properties.payment_providers = ["payfast","stripe","ozow"]
-                                        │
-Guest at checkout ──→ useActivePaymentGateways (returns array)
-                                        │
-                    ┌───────────────────┴──────────────────┐
-                    │  PaymentMethodSelector (new)          │
-                    │  Shows enabled gateways as cards      │
-                    │  Guest picks one → PaymentGatewayRouter│
-                    └──────────────────────────────────────┘
-```
+## The Fix
 
-## Changes
+**Refactor `AppSidebar.tsx` to consume `navigationConfig` from `navigation.ts`** instead of maintaining duplicate arrays. This is the only way to prevent this from happening a third time.
 
-### 1. Migration
-- Add `payment_providers text[] DEFAULT '{}'` to `properties`
-- Migrate existing `payment_provider` values into the array
+### Changes
 
-### 2. Update `PropertyPaymentProviderSelect.tsx`
-- Replace single `<Select>` with a multi-select checkbox list
-- Group providers into **South African** (PayFast, PayGate, Peach, Yoco, Ozow, DPO, AddPay, Payflex, Stitch, iKhokha, SnapScan, Zapper) and **International** (Stripe, PayPal, Flutterwave, Klarna, Affirm) with section headers
-- Save selected array to `properties.payment_providers`
-- Credential management stays per-provider (show credential fields for each selected provider)
+#### 1. Modify `src/components/layout/AppSidebar.tsx`
 
-### 3. Update `useActivePaymentGateway.tsx`
-- Add new export: `useActivePaymentGateways()` returning `PaymentGateway[]`
-- Reads `payment_providers` array from property, falls back to singular `payment_provider`, then global default
-- Keep existing single-gateway hook for backward compat (returns first from array)
+- Remove all hardcoded arrays (`adminItems`, `workspaceItems`, `insightsItems`, `editAuditItems`, `systemItems`, `pmsItems`)
+- Import `navigationConfig` from `@/config/navigation`
+- Map `NavSection` items using `hasMinRole(userRole, item.minRole)` for access control (same as mobile does)
+- Render sections dynamically: non-collapsible sections as flat lists, collapsible sections using the existing `CollapsibleMenu` pattern
+- Keep the special-case Access Requests badge (always show for admins, with badge count)
 
-### 4. Create `PaymentMethodSelector.tsx`
-- Shown at checkout when property has 2+ enabled gateways
-- Displays enabled gateways as selectable cards/radio buttons with logos and labels
-- Guest picks one, that gateway key is passed to `PaymentGatewayRouter`
-- If only 1 gateway enabled, auto-selects (no selector shown)
+#### 2. Update `src/config/navigation.ts`
 
-### 5. Update checkout pages
-- `Booking.tsx`, `JourneyCheckout.tsx`, `InlineCheckoutPanel.tsx`: use `useActivePaymentGateways()` (plural)
-- If multiple gateways, render `PaymentMethodSelector` before payment step
-- Selected gateway passed to `PaymentGatewayRouter` as before
+- Add missing pages that should be navigable:
+  - `Access Requests` → Administration section (admin, always visible)
+  - `API Docs` → System Control section (dev)
+  - `Promotion` → Workspace section (owner)
+
+This single-source-of-truth approach means future page additions to `navigation.ts` will automatically appear in both desktop and mobile navs.
 
 ## Files
 
 | Action | File | Purpose |
 |--------|------|---------|
-| Migration | SQL | Add `payment_providers text[]`, migrate existing data |
-| Modify | `src/components/integrations/PropertyPaymentProviderSelect.tsx` | Multi-select with SA/International grouping |
-| Modify | `src/hooks/useActivePaymentGateway.tsx` | Add `useActivePaymentGateways()` returning array |
-| Create | `src/components/booking/PaymentMethodSelector.tsx` | Guest-facing gateway picker at checkout |
-| Modify | `src/pages/Booking.tsx` | Integrate PaymentMethodSelector |
-| Modify | `src/pages/JourneyCheckout.tsx` | Integrate PaymentMethodSelector |
-| Modify | `src/components/booking/InlineCheckoutPanel.tsx` | Integrate PaymentMethodSelector |
+| Modify | `src/config/navigation.ts` | Add Access Requests, API Docs, Promotion items |
+| Modify | `src/components/layout/AppSidebar.tsx` | Consume `navigationConfig` instead of hardcoded arrays |
 
