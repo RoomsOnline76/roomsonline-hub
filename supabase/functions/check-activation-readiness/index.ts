@@ -496,8 +496,9 @@ function checkLocationComplete(property: any): QualityCheckResult {
 }
 
 function checkContactInfo(amenities: Record<string, unknown>): QualityCheckResult {
-  const hasPhone = amenities.telephone || amenities.mobile_number;
-  const hasEmail = amenities.contact_email;
+  const contact = amenities.contact as Record<string, unknown> | undefined;
+  const hasPhone = amenities.telephone || amenities.mobile_number || contact?.telephone || contact?.phone;
+  const hasEmail = amenities.contact_email || contact?.email;
   
   if (!hasPhone && !hasEmail) {
     return {
