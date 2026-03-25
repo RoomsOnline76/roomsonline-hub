@@ -431,6 +431,15 @@ export default function JourneyCheckout() {
                       </span>
                     </div>
 
+                    {/* Payment method selector (multi-gateway) */}
+                    {activeGateways.length > 1 && (
+                      <PaymentMethodSelector
+                        gateways={activeGateways}
+                        selected={effectiveGateway}
+                        onSelect={setSelectedGateway}
+                      />
+                    )}
+
                     <Button
                       onClick={handleCompleteBooking}
                       disabled={isSubmitting || isValidating}

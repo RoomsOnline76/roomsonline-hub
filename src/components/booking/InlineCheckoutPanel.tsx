@@ -343,8 +343,16 @@ export function InlineCheckoutPanel({
             <span className="text-xl font-bold"><FormattedPrice amount={totalPrice} /></span>
           </div>
         </div>
+
+        {/* Payment method selector (multi-gateway) */}
+        {activeGateways.length > 1 && (
+          <PaymentMethodSelector
+            gateways={activeGateways}
+            selected={activeGateway}
+            onSelect={setSelectedGateway}
+          />
+        )}
       </div>
-    </div>
   );
 
 
