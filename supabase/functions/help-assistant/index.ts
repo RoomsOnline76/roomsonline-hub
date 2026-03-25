@@ -31,6 +31,26 @@ CONTRACT MANAGEMENT (Admin Feature):
 - Signed contracts are permanently accessible via the signing token
 - Contract notifications go to the owner and the admin team (carike@roomsonline.co.za)
 
+BILLING & FINANCE (Admin/Dev Feature):
+- ROL supports 7 billing strategies: Default (commission-based), Widget, SaaS (subscription), Portfolio, Enterprise, Volume-Tiered, Payment Facilitator
+- Global billing defaults are managed at /admin/billing-defaults — sets platform-wide rates per strategy
+- Per-property overrides are set in the property's Billing tab — negotiated rates that override global defaults
+- Resolution order: Property Override → Global Default → Hardcoded Fallback (10% commission)
+- White-label branding has an optional monthly fee, configured per strategy or per property
+- All billing events are logged to an immutable billing_transactions ledger
+- Monthly invoices are auto-generated for property owners
+
+SALES REP COMMISSION MODULE:
+- Sales reps are managed at /admin/sales-reps — registry with tier assignments
+- 3 commission tiers: Base (20% first-year, 5% residual), Accelerated (25%/7.5%), Elite (30%/10%)
+- Commissions calculated on platform revenue (ROL's income from the property, not booking revenue)
+- Property referrals are assigned in the property's Billing tab (Referral section)
+- Lead sources tracked: cold call, referral, event, inbound, partner, social media, existing client, other
+- Monthly commission calculation runs automatically on the 28th
+- Reports appear at /admin/commission-reports for Fearless Leader approval
+- 90-day clawback: if a property churns within 90 days, commissions are reversed
+- Commission defaults (first-year rate, residual rate, duration, clawback days) are set in /admin/billing-defaults
+
 Remember: You're the platform's built-in guide helping users navigate ROL efficiently!`;
 
 const PMS_SYSTEM_PROMPT = `You are TOBI, the property-specific assistant embedded in the ROL'OS Property Management System.
@@ -117,6 +137,21 @@ FINANCIAL CONCEPTS:
 - Rate seasons allow date-range pricing with day-of-week multipliers (Mon-Sun)
 - Commission tracking per OTA channel (percentage-based)
 - Group billing can be master-folio (one bill) or individual (per room)
+
+BILLING & FINANCE:
+- Property billing is configured in the **Billing tab** of the property form
+- Each property has a billing strategy (Default, Widget, SaaS, Portfolio, Enterprise, Volume-Tiered, Payment Facilitator)
+- Rates follow 3-tier resolution: Property Override → Global Default → Hardcoded Fallback
+- White-label branding incurs an additional monthly fee when enabled
+- Global billing defaults are managed at /admin/billing-defaults (Fearless Leader/Dev only)
+- All transactions logged to billing_transactions ledger; monthly owner_invoices auto-generated
+
+SALES REP COMMISSIONS:
+- Properties can be linked to a sales rep via the Referral section in the Billing tab
+- Commission tiers: Base (20%/5%), Accelerated (25%/7.5%), Elite (30%/10%)
+- Monthly calculation on the 28th generates reports at /admin/commission-reports
+- 90-day clawback protection against early property churn
+- Sales rep management: /admin/sales-reps
 
 Guidelines:
 - Be specific to THIS property using the data provided below
@@ -502,8 +537,39 @@ serve(async (req) => {
         contextContent += "\n";
       }
 
+      // Fetch billing data for PMS context
+      const [billingConfigRes, referralRes] = await Promise.all([
+        supabase
+          .from("property_billing_configs")
+          .select("billing_strategy, commission_rate, subscription_fee, transaction_fee, white_label_monthly_fee")
+          .eq("property_id", propertyId)
+          .maybeSingle(),
+        supabase
+          .from("property_referrals")
+          .select("rep_id, lead_source, status, referral_date")
+          .eq("property_id", propertyId)
+          .maybeSingle(),
+      ]);
+
+      if (billingConfigRes.data) {
+        const bc = billingConfigRes.data;
+        contextContent += `\nBILLING CONFIG:\n`;
+        contextContent += `- Strategy: ${bc.billing_strategy || 'default'}\n`;
+        if (bc.commission_rate) contextContent += `- Commission Rate: ${bc.commission_rate}%\n`;
+        if (bc.subscription_fee) contextContent += `- Subscription Fee: R${bc.subscription_fee}/mo\n`;
+        if (bc.white_label_monthly_fee) contextContent += `- White-Label Fee: R${bc.white_label_monthly_fee}/mo\n`;
+      }
+
+      if (referralRes.data) {
+        const ref = referralRes.data;
+        contextContent += `\nREFERRAL:\n`;
+        contextContent += `- Lead Source: ${ref.lead_source}\n`;
+        contextContent += `- Status: ${ref.status}\n`;
+        contextContent += `- Referral Date: ${ref.referral_date}\n`;
+      }
+
       if (recentBookings && recentBookings.length > 0) {
-        contextContent += `RECENT BOOKINGS (last ${recentBookings.length}):\n`;
+        contextContent += `\nRECENT BOOKINGS (last ${recentBookings.length}):\n`;
         recentBookings.forEach((b: { guest_name: string; check_in_date: string; check_out_date: string; status: string; total_price: number }) => {
           contextContent += `- ${b.guest_name}: ${b.check_in_date} → ${b.check_out_date}, ${b.status}, R${b.total_price}\n`;
         });

@@ -11,6 +11,7 @@ const ADMIN_SECTIONS = [
   "data_authority",
   "architecture",
   "debugging",
+  "billing_finance",
 ];
 
 const OWNER_SECTIONS = [
@@ -22,6 +23,7 @@ const OWNER_SECTIONS = [
   "common_mistakes",
   "troubleshooting",
   "support",
+  "owner_billing",
 ];
 
 const DEV_SECTIONS = [
@@ -104,6 +106,10 @@ const SECTION_ORDER: string[] = [
   "common_mistakes",
   "troubleshooting",
   "support",
+  // Admin billing
+  "billing_finance",
+  // Owner billing
+  "owner_billing",
 ];
 
 const SECTION_LABELS: Record<string, string> = {
@@ -123,6 +129,10 @@ const SECTION_LABELS: Record<string, string> = {
   common_mistakes: "Common Mistakes to Avoid",
   troubleshooting: "Troubleshooting",
   support: "Getting Help",
+  // Admin billing
+  billing_finance: "Billing & Finance",
+  // Owner billing
+  owner_billing: "Your Billing",
 };
 
 export function HelpProvider({ children }: { children: ReactNode }) {
