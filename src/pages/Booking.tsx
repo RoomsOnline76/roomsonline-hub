@@ -1405,6 +1405,36 @@ const Booking = () => {
       bookingData.room_type_id = rooms[0]?.roomTypeId || null;
       bookingData.rate_type_id = selectedRateType;
       bookingData.voucher = voucher || null;
+
+      // Snapshot charges breakdown for the booking record
+      if (propertyCharges && propertyCharges.length > 0) {
+        const totalAdults = rooms.reduce((s, r) => s + r.numberOfAdults, 0);
+        const totalChildren = rooms.reduce((s, r) => s + r.numberOfChildren, 0);
+        const totalInfants = rooms.reduce((s, r) => s + r.numberOfInfants, 0);
+        const chargeItems = costBreakdown.filter(i => i.nights === 0);
+        const accommodationSubtotal = totalPrice - chargeItems.reduce((s, i) => s + i.total, 0);
+        const chargeCtx: ChargeCalculationContext = {
+          subtotal: accommodationSubtotal > 0 ? accommodationSubtotal : totalPrice,
+          nights,
+          rooms: rooms.length,
+          adults: totalAdults,
+          children: totalChildren,
+          infants: totalInfants,
+          roomTypeId: rooms[0]?.roomTypeId,
+          rateTypeId: selectedRateType || undefined,
+        };
+        const snapshotCharges = calculateCharges(propertyCharges, chargeCtx);
+        if (snapshotCharges.length > 0) {
+          bookingData.charges_breakdown = snapshotCharges.map(cc => ({
+            name: cc.charge.name,
+            category: cc.charge.category,
+            calculation_method: cc.charge.calculation_method,
+            amount: cc.calculatedAmount,
+            is_refundable: cc.charge.is_refundable,
+            breakdown: cc.breakdown,
+          }));
+        }
+      }
       
       // For HotelBeds, include the rate_key in rooms array for push-booking to extract
       const pmsSystem = property?.external_system?.toLowerCase();
