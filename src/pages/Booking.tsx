@@ -1236,6 +1236,46 @@ const Booking = () => {
 
   const missingFields = getMissingFields();
 
+  // Voucher validation handler
+  const handleApplyVoucher = async () => {
+    if (!voucher.trim() || !property?.id) return;
+    setVoucherStatus("loading");
+    setVoucherResult(null);
+    setVoucherDiscount(0);
+
+    try {
+      const accommodationSubtotal = costBreakdown
+        .filter(i => i.nights > 0)
+        .reduce((s, i) => s + i.total, 0) || totalCost;
+
+      const { data, error } = await supabase.functions.invoke("validate-voucher", {
+        body: {
+          code: voucher.trim(),
+          property_id: property.id,
+          subtotal: accommodationSubtotal,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.valid) {
+        setVoucherStatus("valid");
+        setVoucherResult(data as VoucherResult);
+        setVoucherDiscount(data.discount_amount || 0);
+        toast.success(`Voucher applied: ${data.discount_type === 'percentage' ? `${data.discount_value}% off` : `R ${data.discount_value} off`}`);
+      } else {
+        setVoucherStatus("invalid");
+        setVoucherResult({ reason: data?.reason, discount_type: "percentage", discount_value: 0, discount_amount: 0, conditions: {} });
+        setVoucherDiscount(0);
+      }
+    } catch (err) {
+      console.error("Voucher validation error:", err);
+      setVoucherStatus("invalid");
+      setVoucherResult({ reason: "Failed to validate voucher", discount_type: "percentage", discount_value: 0, discount_amount: 0, conditions: {} });
+      setVoucherDiscount(0);
+    }
+  };
+
   // Add room - navigate back to property page to select another room
   const addRoom = () => {
     // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
