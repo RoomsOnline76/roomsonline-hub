@@ -1,8 +1,9 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import {
   Collapsible,
@@ -10,6 +11,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { motion } from "framer-motion";
+
+export type VoucherStatus = "idle" | "loading" | "valid" | "invalid";
+
+export interface VoucherResult {
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  discount_amount: number;
+  conditions: Record<string, any>;
+  description?: string;
+  reason?: string;
+}
 
 interface FluentGuestFormProps {
   guestName: string;
@@ -26,6 +38,10 @@ interface FluentGuestFormProps {
   errors?: Record<string, string>;
   showVoucher?: boolean;
   className?: string;
+  // Voucher validation props
+  voucherStatus?: VoucherStatus;
+  voucherResult?: VoucherResult | null;
+  onApplyVoucher?: () => void;
 }
 
 /**
@@ -47,6 +63,9 @@ export function FluentGuestForm({
   errors = {},
   showVoucher = false,
   className,
+  voucherStatus = "idle",
+  voucherResult,
+  onApplyVoucher,
 }: FluentGuestFormProps) {
   const [specialOpen, setSpecialOpen] = useState(false);
 
@@ -99,13 +118,67 @@ export function FluentGuestForm({
       {showVoucher && onVoucherChange && (
         <div>
           <Label htmlFor="fluent-voucher" className="text-xs">Voucher Code</Label>
-          <Input
-            id="fluent-voucher"
-            value={voucher}
-            onChange={(e) => onVoucherChange(e.target.value)}
-            placeholder="Enter promo code"
-            className="h-10"
-          />
+          <div className="flex gap-2">
+            <Input
+              id="fluent-voucher"
+              value={voucher}
+              onChange={(e) => {
+                onVoucherChange(e.target.value);
+              }}
+              placeholder="Enter promo code"
+              className={cn(
+                "h-10 flex-1",
+                voucherStatus === "valid" && "border-green-500",
+                voucherStatus === "invalid" && "border-destructive"
+              )}
+            />
+            {onApplyVoucher && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 px-4"
+                disabled={!voucher?.trim() || voucherStatus === "loading"}
+                onClick={onApplyVoucher}
+              >
+                {voucherStatus === "loading" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Apply"
+                )}
+              </Button>
+            )}
+          </div>
+
+          {/* Voucher validation result */}
+          {voucherStatus === "valid" && voucherResult && (
+            <div className="mt-1.5 flex items-start gap-1.5">
+              <CheckCircle className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+              <div className="text-xs">
+                <span className="text-green-600 font-medium">
+                  {voucherResult.discount_type === "percentage"
+                    ? `${voucherResult.discount_value}% discount applied`
+                    : `R ${voucherResult.discount_value} discount applied`}
+                </span>
+                {voucherResult.description && (
+                  <span className="text-muted-foreground ml-1">— {voucherResult.description}</span>
+                )}
+                {voucherResult.conditions?.non_refundable && (
+                  <div className="mt-1 flex items-center gap-1 text-amber-600">
+                    <AlertTriangle className="h-3 w-3" />
+                    <span className="font-medium">Non-refundable booking</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {voucherStatus === "invalid" && voucherResult && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+              <span className="text-xs text-destructive">{voucherResult.reason || "Invalid voucher code"}</span>
+            </div>
+          )}
         </div>
       )}
 

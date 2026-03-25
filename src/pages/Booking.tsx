@@ -33,6 +33,7 @@ import { motion } from "framer-motion";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
+import type { VoucherStatus, VoucherResult } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
@@ -156,6 +157,11 @@ const Booking = () => {
   const [rooms, setRooms] = useState<RoomBooking[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  
+  // Voucher validation state
+  const [voucherStatus, setVoucherStatus] = useState<VoucherStatus>("idle");
+  const [voucherResult, setVoucherResult] = useState<VoucherResult | null>(null);
+  const [voucherDiscount, setVoucherDiscount] = useState<number>(0);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [externalReservationId, setExternalReservationId] = useState<string | null>(null);
   
@@ -1230,6 +1236,46 @@ const Booking = () => {
 
   const missingFields = getMissingFields();
 
+  // Voucher validation handler
+  const handleApplyVoucher = async () => {
+    if (!voucher.trim() || !property?.id) return;
+    setVoucherStatus("loading");
+    setVoucherResult(null);
+    setVoucherDiscount(0);
+
+    try {
+      const accommodationSubtotal = costBreakdown
+        .filter(i => i.nights > 0)
+        .reduce((s, i) => s + i.total, 0) || totalCost;
+
+      const { data, error } = await supabase.functions.invoke("validate-voucher", {
+        body: {
+          code: voucher.trim(),
+          property_id: property.id,
+          subtotal: accommodationSubtotal,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.valid) {
+        setVoucherStatus("valid");
+        setVoucherResult(data as VoucherResult);
+        setVoucherDiscount(data.discount_amount || 0);
+        toast.success(`Voucher applied: ${data.discount_type === 'percentage' ? `${data.discount_value}% off` : `R ${data.discount_value} off`}`);
+      } else {
+        setVoucherStatus("invalid");
+        setVoucherResult({ reason: data?.reason, discount_type: "percentage", discount_value: 0, discount_amount: 0, conditions: {} });
+        setVoucherDiscount(0);
+      }
+    } catch (err) {
+      console.error("Voucher validation error:", err);
+      setVoucherStatus("invalid");
+      setVoucherResult({ reason: "Failed to validate voucher", discount_type: "percentage", discount_value: 0, discount_amount: 0, conditions: {} });
+      setVoucherDiscount(0);
+    }
+  };
+
   // Add room - navigate back to property page to select another room
   const addRoom = () => {
     // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
@@ -1396,7 +1442,7 @@ const Booking = () => {
         children: rooms.reduce((sum, r) => sum + r.numberOfChildren, 0),
         infants: rooms.reduce((sum, r) => sum + r.numberOfInfants, 0),
         pets: rooms.reduce((sum, r) => sum + r.numberOfPets, 0),
-        total_price: totalPrice,
+        total_price: Math.max(0, totalPrice - voucherDiscount),
         status: 'pending',
       } as any;
 
@@ -1913,10 +1959,21 @@ const Booking = () => {
               onEmailChange={setGuestEmail}
               onPhoneChange={setGuestPhone}
               onSpecialRequestsChange={setSpecialRequests}
-              onVoucherChange={setVoucher}
+              onVoucherChange={(v) => {
+                setVoucher(v);
+                // Reset voucher state when code changes
+                if (voucherStatus !== "idle") {
+                  setVoucherStatus("idle");
+                  setVoucherResult(null);
+                  setVoucherDiscount(0);
+                }
+              }}
               onBlur={() => setGuestDetails({ name: guestName, email: guestEmail, phone: guestPhone })}
               errors={formErrors}
               showVoucher
+              voucherStatus={voucherStatus}
+              voucherResult={voucherResult}
+              onApplyVoucher={handleApplyVoucher}
             />
           </motion.div>
 
@@ -1966,9 +2023,26 @@ const Booking = () => {
                     );
                   })}
 
+                  {/* Voucher discount line */}
+                  {voucherDiscount > 0 && voucherResult && (
+                    <div className="border-t border-dashed border-border/30 pt-2">
+                      <div className="flex justify-between text-sm">
+                        <div>
+                          <p className="text-green-600 font-medium">
+                            Voucher: {voucher.toUpperCase()} ({voucherResult.discount_type === "percentage" ? `-${voucherResult.discount_value}%` : `- R ${voucherResult.discount_value}`})
+                          </p>
+                          {voucherResult.conditions?.non_refundable && (
+                            <p className="text-xs text-amber-600">⚠️ This booking is non-refundable</p>
+                          )}
+                        </div>
+                        <span className="font-medium text-green-600">- <FormattedPrice amount={voucherDiscount} /></span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="border-t border-border/50 pt-3 flex justify-between items-center">
                     <span className="font-semibold">Total</span>
-                    <span className="text-xl font-bold"><FormattedPrice amount={totalCost} /></span>
+                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost - voucherDiscount)} /></span>
                   </div>
                 </>
               ) : (
@@ -2023,7 +2097,7 @@ const Booking = () => {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  Confirm & Pay {totalCost > 0 ? <FormattedPrice amount={totalCost} /> : (preSelectedTotalCost ? <FormattedPrice amount={preSelectedTotalCost} /> : '')}
+                  Confirm & Pay {totalCost > 0 ? <FormattedPrice amount={Math.max(0, totalCost - voucherDiscount)} /> : (preSelectedTotalCost ? <FormattedPrice amount={preSelectedTotalCost} /> : '')}
                 </>
               )}
             </Button>
