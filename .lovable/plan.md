@@ -1,36 +1,42 @@
 
 
-# Copy Branding to Other Properties
+# Add Property Charges to Booking Checkout
 
-Add a "Copy Branding" modal to the Branding tab, following the same pattern as the existing `CopyChargesModal` used for Additional Charges.
-
-## What It Does
-
-Lets users copy their current property's branding (logo URL, primary/secondary/font colours, and brand override toggle) to one or more of their other properties in a single action. Includes a preview of what will be copied and a confirmation step.
+## Problem
+The booking checkout page (`Booking.tsx`) calculates room rates but never fetches or applies property charges (taxes, fees, deposits, surcharges). All the infrastructure exists — `useChargesForBooking` hook, `calculateCharges()` engine, and types — but none of it is wired into the booking flow.
 
 ## Changes
 
-### 1. New component: `src/components/property/CopyBrandingModal.tsx`
-- Mirrors `CopyChargesModal` structure (dialog, property list with checkboxes, select all/clear)
-- Accepts current `BrandingData` and `sourcePropertyId` as props
-- Fetches other properties via `owner_email` (same query pattern as charges modal)
-- Shows a mini swatch preview of the colours being copied
-- On confirm, updates each selected property's branding columns (`brand_logo_url`, `brand_primary_color`, `brand_secondary_color`, `brand_font_color`, `brand_override_enabled`) via Supabase
-- Uses `useMutation` with toast feedback
+### File: `src/pages/Booking.tsx`
 
-### 2. Modify: `src/components/property/BrandingTab.tsx`
-- Add a "Copy to Other Properties" button (only shown when `propertyId` exists and branding has content)
-- Wire up the `CopyBrandingModal` with the current branding data
-- Need to pass `ownerEmail` as a new prop (or fetch it internally from the property)
+1. **Import** `useChargesForBooking` from `@/hooks/usePropertyCharges` and `calculateCharges`, `getChargeTotals` from `@/components/charges/ChargeCalculator`
 
-### 3. Modify: `src/pages/PropertyForm.tsx`
-- Pass `ownerEmail` to the `BrandingTab` component (already available from the form's property data)
+2. **Fetch charges** using `useChargesForBooking(property?.id)` at the component level
 
-### 4. Export update: `src/components/property/index.ts`
-- Export `CopyBrandingModal`
+3. **Apply charges after room cost calculation** (after line ~1164 where `setCostBreakdown` / `setTotalCost` are set):
+   - Build a `ChargeCalculationContext` from the booking data (subtotal, nights, rooms count, adults, children, infants, roomTypeId)
+   - Call `calculateCharges(charges, context)` to get applicable charges
+   - Append each calculated charge as a `CostLineItem` to the breakdown
+   - Add charge totals to `runningTotal`
 
-## Technical Notes
-- The copy performs a direct `supabase.from('properties').update(...)` on the target property rows — no new tables or migrations needed
-- RLS already allows property owners to update their own properties
-- The modal fetches properties matching `owner_email` excluding the source property (same pattern as charges)
+4. **Display charges in the Payment step** (lines ~1874-1895):
+   - Charges already appear as line items in `costBreakdown` — they'll render automatically
+   - Add a subtle separator or label between room rates and charges for clarity (e.g., a thin divider with "Taxes & Fees" heading when charges exist)
+   - Show refundable deposit amounts with a small "(refundable)" tag
+
+5. **Include charges in the booking submission** — ensure `totalCost` sent to payment includes charges, and snapshot the charges in the booking's `ai_metadata` or a dedicated field for the confirmation page
+
+### New state
+- `chargesTotal` (number) — stored separately so the summary can show "Accommodation: X" + "Taxes & Fees: Y" = "Total: Z"
+
+### Charge display in Step 3 (Payment)
+```text
+Studio (2 guests)                    R 4,308.00
+──────────────────────────────────────
+Tourism Levy (2%)                       R 86.16
+Cleaning Fee                            R 350.00
+Security Deposit (refundable)           R 500.00
+──────────────────────────────────────
+Total                               R 5,244.16
+```
 
