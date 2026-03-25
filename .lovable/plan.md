@@ -1,53 +1,47 @@
 
 
-# Fix Desktop Sidebar — Sync Missing Menu Items
+# Fix Hostfully Ingestion: Room Type Overwriting & Image Assignment
 
-## Root Cause
+## Problems Found
 
-The desktop sidebar (`AppSidebar.tsx`) has its own **hardcoded navigation arrays** (lines 105-161) that are completely independent from `navigation.ts` (which the mobile nav uses). Every time a new page is added to `navigation.ts`, the desktop sidebar falls out of sync.
+### 1. Room types get overwritten/duplicated on re-import
+The upsert uses `onConflict: 'property_id,hostfully_room_id'` but `hostfully_room_id` is set to `group.unitUids[0]` — the first UID in each type group. If the API returns units in a different order on re-import, the "first" UID changes, creating a duplicate row instead of updating the existing one.
 
-## Missing Items in Desktop Sidebar
+### 2. PMS photos not saved to room types
+- The **orchestrator path** (`transformRooms`) never passes `images` to room data — photos fetched from the property-level `/photos` endpoint all go to `properties.images`, nothing goes to `hostfully_room_types.images`
+- The **writer** (`writer.ts` line 190) doesn't include `images` in the room upsert object, so even if images existed, they'd be dropped
+- The **unit-ingestion path** correctly fetches per-unit photos and builds an `images` array, but it only writes them via `roomData.images = room.images || []` for the representative unit — other units' images in the same type group are lost
 
-Comparing `AppSidebar.tsx` arrays against `navigation.ts` and `App.tsx` routes:
+### 3. Property-level photos should go to `properties.images` (this already works)
 
-| Page | Route | In `navigation.ts` | In `AppSidebar.tsx` |
-|------|-------|--------------------|--------------------|
-| Sales Reps | `/admin/sales-reps` | Yes | **No** |
-| Commission Reports | `/admin/commission-reports` | Yes | **No** |
-| Access Requests | `/admin/access-requests` | No (conditional) | Only when badge > 0 |
-| API Docs | `/docs/api` | No | No |
-| Dev Testing | `/dev/testing` | No | No |
-| Promotion | `/admin/promotion` | No | No |
+## Changes
 
-The first two are the critical missing links. Access Requests currently only shows when there are pending requests — it should always be visible for admins. API Docs and Dev Testing are utility pages that could optionally be added to System Control.
+### 1. Fix room type deduplication (`writer.ts` + `unit-ingestion.ts`)
+- Before upserting room types, query existing `hostfully_room_types` for this property
+- Match by normalized `property_type` (type name) rather than relying solely on `hostfully_room_id`
+- If a matching type row exists, UPDATE it by `id` instead of upserting with a potentially different `hostfully_room_id`
+- This prevents duplicates when the first-unit ordering changes between syncs
 
-## The Fix
+### 2. Pass room images through orchestrator path (`transformers.ts` + `writer.ts`)
+- In `transformRooms()`: assign per-room photos from `ctx.photos` filtered by room UID/category, or fall back to property photos for standalone properties
+- In `writer.ts` line 190: add `images: room.images || []` to the `roomData` object so images are persisted to `hostfully_room_types`
 
-**Refactor `AppSidebar.tsx` to consume `navigationConfig` from `navigation.ts`** instead of maintaining duplicate arrays. This is the only way to prevent this from happening a third time.
+### 3. Aggregate all unit images per type group (`unit-ingestion.ts` + `writer.ts`)
+- When grouping units by type, collect ALL images from all units in the group (deduplicated by URL)
+- Write the merged image set to the representative room type row
+- This ensures all photos across units of the same type are available
 
-### Changes
-
-#### 1. Modify `src/components/layout/AppSidebar.tsx`
-
-- Remove all hardcoded arrays (`adminItems`, `workspaceItems`, `insightsItems`, `editAuditItems`, `systemItems`, `pmsItems`)
-- Import `navigationConfig` from `@/config/navigation`
-- Map `NavSection` items using `hasMinRole(userRole, item.minRole)` for access control (same as mobile does)
-- Render sections dynamically: non-collapsible sections as flat lists, collapsible sections using the existing `CollapsibleMenu` pattern
-- Keep the special-case Access Requests badge (always show for admins, with badge count)
-
-#### 2. Update `src/config/navigation.ts`
-
-- Add missing pages that should be navigable:
-  - `Access Requests` → Administration section (admin, always visible)
-  - `API Docs` → System Control section (dev)
-  - `Promotion` → Workspace section (owner)
-
-This single-source-of-truth approach means future page additions to `navigation.ts` will automatically appear in both desktop and mobile navs.
+### 4. Separate property vs room images in orchestrator
+- Property-level photos (category: 'property' or 'exterior') → `properties.images` (already working)
+- Room-level photos (category: 'room', 'bedroom', 'bathroom', 'interior') → `hostfully_room_types.images`
+- When Hostfully doesn't provide category metadata, all photos go to property AND the first set goes to the standalone room type
 
 ## Files
 
 | Action | File | Purpose |
 |--------|------|---------|
-| Modify | `src/config/navigation.ts` | Add Access Requests, API Docs, Promotion items |
-| Modify | `src/components/layout/AppSidebar.tsx` | Consume `navigationConfig` instead of hardcoded arrays |
+| Modify | `supabase/functions/hostfully-api/ingestion/writer.ts` | Add `images` to room upsert; match existing types by name before upsert |
+| Modify | `supabase/functions/hostfully-api/ingestion/transformers.ts` | Pass images to `TransformedRoomData`; separate property vs room photos |
+| Modify | `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` | Merge all unit images per type group; match existing types by name |
+| Modify | `supabase/functions/hostfully-api/ingestion/types.ts` | Ensure `images` field on `TransformedRoomData` is typed |
 
