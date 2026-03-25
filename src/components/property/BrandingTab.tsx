@@ -230,8 +230,19 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
 
   const hasColors = !!(data.brand_primary_color || data.brand_secondary_color || data.brand_font_color);
 
+  const showCopyButton = !!propertyId && !!ownerEmail && (hasColors || !!data.brand_logo_url);
+
   return (
     <div className="space-y-4">
+      {/* Copy to other properties */}
+      {showCopyButton && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setCopyModalOpen(true)}>
+            <Copy className="h-4 w-4 mr-2" />
+            Copy to Other Properties
+          </Button>
+        </div>
+      )}
       {/* Brand Override Toggle */}
       <Card>
         <CardContent className="py-4 px-4">
@@ -410,6 +421,16 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {propertyId && ownerEmail && (
+        <CopyBrandingModal
+          open={copyModalOpen}
+          onOpenChange={setCopyModalOpen}
+          sourcePropertyId={propertyId}
+          brandingData={data}
+          ownerEmail={ownerEmail}
+        />
       )}
     </div>
   );
