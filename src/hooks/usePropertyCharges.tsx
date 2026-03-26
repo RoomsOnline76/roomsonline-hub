@@ -266,21 +266,161 @@ export function usePropertyCharges(propertyId: string | null) {
 }
 
 // Hook to fetch charges for booking calculations (public facing)
+// Falls back to hostfully_room_types charges when property_charges is empty
 export function useChargesForBooking(propertyId: string | null) {
   return useQuery({
     queryKey: ['property-charges-booking', propertyId],
     queryFn: async () => {
       if (!propertyId) return [];
-      const { data, error } = await supabase
+
+      // 1. Try property_charges first (manually configured or synced)
+      const { data: charges, error } = await supabase
         .from('property_charges')
         .select('*')
         .eq('property_id', propertyId)
         .eq('is_active', true)
         .order('display_order');
       if (error) throw error;
-      return data as PropertyCharge[];
+      if (charges && charges.length > 0) return charges as PropertyCharge[];
+
+      // 2. Fallback: synthesize from hostfully_room_types if they have fee fields
+      const { data: hfRooms } = await supabase
+        .from('hostfully_room_types')
+        .select('id, name, cleaning_fee, security_deposit, extra_guest_fee, tax_rate, currency')
+        .eq('property_id', propertyId)
+        .eq('is_active', true);
+
+      if (!hfRooms || hfRooms.length === 0) return [];
+
+      const synthesized: PropertyCharge[] = [];
+      let order = 0;
+
+      // Aggregate unique charges across all room types
+      // For property-wide fees, use the first non-null value found
+      const cleaningFee = hfRooms.find(r => r.cleaning_fee && r.cleaning_fee > 0)?.cleaning_fee;
+      const securityDeposit = hfRooms.find(r => r.security_deposit && r.security_deposit > 0)?.security_deposit;
+      const extraGuestFee = hfRooms.find(r => r.extra_guest_fee && r.extra_guest_fee > 0)?.extra_guest_fee;
+      const taxRate = hfRooms.find(r => r.tax_rate && r.tax_rate > 0)?.tax_rate;
+      const currency = hfRooms[0]?.currency || 'ZAR';
+
+      // Build room-specific overrides for cleaning fee if they differ
+      const cleaningOverrides: Record<string, number> = {};
+      const depositOverrides: Record<string, number> = {};
+      const extraGuestOverrides: Record<string, number> = {};
+      for (const r of hfRooms) {
+        if (r.cleaning_fee && r.cleaning_fee > 0) cleaningOverrides[r.id] = r.cleaning_fee;
+        if (r.security_deposit && r.security_deposit > 0) depositOverrides[r.id] = r.security_deposit;
+        if (r.extra_guest_fee && r.extra_guest_fee > 0) extraGuestOverrides[r.id] = r.extra_guest_fee;
+      }
+
+      if (cleaningFee) {
+        synthesized.push({
+          id: `hf-cleaning-${propertyId}`,
+          property_id: propertyId,
+          name: 'Cleaning Fee',
+          internal_code: null,
+          category: 'fee',
+          calculation_method: 'flat_per_stay',
+          amount: cleaningFee,
+          currency,
+          applies_to_all_rooms: true,
+          room_type_ids: [],
+          rate_type_ids: [],
+          room_charge_overrides: Object.keys(cleaningOverrides).length > 1 ? cleaningOverrides : null,
+          min_nights: 0,
+          max_nights: 0,
+          applies_to_adults: true,
+          applies_to_children: true,
+          applies_to_infants: false,
+          is_refundable: false,
+          display_order: order++,
+          is_active: true,
+        });
+      }
+
+      if (securityDeposit) {
+        synthesized.push({
+          id: `hf-deposit-${propertyId}`,
+          property_id: propertyId,
+          name: 'Security Deposit',
+          internal_code: null,
+          category: 'deposit',
+          calculation_method: 'flat_per_stay',
+          amount: securityDeposit,
+          currency,
+          applies_to_all_rooms: true,
+          room_type_ids: [],
+          rate_type_ids: [],
+          room_charge_overrides: Object.keys(depositOverrides).length > 1 ? depositOverrides : null,
+          min_nights: 0,
+          max_nights: 0,
+          applies_to_adults: true,
+          applies_to_children: true,
+          applies_to_infants: false,
+          is_refundable: true,
+          refund_timing: 'after_inspection',
+          refund_type: 'full',
+          display_order: order++,
+          is_active: true,
+        });
+      }
+
+      if (extraGuestFee) {
+        synthesized.push({
+          id: `hf-extraguest-${propertyId}`,
+          property_id: propertyId,
+          name: 'Extra Guest Fee',
+          internal_code: null,
+          category: 'fee',
+          calculation_method: 'per_person_per_night',
+          amount: extraGuestFee,
+          currency,
+          applies_to_all_rooms: true,
+          room_type_ids: [],
+          rate_type_ids: [],
+          room_charge_overrides: Object.keys(extraGuestOverrides).length > 1 ? extraGuestOverrides : null,
+          min_nights: 0,
+          max_nights: 0,
+          applies_to_adults: true,
+          applies_to_children: true,
+          applies_to_infants: false,
+          is_refundable: false,
+          display_order: order++,
+          is_active: true,
+        });
+      }
+
+      if (taxRate) {
+        synthesized.push({
+          id: `hf-tax-${propertyId}`,
+          property_id: propertyId,
+          name: 'Tax',
+          internal_code: null,
+          category: 'tax',
+          calculation_method: 'percentage_of_accommodation',
+          amount: taxRate,
+          currency,
+          applies_to_all_rooms: true,
+          room_type_ids: [],
+          rate_type_ids: [],
+          min_nights: 0,
+          max_nights: 0,
+          applies_to_adults: true,
+          applies_to_children: true,
+          applies_to_infants: true,
+          is_refundable: false,
+          display_order: order++,
+          is_active: true,
+        });
+      }
+
+      if (synthesized.length > 0) {
+        console.log('[useChargesForBooking] Synthesized', synthesized.length, 'charges from Hostfully room types');
+      }
+
+      return synthesized;
     },
     enabled: !!propertyId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
