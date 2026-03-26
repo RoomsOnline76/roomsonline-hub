@@ -15,8 +15,8 @@ interface Message {
 const SUGGESTED_PROMPTS = [
   "How do bookings work?",
   "How do I connect my PMS?",
-  "What is ROL Spec?",
-  "How do I add a property?",
+  "How do voucher codes work?",
+  "What are room-level charges?",
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/help-assistant`;
