@@ -31,8 +31,8 @@ interface PMSTobiAssistantProps {
 const PMS_SUGGESTED_PROMPTS = [
   "What's happening today?",
   "Show occupancy & revenue",
-  "How do I send a guest message?",
-  "Walk me through group bookings",
+  "How do room-specific charges work?",
+  "How do I manage voucher codes?",
   "Run the night audit",
   "Who's arriving today?",
 ];
