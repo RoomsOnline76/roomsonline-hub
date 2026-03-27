@@ -2,8 +2,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { useState } from "react";
 import {
   Collapsible,
@@ -27,11 +29,13 @@ interface FluentGuestFormProps {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  guestNationality?: string;
   specialRequests?: string;
   voucher?: string;
   onNameChange: (v: string) => void;
   onEmailChange: (v: string) => void;
   onPhoneChange: (v: string) => void;
+  onNationalityChange?: (v: string) => void;
   onSpecialRequestsChange?: (v: string) => void;
   onVoucherChange?: (v: string) => void;
   onBlur?: () => void;
@@ -52,11 +56,13 @@ export function FluentGuestForm({
   guestName,
   guestEmail,
   guestPhone,
+  guestNationality = "",
   specialRequests = "",
   voucher = "",
   onNameChange,
   onEmailChange,
   onPhoneChange,
+  onNationalityChange,
   onSpecialRequestsChange,
   onVoucherChange,
   onBlur,
