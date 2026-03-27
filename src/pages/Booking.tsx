@@ -152,6 +152,7 @@ const Booking = () => {
   const [guestName, setGuestName] = useState(guestDetails.name || "");
   const [guestEmail, setGuestEmail] = useState(guestDetails.email || "");
   const [guestPhone, setGuestPhone] = useState(guestDetails.phone || "");
+  const [guestNationality, setGuestNationality] = useState("");
   const [voucher, setVoucher] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [selectedRateType, setSelectedRateType] = useState<string>("");
