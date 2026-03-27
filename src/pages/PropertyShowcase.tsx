@@ -317,10 +317,12 @@ export default function PropertyShowcase() {
     setLoading(true);
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id || "");
+      const today = new Date().toISOString().split('T')[0];
       
       let propertyQuery = supabase.from("public_properties").select("*");
       propertyQuery = isUuid ? propertyQuery.eq("id", id) : propertyQuery.eq("slug", id);
       
+      // Fire property + NB config in parallel
       const [propertyResult, nbConfigResult] = await Promise.all([
         propertyQuery.maybeSingle(),
         supabase.from("public_nightsbridge_config").select("agent_code").maybeSingle()
@@ -341,21 +343,30 @@ export default function PropertyShowcase() {
         setProperty(propertyData.id, propertyData.name, propertyData.slug || propertyData.id);
       }
 
-      const today = new Date().toISOString().split('T')[0];
-      const { data: availData } = await supabase
+      // Fire cache availability fetch immediately (don't wait for property state update)
+      // This runs in parallel with the React state update above
+      const availPromise = supabase
         .from("pms_availability_cache")
         .select("external_room_type_id, available_units, rates, date")
         .eq("property_id", propertyData.id)
         .eq("date", today);
 
+      const { data: availData } = await availPromise;
+
       if (availData && availData.length > 0) {
         const availMap = new Map<string, AvailabilityData>();
         availData.forEach((item) => {
           availMap.set(item.external_room_type_id, item);
-          // Also map by slugified name for easy lookup
-          // This handles cases where room IDs don't match external_room_type_id
         });
         setAvailability(availMap);
+        
+        // Preload availability to sessionStorage for Booking page
+        try {
+          sessionStorage.setItem(`avail_preload_${propertyData.id}`, JSON.stringify({
+            data: availData,
+            fetchedAt: Date.now(),
+          }));
+        } catch (_) { /* sessionStorage full — ignore */ }
       } else if (!propertyData.external_system) {
         // No PMS connected - build synthetic availability from wizard rates
         const amenitiesData = propertyData.amenities as Record<string, any> | null;
@@ -366,7 +377,7 @@ export default function PropertyShowcase() {
           const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
           syntheticAvailMap.set(roomId, {
             external_room_type_id: roomId,
-            available_units: 99, // Unlimited availability for manual properties
+            available_units: 99,
             rates: [{
               rate_type_id: 'wizard-rate',
               room_amount: room.base_rate || room.baseRate || room.daily_rate,
