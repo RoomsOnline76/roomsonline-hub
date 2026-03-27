@@ -63,7 +63,7 @@ export interface ChargeCalculationContext {
   roomTypeAliases?: string[];
   rateTypeId?: string;
 }
-...
+
 function isChargeApplicable(
   charge: PropertyCharge,
   context: ChargeCalculationContext
@@ -113,9 +113,12 @@ function calculateChargeAmount(
   let amount = 0;
   let breakdown = '';
 
-  // Use room-specific override if available
-  const baseAmount = (context.roomTypeId && charge.room_charge_overrides?.[context.roomTypeId] != null)
-    ? charge.room_charge_overrides[context.roomTypeId]
+  // Use room-specific override if available (supports room ID aliases)
+  const overrideKey = [context.roomTypeId, ...(context.roomTypeAliases || [])]
+    .find((id): id is string => !!id && charge.room_charge_overrides?.[id] != null);
+
+  const baseAmount = overrideKey
+    ? charge.room_charge_overrides![overrideKey]
     : charge.amount;
 
   // Count applicable persons based on charge settings

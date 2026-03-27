@@ -281,7 +281,66 @@ export function useChargesForBooking(propertyId: string | null) {
         .eq('is_active', true)
         .order('display_order');
       if (error) throw error;
-      if (charges && charges.length > 0) return charges as PropertyCharge[];
+
+      if (charges && charges.length > 0) {
+        // Hostfully compatibility: include both internal room IDs and external hostfully_room_id aliases
+        const roomScopedCharges = charges.filter(c => !c.applies_to_all_rooms && (c.room_type_ids?.length || 0) > 0);
+
+        if (roomScopedCharges.length === 0) {
+          return charges as PropertyCharge[];
+        }
+
+        const { data: hfRooms } = await supabase
+          .from('hostfully_room_types')
+          .select('id, hostfully_room_id')
+          .eq('property_id', propertyId)
+          .eq('is_active', true);
+
+        const internalToExternal = new Map<string, string>();
+        const externalToInternal = new Map<string, string>();
+
+        for (const room of hfRooms || []) {
+          if (room.id && room.hostfully_room_id) {
+            internalToExternal.set(room.id, String(room.hostfully_room_id));
+            externalToInternal.set(String(room.hostfully_room_id), room.id);
+          }
+        }
+
+        const normalized = charges.map((charge) => {
+          if (charge.applies_to_all_rooms || !charge.room_type_ids?.length) {
+            return charge;
+          }
+
+          const mergedRoomIds = new Set<string>(charge.room_type_ids);
+          for (const roomId of charge.room_type_ids) {
+            const externalId = internalToExternal.get(roomId);
+            if (externalId) mergedRoomIds.add(externalId);
+
+            const internalId = externalToInternal.get(roomId);
+            if (internalId) mergedRoomIds.add(internalId);
+          }
+
+          const existingOverrides = (charge.room_charge_overrides || {}) as Record<string, number>;
+          const normalizedOverrides: Record<string, number> = { ...existingOverrides };
+
+          for (const [internalId, externalId] of internalToExternal.entries()) {
+            if (existingOverrides[internalId] != null && normalizedOverrides[externalId] == null) {
+              normalizedOverrides[externalId] = existingOverrides[internalId];
+            }
+            if (existingOverrides[externalId] != null && normalizedOverrides[internalId] == null) {
+              normalizedOverrides[internalId] = existingOverrides[externalId];
+            }
+          }
+
+          return {
+            ...charge,
+            room_type_ids: Array.from(mergedRoomIds),
+            room_charge_overrides: Object.keys(normalizedOverrides).length > 0 ? normalizedOverrides : null,
+          };
+        });
+
+        return normalized as PropertyCharge[];
+      }
 
       // 2. Fallback: synthesize from hostfully_room_types if they have fee fields
       const { data: hfRooms } = await supabase
