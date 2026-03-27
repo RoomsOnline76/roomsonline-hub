@@ -662,6 +662,7 @@ const Booking = () => {
           }
         } catch (_) { /* parse error — fall through to live fetch */ }
       }
+      if (!availability) {
         if (externalSystem === 'benson') {
           // Benson: fetch from API directly
           const { data, error } = await supabase.functions.invoke("benson-api", {
