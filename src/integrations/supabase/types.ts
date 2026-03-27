@@ -592,6 +592,7 @@ export type Database = {
           guest_email_encrypted: string | null
           guest_name: string
           guest_name_encrypted: string | null
+          guest_nationality: string | null
           guest_phone: string | null
           guest_phone_encrypted: string | null
           id: string
@@ -646,6 +647,7 @@ export type Database = {
           guest_email_encrypted?: string | null
           guest_name: string
           guest_name_encrypted?: string | null
+          guest_nationality?: string | null
           guest_phone?: string | null
           guest_phone_encrypted?: string | null
           id?: string
@@ -700,6 +702,7 @@ export type Database = {
           guest_email_encrypted?: string | null
           guest_name?: string
           guest_name_encrypted?: string | null
+          guest_nationality?: string | null
           guest_phone?: string | null
           guest_phone_encrypted?: string | null
           id?: string
