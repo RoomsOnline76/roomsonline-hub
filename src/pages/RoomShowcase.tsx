@@ -480,8 +480,9 @@ export default function RoomShowcase() {
   };
 
   if (loading) {
+    const LoadingLayout = earlyWhiteLabel ? WhiteLabelLayout : PublicLayout;
     return (
-      <PublicLayout>
+      <LoadingLayout>
         <div className="h-[50vh] bg-muted animate-pulse" />
         <div className="container mx-auto px-4 py-8">
           <Skeleton className="h-10 w-1/3 mb-4" />
@@ -491,13 +492,14 @@ export default function RoomShowcase() {
             <Skeleton className="h-48" />
           </div>
         </div>
-      </PublicLayout>
+      </LoadingLayout>
     );
   }
 
   if (!property || !room) {
+    const NotFoundLayout = earlyWhiteLabel ? WhiteLabelLayout : PublicLayout;
     return (
-      <PublicLayout>
+      <NotFoundLayout>
         <div className="flex-1 flex items-center justify-center py-16">
           <div className="text-center">
             <Bed className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
@@ -508,7 +510,7 @@ export default function RoomShowcase() {
             </Link>
           </div>
         </div>
-      </PublicLayout>
+      </NotFoundLayout>
     );
   }
 
