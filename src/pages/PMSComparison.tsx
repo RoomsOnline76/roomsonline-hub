@@ -94,6 +94,7 @@ export default function PMSComparison() {
 
   return (
     <PublicLayout>
+      <PublicBreadcrumb items={[{ label: "How It Works" }]} />
       <article className="min-h-screen">
         {/* Hero Section */}
         <section className="relative bg-gradient-to-b from-primary/5 to-background py-16 sm:py-24 lg:py-32">
