@@ -310,7 +310,7 @@ export function AdditionalChargesManager({
 
         {/* Preview Panel */}
         {showPreview && (
-          <ChargePreview charges={charges} />
+          <ChargePreview charges={charges} roomTypes={roomTypes ?? []} />
         )}
       </div>
 

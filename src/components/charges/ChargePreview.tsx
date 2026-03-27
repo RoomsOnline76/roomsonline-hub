@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ChargePreviewProps {
   charges: PropertyCharge[];
@@ -28,6 +35,7 @@ interface ChargePreviewProps {
   children?: number;
   infants?: number;
   compact?: boolean;
+  roomTypes?: { id: string; name: string }[];
 }
 
 export function ChargePreview({
@@ -39,7 +47,12 @@ export function ChargePreview({
   children = 0,
   infants = 0,
   compact = false,
+  roomTypes = [],
 }: ChargePreviewProps) {
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<string>(
+    roomTypes.length > 0 ? roomTypes[0].id : "__all__"
+  );
+
   const context: ChargeCalculationContext = useMemo(() => ({
     subtotal: accommodationSubtotal,
     nights,
@@ -47,7 +60,8 @@ export function ChargePreview({
     adults,
     children,
     infants,
-  }), [accommodationSubtotal, nights, rooms, adults, children, infants]);
+    roomTypeId: selectedRoomTypeId === "__all__" ? undefined : selectedRoomTypeId,
+  }), [accommodationSubtotal, nights, rooms, adults, children, infants, selectedRoomTypeId]);
 
   const calculatedCharges = useMemo(() => 
     calculateCharges(charges, context),
@@ -158,10 +172,32 @@ export function ChargePreview({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Room type selector */}
+        {roomTypes.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Preview as</label>
+            <Select value={selectedRoomTypeId} onValueChange={setSelectedRoomTypeId}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roomTypes.map((rt) => (
+                  <SelectItem key={rt.id} value={rt.id} className="text-xs">
+                    {rt.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Sample booking context */}
         <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded flex items-center gap-1">
           <Info className="h-3 w-3" />
           Preview based on {nights} nights, {rooms} room(s), {adults} adult(s)
+          {selectedRoomTypeId !== "__all__" && roomTypes.length > 0 && (
+            <>, {roomTypes.find(r => r.id === selectedRoomTypeId)?.name}</>
+          )}
         </div>
 
         {/* Accommodation */}
