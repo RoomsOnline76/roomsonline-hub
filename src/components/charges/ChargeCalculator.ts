@@ -60,6 +60,7 @@ export interface ChargeCalculationContext {
   children: number;
   infants: number;
   roomTypeId?: string;
+  roomTypeAliases?: string[];
   rateTypeId?: string;
 }
 
@@ -83,9 +84,6 @@ export interface ChargeTotals {
   nonRefundableTotal: number;
 }
 
-/**
- * Check if a charge is applicable based on context
- */
 function isChargeApplicable(
   charge: PropertyCharge,
   context: ChargeCalculationContext
@@ -93,10 +91,17 @@ function isChargeApplicable(
   // Must be active
   if (!charge.is_active) return false;
 
-  // Check room type applicability
+  // Check room type applicability (supports aliases like external PMS ID + internal DB ID)
   if (!charge.applies_to_all_rooms && charge.room_type_ids.length > 0) {
-    if (context.roomTypeId && !charge.room_type_ids.includes(context.roomTypeId)) {
-      return false;
+    const applicableRoomIds = new Set<string>([
+      ...(context.roomTypeId ? [context.roomTypeId] : []),
+      ...(context.roomTypeAliases || []),
+    ]);
+
+    // If no room context is provided, keep backward-compatible behavior and don't exclude
+    if (applicableRoomIds.size > 0) {
+      const matchesRoom = charge.room_type_ids.some((id) => applicableRoomIds.has(id));
+      if (!matchesRoom) return false;
     }
   }
 
@@ -128,9 +133,12 @@ function calculateChargeAmount(
   let amount = 0;
   let breakdown = '';
 
-  // Use room-specific override if available
-  const baseAmount = (context.roomTypeId && charge.room_charge_overrides?.[context.roomTypeId] != null)
-    ? charge.room_charge_overrides[context.roomTypeId]
+  // Use room-specific override if available (supports room ID aliases)
+  const overrideKey = [context.roomTypeId, ...(context.roomTypeAliases || [])]
+    .find((id): id is string => !!id && charge.room_charge_overrides?.[id] != null);
+
+  const baseAmount = overrideKey
+    ? charge.room_charge_overrides![overrideKey]
     : charge.amount;
 
   // Count applicable persons based on charge settings
