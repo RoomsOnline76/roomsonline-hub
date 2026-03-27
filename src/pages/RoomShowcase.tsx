@@ -137,7 +137,19 @@ const facilityIcons: Record<string, any> = {
 export default function RoomShowcase() {
   const navigate = useNavigate();
   const { propertySlug, roomSlug } = useParams<{ propertySlug: string; roomSlug: string }>();
-  useBrandOverride(propertySlug);
+  const { brandReady } = useBrandOverride(propertySlug);
+  
+  // Pre-detect branding from sessionStorage to avoid FOUC
+  const [earlyWhiteLabel] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('rol_property_brand');
+      if (cached) {
+        const brand = JSON.parse(cached);
+        return Boolean(brand?.enabled && brand?.primaryColor);
+      }
+    } catch {}
+    return false;
+  });
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
   const { addStay } = useItinerary();
