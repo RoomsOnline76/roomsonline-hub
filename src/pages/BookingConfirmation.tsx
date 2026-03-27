@@ -51,7 +51,7 @@ const BookingConfirmation = () => {
       if (!bookingId) throw new Error("No booking ID provided");
       const { data, error } = await supabase
         .from("bookings")
-        .select(`*, properties:property_id (name, city, country, slug)`)
+        .select(`*, properties:property_id (name, city, country, slug, brand_override_enabled, brand_logo_url)`)
         .eq("id", bookingId)
         .single();
       if (error) throw error;
@@ -92,14 +92,16 @@ const BookingConfirmation = () => {
   }, [booking]);
 
   const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
+  const propertyLogoUrl = booking?.properties ? (booking.properties as any).brand_logo_url : null;
+  const isWhiteLabel = isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled);
   const wrapLayout = useCallback(
     (children: React.ReactNode) =>
-      isIntegration ? (
-        <WhiteLabelLayout propertyName={propertyName}>{children}</WhiteLabelLayout>
+      isWhiteLabel ? (
+        <WhiteLabelLayout propertyName={propertyName} propertyLogoUrl={propertyLogoUrl}>{children}</WhiteLabelLayout>
       ) : (
         <PublicLayout>{children}</PublicLayout>
       ),
-    [isIntegration, propertyName]
+    [isWhiteLabel, propertyName, propertyLogoUrl]
   );
 
   if (isLoading) {
