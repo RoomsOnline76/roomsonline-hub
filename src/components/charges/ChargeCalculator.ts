@@ -64,6 +64,26 @@ export interface ChargeCalculationContext {
   rateTypeId?: string;
 }
 
+export interface CalculatedCharge {
+  charge: PropertyCharge;
+  calculatedAmount: number;
+  breakdown: string;
+}
+
+export interface GroupedCharges {
+  taxes: CalculatedCharge[];
+  fees: CalculatedCharge[];
+  deposits: CalculatedCharge[];
+  surcharges: CalculatedCharge[];
+  custom: CalculatedCharge[];
+}
+
+export interface ChargeTotals {
+  total: number;
+  refundableTotal: number;
+  nonRefundableTotal: number;
+}
+
 function isChargeApplicable(
   charge: PropertyCharge,
   context: ChargeCalculationContext
