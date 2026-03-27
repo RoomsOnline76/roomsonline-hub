@@ -1,87 +1,75 @@
 
 
-# Performance Optimization — Faster Page Loads & Availability
+# Transform TOBI from Chatbot to Intelligent Sales Concierge
 
-## Problem Analysis
+## Root Cause of "No Availability" Lie
 
-The pages are slow because of **waterfall data fetching** — each page makes multiple sequential requests:
+The edge function `ai-booking-concierge/index.ts` has a critical bug at **line 697**: when the user already has dates selected (`current_dates` is passed as `{check_in: "2025-04-21", check_out: "2025-04-24"}`), the code **ignores them** and generates new date suggestions from the NLP parser. Since "with a pool" has no date info, `generateDateSuggestions` produces fallback dates (next week, +2 weeks, etc.) — and those may not have availability. Meanwhile the user's actual selected dates DO have availability.
 
-1. **PropertyShowcase**: Fetches property → then cache availability → then live PMS availability → then calendar availability (3-4 sequential calls)
-2. **RoomAvailabilityCalendar**: Fetches room type data → then property amenities (fallback) → then availability (2-3 sequential calls, each waiting for the previous)
-3. **Booking page**: Fetches property → room types cache → rate types cache → then calculates cost by calling edge functions for live availability (4+ sequential calls)
-4. **Hostfully/HotelBeds**: Every page visit calls the live PMS API via edge function (~3-8s round trip) instead of reading from cache
+## What's Wrong Beyond the Bug
 
-## Fix Strategy: Parallel Fetching + Cache-First + Preloading
+1. **`current_dates` ignored** — the first date range checked should be the user's selected dates
+2. **No AI brain** — responses are hardcoded templates (`generateNarrativeResponse`), not Lovable AI. TOBI can't reason about "with a pool" or sell the property
+3. **No property knowledge** — TOBI doesn't fetch amenities, description, highlights, or local experiences to answer preference queries
+4. **No cross-sell** — when unavailable, TOBI gives up instead of suggesting the same owner's other properties
+5. **No upsell intelligence** — when multiple rooms are available, TOBI doesn't explain WHY the premium room is worth it
 
-### 1. Parallel data fetching on PropertyShowcase
+## Plan
 
-**File: `src/pages/PropertyShowcase.tsx`**
+### 1. Fix: Use `current_dates` First (`ai-booking-concierge/index.ts`)
 
-Currently `fetchPropertyData` does:
-- Fetch property (await) → then fetch today's cache availability (await) → then in separate effects: fetch live PMS, fetch calendar availability
+In the main handler (~line 697-756):
+- If `current_dates` exists, use it as the **primary** date range (prepend to `dateSuggestions`)
+- Only fall back to NLP-generated dates if `current_dates` is missing
+- This immediately fixes the "no availability" lie when dates are already selected
 
-Change to: Fire property + cache availability in parallel using `Promise.all`. Then fire live PMS + calendar availability in parallel (they only need `property.id`).
+### 2. Enrich with Property Context (`ai-booking-concierge/index.ts`)
 
-### 2. Parallel data fetching on Booking page
+Expand the property fetch (~line 678) to include:
+- `amenities, description, highlights, tagline, city, country, images, owner_id`
+- Fetch `local_experiences` for the property
+- Fetch `public_properties` for amenity tags (pool, wifi, etc.)
 
-**File: `src/pages/Booking.tsx`**
+This gives TOBI the knowledge to answer "with a pool" — yes, this property has a pool!
 
-Currently loads property → then (sequentially) cached room types → cached rate types → then calculates cost by fetching availability again.
+### 3. Replace Template Responses with Lovable AI (`ai-booking-concierge/index.ts`)
 
-Change to:
-- Add `staleTime: 5 * 60 * 1000` to property, room types, and rate types queries so React Query caches them across navigations
-- Run `calculateCost` with the **already-fetched availability from PropertyShowcase** passed via `sessionStorage` or URL, avoiding a redundant edge function call
-- Preload availability data: when dates are selected on PropertyShowcase, cache the full availability response in `sessionStorage` keyed by `property_id + dates`. On Booking page, read from this cache first before hitting the API.
+Replace `generateNarrativeResponse` (hardcoded strings) with a call to `https://ai.gateway.lovable.dev/v1/chat/completions` using `google/gemini-3-flash-preview`:
 
-### 3. Cache-first availability on RoomAvailabilityCalendar
+**System prompt** instructs TOBI to be a passionate sales concierge who:
+- Highlights what's amazing about THIS property (amenities, location, experiences)
+- When rooms ARE available: sells the best/most expensive room with enthusiasm, explains why it's special
+- When user mentions preferences ("pool", "quiet", "romantic"): confirms the property has it or redirects
+- When NO availability: suggests alternative dates that DO work, or offers the owner's other properties
+- Speaks with warmth, uses light emoji, creates urgency ("only X units left!")
 
-**File: `src/components/RoomAvailabilityCalendar.tsx`**
+**Input to AI**: user query + property details (amenities, highlights, city, experiences) + availability results + room types with descriptions
 
-Currently for Hostfully properties, every month navigation calls the live edge function (3-8s). Change to:
-- First read from `pms_availability_cache` (instant, ~100ms)
-- Show cached data immediately
-- Then fire live PMS call in background and merge any updates
-- This gives perceived instant load with eventual consistency
+### 4. Cross-Sell Owner's Other Properties (`ai-booking-concierge/index.ts`)
 
-### 4. Preload availability from PropertyShowcase to Booking
+When `suggestions.length === 0` (no availability):
+- Query `properties` table for other properties with the same `owner_id`
+- Check if those have availability for the same dates
+- Include them in the AI prompt so TOBI can say: "SIX on N is fully booked for those dates, but the owner also has [Property X] nearby with availability!"
 
-**File: `src/pages/PropertyShowcase.tsx`**
+### 5. Smart Upsell Logic (`ai-booking-concierge/index.ts`)
 
-When a user selects dates and clicks "Book Now", the availability data is already fetched. Store it in `sessionStorage` so the Booking page can use it immediately instead of re-fetching.
+When multiple room types are available:
+- Sort by price descending
+- Pass room descriptions/amenities to the AI so it can explain the value ("The Luxury Suite has a private balcony and sea view — totally worth the extra R500/night")
+- Mark the most expensive as "recommended" instead of always marking cheapest as "best value"
 
-**File: `src/pages/Booking.tsx`**
+### 6. Frontend: Pass Property Context to Concierge (`AIConciergePanel.tsx`)
 
-In `calculateCost`, check `sessionStorage` for pre-fetched availability before making any API calls.
+Add optional props for `propertyDescription`, `propertyAmenities`, `propertyCity` to enrich the edge function call. OR — simpler — just let the edge function fetch this server-side (already planned in step 2).
 
-### 5. Add staleTime to all property-related React Query calls
-
-Currently the property query on Booking has no `staleTime`, so every mount re-fetches. Add `staleTime: 5 * 60 * 1000` (5 min) to:
-- Property booking query
-- Cached room types query
-- Cached rate types query
-
-### 6. Prefetch room types and rate types alongside property
-
-**File: `src/pages/Booking.tsx`**
-
-The room types and rate types queries wait for `property?.id` to be set. Change to use React Query's `enabled` more aggressively — fire them as soon as we have the property ID from URL (even before the full property object loads) by doing a quick ID resolution.
-
-## Expected Impact
-
-| Current | After |
-|---------|-------|
-| PropertyShowcase: ~8-15s full render | ~3-5s (parallel fetch, cached availability) |
-| Calendar: ~10s per month | ~1-2s (cache-first, background refresh) |
-| Booking page: ~10-15s to show total | ~3-5s (preloaded availability, cached queries) |
-| Page-to-page navigation: full refetch | Near-instant (React Query staleTime caching) |
+No frontend changes needed beyond what's already there — the narrative_response from AI will be richer automatically.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `src/pages/PropertyShowcase.tsx` — parallel fetches, preload availability to sessionStorage |
-| Modify | `src/pages/Booking.tsx` — read preloaded availability, add staleTime, parallel queries |
-| Modify | `src/components/RoomAvailabilityCalendar.tsx` — cache-first with background PMS refresh |
+| Rewrite | `supabase/functions/ai-booking-concierge/index.ts` — fix current_dates priority, add AI narrative, property context enrichment, cross-sell, upsell |
 
-No database changes needed.
+No database changes needed. No frontend changes needed (the richer responses flow through existing `narrative_response` field).
 
