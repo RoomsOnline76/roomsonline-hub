@@ -34,7 +34,6 @@ serve(async (req) => {
     let body: { property_id?: string } = {};
     try { body = await req.json(); } catch { /* empty body for cron */ }
 
-    // Fetch properties
     let query = supabase
       .from('properties')
       .select('id, name, city, country, address, amenities, description')
@@ -53,7 +52,6 @@ serve(async (req) => {
       const amenities = (property.amenities || {}) as any;
       const externalIds = amenities.external_ids || {};
       
-      // Read review_platforms - support both array format (from PMSBranding) and object format
       const reviewPlatformsRaw = amenities.review_platforms;
       let googlePlaceId = externalIds.google_place_id || '';
       let tripadvisorId = externalIds.tripadvisor_id || amenities.tripadvisor_id || '';
@@ -67,53 +65,67 @@ serve(async (req) => {
         if (reviewPlatformsRaw.google?.place_id) googlePlaceId = reviewPlatformsRaw.google.place_id;
       }
 
-      console.log(`Property ${property.name}: googlePlaceId="${googlePlaceId}", tripadvisorId="${tripadvisorId}", hasGoogleKey=${!!googleKey}`);
+      console.log(`Property ${property.name}: googlePlaceId="${googlePlaceId}", tripadvisorId="${tripadvisorId}"`);
 
-      // --- AUTO-DISCOVER Google Place ID ---
+      // --- AUTO-DISCOVER Google Place ID using Places API (New) ---
       if (!googlePlaceId && googleKey && property.name) {
         try {
-          const searchText = `${property.name} ${property.city || ''} ${property.country || ''}`.trim();
-          const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(searchText)}&inputtype=textquery&fields=place_id,name,formatted_address&key=${googleKey}`;
-          const findResp = await fetch(findUrl);
-          const findData = await findResp.json();
-          console.log(`Google Find Place response for ${property.name}:`, JSON.stringify(findData).substring(0, 500));
+          const searchText = `${property.name} ${property.address || ''} ${property.city || ''} ${property.country || ''}`.trim();
+          console.log(`Auto-discovering Google Place ID for: "${searchText}"`);
           
-          if (findData.candidates?.length > 0) {
-            googlePlaceId = findData.candidates[0].place_id;
+          const searchResp = await fetch('https://places.googleapis.com/v1/places:searchText', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': googleKey,
+              'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+            },
+            body: JSON.stringify({
+              textQuery: searchText,
+              maxResultCount: 1,
+            }),
+          });
+          const searchData = await searchResp.json();
+          console.log(`Google Text Search response:`, JSON.stringify(searchData).substring(0, 500));
+          
+          if (searchData.places?.length > 0) {
+            googlePlaceId = searchData.places[0].id;
             console.log(`Auto-discovered Google Place ID for ${property.name}: ${googlePlaceId}`);
             
-            // Save it back to the property for future use
             const updatedExternalIds = { ...externalIds, google_place_id: googlePlaceId };
             const updatedAmenities = { ...amenities, external_ids: updatedExternalIds };
             await supabase.from('properties').update({ amenities: updatedAmenities }).eq('id', property.id);
-          } else {
-            console.log(`No Google Place candidates found for ${property.name}`);
           }
         } catch (e) {
           console.error(`Google Place ID discovery failed for ${property.name}:`, e);
         }
       }
 
-      // --- GOOGLE REVIEWS ---
+      // --- GOOGLE REVIEWS using Places API (New) ---
       if (googlePlaceId && googleKey) {
         try {
-          const gUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${googlePlaceId}&fields=rating,user_ratings_total,reviews,url,name&key=${googleKey}`;
-          const gResp = await fetch(gUrl);
-          const gData = await gResp.json();
+          const detailsResp = await fetch(`https://places.googleapis.com/v1/places/${googlePlaceId}`, {
+            method: 'GET',
+            headers: {
+              'X-Goog-Api-Key': googleKey,
+              'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,googleMapsUri',
+            },
+          });
+          const placeData = await detailsResp.json();
+          console.log(`Google Place Details for ${property.name}: rating=${placeData.rating}, reviews=${placeData.userRatingCount}`);
 
-          if (gData.result) {
-            const gResult = gData.result;
-            const normalizedReviews = (gResult.reviews || []).map((r: any) => ({
-              author: r.author_name || 'Guest',
-              text: r.text || '',
+          if (placeData.rating || placeData.reviews) {
+            const normalizedReviews = (placeData.reviews || []).map((r: any) => ({
+              author: r.authorAttribution?.displayName || 'Guest',
+              text: r.text?.text || r.originalText?.text || '',
               rating: r.rating || 0,
-              date: r.time ? new Date(r.time * 1000).toISOString() : null,
-              photo_url: r.profile_photo_url || null,
-              source_url: r.author_url || null,
-              relative_time: r.relative_time_description || null,
+              date: r.publishTime || null,
+              photo_url: r.authorAttribution?.photoUri || null,
+              source_url: r.authorAttribution?.uri || null,
+              relative_time: r.relativePublishTimeDescription || null,
             }));
 
-            // Merge with existing reviews (keep unique by author+date)
+            // Merge with existing reviews
             const { data: existing } = await supabase
               .from('property_review_cache')
               .select('reviews')
@@ -136,14 +148,14 @@ serve(async (req) => {
               property_id: property.id,
               source: 'google',
               source_id: googlePlaceId,
-              overall_rating: gResult.rating || null,
-              total_reviews: gResult.user_ratings_total || 0,
-              rating_url: gResult.url || `https://search.google.com/local/reviews?placeid=${googlePlaceId}`,
+              overall_rating: placeData.rating || null,
+              total_reviews: placeData.userRatingCount || 0,
+              rating_url: placeData.googleMapsUri || `https://search.google.com/local/reviews?placeid=${googlePlaceId}`,
               reviews: finalReviews,
               synced_at: new Date().toISOString(),
             }, { onConflict: 'property_id,source' });
 
-            results.push({ property: property.name, source: 'google', status: 'ok', reviews: finalReviews.length, rating: gResult.rating });
+            results.push({ property: property.name, source: 'google', status: 'ok', reviews: finalReviews.length, rating: placeData.rating });
           }
         } catch (e) {
           console.error(`Google review sync failed for ${property.name}:`, e);
@@ -168,6 +180,7 @@ serve(async (req) => {
             { headers: { 'accept': 'application/json', 'Referer': origin } }
           );
           const reviewsData = await reviewsResp.json();
+          console.log(`TripAdvisor for ${property.name}: rating=${detailsData.rating}, reviews=${detailsData.num_reviews}, fetched=${reviewsData.data?.length || 0}`);
 
           const normalizedReviews = (reviewsData.data || []).map((r: any) => ({
             author: r.user?.username || 'Traveler',
