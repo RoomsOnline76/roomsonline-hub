@@ -195,29 +195,34 @@ export function BookingSidebar({
       className,
     )}>
       {/* Price header */}
-      {(estimatedTotal || lowestRate) && (
-        <div className="pb-4 border-b border-border/50">
-          {estimatedTotal ? (
-            <div>
-              <span className="text-2xl font-semibold text-foreground">
-                <FormattedPrice amount={estimatedTotal} />
-              </span>
-              <span className="text-sm text-muted-foreground ml-1">total</span>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {nights} night{nights !== 1 ? 's' : ''} · avg <FormattedPrice amount={Math.round(estimatedTotal / nights)} />/night
-              </p>
+      <div className="pb-4 border-b border-border/50">
+        <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Book Best Price</p>
+        {estimatedTotal ? (
+          <div>
+            <span className="text-2xl font-semibold text-foreground">
+              <FormattedPrice amount={estimatedTotal} />
+            </span>
+            <span className="text-sm text-muted-foreground ml-1">total</span>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {nights} night{nights !== 1 ? 's' : ''} · avg <FormattedPrice amount={Math.round(estimatedTotal / nights)} />/night
+            </p>
+          </div>
+        ) : lowestRate ? (
+          <div>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">From</span>
+            <div className="text-2xl font-semibold text-foreground">
+              <FormattedPrice amount={lowestRate} />
             </div>
-          ) : lowestRate ? (
-            <div>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider">From</span>
-              <div className="text-2xl font-semibold text-foreground">
-                <FormattedPrice amount={lowestRate} />
-              </div>
-              <span className="text-xs text-muted-foreground">per night</span>
-            </div>
-          ) : null}
-        </div>
-      )}
+            <span className="text-xs text-muted-foreground">per night</span>
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">Select dates to see pricing</span>
+        )}
+        <p className="text-[11px] text-muted-foreground mt-2 flex items-center gap-1">
+          <Tag className="h-3 w-3" />
+          Prices include all fees
+        </p>
+      </div>
 
       {/* Dates */}
       <button
