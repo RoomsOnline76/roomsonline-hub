@@ -29,6 +29,8 @@ serve(async (req) => {
     const tripadvisorKey = keyMap['TRIPADVISOR_API_KEY'] || Deno.env.get('TRIPADVISOR_API_KEY') || '';
     const xaiKey = Deno.env.get('XAI_API_KEY') || '';
 
+    console.log('API keys available:', { google: !!googleKey, tripadvisor: !!tripadvisorKey, xai: !!xaiKey });
+
     let body: { property_id?: string } = {};
     try { body = await req.json(); } catch { /* empty body for cron */ }
 
