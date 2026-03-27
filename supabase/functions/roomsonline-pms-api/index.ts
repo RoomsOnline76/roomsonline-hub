@@ -2248,27 +2248,31 @@ async function handleBackfillInventory(body: any, supabase: any): Promise<Respon
 // ============================================================================
 
 // deno-lint-ignore no-explicit-any
-async function ensureGuestProfile(supabase: any, propertyId: string, guestName: string, guestEmail: string | null, guestPhone: string | null, bookingAmount: number): Promise<string | null> {
+async function ensureGuestProfile(supabase: any, propertyId: string, guestName: string, guestEmail: string | null, guestPhone: string | null, bookingAmount: number, guestNationality?: string | null): Promise<string | null> {
   if (!guestEmail) return null;
   try {
     const { data: existing } = await supabase.from("rolos_guest_profiles")
       .select("id, total_stays, total_spent")
       .eq("property_id", propertyId).eq("email", guestEmail).maybeSingle();
     if (existing) {
-      await supabase.from("rolos_guest_profiles").update({
+      const updateData: any = {
         full_name: guestName,
         phone: guestPhone,
         total_stays: (existing.total_stays || 0) + 1,
         total_spent: (existing.total_spent || 0) + bookingAmount,
         last_stay_date: new Date().toISOString().split("T")[0],
-      }).eq("id", existing.id);
+      };
+      if (guestNationality) updateData.nationality = guestNationality;
+      await supabase.from("rolos_guest_profiles").update(updateData).eq("id", existing.id);
       return existing.id;
     } else {
-      const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
+      const insertData: any = {
         property_id: propertyId, full_name: guestName, email: guestEmail, phone: guestPhone,
         total_stays: 1, total_spent: bookingAmount,
         last_stay_date: new Date().toISOString().split("T")[0],
-      }).select("id").single();
+      };
+      if (guestNationality) insertData.nationality = guestNationality;
+      const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert(insertData).select("id").single();
       return newGuest?.id || null;
     }
   } catch { return null; }
