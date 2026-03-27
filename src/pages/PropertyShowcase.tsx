@@ -231,6 +231,49 @@ export default function PropertyShowcase() {
 
   // Payment callbacks removed - unified checkout at /journey/checkout handles these
 
+  // SEO: inject structured data for property
+  usePageSEO({
+    title: property ? `${property.name} — ${property.city}, ${property.country}` : "Loading Property",
+    description: property
+      ? `Book ${property.name} in ${property.city}, ${property.country}. ${property.description?.slice(0, 120) || "Extraordinary accommodation in Africa."}`
+      : "Discover extraordinary accommodation across Africa.",
+    ogType: "place",
+    ogImage: property?.images?.[0] || undefined,
+    breadcrumbs: property
+      ? [
+          { name: "Home", url: "/" },
+          { name: "Properties", url: "/property_listing" },
+          { name: property.name, url: `/property/${property.slug || property.id}` },
+        ]
+      : undefined,
+    jsonLd: property
+      ? {
+          "@context": "https://schema.org",
+          "@type": "LodgingBusiness",
+          name: property.name,
+          description: property.description || undefined,
+          url: `https://book.sleepinafrica.roomsonline.co.za/property/${property.slug || property.id}`,
+          image: property.images?.slice(0, 5) || [],
+          address: {
+            "@type": "PostalAddress",
+            addressLocality: property.city,
+            addressCountry: property.country,
+            streetAddress: property.address,
+          },
+          ...(property.latitude && property.longitude
+            ? {
+                geo: {
+                  "@type": "GeoCoordinates",
+                  latitude: property.latitude,
+                  longitude: property.longitude,
+                },
+              }
+            : {}),
+          priceRange: property.price_per_night > 5000 ? "$$$$" : property.price_per_night > 2000 ? "$$$" : "$$",
+        }
+      : undefined,
+  });
+
   // Track property view in behavioral memory
   useEffect(() => {
     if (property) {
