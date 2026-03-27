@@ -1,75 +1,70 @@
 
 
-# Transform TOBI from Chatbot to Intelligent Sales Concierge
+# Three Changes: FluentLiving-Inspired Showcase, RoomShowcase FOUC Fix, TOBI on xAI
 
-## Root Cause of "No Availability" Lie
+## 1. Property Showcase — FluentLiving-Inspired Design Refresh
 
-The edge function `ai-booking-concierge/index.ts` has a critical bug at **line 697**: when the user already has dates selected (`current_dates` is passed as `{check_in: "2025-04-21", check_out: "2025-04-24"}`), the code **ignores them** and generates new date suggestions from the NLP parser. Since "with a pool" has no date info, `generateDateSuggestions` produces fallback dates (next week, +2 weeks, etc.) — and those may not have availability. Meanwhile the user's actual selected dates DO have availability.
+**What FluentLiving does well** (from the scrape):
+- **Gallery**: Large hero image (60% width) + 2x2 grid of smaller images with "+N more" overlay — clean, modern, no carousel buttons visible until hover
+- **Property facts row**: Location pin, bedrooms, bathrooms, guests — minimal horizontal strip below gallery
+- **Google reviews badge**: Prominent rating card with star display and review count
+- **Content sections**: "About this place", "The space", "Amenities" (grid), "The neighborhood", "Getting around", "Things to know" — all with clean typography and generous whitespace
+- **Sticky booking sidebar**: Right-aligned, "Book Best Price", "Prices include all fees" tag, clean date pickers
+- **"Where you'll be"** map section
+- **Similar apartments** row at the bottom
 
-## What's Wrong Beyond the Bug
+**Changes to PropertyShowcase:**
 
-1. **`current_dates` ignored** — the first date range checked should be the user's selected dates
-2. **No AI brain** — responses are hardcoded templates (`generateNarrativeResponse`), not Lovable AI. TOBI can't reason about "with a pool" or sell the property
-3. **No property knowledge** — TOBI doesn't fetch amenities, description, highlights, or local experiences to answer preference queries
-4. **No cross-sell** — when unavailable, TOBI gives up instead of suggesting the same owner's other properties
-5. **No upsell intelligence** — when multiple rooms are available, TOBI doesn't explain WHY the premium room is worth it
+### File: `src/components/showcase/RunwayHero.tsx`
+- Redesign from full-bleed single-image carousel to **FluentLiving-style 1+4 grid**: one large image (left 60%) + 4 smaller images in a 2x2 grid (right 40%), with "+N more" overlay on the last image
+- On mobile: keep swipeable carousel (works well)
+- Remove heavy gradient overlay — use subtle bottom-only gradient for text legibility
 
-## Plan
+### File: `src/components/showcase/BuildingIntro.tsx`
+- Add a horizontal facts strip below the hero (location, bedrooms, bathrooms, guests) — similar to FluentLiving's minimal stats row
+- Add Google Reviews badge integration if TripAdvisor data exists (show rating + count prominently)
 
-### 1. Fix: Use `current_dates` First (`ai-booking-concierge/index.ts`)
+### File: `src/components/showcase/BookingSidebar.tsx`
+- Add "Prices include all fees" tag with price tag emoji
+- Style the booking card header as "Book Best Price" instead of generic CTA
 
-In the main handler (~line 697-756):
-- If `current_dates` exists, use it as the **primary** date range (prepend to `dateSuggestions`)
-- Only fall back to NLP-generated dates if `current_dates` is missing
-- This immediately fixes the "no availability" lie when dates are already selected
+### File: `src/components/showcase/ProseFacilities.tsx`
+- Present amenities in a grid layout (icon + label) instead of prose paragraphs — matching FluentLiving's clean amenity grid with "Show all N amenities" expandable
 
-### 2. Enrich with Property Context (`ai-booking-concierge/index.ts`)
+These changes keep our existing architecture but refine the visual presentation to feel familiar to the FluentLiving client while being distinctly more polished.
 
-Expand the property fetch (~line 678) to include:
-- `amenities, description, highlights, tagline, city, country, images, owner_id`
-- Fetch `local_experiences` for the property
-- Fetch `public_properties` for amenity tags (pool, wifi, etc.)
+## 2. RoomShowcase FOUC Fix — Loading State Uses Wrong Layout
 
-This gives TOBI the knowledge to answer "with a pool" — yes, this property has a pool!
+**Problem**: Lines 468-483 of `RoomShowcase.tsx` — the loading skeleton always renders inside `PublicLayout`, showing ROL branding before the property data loads and `isWhiteLabel` can be evaluated. Same issue on the "Room Not Found" fallback (lines 486-500).
 
-### 3. Replace Template Responses with Lovable AI (`ai-booking-concierge/index.ts`)
+### File: `src/pages/RoomShowcase.tsx`
+- Read `brand_override_enabled` from `sessionStorage` (already cached by `useBrandOverride` on the PropertyShowcase page) to determine layout **before** data loads
+- If sessionStorage has brand data for this property slug, use `WhiteLabelLayout` for the loading skeleton instead of `PublicLayout`
+- Same treatment for the "not found" fallback state
+- This mirrors the FOUC pre-paint strategy already used in PropertyShowcase/Booking
 
-Replace `generateNarrativeResponse` (hardcoded strings) with a call to `https://ai.gateway.lovable.dev/v1/chat/completions` using `google/gemini-3-flash-preview`:
+## 3. TOBI Concierge — Switch from Lovable AI Gateway to xAI (Grok)
 
-**System prompt** instructs TOBI to be a passionate sales concierge who:
-- Highlights what's amazing about THIS property (amenities, location, experiences)
-- When rooms ARE available: sells the best/most expensive room with enthusiasm, explains why it's special
-- When user mentions preferences ("pool", "quiet", "romantic"): confirms the property has it or redirects
-- When NO availability: suggests alternative dates that DO work, or offers the owner's other properties
-- Speaks with warmth, uses light emoji, creates urgency ("only X units left!")
+**Current**: `ai-booking-concierge/index.ts` calls `https://ai.gateway.lovable.dev/v1/chat/completions` with `google/gemini-3-flash-preview` for the narrative response generation.
 
-**Input to AI**: user query + property details (amenities, highlights, city, experiences) + availability results + room types with descriptions
+**Change**: Replace the AI gateway call with xAI's API (`https://api.x.ai/v1/chat/completions`) using the existing `XAI_API_KEY` secret and `grok-3-mini-fast` model (same pattern already used in `revenue-pulse-insights` and `dashboard-insights`). Keep the Lovable AI gateway as a fallback if xAI fails.
 
-### 4. Cross-Sell Owner's Other Properties (`ai-booking-concierge/index.ts`)
+### File: `supabase/functions/ai-booking-concierge/index.ts`
+- In `generateAINarrative` function (~line 418):
+  - Primary: call `https://api.x.ai/v1/chat/completions` with `grok-3-mini-fast` using `Deno.env.get("XAI_API_KEY")`
+  - Fallback: if xAI fails or key missing, fall back to existing Lovable AI gateway call
+  - Keep the same system prompt and user message structure
 
-When `suggestions.length === 0` (no availability):
-- Query `properties` table for other properties with the same `owner_id`
-- Check if those have availability for the same dates
-- Include them in the AI prompt so TOBI can say: "SIX on N is fully booked for those dates, but the owner also has [Property X] nearby with availability!"
-
-### 5. Smart Upsell Logic (`ai-booking-concierge/index.ts`)
-
-When multiple room types are available:
-- Sort by price descending
-- Pass room descriptions/amenities to the AI so it can explain the value ("The Luxury Suite has a private balcony and sea view — totally worth the extra R500/night")
-- Mark the most expensive as "recommended" instead of always marking cheapest as "best value"
-
-### 6. Frontend: Pass Property Context to Concierge (`AIConciergePanel.tsx`)
-
-Add optional props for `propertyDescription`, `propertyAmenities`, `propertyCity` to enrich the edge function call. OR — simpler — just let the edge function fetch this server-side (already planned in step 2).
-
-No frontend changes needed beyond what's already there — the narrative_response from AI will be richer automatically.
-
-## Files
+## Files Summary
 
 | Action | File |
 |--------|------|
-| Rewrite | `supabase/functions/ai-booking-concierge/index.ts` — fix current_dates priority, add AI narrative, property context enrichment, cross-sell, upsell |
+| Modify | `src/components/showcase/RunwayHero.tsx` — FluentLiving 1+4 gallery grid |
+| Modify | `src/components/showcase/BuildingIntro.tsx` — horizontal facts strip + review badge |
+| Modify | `src/components/showcase/BookingSidebar.tsx` — "Book Best Price" + fees tag |
+| Modify | `src/components/showcase/ProseFacilities.tsx` — amenity grid with expand |
+| Modify | `src/pages/RoomShowcase.tsx` — FOUC fix: branded loading skeleton |
+| Modify | `supabase/functions/ai-booking-concierge/index.ts` — xAI Grok for TOBI narrative |
 
-No database changes needed. No frontend changes needed (the richer responses flow through existing `narrative_response` field).
+No database changes needed.
 
