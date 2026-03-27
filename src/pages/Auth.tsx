@@ -357,6 +357,7 @@ function AuthContent() {
           name: contactName.trim(),
           email: contactEmail.trim(),
           message: contactMessage.trim(),
+          source_page: window.location.pathname,
           recaptchaToken: requestRecaptcha.token,
         },
       });
@@ -861,7 +862,7 @@ function AuthContentFallback() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-access-request", {
-        body: { name: contactName.trim(), email: contactEmail.trim(), message: contactMessage.trim() },
+        body: { name: contactName.trim(), email: contactEmail.trim(), message: contactMessage.trim(), source_page: window.location.pathname },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
