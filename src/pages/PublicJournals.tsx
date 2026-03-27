@@ -24,6 +24,21 @@ interface Journal {
 export default function PublicJournals() {
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
+
+  usePageSEO({
+    title: "Travel Journal — Stories from Africa",
+    description: "Read curated travel stories, destination guides, and property features from across Africa. Inspiration for your next extraordinary stay.",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Sleep in Africa Travel Journal",
+      url: "https://book.sleepinafrica.roomsonline.co.za/journals",
+    },
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "Journal", url: "/journals" },
+    ],
+  });
   
   const threeYearsAgo = subYears(new Date(), 3).toISOString();
 

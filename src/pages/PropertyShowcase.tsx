@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { format, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { getNightsBridgeBookingUrl } from "@/lib/config";
