@@ -2,8 +2,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Loader2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { useState } from "react";
 import {
   Collapsible,
@@ -27,11 +29,13 @@ interface FluentGuestFormProps {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
+  guestNationality?: string;
   specialRequests?: string;
   voucher?: string;
   onNameChange: (v: string) => void;
   onEmailChange: (v: string) => void;
   onPhoneChange: (v: string) => void;
+  onNationalityChange?: (v: string) => void;
   onSpecialRequestsChange?: (v: string) => void;
   onVoucherChange?: (v: string) => void;
   onBlur?: () => void;
@@ -52,11 +56,13 @@ export function FluentGuestForm({
   guestName,
   guestEmail,
   guestPhone,
+  guestNationality = "",
   specialRequests = "",
   voucher = "",
   onNameChange,
   onEmailChange,
   onPhoneChange,
+  onNationalityChange,
   onSpecialRequestsChange,
   onVoucherChange,
   onBlur,
@@ -114,6 +120,22 @@ export function FluentGuestForm({
         />
         {errors.phone && <p className="text-xs text-destructive mt-0.5">{errors.phone}</p>}
       </div>
+
+      {onNationalityChange && (
+        <div>
+          <Label htmlFor="fluent-nationality" className="text-xs">Nationality</Label>
+          <Select value={guestNationality} onValueChange={onNationalityChange}>
+            <SelectTrigger id="fluent-nationality" className="h-10">
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_OPTIONS.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {showVoucher && onVoucherChange && (
         <div>

@@ -152,6 +152,7 @@ const Booking = () => {
   const [guestName, setGuestName] = useState(guestDetails.name || "");
   const [guestEmail, setGuestEmail] = useState(guestDetails.email || "");
   const [guestPhone, setGuestPhone] = useState(guestDetails.phone || "");
+  const [guestNationality, setGuestNationality] = useState("");
   const [voucher, setVoucher] = useState("");
   const [specialRequests, setSpecialRequests] = useState("");
   const [selectedRateType, setSelectedRateType] = useState<string>("");
@@ -1467,6 +1468,7 @@ const Booking = () => {
       bookingData.room_type_id = rooms[0]?.roomTypeId || null;
       bookingData.rate_type_id = selectedRateType;
       bookingData.voucher = voucher || null;
+      bookingData.guest_nationality = guestNationality || null;
 
       // Snapshot charges breakdown for the booking record
       if (propertyCharges && propertyCharges.length > 0) {
@@ -1970,11 +1972,13 @@ const Booking = () => {
               guestName={guestName}
               guestEmail={guestEmail}
               guestPhone={guestPhone}
+              guestNationality={guestNationality}
               specialRequests={specialRequests}
               voucher={voucher}
               onNameChange={setGuestName}
               onEmailChange={setGuestEmail}
               onPhoneChange={setGuestPhone}
+              onNationalityChange={setGuestNationality}
               onSpecialRequestsChange={setSpecialRequests}
               onVoucherChange={(v) => {
                 setVoucher(v);
