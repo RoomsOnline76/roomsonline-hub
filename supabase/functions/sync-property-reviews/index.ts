@@ -79,6 +79,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
               'X-Goog-Api-Key': googleKey,
               'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+              'Referer': 'https://book.sleepinafrica.roomsonline.co.za',
             },
             body: JSON.stringify({
               textQuery: searchText,
