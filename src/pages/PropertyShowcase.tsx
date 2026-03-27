@@ -13,6 +13,7 @@ import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
 import { PropertyRecommendations } from "@/components/booking/PropertyRecommendations";
 import { AIConciergePanel } from "@/components/booking/AIConciergePanel";
@@ -795,6 +796,10 @@ export default function PropertyShowcase() {
   };
 
   // Loading state
+  // Determine if this property should use white-label layout
+  const isWhiteLabel = Boolean(property?.brand_override_enabled && property?.brand_primary_color);
+  const propertyLogoUrl = property?.brand_logo_url || null;
+
   if (loading) {
     return (
       <PublicLayout hideHeader hideFooter>
@@ -829,10 +834,12 @@ export default function PropertyShowcase() {
               <ChevronLeft className="h-3.5 w-3.5" />
               <span className="hidden sm:inline text-xs">Back</span>
             </Button>
-            <div className="flex items-center gap-2 px-2 border-l border-border">
-              <img src={rolWreathLogo} alt="RoomsOnline" className="h-8 w-8 object-contain" />
-              <span className="text-xs sm:text-sm font-semibold text-primary italic">proudly presenting</span>
-            </div>
+            {!isWhiteLabel && (
+              <div className="flex items-center gap-2 px-2 border-l border-border">
+                <img src={rolWreathLogo} alt="RoomsOnline" className="h-8 w-8 object-contain" />
+                <span className="text-xs sm:text-sm font-semibold text-primary italic">proudly presenting</span>
+              </div>
+            )}
             <div className="border-l border-border pl-3">
               <h1 className="font-semibold text-xs sm:text-sm truncate">{property.name}</h1>
             </div>
@@ -859,8 +866,13 @@ export default function PropertyShowcase() {
 
 
 
+  const LayoutWrapper = isWhiteLabel ? WhiteLabelLayout : PublicLayout;
+  const layoutProps = isWhiteLabel
+    ? { propertyName: property.name, propertyLogoUrl }
+    : { hideHeader: true, hideFooter: true };
+
   return (
-    <PublicLayout hideHeader hideFooter>
+    <LayoutWrapper {...layoutProps as any}>
       <div>
       {/* Hero - Fluent-style with price badge */}
       <RunwayHero
@@ -1052,6 +1064,6 @@ export default function PropertyShowcase() {
         />
       )}
       </div>
-    </PublicLayout>
+    </LayoutWrapper>
   );
 }

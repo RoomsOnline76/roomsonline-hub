@@ -103,6 +103,7 @@ const Booking = () => {
   // Integration detection — when present, use white-label layout
   const integrationParam = searchParams.get("integration");
   const isIntegration = !!integrationParam;
+  // Will be set after property loads — also triggers white-label for brand-override properties
 
   // Apply brand colors from URL params (embed flow passes these explicitly)
   const urlBrandColor = searchParams.get("brand_color");
@@ -1620,10 +1621,11 @@ const Booking = () => {
     }
   };
 
-  // Layout wrapper — white-label for integration flows, standard for portal
+  // Layout wrapper — white-label for integration flows or brand-override properties
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
+  const isWhiteLabel = isIntegration || Boolean(property?.brand_override_enabled);
   const wrapLayout = useCallback((children: React.ReactNode) =>
-    isIntegration ? (
+    isWhiteLabel ? (
       <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl}>
         {children}
       </WhiteLabelLayout>
@@ -1635,7 +1637,7 @@ const Booking = () => {
       >
         {children}
       </PublicLayout>
-    ), [isIntegration, property?.name, propertyLogoUrl, property?.slug, property?.id]);
+    ), [isWhiteLabel, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
   if (isLoading) {
     return (
