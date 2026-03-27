@@ -121,6 +121,22 @@ export function FluentGuestForm({
         {errors.phone && <p className="text-xs text-destructive mt-0.5">{errors.phone}</p>}
       </div>
 
+      {onNationalityChange && (
+        <div>
+          <Label htmlFor="fluent-nationality" className="text-xs">Nationality</Label>
+          <Select value={guestNationality} onValueChange={onNationalityChange}>
+            <SelectTrigger id="fluent-nationality" className="h-10">
+              <SelectValue placeholder="Select country" />
+            </SelectTrigger>
+            <SelectContent>
+              {COUNTRY_OPTIONS.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {showVoucher && onVoucherChange && (
         <div>
           <Label htmlFor="fluent-voucher" className="text-xs">Voucher Code</Label>
