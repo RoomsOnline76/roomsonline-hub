@@ -94,7 +94,7 @@ export default function ConnectGetStarted() {
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Start your 30-day free trial. Tell us about your property and we'll get you set up.
+            Start your 60-day free trial. No contracts. No setup fees. Cancel anytime.
           </motion.p>
         </div>
       </section>
