@@ -13,6 +13,18 @@ export function PublicFooter() {
           {/* Navigation links */}
           <nav aria-label="Footer navigation" className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm">
             <Link
+              to="/property_listing"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Properties
+            </Link>
+            <Link
+              to="/how-our-booking-engine-works"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              How It Works
+            </Link>
+            <Link
               to="/about"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { PropertySegmentSection } from "@/components/PropertySegmentSection";
 import { SegmentFilterId } from "@/lib/segmentFilters";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 
 const HERO_SENTENCES = [
   "Discover hand-picked extraordinary escapes and places that spark the wanderlust",
@@ -44,8 +46,18 @@ export default function PropertyListing() {
     setHeroSentence(HERO_SENTENCES[randomIndex]);
   }, []);
 
+  usePageSEO({
+    title: "Properties — Extraordinary Stays Across Africa",
+    description: "Browse our curated collection of safari lodges, boutique hotels, guest houses, and luxury retreats across Africa. Filter by style, destination, and experience.",
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "Properties", url: "/property_listing" },
+    ],
+  });
+
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
+      <PublicBreadcrumb items={[{ label: "Properties" }]} />
       {/* Hero Sentence */}
       <div className="bg-muted/30 border-b border-border">
         <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">

@@ -1,6 +1,12 @@
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { usePageSEO } from "@/hooks/usePageSEO";
 
 const PrivacyPolicy = () => {
+  usePageSEO({
+    title: "Privacy Policy — RoomsOnline",
+    description: "Learn how RoomsOnline collects, uses, and protects your personal information when using our booking platform and services.",
+  });
+
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
       <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">

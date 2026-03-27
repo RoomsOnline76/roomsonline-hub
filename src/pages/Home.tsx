@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
 import { useHomePropertySegments, SegmentSection } from "@/components/HomePropertySegments";
@@ -97,6 +98,42 @@ function HomeContent() {
     resetSearch: resetSearchContext,
   } = useSearch();
   const { aiResults, isAISearchActive } = useAISearch();
+
+  usePageSEO({
+    title: "Sleep in Africa — Extraordinary African Accommodation",
+    description: "Discover hand-picked safari lodges, boutique hotels, guest houses, and luxury retreats across Africa. Book directly with real-time availability and best-rate guarantees.",
+    ogType: "website",
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: "RoomsOnline",
+        alternateName: "Sleep in Africa",
+        url: "https://book.sleepinafrica.roomsonline.co.za",
+        logo: "https://book.sleepinafrica.roomsonline.co.za/rol-logo.png",
+        sameAs: [],
+        contactPoint: {
+          "@type": "ContactPoint",
+          email: "hello@roomsonline.co.za",
+          contactType: "customer service",
+        },
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "Sleep in Africa",
+        url: "https://book.sleepinafrica.roomsonline.co.za",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: "https://book.sleepinafrica.roomsonline.co.za/?q={search_term_string}",
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+    ],
+  });
 
   const [enabledTypes, setEnabledTypes] = useState<Record<string, boolean>>(INITIAL_ENABLED_TYPES);
   const [heroImage, setHeroImage] = useState<string>(heroFallback);

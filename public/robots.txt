@@ -252,6 +252,78 @@ Allow: /
 User-agent: LinkedInBot
 Allow: /
 
+# Common Crawl (CCBot) — used by many AI training sets
+User-agent: CCBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /llm-context.json
+Allow: /connect
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
+
+# Anthropic Claude-Web browsing agent
+User-agent: Claude-Web
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /llm-context.json
+Allow: /llm-actions.md
+Allow: /connect
+Allow: /connect/docs
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /staff-login
+Disallow: /onboarding/
+Disallow: /contract/
+
+# ByteDance / TikTok
+User-agent: Bytespider
+Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+Disallow: /staff-login
+
+# You.com
+User-agent: YouBot
+Allow: /
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /connect
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
+# Amazon
+User-agent: Amazonbot
+Allow: /
+Allow: /property/
+Allow: /properties
+Allow: /journals/
+Allow: /llms.txt
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /auth
+Disallow: /pms/
+Disallow: /dev/
+
 # Sitemaps
 Sitemap: https://sleepinafrica.roomsonline.co.za/sitemap.xml
 Sitemap: https://book.sleepinafrica.roomsonline.co.za/sitemap.xml

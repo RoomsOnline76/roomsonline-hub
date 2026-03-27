@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Calendar } from "lucide-react";
@@ -22,6 +24,21 @@ interface Journal {
 export default function PublicJournals() {
   const [searchQuery, setSearchQuery] = useState("");
   const location = useLocation();
+
+  usePageSEO({
+    title: "Travel Journal — Stories from Africa",
+    description: "Read curated travel stories, destination guides, and property features from across Africa. Inspiration for your next extraordinary stay.",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Sleep in Africa Travel Journal",
+      url: "https://book.sleepinafrica.roomsonline.co.za/journals",
+    },
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "Journal", url: "/journals" },
+    ],
+  });
   
   const threeYearsAgo = subYears(new Date(), 3).toISOString();
 
@@ -68,6 +85,7 @@ export default function PublicJournals() {
 
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
+      <PublicBreadcrumb items={[{ label: "Journal" }]} />
       <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
         <div className="max-w-3xl mx-auto text-center mb-12">
