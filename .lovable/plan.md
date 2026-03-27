@@ -1,60 +1,87 @@
 
 
-# Fix Booking Flow Circles, White-Label RoomShowcase & Gallery
+# Performance Optimization — Faster Page Loads & Availability
 
-## Issues Identified
+## Problem Analysis
 
-1. **RoomShowcase still shows ROL footer** — uses `PublicLayout` without checking `brand_override_enabled`. Needs same white-label logic as PropertyShowcase.
+The pages are slow because of **waterfall data fetching** — each page makes multiple sequential requests:
 
-2. **RoomShowcase gallery is flat grid** — should be collapsible/carousel like the PropertyShowcase BuildingGallery, not a full grid of thumbnails always visible.
+1. **PropertyShowcase**: Fetches property → then cache availability → then live PMS availability → then calendar availability (3-4 sequential calls)
+2. **RoomAvailabilityCalendar**: Fetches room type data → then property amenities (fallback) → then availability (2-3 sequential calls, each waiting for the previous)
+3. **Booking page**: Fetches property → room types cache → rate types cache → then calculates cost by calling edge functions for live availability (4+ sequential calls)
+4. **Hostfully/HotelBeds**: Every page visit calls the live PMS API via edge function (~3-8s round trip) instead of reading from cache
 
-3. **PropertyShowcase map location** — InvitationMap already exists at bottom. Clarification: user may want it higher or more prominent. Will keep as-is since it's already there.
+## Fix Strategy: Parallel Fetching + Cache-First + Preloading
 
-4. **Bottom-right "Select Dates" button → opens date picker but dates don't carry over** — When the AIConciergePanel floating button is clicked, it opens the BottomSheetDatePicker. After selecting dates, the `handleDatesChange` fires and for single-room properties auto-adds to cart. The problem is the button always says "Select Dates" even when dates exist, and clicking "Book Now" in the collapsed strip calls `handleBookNowClick` which re-opens the date picker if no dates (but dates ARE in context — the check uses `checkInDate`/`checkOutDate` from MobileBookingContext which should be set). Need to add a **"Continue" / "Next"** button after dates are selected so the user can proceed without prompting TOBI.
+### 1. Parallel data fetching on PropertyShowcase
 
-5. **BookingSidebar date button re-opens calendar after dates are set** — clicking the dates row in the desktop sidebar always opens BottomSheetDatePicker. After dates are selected, clicking "Book Now" calls `onBook` → `handleBookProperty` → dispatches `openConciergeDatePicker` again (circular!). The issue: `handleBookProperty` always goes to the AI concierge path which opens the date picker, even when dates are already selected. Fix: when dates already exist, skip date picker and go straight to room selection/booking.
+**File: `src/pages/PropertyShowcase.tsx`**
 
-6. **"Too many circles"** — The flow is: sidebar date button → calendar → select dates → close → click "Book Now" → opens date picker again via concierge event. Fix the `handleBookProperty` to check if dates are already set and skip to the next step.
+Currently `fetchPropertyData` does:
+- Fetch property (await) → then fetch today's cache availability (await) → then in separate effects: fetch live PMS, fetch calendar availability
 
-## Plan
+Change to: Fire property + cache availability in parallel using `Promise.all`. Then fire live PMS + calendar availability in parallel (they only need `property.id`).
 
-### 1. RoomShowcase White-Label Layout (`src/pages/RoomShowcase.tsx`)
-- Import `WhiteLabelLayout` 
-- Fetch `brand_override_enabled`, `brand_primary_color`, `brand_logo_url` from `public_properties` (already using `select("*")`)
-- Add `isWhiteLabel` check like PropertyShowcase
-- Use `WhiteLabelLayout` instead of `PublicLayout` when branded
-- Hide ROL footer/header for branded properties
+### 2. Parallel data fetching on Booking page
 
-### 2. RoomShowcase Gallery Collapse (`src/pages/RoomShowcase.tsx`)
-- Replace the flat thumbnail grid (lines 1040-1064) with a collapsible carousel/turnstile
-- Show 4-5 thumbnails in a horizontal scroll with expand toggle
-- Use Collapsible component — collapsed by default, showing just a strip of thumbnails
+**File: `src/pages/Booking.tsx`**
 
-### 3. Fix Booking Flow Circles (`src/pages/PropertyShowcase.tsx`)
-- In `handleBookProperty`: when AI concierge is active AND dates are already selected, skip the date picker dispatch. Instead:
-  - For single-room properties: auto-add to cart and trigger checkout
-  - For multi-room properties: scroll to rooms section
-- This eliminates the circular "Book Now → opens date picker again" issue
+Currently loads property → then (sequentially) cached room types → cached rate types → then calculates cost by fetching availability again.
 
-### 4. AIConciergePanel: Add "Continue" Button (`src/components/booking/AIConciergePanel.tsx`)
-- When dates are already selected (checkInDate && checkOutDate exist), show a "Continue →" / "Next" button instead of (or alongside) the date picker trigger
-- Clicking "Continue" should:
-  - For single-room: auto-add to cart
-  - For multi-room: scroll to rooms or show room selector
-- The floating button (bottom-right) should show "Book Now" instead of "Select Dates" when dates are already set
-- After date picker closes with dates selected, auto-proceed (don't require another click)
+Change to:
+- Add `staleTime: 5 * 60 * 1000` to property, room types, and rate types queries so React Query caches them across navigations
+- Run `calculateCost` with the **already-fetched availability from PropertyShowcase** passed via `sessionStorage` or URL, avoiding a redundant edge function call
+- Preload availability data: when dates are selected on PropertyShowcase, cache the full availability response in `sessionStorage` keyed by `property_id + dates`. On Booking page, read from this cache first before hitting the API.
 
-### 5. BookingSidebar: Smart CTA After Dates (`src/components/showcase/BookingSidebar.tsx`)
-- When dates are selected, the "Book Now" button click should proceed to booking, not reopen the calendar
-- The `onBook` callback already handles this — the issue is in PropertyShowcase's `handleBookProperty` (fix in step 3)
+### 3. Cache-first availability on RoomAvailabilityCalendar
+
+**File: `src/components/RoomAvailabilityCalendar.tsx`**
+
+Currently for Hostfully properties, every month navigation calls the live edge function (3-8s). Change to:
+- First read from `pms_availability_cache` (instant, ~100ms)
+- Show cached data immediately
+- Then fire live PMS call in background and merge any updates
+- This gives perceived instant load with eventual consistency
+
+### 4. Preload availability from PropertyShowcase to Booking
+
+**File: `src/pages/PropertyShowcase.tsx`**
+
+When a user selects dates and clicks "Book Now", the availability data is already fetched. Store it in `sessionStorage` so the Booking page can use it immediately instead of re-fetching.
+
+**File: `src/pages/Booking.tsx`**
+
+In `calculateCost`, check `sessionStorage` for pre-fetched availability before making any API calls.
+
+### 5. Add staleTime to all property-related React Query calls
+
+Currently the property query on Booking has no `staleTime`, so every mount re-fetches. Add `staleTime: 5 * 60 * 1000` (5 min) to:
+- Property booking query
+- Cached room types query
+- Cached rate types query
+
+### 6. Prefetch room types and rate types alongside property
+
+**File: `src/pages/Booking.tsx`**
+
+The room types and rate types queries wait for `property?.id` to be set. Change to use React Query's `enabled` more aggressively — fire them as soon as we have the property ID from URL (even before the full property object loads) by doing a quick ID resolution.
+
+## Expected Impact
+
+| Current | After |
+|---------|-------|
+| PropertyShowcase: ~8-15s full render | ~3-5s (parallel fetch, cached availability) |
+| Calendar: ~10s per month | ~1-2s (cache-first, background refresh) |
+| Booking page: ~10-15s to show total | ~3-5s (preloaded availability, cached queries) |
+| Page-to-page navigation: full refetch | Near-instant (React Query staleTime caching) |
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `src/pages/RoomShowcase.tsx` — white-label layout + collapsible gallery |
-| Modify | `src/pages/PropertyShowcase.tsx` — fix `handleBookProperty` circular flow |
-| Modify | `src/components/booking/AIConciergePanel.tsx` — "Continue" button, smart floating CTA |
+| Modify | `src/pages/PropertyShowcase.tsx` — parallel fetches, preload availability to sessionStorage |
+| Modify | `src/pages/Booking.tsx` — read preloaded availability, add staleTime, parallel queries |
+| Modify | `src/components/RoomAvailabilityCalendar.tsx` — cache-first with background PMS refresh |
 
 No database changes needed.
 
