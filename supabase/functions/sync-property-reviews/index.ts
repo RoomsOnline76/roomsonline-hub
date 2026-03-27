@@ -76,6 +76,7 @@ serve(async (req) => {
           const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(searchText)}&inputtype=textquery&fields=place_id,name,formatted_address&key=${googleKey}`;
           const findResp = await fetch(findUrl);
           const findData = await findResp.json();
+          console.log(`Google Find Place response for ${property.name}:`, JSON.stringify(findData).substring(0, 500));
           
           if (findData.candidates?.length > 0) {
             googlePlaceId = findData.candidates[0].place_id;
@@ -85,6 +86,8 @@ serve(async (req) => {
             const updatedExternalIds = { ...externalIds, google_place_id: googlePlaceId };
             const updatedAmenities = { ...amenities, external_ids: updatedExternalIds };
             await supabase.from('properties').update({ amenities: updatedAmenities }).eq('id', property.id);
+          } else {
+            console.log(`No Google Place candidates found for ${property.name}`);
           }
         } catch (e) {
           console.error(`Google Place ID discovery failed for ${property.name}:`, e);
