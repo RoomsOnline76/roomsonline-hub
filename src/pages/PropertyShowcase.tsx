@@ -198,7 +198,7 @@ export default function PropertyShowcase() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
-  const { setProperty } = useMobileBooking();
+  const { setProperty, state: mobileBookingState } = useMobileBooking();
   const { createBookingSession } = useNightsBridgeTracking();
   const { trackPropertyView } = useBehavioralMemory();
   const [property, setPropertyData] = useState<Property | null>(null);
