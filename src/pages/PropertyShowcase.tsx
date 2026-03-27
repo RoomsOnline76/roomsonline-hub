@@ -231,13 +231,13 @@ export default function PropertyShowcase() {
 
   // Payment callbacks removed - unified checkout at /journey/checkout handles these
 
-  // SEO: inject structured data for property
-  usePageSEO({
+  // SEO: inject structured data for property (memoized to prevent unnecessary re-renders)
+  const seoConfig = useMemo(() => ({
     title: property ? `${property.name} — ${property.city}, ${property.country}` : "Loading Property",
     description: property
       ? `Book ${property.name} in ${property.city}, ${property.country}. ${property.description?.slice(0, 120) || "Extraordinary accommodation in Africa."}`
       : "Discover extraordinary accommodation across Africa.",
-    ogType: "place",
+    ogType: "place" as const,
     ogImage: property?.images?.[0] || undefined,
     breadcrumbs: property
       ? [
@@ -272,7 +272,9 @@ export default function PropertyShowcase() {
           priceRange: property.price_per_night > 5000 ? "$$$$" : property.price_per_night > 2000 ? "$$$" : "$$",
         }
       : undefined,
-  });
+  }), [property?.id, property?.name, property?.city, property?.country, property?.description, property?.images, property?.slug, property?.address, property?.latitude, property?.longitude, property?.price_per_night]);
+
+  usePageSEO(seoConfig);
 
   // Track property view in behavioral memory
   useEffect(() => {
