@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Cat, Send, Sparkles, RotateCcw, X, MessageCircle } from "lucide-react";
+import { Cat, Send, Sparkles, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,16 +12,17 @@ interface Message {
 }
 
 const SUGGESTED_PROMPTS = [
-  "What PMS systems do you support?",
-  "How does the API work?",
-  "Show me a booking flow",
-  "What does the WP plugin include?",
+  "What can ROL'OS do for my property?",
+  "How does pricing work?",
+  "What is the 60-day free trial?",
+  "Do I need a PMS to get started?",
 ];
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/connect-assistant`;
 
 export function ConnectTobiWidget() {
   const [open, setOpen] = useState(false);
+  const [showLabel, setShowLabel] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -31,6 +32,12 @@ export function ConnectTobiWidget() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Fade out label after 5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setShowLabel(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -150,15 +157,26 @@ export function ConnectTobiWidget() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button with strobe */}
       {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
-          aria-label="Open TOBI assistant"
-        >
-          <MessageCircle className="h-6 w-6" />
-        </button>
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+          {/* Label that fades */}
+          {showLabel && (
+            <div className="bg-card border rounded-lg shadow-lg px-3 py-2 text-sm font-medium animate-fade-in whitespace-nowrap">
+              Chat with TOBI 🐱
+            </div>
+          )}
+          <button
+            onClick={() => setOpen(true)}
+            className="relative h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
+            aria-label="Open TOBI assistant"
+          >
+            {/* Strobe ring */}
+            <span className="absolute inset-0 rounded-full animate-ping bg-primary/30" />
+            <span className="absolute inset-[-4px] rounded-full animate-pulse border-2 border-primary/40" />
+            <Cat className="h-6 w-6 relative z-10" />
+          </button>
+        </div>
       )}
 
       {/* Chat panel */}

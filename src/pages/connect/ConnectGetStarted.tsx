@@ -94,7 +94,7 @@ export default function ConnectGetStarted() {
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Start your 30-day free trial. Tell us about your property and we'll get you set up.
+            Start your 60-day free trial. No contracts. No setup fees. Cancel anytime.
           </motion.p>
         </div>
       </section>
@@ -141,17 +141,17 @@ export default function ConnectGetStarted() {
                 </div>
                 <div>
                   <Label htmlFor="pms">Current PMS (if any)</Label>
-                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. Hostfully, NightsBridge, None" className="mt-1" />
+                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. Hostfully, NightsBridge, None — I'm just getting started" className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="message">Tell us about your integration needs</Label>
                   <Textarea id="message" value={form.message} onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} rows={4} className="mt-1" />
                 </div>
                 <Button type="submit" size="lg" disabled={submitting} className="w-full gap-2">
-                  {submitting ? "Submitting..." : "Submit Inquiry"} <Send className="h-4 w-4" />
+                  {submitting ? "Submitting..." : "Start My Free Trial"} <Send className="h-4 w-4" />
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  We'll respond within 24 hours. No credit card required for the free trial.
+                  No credit card required. Every property is different — we'll build a plan that fits your budget.
                 </p>
               </form>
             </motion.div>

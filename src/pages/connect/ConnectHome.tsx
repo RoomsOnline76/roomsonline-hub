@@ -1,7 +1,11 @@
 import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Zap, Shield, Globe, BarChart3, Code2, Blocks, CheckCircle2 } from "lucide-react";
+import {
+  ArrowRight, Zap, Shield, Globe, BarChart3, Cat, CheckCircle2,
+  ClipboardList, BedDouble, CreditCard, Clock, XCircle, Check,
+  Smartphone, CalendarCheck, Users
+} from "lucide-react";
 import { motion } from "framer-motion";
 
 const fadeUp = {
@@ -10,65 +14,50 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "40+", label: "API Actions" },
-  { value: "6", label: "Countries" },
-  { value: "99.9%", label: "Uptime" },
-  { value: "<200ms", label: "Avg Response" },
+  { value: "60-Day", label: "Free Trial" },
+  { value: "R 0", label: "Setup Fee" },
+  { value: "24/7", label: "AI Assistant" },
+  { value: "Flexible", label: "Negotiable Plans" },
 ];
 
-const AUDIENCES = [
-  {
-    title: "Property Managers",
-    desc: "A complete PMS with housekeeping, folios, night audits, revenue management, and guest CRM — purpose-built for African hospitality.",
-    cta: "Explore PMS Features",
-    href: "/connect/features",
-    icon: Shield,
-  },
-  {
-    title: "Web Agencies & Developers",
-    desc: "40+ REST API endpoints, WordPress plugin with Gutenberg blocks, embeddable widgets, and white-label booking engines.",
-    cta: "View API Docs",
-    href: "/connect/docs",
-    icon: Code2,
-  },
+const PAIN_POINTS = [
+  { icon: XCircle, text: "Managing bookings on spreadsheets" },
+  { icon: XCircle, text: "Confirming reservations via WhatsApp" },
+  { icon: XCircle, text: "No idea what your occupancy rate is" },
+  { icon: XCircle, text: "Double-bookings and lost revenue" },
+  { icon: XCircle, text: "Housekeeping managed on paper" },
+  { icon: XCircle, text: "Manually calculating guest invoices" },
 ];
 
-const CAPABILITIES = [
-  {
-    icon: Zap,
-    title: "Real-time Availability",
-    desc: "Live inventory with sub-second queries across all connected properties",
-  },
-  {
-    icon: Globe,
-    title: "Multi-Property Portfolio",
-    desc: "Manage multiple properties from a single dashboard with aggregated KPIs",
-  },
-  {
-    icon: BarChart3,
-    title: "Revenue Analytics",
-    desc: "ADR, RevPAR, occupancy forecasting, and channel performance tracking",
-  },
-  {
-    icon: Blocks,
-    title: "WordPress Native",
-    desc: "Gutenberg blocks, Elementor widgets, and WP admin dashboard integration",
-  },
-  {
-    icon: Shield,
-    title: "Enterprise Security",
-    desc: "Row-level security, encrypted PII, audit logging, and role-based access",
-  },
-  {
-    icon: Code2,
-    title: "Developer-First API",
-    desc: "REST API with 40+ actions, JSON schemas, and code examples in 3 languages",
-  },
+const SOLUTIONS = [
+  { icon: CalendarCheck, text: "Automated booking engine on your website" },
+  { icon: BedDouble, text: "Real-time room availability & calendar" },
+  { icon: BarChart3, text: "Revenue analytics: ADR, RevPAR, occupancy" },
+  { icon: Shield, text: "Zero double-bookings, ever" },
+  { icon: ClipboardList, text: "Digital housekeeping board & task management" },
+  { icon: CreditCard, text: "Guest folios & invoicing in one click" },
+];
+
+const COMPARISON = [
+  { feature: "Rooms & Reservations", rolos: true, others: true, othersNote: "" },
+  { feature: "Channel Manager (OTAs)", rolos: true, others: false, othersNote: "R 2,000+/mo extra" },
+  { feature: "AI Assistant (TOBI)", rolos: true, others: false, othersNote: "Not available" },
+  { feature: "REST API (40+ actions)", rolos: true, others: false, othersNote: "R 1,500+/mo extra" },
+  { feature: "WordPress Plugin", rolos: true, others: false, othersNote: "Not available" },
+  { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
+  { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
+  { feature: "Night Audit Automation", rolos: true, others: false, othersNote: "Manual process" },
+  { feature: "Negotiable Pricing", rolos: true, others: false, othersNote: "Fixed tiers only" },
 ];
 
 const TRUST_LOGOS = ["Hostfully", "NightsBridge", "WordPress", "Elementor"];
 
 export default function ConnectHome() {
+  const openTobi = () => {
+    const btn = document.querySelector('[aria-label="Open TOBI assistant"]') as HTMLButtonElement;
+    if (btn) btn.click();
+  };
+
   return (
     <div>
       {/* ─── Hero ───────────────────────────────────────────── */}
@@ -82,7 +71,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                ROL'OS API v3.0 — Available Soon !
+                60-Day Free Trial — No Credit Card Required
               </span>
             </motion.div>
 
@@ -92,7 +81,8 @@ export default function ConnectHome() {
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08]"
               style={{ textWrap: "balance" } as React.CSSProperties}
             >
-              The Native PMS & Booking Engine for African Hospitality
+              Running Your Property on Spreadsheets?{" "}
+              <span className="text-primary">There's a Better Way.</span>
             </motion.h1>
 
             <motion.p
@@ -101,8 +91,8 @@ export default function ConnectHome() {
               className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto"
               style={{ textWrap: "pretty" } as React.CSSProperties}
             >
-              One API, 40+ actions — manage rooms, rates, reservations, housekeeping, folios, and guest profiles.
-              Integrate with WordPress, embed on any site, or build custom with our REST API.
+              ROL'OS gives you enterprise-grade property management at a fraction of enterprise cost.
+              No PMS experience needed. No technical setup. Just sign up and start managing.
             </motion.p>
 
             <motion.div
@@ -112,15 +102,23 @@ export default function ConnectHome() {
             >
               <Link to={connectPath("/connect/get-started")}>
                 <Button size="lg" className="gap-2 font-medium px-6">
-                  Get Started <ArrowRight className="h-4 w-4" />
+                  Start My Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={connectPath("/connect/docs")}>
+              <Link to={connectPath("/connect/features")}>
                 <Button variant="outline" size="lg" className="gap-2 font-medium px-6">
-                  <Code2 className="h-4 w-4" /> API Reference
+                  See ROL'OS in Action
                 </Button>
               </Link>
             </motion.div>
+
+            <motion.p
+              variants={fadeUp}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-4 text-sm text-muted-foreground"
+            >
+              No credit card. No lock-in contracts. Cancel anytime.
+            </motion.p>
           </motion.div>
         </div>
       </section>
@@ -145,43 +143,106 @@ export default function ConnectHome() {
         </div>
       </section>
 
-      {/* ─── Audience cards ───────────────────────────────────── */}
+      {/* ─── Problem / Solution ───────────────────────────────── */}
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
-            variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
-            className="grid md:grid-cols-2 gap-6"
+            variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+            className="grid md:grid-cols-2 gap-8"
           >
-            {AUDIENCES.map((a) => (
-              <motion.div
-                key={a.title}
-                variants={fadeUp}
-                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-2xl border bg-card p-8 hover:shadow-lg transition-shadow"
-              >
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
-                  <a.icon className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">{a.title}</h3>
-                <p className="text-muted-foreground mb-6" style={{ textWrap: "pretty" } as React.CSSProperties}>
-                  {a.desc}
-                </p>
-                <Link to={a.href}>
-                  <Button variant="outline" className="gap-2">
-                    {a.cta} <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
-                </Link>
-              </motion.div>
-            ))}
+            {/* Pain */}
+            <motion.div
+              variants={fadeUp}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8"
+            >
+              <h2 className="text-xl font-bold mb-1">What You're Doing Now</h2>
+              <p className="text-sm text-muted-foreground mb-6">Sound familiar?</p>
+              <ul className="space-y-3">
+                {PAIN_POINTS.map((p) => (
+                  <li key={p.text} className="flex items-start gap-3 text-sm">
+                    <p.icon className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+                    {p.text}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            {/* Solution */}
+            <motion.div
+              variants={fadeUp}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-2xl border border-primary/20 bg-primary/5 p-8"
+            >
+              <h2 className="text-xl font-bold mb-1">What ROL'OS Gives You</h2>
+              <p className="text-sm text-muted-foreground mb-6">From day one, included in every plan.</p>
+              <ul className="space-y-3">
+                {SOLUTIONS.map((s) => (
+                  <li key={s.text} className="flex items-start gap-3 text-sm">
+                    <s.icon className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    {s.text}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </motion.div>
+
+          {/* Social proof */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={fadeUp}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-10 rounded-xl bg-muted/50 border p-6 text-center"
+          >
+            <p className="text-sm italic text-muted-foreground">
+              "We went from a shared Google Sheet to a professional booking system in one afternoon.
+              Our occupancy tracking alone saved us over 15 hours a week."
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">— 12-room guesthouse, Western Cape</p>
           </motion.div>
         </div>
       </section>
 
-      {/* ─── Capabilities grid ──────────────────────────────── */}
+      {/* ─── TOBI Spotlight ──────────────────────────────────── */}
       <section className="py-20 bg-muted/20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl border bg-card p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8"
+          >
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Cat className="w-10 h-10 text-primary" />
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 AI Operations Manager</h2>
+              <p className="text-muted-foreground mb-4 max-w-xl" style={{ textWrap: "pretty" } as React.CSSProperties}>
+                TOBI handles night audits, answers guest queries, generates revenue insights, assists with bookings,
+                and never takes a day off. It's like hiring a full-time operations manager — included free with every plan.
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-6">
+                {["Night Audits", "Revenue Reports", "Guest Support", "Booking Assistance", "Rate Optimization"].map((t) => (
+                  <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{t}</span>
+                ))}
+              </div>
+              <Button onClick={openTobi} className="gap-2">
+                <Cat className="h-4 w-4" /> Try TOBI Now
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ─── More Than You Expect — Comparison ───────────────── */}
+      <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
@@ -191,37 +252,52 @@ export default function ConnectHome() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold">Everything You Need to Build</h2>
+            <h2 className="text-3xl font-bold">More Than You Expect</h2>
             <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-              From property management to guest-facing booking experiences — ROL'OS provides the complete toolkit.
+              Features that other PMS providers charge extra for? We include them in every plan.
             </p>
           </motion.div>
 
           <motion.div
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, amount: 0.2 }}
-            variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            viewport={{ once: true, amount: 0.1 }}
+            variants={fadeUp}
+            transition={{ duration: 0.5 }}
+            className="overflow-x-auto"
           >
-            {CAPABILITIES.map((cap) => (
-              <motion.div
-                key={cap.title}
-                variants={fadeUp}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-xl border bg-card p-6"
-              >
-                <cap.icon className="h-5 w-5 text-primary mb-3" />
-                <h3 className="font-semibold mb-1">{cap.title}</h3>
-                <p className="text-sm text-muted-foreground">{cap.desc}</p>
-              </motion.div>
-            ))}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4 font-semibold">Feature</th>
+                  <th className="py-3 px-4 font-semibold text-primary text-center">ROL'OS</th>
+                  <th className="py-3 px-4 font-semibold text-muted-foreground text-center">Typical PMS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON.map((row) => (
+                  <tr key={row.feature} className="border-b last:border-0">
+                    <td className="py-3 px-4">{row.feature}</td>
+                    <td className="py-3 px-4 text-center">
+                      <Check className="h-4 w-4 text-primary mx-auto" />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {row.others ? (
+                        <Check className="h-4 w-4 text-muted-foreground mx-auto" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{row.othersNote}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </motion.div>
         </div>
       </section>
 
       {/* ─── Integration logos ──────────────────────────────── */}
-      <section className="py-16 border-t">
+      <section className="py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-sm text-muted-foreground mb-6">Integrates with the tools you already use</p>
           <div className="flex flex-wrap items-center justify-center gap-8">
@@ -245,31 +321,35 @@ export default function ConnectHome() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="rounded-2xl bg-primary/5 border p-10 sm:p-14 text-center"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3">Ready to Connect?</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Start your 30-day free trial. No credit card required. Full API access from day one.
+              60-day free trial. No credit card. No setup fees. Full access from day one.
+              Pricing is flexible — we'll build a plan that fits your budget.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link to={connectPath("/connect/get-started")}>
                 <Button size="lg" className="gap-2 font-medium">
-                  Start Free Trial <ArrowRight className="h-4 w-4" />
+                  Start My Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={connectPath("/connect/docs/quickstart")}>
+              <Link to={connectPath("/connect/pricing")}>
                 <Button variant="outline" size="lg" className="gap-2 font-medium">
-                  Read the Quickstart
+                  See Pricing
                 </Button>
               </Link>
             </div>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 30-day free trial
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60-day free trial
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No credit card
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Full API access
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Negotiable pricing
+              </span>
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Cancel anytime
               </span>
             </div>
           </motion.div>
