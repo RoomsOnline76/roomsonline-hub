@@ -931,6 +931,7 @@ export default function PropertyShowcase() {
                 checkInTime={property.amenities?.check_in_time}
                 checkOutTime={property.amenities?.check_out_time}
                 totalUnits={roomTypes.length}
+                reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
               />
             )}
 
