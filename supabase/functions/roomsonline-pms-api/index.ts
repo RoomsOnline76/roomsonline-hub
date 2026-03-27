@@ -1886,7 +1886,7 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
 
   // Ensure guest profile exists and link
   if (booking && !booking.rolos_guest_id && booking.guest_email) {
-    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
+    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price, booking.guest_nationality);
     if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
   }
 
@@ -1933,7 +1933,7 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   // Ensure guest profile on checkout too
   if (booking && !booking.rolos_guest_id && booking.guest_email) {
-    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price);
+    const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price, booking.guest_nationality);
     if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
   }
   // Get room IDs from booking_rooms table OR fallback to rolos_room_ids on the booking
