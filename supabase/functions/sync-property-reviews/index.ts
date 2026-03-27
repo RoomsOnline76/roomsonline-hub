@@ -67,6 +67,8 @@ serve(async (req) => {
         if (reviewPlatformsRaw.google?.place_id) googlePlaceId = reviewPlatformsRaw.google.place_id;
       }
 
+      console.log(`Property ${property.name}: googlePlaceId="${googlePlaceId}", tripadvisorId="${tripadvisorId}", hasGoogleKey=${!!googleKey}`);
+
       // --- AUTO-DISCOVER Google Place ID ---
       if (!googlePlaceId && googleKey && property.name) {
         try {
