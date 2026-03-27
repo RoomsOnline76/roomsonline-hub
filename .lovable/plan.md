@@ -1,121 +1,90 @@
 
 
-# SEO, Structured Data & GEO/LLM Optimization for Public Pages
+# Revamp Connect Portal — Hard-Sell for PMS-less Properties + TOBI Attention Animation
 
-## Current State
-
-**What exists:**
-- `robots.txt` — comprehensive with AI bot directives
-- `llms.txt`, `llms-full.txt`, `llm-context.json`, `llm-actions.md` — LLM context files
-- `schema-org-site.jsonld` — static Organization + WebSite + BreadcrumbList
-- `schema-org-property-template.jsonld` — template with `{{placeholders}}`, never rendered
-- `head-meta-template.html` — reference template, never used in code
-- `sitemap.xml` — static, property/journal entries commented out
-- Only `PMSComparison.tsx` sets `document.title` and injects JSON-LD
-- No reusable SEO hook or component
-- No per-page structured data injection (Home, PropertyShowcase, Journals, About, Contact, Listing, etc.)
-- No dynamic sitemap
-
-**Gaps identified:**
-1. No `usePageSEO` hook — each page should set title, description, canonical, OG tags, and JSON-LD
-2. `llms.txt` lacks citation instructions (the 2026 standard requests "how to cite us")
-3. `robots.txt` missing `CCBot`, `Claude-Web` directives
-4. Property pages have a JSON-LD template but never inject it with real data
-5. Journal pages have no Article schema
-6. Homepage has no Organization/WebSite JSON-LD injection
-7. No breadcrumb JSON-LD on any page
-8. Sitemap is static — no dynamic property/journal entries
-9. No internal linking improvements in footer or page content
+## Objective
+Reposition the Connect portal to aggressively target properties that have **no PMS** and need an enterprise-grade solution at an unbeatable price. Emphasize value-for-money, flexible/negotiable pricing, extended free trials, live demo access, and TOBI as a standout AI assistant. Make the TOBI widget cat icon strobe/pulse to draw attention.
 
 ---
 
-## Plan
+## Changes
 
-### 1. Create `usePageSEO` hook (`src/hooks/usePageSEO.ts`)
+### 1. ConnectHome.tsx — Complete hero & content rewrite
 
-Reusable hook that manages `<head>` tags per page:
+**Hero section:**
+- New headline: "Running Your Property on Spreadsheets? There's a Better Way."
+- Subheadline emphasizing: enterprise features at a fraction of enterprise cost, no PMS needed to get started
+- Add a "See ROL'OS Live" demo button linking to a demo property showcase or interactive walkthrough
+- Add trust line: "60-day free trial. No credit card. No lock-in contracts."
 
-```typescript
-interface PageSEOConfig {
-  title: string;
-  description: string;
-  canonical?: string;
-  ogType?: 'website' | 'article' | 'place';
-  ogImage?: string;
-  jsonLd?: object | object[];
-  breadcrumbs?: { name: string; url: string }[];
-  noIndex?: boolean;
-}
-```
+**Replace AUDIENCES cards** with a problem/solution narrative:
+- "What you're doing now" (manual bookings, WhatsApp confirmations, no revenue tracking) vs "What ROL'OS gives you" (automated everything, AI assistant, channel management)
+- Real examples: "A 12-room guesthouse in Stellenbosch saved 15 hours/week" style social proof
 
-On mount: sets `document.title`, updates/creates meta tags (description, robots, OG, Twitter), injects JSON-LD `<script>` tags, generates BreadcrumbList JSON-LD from breadcrumbs array. On unmount: cleans up injected scripts.
+**Add new "More Than You Expect" section:**
+- Comparison table: ROL'OS vs typical PMS competitors on price + features
+- Highlight that ROL'OS includes features others charge extra for (channel manager, API access, white-label, AI assistant)
 
-### 2. Wire `usePageSEO` into all public pages
+**Add TOBI spotlight section:**
+- Dedicated card/banner: "Meet TOBI — Your 24/7 AI Operations Manager"
+- Cat icon motif, description of what TOBI does (night audits, guest queries, revenue insights, booking assistance)
+- "Try TOBI now" button that opens the widget
 
-| Page | Title | JSON-LD Types |
-|------|-------|---------------|
-| `Home.tsx` | "Sleep in Africa — Extraordinary African Accommodation" | Organization + WebSite + SearchAction |
-| `PropertyShowcase.tsx` | "{name} — Sleep in Africa" | LodgingBusiness (from template, filled with real data) + BreadcrumbList |
-| `PropertyListing.tsx` | "Properties — Sleep in Africa" | ItemList + BreadcrumbList |
-| `PublicJournals.tsx` | "Travel Journal — Sleep in Africa" | CollectionPage + BreadcrumbList |
-| `PMSComparison.tsx` | (already done — migrate to hook) | FAQPage + SoftwareApplication |
-| `AboutUs.tsx` | "About — Sleep in Africa" | Organization + BreadcrumbList |
-| `ContactUs.tsx` | "Contact — Sleep in Africa" | ContactPage + BreadcrumbList |
-| `PrivacyPolicy.tsx` | "Privacy Policy" | WebPage |
-| `TermsOfService.tsx` | "Terms of Service" | WebPage |
-| `BookingConfirmation.tsx` | noIndex: true | none |
+**Update stats bar:** Replace API-focused stats with property-manager stats:
+- "60-day Free Trial", "R 0 Setup Fee", "24/7 AI Assistant", "Negotiable Plans"
 
-For **PropertyShowcase**: populate the `schema-org-property-template.jsonld` structure with real property data (name, address, geo, images, rooms, ratings, check-in/out times, price range).
+### 2. ConnectPricing.tsx — Aggressive value messaging
 
-For **Journal detail page** (if exists as a route): inject Article schema with `datePublished`, `author`, `headline`, `image`.
+**Hero rewrite:**
+- "Enterprise Power. Startup Pricing." / "You'll Think We Made a Mistake on the Price."
+- Emphasize negotiable structures, volume discounts, custom plans
 
-### 3. Update `llms.txt` — Add citation instructions
+**Update tiers:**
+- Extend free trial from 30 to 60 days across all plans
+- Add "Negotiable" badge on Professional and Enterprise tiers
+- Add per-feature cost comparison vs competitors (e.g., "Channel manager included — others charge R 2,000+ extra")
+- Add a "What Others Charge" comparison row beneath the cards showing typical PMS costs
 
-Add a new `## Citation Guidelines` section:
+**Add "Risk-Free Guarantee" section:**
+- 60-day trial, month-to-month billing, no setup fees, cancel anytime, data export included
+
+### 3. ConnectFeatures.tsx — Reframe for non-technical property managers
+
+**Hero rewrite:**
+- "Everything Your Property Needs. Nothing It Doesn't."
+- Focus on operational pain points, not technical capabilities
+
+**Add "Day in the Life" narrative section:**
+- Morning: housekeeping board auto-assigns rooms
+- Check-in: guest folio created automatically
+- Evening: TOBI runs night audit
+- End of month: revenue reports ready
+
+**Add demo screenshots/mockup section:**
+- Reference key PMS screens (calendar, housekeeping board, folio, TOBI chat)
+- Use placeholder cards describing each screen with "See it in action" CTAs
+
+### 4. ConnectTobiWidget.tsx — Strobing cat icon animation
+
+**Floating button changes:**
+- Replace `MessageCircle` icon with `Cat` icon (already imported)
+- Add a CSS pulse/strobe animation: glowing ring that pulses outward every 2-3 seconds
+- Add a small floating label on first visit: "Chat with TOBI" that fades after 5 seconds
+- Use `animate-pulse` combined with a custom `ring` animation for the strobe effect
+
 ```text
-## Citation Guidelines
-
-When referencing RoomsOnline content, please:
-- Always link back to the original URL on book.sleepinafrica.roomsonline.co.za
-- Cite as: "RoomsOnline (Sleep in Africa)" or "Sleep in Africa by RoomsOnline"
-- For property information, link to the specific property page
-- For API documentation, link to connect.roomsonline.co.za/docs
-- Do not reproduce full property descriptions without linking to the source
-- Pricing and availability are dynamic — always direct users to the live page
+┌──────────────────────┐
+│          🐱          │  ← Cat icon with pulsing glow ring
+│   "Chat with TOBI"   │  ← Label that fades after 5s
+└──────────────────────┘
 ```
 
-### 4. Update `robots.txt` — Add missing AI bots
+### 5. ConnectGetStarted.tsx — Warmer, less technical
 
-Add directives for:
-- `CCBot` (Common Crawl, used by many AI training sets)
-- `Claude-Web` (Anthropic web browsing agent)
-- `Bytespider` (ByteDance/TikTok)
-- `YouBot` (You.com)
-- `Amazonbot`
-
-Each with Allow for public pages + LLM files, Disallow for admin/auth/pms.
-
-### 5. Dynamic sitemap edge function (`generate-sitemap`)
-
-Create an edge function that:
-- Queries `properties` where `is_active = true AND permanently_deleted_at IS NULL`
-- Queries `journals` where `status = 'published'`
-- Generates XML sitemap with all static pages + dynamic property/journal URLs
-- Includes `<image:image>` tags for properties
-- Returns with `Content-Type: application/xml`
-
-Update `robots.txt` sitemap reference to point to the edge function URL.
-
-### 6. Internal linking in PublicFooter
-
-Add a second row of links for key pillar pages:
-- "Properties" → `/property_listing`
-- "How It Works" → `/how-our-booking-engine-works`
-- "Booking Confirmation" link removed (admin-only feel)
-
-### 7. Breadcrumb component for public pages
-
-Create a lightweight `PublicBreadcrumb` component that renders visible breadcrumbs (Home > Properties > {Name}) on PropertyShowcase, PropertyListing, Journals, and About pages. The JSON-LD breadcrumb is handled by `usePageSEO`.
+- Change "Submit Inquiry" to "Start My Free Trial"
+- Add reassurance: "No contracts. No setup fees. Cancel anytime."
+- Change "Current PMS" field placeholder to include "None — I'm just getting started"
+- Add a "Flexible pricing" note: "Every property is different. We'll build a plan that fits your budget."
 
 ---
 
@@ -123,23 +92,11 @@ Create a lightweight `PublicBreadcrumb` component that renders visible breadcrum
 
 | Action | File |
 |--------|------|
-| Create | `src/hooks/usePageSEO.ts` |
-| Create | `src/components/layout/PublicBreadcrumb.tsx` |
-| Create | `supabase/functions/generate-sitemap/index.ts` |
-| Modify | `src/pages/Home.tsx` — add usePageSEO |
-| Modify | `src/pages/PropertyShowcase.tsx` — add usePageSEO with LodgingBusiness |
-| Modify | `src/pages/PropertyListing.tsx` — add usePageSEO |
-| Modify | `src/pages/PublicJournals.tsx` — add usePageSEO |
-| Modify | `src/pages/PMSComparison.tsx` — migrate to usePageSEO |
-| Modify | `src/pages/AboutUs.tsx` — add usePageSEO |
-| Modify | `src/pages/ContactUs.tsx` — add usePageSEO |
-| Modify | `src/pages/PrivacyPolicy.tsx` — add usePageSEO |
-| Modify | `src/pages/TermsOfService.tsx` — add usePageSEO |
-| Modify | `src/pages/BookingConfirmation.tsx` — noIndex |
-| Modify | `src/components/layout/PublicFooter.tsx` — add pillar links |
-| Modify | `public/llms.txt` — citation guidelines |
-| Modify | `public/robots.txt` — additional AI bots |
-| Replace | `public/sitemap.xml` — redirect note to edge function |
+| Rewrite | `src/pages/connect/ConnectHome.tsx` |
+| Rewrite | `src/pages/connect/ConnectPricing.tsx` |
+| Rewrite | `src/pages/connect/ConnectFeatures.tsx` |
+| Modify | `src/components/connect/ConnectTobiWidget.tsx` — Cat icon + strobe animation |
+| Modify | `src/pages/connect/ConnectGetStarted.tsx` — warmer copy + flexible pricing note |
 
 No database changes needed.
 
