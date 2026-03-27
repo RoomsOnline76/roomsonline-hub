@@ -110,6 +110,7 @@ serve(async (req) => {
             headers: {
               'X-Goog-Api-Key': googleKey,
               'X-Goog-FieldMask': 'id,displayName,rating,userRatingCount,reviews,googleMapsUri',
+              'Referer': 'https://book.sleepinafrica.roomsonline.co.za',
             },
           });
           const placeData = await detailsResp.json();
