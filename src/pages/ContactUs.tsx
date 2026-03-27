@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +21,21 @@ const contactSchema = z.object({
 });
 
 const ContactUs = () => {
+  usePageSEO({
+    title: "Contact Us — RoomsOnline",
+    description: "Get in touch with RoomsOnline. We're here to help with bookings, property inquiries, and partnership opportunities across Africa.",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      name: "Contact RoomsOnline",
+      url: "https://book.sleepinafrica.roomsonline.co.za/contact",
+    },
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "Contact", url: "/contact" },
+    ],
+  });
+
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

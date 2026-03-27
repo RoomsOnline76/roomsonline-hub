@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Calendar } from "lucide-react";

@@ -1,7 +1,13 @@
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Link } from "react-router-dom";
 
 const TermsOfService = () => {
+  usePageSEO({
+    title: "Terms of Service — RoomsOnline",
+    description: "Read the terms and conditions governing the use of RoomsOnline's booking platform and accommodation services.",
+  });
+
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
       <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">

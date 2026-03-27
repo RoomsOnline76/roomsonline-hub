@@ -1,10 +1,37 @@
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 const AboutUs = () => {
+  usePageSEO({
+    title: "About RoomsOnline — Curating Extraordinary Stays",
+    description: "RoomsOnline connects discerning travelers with extraordinary accommodations across Africa. Hand-picked safari lodges, boutique hotels, and luxury retreats since 2010.",
+    ogType: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "RoomsOnline",
+      alternateName: "Sleep in Africa",
+      url: "https://book.sleepinafrica.roomsonline.co.za",
+      foundingDate: "2010",
+      description: "Curating extraordinary stays across Africa since 2010.",
+      contactPoint: {
+        "@type": "ContactPoint",
+        email: "hello@roomsonline.co.za",
+        contactType: "customer service",
+      },
+    },
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "About", url: "/about" },
+    ],
+  });
+
   return (
     <PublicLayout backLabel="Back to Home" backTo="/">
+      <PublicBreadcrumb items={[{ label: "About" }]} />
       <div className="container mx-auto px-4 sm:px-6 py-16 sm:py-20">
         {/* Page title */}
         <div className="max-w-3xl mx-auto text-center mb-12">

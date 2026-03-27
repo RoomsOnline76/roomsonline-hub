@@ -1,6 +1,7 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { PublicBreadcrumb } from "@/components/layout/PublicBreadcrumb";
+import { usePageSEO } from "@/hooks/usePageSEO";
 import { Button } from "@/components/ui/button";
 import { 
   Layers, 
@@ -81,36 +82,15 @@ const softwareSchema = {
 };
 
 export default function PMSComparison() {
-  // Set page meta and JSON-LD
-  useEffect(() => {
-    document.title = "How We Do It @ ROL | Sleep in Africa";
-    
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute('content', 'Connect any PMS to one website. Sleep in Africa by ROL connects your existing property management systems into one seamless booking experience. No migrations, no replacements.');
-    }
-    
-    // Add FAQ schema
-    const faqScript = document.createElement('script');
-    faqScript.type = 'application/ld+json';
-    faqScript.text = JSON.stringify(faqSchema);
-    faqScript.id = 'faq-schema';
-    document.head.appendChild(faqScript);
-    
-    // Add Software schema
-    const softwareScript = document.createElement('script');
-    softwareScript.type = 'application/ld+json';
-    softwareScript.text = JSON.stringify(softwareSchema);
-    softwareScript.id = 'software-schema';
-    document.head.appendChild(softwareScript);
-    
-    return () => {
-      const faqEl = document.getElementById('faq-schema');
-      const softwareEl = document.getElementById('software-schema');
-      if (faqEl) document.head.removeChild(faqEl);
-      if (softwareEl) document.head.removeChild(softwareEl);
-    };
-  }, []);
+  usePageSEO({
+    title: "How Our Booking Engine Works",
+    description: "Connect any PMS to one website. Sleep in Africa by ROL connects your existing property management systems into one seamless booking experience. No migrations, no replacements.",
+    jsonLd: [faqSchema, softwareSchema],
+    breadcrumbs: [
+      { name: "Home", url: "/" },
+      { name: "How It Works", url: "/how-our-booking-engine-works" },
+    ],
+  });
 
   return (
     <PublicLayout>
