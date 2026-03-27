@@ -8,11 +8,12 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   property_id: z.string().uuid({ message: 'Invalid property ID format' }),
-  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier', 'hotelbeds'], { 
-    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, littlehotelier, or hotelbeds' }) 
+  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier', 'hotelbeds', 'hyperguest'], { 
+    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, littlehotelier, hotelbeds, or hyperguest' }) 
   }),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Start date must be in YYYY-MM-DD format' }),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'End date must be in YYYY-MM-DD format' }),
+  nationality: z.string().length(2).optional(), // ISO 3166-1 alpha-2 for HyperGuest rate filtering
 });
 
 interface NightsBridgeRate {
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { property_id, external_system, start_date, end_date } = validationResult.data;
+    const { property_id, external_system, start_date, end_date, nationality } = validationResult.data;
 
     console.log(`Syncing rates for property ${property_id} from ${external_system}`);
 
@@ -331,6 +332,43 @@ Deno.serve(async (req) => {
             stop_sell: avail.restrictions?.stop_sell || false,
             min_stay: avail.restrictions?.min_stay,
           });
+        }
+      }
+    }
+
+    // Fetch from HyperGuest
+    if (external_system === 'hyperguest') {
+      const adapterResponse = await supabaseClient.functions.invoke('hyperguest-api', {
+        body: {
+          action: 'fetch_availability',
+          property_id,
+          start_date,
+          end_date,
+          nationality: nationality || undefined,
+        },
+      });
+
+      if (adapterResponse.error || !adapterResponse.data?.success) {
+        console.error('HyperGuest adapter error:', adapterResponse.error || adapterResponse.data?.error);
+        return new Response(
+          JSON.stringify({ error: adapterResponse.data?.error?.message || 'Failed to fetch from HyperGuest' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const hgData = adapterResponse.data?.data || {};
+      const rooms = hgData.rooms || [];
+
+      for (const room of rooms) {
+        for (const rate of (room.rates || [])) {
+          for (const dailyRate of (rate.daily_rates || [])) {
+            rates.push({
+              room_type: room.room_name || 'Standard',
+              rate_type: rate.rate_name || rate.rate_type || 'Standard',
+              date: dailyRate.date,
+              rate: rate.selling_rate || rate.net_amount,
+            });
+          }
         }
       }
     }

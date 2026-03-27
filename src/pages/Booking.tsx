@@ -685,6 +685,21 @@ const Booking = () => {
           // Unwrap adapter response - data may be in data.data or data directly
           availability = data?.data || data;
           console.log('[Booking] HotelBeds availability response:', availability);
+        } else if (externalSystem === 'hyperguest') {
+          // HyperGuest: fetch from API directly
+          console.log('[Booking] Fetching HyperGuest live availability for', property.id, checkIn, checkOut);
+          const { data, error } = await supabase.functions.invoke("hyperguest-api", {
+            body: {
+              action: "fetch_availability",
+              property_id: property.id,
+              start_date: checkIn,
+              end_date: checkOut,
+            },
+          });
+
+          if (error) throw error;
+          availability = data?.data || data;
+          console.log('[Booking] HyperGuest availability response:', availability);
         } else {
           // Other PMS systems or no PMS: fetch from pms_availability_cache
           const { data: cacheData, error } = await supabase
