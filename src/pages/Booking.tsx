@@ -93,7 +93,7 @@ interface CostLineItem {
 
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
-  useBrandOverride(id);
+  const { brandReady } = useBrandOverride(id);
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";

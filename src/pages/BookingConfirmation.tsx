@@ -30,7 +30,7 @@ interface RoomBooking {
 }
 
 const BookingConfirmation = () => {
-  useBrandOverride();
+  const { brandReady } = useBrandOverride();
   usePageSEO({
     title: "Booking Confirmation",
     description: "Your booking confirmation details.",
