@@ -1641,7 +1641,7 @@ const Booking = () => {
       </PublicLayout>
     ), [isWhiteLabel, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
-  if (isLoading) {
+  if (isLoading || !brandReady) {
     return (
       wrapLayout(
         <div className="container mx-auto px-4 py-12">
