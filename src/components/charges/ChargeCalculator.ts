@@ -60,32 +60,10 @@ export interface ChargeCalculationContext {
   children: number;
   infants: number;
   roomTypeId?: string;
+  roomTypeAliases?: string[];
   rateTypeId?: string;
 }
-
-export interface CalculatedCharge {
-  charge: PropertyCharge;
-  calculatedAmount: number;
-  breakdown: string;
-}
-
-export interface GroupedCharges {
-  taxes: CalculatedCharge[];
-  fees: CalculatedCharge[];
-  deposits: CalculatedCharge[];
-  surcharges: CalculatedCharge[];
-  custom: CalculatedCharge[];
-}
-
-export interface ChargeTotals {
-  total: number;
-  refundableTotal: number;
-  nonRefundableTotal: number;
-}
-
-/**
- * Check if a charge is applicable based on context
- */
+...
 function isChargeApplicable(
   charge: PropertyCharge,
   context: ChargeCalculationContext
@@ -93,10 +71,17 @@ function isChargeApplicable(
   // Must be active
   if (!charge.is_active) return false;
 
-  // Check room type applicability
+  // Check room type applicability (supports aliases like external PMS ID + internal DB ID)
   if (!charge.applies_to_all_rooms && charge.room_type_ids.length > 0) {
-    if (context.roomTypeId && !charge.room_type_ids.includes(context.roomTypeId)) {
-      return false;
+    const applicableRoomIds = new Set<string>([
+      ...(context.roomTypeId ? [context.roomTypeId] : []),
+      ...(context.roomTypeAliases || []),
+    ]);
+
+    // If no room context is provided, keep backward-compatible behavior and don't exclude
+    if (applicableRoomIds.size > 0) {
+      const matchesRoom = charge.room_type_ids.some((id) => applicableRoomIds.has(id));
+      if (!matchesRoom) return false;
     }
   }
 
