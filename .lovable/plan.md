@@ -1,62 +1,60 @@
 
 
-# Fix Brand Color Flash (FOUC) on White-Label Pages
+# Fix Booking Flow Circles, White-Label RoomShowcase & Gallery
 
-## Problem
-When loading branded pages (SIX on N showcase, checkout, confirmation), the default pink/theme colors render first, then the branded colors are applied after an async DB fetch completes — causing a visible flash of unstyled content (FOUC).
+## Issues Identified
 
-## Root Cause
-`useBrandOverride` applies colors inside a `useEffect` that either reads from sessionStorage (fast but still async to React paint) or fetches from the database (slow). The page content renders with default CSS variables before the effect runs.
+1. **RoomShowcase still shows ROL footer** — uses `PublicLayout` without checking `brand_override_enabled`. Needs same white-label logic as PropertyShowcase.
 
-## Fix Strategy: Synchronous Pre-Paint + Opacity Gate
+2. **RoomShowcase gallery is flat grid** — should be collapsible/carousel like the PropertyShowcase BuildingGallery, not a full grid of thumbnails always visible.
 
-### 1. Add synchronous brand application before first render
+3. **PropertyShowcase map location** — InvitationMap already exists at bottom. Clarification: user may want it higher or more prominent. Will keep as-is since it's already there.
 
-**File: `src/lib/brandOverride.ts`**
-- Add a new function `applyCachedBrandSync()` that reads sessionStorage and applies CSS vars **synchronously** (called outside React lifecycle)
-- This runs before React hydrates, eliminating flash when sessionStorage has cached brand data
+4. **Bottom-right "Select Dates" button → opens date picker but dates don't carry over** — When the AIConciergePanel floating button is clicked, it opens the BottomSheetDatePicker. After selecting dates, the `handleDatesChange` fires and for single-room properties auto-adds to cart. The problem is the button always says "Select Dates" even when dates exist, and clicking "Book Now" in the collapsed strip calls `handleBookNowClick` which re-opens the date picker if no dates (but dates ARE in context — the check uses `checkInDate`/`checkOutDate` from MobileBookingContext which should be set). Need to add a **"Continue" / "Next"** button after dates are selected so the user can proceed without prompting TOBI.
 
-### 2. Add opacity gate for DB-fetch scenario
+5. **BookingSidebar date button re-opens calendar after dates are set** — clicking the dates row in the desktop sidebar always opens BottomSheetDatePicker. After dates are selected, clicking "Book Now" calls `onBook` → `handleBookProperty` → dispatches `openConciergeDatePicker` again (circular!). The issue: `handleBookProperty` always goes to the AI concierge path which opens the date picker, even when dates are already selected. Fix: when dates already exist, skip date picker and go straight to room selection/booking.
 
-**File: `src/hooks/useBrandOverride.ts`**
-- Return a `brandReady` boolean from the hook
-- Set `brandReady = true` immediately if sessionStorage cache was applied, or after the DB fetch completes
-- For non-branded properties, set `brandReady = true` immediately
+6. **"Too many circles"** — The flow is: sidebar date button → calendar → select dates → close → click "Book Now" → opens date picker again via concierge event. Fix the `handleBookProperty` to check if dates are already set and skip to the next step.
 
-### 3. Use `brandReady` to prevent flash in pages
+## Plan
 
-**File: `src/pages/PropertyShowcase.tsx`**
-- Use `brandReady` from `useBrandOverride` — show skeleton/loading state until brand is resolved when property has brand override
+### 1. RoomShowcase White-Label Layout (`src/pages/RoomShowcase.tsx`)
+- Import `WhiteLabelLayout` 
+- Fetch `brand_override_enabled`, `brand_primary_color`, `brand_logo_url` from `public_properties` (already using `select("*")`)
+- Add `isWhiteLabel` check like PropertyShowcase
+- Use `WhiteLabelLayout` instead of `PublicLayout` when branded
+- Hide ROL footer/header for branded properties
 
-**File: `src/pages/Booking.tsx`**
-- Same pattern — the existing loading skeleton already covers the DB fetch window, but ensure `useBrandOverride` applies cached brand synchronously before first paint
+### 2. RoomShowcase Gallery Collapse (`src/pages/RoomShowcase.tsx`)
+- Replace the flat thumbnail grid (lines 1040-1064) with a collapsible carousel/turnstile
+- Show 4-5 thumbnails in a horizontal scroll with expand toggle
+- Use Collapsible component — collapsed by default, showing just a strip of thumbnails
 
-**File: `src/pages/BookingConfirmation.tsx`**
-- Same pattern
+### 3. Fix Booking Flow Circles (`src/pages/PropertyShowcase.tsx`)
+- In `handleBookProperty`: when AI concierge is active AND dates are already selected, skip the date picker dispatch. Instead:
+  - For single-room properties: auto-add to cart and trigger checkout
+  - For multi-room properties: scroll to rooms section
+- This eliminates the circular "Book Now → opens date picker again" issue
 
-### 4. Inline script for immediate sessionStorage application (optional enhancement)
+### 4. AIConciergePanel: Add "Continue" Button (`src/components/booking/AIConciergePanel.tsx`)
+- When dates are already selected (checkInDate && checkOutDate exist), show a "Continue →" / "Next" button instead of (or alongside) the date picker trigger
+- Clicking "Continue" should:
+  - For single-room: auto-add to cart
+  - For multi-room: scroll to rooms or show room selector
+- The floating button (bottom-right) should show "Book Now" instead of "Select Dates" when dates are already set
+- After date picker closes with dates selected, auto-proceed (don't require another click)
 
-**File: `index.html`**
-- Add a tiny inline `<script>` that reads `rol_property_brand` from sessionStorage and applies CSS vars to `<html>` before any React code runs. This is the nuclear option that guarantees zero flash for return visits.
-
-## Technical Detail
-
-The inline script in `index.html`:
-```javascript
-(function(){try{var b=JSON.parse(sessionStorage.getItem('rol_property_brand'));if(!b||!b.enabled||!b.primaryColor)return;/* apply hex→hsl + set vars on documentElement */}catch(e){}})();
-```
-
-This ~200 byte script runs before React loads, setting CSS variables immediately. The React hooks then confirm/update as needed.
+### 5. BookingSidebar: Smart CTA After Dates (`src/components/showcase/BookingSidebar.tsx`)
+- When dates are selected, the "Book Now" button click should proceed to booking, not reopen the calendar
+- The `onBook` callback already handles this — the issue is in PropertyShowcase's `handleBookProperty` (fix in step 3)
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `index.html` — inline brand pre-paint script |
-| Modify | `src/hooks/useBrandOverride.ts` — return `brandReady`, sync cache path |
-| Modify | `src/pages/PropertyShowcase.tsx` — gate on brandReady |
-| Modify | `src/pages/Booking.tsx` — gate on brandReady |
-| Modify | `src/pages/BookingConfirmation.tsx` — gate on brandReady |
+| Modify | `src/pages/RoomShowcase.tsx` — white-label layout + collapsible gallery |
+| Modify | `src/pages/PropertyShowcase.tsx` — fix `handleBookProperty` circular flow |
+| Modify | `src/components/booking/AIConciergePanel.tsx` — "Continue" button, smart floating CTA |
 
 No database changes needed.
 
