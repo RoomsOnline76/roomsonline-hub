@@ -168,12 +168,12 @@ const BookingConfirmation = () => {
               <XCircle className="h-10 w-10 text-amber-500" />
             </div>
           ) : (
-            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-5">
-              <CheckCircle className="h-10 w-10 text-green-500" />
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5">
+              <CheckCircle className="h-10 w-10 text-primary" />
             </div>
           )}
 
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-2 text-foreground">
             {paymentCancelled ? "Payment Cancelled" : isPaid ? "Booking Confirmed!" : "Reservation Submitted!"}
           </h1>
 
@@ -192,19 +192,19 @@ const BookingConfirmation = () => {
 
         {/* Booking details card */}
         <div className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm mb-6">
-          {/* Reference bar */}
-          <div className="bg-muted/40 px-5 py-3 flex items-center justify-between border-b border-border/40">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Reference</span>
-            <span className="font-mono text-sm font-semibold tracking-wide">{displayRef}</span>
+          {/* Reference bar — uses primary as accent */}
+          <div className="bg-primary/5 px-5 py-3 flex items-center justify-between border-b border-primary/10">
+            <span className="text-xs font-medium text-primary/70 uppercase tracking-wider">Reference</span>
+            <span className="font-mono text-sm font-semibold tracking-wide text-primary">{displayRef}</span>
           </div>
 
           <div className="px-5 py-5 space-y-4">
             {/* Property */}
             {property && (
               <div className="flex items-start gap-3">
-                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                <MapPin className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">{property.name}</p>
+                  <p className="font-medium text-sm text-foreground">{property.name}</p>
                   {(property.city || property.country) && (
                     <p className="text-xs text-muted-foreground">{[property.city, property.country].filter(Boolean).join(", ")}</p>
                   )}
@@ -216,10 +216,10 @@ const BookingConfirmation = () => {
             {!(rooms.length > 0 && (hasMultipleRoomDates || rooms.length > 1)) && (
               <>
                 <div className="flex items-start gap-3">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <CalendarDays className="h-4 w-4 text-secondary-foreground mt-0.5 shrink-0" />
                   <div className="flex-1">
                     <div className="flex items-baseline justify-between">
-                      <p className="text-sm font-medium">
+                      <p className="text-sm font-medium text-foreground">
                         {format(parseISO(booking.check_in_date), "MMM d")} – {format(parseISO(booking.check_out_date), "MMM d, yyyy")}
                       </p>
                       <span className="text-xs text-muted-foreground">
@@ -229,8 +229,8 @@ const BookingConfirmation = () => {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <p className="text-sm font-medium">{totalGuests} guest{totalGuests !== 1 ? "s" : ""}</p>
+                  <Users className="h-4 w-4 text-secondary-foreground mt-0.5 shrink-0" />
+                  <p className="text-sm font-medium text-foreground">{totalGuests} guest{totalGuests !== 1 ? "s" : ""}</p>
                 </div>
               </>
             )}
@@ -243,8 +243,8 @@ const BookingConfirmation = () => {
                   const roomCheckOut = room.checkOut || booking.check_out_date;
                   const roomNights = differenceInCalendarDays(parseISO(roomCheckOut), parseISO(roomCheckIn));
                   return (
-                    <div key={index} className="pl-4 border-l-2 border-primary/30">
-                      <p className="text-sm font-medium">{room.roomTypeName}</p>
+                    <div key={index} className="pl-4 border-l-2 border-primary/40">
+                      <p className="text-sm font-medium text-foreground">{room.roomTypeName}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(roomCheckIn), "MMM d")} – {format(parseISO(roomCheckOut), "MMM d")} · {roomNights}n ·{" "}
                         {room.numberOfAdults} adult{room.numberOfAdults !== 1 ? "s" : ""}
@@ -259,7 +259,7 @@ const BookingConfirmation = () => {
             {/* Payment */}
             {isPaid && (
               <div className="pt-3 mt-1 border-t border-border/40">
-                <div className="flex items-center gap-2 text-green-600">
+                <div className="flex items-center gap-2 text-primary">
                   <CreditCard className="h-4 w-4" />
                   <span className="text-sm font-medium">Payment Confirmed</span>
                 </div>
@@ -284,7 +284,7 @@ const BookingConfirmation = () => {
             <Home className="h-4 w-4" />
             {isIntegration ? "Close" : "Return Home"}
           </Button>
-          <Button variant="outline" size="lg" className="gap-2" onClick={handleShare}>
+          <Button variant="outline" size="lg" className="gap-2 border-secondary text-secondary-foreground hover:bg-secondary/10" onClick={handleShare}>
             <Share2 className="h-4 w-4" />
             Share
           </Button>
