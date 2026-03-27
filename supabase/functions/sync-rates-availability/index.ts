@@ -8,11 +8,12 @@ const corsHeaders = {
 
 const requestSchema = z.object({
   property_id: z.string().uuid({ message: 'Invalid property ID format' }),
-  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier', 'hotelbeds'], { 
-    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, littlehotelier, or hotelbeds' }) 
+  external_system: z.enum(['nightsbridge', 'checkfront', 'littlehotelier', 'hotelbeds', 'hyperguest'], { 
+    errorMap: () => ({ message: 'External system must be nightsbridge, checkfront, littlehotelier, hotelbeds, or hyperguest' }) 
   }),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Start date must be in YYYY-MM-DD format' }),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'End date must be in YYYY-MM-DD format' }),
+  nationality: z.string().length(2).optional(), // ISO 3166-1 alpha-2 for HyperGuest rate filtering
 });
 
 interface NightsBridgeRate {
