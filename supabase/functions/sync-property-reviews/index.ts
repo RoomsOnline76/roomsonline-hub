@@ -16,7 +16,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get API keys from database
+    // Get API keys from database AND env secrets
     const { data: apiKeys } = await supabase
       .from('api_keys')
       .select('key_name, key_value')
@@ -25,7 +25,6 @@ serve(async (req) => {
     const keyMap: Record<string, string> = {};
     apiKeys?.forEach((k: any) => { if (k.key_value) keyMap[k.key_name] = k.key_value; });
 
-    // Also check env secrets
     const googleKey = keyMap['GOOGLE_MAPS_API_KEY'] || Deno.env.get('GOOGLE_MAPS_API_KEY') || '';
     const tripadvisorKey = keyMap['TRIPADVISOR_API_KEY'] || Deno.env.get('TRIPADVISOR_API_KEY') || '';
     const xaiKey = Deno.env.get('XAI_API_KEY') || '';
@@ -33,10 +32,10 @@ serve(async (req) => {
     let body: { property_id?: string } = {};
     try { body = await req.json(); } catch { /* empty body for cron */ }
 
-    // Fetch properties with review platform configs
+    // Fetch properties
     let query = supabase
       .from('properties')
-      .select('id, name, city, country, amenities, description')
+      .select('id, name, city, country, address, amenities, description')
       .eq('is_active', true);
 
     if (body.property_id) {
@@ -49,12 +48,44 @@ serve(async (req) => {
     const results: any[] = [];
 
     for (const property of (properties || [])) {
-      const amenities = property.amenities || {};
+      const amenities = (property.amenities || {}) as any;
       const externalIds = amenities.external_ids || {};
-      const reviewPlatforms = amenities.review_platforms || {};
+      
+      // Read review_platforms - support both array format (from PMSBranding) and object format
+      const reviewPlatformsRaw = amenities.review_platforms;
+      let googlePlaceId = externalIds.google_place_id || '';
+      let tripadvisorId = externalIds.tripadvisor_id || amenities.tripadvisor_id || '';
 
-      const googlePlaceId = reviewPlatforms.google?.place_id || externalIds.google_place_id;
-      const tripadvisorId = externalIds.tripadvisor_id;
+      if (Array.isArray(reviewPlatformsRaw)) {
+        const googleEntry = reviewPlatformsRaw.find((p: any) => p.type === 'google' && p.enabled);
+        const taEntry = reviewPlatformsRaw.find((p: any) => p.type === 'tripadvisor' && p.enabled);
+        if (googleEntry?.place_id) googlePlaceId = googleEntry.place_id;
+        if (taEntry?.id) tripadvisorId = taEntry.id;
+      } else if (reviewPlatformsRaw && typeof reviewPlatformsRaw === 'object') {
+        if (reviewPlatformsRaw.google?.place_id) googlePlaceId = reviewPlatformsRaw.google.place_id;
+      }
+
+      // --- AUTO-DISCOVER Google Place ID ---
+      if (!googlePlaceId && googleKey && property.name) {
+        try {
+          const searchText = `${property.name} ${property.city || ''} ${property.country || ''}`.trim();
+          const findUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(searchText)}&inputtype=textquery&fields=place_id,name,formatted_address&key=${googleKey}`;
+          const findResp = await fetch(findUrl);
+          const findData = await findResp.json();
+          
+          if (findData.candidates?.length > 0) {
+            googlePlaceId = findData.candidates[0].place_id;
+            console.log(`Auto-discovered Google Place ID for ${property.name}: ${googlePlaceId}`);
+            
+            // Save it back to the property for future use
+            const updatedExternalIds = { ...externalIds, google_place_id: googlePlaceId };
+            const updatedAmenities = { ...amenities, external_ids: updatedExternalIds };
+            await supabase.from('properties').update({ amenities: updatedAmenities }).eq('id', property.id);
+          }
+        } catch (e) {
+          console.error(`Google Place ID discovery failed for ${property.name}:`, e);
+        }
+      }
 
       // --- GOOGLE REVIEWS ---
       if (googlePlaceId && googleKey) {
@@ -91,7 +122,6 @@ serve(async (req) => {
               );
               if (!isDupe) allReviews.push(nr);
             }
-            // Keep latest 20
             allReviews.sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
             const finalReviews = allReviews.slice(0, 20);
 
@@ -106,7 +136,7 @@ serve(async (req) => {
               synced_at: new Date().toISOString(),
             }, { onConflict: 'property_id,source' });
 
-            results.push({ property: property.name, source: 'google', status: 'ok', reviews: finalReviews.length });
+            results.push({ property: property.name, source: 'google', status: 'ok', reviews: finalReviews.length, rating: gResult.rating });
           }
         } catch (e) {
           console.error(`Google review sync failed for ${property.name}:`, e);
@@ -120,14 +150,12 @@ serve(async (req) => {
           const taBase = 'https://api.content.tripadvisor.com/api/v1';
           const origin = 'https://book.sleepinafrica.roomsonline.co.za';
 
-          // Fetch details
           const detailsResp = await fetch(
             `${taBase}/location/${tripadvisorId}/details?language=en&currency=USD&key=${tripadvisorKey}`,
             { headers: { 'accept': 'application/json', 'Referer': origin } }
           );
           const detailsData = await detailsResp.json();
 
-          // Fetch reviews
           const reviewsResp = await fetch(
             `${taBase}/location/${tripadvisorId}/reviews?language=en&limit=5&key=${tripadvisorKey}`,
             { headers: { 'accept': 'application/json', 'Referer': origin } }
@@ -144,7 +172,6 @@ serve(async (req) => {
             title: r.title || null,
           }));
 
-          // Merge with existing
           const { data: existing } = await supabase
             .from('property_review_cache')
             .select('reviews')
@@ -184,7 +211,6 @@ serve(async (req) => {
       // --- TOBI BLURB via xAI ---
       if (xaiKey) {
         try {
-          // Gather all reviews for this property
           const { data: allCaches } = await supabase
             .from('property_review_cache')
             .select('reviews, source')
@@ -224,7 +250,6 @@ ${property.description ? `Property description: ${property.description.substring
             const blurb = xaiData.choices?.[0]?.message?.content?.trim();
 
             if (blurb) {
-              // Update all caches for this property with the blurb
               await supabase
                 .from('property_review_cache')
                 .update({ tobi_blurb: blurb })
