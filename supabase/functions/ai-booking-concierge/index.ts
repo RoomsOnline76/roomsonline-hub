@@ -365,9 +365,9 @@ async function generateAINarrative(
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
   allRoomDetails: { name: string; rate: number; total: number; description?: string }[]
 ): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.warn("[Concierge] No LOVABLE_API_KEY — falling back to template");
+  const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+  if (!hasAiKey) {
+    console.warn("[Concierge] No AI keys configured — falling back to template");
     return fallbackNarrative(suggestions, context.name);
   }
 
@@ -415,31 +415,53 @@ RULES:
 ${intent.preferences?.length ? `They mentioned preferences: ${intent.preferences.join(', ')}` : ''}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
 
-  try {
-    const resp = await fetch(AI_GATEWAY, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: 300,
-      }),
-    });
+  // Primary: xAI Grok
+  const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  
+  const aiPayload = {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+    max_tokens: 300,
+  };
 
-    if (!resp.ok) {
-      console.error("[Concierge] AI gateway error:", resp.status);
-      return fallbackNarrative(suggestions, context.name);
+  try {
+    if (XAI_API_KEY) {
+      const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${XAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: "grok-3-mini-fast", ...aiPayload }),
+      });
+      if (resp.ok) {
+        const result = await resp.json();
+        const content = result.choices?.[0]?.message?.content;
+        if (content) return content;
+      }
+      console.error("[Concierge] xAI error:", resp.status, "falling back to Lovable AI");
     }
 
-    const result = await resp.json();
-    const content = result.choices?.[0]?.message?.content;
-    if (content) return content;
+    // Fallback: Lovable AI Gateway
+    if (LOVABLE_API_KEY) {
+      const resp = await fetch(AI_GATEWAY, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: "google/gemini-3-flash-preview", ...aiPayload }),
+      });
+      if (resp.ok) {
+        const result = await resp.json();
+        const content = result.choices?.[0]?.message?.content;
+        if (content) return content;
+      }
+      console.error("[Concierge] Lovable AI fallback error:", resp.status);
+    }
   } catch (e) {
     console.error("[Concierge] AI narrative error:", e);
   }
