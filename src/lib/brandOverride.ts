@@ -123,3 +123,15 @@ export function loadBrandFromSession(): PropertyBrand | null {
 export function clearBrandFromSession(): void {
   sessionStorage.removeItem(BRAND_STORAGE_KEY);
 }
+
+/**
+ * Synchronously apply cached brand from sessionStorage.
+ * Returns true if brand was found and applied, false otherwise.
+ * Call this outside React lifecycle to prevent FOUC.
+ */
+export function applyCachedBrandSync(): boolean {
+  const cached = loadBrandFromSession();
+  if (!cached?.enabled || !cached.primaryColor) return false;
+  applyBrandToDocument(cached);
+  return true;
+}
