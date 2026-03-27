@@ -820,7 +820,7 @@ export default function RoomShowcase() {
 
 
                 {/* Room Size Card */}
-                {room.roomSize && (
+                {room.roomSize != null && room.roomSize > 0 && (
                   <Card>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
@@ -837,7 +837,7 @@ export default function RoomShowcase() {
                 )}
 
                 {/* Bathrooms Card */}
-                {room.bathrooms && (
+                {room.bathrooms != null && room.bathrooms > 0 && (
                   <Card>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
