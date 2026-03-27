@@ -1,39 +1,49 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import {
   loadBrandFromSession,
   saveBrandToSession,
   applyBrandToDocument,
+  applyCachedBrandSync,
   type PropertyBrand,
 } from '@/lib/brandOverride';
 
 /**
  * Hook that applies stored property brand overrides to the document root.
- * 
- * When called with a propertyIdentifier (slug or UUID), it will:
- * 1. Check sessionStorage for cached brand data
- * 2. If not found, fetch brand settings from the database
- * 3. Apply CSS custom properties to document.documentElement
- * 
- * This ensures branding works even on direct navigation (not coming from PropertyShowcase).
+ * Returns { brandReady } — true once branding is resolved (cached, fetched, or not applicable).
  */
-export function useBrandOverride(propertyIdentifier?: string | null) {
+export function useBrandOverride(propertyIdentifier?: string | null): { brandReady: boolean } {
   const cleanupRef = useRef<(() => void) | null>(null);
   const fetchedRef = useRef<string | null>(null);
+  const [brandReady, setBrandReady] = useState(() => {
+    // Synchronous check: if cached brand exists, apply immediately and mark ready
+    const cached = loadBrandFromSession();
+    if (cached?.enabled && cached.primaryColor) {
+      if (!propertyIdentifier || cached.propertyId === propertyIdentifier) {
+        return true; // inline script already applied vars
+      }
+    }
+    // If no identifier needed, ready immediately
+    if (!propertyIdentifier) return true;
+    return false;
+  });
 
   useEffect(() => {
-    // Try session first
+    // Try session first (synchronous path)
     const cached = loadBrandFromSession();
     if (cached?.enabled) {
-      // If cached brand matches the current property (or no identifier given), apply it
       if (!propertyIdentifier || cached.propertyId === propertyIdentifier) {
         cleanupRef.current = applyBrandToDocument(cached);
+        setBrandReady(true);
         return () => { cleanupRef.current?.(); };
       }
     }
 
     // If no identifier provided, nothing more to do
-    if (!propertyIdentifier) return;
+    if (!propertyIdentifier) {
+      setBrandReady(true);
+      return;
+    }
 
     // Avoid duplicate fetches for same identifier
     if (fetchedRef.current === propertyIdentifier) return;
@@ -57,7 +67,10 @@ export function useBrandOverride(propertyIdentifier?: string | null) {
 
         const { data } = await query.single();
 
-        if (cancelled || !data) return;
+        if (cancelled || !data) {
+          if (!cancelled) setBrandReady(true);
+          return;
+        }
 
         if (data.brand_override_enabled && data.brand_primary_color) {
           const brand: PropertyBrand = {
@@ -71,8 +84,9 @@ export function useBrandOverride(propertyIdentifier?: string | null) {
           saveBrandToSession(brand);
           cleanupRef.current = applyBrandToDocument(brand);
         }
+        if (!cancelled) setBrandReady(true);
       } catch {
-        // Silent fail — branding is enhancement, not critical
+        if (!cancelled) setBrandReady(true);
       }
     }
 
@@ -83,4 +97,6 @@ export function useBrandOverride(propertyIdentifier?: string | null) {
       cleanupRef.current?.();
     };
   }, [propertyIdentifier]);
+
+  return { brandReady };
 }

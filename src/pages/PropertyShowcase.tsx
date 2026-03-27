@@ -800,7 +800,11 @@ export default function PropertyShowcase() {
   const isWhiteLabel = Boolean(property?.brand_override_enabled && property?.brand_primary_color);
   const propertyLogoUrl = property?.brand_logo_url || null;
 
-  if (loading) {
+  // Brand is "ready" once property is loaded (brand vars are applied synchronously in the effect above)
+  // For the initial load, the inline script in index.html handles cached brands
+  const brandReady = !loading && (isWhiteLabel ? Boolean(property?.brand_primary_color) : true);
+
+  if (loading || (isWhiteLabel && !brandReady)) {
     return (
       <PublicLayout hideHeader hideFooter>
         <EditorialSkeleton />

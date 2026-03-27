@@ -93,7 +93,7 @@ interface CostLineItem {
 
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
-  useBrandOverride(id);
+  const { brandReady } = useBrandOverride(id);
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
@@ -1641,7 +1641,7 @@ const Booking = () => {
       </PublicLayout>
     ), [isWhiteLabel, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
-  if (isLoading) {
+  if (isLoading || !brandReady) {
     return (
       wrapLayout(
         <div className="container mx-auto px-4 py-12">
