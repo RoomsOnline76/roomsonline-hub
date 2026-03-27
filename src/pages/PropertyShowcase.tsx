@@ -12,6 +12,7 @@ import { useNightsBridgeTracking } from "@/hooks/useNightsBridgeTracking";
 import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
+import { usePropertyReviews } from "@/hooks/usePropertyReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
@@ -37,6 +38,8 @@ import {
   ProseFacilities,
   RunwayReviews,
   InvitationMap,
+  ShowcaseReviewsBadge,
+  ShowcaseReviewCarousel,
   BookingSidebar,
   EditorialSkeleton,
 } from "@/components/showcase";
