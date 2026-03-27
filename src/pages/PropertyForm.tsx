@@ -367,8 +367,10 @@ export default function PropertyForm() {
     checkfront_id?: string | null;
     benson_id?: string | null;
     tripadvisor_id?: string | null;
+    google_place_id?: string | null;
   }>({});
   const [tripadvisorId, setTripadvisorId] = useState<string>("");
+  const [googlePlaceId, setGooglePlaceId] = useState<string>("");
   const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
   const [existingCloudbedsPropertyId, setExistingCloudbedsPropertyId] = useState<string | null>(null);
   const [existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode] = useState<string | null>(null);
@@ -3049,9 +3051,12 @@ export default function PropertyForm() {
             setOwnerPmsCredentialId((data as any).owner_pms_credential_id);
           }
 
-          // Load TripAdvisor ID
+          // Load TripAdvisor ID & Google Place ID
           if (amenities?.external_ids?.tripadvisor_id) {
             setTripadvisorId(amenities.external_ids.tripadvisor_id);
+          }
+          if (amenities?.external_ids?.google_place_id) {
+            setGooglePlaceId(amenities.external_ids.google_place_id);
           }
 
           // Load linked owners
@@ -3836,6 +3841,7 @@ export default function PropertyForm() {
             checkfront_id: selectedPMS === "checkfront" ? formData.bb_id : existingExternalIds.checkfront_id,
             benson_id: selectedPMS === "benson" ? formData.bb_id : existingExternalIds.benson_id,
             tripadvisor_id: tripadvisorId || existingExternalIds.tripadvisor_id,
+            google_place_id: googlePlaceId || existingExternalIds.google_place_id,
           },
           property_info: {
             restaurants_cafes: formData.restaurants_cafes,
@@ -4978,6 +4984,30 @@ export default function PropertyForm() {
                         <span className="text-xs text-muted-foreground">Synced: {lastPmsSync.toLocaleString()}</span>
                       )}
 
+                      <div className="flex items-center gap-2">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Label htmlFor="google_place_id" className="cursor-help flex items-center gap-1 text-xs">
+                                Google ID <Info className="h-3 w-3 text-muted-foreground" />
+                              </Label>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">Google Place ID for reviews & maps</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <Input
+                          id="google_place_id"
+                          value={googlePlaceId}
+                          onChange={(e) => {
+                            setGooglePlaceId(e.target.value);
+                            setIsDirty(true);
+                          }}
+                          placeholder="ChIJ... or numeric"
+                          className="h-7 text-xs w-28"
+                        />
+                      </div>
                       <div className="flex items-center gap-2">
                         <TooltipProvider>
                           <Tooltip>
