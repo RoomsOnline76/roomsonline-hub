@@ -145,13 +145,20 @@ export function AIConciergePanel({
 
     // Listen for external date picker trigger (from "Book Now" button on map)
     const handleOpenDatePicker = () => {
-      setIsInitiated(true); // Mark as initiated when triggered externally
+      setIsInitiated(true);
       setDatePickerOpen(true);
     };
+    // Listen for direct "book now" trigger when dates already exist
+    const handleConciergeBookNow = () => {
+      setIsInitiated(true);
+      handleBookNowClick();
+    };
     window.addEventListener('openConciergeDatePicker', handleOpenDatePicker);
+    window.addEventListener('conciergeBookNow', handleConciergeBookNow);
 
     return () => {
       window.removeEventListener('openConciergeDatePicker', handleOpenDatePicker);
+      window.removeEventListener('conciergeBookNow', handleConciergeBookNow);
       if (proactiveTimeoutRef.current) {
         clearTimeout(proactiveTimeoutRef.current);
       }
@@ -826,20 +833,34 @@ export function AIConciergePanel({
   }
 
   // If not initiated and no stays, show only a minimal trigger button
+  const hasDatesSelected = Boolean(checkInDate && checkOutDate);
   if (!isInitiated && !hasStays) {
     return (
       <>
-        {/* Minimal floating button to initiate booking */}
+        {/* Minimal floating button — smart label based on date state */}
         <div className="fixed bottom-4 right-4 z-40 pb-[env(safe-area-inset-bottom,0px)]">
           <Button
             onClick={() => {
               setIsInitiated(true);
-              setDatePickerOpen(true);
+              if (hasDatesSelected) {
+                handleBookNowClick();
+              } else {
+                setDatePickerOpen(true);
+              }
             }}
             className="rounded-full h-12 px-6 shadow-lg bg-primary text-primary-foreground"
           >
-            <Calendar className="h-4 w-4 mr-2" />
-            Select Dates
+            {hasDatesSelected ? (
+              <>
+                <Check className="h-4 w-4 mr-2" />
+                Book Now
+              </>
+            ) : (
+              <>
+                <Calendar className="h-4 w-4 mr-2" />
+                Select Dates
+              </>
+            )}
           </Button>
         </div>
         

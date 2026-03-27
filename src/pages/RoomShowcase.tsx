@@ -11,8 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { toast } from "sonner";
 import { 
   Bed, 
@@ -38,6 +40,7 @@ import {
   Mountain,
   ExternalLink
 } from "lucide-react";
+import { ChevronDown as CollapseIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 
@@ -86,6 +89,11 @@ interface Property {
   amenities: any;
   external_system: string | null;
   external_id: string | null;
+  brand_override_enabled?: boolean;
+  brand_primary_color?: string | null;
+  brand_secondary_color?: string | null;
+  brand_font_color?: string | null;
+  brand_logo_url?: string | null;
 }
 
 interface RateData {
@@ -606,13 +614,33 @@ export default function RoomShowcase() {
     return `Max ${maxPeople} guests`;
   };
 
-  return (
-    <PublicLayout 
-      transparentHeader 
-      backLabel={`Back to ${property.name}`} 
-      backTo={`/property/${property.slug || property.id}`}
-      hideHeader
-    >
+  const isWhiteLabel = Boolean(property.brand_override_enabled && property.brand_primary_color);
+
+  const wrapLayout = (content: React.ReactNode) => {
+    if (isWhiteLabel) {
+      return (
+        <WhiteLabelLayout
+          propertyName={property.name}
+          propertyLogoUrl={property.brand_logo_url}
+        >
+          {content}
+        </WhiteLabelLayout>
+      );
+    }
+    return (
+      <PublicLayout 
+        transparentHeader 
+        backLabel={`Back to ${property.name}`} 
+        backTo={`/property/${property.slug || property.id}`}
+        hideHeader
+      >
+        {content}
+      </PublicLayout>
+    );
+  };
+
+  return wrapLayout(
+    <>
       {/* Hero Section with Image Gallery - shorter on mobile */}
       <section className="relative h-[40vh] sm:h-[45vh] md:h-[50vh] min-h-[250px] sm:min-h-[300px] max-h-[500px] bg-muted overflow-hidden">
         {images.length > 0 ? (
@@ -1037,31 +1065,14 @@ export default function RoomShowcase() {
           </div>
         </div>
 
-        {/* Image Gallery Thumbnails */}
+        {/* Image Gallery Thumbnails - Collapsible Carousel */}
         {images.length > 1 && (
-          <section className="mt-12">
-            <h2 className="text-xl font-semibold mb-4">Gallery</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-              {images.map((img, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentImageIndex(idx)}
-                  className={cn(
-                    "aspect-square rounded-lg overflow-hidden border-2 transition-all",
-                    idx === currentImageIndex 
-                      ? "border-primary ring-2 ring-primary/20" 
-                      : "border-transparent hover:border-muted-foreground/30"
-                  )}
-                >
-                  <img
-                    src={img}
-                    alt={`${room.name} - Thumbnail ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          </section>
+          <GalleryCollapsible
+            images={images}
+            roomName={room.name}
+            currentImageIndex={currentImageIndex}
+            onSelect={setCurrentImageIndex}
+          />
         )}
       </div>
 
@@ -1072,6 +1083,83 @@ export default function RoomShowcase() {
         externalUrl={externalBookingUrl}
         propertyName={property.name}
       />
-    </PublicLayout>
+    </>
+  );
+}
+
+/** Collapsible gallery strip — shows 5 thumbs, expandable */
+function GalleryCollapsible({
+  images,
+  roomName,
+  currentImageIndex,
+  onSelect,
+}: {
+  images: string[];
+  roomName: string;
+  currentImageIndex: number;
+  onSelect: (idx: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const previewCount = 5;
+  const visibleImages = open ? images : images.slice(0, previewCount);
+  const hasMore = images.length > previewCount;
+
+  return (
+    <section className="mt-12">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Gallery</h2>
+          {hasMore && (
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
+                {open ? 'Show less' : `+${images.length - previewCount} more`}
+                <CollapseIcon className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+              </Button>
+            </CollapsibleTrigger>
+          )}
+        </div>
+
+        {/* Always-visible strip */}
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+          {images.slice(0, previewCount).map((img, idx) => (
+            <button
+              key={idx}
+              onClick={() => onSelect(idx)}
+              className={cn(
+                "flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border-2 transition-all",
+                idx === currentImageIndex
+                  ? "border-primary ring-2 ring-primary/20"
+                  : "border-transparent hover:border-muted-foreground/30"
+              )}
+            >
+              <img src={img} alt={`${roomName} ${idx + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+
+        {/* Collapsible extra images */}
+        <CollapsibleContent>
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 mt-3">
+            {images.slice(previewCount).map((img, idx) => {
+              const realIdx = idx + previewCount;
+              return (
+                <button
+                  key={realIdx}
+                  onClick={() => onSelect(realIdx)}
+                  className={cn(
+                    "aspect-square rounded-lg overflow-hidden border-2 transition-all",
+                    realIdx === currentImageIndex
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  )}
+                >
+                  <img src={img} alt={`${roomName} ${realIdx + 1}`} className="w-full h-full object-cover" />
+                </button>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }

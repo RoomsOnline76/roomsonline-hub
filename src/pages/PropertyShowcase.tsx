@@ -753,12 +753,23 @@ export default function PropertyShowcase() {
       return;
     }
     
-    // When AI Concierge is active, scroll to rooms AND open date picker
-    // The floating booking strip at the bottom handles date selection and booking
+    // When AI Concierge is active
     const aiConciergeIsActive = aiConciergeEnabled && !aiFailed && (isBensonProperty || isHotelBedsProperty || isHostfullyProperty || isManualRatesProperty);
     if (aiConciergeIsActive) {
+      // If dates already selected, skip date picker — go straight to room selection / single-room auto-add
+      const hasDates = mobileBookingState.checkIn && mobileBookingState.checkOut;
+      if (hasDates) {
+        const rooms = getRoomTypes();
+        if (rooms.length === 1) {
+          // Single room: let AIConciergePanel's handleBookNowClick handle auto-add
+          window.dispatchEvent(new CustomEvent('conciergeBookNow'));
+        } else {
+          scrollToRooms();
+        }
+        return;
+      }
+      // No dates yet — open date picker
       scrollToRooms();
-      // Dispatch event to open date picker in AIConciergePanel
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('openConciergeDatePicker'));
       }, 300);
