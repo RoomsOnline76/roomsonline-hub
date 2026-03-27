@@ -21,10 +21,14 @@ export type Database = {
           full_name: string
           id: string
           message: string | null
+          referrer_url: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          source_ip: string | null
+          source_page: string | null
           status: string
           updated_at: string
+          user_agent: string | null
         }
         Insert: {
           created_at?: string
@@ -32,10 +36,14 @@ export type Database = {
           full_name: string
           id?: string
           message?: string | null
+          referrer_url?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_ip?: string | null
+          source_page?: string | null
           status?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Update: {
           created_at?: string
@@ -43,10 +51,14 @@ export type Database = {
           full_name?: string
           id?: string
           message?: string | null
+          referrer_url?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_ip?: string | null
+          source_page?: string | null
           status?: string
           updated_at?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
