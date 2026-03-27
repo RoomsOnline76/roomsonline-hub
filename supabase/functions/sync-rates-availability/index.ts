@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { property_id, external_system, start_date, end_date } = validationResult.data;
+    const { property_id, external_system, start_date, end_date, nationality } = validationResult.data;
 
     console.log(`Syncing rates for property ${property_id} from ${external_system}`);
 
