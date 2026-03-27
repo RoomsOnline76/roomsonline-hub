@@ -730,19 +730,19 @@ export default function RoomShowcase() {
       <section className="border-b bg-card">
         <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-4">
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 md:gap-10 text-xs sm:text-sm">
-            {room.maxPeople && (
+            {room.maxPeople != null && room.maxPeople > 0 && (
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 <span>Sleeps {room.maxPeople}</span>
               </div>
             )}
-            {room.roomSize && (
+            {room.roomSize != null && room.roomSize > 0 && (
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <Maximize className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 <span>{room.roomSize} m²</span>
               </div>
             )}
-            {room.bathrooms && (
+            {room.bathrooms != null && room.bathrooms > 0 && (
               <div className="flex items-center gap-1.5 sm:gap-2">
                 <Bath className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 <span>{room.bathrooms} bath</span>
@@ -759,7 +759,7 @@ export default function RoomShowcase() {
       </section>
 
       {/* Main Content */}
-      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-10 pb-24 sm:pb-10">
         <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Left Column - Details */}
           <div className="lg:col-span-2 space-y-4 sm:space-y-8">
@@ -820,7 +820,7 @@ export default function RoomShowcase() {
 
 
                 {/* Room Size Card */}
-                {room.roomSize && (
+                {room.roomSize != null && room.roomSize > 0 && (
                   <Card>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
@@ -837,7 +837,7 @@ export default function RoomShowcase() {
                 )}
 
                 {/* Bathrooms Card */}
-                {room.bathrooms && (
+                {room.bathrooms != null && room.bathrooms > 0 && (
                   <Card>
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-3">
@@ -979,7 +979,7 @@ export default function RoomShowcase() {
                       </span>
                     </div>
                   )}
-                  {room.bathrooms && (
+                  {room.bathrooms != null && room.bathrooms > 0 && (
                     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                       <Bath className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-xs font-medium">{room.bathrooms} Bathroom{room.bathrooms > 1 ? 's' : ''}</span>
@@ -991,7 +991,7 @@ export default function RoomShowcase() {
                       <span className="text-xs font-medium">{room.roomSize} m²</span>
                     </div>
                   )}
-                  {room.maxPeople && (
+                  {room.maxPeople != null && room.maxPeople > 0 && (
                     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                       <Users className="h-4 w-4 text-primary shrink-0" />
                       <span className="text-xs font-medium">Sleeps {room.maxPeople}</span>
