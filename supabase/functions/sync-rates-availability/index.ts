@@ -336,6 +336,43 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fetch from HyperGuest
+    if (external_system === 'hyperguest') {
+      const adapterResponse = await supabaseClient.functions.invoke('hyperguest-api', {
+        body: {
+          action: 'fetch_availability',
+          property_id,
+          start_date,
+          end_date,
+          nationality: nationality || undefined,
+        },
+      });
+
+      if (adapterResponse.error || !adapterResponse.data?.success) {
+        console.error('HyperGuest adapter error:', adapterResponse.error || adapterResponse.data?.error);
+        return new Response(
+          JSON.stringify({ error: adapterResponse.data?.error?.message || 'Failed to fetch from HyperGuest' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const hgData = adapterResponse.data?.data || {};
+      const rooms = hgData.rooms || [];
+
+      for (const room of rooms) {
+        for (const rate of (room.rates || [])) {
+          for (const dailyRate of (rate.daily_rates || [])) {
+            rates.push({
+              room_type: room.room_name || 'Standard',
+              rate_type: rate.rate_name || rate.rate_type || 'Standard',
+              date: dailyRate.date,
+              rate: rate.selling_rate || rate.net_amount,
+            });
+          }
+        }
+      }
+    }
+
     // Insert/update rates in database
     if (rates.length > 0) {
       const rateRecords = rates.map((rate: any) => ({
