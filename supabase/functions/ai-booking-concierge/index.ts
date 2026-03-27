@@ -365,9 +365,9 @@ async function generateAINarrative(
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
   allRoomDetails: { name: string; rate: number; total: number; description?: string }[]
 ): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.warn("[Concierge] No LOVABLE_API_KEY — falling back to template");
+  const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+  if (!hasAiKey) {
+    console.warn("[Concierge] No AI keys configured — falling back to template");
     return fallbackNarrative(suggestions, context.name);
   }
 
