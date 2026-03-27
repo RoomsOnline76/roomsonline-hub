@@ -12,6 +12,7 @@ import { useNightsBridgeTracking } from "@/hooks/useNightsBridgeTracking";
 import { useBehavioralMemory } from "@/hooks/useBehavioralMemory";
 import LeavingRoomsOnlineModal from "@/components/LeavingRoomsOnlineModal";
 import TripAdvisorReviews from "@/components/TripAdvisorReviews";
+import { usePropertyReviews } from "@/hooks/usePropertyReviews";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
 import { QuickBookDrawer } from "@/components/booking/QuickBookDrawer";
@@ -37,6 +38,8 @@ import {
   ProseFacilities,
   RunwayReviews,
   InvitationMap,
+  ShowcaseReviewsBadge,
+  ShowcaseReviewCarousel,
   BookingSidebar,
   EditorialSkeleton,
 } from "@/components/showcase";
@@ -218,6 +221,7 @@ export default function PropertyShowcase() {
   const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
   const [aiFailed, setAiFailed] = useState(false);
   const { hasStays } = useItinerary();
+  const { data: reviewData } = usePropertyReviews(property?.id);
 
   // Handle AI concierge error - gracefully fall back to legacy flow
   const handleAIError = useCallback(() => {
@@ -927,6 +931,7 @@ export default function PropertyShowcase() {
                 checkInTime={property.amenities?.check_in_time}
                 checkOutTime={property.amenities?.check_out_time}
                 totalUnits={roomTypes.length}
+                reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
               />
             )}
 
@@ -972,14 +977,21 @@ export default function PropertyShowcase() {
             {/* Amenities */}
             <ProseFacilities facilities={facilities} />
 
-            {/* Reviews */}
-            <RunwayReviews editorialRating={property.editorial_rating} />
-
-            {/* TripAdvisor */}
-            {property.amenities?.external_ids?.tripadvisor_id && (
-              <section className="py-10">
-                <TripAdvisorReviews tripadvisorId={property.amenities.external_ids.tripadvisor_id} />
-              </section>
+            {/* Reviews — Cached from Google + TripAdvisor */}
+            {reviewData && (reviewData.badges.length > 0 || reviewData.reviews.length > 0) ? (
+              <>
+                <ShowcaseReviewsBadge badges={reviewData.badges} />
+                <ShowcaseReviewCarousel reviews={reviewData.reviews} tobiBlurb={reviewData.tobiBlurb} />
+              </>
+            ) : (
+              <>
+                <RunwayReviews editorialRating={property.editorial_rating} />
+                {property.amenities?.external_ids?.tripadvisor_id && (
+                  <section className="py-10">
+                    <TripAdvisorReviews tripadvisorId={property.amenities.external_ids.tripadvisor_id} />
+                  </section>
+                )}
+              </>
             )}
           </div>
 

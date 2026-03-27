@@ -11,3 +11,5 @@ export { InvitationMap } from './InvitationMap';
 export { StickyBookingCTA } from './StickyBookingCTA';
 export { BookingSidebar } from './BookingSidebar';
 export { EditorialSkeleton } from './EditorialSkeleton';
+export { ShowcaseReviewsBadge } from './ShowcaseReviewsBadge';
+export { ShowcaseReviewCarousel } from './ShowcaseReviewCarousel';

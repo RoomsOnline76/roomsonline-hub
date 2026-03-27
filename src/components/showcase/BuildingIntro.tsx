@@ -16,6 +16,7 @@ interface BuildingIntroProps {
   maxGuests?: number;
   rating?: number | null;
   reviewCount?: number | null;
+  reviewBadges?: React.ReactNode;
 }
 
 /**
@@ -33,6 +34,7 @@ export function BuildingIntro({
   maxGuests,
   rating,
   reviewCount,
+  reviewBadges,
 }: BuildingIntroProps) {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.3 });
 
@@ -81,6 +83,9 @@ export function BuildingIntro({
               )}
             </div>
           )}
+
+          {/* External Review Badges */}
+          {reviewBadges}
 
           {/* Check-in / check-out times */}
           {(checkInTime || (address && city)) && (

@@ -4641,6 +4641,70 @@ export type Database = {
           },
         ]
       }
+      property_review_cache: {
+        Row: {
+          created_at: string | null
+          id: string
+          overall_rating: number | null
+          property_id: string
+          rating_url: string | null
+          reviews: Json | null
+          source: string
+          source_id: string | null
+          synced_at: string | null
+          tobi_blurb: string | null
+          total_reviews: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          overall_rating?: number | null
+          property_id: string
+          rating_url?: string | null
+          reviews?: Json | null
+          source: string
+          source_id?: string | null
+          synced_at?: string | null
+          tobi_blurb?: string | null
+          total_reviews?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          overall_rating?: number | null
+          property_id?: string
+          rating_url?: string | null
+          reviews?: Json | null
+          source?: string
+          source_id?: string | null
+          synced_at?: string | null
+          tobi_blurb?: string | null
+          total_reviews?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_review_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_review_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_review_cache_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_staff: {
         Row: {
           created_at: string
