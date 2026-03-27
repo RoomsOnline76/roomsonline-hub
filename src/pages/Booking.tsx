@@ -209,6 +209,7 @@ const Booking = () => {
       return data;
     },
     enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 min — avoid refetching on navigation
   });
 
   // Fetch property charges (taxes, fees, deposits, surcharges)
@@ -231,6 +232,7 @@ const Booking = () => {
       return data || [];
     },
     enabled: !!property?.id,
+    staleTime: 5 * 60 * 1000, // 5 min cache
   });
 
   // Fetch cached rate types from database (fallback if not in amenities)
@@ -250,6 +252,7 @@ const Booking = () => {
       return data || [];
     },
     enabled: !!property?.id,
+    staleTime: 5 * 60 * 1000, // 5 min cache
   });
 
   // Extract room types and rate types - prefer amenities, fallback to cached tables
@@ -640,9 +643,25 @@ const Booking = () => {
 
     setCalculatingCost(true);
     try {
-      // Fetch availability if not already fetched
+      // Try preloaded availability from sessionStorage first (set by PropertyShowcase)
       let availability = availabilityData;
-      if (!availability) {
+      if (!availability && property?.id) {
+        try {
+          const preloaded = sessionStorage.getItem(`avail_preload_${property.id}`);
+          if (preloaded) {
+            const parsed = JSON.parse(preloaded);
+            // Use if less than 5 minutes old
+            if (Date.now() - parsed.fetchedAt < 5 * 60 * 1000 && parsed.data?.length > 0) {
+              console.log('[Booking] Using preloaded availability from PropertyShowcase');
+              const roomAliases = new Map<string, string[]>();
+              for (const rt of roomTypes) {
+                roomAliases.set(String(rt.id), [slugifyRoomName(rt.name)]);
+              }
+              availability = transformCacheToAvailability(parsed.data, roomAliases);
+            }
+          }
+        } catch (_) { /* parse error — fall through to live fetch */ }
+      }
         if (externalSystem === 'benson') {
           // Benson: fetch from API directly
           const { data, error } = await supabase.functions.invoke("benson-api", {

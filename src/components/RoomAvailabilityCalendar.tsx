@@ -311,45 +311,62 @@ export default function RoomAvailabilityCalendar({
         return;
       }
 
-      // For Hostfully: fetch live instead of from cache
+      // For Hostfully: show cached data immediately, then refresh from live API in background
       if (externalSystem === 'hostfully') {
-        const { data, error } = await supabase.functions.invoke("hostfully-api", {
+        // 1. Instant: load from pms_availability_cache first
+        const { data: cacheData } = await supabase
+          .from("pms_availability_cache")
+          .select("date, available_units, rates, restrictions")
+          .eq("property_id", propertyId)
+          .eq("external_room_type_id", roomId)
+          .gte("date", monthStart)
+          .lte("date", monthEnd);
+        
+        if (cacheData && cacheData.length > 0) {
+          const cachedMap = new Map<string, AvailabilityData>();
+          cacheData.forEach((item) => cachedMap.set(item.date, item));
+          setAvailability(cachedMap);
+          setLoading(false); // Show cached data immediately
+        }
+
+        // 2. Background: fetch live from Hostfully API and merge
+        supabase.functions.invoke("hostfully-api", {
           body: {
             action: 'fetch_availability',
             property_id: propertyId,
             start_date: monthStart,
             end_date: monthEnd,
           }
-        });
-        
-        if (!error && data?.success && data?.data?.room_types) {
-          const matchedRoom = data.data.room_types.find((rt: any) => 
-            rt.room_type_id === roomId || rt.name === roomName
-          );
-          
-          if (matchedRoom) {
-            const availMap = new Map<string, AvailabilityData>();
-            const availArray = matchedRoom.availability_per_night || [];
-            const rateTypes = matchedRoom.rate_types || [];
+        }).then(({ data, error }) => {
+          if (!error && data?.success && data?.data?.room_types) {
+            const matchedRoom = data.data.room_types.find((rt: any) => 
+              rt.room_type_id === roomId || rt.name === roomName
+            );
             
-            availArray.forEach((item: any) => {
-              // Find matching rate for this date
-              const ratesForDate = rateTypes.flatMap((rt: any) => 
-                (rt.rates || []).filter((r: any) => r.date === item.date)
-              );
+            if (matchedRoom) {
+              const availMap = new Map<string, AvailabilityData>();
+              const availArray = matchedRoom.availability_per_night || [];
+              const rateTypes = matchedRoom.rate_types || [];
               
-              availMap.set(item.date, {
-                date: item.date,
-                available_units: item.available_units,
-                rates: ratesForDate.length > 0 ? ratesForDate : undefined,
-                restrictions: item.restrictions,
+              availArray.forEach((item: any) => {
+                const ratesForDate = rateTypes.flatMap((rt: any) => 
+                  (rt.rates || []).filter((r: any) => r.date === item.date)
+                );
+                
+                availMap.set(item.date, {
+                  date: item.date,
+                  available_units: item.available_units,
+                  rates: ratesForDate.length > 0 ? ratesForDate : undefined,
+                  restrictions: item.restrictions,
+                });
               });
-            });
-            
-            setAvailability(availMap);
+              
+              setAvailability(availMap);
+            }
           }
-        }
-        setLoading(false);
+          setLoading(false);
+        }).catch(() => setLoading(false));
+        
         return;
       }
 
