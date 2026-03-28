@@ -37,6 +37,7 @@ interface CategoryCollectionProps {
   rooms: RoomData[];
   getLowestRate: (room: RoomData) => number | null;
   getAvailability: (room: RoomData) => number | undefined;
+  getNextAvailableDay?: (room: RoomData) => { date: string; dayName: string; units: number } | undefined;
   onRoomClick: (room: RoomData) => void;
   propertyImages?: string[];
   unitLabel?: string;

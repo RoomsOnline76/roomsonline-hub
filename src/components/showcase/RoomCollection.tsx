@@ -44,6 +44,7 @@ export function RoomCollection({
   rooms,
   getLowestRate,
   getAvailability,
+  getNextAvailableDay,
   onRoomClick,
   propertyImages = [],
   unitLabel = 'room',
