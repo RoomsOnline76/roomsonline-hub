@@ -689,6 +689,12 @@ export default function PropertyShowcase() {
     return Math.max(0, availData.available_units - getBookedCountForRoom(room));
   };
 
+  const getNextAvailableDayForRoom = (room: RoomType): { date: string; dayName: string; units: number } | undefined => {
+    const primaryId = room.pmsRoomId || room.id;
+    const slugifiedName = slugifyRoomName(room.name);
+    return nextAvailableDay.get(primaryId) || nextAvailableDay.get(slugifiedName);
+  };
+
   const getLowestRateForRoom = (room: RoomType): number | null => {
     // Priority 1: Check linked rate types FIRST (wizard-configured rates for manual properties)
     const roomData = property?.amenities?.room_types?.find((rt: any) => 
@@ -990,6 +996,7 @@ export default function PropertyShowcase() {
                 rooms={roomTypes}
                 getLowestRate={getLowestRateForRoom}
                 getAvailability={getRemainingAvailability}
+                getNextAvailableDay={getNextAvailableDayForRoom}
                 onRoomClick={handleRoomClick}
                 propertyImages={property.images}
                 unitLabel={unitLabel}
@@ -1000,6 +1007,7 @@ export default function PropertyShowcase() {
                 rooms={roomTypes}
                 getLowestRate={getLowestRateForRoom}
                 getAvailability={getRemainingAvailability}
+                getNextAvailableDay={getNextAvailableDayForRoom}
                 onRoomClick={handleRoomClick}
                 propertyImages={property.images}
                 unitLabel={unitLabel}

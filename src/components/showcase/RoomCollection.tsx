@@ -19,10 +19,17 @@ interface RoomData {
   bathrooms?: number;
 }
 
+interface NextAvailableDay {
+  date: string;
+  dayName: string;
+  units: number;
+}
+
 interface RoomCollectionProps {
   rooms: RoomData[];
   getLowestRate: (room: RoomData) => number | null;
   getAvailability: (room: RoomData) => number | undefined;
+  getNextAvailableDay?: (room: RoomData) => NextAvailableDay | undefined;
   onRoomClick: (room: RoomData) => void;
   propertyImages?: string[];
   unitLabel?: string;
