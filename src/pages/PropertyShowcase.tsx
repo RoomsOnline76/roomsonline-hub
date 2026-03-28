@@ -206,6 +206,7 @@ export default function PropertyShowcase() {
   const { trackPropertyView } = useBehavioralMemory();
   const [property, setPropertyData] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
+  const [nextAvailableDay, setNextAvailableDay] = useState<Map<string, { date: string; dayName: string; units: number }>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [nbTrackingRef, setNbTrackingRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
