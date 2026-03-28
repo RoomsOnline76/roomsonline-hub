@@ -206,6 +206,7 @@ export default function PropertyShowcase() {
   const { trackPropertyView } = useBehavioralMemory();
   const [property, setPropertyData] = useState<Property | null>(null);
   const [availability, setAvailability] = useState<Map<string, AvailabilityData>>(new Map());
+  const [nextAvailableDay, setNextAvailableDay] = useState<Map<string, { date: string; dayName: string; units: number }>>(new Map());
   const [nightsBridgeAgentCode, setNightsBridgeAgentCode] = useState<string | null>(null);
   const [nbTrackingRef, setNbTrackingRef] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -347,22 +348,54 @@ export default function PropertyShowcase() {
         setProperty(propertyData.id, propertyData.name, propertyData.slug || propertyData.id);
       }
 
-      // Fire cache availability fetch immediately (don't wait for property state update)
-      // This runs in parallel with the React state update above
+      // Fire cache availability fetch immediately — 7-day window for next-available labels
+      const sevenDaysOut = new Date();
+      sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+      const endDate = sevenDaysOut.toISOString().split("T")[0];
+
       const availPromise = supabase
         .from("pms_availability_cache")
         .select("external_room_type_id, available_units, rates, date")
         .eq("property_id", propertyData.id)
-        .eq("date", today);
+        .gte("date", today)
+        .lte("date", endDate);
 
       const { data: availData } = await availPromise;
 
       if (availData && availData.length > 0) {
+        // Today's availability map (existing behaviour)
         const availMap = new Map<string, AvailabilityData>();
+        // Next-available-day map: roomTypeId → { date, dayName, units }
+        const nextAvailMap = new Map<string, { date: string; dayName: string; units: number }>();
+
+        // Group by room type
+        const byRoom = new Map<string, typeof availData>();
         availData.forEach((item) => {
-          availMap.set(item.external_room_type_id, item);
+          if (!byRoom.has(item.external_room_type_id)) byRoom.set(item.external_room_type_id, []);
+          byRoom.get(item.external_room_type_id)!.push(item);
         });
+
+        byRoom.forEach((rows, roomId) => {
+          // Today row
+          const todayRow = rows.find((r) => r.date === today);
+          if (todayRow) availMap.set(roomId, todayRow);
+
+          // First future date with availability > 0 (skip today)
+          const futureRows = rows
+            .filter((r) => r.date !== today && r.available_units > 0)
+            .sort((a, b) => a.date.localeCompare(b.date));
+          if (futureRows.length > 0) {
+            const first = futureRows[0];
+            nextAvailMap.set(roomId, {
+              date: first.date,
+              dayName: new Date(first.date + "T12:00:00").toLocaleDateString("en", { weekday: "long" }),
+              units: first.available_units,
+            });
+          }
+        });
+
         setAvailability(availMap);
+        setNextAvailableDay(nextAvailMap);
         
         // Preload availability to sessionStorage for Booking page
         try {
@@ -654,6 +687,12 @@ export default function PropertyShowcase() {
     const availData = getAvailabilityForRoom(room);
     if (availData?.available_units === undefined) return undefined;
     return Math.max(0, availData.available_units - getBookedCountForRoom(room));
+  };
+
+  const getNextAvailableDayForRoom = (room: RoomType): { date: string; dayName: string; units: number } | undefined => {
+    const primaryId = room.pmsRoomId || room.id;
+    const slugifiedName = slugifyRoomName(room.name);
+    return nextAvailableDay.get(primaryId) || nextAvailableDay.get(slugifiedName);
   };
 
   const getLowestRateForRoom = (room: RoomType): number | null => {
@@ -957,6 +996,7 @@ export default function PropertyShowcase() {
                 rooms={roomTypes}
                 getLowestRate={getLowestRateForRoom}
                 getAvailability={getRemainingAvailability}
+                getNextAvailableDay={getNextAvailableDayForRoom}
                 onRoomClick={handleRoomClick}
                 propertyImages={property.images}
                 unitLabel={unitLabel}
@@ -967,6 +1007,7 @@ export default function PropertyShowcase() {
                 rooms={roomTypes}
                 getLowestRate={getLowestRateForRoom}
                 getAvailability={getRemainingAvailability}
+                getNextAvailableDay={getNextAvailableDayForRoom}
                 onRoomClick={handleRoomClick}
                 propertyImages={property.images}
                 unitLabel={unitLabel}

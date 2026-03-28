@@ -19,10 +19,17 @@ interface RoomData {
   bathrooms?: number;
 }
 
+interface NextAvailableDay {
+  date: string;
+  dayName: string;
+  units: number;
+}
+
 interface RoomCollectionProps {
   rooms: RoomData[];
   getLowestRate: (room: RoomData) => number | null;
   getAvailability: (room: RoomData) => number | undefined;
+  getNextAvailableDay?: (room: RoomData) => NextAvailableDay | undefined;
   onRoomClick: (room: RoomData) => void;
   propertyImages?: string[];
   unitLabel?: string;
@@ -37,6 +44,7 @@ export function RoomCollection({
   rooms,
   getLowestRate,
   getAvailability,
+  getNextAvailableDay,
   onRoomClick,
   propertyImages = [],
   unitLabel = 'room',
@@ -86,9 +94,10 @@ export function RoomCollection({
           {rooms.map((room) => {
             const rate = getLowestRate(room);
             const availability = getAvailability(room);
+            const nextAvail = getNextAvailableDay?.(room);
             const roomImages = room.images && room.images.length > 0 ? room.images : propertyImages;
             const heroImage = roomImages[0];
-            const isUnavailable = availability !== undefined && availability <= 0;
+            const isUnavailable = availability !== undefined && availability <= 0 && !nextAvail;
             const capacityText = formatRoomCapacity(room.maxPeople, room.maxAdults);
 
             return (
@@ -100,6 +109,7 @@ export function RoomCollection({
                   "hover:border-primary/30 hover:shadow-md transition-all duration-300",
                   "flex flex-col sm:flex-row",
                   isUnavailable && "opacity-50 pointer-events-none",
+                  availability !== undefined && availability <= 0 && nextAvail && "opacity-80",
                 )}
               >
                 {/* Image — taller aspect on mobile for visual impact */}
@@ -120,13 +130,19 @@ export function RoomCollection({
                   </div>
 
                   {/* Availability badge */}
-                  {availability !== undefined && availability > 0 && availability <= 3 && (
-                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3">
+                  {/* Availability badges */}
+                  <div className="absolute top-2 left-2 sm:top-3 sm:left-3 flex flex-col gap-1">
+                    {availability !== undefined && availability > 0 && availability <= 3 && (
                       <span className="px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium bg-destructive/90 text-destructive-foreground rounded-full">
-                        {availability} left
+                        {availability} left today
                       </span>
-                    </div>
-                  )}
+                    )}
+                    {availability !== undefined && availability <= 0 && nextAvail && (
+                      <span className="px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium bg-emerald-600/90 text-white rounded-full">
+                        {nextAvail.units} available from {nextAvail.dayName}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Content */}
