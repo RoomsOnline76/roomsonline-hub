@@ -1,88 +1,110 @@
 
 
-# Update ROL'OS PMS Partnership Agreement for Complex Billing
+# Sales Rep / Referral Partner System Enhancement
 
-## Problem
+## Overview
 
-The current "ROL'OS PMS Partnership Agreement" has a simplistic Section 3 that only mentions a single `{{commission_rate}}` variable. The billing model is now much richer — properties can have different strategies (default, widget, SaaS, portfolio, enterprise, volume-tiered), optional white-label fees, payment facilitator fees, subscription fees, and custom overrides. The contract doesn't reflect any of this.
+Five interconnected changes to create a complete referral partner lifecycle: role assignment, banking details, contract agreement, and commission inclusion in the payments report.
 
-The "Accommodation Listing & Distribution Agreement" (standard listing contract) is fine as-is — it covers simple commission-only relationships. The PMS agreement needs the overhaul.
+## 1. Add `sales_rep` Role to the System
 
-## What Changes
+**Database**: Add `sales_rep` to the `app_role` enum via migration.
 
-Create a **new draft version (v2)** of the ROL'OS PMS Partnership Agreement with a completely rewritten **Section 3: Commercial Terms** that uses conditional variable blocks to handle all billing scenarios. The rest of the contract (Parts A, B, C) stays largely the same with minor polish.
+**Access Requests** (`AdminAccessRequests.tsx`): Currently the approve dropdown only offers "admin" and "user". Add a third option: "Sales Rep / Referral Partner" which assigns the `sales_rep` role and auto-creates a `sales_reps` record linked to the user.
 
-### New Section 3 Structure
+**AddUserModal** (`AddUserModal.tsx`): Extend the `role` prop to accept `"sales_rep"`. When this role is selected, skip the PMS system selection and instead show commission tier selection (Base/Accelerated/Elite) and rep code field.
 
-```text
-## 3. COMMERCIAL TERMS
+## 2. Banking Details for Sales Reps
 
-### 3.1 Billing Model
-The Property's billing arrangement is: **{{billing_strategy_label}}**
+**Database**: Create `sales_rep_bank_details` table (mirrors `property_bank_details` structure):
+- `id`, `rep_id` (FK → sales_reps), `bank_name`, `branch_code`, `account_holder`, `account_number_encrypted`, `account_number_masked`, `account_type`, `swift_code`, `is_verified`, `verified_at`, `verified_by`, `created_at`, `updated_at`
+- RLS: admins/devs/fearless_leader can read/write; the rep's own `user_id` can read their own record
 
-### 3.2 Commission
-{{commission_clause}}
-- Commission of **{{commission_rate}}** on bookings via RoomsOnline channels
-- Calculated on total accommodation value excluding extras
-- Invoiced monthly, payable within 14 days
+**UI** (`AdminSalesReps.tsx`): Add a "Banking" section to each rep card (or the edit dialog) with fields for bank name, branch code, account holder, account number, account type. Account number is masked on display, editable only by admin+.
 
-### 3.3 Subscription Fee (if applicable)
-{{subscription_clause}}
-- Monthly subscription fee: **R{{subscription_fee_monthly}}**
-- Billed on the 1st of each month
+## 3. Sales Rep / Referral Partner Agreement Contract
 
-### 3.4 White-Label Branding (if applicable)
-{{white_label_clause}}
-- Monthly white-label fee: **R{{white_label_monthly_fee}}**
-- Includes custom domain, branded booking pages, removal of ROL branding
+**Database**: Insert a new `contract_templates` row — "Referral Partner Agreement" — with a first version containing:
+- **Section 1**: Parties (ROL + Partner details with `{{rep_name}}`, `{{rep_email}}`, `{{rep_code}}`)
+- **Section 2**: Referral Scope — Partner refers properties to ROL; ROL manages onboarding
+- **Section 3**: Commission Terms — Uses the existing tier structure:
+  - `{{commission_tier_label}}` (Base/Accelerated/Elite)
+  - `{{first_year_rate}}` — first year commission %
+  - `{{residual_rate}}` — residual commission %
+  - `{{residual_duration}}` — months of residual
+  - `{{clawback_period}}` — days (default 90)
+- **Section 4**: Payment Terms — Monthly, 14-day payment cycle, banking details on file
+- **Section 5**: Clawback Clause — If referred property churns within `{{clawback_period}}` days
+- **Section 6**: Confidentiality + Non-Compete
+- **Section 7**: Term + Termination (12-month initial, 30-day notice)
 
-### 3.5 Payment Facilitator (if applicable)
-{{payment_facilitator_clause}}
-- Transaction processing fee: **{{payment_facilitator_fee}}%** per booking
-- ROL collects guest payments and remits to Property less fees
+**Admin Contracts page** (`AdminContracts.tsx`): When issuing a contract, if the recipient type is "Sales Rep", pre-populate variables from `sales_reps` record and commission tier rates.
 
-### 3.6 Volume-Tiered Pricing (if applicable)
-{{volume_tier_clause}}
-- Tier structure as per Schedule A attached
+## 4. Commission Payouts in Payments Report
+
+**AdminPayments.tsx**: Add a "Commission Payouts" tab/section that:
+- Fetches `rep_commission_reports` where `status = 'approved'` (ready to pay)
+- Shows rep name, period, total amount, banking status (verified/unverified)
+- Allows fearless_leader to mark as paid (updates status to 'paid' + sets `paid_at`)
+- Summary card at top showing total commissions due this month
+
+This surfaces commission obligations alongside property payment transactions so the fearless leader sees all outgoing payments in one place.
+
+## 5. Link Sales Rep User to Their Dashboard
+
+When a user with `sales_rep` role logs in, they should see a "My Referrals" section in their dashboard showing their referred properties, commission status, and banking details. This is a lighter future enhancement — the immediate priority is admin-side management.
+
+## Technical Details
+
+### Migration SQL
+```sql
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'sales_rep';
+
+CREATE TABLE public.sales_rep_bank_details (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  rep_id uuid REFERENCES public.sales_reps(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  bank_name text NOT NULL,
+  branch_code text,
+  account_holder text NOT NULL,
+  account_number_encrypted bytea,
+  account_number_masked text,
+  account_type text DEFAULT 'cheque',
+  swift_code text,
+  is_verified boolean DEFAULT false,
+  verified_at timestamptz,
+  verified_by uuid REFERENCES auth.users(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.sales_rep_bank_details ENABLE ROW LEVEL SECURITY;
+
+-- Admin/dev/FL full access
+CREATE POLICY "Admins manage rep banking" ON public.sales_rep_bank_details
+  FOR ALL TO authenticated
+  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'dev') OR has_role(auth.uid(), 'fearless_leader'));
+
+-- Rep can view own banking
+CREATE POLICY "Rep views own banking" ON public.sales_rep_bank_details
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.sales_reps WHERE id = rep_id AND user_id = auth.uid()
+  ));
 ```
 
-### New Variables Schema
-
-Add these variables to the template version (all with `required: false` except `commission_rate` and `billing_strategy_label`):
-
-| Variable | Type | Required | Description |
-|----------|------|----------|-------------|
-| `billing_strategy_label` | string | yes | Human-readable billing model name |
-| `commission_rate` | percentage | yes | Commission percentage |
-| `subscription_fee_monthly` | currency | no | Monthly subscription amount |
-| `white_label_monthly_fee` | currency | no | Monthly white-label charge |
-| `payment_facilitator_fee` | percentage | no | Transaction processing fee % |
-| `commission_clause` | string | no | Full commission paragraph (pre-rendered) |
-| `subscription_clause` | string | no | Subscription paragraph or empty |
-| `white_label_clause` | string | no | White-label paragraph or empty |
-| `payment_facilitator_clause` | string | no | Payment facilitator paragraph or empty |
-| `volume_tier_clause` | string | no | Volume tier description or empty |
-
-### Contract Generation Logic Update
-
-When generating a contract for a property, the system reads `property_billing_configs` and `billing_global_defaults` to populate these variables. The `*_clause` variables are pre-rendered server-side — if a feature isn't enabled for a property, the clause variable is set to empty string so the section doesn't appear.
-
-This requires a small update to the contract generation edge function to resolve billing config into clause text.
-
-### Also: Fix the Default Commission Rate Label
-
-The current contract says `default: 10%` for commission_rate but global defaults show `8%`. The new version will not hardcode a default — it will always be populated from the property's billing config.
-
-## Implementation
-
-1. **Insert new version v2** (draft) of the ROL'OS PMS Partnership Agreement via the insert tool with the full rewritten markdown content and expanded variables schema
-2. **Update contract generation** in the edge function that populates contract variables — add billing config resolution logic to build the clause variables
-3. **No schema changes needed** — all billing data already exists in `property_billing_configs` and `billing_global_defaults`
+### Contract template insert (via insert tool, not migration)
+Insert into `contract_templates` + `contract_template_versions` with the referral partner agreement content and variables schema.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| DB Insert | New row in `contract_template_versions` — v2 draft with billing-aware content |
-| Modify | Edge function that generates/populates contract variables (to resolve billing clauses) |
+| Migration | Add `sales_rep` to `app_role` enum, create `sales_rep_bank_details` table |
+| DB Insert | New "Referral Partner Agreement" contract template + v1 content |
+| Modify | `src/pages/AdminAccessRequests.tsx` — add "Sales Rep" approve option |
+| Modify | `src/components/AddUserModal.tsx` — support `sales_rep` role with tier/code fields |
+| Modify | `src/pages/AdminSalesReps.tsx` — add banking details section to rep cards/edit |
+| Create | `src/hooks/useRepBankDetails.ts` — CRUD hook for rep banking |
+| Modify | `src/pages/AdminPayments.tsx` — add Commission Payouts section |
+| Modify | `src/pages/AdminContracts.tsx` — support issuing referral partner agreements |
 
