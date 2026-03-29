@@ -50,8 +50,16 @@ export function useBillingConfig(propertyId: string | undefined) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
+      // Sync white_label_allowed → brand_override_enabled on property
+      if (propertyId && data?.white_label_allowed != null) {
+        supabase
+          .from("properties")
+          .update({ brand_override_enabled: data.white_label_allowed } as any)
+          .eq("id", propertyId)
+          .then();
+      }
       toast.success("Billing configuration saved");
     },
     onError: (error) => {
