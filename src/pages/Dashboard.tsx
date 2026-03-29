@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
+import { SalesRepDashboard } from "@/components/dashboard/SalesRepDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subYears, differenceInDays, parseISO } from "date-fns";
@@ -34,7 +35,7 @@ const PIE_COLORS = [
 ];
 
 const Dashboard = () => {
-  const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
+  const { user, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId } = useAuth();
   const [period, setPeriod] = useState("this_month");
   const [comparePrevYear, setComparePrevYear] = useState(true);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("all");
