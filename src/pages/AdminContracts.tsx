@@ -865,7 +865,7 @@ export default function AdminContracts() {
             {/* Contract Type Selector */}
             <div className="space-y-2">
               <Label>Contract Type *</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setSelectedContractType("standard")}
@@ -880,7 +880,7 @@ export default function AdminContracts() {
                     <span className="font-medium text-sm">Standard</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Listing & Distribution Agreement
+                    Listing & Distribution
                   </p>
                 </button>
                 <button
@@ -897,7 +897,24 @@ export default function AdminContracts() {
                     <span className="font-medium text-sm">ROL'OS PMS</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Includes PMS system access
+                    PMS system access
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedContractType("referral")}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedContractType === "referral"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Handshake className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Referral</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Partner agreement
                   </p>
                 </button>
               </div>
