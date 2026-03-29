@@ -107,7 +107,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
   const showVolumeTiers = strategy === "volume_tiered";
 
   return (
-    <Card>
+    <>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
       </CardHeader>
