@@ -8608,6 +8608,65 @@ export type Database = {
           },
         ]
       }
+      sales_rep_bank_details: {
+        Row: {
+          account_holder: string
+          account_number_encrypted: string | null
+          account_number_masked: string | null
+          account_type: string | null
+          bank_name: string
+          branch_code: string | null
+          created_at: string | null
+          id: string
+          is_verified: boolean | null
+          rep_id: string
+          swift_code: string | null
+          updated_at: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          account_holder: string
+          account_number_encrypted?: string | null
+          account_number_masked?: string | null
+          account_type?: string | null
+          bank_name: string
+          branch_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_verified?: boolean | null
+          rep_id: string
+          swift_code?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          account_holder?: string
+          account_number_encrypted?: string | null
+          account_number_masked?: string | null
+          account_type?: string | null
+          bank_name?: string
+          branch_code?: string | null
+          created_at?: string | null
+          id?: string
+          is_verified?: boolean | null
+          rep_id?: string
+          swift_code?: string | null
+          updated_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_rep_bank_details_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: true
+            referencedRelation: "sales_reps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_reps: {
         Row: {
           commission_tier: Database["public"]["Enums"]["commission_tier"]
@@ -9692,7 +9751,7 @@ export type Database = {
       trigger_system_health_check: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "dev" | "fearless_leader"
+      app_role: "admin" | "user" | "dev" | "fearless_leader" | "sales_rep"
       audit_action_type:
         | "create"
         | "update"
@@ -9943,7 +10002,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "dev", "fearless_leader"],
+      app_role: ["admin", "user", "dev", "fearless_leader", "sales_rep"],
       audit_action_type: [
         "create",
         "update",
