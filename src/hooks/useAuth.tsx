@@ -18,6 +18,8 @@ export function useAuth() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isDev, setIsDev] = useState(false);
   const [isFearlessLeader, setIsFearlessLeader] = useState(false);
+  const [isSalesRep, setIsSalesRep] = useState(false);
+  const [salesRepId, setSalesRepId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('owner');
 
@@ -43,14 +45,30 @@ export function useAuth() {
         const hasDev = roles.includes("dev");
         const hasFearlessLeader = roles.includes("fearless_leader");
         const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
+        const hasSalesRep = roles.includes("sales_rep");
         
         setIsAdmin(hasAdmin);
         setIsDev(hasDev);
         setIsFearlessLeader(hasFearlessLeader);
+        setIsSalesRep(hasSalesRep);
         setProfile(profileData || null);
         
         // Compute the single userRole for role-aware navigation
-        setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin));
+        setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin, hasSalesRep));
+
+        // If sales rep, look up their rep record
+        if (hasSalesRep) {
+          const { data: repData } = await supabase
+            .from("sales_reps")
+            .select("id")
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (mounted) {
+            setSalesRepId(repData?.id || null);
+          }
+        } else {
+          setSalesRepId(null);
+        }
         
         setLoading(false);
       }
@@ -71,6 +89,8 @@ export function useAuth() {
           setIsAdmin(false);
           setIsDev(false);
           setIsFearlessLeader(false);
+          setIsSalesRep(false);
+          setSalesRepId(null);
           setProfile(null);
           setUserRole('owner');
           setLoading(false);
@@ -102,5 +122,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, session, loading, isAdmin, isDev, isFearlessLeader, profile, userRole, signOut };
+  return { user, session, loading, isAdmin, isDev, isFearlessLeader, isSalesRep, salesRepId, profile, userRole, signOut };
 }

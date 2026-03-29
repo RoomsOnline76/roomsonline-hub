@@ -1,6 +1,6 @@
 // Centralized permission utility for role-based access control
 
-export type UserRole = 'owner' | 'admin' | 'dev';
+export type UserRole = 'owner' | 'sales_rep' | 'admin' | 'dev';
 
 export type PermissionAction =
   // Owner actions
@@ -33,9 +33,10 @@ export type PermissionAction =
   | 'view_revenue_pulse'
   | 'view_intelligence';
 
-// Role hierarchy: dev > admin > owner
+// Role hierarchy: dev > admin > sales_rep > owner
 const roleHierarchy: Record<UserRole, number> = {
   owner: 1,
+  sales_rep: 1.5,
   admin: 2,
   dev: 3,
 };
@@ -93,9 +94,10 @@ export function hasMinRole(userRole: UserRole, minRole: UserRole): boolean {
 /**
  * Get the computed user role from auth flags
  */
-export function computeUserRole(isDev: boolean, isFearlessLeader: boolean, isAdmin: boolean): UserRole {
+export function computeUserRole(isDev: boolean, isFearlessLeader: boolean, isAdmin: boolean, isSalesRep: boolean = false): UserRole {
   if (isDev || isFearlessLeader) return 'dev';
   if (isAdmin) return 'admin';
+  if (isSalesRep) return 'sales_rep';
   return 'owner';
 }
 
@@ -106,6 +108,7 @@ export function getRoleDisplayName(role: UserRole): string {
   switch (role) {
     case 'dev': return 'Developer';
     case 'admin': return 'Admin';
+    case 'sales_rep': return 'Sales Rep';
     case 'owner': return 'Owner';
   }
 }
@@ -126,6 +129,12 @@ export function getRoleBadgeStyle(role: UserRole): { bg: string; text: string; b
         bg: 'bg-accent/10',
         text: 'text-accent-foreground',
         border: 'border-accent/20',
+      };
+    case 'sales_rep':
+      return {
+        bg: 'bg-primary/10',
+        text: 'text-primary',
+        border: 'border-primary/20',
       };
     case 'owner':
       return {
