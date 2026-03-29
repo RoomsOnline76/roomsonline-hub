@@ -1,105 +1,61 @@
 
 
-# Transform Payments Page into Property Payout Summary + Payment Advice
+# Sales Rep Dashboard — "My Referrals" Section
 
-## Problem
+## Overview
 
-The current `/admin/payments` page shows raw transaction-level data (individual guest payments). What it should show is a **property-level payout summary**: for each property, the total collected, ROL's commission deducted, and the net amount owed to the property — plus the ability to send a payment advice/remittance note to the property owner.
+When a user with the `sales_rep` role logs in, their `/dashboard/reports` page should show a dedicated "My Referrals" section with their referred properties, commission status, and banking details. Currently, `sales_rep` is not tracked in `useAuth` at all — the role exists in the DB enum but the auth hook ignores it.
 
-The system already has the infrastructure for this — `payout_ledger` entries with `gross_amount`, `commission_amount`, `net_amount` per property, and the `bank-export-api` edge function. The payments page just doesn't use it.
+## Changes
 
-## What Changes
+### 1. Track `sales_rep` role in useAuth
 
-### 1. Add "Property Payouts" tab (make it the default)
+Add `isSalesRep` boolean to `useAuth`. When `roles.includes('sales_rep')`, set it true and look up the user's `sales_reps` record (by `user_id`) to get their `rep_id`.
 
-New primary tab showing a **property-grouped summary table**:
+Also add `'sales_rep'` to `UserRole` type in `permissions.ts` and update `computeUserRole` to return it when the user has no admin/dev roles but has `sales_rep`.
 
-| Property | Gross Collected | Commission (%) | Fees | Net Payout | Banking | Status | Actions |
-|----------|----------------|----------------|------|------------|---------|--------|---------|
-| Six on N | R24,500 | R1,960 (8%) | R250 | R22,290 | Verified | Pending | Send Advice / Mark Paid |
+### 2. Create `SalesRepDashboard` component
 
-Data source: `payout_ledger` entries grouped by `property_id`, joined with `property_billing_configs` for commission rate and `property_bank_details` for banking status.
+A new component `src/components/dashboard/SalesRepDashboard.tsx` that renders when the user has `sales_rep` role. Contains three cards:
 
-Summary stat cards update to show:
-- **Total Due to Properties** — sum of net_amount where status = eligible/pending
-- **Total Commission Earned** — sum of commission_amount
-- **Properties Awaiting Payout** — count of distinct properties with pending entries
+**My Referrals Card** — queries `property_referrals` where `rep_id` = user's rep ID, joined with `properties(name, is_active)`. Shows property name, referral date, status badge (lead/contracted/active/churned), and conversion date.
 
-### 2. "Send Payment Advice" action per property
+**Commission Summary Card** — queries `rep_commission_reports` where `rep_id` = user's rep ID. Shows current period total, lifetime earnings, latest report status (pending/approved/paid), and commission tier label from `sales_reps`.
 
-Button on each property row that generates and emails a **payment advice/remittance note** to the property owner. The email contains:
-- Period covered
-- Breakdown of bookings (guest name, dates, amount)
-- Commission deducted (rate + amount)
-- Any additional fees (white-label, subscription, payment facilitator)
-- **Net amount being paid**
-- Banking reference
+**Banking Details Card** — uses existing `useRepBankDetails` hook with user's rep ID. Shows masked account number, bank name, verification status. Read-only display (editable only by admin).
 
-This uses the existing `send-booking-email` edge function pattern (or a new `send-payment-advice` template via the transactional email system).
+### 3. Integrate into Dashboard page
 
-### 3. Keep existing tabs but reorganize
+In `src/pages/Dashboard.tsx`, detect `isSalesRep` from `useAuth`. If true and the user is NOT also an admin/dev, render `<SalesRepDashboard />` instead of (or above) the standard property reports dashboard. If they're both a sales rep AND an owner, show both sections.
 
-- **Property Payouts** — new default tab (the summary view)
-- **Transactions** — existing raw transaction list (moved to second tab)
-- **Commission Payouts** — existing rep commission tab (third tab)
+### 4. Add RLS policy for rep self-access
 
-### 4. Edge function: `send-payment-advice`
+The `property_referrals` and `rep_commission_reports` tables need SELECT policies allowing a rep to read their own records. Migration to add:
 
-New edge function that:
-- Accepts `property_id` and `period` (month/year)
-- Queries `payout_ledger` entries for that property/period
-- Queries `property_billing_configs` for commission rate and fees
-- Renders a branded payment advice email with line-item breakdown
-- Sends to `owner_email` from properties table
-- Logs to `billing_transactions` as type `payment_advice_sent`
+```sql
+CREATE POLICY "Rep views own referrals" ON public.property_referrals
+  FOR SELECT TO authenticated
+  USING (rep_id IN (SELECT id FROM public.sales_reps WHERE user_id = auth.uid()));
+
+CREATE POLICY "Rep views own commission reports" ON public.rep_commission_reports
+  FOR SELECT TO authenticated
+  USING (rep_id IN (SELECT id FROM public.sales_reps WHERE user_id = auth.uid()));
+```
 
 ## Technical Details
 
-### Data query for Property Payouts tab
-
-```typescript
-// Query payout_ledger grouped by property
-const { data } = await supabase
-  .from('payout_ledger')
-  .select(`
-    property_id,
-    gross_amount,
-    commission_amount,
-    commission_rate,
-    net_amount,
-    status,
-    created_at,
-    properties!inner(name, owner_email),
-    property_bank_details(is_verified)
-  `)
-  .in('status', ['pending', 'eligible', 'exported'])
-  .order('created_at', { ascending: false });
-
-// Group by property_id client-side for summary rows
-```
-
-### Payment advice email template
-
-Professional remittance-style email showing:
-- Header with ROL branding
-- Property name and period
-- Table of bookings with amounts
-- Commission line item
-- Fee line items (if applicable)
-- Net payout amount (bold, highlighted)
-- Banking reference number
-- Footer with contact details
+- `sales_reps.user_id` links the rep record to `auth.users` — this is how we resolve the logged-in user's rep ID
+- `property_referrals` has: `rep_id`, `property_id`, `status` (lead_source enum), `referral_date`, `converted_at`, `clawback_until`
+- `rep_commission_reports` has: `rep_id`, `period_month`, `total_amount`, `total_entries`, `status` (pending/approved/paid)
+- Existing `useRepBankDetails` hook already accepts a `repId` parameter — reuse it directly
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `src/pages/AdminPayments.tsx` — add Property Payouts tab as default, reorganize existing tabs |
-| Create | `src/components/payments/PropertyPayoutTable.tsx` — grouped property payout summary component |
-| Create | `src/components/payments/PaymentAdviceDialog.tsx` — preview + send payment advice modal |
-| Create | `src/hooks/usePropertyPayouts.ts` — hook to query and group payout_ledger by property |
-| Create | `supabase/functions/send-payment-advice/index.ts` — edge function to generate and email payment advice |
-| Deploy | `send-payment-advice` edge function |
-
-No database changes needed — `payout_ledger`, `property_billing_configs`, `property_bank_details`, and `billing_transactions` tables already exist.
+| Migration | Add RLS SELECT policies for `property_referrals` and `rep_commission_reports` |
+| Modify | `src/hooks/useAuth.tsx` — add `isSalesRep` + `salesRepId` state |
+| Modify | `src/lib/permissions.ts` — add `sales_rep` to UserRole |
+| Create | `src/components/dashboard/SalesRepDashboard.tsx` — referrals, commissions, banking cards |
+| Modify | `src/pages/Dashboard.tsx` — conditionally render SalesRepDashboard |
 
