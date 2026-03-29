@@ -217,6 +217,32 @@ export default function ContractSign() {
         listing_commission_percentage: commissionText,
         pms_commission_percentage: pmsCommissionText,
         covered_properties_list: propertiesListHtml,
+        // v2 PMS contract billing variables
+        ...(billingVars ? {
+          billing_strategy_label: billingVars.billing_strategy_label,
+          commission_rate: billingVars.commission_rate,
+          commission_clause: billingVars.commission_clause,
+          subscription_fee_monthly: billingVars.subscription_fee_monthly,
+          subscription_clause: billingVars.subscription_clause,
+          white_label_monthly_fee: billingVars.white_label_monthly_fee,
+          white_label_clause: billingVars.white_label_clause,
+          payment_facilitator_fee: billingVars.payment_facilitator_fee,
+          payment_facilitator_clause: billingVars.payment_facilitator_clause,
+          volume_tier_clause: billingVars.volume_tier_clause,
+        } : {}),
+        // Map v2 template property details fields
+        property_name: contract.owner_name || propertyDetails?.registeredName || coveredProperties[0]?.name || 'N/A',
+        registered_business_name: propertyDetails?.registeredName || 'N/A',
+        registration_number: propertyDetails?.registrationNumber || 'N/A',
+        vat_number: propertyDetails?.vatNumber || 'N/A',
+        physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
+        key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
+        contact_email: contract.owner_email || propertyDetails?.email || 'N/A',
+        contact_phone: propertyDetails?.telephone || 'N/A',
+        effective_date: new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }),
+        signatory_name: '',
+        signatory_designation: '',
+        signature_date: new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }),
       };
 
       // Render markdown with variable substitution
