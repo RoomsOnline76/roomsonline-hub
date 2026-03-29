@@ -33,7 +33,10 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
-  
+  // Sales rep fields
+  const [repCode, setRepCode] = useState("");
+  const [commissionTier, setCommissionTier] = useState<"base" | "accelerated" | "elite">("base");
+
   // Multi-PMS toggle
   const [showMultiPMS, setShowMultiPMS] = useState(false);
 
@@ -58,6 +61,8 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       });
       setSelectedPMSSystems([]);
       setShowMultiPMS(false);
+      setRepCode("");
+      setCommissionTier("base");
       resetHostfullyState();
     }
   }, [open, defaultEmail, defaultName]);
