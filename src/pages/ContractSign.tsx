@@ -17,6 +17,7 @@ import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronU
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
+import { resolveBillingContractVariables, BillingContractVariables } from "@/lib/contractBillingVariables";
 
 interface PropertyData {
   id: string;
@@ -119,6 +120,7 @@ export default function ContractSign() {
   const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
    const [commissionText, setCommissionText] = useState('ten percent (10%)');
    const [pmsCommissionText, setPmsCommissionText] = useState('two percent (2%)');
+   const [billingVars, setBillingVars] = useState<BillingContractVariables | null>(null);
   const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
@@ -215,6 +217,32 @@ export default function ContractSign() {
         listing_commission_percentage: commissionText,
         pms_commission_percentage: pmsCommissionText,
         covered_properties_list: propertiesListHtml,
+        // v2 PMS contract billing variables
+        ...(billingVars ? {
+          billing_strategy_label: billingVars.billing_strategy_label,
+          commission_rate: billingVars.commission_rate,
+          commission_clause: billingVars.commission_clause,
+          subscription_fee_monthly: billingVars.subscription_fee_monthly,
+          subscription_clause: billingVars.subscription_clause,
+          white_label_monthly_fee: billingVars.white_label_monthly_fee,
+          white_label_clause: billingVars.white_label_clause,
+          payment_facilitator_fee: billingVars.payment_facilitator_fee,
+          payment_facilitator_clause: billingVars.payment_facilitator_clause,
+          volume_tier_clause: billingVars.volume_tier_clause,
+        } : {}),
+        // Map v2 template property details fields
+        property_name: contract.owner_name || propertyDetails?.registeredName || coveredProperties[0]?.name || 'N/A',
+        registered_business_name: propertyDetails?.registeredName || 'N/A',
+        registration_number: propertyDetails?.registrationNumber || 'N/A',
+        vat_number: propertyDetails?.vatNumber || 'N/A',
+        physical_address: firstProperty ? [firstProperty.address, firstProperty.city, firstProperty.country].filter(Boolean).join(', ') : propertyDetails?.physicalAddress || 'N/A',
+        key_representative: contract.owner_name || propertyDetails?.keyRepresentative || 'N/A',
+        contact_email: contract.owner_email || propertyDetails?.email || 'N/A',
+        contact_phone: propertyDetails?.telephone || 'N/A',
+        effective_date: new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }),
+        signatory_name: '',
+        signatory_designation: '',
+        signature_date: new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }),
       };
 
       // Render markdown with variable substitution
@@ -245,7 +273,7 @@ export default function ContractSign() {
         property_type: p.property_type,
       }))
     );
-  }, [contract, coveredProperties, propertyDetails]);
+  }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars]);
 
   // Handle PDF download for signed contracts - uses dynamic template if available
   const handleDownloadPDF = () => {
@@ -487,7 +515,11 @@ export default function ContractSign() {
             const rate = pmsTerms[0].revenue_share_percent;
             const words = numberToWords(rate);
             setPmsCommissionText(`${words} percent (${rate}%)`);
-          }
+        }
+
+        // Fetch billing config variables for v2 PMS contract template
+        const billingResult = await resolveBillingContractVariables(propertyIds);
+        setBillingVars(billingResult);
         }
         const emailToUse = contractData.sent_to_email || contractData.owner_email;
         if (emailToUse) {
