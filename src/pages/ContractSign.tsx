@@ -489,7 +489,11 @@ export default function ContractSign() {
             const rate = pmsTerms[0].revenue_share_percent;
             const words = numberToWords(rate);
             setPmsCommissionText(`${words} percent (${rate}%)`);
-          }
+        }
+
+        // Fetch billing config variables for v2 PMS contract template
+        const billingResult = await resolveBillingContractVariables(propertyIds);
+        setBillingVars(billingResult);
         }
         const emailToUse = contractData.sent_to_email || contractData.owner_email;
         if (emailToUse) {
