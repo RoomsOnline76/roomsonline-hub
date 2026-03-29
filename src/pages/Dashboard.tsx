@@ -1153,6 +1153,13 @@ const Dashboard = () => {
           </Select>
         </div>
 
+        {/* Sales Rep Dashboard */}
+        {isSalesRep && salesRepId && (
+          <div className="mb-6">
+            <SalesRepDashboard salesRepId={salesRepId} />
+          </div>
+        )}
+
         {/* Stats Cards - Row 1 & 2 combined compact */}
         <div className={cn(
           "grid gap-2 mb-3",
