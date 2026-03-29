@@ -108,6 +108,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
 
   return (
     <>
+    <Card>
       <CardHeader>
         <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
       </CardHeader>
