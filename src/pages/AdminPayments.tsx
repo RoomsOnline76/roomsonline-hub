@@ -10,6 +10,8 @@ import {
   Search,
   Handshake,
   Loader2,
+  Building2,
+  TrendingUp,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -20,23 +22,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { usePropertyPayouts } from "@/hooks/usePropertyPayouts";
+import { PropertyPayoutTable } from "@/components/payments/PropertyPayoutTable";
 
 interface PaymentTransaction {
   id: string;
@@ -71,12 +66,11 @@ export default function AdminPayments() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [markingPaid, setMarkingPaid] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    pendingAmount: 0,
-    failedCount: 0,
-    successCount: 0,
+  const [txStats, setTxStats] = useState({
+    totalRevenue: 0, pendingAmount: 0, failedCount: 0, successCount: 0,
   });
+
+  const { payouts, loading: payoutsLoading, stats: payoutStats } = usePropertyPayouts();
 
   useEffect(() => {
     loadPayments();
@@ -86,56 +80,32 @@ export default function AdminPayments() {
   const loadPayments = async () => {
     try {
       setLoading(true);
-      
       let query = supabase
         .from('payment_transactions')
-        .select(`
-          *,
-          bookings!inner(
-            guest_name,
-            properties!inner(name)
-          )
-        `)
+        .select(`*, bookings!inner(guest_name, properties!inner(name))`)
         .order('created_at', { ascending: false })
         .limit(50);
-      
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
 
       const { data, error } = await query;
-      
       if (error) throw error;
 
-      const formattedData = (data || []).map((t: any) => ({
-        id: t.id,
-        booking_id: t.booking_id,
-        amount: t.amount,
-        currency: t.currency || 'ZAR',
-        status: t.status,
-        payment_method: t.payment_method,
-        created_at: t.created_at,
+      setTransactions((data || []).map((t: any) => ({
+        id: t.id, booking_id: t.booking_id, amount: t.amount,
+        currency: t.currency || 'ZAR', status: t.status,
+        payment_method: t.payment_method, created_at: t.created_at,
         guest_name: t.bookings?.guest_name,
         property_name: t.bookings?.properties?.name,
-      }));
+      })));
 
-      setTransactions(formattedData);
-
-      const allTransactions = await supabase
-        .from('payment_transactions')
-        .select('amount, status');
-      
-      if (allTransactions.data) {
-        const total = allTransactions.data
-          .filter(t => t.status === 'completed')
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
-        const pending = allTransactions.data
-          .filter(t => t.status === 'pending')
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
-        const failed = allTransactions.data.filter(t => t.status === 'failed').length;
-        const success = allTransactions.data.filter(t => t.status === 'completed').length;
-        
-        setStats({ totalRevenue: total, pendingAmount: pending, failedCount: failed, successCount: success });
+      const { data: all } = await supabase.from('payment_transactions').select('amount, status');
+      if (all) {
+        setTxStats({
+          totalRevenue: all.filter(t => t.status === 'completed').reduce((s, t) => s + (t.amount || 0), 0),
+          pendingAmount: all.filter(t => t.status === 'pending').reduce((s, t) => s + (t.amount || 0), 0),
+          failedCount: all.filter(t => t.status === 'failed').length,
+          successCount: all.filter(t => t.status === 'completed').length,
+        });
       }
     } catch (error) {
       console.error('Error loading payments:', error);
@@ -148,52 +118,35 @@ export default function AdminPayments() {
   const loadCommissionPayouts = async () => {
     try {
       setCommissionsLoading(true);
-      
       const { data: reports, error } = await supabase
         .from('rep_commission_reports')
-        .select(`
-          id,
-          rep_id,
-          period_start,
-          period_end,
-          total_commission,
-          status,
-          sales_reps!inner(display_name, rep_code, id)
-        `)
+        .select(`id, rep_id, period_start, period_end, total_commission, status, sales_reps!inner(display_name, rep_code, id)`)
         .in('status', ['approved', 'paid'])
         .order('period_end', { ascending: false })
         .limit(50);
-
       if (error) throw error;
 
       const repIds = [...new Set((reports || []).map((r: any) => r.rep_id))];
       let bankingMap: Record<string, { exists: boolean; verified: boolean }> = {};
-      
       if (repIds.length > 0) {
         const { data: bankData } = await supabase
           .from('sales_rep_bank_details')
           .select('rep_id, is_verified')
           .in('rep_id', repIds);
-        
         (bankData || []).forEach((b: any) => {
           bankingMap[b.rep_id] = { exists: true, verified: b.is_verified };
         });
       }
 
-      const payouts: CommissionPayout[] = (reports || []).map((r: any) => ({
-        id: r.id,
-        rep_id: r.rep_id,
+      setCommissionPayouts((reports || []).map((r: any) => ({
+        id: r.id, rep_id: r.rep_id,
         rep_name: r.sales_reps?.display_name || 'Unknown',
         rep_code: r.sales_reps?.rep_code || '',
-        period_start: r.period_start,
-        period_end: r.period_end,
-        total_amount: r.total_commission || 0,
-        status: r.status,
+        period_start: r.period_start, period_end: r.period_end,
+        total_amount: r.total_commission || 0, status: r.status,
         has_banking: !!bankingMap[r.rep_id]?.exists,
         banking_verified: !!bankingMap[r.rep_id]?.verified,
-      }));
-
-      setCommissionPayouts(payouts);
+      })));
     } catch (error) {
       console.error('Error loading commission payouts:', error);
     } finally {
@@ -208,7 +161,6 @@ export default function AdminPayments() {
         .from('rep_commission_reports')
         .update({ status: 'paid', paid_at: new Date().toISOString() } as any)
         .eq('id', reportId);
-      
       if (error) throw error;
       toast.success('Commission marked as paid');
       loadCommissionPayouts();
@@ -238,14 +190,9 @@ export default function AdminPayments() {
     return transactions.filter(t => {
       const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
       const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
-      return (
-        dateStr.includes(term) ||
-        (t.guest_name?.toLowerCase().includes(term) || false) ||
-        (t.property_name?.toLowerCase().includes(term) || false) ||
-        (t.payment_method?.toLowerCase().includes(term) || false) ||
-        amountStr.includes(term) ||
-        t.status.toLowerCase().includes(term)
-      );
+      return dateStr.includes(term) || t.guest_name?.toLowerCase().includes(term) ||
+        t.property_name?.toLowerCase().includes(term) || t.payment_method?.toLowerCase().includes(term) ||
+        amountStr.includes(term) || t.status.toLowerCase().includes(term);
     });
   }, [transactions, searchTerm]);
 
@@ -253,7 +200,7 @@ export default function AdminPayments() {
     .filter(p => p.status === 'approved')
     .reduce((sum, p) => sum + p.total_amount, 0);
 
-  const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: { 
+  const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: {
     title: string; value: string | number; icon: React.ElementType; description?: string;
     variant?: 'default' | 'warning' | 'success' | 'error';
   }) => (
@@ -261,7 +208,7 @@ export default function AdminPayments() {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${
-          variant === 'warning' ? 'text-amber-500' : variant === 'success' ? 'text-emerald-500' : 
+          variant === 'warning' ? 'text-amber-500' : variant === 'success' ? 'text-emerald-500' :
           variant === 'error' ? 'text-destructive' : 'text-muted-foreground'
         }`} />
       </CardHeader>
@@ -274,18 +221,19 @@ export default function AdminPayments() {
 
   return (
     <AppLayout>
-      <PageHeader title="Payments" subtitle="Manage booking payments and commission payouts" />
+      <PageHeader title="Payments" subtitle="Property payouts, transactions, and commission management" />
 
       <div className="grid gap-4 md:grid-cols-5 xl:gap-6 mb-8">
-        <StatCard title="Total Revenue" value={`R${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} description="Completed payments" variant="success" />
-        <StatCard title="Pending" value={`R${stats.pendingAmount.toLocaleString()}`} icon={Clock} description="Awaiting confirmation" variant="warning" />
-        <StatCard title="Successful" value={stats.successCount} icon={CheckCircle} description="Completed transactions" variant="success" />
-        <StatCard title="Failed" value={stats.failedCount} icon={AlertTriangle} description="Failed transactions" variant={stats.failedCount > 0 ? 'error' : 'default'} />
-        <StatCard title="Commissions Due" value={`R${totalCommissionsDue.toLocaleString()}`} icon={Handshake} description="Approved, awaiting payout" variant={totalCommissionsDue > 0 ? 'warning' : 'default'} />
+        <StatCard title="Due to Properties" value={`R${payoutStats.totalDue.toLocaleString()}`} icon={Building2} description={`${payoutStats.propertiesCount} properties`} variant="warning" />
+        <StatCard title="Commission Earned" value={`R${payoutStats.totalCommission.toLocaleString()}`} icon={TrendingUp} description="Total platform commission" variant="success" />
+        <StatCard title="Total Collected" value={`R${txStats.totalRevenue.toLocaleString()}`} icon={DollarSign} description="Completed payments" variant="success" />
+        <StatCard title="Pending" value={`R${txStats.pendingAmount.toLocaleString()}`} icon={Clock} description="Awaiting confirmation" variant="warning" />
+        <StatCard title="Rep Commissions" value={`R${totalCommissionsDue.toLocaleString()}`} icon={Handshake} description="Approved, awaiting payout" variant={totalCommissionsDue > 0 ? 'warning' : 'default'} />
       </div>
 
-      <Tabs defaultValue="transactions" className="space-y-4">
+      <Tabs defaultValue="payouts" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="payouts">Property Payouts</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="commissions" className="gap-1.5">
             Commission Payouts
@@ -297,6 +245,25 @@ export default function AdminPayments() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Property Payouts — default tab */}
+        <TabsContent value="payouts">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Property Payout Summary</CardTitle>
+                  <CardDescription>Net amounts due to each property after commission and fees</CardDescription>
+                </div>
+                <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <PropertyPayoutTable payouts={payouts} loading={payoutsLoading} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Transactions tab */}
         <TabsContent value="transactions">
           <Card>
             <CardHeader>
@@ -364,6 +331,7 @@ export default function AdminPayments() {
           </Card>
         </TabsContent>
 
+        {/* Commission Payouts tab */}
         <TabsContent value="commissions">
           <Card>
             <CardHeader>
