@@ -1,38 +1,28 @@
 
 
-# Add "Today" + Next-Available-Day Labels to Room Cards
+# Consolidate Commission into Billing Tab + Remove Duplicate Toggle + Show Extra Charges
 
-## What Changes
+## Changes
 
-The room availability badge currently shows "X left" — this is today's availability but doesn't say so. Two improvements:
+### 1. Merge Commission tab into Billing tab
+The Commission sub-tab (under Rates) and Billing sub-tab currently live side by side but manage related financial config. Embed the `CommissionTab` component directly inside `BillingConfigTab` as a collapsible section below the strategy/commission-rate fields. Then remove the separate "Commission" tab trigger from `PropertyForm.tsx`.
 
-1. **"X left today"** — clarify the badge refers to today
-2. **"Y available from Wednesday"** — new secondary badge (different color, e.g. green/teal) showing the next day this room type has availability, helping users who see 0 today know they can shift dates
+### 2. Remove "Enable Property Branding" toggle from Branding tab
+The `brand_override_enabled` toggle in `BrandingTab` does the same thing as the `white_label_allowed` toggle in `BillingConfigTab`. Remove the toggle card from `BrandingTab.tsx` (lines 278–305). Keep the toggle only in the Billing tab. When `white_label_allowed` is saved in billing, it should also write `brand_override_enabled = true` on the property record (they're the same concept — keep them in sync).
 
-## How It Works
+### 3. Show applicable extra charges when White-Label or Payment Facilitator is toggled on
+When the user toggles on White-Label or Payment Facilitator, display a highlighted info card showing the charge that will apply:
+- **White-Label ON**: Show "This property will be charged **R{fee}/month** for white-label branding" (reading from `globalDefaults.white_label_monthly_fee` or the property override)
+- **Payment Facilitator ON**: Show "This property will be charged **{fee}%** per transaction as payment facilitator fee" (reading from `globalDefaults.payment_facilitator_fee` or the property override)
 
-### Data: Fetch 7-day availability window
-
-In `PropertyShowcase.tsx`, expand the `pms_availability_cache` query from `eq("date", today)` to fetch the next 7 days (`.gte("date", today).lte("date", today+7)`). Group results by room type, storing both today's count and the first future date with availability > 0.
-
-Pass a new `getNextAvailableDay` callback to `RoomCollection` alongside the existing `getAvailability`.
-
-### UI: RoomCollection badge updates
-
-- Change `"{availability} left"` → `"{availability} left today"`
-- When `availability === 0` and a next-available date exists, show a teal/green badge: `"Available from {dayName}"` (e.g. "Available from Wednesday")
-- When `availability > 0` but a future date has MORE availability, optionally show `"+{n} more from {dayName}"` in a subtle secondary badge
-
-### Day name formatting
-
-Use `new Date(dateStr).toLocaleDateString('en', { weekday: 'long' })` to get "Wednesday", "Thursday" etc.
+Use an amber/warning-style card so it's visually distinct.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `src/pages/PropertyShowcase.tsx` — expand cache query to 7 days, compute next-available map, pass to RoomCollection |
-| Modify | `src/components/showcase/RoomCollection.tsx` — new `getNextAvailableDay` prop, updated badge rendering |
-
-No database changes needed.
+| Modify | `src/components/property/BillingConfigTab.tsx` — embed CommissionTab, add charge info cards for toggles |
+| Modify | `src/components/property/BrandingTab.tsx` — remove brand_override_enabled toggle card (lines 278–305) |
+| Modify | `src/pages/PropertyForm.tsx` — remove Commission tab trigger and TabsContent, keep only Billing |
+| Modify | `src/hooks/useBillingConfig.ts` — sync `white_label_allowed` → `brand_override_enabled` on property record |
 
