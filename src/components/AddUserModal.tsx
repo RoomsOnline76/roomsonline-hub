@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getPMSSystemByKey, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
-import { CheckCircle2, Building2 } from "lucide-react";
+import { CheckCircle2, Building2, Handshake } from "lucide-react";
 
 const userSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100),
@@ -19,7 +19,7 @@ const userSchema = z.object({
 interface AddUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role: "admin" | "user";
+  role: "admin" | "user" | "sales_rep";
   onUserAdded: () => void;
   defaultEmail?: string;
   defaultName?: string;

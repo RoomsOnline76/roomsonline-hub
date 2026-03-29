@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff } from "lucide-react";
+import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff, Handshake } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -67,7 +67,7 @@ export default function AdminAccessRequests() {
   const [loading, setLoading] = useState(true);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "user">("user");
+  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | "sales_rep">("user");
   const [searchTerm, setSearchTerm] = useState("");
   const [showDeclined, setShowDeclined] = useState(false);
   const [detailRequest, setDetailRequest] = useState<AccessRequest | null>(null);
@@ -98,7 +98,7 @@ export default function AdminAccessRequests() {
     setLoading(false);
   };
 
-  const handleApprove = (request: AccessRequest, role: "admin" | "user") => {
+  const handleApprove = (request: AccessRequest, role: "admin" | "user" | "sales_rep") => {
     setSelectedRequest(request);
     setSelectedRole(role);
     setAddUserOpen(true);
@@ -340,6 +340,9 @@ export default function AdminAccessRequests() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleApprove(request, "admin")}>
                                   <Shield className="h-3 w-3 mr-2" />As Admin
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleApprove(request, "sales_rep")}>
+                                  <Handshake className="h-3 w-3 mr-2" />As Sales Rep
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>

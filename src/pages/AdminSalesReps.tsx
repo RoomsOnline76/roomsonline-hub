@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, ArrowLeft, UserPlus, Pencil, Trash2 } from "lucide-react";
 import { useSalesReps, SalesRep } from "@/hooks/useSalesReps";
 import { useAuth } from "@/hooks/useAuth";
+import { RepBankingForm } from "@/components/sales-reps/RepBankingForm";
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
   base: { label: "Base", color: "bg-muted text-muted-foreground" },
@@ -221,6 +222,7 @@ export default function AdminSalesReps() {
                     <Trash2 className="h-3 w-3 mr-1" /> Remove
                   </Button>
                 </div>
+                <RepBankingForm repId={rep.id} />
               </CardContent>
             </Card>
           ))}
