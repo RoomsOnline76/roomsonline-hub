@@ -148,7 +148,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       } else if (isHostfullySelected && hasValidAgencyUid) {
         successMessage = "Property Owner created with Hostfully Agency linked. They will add API key on first login.";
       } else {
-        successMessage = `${role === "admin" ? "Admin" : "Property Owner"} created successfully`;
+        successMessage = `${role === "admin" ? "Admin" : role === "sales_rep" ? "Sales Rep" : "Property Owner"} created successfully`;
       }
 
       toast.success(successMessage);
@@ -172,9 +172,9 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add {role === "admin" ? "Admin" : "Property Owner"}</DialogTitle>
+          <DialogTitle>Add {role === "admin" ? "Admin" : role === "sales_rep" ? "Sales Rep / Referral Partner" : "Property Owner"}</DialogTitle>
           <DialogDescription>
-            Create a new {role === "admin" ? "admin" : "property owner"} account. They will receive an email to set their password.
+            Create a new {role === "admin" ? "admin" : role === "sales_rep" ? "sales rep / referral partner" : "property owner"} account. They will receive an email to set their password.
           </DialogDescription>
         </DialogHeader>
 
