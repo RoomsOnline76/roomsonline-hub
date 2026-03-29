@@ -273,7 +273,7 @@ export default function ContractSign() {
         property_type: p.property_type,
       }))
     );
-  }, [contract, coveredProperties, propertyDetails]);
+  }, [contract, coveredProperties, propertyDetails, commissionText, pmsCommissionText, billingVars]);
 
   // Handle PDF download for signed contracts - uses dynamic template if available
   const handleDownloadPDF = () => {
