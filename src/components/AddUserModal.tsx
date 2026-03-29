@@ -202,6 +202,40 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
             />
           </div>
 
+          {/* Sales Rep Fields */}
+          {role === "sales_rep" && (
+            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Handshake className="h-4 w-4 text-primary" />
+                <Label className="font-medium">Referral Partner Details</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="rep-code">Rep Code (optional)</Label>
+                  <Input
+                    id="rep-code"
+                    value={repCode}
+                    onChange={(e) => setRepCode(e.target.value)}
+                    placeholder="REP-001"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Auto-generated if left empty</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Tier</Label>
+                  <Select value={commissionTier} onValueChange={(v: "base" | "accelerated" | "elite") => setCommissionTier(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="base">Base (20% / 5%)</SelectItem>
+                      <SelectItem value="accelerated">Accelerated (25% / 7.5%)</SelectItem>
+                      <SelectItem value="elite">Elite (30% / 10%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
           {role === "user" && (
             <>
               <div className="space-y-3">
