@@ -1,110 +1,105 @@
 
 
-# Sales Rep / Referral Partner System Enhancement
+# Transform Payments Page into Property Payout Summary + Payment Advice
 
-## Overview
+## Problem
 
-Five interconnected changes to create a complete referral partner lifecycle: role assignment, banking details, contract agreement, and commission inclusion in the payments report.
+The current `/admin/payments` page shows raw transaction-level data (individual guest payments). What it should show is a **property-level payout summary**: for each property, the total collected, ROL's commission deducted, and the net amount owed to the property — plus the ability to send a payment advice/remittance note to the property owner.
 
-## 1. Add `sales_rep` Role to the System
+The system already has the infrastructure for this — `payout_ledger` entries with `gross_amount`, `commission_amount`, `net_amount` per property, and the `bank-export-api` edge function. The payments page just doesn't use it.
 
-**Database**: Add `sales_rep` to the `app_role` enum via migration.
+## What Changes
 
-**Access Requests** (`AdminAccessRequests.tsx`): Currently the approve dropdown only offers "admin" and "user". Add a third option: "Sales Rep / Referral Partner" which assigns the `sales_rep` role and auto-creates a `sales_reps` record linked to the user.
+### 1. Add "Property Payouts" tab (make it the default)
 
-**AddUserModal** (`AddUserModal.tsx`): Extend the `role` prop to accept `"sales_rep"`. When this role is selected, skip the PMS system selection and instead show commission tier selection (Base/Accelerated/Elite) and rep code field.
+New primary tab showing a **property-grouped summary table**:
 
-## 2. Banking Details for Sales Reps
+| Property | Gross Collected | Commission (%) | Fees | Net Payout | Banking | Status | Actions |
+|----------|----------------|----------------|------|------------|---------|--------|---------|
+| Six on N | R24,500 | R1,960 (8%) | R250 | R22,290 | Verified | Pending | Send Advice / Mark Paid |
 
-**Database**: Create `sales_rep_bank_details` table (mirrors `property_bank_details` structure):
-- `id`, `rep_id` (FK → sales_reps), `bank_name`, `branch_code`, `account_holder`, `account_number_encrypted`, `account_number_masked`, `account_type`, `swift_code`, `is_verified`, `verified_at`, `verified_by`, `created_at`, `updated_at`
-- RLS: admins/devs/fearless_leader can read/write; the rep's own `user_id` can read their own record
+Data source: `payout_ledger` entries grouped by `property_id`, joined with `property_billing_configs` for commission rate and `property_bank_details` for banking status.
 
-**UI** (`AdminSalesReps.tsx`): Add a "Banking" section to each rep card (or the edit dialog) with fields for bank name, branch code, account holder, account number, account type. Account number is masked on display, editable only by admin+.
+Summary stat cards update to show:
+- **Total Due to Properties** — sum of net_amount where status = eligible/pending
+- **Total Commission Earned** — sum of commission_amount
+- **Properties Awaiting Payout** — count of distinct properties with pending entries
 
-## 3. Sales Rep / Referral Partner Agreement Contract
+### 2. "Send Payment Advice" action per property
 
-**Database**: Insert a new `contract_templates` row — "Referral Partner Agreement" — with a first version containing:
-- **Section 1**: Parties (ROL + Partner details with `{{rep_name}}`, `{{rep_email}}`, `{{rep_code}}`)
-- **Section 2**: Referral Scope — Partner refers properties to ROL; ROL manages onboarding
-- **Section 3**: Commission Terms — Uses the existing tier structure:
-  - `{{commission_tier_label}}` (Base/Accelerated/Elite)
-  - `{{first_year_rate}}` — first year commission %
-  - `{{residual_rate}}` — residual commission %
-  - `{{residual_duration}}` — months of residual
-  - `{{clawback_period}}` — days (default 90)
-- **Section 4**: Payment Terms — Monthly, 14-day payment cycle, banking details on file
-- **Section 5**: Clawback Clause — If referred property churns within `{{clawback_period}}` days
-- **Section 6**: Confidentiality + Non-Compete
-- **Section 7**: Term + Termination (12-month initial, 30-day notice)
+Button on each property row that generates and emails a **payment advice/remittance note** to the property owner. The email contains:
+- Period covered
+- Breakdown of bookings (guest name, dates, amount)
+- Commission deducted (rate + amount)
+- Any additional fees (white-label, subscription, payment facilitator)
+- **Net amount being paid**
+- Banking reference
 
-**Admin Contracts page** (`AdminContracts.tsx`): When issuing a contract, if the recipient type is "Sales Rep", pre-populate variables from `sales_reps` record and commission tier rates.
+This uses the existing `send-booking-email` edge function pattern (or a new `send-payment-advice` template via the transactional email system).
 
-## 4. Commission Payouts in Payments Report
+### 3. Keep existing tabs but reorganize
 
-**AdminPayments.tsx**: Add a "Commission Payouts" tab/section that:
-- Fetches `rep_commission_reports` where `status = 'approved'` (ready to pay)
-- Shows rep name, period, total amount, banking status (verified/unverified)
-- Allows fearless_leader to mark as paid (updates status to 'paid' + sets `paid_at`)
-- Summary card at top showing total commissions due this month
+- **Property Payouts** — new default tab (the summary view)
+- **Transactions** — existing raw transaction list (moved to second tab)
+- **Commission Payouts** — existing rep commission tab (third tab)
 
-This surfaces commission obligations alongside property payment transactions so the fearless leader sees all outgoing payments in one place.
+### 4. Edge function: `send-payment-advice`
 
-## 5. Link Sales Rep User to Their Dashboard
-
-When a user with `sales_rep` role logs in, they should see a "My Referrals" section in their dashboard showing their referred properties, commission status, and banking details. This is a lighter future enhancement — the immediate priority is admin-side management.
+New edge function that:
+- Accepts `property_id` and `period` (month/year)
+- Queries `payout_ledger` entries for that property/period
+- Queries `property_billing_configs` for commission rate and fees
+- Renders a branded payment advice email with line-item breakdown
+- Sends to `owner_email` from properties table
+- Logs to `billing_transactions` as type `payment_advice_sent`
 
 ## Technical Details
 
-### Migration SQL
-```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'sales_rep';
+### Data query for Property Payouts tab
 
-CREATE TABLE public.sales_rep_bank_details (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  rep_id uuid REFERENCES public.sales_reps(id) ON DELETE CASCADE NOT NULL UNIQUE,
-  bank_name text NOT NULL,
-  branch_code text,
-  account_holder text NOT NULL,
-  account_number_encrypted bytea,
-  account_number_masked text,
-  account_type text DEFAULT 'cheque',
-  swift_code text,
-  is_verified boolean DEFAULT false,
-  verified_at timestamptz,
-  verified_by uuid REFERENCES auth.users(id),
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+```typescript
+// Query payout_ledger grouped by property
+const { data } = await supabase
+  .from('payout_ledger')
+  .select(`
+    property_id,
+    gross_amount,
+    commission_amount,
+    commission_rate,
+    net_amount,
+    status,
+    created_at,
+    properties!inner(name, owner_email),
+    property_bank_details(is_verified)
+  `)
+  .in('status', ['pending', 'eligible', 'exported'])
+  .order('created_at', { ascending: false });
 
-ALTER TABLE public.sales_rep_bank_details ENABLE ROW LEVEL SECURITY;
-
--- Admin/dev/FL full access
-CREATE POLICY "Admins manage rep banking" ON public.sales_rep_bank_details
-  FOR ALL TO authenticated
-  USING (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'dev') OR has_role(auth.uid(), 'fearless_leader'));
-
--- Rep can view own banking
-CREATE POLICY "Rep views own banking" ON public.sales_rep_bank_details
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.sales_reps WHERE id = rep_id AND user_id = auth.uid()
-  ));
+// Group by property_id client-side for summary rows
 ```
 
-### Contract template insert (via insert tool, not migration)
-Insert into `contract_templates` + `contract_template_versions` with the referral partner agreement content and variables schema.
+### Payment advice email template
+
+Professional remittance-style email showing:
+- Header with ROL branding
+- Property name and period
+- Table of bookings with amounts
+- Commission line item
+- Fee line items (if applicable)
+- Net payout amount (bold, highlighted)
+- Banking reference number
+- Footer with contact details
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Migration | Add `sales_rep` to `app_role` enum, create `sales_rep_bank_details` table |
-| DB Insert | New "Referral Partner Agreement" contract template + v1 content |
-| Modify | `src/pages/AdminAccessRequests.tsx` — add "Sales Rep" approve option |
-| Modify | `src/components/AddUserModal.tsx` — support `sales_rep` role with tier/code fields |
-| Modify | `src/pages/AdminSalesReps.tsx` — add banking details section to rep cards/edit |
-| Create | `src/hooks/useRepBankDetails.ts` — CRUD hook for rep banking |
-| Modify | `src/pages/AdminPayments.tsx` — add Commission Payouts section |
-| Modify | `src/pages/AdminContracts.tsx` — support issuing referral partner agreements |
+| Modify | `src/pages/AdminPayments.tsx` — add Property Payouts tab as default, reorganize existing tabs |
+| Create | `src/components/payments/PropertyPayoutTable.tsx` — grouped property payout summary component |
+| Create | `src/components/payments/PaymentAdviceDialog.tsx` — preview + send payment advice modal |
+| Create | `src/hooks/usePropertyPayouts.ts` — hook to query and group payout_ledger by property |
+| Create | `supabase/functions/send-payment-advice/index.ts` — edge function to generate and email payment advice |
+| Deploy | `send-payment-advice` edge function |
+
+No database changes needed — `payout_ledger`, `property_billing_configs`, `property_bank_details`, and `billing_transactions` tables already exist.
 
