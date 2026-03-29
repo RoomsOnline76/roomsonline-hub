@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import { generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, ContractMetadata, CoveredProperty } from "@/lib/contractAgreementText";
 import { supabase } from "@/integrations/supabase/client";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
+import { resolveBillingContractVariables } from "@/lib/contractBillingVariables";
 
 interface ContractManagementPanelProps {
   propertyId: string;
@@ -142,6 +143,30 @@ export function ContractManagementPanel({
             owner_postal_address: amenities?.postal_address || amenities?.address_details?.postal_address || 'N/A',
             owner_key_representative: amenities?.key_representative || ownerName || 'N/A',
           };
+
+          // Enrich with billing variables for v2 PMS contracts
+          const propertyIds = ownerProperties.map(p => p.id).filter(Boolean);
+          if (propertyIds.length > 0) {
+            try {
+              const billingVars = await resolveBillingContractVariables(propertyIds);
+              Object.assign(ownerVariables, billingVars);
+              // Also map v2 template fields
+              ownerVariables.property_name = amenities?.registered_business_name || ownerName || ownerProperties[0]?.name || 'N/A';
+              ownerVariables.registered_business_name = amenities?.registered_business_name || 'N/A';
+              ownerVariables.registration_number = amenities?.registration_number || 'N/A';
+              ownerVariables.vat_number = amenities?.vat_number || 'N/A';
+              ownerVariables.physical_address = ownerVariables.owner_physical_address;
+              ownerVariables.key_representative = ownerVariables.owner_key_representative;
+              ownerVariables.contact_email = ownerEmail || 'N/A';
+              ownerVariables.contact_phone = amenities?.telephone || 'N/A';
+              ownerVariables.effective_date = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+              ownerVariables.signatory_name = '';
+              ownerVariables.signatory_designation = '';
+              ownerVariables.signature_date = new Date().toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' });
+            } catch (e) {
+              console.error('Failed to resolve billing variables:', e);
+            }
+          }
 
           // Render template with variables
           const renderedMarkdown = renderContractWithVariables(
