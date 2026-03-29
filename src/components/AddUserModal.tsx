@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getPMSSystemByKey, ALL_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
-import { CheckCircle2, Building2 } from "lucide-react";
+import { CheckCircle2, Building2, Handshake } from "lucide-react";
 
 const userSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required").max(100),
@@ -19,7 +19,7 @@ const userSchema = z.object({
 interface AddUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role: "admin" | "user";
+  role: "admin" | "user" | "sales_rep";
   onUserAdded: () => void;
   defaultEmail?: string;
   defaultName?: string;
@@ -33,7 +33,10 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
   const [selectedPMSSystems, setSelectedPMSSystems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
-  
+  // Sales rep fields
+  const [repCode, setRepCode] = useState("");
+  const [commissionTier, setCommissionTier] = useState<"base" | "accelerated" | "elite">("base");
+
   // Multi-PMS toggle
   const [showMultiPMS, setShowMultiPMS] = useState(false);
 
@@ -58,6 +61,8 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       });
       setSelectedPMSSystems([]);
       setShowMultiPMS(false);
+      setRepCode("");
+      setCommissionTier("base");
       resetHostfullyState();
     }
   }, [open, defaultEmail, defaultName]);
@@ -110,8 +115,12 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       const payload: Record<string, any> = {
         email: validated.email,
         full_name: validated.full_name,
-        role: role,
+        role: role === "sales_rep" ? "user" : role,
         pms_systems: role === "user" ? selectedPMSSystems : undefined,
+        sales_rep: role === "sales_rep" ? {
+          rep_code: repCode || `REP-${Date.now().toString(36).toUpperCase()}`,
+          commission_tier: commissionTier,
+        } : undefined,
       };
 
       // Add Hostfully-specific data if selected
@@ -139,7 +148,7 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
       } else if (isHostfullySelected && hasValidAgencyUid) {
         successMessage = "Property Owner created with Hostfully Agency linked. They will add API key on first login.";
       } else {
-        successMessage = `${role === "admin" ? "Admin" : "Property Owner"} created successfully`;
+        successMessage = `${role === "admin" ? "Admin" : role === "sales_rep" ? "Sales Rep" : "Property Owner"} created successfully`;
       }
 
       toast.success(successMessage);
@@ -163,9 +172,9 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add {role === "admin" ? "Admin" : "Property Owner"}</DialogTitle>
+          <DialogTitle>Add {role === "admin" ? "Admin" : role === "sales_rep" ? "Sales Rep / Referral Partner" : "Property Owner"}</DialogTitle>
           <DialogDescription>
-            Create a new {role === "admin" ? "admin" : "property owner"} account. They will receive an email to set their password.
+            Create a new {role === "admin" ? "admin" : role === "sales_rep" ? "sales rep / referral partner" : "property owner"} account. They will receive an email to set their password.
           </DialogDescription>
         </DialogHeader>
 
@@ -192,6 +201,40 @@ export function AddUserModal({ open, onOpenChange, role, onUserAdded, defaultEma
               required
             />
           </div>
+
+          {/* Sales Rep Fields */}
+          {role === "sales_rep" && (
+            <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <Handshake className="h-4 w-4 text-primary" />
+                <Label className="font-medium">Referral Partner Details</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="rep-code">Rep Code (optional)</Label>
+                  <Input
+                    id="rep-code"
+                    value={repCode}
+                    onChange={(e) => setRepCode(e.target.value)}
+                    placeholder="REP-001"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Auto-generated if left empty</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Commission Tier</Label>
+                  <Select value={commissionTier} onValueChange={(v: "base" | "accelerated" | "elite") => setCommissionTier(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="base">Base (20% / 5%)</SelectItem>
+                      <SelectItem value="accelerated">Accelerated (25% / 7.5%)</SelectItem>
+                      <SelectItem value="elite">Elite (30% / 10%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
 
           {role === "user" && (
             <>

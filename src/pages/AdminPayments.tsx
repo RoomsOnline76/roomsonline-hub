@@ -8,6 +8,8 @@ import {
   Download,
   Filter,
   Search,
+  Handshake,
+  Loader2,
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -47,11 +50,27 @@ interface PaymentTransaction {
   property_name?: string;
 }
 
+interface CommissionPayout {
+  id: string;
+  rep_id: string;
+  rep_name: string;
+  rep_code: string;
+  period_start: string;
+  period_end: string;
+  total_amount: number;
+  status: string;
+  has_banking: boolean;
+  banking_verified: boolean;
+}
+
 export default function AdminPayments() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [commissionPayouts, setCommissionPayouts] = useState<CommissionPayout[]>([]);
   const [loading, setLoading] = useState(true);
+  const [commissionsLoading, setCommissionsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalRevenue: 0,
     pendingAmount: 0,
@@ -61,6 +80,7 @@ export default function AdminPayments() {
 
   useEffect(() => {
     loadPayments();
+    loadCommissionPayouts();
   }, [statusFilter]);
 
   const loadPayments = async () => {
@@ -101,7 +121,6 @@ export default function AdminPayments() {
 
       setTransactions(formattedData);
 
-      // Calculate stats
       const allTransactions = await supabase
         .from('payment_transactions')
         .select('amount, status');
@@ -116,18 +135,87 @@ export default function AdminPayments() {
         const failed = allTransactions.data.filter(t => t.status === 'failed').length;
         const success = allTransactions.data.filter(t => t.status === 'completed').length;
         
-        setStats({
-          totalRevenue: total,
-          pendingAmount: pending,
-          failedCount: failed,
-          successCount: success,
-        });
+        setStats({ totalRevenue: total, pendingAmount: pending, failedCount: failed, successCount: success });
       }
     } catch (error) {
       console.error('Error loading payments:', error);
       toast.error('Failed to load payment data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCommissionPayouts = async () => {
+    try {
+      setCommissionsLoading(true);
+      
+      const { data: reports, error } = await supabase
+        .from('rep_commission_reports')
+        .select(`
+          id,
+          rep_id,
+          period_start,
+          period_end,
+          total_commission,
+          status,
+          sales_reps!inner(display_name, rep_code, id)
+        `)
+        .in('status', ['approved', 'paid'])
+        .order('period_end', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      const repIds = [...new Set((reports || []).map((r: any) => r.rep_id))];
+      let bankingMap: Record<string, { exists: boolean; verified: boolean }> = {};
+      
+      if (repIds.length > 0) {
+        const { data: bankData } = await supabase
+          .from('sales_rep_bank_details')
+          .select('rep_id, is_verified')
+          .in('rep_id', repIds);
+        
+        (bankData || []).forEach((b: any) => {
+          bankingMap[b.rep_id] = { exists: true, verified: b.is_verified };
+        });
+      }
+
+      const payouts: CommissionPayout[] = (reports || []).map((r: any) => ({
+        id: r.id,
+        rep_id: r.rep_id,
+        rep_name: r.sales_reps?.display_name || 'Unknown',
+        rep_code: r.sales_reps?.rep_code || '',
+        period_start: r.period_start,
+        period_end: r.period_end,
+        total_amount: r.total_commission || 0,
+        status: r.status,
+        has_banking: !!bankingMap[r.rep_id]?.exists,
+        banking_verified: !!bankingMap[r.rep_id]?.verified,
+      }));
+
+      setCommissionPayouts(payouts);
+    } catch (error) {
+      console.error('Error loading commission payouts:', error);
+    } finally {
+      setCommissionsLoading(false);
+    }
+  };
+
+  const handleMarkPaid = async (reportId: string) => {
+    try {
+      setMarkingPaid(reportId);
+      const { error } = await supabase
+        .from('rep_commission_reports')
+        .update({ status: 'paid', paid_at: new Date().toISOString() } as any)
+        .eq('id', reportId);
+      
+      if (error) throw error;
+      toast.success('Commission marked as paid');
+      loadCommissionPayouts();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to mark as paid');
+    } finally {
+      setMarkingPaid(null);
     }
   };
 
@@ -144,15 +232,12 @@ export default function AdminPayments() {
     }
   };
 
-  // Filter transactions by search term across all columns
   const filteredTransactions = useMemo(() => {
     if (!searchTerm.trim()) return transactions;
-    
     const term = searchTerm.toLowerCase();
     return transactions.filter(t => {
       const dateStr = format(new Date(t.created_at), 'MMM d, yyyy HH:mm').toLowerCase();
       const amountStr = `${t.currency} ${t.amount.toLocaleString()}`.toLowerCase();
-      
       return (
         dateStr.includes(term) ||
         (t.guest_name?.toLowerCase().includes(term) || false) ||
@@ -164,168 +249,204 @@ export default function AdminPayments() {
     });
   }, [transactions, searchTerm]);
 
-  const StatCard = ({ 
-    title,
-    value, 
-    icon: Icon, 
-    description,
-    variant = 'default',
-  }: { 
-    title: string; 
-    value: string | number; 
-    icon: React.ElementType;
-    description?: string;
+  const totalCommissionsDue = commissionPayouts
+    .filter(p => p.status === 'approved')
+    .reduce((sum, p) => sum + p.total_amount, 0);
+
+  const StatCard = ({ title, value, icon: Icon, description, variant = 'default' }: { 
+    title: string; value: string | number; icon: React.ElementType; description?: string;
     variant?: 'default' | 'warning' | 'success' | 'error';
   }) => (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className={`h-4 w-4 ${
-          variant === 'warning' ? 'text-amber-500' : 
-          variant === 'success' ? 'text-emerald-500' : 
-          variant === 'error' ? 'text-destructive' :
-          'text-muted-foreground'
+          variant === 'warning' ? 'text-amber-500' : variant === 'success' ? 'text-emerald-500' : 
+          variant === 'error' ? 'text-destructive' : 'text-muted-foreground'
         }`} />
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
       </CardContent>
     </Card>
   );
 
   return (
     <AppLayout>
-      <PageHeader
-        title="Payments"
-        subtitle="Manage booking payments and transactions"
-      />
+      <PageHeader title="Payments" subtitle="Manage booking payments and commission payouts" />
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-4 xl:gap-6 mb-8">
-        <StatCard
-          title="Total Revenue"
-          value={`R${stats.totalRevenue.toLocaleString()}`}
-          icon={DollarSign}
-          description="Completed payments"
-          variant="success"
-        />
-        <StatCard
-          title="Pending"
-          value={`R${stats.pendingAmount.toLocaleString()}`}
-          icon={Clock}
-          description="Awaiting confirmation"
-          variant="warning"
-        />
-        <StatCard
-          title="Successful"
-          value={stats.successCount}
-          icon={CheckCircle}
-          description="Completed transactions"
-          variant="success"
-        />
-        <StatCard
-          title="Failed"
-          value={stats.failedCount}
-          icon={AlertTriangle}
-          description="Failed transactions"
-          variant={stats.failedCount > 0 ? 'error' : 'default'}
-        />
+      <div className="grid gap-4 md:grid-cols-5 xl:gap-6 mb-8">
+        <StatCard title="Total Revenue" value={`R${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} description="Completed payments" variant="success" />
+        <StatCard title="Pending" value={`R${stats.pendingAmount.toLocaleString()}`} icon={Clock} description="Awaiting confirmation" variant="warning" />
+        <StatCard title="Successful" value={stats.successCount} icon={CheckCircle} description="Completed transactions" variant="success" />
+        <StatCard title="Failed" value={stats.failedCount} icon={AlertTriangle} description="Failed transactions" variant={stats.failedCount > 0 ? 'error' : 'default'} />
+        <StatCard title="Commissions Due" value={`R${totalCommissionsDue.toLocaleString()}`} icon={Handshake} description="Approved, awaiting payout" variant={totalCommissionsDue > 0 ? 'warning' : 'default'} />
       </div>
 
-      {/* Transactions Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Transactions</CardTitle>
-              <CardDescription>Recent payment activity</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search all columns..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-[200px]"
-                />
+      <Tabs defaultValue="transactions" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="commissions" className="gap-1.5">
+            Commission Payouts
+            {totalCommissionsDue > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">
+                {commissionPayouts.filter(p => p.status === 'approved').length}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="transactions">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Transactions</CardTitle>
+                  <CardDescription>Recent payment activity</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search all columns..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 w-[200px]" />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" />Export</Button>
+                </div>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : filteredTransactions.length === 0 ? (
-            <div className="text-center py-12">
-              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
-                {searchTerm ? "No transactions match your search" : "No transactions found"}
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Guest</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell className="text-sm">
-                      {format(new Date(transaction.created_at), 'MMM d, yyyy HH:mm')}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {transaction.guest_name || 'Unknown'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {transaction.property_name || 'Unknown'}
-                    </TableCell>
-                    <TableCell className="capitalize">
-                      {transaction.payment_method || '-'}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {transaction.currency} {transaction.amount.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(transaction.status)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+              ) : filteredTransactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">{searchTerm ? "No transactions match your search" : "No transactions found"}</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Guest</TableHead>
+                      <TableHead>Property</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.map(t => (
+                      <TableRow key={t.id}>
+                        <TableCell className="text-sm">{format(new Date(t.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
+                        <TableCell className="font-medium">{t.guest_name || 'Unknown'}</TableCell>
+                        <TableCell className="text-muted-foreground">{t.property_name || 'Unknown'}</TableCell>
+                        <TableCell className="capitalize">{t.payment_method || '-'}</TableCell>
+                        <TableCell className="font-medium">{t.currency} {t.amount.toLocaleString()}</TableCell>
+                        <TableCell>{getStatusBadge(t.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="commissions">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Handshake className="h-5 w-5" />Commission Payouts</CardTitle>
+                  <CardDescription>Approved commissions ready for payout to referral partners</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {commissionsLoading ? (
+                <div className="space-y-4">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+              ) : commissionPayouts.length === 0 ? (
+                <div className="text-center py-12">
+                  <Handshake className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No commission payouts to process</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Rep</TableHead>
+                      <TableHead>Period</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Banking</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {commissionPayouts.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium text-sm">{p.rep_name}</p>
+                            <p className="text-xs text-muted-foreground">{p.rep_code}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {format(new Date(p.period_start), 'MMM d')} – {format(new Date(p.period_end), 'MMM d, yyyy')}
+                        </TableCell>
+                        <TableCell className="font-semibold">R{p.total_amount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {p.has_banking ? (
+                            p.banking_verified ? (
+                              <Badge variant="outline" className="text-emerald-600 border-emerald-200 text-[10px]">
+                                <CheckCircle className="h-2.5 w-2.5 mr-1" /> Verified
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px]">On file</Badge>
+                            )
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px]">Missing</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {p.status === 'paid' ? (
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">Paid</Badge>
+                          ) : (
+                            <Badge variant="secondary">Approved</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.status === 'approved' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs"
+                              disabled={!p.has_banking || markingPaid === p.id}
+                              onClick={() => handleMarkPaid(p.id)}
+                            >
+                              {markingPaid === p.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle className="h-3 w-3 mr-1" />}
+                              Mark Paid
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 }

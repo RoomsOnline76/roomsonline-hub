@@ -50,6 +50,7 @@ import {
   ExternalLink,
   Loader2,
   Building2,
+  Handshake,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
@@ -105,7 +106,7 @@ export default function AdminContracts() {
   const [sendEmail, setSendEmail] = useState("");
   const [sendName, setSendName] = useState("");
   const [sending, setSending] = useState(false);
-  const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos">("standard");
+  const [selectedContractType, setSelectedContractType] = useState<"standard" | "rolos" | "referral">("standard");
   
   // Contract templates
   const [contractTemplates, setContractTemplates] = useState<{ id: string; name: string }[]>([]);
@@ -283,8 +284,10 @@ export default function AdminContracts() {
       
       // Determine which template to use based on contract type
       const templateId = selectedContractType === "rolos" 
-        ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"  // ROL'OS PMS template
-        : "f47ac10b-58cc-4372-a567-0e02b2c3d479"; // Standard template
+        ? "b2c3d4e5-f6a7-4890-bcde-f12345678901"
+        : selectedContractType === "referral"
+        ? "c3d4e5f6-a7b8-4901-cdef-234567890123"
+        : "f47ac10b-58cc-4372-a567-0e02b2c3d479";
       
       const { error } = await supabase.functions.invoke("send-owner-contract", {
         body: { 
@@ -298,7 +301,7 @@ export default function AdminContracts() {
 
       if (error) throw error;
 
-      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : "Standard"} contract sent successfully`);
+      toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully`);
       setSendModalOpen(false);
       setSendEmail("");
       setSendName("");
@@ -862,7 +865,7 @@ export default function AdminContracts() {
             {/* Contract Type Selector */}
             <div className="space-y-2">
               <Label>Contract Type *</Label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setSelectedContractType("standard")}
@@ -877,7 +880,7 @@ export default function AdminContracts() {
                     <span className="font-medium text-sm">Standard</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Listing & Distribution Agreement
+                    Listing & Distribution
                   </p>
                 </button>
                 <button
@@ -894,7 +897,24 @@ export default function AdminContracts() {
                     <span className="font-medium text-sm">ROL'OS PMS</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Includes PMS system access
+                    PMS system access
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedContractType("referral")}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    selectedContractType === "referral"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Handshake className="h-4 w-4 text-primary" />
+                    <span className="font-medium text-sm">Referral</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Partner agreement
                   </p>
                 </button>
               </div>
