@@ -275,32 +275,12 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
           </Button>
         </div>
       )}
-      {/* Brand Override Toggle */}
+      {/* Brand Override note — managed from Billing tab */}
       <Card>
         <CardContent className="py-4 px-4">
-          <div className="flex items-start gap-4">
-            <Switch
-              checked={data.brand_override_enabled}
-              onCheckedChange={(checked) => updateField("brand_override_enabled", checked)}
-              disabled={!canToggleBrand}
-            />
-            {!canToggleBrand && (
-              <p className="text-xs text-muted-foreground italic mt-1">Only administrators can enable or disable this toggle.</p>
-            )}
-            <div className="space-y-1">
-              <Label className="text-sm font-medium">Enable Property Branding</Label>
-              <p className="text-xs text-muted-foreground">
-                When enabled, the property showcase page will use the property's brand colours instead of RoomsOnline colours.
-                The logo, primary, secondary, and font colours below will fully replace the default palette.
-              </p>
-              {data.brand_override_enabled && !hasColors && (
-                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Set at least a primary colour and font colour before enabling.
-                </p>
-              )}
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            <strong>Property Branding</strong> is controlled via the <em>White-label</em> toggle in the <strong>Billing</strong> tab under Rates.
+          </p>
         </CardContent>
       </Card>
 

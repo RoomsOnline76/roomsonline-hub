@@ -7989,7 +7989,6 @@ export default function PropertyForm() {
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
-                      {(isAdmin || isDev) && <TabsTrigger value="commission">Commission</TabsTrigger>}
                       {(isAdmin || isDev) && <TabsTrigger value="billing">Billing</TabsTrigger>}
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
@@ -9301,14 +9300,7 @@ export default function PropertyForm() {
                       </div>
                     </TabsContent>
 
-                    {/* Commission Sub-tab */}
-                    {(isAdmin || isDev) && (
-                      <TabsContent value="commission">
-                        <CommissionTab propertyId={id!} isAdmin={isAdmin || isDev} />
-                      </TabsContent>
-                    )}
-
-                    {/* Billing Sub-tab */}
+                    {/* Billing Sub-tab (includes Commission) */}
                     {(isAdmin || isDev) && (
                       <TabsContent value="billing">
                         <BillingConfigTab propertyId={id!} />

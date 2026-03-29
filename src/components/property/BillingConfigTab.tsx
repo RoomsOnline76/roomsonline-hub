@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Save, ChevronDown, AlertTriangle } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
 import { useBillingDefaults } from "@/hooks/useBillingDefaults";
+import { CommissionTab } from "./CommissionTab";
+import { useAuth } from "@/hooks/useAuth";
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
@@ -35,6 +38,9 @@ function GlobalHint({ value, label }: { value: number | null | undefined; label:
 
 export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
   const { config, isLoading, upsert } = useBillingConfig(propertyId);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
+  const [commissionOpen, setCommissionOpen] = useState(false);
   const { getDefaultsForStrategy } = useBillingDefaults();
 
   const [strategy, setStrategy] = useState("default");
@@ -211,19 +217,37 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
           </div>
         </div>
 
-        {/* White-label Fee (shown when toggle is on) */}
+        {/* White-label Fee + charge warning */}
         {whiteLabel && (
-          <div className="space-y-1">
-            <Label>White-Label Monthly Fee (ZAR)</Label>
-            <Input
-              type="number"
-              step="50"
-              min="0"
-              value={whiteLabelFee}
-              onChange={(e) => setWhiteLabelFee(e.target.value)}
-              placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
-            />
-            <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label>White-Label Monthly Fee (ZAR)</Label>
+              <Input
+                type="number"
+                step="50"
+                min="0"
+                value={whiteLabelFee}
+                onChange={(e) => setWhiteLabelFee(e.target.value)}
+                placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
+              />
+              <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
+            </div>
+            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                This property will be charged <strong>R{whiteLabelFee || globalDefaults?.white_label_monthly_fee || 0}/month</strong> for white-label branding. Branding override will also be enabled.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Facilitator charge warning */}
+        {paymentFacilitator && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              This property will be charged <strong>{transactionFee || globalDefaults?.payment_facilitator_fee || globalDefaults?.default_transaction_fee || 2.5}%</strong> per transaction as payment facilitator fee.
+            </p>
           </div>
         )}
 
@@ -243,5 +267,22 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
         </Button>
       </CardContent>
     </Card>
+
+    {/* Commission Section (collapsed by default) */}
+    <Collapsible open={commissionOpen} onOpenChange={setCommissionOpen} className="mt-4">
+      <Card>
+        <CollapsibleTrigger className="w-full">
+          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer">
+            <CardTitle className="text-sm font-medium">Commission Configuration</CardTitle>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${commissionOpen ? "rotate-180" : ""}`} />
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            <CommissionTab propertyId={propertyId} isAdmin={isAdmin} />
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
