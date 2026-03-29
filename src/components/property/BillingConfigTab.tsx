@@ -284,5 +284,6 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
         </CollapsibleContent>
       </Card>
     </Collapsible>
+    </>
   );
 }
