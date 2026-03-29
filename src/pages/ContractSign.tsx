@@ -17,6 +17,7 @@ import { Send, Check, AlertTriangle, Clock, Loader2, Mail, ChevronDown, ChevronU
 import rolLogo from "@/assets/rol-logo.png";
 import { generateContractHTML, generateSignedContractHTML, generatePdfFromDynamicTemplate, PropertyContractDetails, SignatureData, CoveredProperty as ContractCoveredProperty } from "@/lib/contractAgreementText";
 import { renderContractWithVariables } from "@/hooks/useContractTemplates";
+import { resolveBillingContractVariables, BillingContractVariables } from "@/lib/contractBillingVariables";
 
 interface PropertyData {
   id: string;
@@ -119,6 +120,7 @@ export default function ContractSign() {
   const [coveredProperties, setCoveredProperties] = useState<CoveredProperty[]>([]);
    const [commissionText, setCommissionText] = useState('ten percent (10%)');
    const [pmsCommissionText, setPmsCommissionText] = useState('two percent (2%)');
+   const [billingVars, setBillingVars] = useState<BillingContractVariables | null>(null);
   const [errorState, setErrorState] = useState<ErrorState | null>(null);
   const [agreementExpanded, setAgreementExpanded] = useState(true);
 
