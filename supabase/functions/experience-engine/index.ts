@@ -266,6 +266,108 @@ Deno.serve(async (req) => {
         properties_count: propertyIds.length,
         date_range: dateRange,
       };
+    } else if (experience_type === 'guest_email') {
+      const action = payload?.action;
+
+      if (action === 'generate') {
+        // AI content generation for email templates
+        const triggerEvent = payload?.trigger_event || 'booking_confirmed';
+        const tone = payload?.tone || 'friendly';
+        const customPrompt = payload?.custom_prompt || '';
+
+        // Fetch property details for context
+        const { data: prop } = await supabase
+          .from('properties')
+          .select('name, city, country, property_type, amenities, brand_primary_color')
+          .eq('id', property_id)
+          .single();
+
+        const config = await resolveExperienceConfig(supabase, property_id, 'guest_email');
+        const systemPrompt = (config as any)?.system_prompt ||
+          `You are an email copywriter for ${prop?.name || 'a property'}, a ${prop?.property_type || 'accommodation'} in ${[prop?.city, prop?.country].filter(Boolean).join(', ') || 'a beautiful destination'}. Write engaging, on-brand guest emails. Use these placeholders where appropriate: {{guest_name}}, {{guest_first_name}}, {{property_name}}, {{check_in_date}}, {{check_out_date}}, {{confirmation_number}}, {{total_amount}}, {{nights}}. Return HTML suitable for email clients with inline styles.`;
+        const model = (config as any)?.model || 'google/gemini-3-flash-preview';
+
+        let generated: { subject: string; body_html: string; tone_used: string } = { subject: '', body_html: '', tone_used: tone };
+
+        try {
+          const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+          if (LOVABLE_API_KEY) {
+            const userPrompt = `Write a ${triggerEvent.replace(/_/g, ' ')} email in a ${tone} tone.${customPrompt ? ` Additional instructions: ${customPrompt}` : ''} Return a subject line and HTML body.`;
+
+            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt },
+                ],
+                tools: [{
+                  type: 'function',
+                  function: {
+                    name: 'create_email_template',
+                    description: 'Return an email subject and HTML body',
+                    parameters: {
+                      type: 'object',
+                      properties: {
+                        subject: { type: 'string', description: 'Email subject line' },
+                        body_html: { type: 'string', description: 'HTML email body with inline styles and placeholders' },
+                      },
+                      required: ['subject', 'body_html'],
+                    },
+                  },
+                }],
+                tool_choice: { type: 'function', function: { name: 'create_email_template' } },
+              }),
+            });
+
+            if (aiResponse.ok) {
+              const aiData = await aiResponse.json();
+              const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+              if (toolCall?.function?.arguments) {
+                const parsed = JSON.parse(toolCall.function.arguments);
+                generated = { subject: parsed.subject || '', body_html: parsed.body_html || '', tone_used: tone };
+              }
+            } else if (aiResponse.status === 429) {
+              console.warn('AI rate limited for guest_email generate');
+            } else if (aiResponse.status === 402) {
+              console.warn('AI credits exhausted for guest_email generate');
+            }
+          }
+        } catch (aiErr) {
+          console.warn('AI email generation failed:', aiErr);
+        }
+
+        result = generated;
+
+      } else if (action === 'resolve') {
+        // Template resolution for sending
+        const triggerEvent = payload?.trigger_event || 'booking_confirmed';
+
+        const { data: tpl } = await supabase
+          .from('rolos_message_templates')
+          .select('*')
+          .eq('property_id', property_id)
+          .eq('trigger_event', triggerEvent)
+          .eq('is_active', true)
+          .eq('channel', 'email')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        result = {
+          template: tpl || null,
+          resolved_from: tpl ? 'experience_engine' : 'none',
+        };
+      } else {
+        // Default: return config
+        const config = await resolveExperienceConfig(supabase, property_id, 'guest_email');
+        result = { config, experience_type };
+      }
     } else {
       // All other types: read from rolos_experience_configs
       const config = await resolveExperienceConfig(supabase, property_id, experience_type);

@@ -1132,13 +1132,49 @@ Deno.serve(async (req) => {
       ? `${property.name} <noreply@notify.roomsonline.co.za>`
       : defaultFromEmail;
 
-    // Check for custom template in property amenities
+    // ─── Experience Engine template resolution (priority 1) ───
+    let experienceEngineTemplate: string | null = null;
+    try {
+      const { data: uiConfig } = await supabaseClient
+        .from('rolos_ui_configs')
+        .select('experience_engine_enabled')
+        .eq('property_id', property.id)
+        .maybeSingle();
+
+      if (uiConfig?.experience_engine_enabled) {
+        const triggerMap: Record<string, string> = {
+          success: 'booking_confirmed',
+          failed: 'cancellation',
+        };
+        const trigger = triggerMap[status] || status;
+
+        const { data: eeTpl } = await supabaseClient
+          .from('rolos_message_templates')
+          .select('body')
+          .eq('property_id', property.id)
+          .eq('trigger_event', trigger)
+          .eq('is_active', true)
+          .eq('channel', 'email')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (eeTpl?.body) {
+          experienceEngineTemplate = eeTpl.body;
+          console.log(`Property ${property.id} using Experience Engine template for trigger: ${trigger}`);
+        }
+      }
+    } catch (eeErr) {
+      console.warn('Experience Engine template lookup failed, falling back:', eeErr);
+    }
+
+    // ─── Legacy custom template check (priority 2) ───
     const amenities = property.amenities || {};
     const templates = amenities.templates || {};
-    const customTemplateContent = templates.template_content;
+    const customTemplateContent = experienceEngineTemplate || templates.template_content;
     const hasCustomTemplate = customTemplateContent && customTemplateContent.trim().length > 0;
 
-    console.log(`Property ${property.id} has custom template: ${hasCustomTemplate}`);
+    console.log(`Property ${property.id} has custom template: ${hasCustomTemplate}${experienceEngineTemplate ? ' (via Experience Engine)' : ''}`);
 
     // Generate email HTML based on status and custom template availability
     let html: string;

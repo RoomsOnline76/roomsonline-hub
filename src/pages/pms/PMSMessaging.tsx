@@ -12,15 +12,64 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Send, Mail, Pencil, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Plus, Send, Mail, Pencil, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, Sparkles, Eye, EyeOff, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
+import Image from "@tiptap/extension-image";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import {
   useMessageTemplates, useUpsertTemplate, useDeleteTemplate,
   useSendMessage, useMessageLog, useMessageQueue, useProcessQueue,
   MESSAGE_PLACEHOLDERS, TRIGGER_EVENTS,
 } from "@/hooks/usePmsMessaging";
-import type { PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry, PmsProcessQueueResult } from "@/types/pmsTypes";
+import type { PmsMessageTemplate, PmsMessageLogEntry, PmsQueueEntry } from "@/types/pmsTypes";
+import { EmailAIWriter } from "@/components/pms/EmailAIWriter";
+import { EmailTemplatePreview } from "@/components/pms/EmailTemplatePreview";
+
+// Starter template library
+const STARTER_TEMPLATES: Record<string, { subject: string; body: string }> = {
+  booking_confirmed: {
+    subject: "Your Booking at {{property_name}} is Confirmed!",
+    body: `<h2>Welcome, {{guest_name}}!</h2>
+<p>Your reservation at <strong>{{property_name}}</strong> has been confirmed.</p>
+<p><strong>Check-in:</strong> {{check_in_date}}<br/><strong>Check-out:</strong> {{check_out_date}}<br/><strong>Confirmation:</strong> {{confirmation_number}}<br/><strong>Total:</strong> {{total_amount}}</p>
+<p>We look forward to welcoming you!</p>`,
+  },
+  pre_arrival: {
+    subject: "Getting Ready for Your Stay at {{property_name}}",
+    body: `<h2>Hello {{guest_first_name}},</h2>
+<p>Your stay at <strong>{{property_name}}</strong> is almost here! Here's everything you need to know:</p>
+<p><strong>Check-in Date:</strong> {{check_in_date}}<br/><strong>Duration:</strong> {{nights}}</p>
+<p>If you have any special requests, please don't hesitate to let us know.</p>
+<p>Safe travels!</p>`,
+  },
+  check_out: {
+    subject: "Thank You for Staying at {{property_name}}",
+    body: `<h2>Thank you, {{guest_first_name}}!</h2>
+<p>We hope you enjoyed your stay at <strong>{{property_name}}</strong>.</p>
+<p>We'd love to hear about your experience. Your feedback helps us continue to improve.</p>
+<p>We hope to see you again soon!</p>`,
+  },
+  cancellation: {
+    subject: "Booking Cancellation — {{property_name}}",
+    body: `<h2>Cancellation Confirmation</h2>
+<p>Dear {{guest_name}},</p>
+<p>Your reservation ({{confirmation_number}}) at <strong>{{property_name}}</strong> has been cancelled.</p>
+<p>If this was unintentional or you'd like to rebook, please don't hesitate to reach out.</p>`,
+  },
+  payment_request: {
+    subject: "Payment Request — {{property_name}}",
+    body: `<h2>Payment Required</h2>
+<p>Dear {{guest_name}},</p>
+<p>This is a reminder regarding your booking at <strong>{{property_name}}</strong>.</p>
+<p><strong>Amount Due:</strong> {{total_amount}}<br/><strong>Reference:</strong> {{confirmation_number}}</p>
+<p>Please complete your payment at your earliest convenience.</p>`,
+  },
+};
 
 function PMSMessaging() {
   const [searchParams] = useSearchParams();
@@ -38,17 +87,46 @@ function PMSMessaging() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [aiWriterOpen, setAiWriterOpen] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
   const [sendForm, setSendForm] = useState({ recipient_email: "", subject: "", body: "" });
 
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Link.configure({ openOnClick: false }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Image,
+    ],
+    content: "",
+    onUpdate: ({ editor: e }) => {
+      setEditForm(f => ({ ...f, body: e.getHTML() }));
+    },
+  });
+
   const openNewTemplate = () => {
     setEditForm({ name: "", trigger_event: "manual", subject: "", body: "", channel: "email", is_active: true, send_offset_hours: 0 });
+    editor?.commands.setContent("");
+    setShowPreview(false);
     setEditOpen(true);
   };
 
   const openEditTemplate = (t: PmsMessageTemplate) => {
     setEditForm({ ...t });
+    editor?.commands.setContent(t.body || "");
+    setShowPreview(false);
     setEditOpen(true);
+  };
+
+  const applyStarterTemplate = (trigger: string) => {
+    const starter = STARTER_TEMPLATES[trigger];
+    if (starter) {
+      setEditForm(f => ({ ...f, subject: starter.subject, body: starter.body }));
+      editor?.commands.setContent(starter.body);
+      toast.success("Starter template applied");
+    }
   };
 
   const saveTemplate = async () => {
@@ -100,8 +178,23 @@ function PMSMessaging() {
   };
 
   const insertPlaceholder = (key: string) => {
-    setEditForm((f) => ({ ...f, body: (f.body || "") + `{{${key}}}` }));
+    if (editor) {
+      editor.chain().focus().insertContent(`{{${key}}}`).run();
+    }
   };
+
+  const handleAIGenerated = (subject: string, bodyHtml: string) => {
+    setEditForm(f => ({ ...f, subject, body: bodyHtml }));
+    editor?.commands.setContent(bodyHtml);
+  };
+
+  // Group templates by trigger event
+  const groupedTemplates = templates.reduce((acc: Record<string, PmsMessageTemplate[]>, t: PmsMessageTemplate) => {
+    const key = t.trigger_event || "manual";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
 
   return (
     <>
@@ -124,92 +217,89 @@ function PMSMessaging() {
           </div>
         </div>
 
-          <Tabs defaultValue="templates" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="templates">Templates</TabsTrigger>
-              <TabsTrigger value="log">Message Log</TabsTrigger>
-              <TabsTrigger value="queue">Queue</TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="templates" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+            <TabsTrigger value="log">Message Log</TabsTrigger>
+            <TabsTrigger value="queue">Queue</TabsTrigger>
+          </TabsList>
 
-            {/* Templates */}
-            <TabsContent value="templates">
-              {templatesLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : templates.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Mail className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground">No templates yet. Create your first one to start automating guest communication.</p>
-                    <Button size="sm" className="mt-4" onClick={openNewTemplate}><Plus className="h-4 w-4 mr-1" /> Create Template</Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {templates.map((t: PmsMessageTemplate) => (
-                    <Card key={t.id} className="relative">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-sm font-medium">{t.name}</CardTitle>
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTemplate(t)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        <div className="flex gap-2 flex-wrap">
-                          <Badge variant="secondary" className="text-xs">{TRIGGER_EVENTS.find(e => e.value === t.trigger_event)?.label || t.trigger_event}</Badge>
-                          <Badge variant="outline" className="text-xs">{t.channel}</Badge>
-                          {!t.is_active && <Badge variant="destructive" className="text-xs">Inactive</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{t.subject}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Message Log */}
-            <TabsContent value="log">
-              {logLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : (
-                <Card>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Recipient</TableHead>
-                        <TableHead>Subject</TableHead>
-                        <TableHead>Channel</TableHead>
-                        <TableHead>Sent</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {log.length === 0 ? (
-                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No messages sent yet</TableCell></TableRow>
-                      ) : log.map((m: PmsMessageLogEntry) => (
-                        <TableRow key={m.id}>
-                          <TableCell><div className="flex items-center gap-1.5">{statusIcon(m.status)}<span className="text-xs capitalize">{m.status}</span></div></TableCell>
-                          <TableCell className="text-sm">{m.recipient_email || m.recipient_phone || "—"}</TableCell>
-                          <TableCell className="text-sm max-w-[200px] truncate">{m.subject || "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className="text-xs">{m.channel}</Badge></TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{m.sent_at ? new Date(m.sent_at).toLocaleString() : "—"}</TableCell>
-                        </TableRow>
+          {/* Templates */}
+          <TabsContent value="templates">
+            {templatesLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : templates.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Mail className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">No templates yet. Create your first one to start automating guest communication.</p>
+                  <Button size="sm" className="mt-4" onClick={openNewTemplate}><Plus className="h-4 w-4 mr-1" /> Create Template</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {TRIGGER_EVENTS.map(event => {
+                  const eventTemplates = groupedTemplates[event.value];
+                  if (!eventTemplates?.length) return null;
+                  return (
+                    <div key={event.value}>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2">{event.label}</h3>
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        {eventTemplates.map((t: PmsMessageTemplate) => (
+                          <Card key={t.id} className="relative group">
+                            <CardHeader className="pb-2">
+                              <div className="flex items-start justify-between">
+                                <CardTitle className="text-sm font-medium">{t.name}</CardTitle>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTemplate(t)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                              <div className="flex gap-2 flex-wrap">
+                                <Badge variant="outline" className="text-xs">{t.channel}</Badge>
+                                {!t.is_active && <Badge variant="destructive" className="text-xs">Inactive</Badge>}
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{t.subject}</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Ungrouped templates */}
+                {Object.keys(groupedTemplates).filter(k => !TRIGGER_EVENTS.find(e => e.value === k)).map(key => (
+                  <div key={key}>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-2">{key}</h3>
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                      {groupedTemplates[key].map((t: PmsMessageTemplate) => (
+                        <Card key={t.id} className="relative group">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">{t.name}</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{t.subject}</p>
+                          </CardContent>
+                        </Card>
                       ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-              )}
-            </TabsContent>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-            {/* Queue */}
-            <TabsContent value="queue">
+          {/* Message Log */}
+          <TabsContent value="log">
+            {logLoading ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : (
               <Card>
                 <Table>
                   <TableHeader>
@@ -217,32 +307,65 @@ function PMSMessaging() {
                       <TableHead>Status</TableHead>
                       <TableHead>Recipient</TableHead>
                       <TableHead>Subject</TableHead>
-                      <TableHead>Scheduled</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Sent</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {queue.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Queue is empty</TableCell></TableRow>
-                    ) : queue.map((q: PmsQueueEntry) => (
-                      <TableRow key={q.id}>
-                        <TableCell><div className="flex items-center gap-1.5">{statusIcon(q.status)}<span className="text-xs capitalize">{q.status}</span></div></TableCell>
-                        <TableCell className="text-sm">{q.recipient_email || "—"}</TableCell>
-                        <TableCell className="text-sm max-w-[200px] truncate">{q.subject || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{q.scheduled_at ? new Date(q.scheduled_at).toLocaleString() : "—"}</TableCell>
+                    {log.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No messages sent yet</TableCell></TableRow>
+                    ) : log.map((m: PmsMessageLogEntry) => (
+                      <TableRow key={m.id}>
+                        <TableCell><div className="flex items-center gap-1.5">{statusIcon(m.status)}<span className="text-xs capitalize">{m.status}</span></div></TableCell>
+                        <TableCell className="text-sm">{m.recipient_email || m.recipient_phone || "—"}</TableCell>
+                        <TableCell className="text-sm max-w-[200px] truncate">{m.subject || "—"}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{m.channel}</Badge></TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{m.sent_at ? new Date(m.sent_at).toLocaleString() : "—"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </Card>
-            </TabsContent>
-          </Tabs>
+            )}
+          </TabsContent>
 
-          {/* Template Editor Dialog */}
-          <Dialog open={editOpen} onOpenChange={setEditOpen}>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editForm.id ? "Edit Template" : "New Template"}</DialogTitle>
-              </DialogHeader>
+          {/* Queue */}
+          <TabsContent value="queue">
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Recipient</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Scheduled</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {queue.length === 0 ? (
+                    <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Queue is empty</TableCell></TableRow>
+                  ) : queue.map((q: PmsQueueEntry) => (
+                    <TableRow key={q.id}>
+                      <TableCell><div className="flex items-center gap-1.5">{statusIcon(q.status)}<span className="text-xs capitalize">{q.status}</span></div></TableCell>
+                      <TableCell className="text-sm">{q.recipient_email || "—"}</TableCell>
+                      <TableCell className="text-sm max-w-[200px] truncate">{q.subject || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{q.scheduled_at ? new Date(q.scheduled_at).toLocaleString() : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Template Editor Dialog — Rich Editor */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editForm.id ? "Edit Template" : "New Template"}</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Editor side */}
               <div className="space-y-4">
                 <div>
                   <Label>Name</Label>
@@ -274,8 +397,48 @@ function PMSMessaging() {
                   <Input value={editForm.subject || ""} onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))} placeholder="Your booking at {{property_name}}" />
                 </div>
                 <div>
-                  <Label>Body</Label>
-                  <Textarea rows={6} value={editForm.body || ""} onChange={e => setEditForm(f => ({ ...f, body: e.target.value }))} placeholder="Dear {{guest_name}}..." />
+                  <div className="flex items-center justify-between mb-1">
+                    <Label>Body</Label>
+                    <div className="flex gap-1">
+                      {!editForm.id && STARTER_TEMPLATES[editForm.trigger_event || ""] && (
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => applyStarterTemplate(editForm.trigger_event || "")}>
+                          <FileText className="h-3.5 w-3.5 mr-1" /> Use Starter
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAiWriterOpen(true)}>
+                        <Sparkles className="h-3.5 w-3.5 mr-1" /> Generate with AI
+                      </Button>
+                    </div>
+                  </div>
+                  {/* TipTap toolbar */}
+                  {editor && (
+                    <div className="flex flex-wrap gap-1 mb-1 p-1 border rounded-t-md bg-muted/30">
+                      <Button variant="ghost" size="sm" className={`h-7 w-7 p-0 ${editor.isActive("bold") ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleBold().run()}>
+                        <span className="font-bold text-xs">B</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className={`h-7 w-7 p-0 ${editor.isActive("italic") ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleItalic().run()}>
+                        <span className="italic text-xs">I</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className={`h-7 w-7 p-0 ${editor.isActive("underline") ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+                        <span className="underline text-xs">U</span>
+                      </Button>
+                      <div className="w-px h-7 bg-border mx-1" />
+                      <Button variant="ghost" size="sm" className={`h-7 px-2 ${editor.isActive("heading", { level: 2 }) ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+                        <span className="text-xs font-semibold">H2</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className={`h-7 px-2 ${editor.isActive("heading", { level: 3 }) ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+                        <span className="text-xs font-semibold">H3</span>
+                      </Button>
+                      <div className="w-px h-7 bg-border mx-1" />
+                      <Button variant="ghost" size="sm" className={`h-7 px-2 ${editor.isActive("bulletList") ? "bg-muted" : ""}`} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+                        <span className="text-xs">• List</span>
+                      </Button>
+                    </div>
+                  )}
+                  <div className="border rounded-b-md min-h-[200px] p-3 prose prose-sm max-w-none focus-within:ring-1 focus-within:ring-ring">
+                    <EditorContent editor={editor} />
+                  </div>
+                  {/* Placeholder chips */}
                   <div className="flex flex-wrap gap-1 mt-2">
                     {MESSAGE_PLACEHOLDERS.map(p => (
                       <Button key={p.key} variant="outline" size="sm" className="h-6 text-xs px-2" onClick={() => insertPlaceholder(p.key)}>
@@ -289,43 +452,74 @@ function PMSMessaging() {
                   <Label>Active</Label>
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-                <Button onClick={saveTemplate} disabled={upsertTemplate.isPending}>
-                  {upsertTemplate.isPending ? "Saving…" : "Save Template"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
-          {/* Send Message Dialog */}
-          <Dialog open={sendOpen} onOpenChange={setSendOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Send Message</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label>Recipient Email</Label>
-                  <Input value={sendForm.recipient_email} onChange={e => setSendForm(f => ({ ...f, recipient_email: e.target.value }))} placeholder="guest@example.com" />
+              {/* Preview side */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Live Preview</Label>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowPreview(p => !p)}>
+                    {showPreview ? <><EyeOff className="h-3.5 w-3.5 mr-1" /> Hide</> : <><Eye className="h-3.5 w-3.5 mr-1" /> Show</>}
+                  </Button>
                 </div>
-                <div>
-                  <Label>Subject</Label>
-                  <Input value={sendForm.subject} onChange={e => setSendForm(f => ({ ...f, subject: e.target.value }))} />
-                </div>
-                <div>
-                  <Label>Body (HTML)</Label>
-                  <Textarea rows={5} value={sendForm.body} onChange={e => setSendForm(f => ({ ...f, body: e.target.value }))} />
-                </div>
+                {showPreview && (
+                  <EmailTemplatePreview
+                    subject={editForm.subject as string || ""}
+                    bodyHtml={editForm.body as string || ""}
+                  />
+                )}
+                {!showPreview && (
+                  <div className="border rounded-lg border-dashed p-8 flex items-center justify-center text-muted-foreground text-sm">
+                    Click "Show" to see a branded preview with sample data
+                  </div>
+                )}
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
-                <Button onClick={handleSend} disabled={sendMessage.isPending}>
-                  <Send className="h-4 w-4 mr-1" /> {sendMessage.isPending ? "Sending…" : "Send"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button onClick={saveTemplate} disabled={upsertTemplate.isPending}>
+                {upsertTemplate.isPending ? "Saving…" : "Save Template"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* AI Writer Dialog */}
+        <EmailAIWriter
+          open={aiWriterOpen}
+          onOpenChange={setAiWriterOpen}
+          propertyId={pid}
+          triggerEvent={editForm.trigger_event as string || "manual"}
+          onGenerated={handleAIGenerated}
+        />
+
+        {/* Send Message Dialog */}
+        <Dialog open={sendOpen} onOpenChange={setSendOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Send Message</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Recipient Email</Label>
+                <Input value={sendForm.recipient_email} onChange={e => setSendForm(f => ({ ...f, recipient_email: e.target.value }))} placeholder="guest@example.com" />
+              </div>
+              <div>
+                <Label>Subject</Label>
+                <Input value={sendForm.subject} onChange={e => setSendForm(f => ({ ...f, subject: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Body (HTML)</Label>
+                <Textarea rows={5} value={sendForm.body} onChange={e => setSendForm(f => ({ ...f, body: e.target.value }))} />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
+              <Button onClick={handleSend} disabled={sendMessage.isPending}>
+                <Send className="h-4 w-4 mr-1" /> {sendMessage.isPending ? "Sending…" : "Send"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );
