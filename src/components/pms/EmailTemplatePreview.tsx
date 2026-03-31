@@ -42,7 +42,8 @@ export function EmailTemplatePreview({
     let html = bodyHtml || "";
     // Replace placeholders with mock data
     for (const [key, value] of Object.entries(MOCK_DATA)) {
-      html = html.replaceAll(key, propertyName && key === "{{property_name}}" ? propertyName : value);
+      const replacement = propertyName && key === "{{property_name}}" ? propertyName : value;
+      html = html.split(key).join(replacement);
     }
     return DOMPurify.sanitize(html);
   }, [bodyHtml, propertyName]);
