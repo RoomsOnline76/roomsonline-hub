@@ -78,6 +78,12 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
       vars["--popover-foreground"] = hsl;
     }
   }
+  if (brand.headingFont) {
+    vars["--font-heading"] = `'${brand.headingFont}', serif`;
+  }
+  if (brand.bodyFont) {
+    vars["--font-body"] = `'${brand.bodyFont}', sans-serif`;
+  }
   return vars;
 }
 
