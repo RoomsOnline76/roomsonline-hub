@@ -888,7 +888,7 @@ export default function RoomShowcase() {
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      This room uses the <strong>{room.rateType}</strong> rate structure for pricing.
+                      This {getAccommodationLabel(property).singular.toLowerCase()} uses the <strong>{room.rateType}</strong> rate structure for pricing.
                     </p>
                   </CardContent>
                 </Card>
