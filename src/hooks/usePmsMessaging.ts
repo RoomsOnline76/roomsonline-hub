@@ -105,6 +105,25 @@ export function useMessageQueue(propertyId: string | null) {
   });
 }
 
+// ── Generate Email Content (AI) ──────────────────────────────────────
+
+export function useGenerateEmailContent(propertyId: string | null) {
+  return useMutation({
+    mutationFn: async (payload: { trigger_event: string; tone: string; custom_prompt?: string }) => {
+      const { data, error } = await supabase.functions.invoke("experience-engine", {
+        body: {
+          property_id: propertyId,
+          experience_type: "guest_email",
+          payload: { action: "generate", ...payload },
+        },
+      });
+      if (error) throw error;
+      const result = data?.data || data;
+      return result as { subject: string; body_html: string; tone_used: string } | null;
+    },
+  });
+}
+
 // ── Process Queue (manual trigger) ──────────────────────────────────
 
 export function useProcessQueue(propertyId: string | null) {
