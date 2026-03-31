@@ -57,7 +57,7 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
 
         let query = supabase
           .from('properties')
-          .select('id, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url');
+          .select('id, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font');
 
         if (isUuid) {
           query = query.eq('id', propertyIdentifier!);
