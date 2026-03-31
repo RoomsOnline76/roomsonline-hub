@@ -1,61 +1,114 @@
 
 
-# Sales Rep Dashboard — "My Referrals" Section
+# Phase 0: Experience Engine Foundation
 
 ## Overview
 
-When a user with the `sales_rep` role logs in, their `/dashboard/reports` page should show a dedicated "My Referrals" section with their referred properties, commission status, and banking details. Currently, `sales_rep` is not tracked in `useAuth` at all — the role exists in the DB enum but the auth hook ignores it.
+Create the isolated experience-engine layer with two new tables, one new edge function, minor schema extensions, and shared helper functions. Everything deploys dormant behind a feature flag.
 
-## Changes
+## 1. Database Migration
 
-### 1. Track `sales_rep` role in useAuth
-
-Add `isSalesRep` boolean to `useAuth`. When `roles.includes('sales_rep')`, set it true and look up the user's `sales_reps` record (by `user_id`) to get their `rep_id`.
-
-Also add `'sales_rep'` to `UserRole` type in `permissions.ts` and update `computeUserRole` to return it when the user has no admin/dev roles but has `sales_rep`.
-
-### 2. Create `SalesRepDashboard` component
-
-A new component `src/components/dashboard/SalesRepDashboard.tsx` that renders when the user has `sales_rep` role. Contains three cards:
-
-**My Referrals Card** — queries `property_referrals` where `rep_id` = user's rep ID, joined with `properties(name, is_active)`. Shows property name, referral date, status badge (lead/contracted/active/churned), and conversion date.
-
-**Commission Summary Card** — queries `rep_commission_reports` where `rep_id` = user's rep ID. Shows current period total, lifetime earnings, latest report status (pending/approved/paid), and commission tier label from `sales_reps`.
-
-**Banking Details Card** — uses existing `useRepBankDetails` hook with user's rep ID. Shows masked account number, bank name, verification status. Read-only display (editable only by admin).
-
-### 3. Integrate into Dashboard page
-
-In `src/pages/Dashboard.tsx`, detect `isSalesRep` from `useAuth`. If true and the user is NOT also an admin/dev, render `<SalesRepDashboard />` instead of (or above) the standard property reports dashboard. If they're both a sales rep AND an owner, show both sections.
-
-### 4. Add RLS policy for rep self-access
-
-The `property_referrals` and `rep_commission_reports` tables need SELECT policies allowing a rep to read their own records. Migration to add:
-
+### New table: `rolos_policies`
 ```sql
-CREATE POLICY "Rep views own referrals" ON public.property_referrals
-  FOR SELECT TO authenticated
-  USING (rep_id IN (SELECT id FROM public.sales_reps WHERE user_id = auth.uid()));
+CREATE TABLE public.rolos_policies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id uuid REFERENCES public.properties(id) ON DELETE CASCADE NOT NULL,
+  policy_type text NOT NULL,  -- 'cancellation' | 'deposit' | 'modification' | 'no_show'
+  rule jsonb NOT NULL,
+  is_ai_generated boolean DEFAULT false,
+  last_evaluated_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(property_id, policy_type)
+);
+```
+RLS: admins/devs/fearless_leader full access; property owners read-only on own properties.
 
-CREATE POLICY "Rep views own commission reports" ON public.rep_commission_reports
-  FOR SELECT TO authenticated
-  USING (rep_id IN (SELECT id FROM public.sales_reps WHERE user_id = auth.uid()));
+### New table: `rolos_experience_configs`
+```sql
+CREATE TABLE public.rolos_experience_configs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id uuid REFERENCES public.properties(id) ON DELETE CASCADE NOT NULL,
+  experience_type text NOT NULL,  -- 'brand_kit' | 'guest_email' | 'guest_portal' | 'portfolio' | 'agent_command'
+  config jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_active boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(property_id, experience_type)
+);
+```
+Same RLS pattern.
+
+### Schema extensions
+- `rolos_ui_configs` → `ALTER TABLE ADD COLUMN IF NOT EXISTS experience_engine_enabled boolean DEFAULT false`
+- `pms_mappings` → `ALTER TABLE ADD COLUMN IF NOT EXISTS experience_mapping jsonb`
+- `user_roles` enum → `ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'guest'`
+
+All with `updated_at` triggers.
+
+## 2. Edge Function: `experience-engine`
+
+New file: `supabase/functions/experience-engine/index.ts`
+
+Follows the exact adapter-contract pattern — imports `createSuccessResponse` / `createErrorResponse` from `_shared/adapter-contract.ts`. Accepts:
+```json
+{ "property_id": "uuid", "experience_type": "string", "payload": {} }
 ```
 
-## Technical Details
+Routing by `experience_type`:
+- `cancellation_policy` → reads `rolos_policies`, optionally calls PMS adapter for live occupancy
+- `brand_kit` / `guest_email` / `guest_portal` / `portfolio` / `agent_command` → reads `rolos_experience_configs`, renders config
 
-- `sales_reps.user_id` links the rep record to `auth.users` — this is how we resolve the logged-in user's rep ID
-- `property_referrals` has: `rep_id`, `property_id`, `status` (lead_source enum), `referral_date`, `converted_at`, `clawback_until`
-- `rep_commission_reports` has: `rep_id`, `period_month`, `total_amount`, `total_entries`, `status` (pending/approved/paid)
-- Existing `useRepBankDetails` hook already accepts a `repId` parameter — reuse it directly
+Guard: checks `experience_engine_enabled` on `rolos_ui_configs` for the property. Returns 403 if disabled.
+
+Auth: validates JWT via `getClaims()` for authenticated types; public for guest-portal reads.
+
+## 3. Shared Helpers (`_shared/`)
+
+### `experience-helpers.ts` (new file)
+Two exported functions:
+
+**`resolveExperienceConfig(supabase, property_id, experience_type)`**
+- Queries `rolos_experience_configs` for property + type
+- Falls back to global default (property_id IS NULL) if no property-specific config
+- Returns merged config JSONB
+
+**`callPmsAdapterWithLiveCheck(supabase, property_id, payload)`**
+- Looks up `pms_tracker_status` for property's PMS system
+- Invokes the correct adapter edge function with `fetch_availability`
+- Enforces NO_BOOKING_FROM_CACHE invariant — never reads from `pms_availability_cache`
+- Returns live adapter response or throws with `PMS_UNAVAILABLE` error code
+
+## 4. Manifest Updates
+
+Update `docs/system-export/rol-system-manifest.json`:
+- Add `experience_engine` to architecture section
+- Add `rolos_policies` and `rolos_experience_configs` to table registry
+
+Update `docs/system-export/data-authority-model.json` (if exists, else note in manifest):
+- Policies: admin-authoritative, AI-assisted
+- Experience configs: admin-authoritative
+
+## 5. UI Toggle
+
+In `BrandingTab.tsx` (or the relevant property form branding section), add a toggle card for "Experience Engine" that writes to `rolos_ui_configs` with `component_type = 'experience_engine'` and `experience_engine_enabled` in config JSONB. Default OFF.
+
+## 6. PMS Tracker Update
+
+Insert a row into `pms_tracker_status` noting "Experience Engine: Foundation" — audit trail for the new subsystem's deployment status.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Migration | Add RLS SELECT policies for `property_referrals` and `rep_commission_reports` |
-| Modify | `src/hooks/useAuth.tsx` — add `isSalesRep` + `salesRepId` state |
-| Modify | `src/lib/permissions.ts` — add `sales_rep` to UserRole |
-| Create | `src/components/dashboard/SalesRepDashboard.tsx` — referrals, commissions, banking cards |
-| Modify | `src/pages/Dashboard.tsx` — conditionally render SalesRepDashboard |
+| Migration | Create `rolos_policies`, `rolos_experience_configs`, extend `rolos_ui_configs` + `pms_mappings`, add `guest` to `app_role` |
+| Create | `supabase/functions/experience-engine/index.ts` |
+| Create | `supabase/functions/_shared/experience-helpers.ts` |
+| Modify | `src/components/property/BrandingTab.tsx` — add Experience Engine toggle |
+| Modify | `docs/system-export/rol-system-manifest.json` — register new tables + engine |
+| DB Insert | `pms_tracker_status` audit row |
+
+## Exit Criteria
+
+All existing features unchanged. New tables empty. Edge function deployed but returns 403 for all properties (flag OFF). Toggle visible in property branding for admin/dev only.
 
