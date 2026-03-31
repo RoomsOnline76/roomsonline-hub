@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff, Handshake } from "lucide-react";
+import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff, Handshake, Radar } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
