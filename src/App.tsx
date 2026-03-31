@@ -35,6 +35,7 @@ import EmbedPortfolio from "./pages/EmbedPortfolio";
 import StaffLogin from "./pages/StaffLogin";
 import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
+import GuestPortal from "./pages/GuestPortal";
 
 // Lazy — admin, PMS, dev, dashboard (only loaded when needed)
 const JourneyReview = lazy(() => import("./pages/JourneyReview"));
@@ -698,6 +699,8 @@ const App = () => (
               <Route path="about" element={<ConnectAbout />} />
               <Route path="journal" element={<ConnectJournal />} />
             </Route>
+            {/* Guest Portal — public self-service booking management */}
+            <Route path="/my-booking" element={<GuestPortal />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
           </Routes>

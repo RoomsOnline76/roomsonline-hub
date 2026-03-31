@@ -1209,6 +1209,51 @@ export type Database = {
         }
         Relationships: []
       }
+      guest_portal_tokens: {
+        Row: {
+          booking_id: string
+          created_at: string | null
+          expires_at: string
+          guest_email: string
+          id: string
+          token: string
+          used_for: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string | null
+          expires_at?: string
+          guest_email: string
+          id?: string
+          token?: string
+          used_for?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string | null
+          expires_at?: string
+          guest_email?: string
+          id?: string
+          token?: string
+          used_for?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_portal_tokens_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_portal_tokens_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       help_articles: {
         Row: {
           content_markdown: string
