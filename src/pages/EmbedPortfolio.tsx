@@ -89,13 +89,8 @@ export default function EmbedPortfolio() {
       if (!portfolioSlug) return;
       setLoading(true);
 
-      // Try the edge function API first with AI enrichment
+      // Try the edge function API with AI enrichment
       try {
-        const { data: fnData, error: fnErr } = await supabase.functions.invoke("booking-portfolio-api", {
-          body: null,
-          headers: { "Content-Type": "application/json" },
-        });
-
         // Use direct fetch for GET with query params
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const resp = await fetch(
