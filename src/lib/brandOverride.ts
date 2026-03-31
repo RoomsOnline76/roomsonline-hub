@@ -12,6 +12,8 @@ export interface PropertyBrand {
   secondaryColor?: string | null;
   fontColor?: string | null;
   logoUrl?: string | null;
+  headingFont?: string | null;
+  bodyFont?: string | null;
   propertyId: string;
 }
 
