@@ -110,7 +110,7 @@ export const SmartCancelModal: React.FC<SmartCancelModalProps> = ({
 
       toast.success("Booking cancelled successfully.");
       onCancelled();
-    } catch (err) {
+    } catch (_err) {
       toast.error("An error occurred. Please try again.");
     } finally {
       setCancelling(false);
