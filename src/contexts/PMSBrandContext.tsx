@@ -30,6 +30,8 @@ const defaultBrand: PMSBrandData = {
   secondaryColor: null,
   fontColor: null,
   accentColor: null,
+  headingFont: null,
+  bodyFont: null,
   tagline: null,
   brandEnabled: false,
   loading: true,
