@@ -421,7 +421,7 @@ export default function AdminAccessRequests() {
       <AddUserModal
         open={addUserOpen}
         onOpenChange={setAddUserOpen}
-        role={selectedRole}
+        role={selectedRole as any}
         onUserAdded={handleUserAdded}
         defaultEmail={selectedRequest?.email}
         defaultName={selectedRequest?.full_name}
