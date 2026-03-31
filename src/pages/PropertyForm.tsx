@@ -3368,6 +3368,8 @@ export default function PropertyForm() {
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
           if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
+          if (amenities?.accommodation_label) setAccommodationLabel(amenities.accommodation_label);
+          if (amenities?.self_catering) setIsSelfCatering(!!amenities.self_catering);
           if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options))
             setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
