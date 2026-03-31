@@ -79,6 +79,8 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
             secondaryColor: data.brand_secondary_color,
             fontColor: data.brand_font_color,
             logoUrl: data.brand_logo_url,
+            headingFont: (data as any).brand_heading_font,
+            bodyFont: (data as any).brand_body_font,
             propertyId: data.id,
           };
           saveBrandToSession(brand);

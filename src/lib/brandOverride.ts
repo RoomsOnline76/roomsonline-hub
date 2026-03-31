@@ -93,6 +93,13 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
  * Returns a cleanup function that removes the vars.
  */
 export function applyBrandToDocument(brand: PropertyBrand): () => void {
+  // Load Google Fonts if specified
+  if (brand.headingFont || brand.bodyFont) {
+    const { loadGoogleFont } = await_loadGoogleFont();
+    if (brand.headingFont) loadGoogleFont(brand.headingFont);
+    if (brand.bodyFont) loadGoogleFont(brand.bodyFont);
+  }
+
   const vars = buildBrandVarsMap(brand);
   const root = document.documentElement;
   const body = document.body;
@@ -108,6 +115,26 @@ export function applyBrandToDocument(brand: PropertyBrand): () => void {
       root.style.removeProperty(key);
       body.style.removeProperty(key);
     });
+  };
+}
+
+/** Lazy font loader to avoid circular imports */
+function await_loadGoogleFont() {
+  // Inline implementation to avoid import issues
+  const loadedFonts = new Set<string>();
+  return {
+    loadGoogleFont(fontFamily: string) {
+      if (!fontFamily || loadedFonts.has(fontFamily)) return;
+      loadedFonts.add(fontFamily);
+      const encoded = fontFamily.replace(/ /g, '+');
+      const id = `gfont-${encoded}`;
+      if (document.getElementById(id)) return;
+      const link = document.createElement('link');
+      link.id = id;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${encoded}:wght@300;400;500;600;700&display=swap`;
+      document.head.appendChild(link);
+    }
   };
 }
 

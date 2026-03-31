@@ -6,6 +6,7 @@ import {
   autoForeground,
   type PropertyBrand,
 } from "@/lib/brandOverride";
+import { loadGoogleFont } from "@/lib/brandFonts";
 
 interface PMSBrandData {
   propertyName: string;
