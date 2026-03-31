@@ -933,7 +933,7 @@ export default function PropertyShowcase() {
   const roomTypes = getRoomTypes();
   const facilities = getFacilities();
   const lowestRate = getOverallLowestRate();
-import { getAccommodationLabel } from "@/lib/accommodationLabels";
+
 
 
   const LayoutWrapper = isWhiteLabel ? WhiteLabelLayout : PublicLayout;
