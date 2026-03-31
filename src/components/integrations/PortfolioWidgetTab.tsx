@@ -10,7 +10,6 @@ import { Switch } from "@/components/ui/switch";
 import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 
 interface PortfolioWidgetTabProps {
