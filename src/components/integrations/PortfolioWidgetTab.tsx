@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Copy, ExternalLink, Building2, Check, Palette, Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
@@ -29,6 +29,10 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const [brandLogo, setBrandLogo] = useState("");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [copied, setCopied] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiTheme, setAiTheme] = useState("");
+  const [refreshingAi, setRefreshingAi] = useState(false);
+  
 
   // Fetch portfolios this property belongs to
   const { data: memberOf = [] } = useQuery({
@@ -133,6 +137,66 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
               <Plus className="h-3.5 w-3.5" />
               Manage Portfolios
             </Button>
+          </div>
+
+          {/* AI Controls */}
+          <div className="space-y-3 rounded-lg border p-3 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label className="text-xs font-medium">AI Recommendations</Label>
+              </div>
+              <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+            </div>
+            {aiEnabled && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">AI Theme Guidance</Label>
+                  <Input
+                    value={aiTheme}
+                    onChange={(e) => setAiTheme(e.target.value)}
+                    placeholder="e.g. Focus on romantic getaways and adventure"
+                    className="text-xs h-8"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  disabled={!selectedPortfolioId || refreshingAi}
+                  onClick={async () => {
+                    if (!selectedPortfolioId) return;
+                    setRefreshingAi(true);
+                    try {
+                      // Find a property in this portfolio to call experience engine
+                      const { data: members } = await supabase
+                        .from("property_portfolio_members" as any)
+                        .select("property_id")
+                        .eq("portfolio_id", selectedPortfolioId)
+                        .limit(1);
+                      const propId = (members as any)?.[0]?.property_id;
+                      if (propId) {
+                        await supabase.functions.invoke("experience-engine", {
+                          body: {
+                            property_id: propId,
+                            experience_type: "portfolio",
+                            payload: { action: "recommend", portfolio_id: selectedPortfolioId, theme: aiTheme },
+                          },
+                        });
+                        toast({ title: "AI Refreshed", description: "Portfolio recommendations regenerated" });
+                      }
+                    } catch {
+                      toast({ title: "Error", description: "Failed to refresh AI suggestions", variant: "destructive" });
+                    } finally {
+                      setRefreshingAi(false);
+                    }
+                  }}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshingAi ? "animate-spin" : ""}`} />
+                  Refresh AI Suggestions
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Config controls */}

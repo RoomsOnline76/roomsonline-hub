@@ -103,6 +103,62 @@ serve(async (req) => {
       };
     });
 
+    // AI enrichment when ?ai=true
+    const wantAi = url.searchParams.get("ai") === "true";
+    let aiData: Record<string, unknown> = {};
+
+    if (wantAi && propertyIds.length > 0) {
+      // Simple in-memory TTL cache
+      const cacheKey = `portfolio_ai_${portfolio.slug}`;
+      const now = Date.now();
+      const cached = (globalThis as any).__aiCache?.[cacheKey];
+      if (cached && now - cached.ts < 300_000) {
+        aiData = cached.data;
+      } else {
+        // Check if any member property has experience engine enabled
+        const { data: uiConfigs } = await supabase
+          .from("rolos_ui_configs")
+          .select("property_id, experience_engine_enabled")
+          .in("property_id", propertyIds)
+          .eq("experience_engine_enabled", true)
+          .limit(1);
+
+        if (uiConfigs && uiConfigs.length > 0) {
+          const enginePropertyId = uiConfigs[0].property_id;
+          try {
+            const eeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/experience-engine`;
+            const eeResponse = await fetch(eeUrl, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                property_id: enginePropertyId,
+                experience_type: "portfolio",
+                payload: { action: "recommend", portfolio_id: portfolio.id },
+              }),
+            });
+
+            if (eeResponse.ok) {
+              const eeResult = await eeResponse.json();
+              const d = eeResult?.data || eeResult;
+              aiData = {
+                ai_groups: d.semantic_groups || [],
+                ai_bundles: d.bundles || [],
+                ai_featured: d.featured || null,
+              };
+              // Cache
+              if (!(globalThis as any).__aiCache) (globalThis as any).__aiCache = {};
+              (globalThis as any).__aiCache[cacheKey] = { ts: now, data: aiData };
+            }
+          } catch (aiErr) {
+            console.warn("AI enrichment failed:", aiErr);
+          }
+        }
+      }
+    }
+
     return new Response(JSON.stringify({
       portfolio: {
         name: portfolio.name,
@@ -110,6 +166,7 @@ serve(async (req) => {
         branding: portfolio.metadata?.branding || {},
       },
       properties: mapped,
+      ...aiData,
       snippet: `<div data-rolos-portfolio="${portfolio.slug}"></div>\n<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
