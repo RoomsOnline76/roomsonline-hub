@@ -2125,7 +2125,7 @@ const Booking = () => {
                 <div>
                   <p className="text-xs font-medium">Cancellation Policy</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {(propertyData as any)?.amenities?.cancellation_policy || "Contact property for cancellation terms"}
+                    {(property as any)?.amenities?.cancellation_policy || "Contact property for cancellation terms"}
                   </p>
                 </div>
               </div>
