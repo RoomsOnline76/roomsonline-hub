@@ -122,7 +122,7 @@ export default function PMSCommandCentre() {
         return {
           property_id: p.id,
           property_name: p.name,
-          occupancy_pct: totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0,
+          occupancy_pct: totalRooms > 0 ? Math.max(0, Math.round(((totalRooms - availableRooms) / Math.max(totalRooms, 1)) * 100)) : 0,
           arrivals: 0, // Would need bookings query for this
           departures: 0,
           available_rooms: availableRooms,
