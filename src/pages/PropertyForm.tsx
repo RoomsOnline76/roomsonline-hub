@@ -396,6 +396,10 @@ export default function PropertyForm() {
   const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
   const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
 
+  // Accommodation label + self catering
+  const [accommodationLabel, setAccommodationLabel] = useState<string>("");
+  const [isSelfCatering, setIsSelfCatering] = useState(false);
+
   // Linked owners state
   const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
