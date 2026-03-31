@@ -306,9 +306,9 @@ export default function PMSRoomTypes() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Room Types</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{getAccommodationLabel(propertyData).singular} Types</h1>
             <p className="text-sm text-muted-foreground">
-              Manage room categories. Changes sync bidirectionally with Property Overview.
+              Manage {getAccommodationLabel(propertyData).singular.toLowerCase()} categories. Changes sync bidirectionally with Property Overview.
             </p>
           </div>
           <div className="flex gap-2">
