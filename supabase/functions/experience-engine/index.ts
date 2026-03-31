@@ -134,6 +134,29 @@ Deno.serve(async (req) => {
         live_occupancy: liveData || null,
         evaluation,
       };
+    } else if (experience_type === 'brand_kit') {
+      // Return property font + color config alongside experience config
+      const { data: property } = await supabase
+        .from('properties')
+        .select('brand_heading_font, brand_body_font, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url')
+        .eq('id', property_id)
+        .single();
+
+      const config = await resolveExperienceConfig(supabase, property_id, 'brand_kit');
+      result = {
+        config,
+        fonts: {
+          heading: property?.brand_heading_font || null,
+          body: property?.brand_body_font || null,
+        },
+        colors: {
+          primary: property?.brand_primary_color || null,
+          secondary: property?.brand_secondary_color || null,
+          font: property?.brand_font_color || null,
+        },
+        logo_url: property?.brand_logo_url || null,
+        experience_type,
+      };
     } else {
       // All other types: read from rolos_experience_configs
       const config = await resolveExperienceConfig(supabase, property_id, experience_type);
