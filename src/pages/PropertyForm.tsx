@@ -9312,6 +9312,13 @@ export default function PropertyForm() {
                       </TabsContent>
                     )}
 
+                    <TabsContent value="policies" className="p-6">
+                      {propertyId && <PoliciesTab propertyId={propertyId} />}
+                      {!propertyId && (
+                        <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>
+                      )}
+                    </TabsContent>
+
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {
                         const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
