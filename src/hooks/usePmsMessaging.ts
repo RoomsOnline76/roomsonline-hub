@@ -161,5 +161,7 @@ export const TRIGGER_EVENTS = [
   { value: "check_out", label: "Check-Out" },
   { value: "payment_request", label: "Payment Request" },
   { value: "cancellation", label: "Cancellation" },
+  { value: "modification", label: "Modification" },
+  { value: "invoice", label: "Invoice" },
   { value: "manual", label: "Manual Send" },
 ];
