@@ -90,6 +90,7 @@ interface Property {
   amenities: any;
   external_system: string | null;
   external_id: string | null;
+  property_type?: string | null;
   brand_override_enabled?: boolean;
   brand_primary_color?: string | null;
   brand_secondary_color?: string | null;
