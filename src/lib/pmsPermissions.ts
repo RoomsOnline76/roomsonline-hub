@@ -10,7 +10,8 @@ export type PmsStaffRole =
   | "housekeeping"
   | "maintenance"
   | "accountant"
-  | "auditor";
+  | "auditor"
+  | "agent";
 
 export type PmsModule =
   | "dashboard"
