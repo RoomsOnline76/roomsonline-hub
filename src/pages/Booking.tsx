@@ -2110,7 +2110,29 @@ const Booking = () => {
           </motion.div>
         </div>
 
-        {/* ── Payment Method Selector (multi-gateway) ── */}
+        {/* ── Cancellation Policy Info ── */}
+        {property && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto mt-4"
+          >
+            <div className="rounded-lg border border-border/50 bg-card p-3">
+              <div className="flex items-start gap-2">
+                <svg className="h-4 w-4 text-primary mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <div>
+                  <p className="text-xs font-medium">Cancellation Policy</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {(property as any)?.amenities?.cancellation_policy || "Contact property for cancellation terms"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeGateways.length > 1 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}

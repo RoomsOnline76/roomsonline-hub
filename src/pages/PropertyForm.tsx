@@ -99,6 +99,7 @@ import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
+import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 
@@ -7990,6 +7991,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
                       {(isAdmin || isDev) && <TabsTrigger value="billing">Billing</TabsTrigger>}
+                      <TabsTrigger value="policies">Policies</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
@@ -9309,6 +9311,13 @@ export default function PropertyForm() {
                         </div>
                       </TabsContent>
                     )}
+
+                    <TabsContent value="policies" className="p-6">
+                      {propertyId && <PoliciesTab propertyId={propertyId} />}
+                      {!propertyId && (
+                        <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>
+                      )}
+                    </TabsContent>
 
                     <TabsContent value="overview" className="p-6 space-y-6">
                       {(() => {

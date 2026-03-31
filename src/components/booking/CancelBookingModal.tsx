@@ -11,7 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Shield, CheckCircle } from "lucide-react";
+
+interface CancellationPolicyInfo {
+  is_free_cancel?: boolean;
+  forfeit_amount?: number;
+  forfeit_percent?: number;
+  deadline_date?: string;
+  is_non_refundable?: boolean;
+}
 
 interface CancelBookingModalProps {
   open: boolean;
@@ -26,6 +34,7 @@ interface CancelBookingModalProps {
   onSubmit: (reason: string) => Promise<void>;
   loading?: boolean;
   externalSystem?: string | null;
+  cancellationPolicy?: CancellationPolicyInfo | null;
 }
 
 export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
@@ -35,6 +44,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   onSubmit,
   loading = false,
   externalSystem,
+  cancellationPolicy,
 }) => {
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -62,6 +72,33 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Policy evaluation banner */}
+          {cancellationPolicy && (
+            <>
+              {cancellationPolicy.is_non_refundable ? (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-md p-2 text-xs text-destructive flex items-start gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>This booking is <strong>non-refundable</strong>. Full amount will be forfeited.</span>
+                </div>
+              ) : cancellationPolicy.is_free_cancel ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-md p-2 text-xs text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5">
+                  <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    Within <strong>free cancellation</strong> period
+                    {cancellationPolicy.deadline_date && <> (until {cancellationPolicy.deadline_date})</>}
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                  <Shield className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    Cancellation fee applies: <strong>R{cancellationPolicy.forfeit_amount?.toFixed(2)}</strong> ({cancellationPolicy.forfeit_percent}% of booking total)
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
           <div className="bg-destructive/10 border border-destructive/20 rounded-md p-2 text-xs text-destructive">
             This action will cancel the booking in RoomsOnline. 
             This cannot be undone.
