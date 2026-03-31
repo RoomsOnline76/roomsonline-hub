@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy } from "lucide-react";
 import { StepProps } from "./types";
 import { OnboardingRoomType, RATE_UNIT_OPTIONS } from "@/config/onboardingFieldSchema";
+import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 
 export function StepRoomsOverview({
   updateField,
