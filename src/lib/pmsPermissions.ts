@@ -125,6 +125,7 @@ export const ROLE_LABELS: Record<PmsStaffRole, string> = {
   maintenance: "Maintenance",
   accountant: "Accountant / Finance",
   auditor: "Read-only Auditor",
+  agent: "Travel Agent",
 };
 
 export const ROLE_DESCRIPTIONS: Record<PmsStaffRole, string> = {
@@ -135,4 +136,5 @@ export const ROLE_DESCRIPTIONS: Record<PmsStaffRole, string> = {
   maintenance: "Maintenance dockets only. Read-only housekeeping board.",
   accountant: "Financial reports, folios, guest CRM for billing. No operational access.",
   auditor: "Read-only access to all PMS modules for audits.",
+  agent: "Multi-property availability overview and AI-powered booking suggestions.",
 };
