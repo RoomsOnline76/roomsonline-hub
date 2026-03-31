@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
+import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
@@ -89,6 +90,7 @@ interface Property {
   amenities: any;
   external_system: string | null;
   external_id: string | null;
+  property_type?: string | null;
   brand_override_enabled?: boolean;
   brand_primary_color?: string | null;
   brand_secondary_color?: string | null;
@@ -886,7 +888,7 @@ export default function RoomShowcase() {
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      This room uses the <strong>{room.rateType}</strong> rate structure for pricing.
+                      This {getAccommodationLabel(property).singular.toLowerCase()} uses the <strong>{room.rateType}</strong> rate structure for pricing.
                     </p>
                   </CardContent>
                 </Card>
@@ -1064,7 +1066,7 @@ export default function RoomShowcase() {
             {/* Property Link */}
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-2">This room is part of</p>
+                <p className="text-sm text-muted-foreground mb-2">This {getAccommodationLabel(property).singular.toLowerCase()} is part of</p>
                 <a 
                   href={getPropertyUrl(property.slug || property.id)}
                   className="font-semibold text-primary hover:underline"

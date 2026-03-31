@@ -1419,7 +1419,7 @@ const Booking = () => {
       }
 
       if (rooms.length === 0) {
-        throw new Error("At least one room is required");
+        throw new Error(`At least one ${accommodationLabel.singular.toLowerCase()} is required`);
       }
 
       // Use calculated total cost or pre-selected total
@@ -1872,7 +1872,7 @@ const Booking = () => {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-sm">{roomType?.name || room.roomTypeName || `Room ${index + 1}`}</h4>
+                      <h4 className="font-medium text-sm">{roomType?.name || room.roomTypeName || `${accommodationLabel.singular} ${index + 1}`}</h4>
                       {roomCheckIn && roomCheckOut && (
                         <span className="text-xs text-muted-foreground">
                           {format(parseISO(roomCheckIn), "d MMM")} – {format(parseISO(roomCheckOut), "d MMM yyyy")}
@@ -1977,7 +1977,7 @@ const Booking = () => {
             })}
 
             <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add another room
+              <Plus className="h-3 w-3 mr-1" /> Add another {accommodationLabel.singular.toLowerCase()}
             </Button>
           </motion.div>
 
