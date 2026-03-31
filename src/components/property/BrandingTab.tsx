@@ -4,10 +4,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle, Copy } from "lucide-react";
+import { Upload, Loader2, X, Palette, Type, ShieldCheck, AlertTriangle, Copy, LetterText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { CopyBrandingModal } from "./CopyBrandingModal";
+import { GoogleFontPicker } from "./GoogleFontPicker";
 
 export interface BrandingData {
   brand_logo_url: string;
