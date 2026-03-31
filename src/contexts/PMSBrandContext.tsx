@@ -15,6 +15,8 @@ interface PMSBrandData {
   secondaryColor: string | null;
   fontColor: string | null;
   accentColor: string | null;
+  headingFont: string | null;
+  bodyFont: string | null;
   tagline: string | null;
   brandEnabled: boolean;
   loading: boolean;
