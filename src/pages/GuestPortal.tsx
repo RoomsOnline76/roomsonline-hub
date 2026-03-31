@@ -118,7 +118,7 @@ const GuestPortal: React.FC = () => {
     }
   };
 
-  const brandColor = property?.brand_primary_color || "hsl(var(--primary))";
+  
   const nights = booking ? Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / 86400000) : 0;
   const totalGuests = booking ? (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0) : 0;
 
