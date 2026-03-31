@@ -3866,6 +3866,8 @@ export default function PropertyForm() {
             closest_airport_distance: formData.closest_airport_distance,
           },
           room_types: roomTypes,
+          accommodation_label: accommodationLabel || undefined,
+          self_catering: isSelfCatering || undefined,
           meal_types: selectedMealTypes,
           star_rating: starRating,
           facilities: selectedFacilities,
