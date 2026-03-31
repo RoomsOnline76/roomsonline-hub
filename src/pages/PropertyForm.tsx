@@ -7991,6 +7991,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
                       {(isAdmin || isDev) && <TabsTrigger value="billing">Billing</TabsTrigger>}
+                      <TabsTrigger value="policies">Policies</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
