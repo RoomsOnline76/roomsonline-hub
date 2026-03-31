@@ -1908,6 +1908,8 @@ export default function PropertyForm() {
     brand_secondary_color: "",
     brand_font_color: "",
     brand_override_enabled: false,
+    brand_heading_font: "",
+    brand_body_font: "",
   });
 
   // ROL Spec state
