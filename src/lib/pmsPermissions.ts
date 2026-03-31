@@ -30,7 +30,8 @@ export type PmsModule =
   | "night-audit"
   | "messaging"
   | "portfolio"
-  | "revenue";
+  | "revenue"
+  | "command-centre";
 
 export interface ModuleAccess {
   visible: boolean;
