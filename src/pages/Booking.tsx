@@ -1872,7 +1872,7 @@ const Booking = () => {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-medium text-sm">{roomType?.name || room.roomTypeName || `Room ${index + 1}`}</h4>
+                      <h4 className="font-medium text-sm">{roomType?.name || room.roomTypeName || `${accommodationLabel.singular} ${index + 1}`}</h4>
                       {roomCheckIn && roomCheckOut && (
                         <span className="text-xs text-muted-foreground">
                           {format(parseISO(roomCheckIn), "d MMM")} – {format(parseISO(roomCheckOut), "d MMM yyyy")}
