@@ -354,7 +354,34 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
         </CardContent>
       </Card>
 
-      {/* Font Readability Previews */}
+      {/* Typography — Google Font Pickers */}
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <LetterText className="h-4 w-4 text-primary" />
+            Typography
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="py-3 px-4 space-y-5">
+          <p className="text-xs text-muted-foreground">
+            Choose custom Google Fonts for your property's headings and body text. Leave empty to use system defaults.
+          </p>
+          <GoogleFontPicker
+            label="Heading Font"
+            description="Used for titles, headings, and prominent text"
+            value={data.brand_heading_font || null}
+            onChange={(font) => updateField("brand_heading_font", font || "")}
+          />
+          <GoogleFontPicker
+            label="Body Font"
+            description="Used for paragraphs, descriptions, and general content"
+            value={data.brand_body_font || null}
+            onChange={(font) => updateField("brand_body_font", font || "")}
+          />
+        </CardContent>
+      </Card>
+
+
       {hasColors && (
         <Card>
           <CardHeader className="py-3 px-4">
