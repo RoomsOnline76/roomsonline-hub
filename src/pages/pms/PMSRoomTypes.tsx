@@ -57,6 +57,7 @@ interface RoomType {
 export default function PMSRoomTypes() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [propertyData, setPropertyData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingType, setEditingType] = useState<RoomType | null>(null);
