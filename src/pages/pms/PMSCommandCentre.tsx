@@ -97,16 +97,19 @@ export default function PMSCommandCentre() {
       // Fetch availability from cache
       const { data: cacheData } = await supabase
         .from("pms_availability_cache")
-        .select("property_id, room_type_name, date, available_units, total_units")
+        .select("property_id, external_room_type_id, date, available_units")
         .in("property_id", propertyIds)
         .gte("date", startDate)
         .lte("date", endDate);
 
       // Map property names
       const propMap = Object.fromEntries(agentProperties.map((p) => [p.id, p.name]));
-      const rows: AvailabilityRow[] = (cacheData || []).map((r) => ({
-        ...r,
+      const rows: AvailabilityRow[] = (cacheData || []).map((r: any) => ({
+        property_id: r.property_id,
         property_name: propMap[r.property_id] || "Unknown",
+        room_type_name: r.external_room_type_id || "Room",
+        date: r.date,
+        available_units: r.available_units ?? 0,
       }));
       setAvailability(rows);
 
