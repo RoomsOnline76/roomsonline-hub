@@ -1,0 +1,1 @@
+ALTER TYPE public.pms_staff_role ADD VALUE IF NOT EXISTS 'agent';

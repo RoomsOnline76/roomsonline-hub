@@ -19,7 +19,7 @@ const userSchema = z.object({
 interface AddUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  role: "admin" | "user" | "sales_rep";
+  role: "admin" | "user" | "sales_rep" | "agent";
   onUserAdded: () => void;
   defaultEmail?: string;
   defaultName?: string;

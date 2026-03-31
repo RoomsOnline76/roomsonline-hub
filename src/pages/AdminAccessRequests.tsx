@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff, Handshake } from "lucide-react";
+import { Check, X, Clock, UserPlus, Shield, Search, Eye, Globe, Monitor, EyeOff, Handshake, Radar } from "lucide-react";
 import { AddUserModal } from "@/components/AddUserModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -67,7 +67,7 @@ export default function AdminAccessRequests() {
   const [loading, setLoading] = useState(true);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | "sales_rep">("user");
+  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | "sales_rep" | "agent">("user");
   const [searchTerm, setSearchTerm] = useState("");
   const [showDeclined, setShowDeclined] = useState(false);
   const [detailRequest, setDetailRequest] = useState<AccessRequest | null>(null);
@@ -98,7 +98,7 @@ export default function AdminAccessRequests() {
     setLoading(false);
   };
 
-  const handleApprove = (request: AccessRequest, role: "admin" | "user" | "sales_rep") => {
+  const handleApprove = (request: AccessRequest, role: "admin" | "user" | "sales_rep" | "agent") => {
     setSelectedRequest(request);
     setSelectedRole(role);
     setAddUserOpen(true);
@@ -344,6 +344,9 @@ export default function AdminAccessRequests() {
                                 <DropdownMenuItem onClick={() => handleApprove(request, "sales_rep")}>
                                   <Handshake className="h-3 w-3 mr-2" />As Sales Rep
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleApprove(request, "agent")}>
+                                  <Radar className="h-3 w-3 mr-2" />As Agent
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                             <Button
@@ -418,7 +421,7 @@ export default function AdminAccessRequests() {
       <AddUserModal
         open={addUserOpen}
         onOpenChange={setAddUserOpen}
-        role={selectedRole}
+        role={selectedRole as any}
         onUserAdded={handleUserAdded}
         defaultEmail={selectedRequest?.email}
         defaultName={selectedRequest?.full_name}

@@ -9977,6 +9977,7 @@ export type Database = {
         | "maintenance"
         | "accountant"
         | "auditor"
+        | "agent"
       pricing_rule_type:
         | "occupancy_based"
         | "lead_time"
@@ -10247,6 +10248,7 @@ export const Constants = {
         "maintenance",
         "accountant",
         "auditor",
+        "agent",
       ],
       pricing_rule_type: [
         "occupancy_based",

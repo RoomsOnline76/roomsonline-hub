@@ -10,7 +10,8 @@ export type PmsStaffRole =
   | "housekeeping"
   | "maintenance"
   | "accountant"
-  | "auditor";
+  | "auditor"
+  | "agent";
 
 export type PmsModule =
   | "dashboard"
@@ -29,7 +30,8 @@ export type PmsModule =
   | "night-audit"
   | "messaging"
   | "portfolio"
-  | "revenue";
+  | "revenue"
+  | "command-centre";
 
 export interface ModuleAccess {
   visible: boolean;
@@ -46,43 +48,49 @@ const PERMISSION_MATRIX: Record<PmsStaffRole, Record<PmsModule, ModuleAccess>> =
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
     staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
-    portfolio: FULL, revenue: FULL,
+    portfolio: FULL, revenue: FULL, "command-centre": FULL,
   },
   general_manager: {
     dashboard: FULL, rooms: FULL, "rate-plans": FULL, guests: FULL,
     housekeeping: FULL, reports: FULL, branding: FULL, integrations: FULL,
     staff: FULL, calendar: FULL, channels: FULL, groups: FULL, events: FULL, "night-audit": FULL, messaging: FULL,
-    portfolio: FULL, revenue: FULL,
+    portfolio: FULL, revenue: FULL, "command-centre": FULL,
   },
   front_desk: {
     dashboard: FULL, rooms: RO, "rate-plans": NONE, guests: FULL,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: FULL, channels: RO, groups: RO, events: RO, "night-audit": NONE, messaging: RO,
-    portfolio: NONE, revenue: NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE,
   },
   housekeeping: {
     dashboard: NONE, rooms: RO, "rate-plans": NONE, guests: NONE,
     housekeeping: FULL, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
-    portfolio: NONE, revenue: NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE,
   },
   maintenance: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: NONE,
     housekeeping: RO, reports: NONE, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: NONE, events: NONE, "night-audit": NONE, messaging: NONE,
-    portfolio: NONE, revenue: NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": NONE,
   },
   accountant: {
     dashboard: NONE, rooms: NONE, "rate-plans": NONE, guests: RO,
     housekeeping: NONE, reports: FULL, branding: NONE, integrations: NONE,
     staff: NONE, calendar: NONE, channels: NONE, groups: RO, events: NONE, "night-audit": RO, messaging: NONE,
-    portfolio: RO, revenue: RO,
+    portfolio: RO, revenue: RO, "command-centre": NONE,
   },
   auditor: {
     dashboard: RO, rooms: RO, "rate-plans": RO, guests: RO,
     housekeeping: RO, reports: RO, branding: RO, integrations: NONE,
     staff: NONE, calendar: RO, channels: RO, groups: RO, events: RO, "night-audit": RO, messaging: RO,
-    portfolio: RO, revenue: RO,
+    portfolio: RO, revenue: RO, "command-centre": NONE,
+  },
+  agent: {
+    dashboard: RO, rooms: RO, "rate-plans": NONE, guests: NONE,
+    housekeeping: NONE, reports: NONE, branding: NONE, integrations: NONE,
+    staff: NONE, calendar: RO, channels: NONE, groups: RO, events: NONE, "night-audit": NONE, messaging: NONE,
+    portfolio: NONE, revenue: NONE, "command-centre": FULL,
   },
 };
 
@@ -117,6 +125,7 @@ export const ROLE_LABELS: Record<PmsStaffRole, string> = {
   maintenance: "Maintenance",
   accountant: "Accountant / Finance",
   auditor: "Read-only Auditor",
+  agent: "Travel Agent",
 };
 
 export const ROLE_DESCRIPTIONS: Record<PmsStaffRole, string> = {
@@ -127,4 +136,5 @@ export const ROLE_DESCRIPTIONS: Record<PmsStaffRole, string> = {
   maintenance: "Maintenance dockets only. Read-only housekeeping board.",
   accountant: "Financial reports, folios, guest CRM for billing. No operational access.",
   auditor: "Read-only access to all PMS modules for audits.",
+  agent: "Multi-property availability overview and AI-powered booking suggestions.",
 };

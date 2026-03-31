@@ -121,7 +121,7 @@ const PMSNightAudit = lazy(() => import("./pages/pms/PMSNightAudit"));
 const PMSMessaging = lazy(() => import("./pages/pms/PMSMessaging"));
 const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
 const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
-
+const PMSCommandCentre = lazy(() => import("./pages/pms/PMSCommandCentre"));
 import { PMSShell } from "./components/layout/PMSShell";
 import { ConnectLayout } from "./components/layout/ConnectLayout";
 import { isConnectDomain } from "./lib/config";
@@ -665,6 +665,7 @@ const App = () => (
               <Route path="messaging" element={<PMSMessaging />} />
               <Route path="portfolio" element={<PMSPortfolio />} />
               <Route path="revenue" element={<PMSRevenue />} />
+              <Route path="command-centre" element={<PMSCommandCentre />} />
             </Route>
             {/* Integration toolkit */}
             <Route

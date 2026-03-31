@@ -157,6 +157,115 @@ Deno.serve(async (req) => {
         logo_url: property?.brand_logo_url || null,
         experience_type,
       };
+    } else if (experience_type === 'agent_command') {
+      // AI-powered agent suggestions based on availability data
+      const propertyIds = payload?.properties || [property_id];
+      const dateRange = payload?.date_range || { start: new Date().toISOString().split('T')[0], end: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0] };
+
+      // Fetch availability data
+      const { data: availData } = await supabase
+        .from('pms_availability_cache')
+        .select('property_id, external_room_type_id, date, available_units')
+        .in('property_id', propertyIds)
+        .gte('date', dateRange.start)
+        .lte('date', dateRange.end)
+        .order('date');
+
+      // Fetch property names
+      const { data: propNames } = await supabase
+        .from('properties')
+        .select('id, name')
+        .in('id', propertyIds);
+      const nameMap: Record<string, string> = {};
+      (propNames || []).forEach((p: any) => { nameMap[p.id] = p.name; });
+
+      // Build summary for AI
+      const occupancySummary = payload?.occupancy_summary || [];
+      const availSummary = (availData || []).map((r: any) => ({
+        property: nameMap[r.property_id] || r.property_id,
+        room_type: r.external_room_type_id,
+        date: r.date,
+        available: r.available_units,
+      }));
+
+      // Get AI config
+      const config = await resolveExperienceConfig(supabase, property_id, 'agent_command');
+      const systemPrompt = (config as any)?.system_prompt ||
+        'You are a travel agent assistant for a hotel booking platform. Given property availability and occupancy data, provide 3-5 actionable recommendations for agents to maximize bookings. Each suggestion should have a title, description, and priority (high/medium/low). Return as JSON array with keys: title, description, priority.';
+      const model = (config as any)?.model || 'google/gemini-3-flash-preview';
+
+      // Call Lovable AI
+      let suggestions: unknown[] = [];
+      try {
+        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+        if (LOVABLE_API_KEY) {
+          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                {
+                  role: 'user',
+                  content: `Availability data:\n${JSON.stringify(availSummary.slice(0, 50))}\n\nOccupancy summary:\n${JSON.stringify(occupancySummary)}\n\nProvide actionable suggestions as a JSON array.`,
+                },
+              ],
+              tools: [{
+                type: 'function',
+                function: {
+                  name: 'provide_suggestions',
+                  description: 'Return agent booking suggestions',
+                  parameters: {
+                    type: 'object',
+                    properties: {
+                      suggestions: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            title: { type: 'string' },
+                            description: { type: 'string' },
+                            priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+                          },
+                          required: ['title', 'description', 'priority'],
+                        },
+                      },
+                    },
+                    required: ['suggestions'],
+                  },
+                },
+              }],
+              tool_choice: { type: 'function', function: { name: 'provide_suggestions' } },
+            }),
+          });
+
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+            if (toolCall?.function?.arguments) {
+              const parsed = JSON.parse(toolCall.function.arguments);
+              suggestions = parsed.suggestions || [];
+            }
+          } else if (aiResponse.status === 429) {
+            console.warn('AI rate limited for agent_command');
+          } else if (aiResponse.status === 402) {
+            console.warn('AI credits exhausted for agent_command');
+          }
+        }
+      } catch (aiErr) {
+        console.warn('AI suggestions failed:', aiErr);
+      }
+
+      result = {
+        suggestions,
+        availability_summary: availSummary.slice(0, 100),
+        properties_count: propertyIds.length,
+        date_range: dateRange,
+      };
     } else {
       // All other types: read from rolos_experience_configs
       const config = await resolveExperienceConfig(supabase, property_id, experience_type);
