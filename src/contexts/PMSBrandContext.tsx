@@ -49,7 +49,7 @@ export function usePMSBrand() {
  * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
  * This makes the property feel like it has its own custom software.
  */
-function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null): () => void {
+function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null, headingFont?: string | null, bodyFont?: string | null): () => void {
   const root = document.documentElement;
   const applied: string[] = [];
 
@@ -96,6 +96,16 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
       set("--sidebar-accent", hsl);
       set("--sidebar-accent-foreground", autoForeground(accent));
     }
+  }
+
+  // Brand fonts
+  if (headingFont) {
+    loadGoogleFont(headingFont);
+    set("--font-heading", `'${headingFont}', serif`);
+  }
+  if (bodyFont) {
+    loadGoogleFont(bodyFont);
+    set("--font-body", `'${bodyFont}', sans-serif`);
   }
 
   return () => {
