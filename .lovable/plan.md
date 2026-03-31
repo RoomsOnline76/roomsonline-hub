@@ -1,147 +1,106 @@
 
 
-# Phase 2: Full BrandKit System
+# Phase 3: Live Collaborative Command Centre
 
 ## Overview
 
-Add custom font support to the branding system. Properties can select any Google Font for headings and body text. The experience-engine serves the brand_kit config, and both the public booking flow (`useBrandOverride`) and PMS interface (`PMSBrandContext`) automatically load and apply the chosen fonts via CSS custom properties — zero changes to the booking engine itself.
+Add an "agent" PMS staff role and a new "Command Centre" view within the PMS shell. Agents see a read-only, multi-property availability calendar with AI-powered suggestions (via the `agent_command` experience-engine handler). Admins can assign the "agent" role via access requests and staff management.
 
-## 1. Database Migration
+## 1. Add `agent` Staff Role
 
-Add font columns to the `properties` table:
+**File**: `src/lib/pmsPermissions.ts`
 
-```sql
-ALTER TABLE public.properties
-  ADD COLUMN IF NOT EXISTS brand_heading_font text,
-  ADD COLUMN IF NOT EXISTS brand_body_font text;
-```
+Add `"agent"` to `PmsStaffRole` union type. Add permission row — agents see: `dashboard` (RO), `calendar` (RO), `rooms` (RO), `groups` (RO), and a new `"command-centre"` module (FULL). Everything else NONE.
 
-These store Google Font family names (e.g. `"Playfair Display"`, `"Inter"`). Null = use system default.
+Add `"command-centre"` to `PmsModule` union type. Update all existing role rows to include `"command-centre": NONE` except agent (FULL) and property_owner/general_manager (FULL).
 
-## 2. BrandingTab UI — Font Picker
+Add agent to `ROLE_LABELS` and `ROLE_DESCRIPTIONS`.
 
-**File**: `src/components/property/BrandingTab.tsx`
+## 2. Database: Add `agent` to `property_staff.staff_role` Check
 
-Add a new "Typography" card below Brand Colours with two font picker fields:
+**Migration**: If `staff_role` on `property_staff` uses a check constraint or enum, extend it to include `'agent'`. This allows assigning staff as agents on specific properties.
 
-- **Heading Font** — text input with autocomplete/search against Google Fonts API (`https://www.googleapis.com/webfonts/v1/webfonts?key=...&sort=popularity`). Since we don't want to require an API key on the client, use a simpler approach: a combobox with a curated popular list (~50 fonts) PLUS a free-text input that accepts any Google Font name. The preview card renders the chosen font live by injecting a `<link>` tag.
-- **Body Font** — same pattern.
+## 3. Command Centre Page
 
-Both fields save to `brand_heading_font` / `brand_body_font` on the property record.
+**New file**: `src/pages/pms/PMSCommandCentre.tsx`
 
-Update `BrandingData` interface to include `brand_heading_font` and `brand_body_font`.
+A read-only, multi-property availability overview:
 
-Update `FontPreviewCard` to apply the selected fonts in the preview so admins see real-time rendering.
+- **Property selector**: If agent is linked to multiple properties, show a multi-select or "all properties" view
+- **Availability grid**: Re-uses the same `fetchPmsAvailability()` pattern from `CalendarAccommodation.tsx` — queries `pms_availability_cache` and/or live adapter. Renders a simplified week/month calendar grid showing room availability per room type across properties
+- **Occupancy summary cards**: Today's occupancy %, arrivals, departures per property
+- **AI Suggestions panel** (optional, collapsible): Calls `experience-engine` with `experience_type: 'agent_command'` to get AI-powered suggestions (e.g., "Property X has 40% vacancy next week — consider promoting"). Uses Lovable AI via the edge function
+- **Quick actions**: "Copy availability link", "Share with client" (generates a shareable read-only view URL)
 
-**New component**: `src/components/property/GoogleFontPicker.tsx`
-- Combobox with ~50 popular Google Fonts pre-loaded (Playfair Display, Lora, Merriweather, Montserrat, Inter, Poppins, Raleway, etc.)
-- Free-text "Custom font name" option for any Google Font not in the list
-- On selection, injects `<link href="https://fonts.googleapis.com/css2?family=FontName:wght@400;600;700&display=swap">` into `<head>` for live preview
-- Debounced to avoid spamming font loads
+The view is read-only — no rate changes, no bookings from this screen. Agents wanting to book redirect to the property's booking page.
 
-## 3. Font Loading Utilities
-
-**New file**: `src/lib/brandFonts.ts`
-
-```typescript
-export function loadGoogleFont(fontFamily: string): void
-// Injects <link> into <head> if not already present
-// Uses fonts.googleapis.com/css2 URL format
-
-export function applyBrandFonts(headingFont?: string | null, bodyFont?: string | null): () => void
-// Sets CSS custom properties:
-//   --font-heading: 'Playfair Display', serif
-//   --font-body: 'Inter', sans-serif
-// Returns cleanup function
-```
-
-## 4. Extend PropertyBrand & Brand Override System
-
-**File**: `src/lib/brandOverride.ts`
-
-- Add `headingFont?: string | null` and `bodyFont?: string | null` to `PropertyBrand` interface
-- In `buildBrandVarsMap`, add `--font-heading` and `--font-body` CSS vars when fonts are set
-- In `applyBrandToDocument`, call `loadGoogleFont()` for each configured font before setting vars
-
-**File**: `src/hooks/useBrandOverride.ts`
-
-- Fetch `brand_heading_font` and `brand_body_font` alongside existing color columns
-- Include them in the `PropertyBrand` object saved to session
-
-**File**: `src/contexts/PMSBrandContext.tsx`
-
-- Add `headingFont` and `bodyFont` to `PMSBrandData` interface
-- Fetch the two new columns in the property query
-- In `applyPmsBrand`, load Google Fonts and set `--font-heading` / `--font-body` CSS vars
-
-## 5. CSS Integration
-
-**File**: `src/index.css` (or tailwind config)
-
-Add font-family fallback using CSS custom properties:
-
-```css
-h1, h2, h3, h4, h5, h6, .font-heading {
-  font-family: var(--font-heading, var(--font-serif, ui-serif, Georgia, serif));
-}
-
-body, .font-body {
-  font-family: var(--font-body, var(--font-sans, ui-sans-serif, system-ui, sans-serif));
-}
-```
-
-This means when `--font-heading` / `--font-body` are not set, everything falls back to system defaults. When a property sets fonts, they cascade everywhere automatically.
-
-## 6. Experience Engine — brand_kit Handler
+## 4. Experience Engine: `agent_command` Handler
 
 **File**: `supabase/functions/experience-engine/index.ts`
 
-The existing `brand_kit` route already falls through to `resolveExperienceConfig`. Enhance it to also return the property's font config from the properties table alongside the experience config:
+The `agent_command` case already falls through to `resolveExperienceConfig`. Enhance it to:
 
-```typescript
-if (experience_type === 'brand_kit') {
-  const { data: property } = await supabase
-    .from('properties')
-    .select('brand_heading_font, brand_body_font, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url')
-    .eq('id', property_id)
-    .single();
-  
-  const config = await resolveExperienceConfig(supabase, property_id, 'brand_kit');
-  result = { config, fonts: { heading: property?.brand_heading_font, body: property?.brand_body_font }, colors: { ... } };
+- Accept payload with `{ properties: string[], date_range: { start, end } }`
+- Query `pms_availability_cache` for the given properties and date range
+- Call Lovable AI (via gateway) with occupancy data + a system prompt to generate agent-facing suggestions
+- Return `{ suggestions: [...], availability_summary: {...} }`
+
+The AI prompt is stored in `rolos_experience_configs` for the property (or a global default), allowing customization.
+
+## 5. Route + Navigation
+
+**File**: `src/App.tsx`
+
+Add route: `<Route path="command-centre" element={<PMSCommandCentre />} />` inside the `/pms` shell.
+
+**PMS sidebar**: Add "Command Centre" nav item, visible when `getModuleAccess(role, 'command-centre').visible` is true.
+
+## 6. Access Request: Agent Role Assignment
+
+**File**: `src/pages/AdminAccessRequests.tsx`
+
+When approving an access request, the role dropdown already supports multiple roles. Add "Agent" as an assignable role option. When selected, show a property multi-select so the admin can link the agent to specific properties (inserts into `property_staff` with `staff_role = 'agent'`).
+
+**File**: `src/components/AddUserModal.tsx`
+
+Add "Agent" to the role options. When selected, show property assignment fields.
+
+## 7. Agent Dashboard Landing
+
+When an agent logs in and navigates to `/pms`, they land on the Command Centre (since `dashboard` is RO for them). The PMS sidebar shows only their permitted modules: Command Centre, Calendar (RO), Rooms (RO), Groups (RO).
+
+## Technical Details
+
+### Permission matrix entry for `agent`
+```
+agent: {
+  dashboard: RO, rooms: RO, "rate-plans": NONE, guests: NONE,
+  housekeeping: NONE, reports: NONE, branding: NONE, integrations: NONE,
+  staff: NONE, calendar: RO, channels: NONE, groups: RO, events: NONE,
+  "night-audit": NONE, messaging: NONE, portfolio: NONE, revenue: NONE,
+  "command-centre": FULL,
 }
 ```
 
-## 7. PropertyForm Save Integration
-
-**File**: `src/pages/PropertyForm.tsx`
-
-- Add `brand_heading_font` and `brand_body_font` to the branding state object
-- Load them from the property record on fetch
-- Save them alongside existing brand fields on form submit
-
-## 8. Session Storage for FOUC Prevention
-
-Extend the `index.html` inline script (FOUC prevention) to also load Google Fonts synchronously from the cached brand data. The `PropertyBrand` session object will now include font names, so the inline script can inject `<link>` tags before React mounts.
+### AI suggestion prompt (stored in `rolos_experience_configs`)
+```json
+{
+  "system_prompt": "You are a travel agent assistant. Given property availability data, suggest actionable recommendations for agents to maximize bookings.",
+  "model": "google/gemini-3-flash-preview",
+  "max_suggestions": 5
+}
+```
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Migration | Add `brand_heading_font`, `brand_body_font` columns to `properties` |
-| Create | `src/components/property/GoogleFontPicker.tsx` — font selection combobox |
-| Create | `src/lib/brandFonts.ts` — Google Font loading + CSS var application |
-| Modify | `src/components/property/BrandingTab.tsx` — add Typography card with font pickers |
-| Modify | `src/lib/brandOverride.ts` — extend PropertyBrand, buildBrandVarsMap with font vars |
-| Modify | `src/hooks/useBrandOverride.ts` — fetch font columns, include in session |
-| Modify | `src/contexts/PMSBrandContext.tsx` — fetch + apply fonts in PMS context |
-| Modify | `src/pages/PropertyForm.tsx` — load/save font fields |
-| Modify | `src/index.css` — add CSS custom property font-family rules |
-| Modify | `supabase/functions/experience-engine/index.ts` — enhance brand_kit handler |
-| Modify | `index.html` — extend FOUC script for font preloading |
-
-## Rollout
-
-- Fonts default to null (system fonts) — zero visual change for existing properties
-- PMSBrandContext and useBrandOverride automatically pick up fonts when set
-- No changes needed in Booking.tsx, PropertyShowcase.tsx, or any page component — CSS custom properties cascade everywhere
+| Migration | Extend `property_staff.staff_role` to allow `'agent'` value |
+| Create | `src/pages/pms/PMSCommandCentre.tsx` — multi-property availability + AI suggestions |
+| Modify | `src/lib/pmsPermissions.ts` — add `agent` role + `command-centre` module |
+| Modify | `src/App.tsx` — add `/pms/command-centre` route |
+| Modify | PMS sidebar component — add Command Centre nav item |
+| Modify | `src/pages/AdminAccessRequests.tsx` — add Agent role option with property assignment |
+| Modify | `src/components/AddUserModal.tsx` — support agent role |
+| Modify | `supabase/functions/experience-engine/index.ts` — enhance `agent_command` handler with AI |
 
