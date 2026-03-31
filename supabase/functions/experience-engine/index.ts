@@ -368,6 +368,238 @@ Deno.serve(async (req) => {
         const config = await resolveExperienceConfig(supabase, property_id, 'guest_email');
         result = { config, experience_type };
       }
+    } else if (experience_type === 'portfolio') {
+      const action = payload?.action;
+
+      if (action === 'recommend') {
+        // Fetch portfolio and member properties
+        const portfolioId = payload?.portfolio_id;
+        if (!portfolioId) {
+          return new Response(
+            JSON.stringify(createErrorResponse('INVALID_REQUEST', 'portfolio_id required for recommend action', 'roomsonline' as any, 'experience-engine')),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { data: members } = await supabase
+          .from('property_portfolio_members')
+          .select('property_id')
+          .eq('portfolio_id', portfolioId);
+
+        const propIds = (members || []).map((m: any) => m.property_id);
+        if (propIds.length === 0) {
+          result = { semantic_groups: [], bundles: [], featured: null };
+        } else {
+          const { data: props } = await supabase
+            .from('properties')
+            .select('id, name, slug, city, country, description, property_type, amenities, brand_primary_color')
+            .eq('is_active', true)
+            .in('id', propIds);
+
+          const { data: rooms } = await supabase
+            .from('hostfully_room_types')
+            .select('property_id, name, daily_rate, max_guests')
+            .eq('is_active', true)
+            .in('property_id', propIds);
+
+          const roomsByProp: Record<string, any[]> = {};
+          (rooms || []).forEach((r: any) => {
+            if (!roomsByProp[r.property_id]) roomsByProp[r.property_id] = [];
+            roomsByProp[r.property_id].push({ name: r.name, rate: r.daily_rate, max_guests: r.max_guests });
+          });
+
+          const propSummaries = (props || []).map((p: any) => ({
+            slug: p.slug,
+            name: p.name,
+            city: p.city,
+            country: p.country,
+            type: p.property_type,
+            description: p.description?.substring(0, 200),
+            rooms: roomsByProp[p.id] || [],
+          }));
+
+          const config = await resolveExperienceConfig(supabase, property_id, 'portfolio');
+          const themeGuidance = payload?.theme || (config as any)?.theme || '';
+          const systemPrompt = (config as any)?.system_prompt ||
+            `You are a travel portfolio curator. Given a list of properties, group them into semantic themes, suggest multi-property bundles, and pick a featured property.${themeGuidance ? ` Focus on: ${themeGuidance}` : ''}`;
+          const model = (config as any)?.model || 'google/gemini-3-flash-preview';
+
+          let aiResult: any = { semantic_groups: [], bundles: [], featured: null };
+          try {
+            const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+            if (LOVABLE_API_KEY && propSummaries.length > 0) {
+              const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: `Properties:\n${JSON.stringify(propSummaries)}\n\nGroup these properties into themes, suggest bundles, and pick a featured property.` },
+                  ],
+                  tools: [{
+                    type: 'function',
+                    function: {
+                      name: 'portfolio_recommendations',
+                      description: 'Return portfolio groupings, bundles, and featured property',
+                      parameters: {
+                        type: 'object',
+                        properties: {
+                          semantic_groups: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                group_name: { type: 'string' },
+                                property_slugs: { type: 'array', items: { type: 'string' } },
+                                description: { type: 'string' },
+                              },
+                              required: ['group_name', 'property_slugs', 'description'],
+                            },
+                          },
+                          bundles: {
+                            type: 'array',
+                            items: {
+                              type: 'object',
+                              properties: {
+                                bundle_name: { type: 'string' },
+                                property_slugs: { type: 'array', items: { type: 'string' } },
+                                pitch: { type: 'string' },
+                              },
+                              required: ['bundle_name', 'property_slugs', 'pitch'],
+                            },
+                          },
+                          featured: {
+                            type: 'object',
+                            properties: {
+                              property_slug: { type: 'string' },
+                              reason: { type: 'string' },
+                            },
+                            required: ['property_slug', 'reason'],
+                          },
+                        },
+                        required: ['semantic_groups', 'bundles', 'featured'],
+                      },
+                    },
+                  }],
+                  tool_choice: { type: 'function', function: { name: 'portfolio_recommendations' } },
+                }),
+              });
+
+              if (aiResponse.ok) {
+                const aiData = await aiResponse.json();
+                const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+                if (toolCall?.function?.arguments) {
+                  aiResult = JSON.parse(toolCall.function.arguments);
+                }
+              } else if (aiResponse.status === 429) {
+                console.warn('AI rate limited for portfolio recommend');
+              } else if (aiResponse.status === 402) {
+                console.warn('AI credits exhausted for portfolio recommend');
+              }
+            }
+          } catch (aiErr) {
+            console.warn('AI portfolio recommend failed:', aiErr);
+          }
+
+          result = aiResult;
+        }
+
+      } else if (action === 'search') {
+        const query = payload?.query;
+        const portfolioId = payload?.portfolio_id;
+        if (!query || !portfolioId) {
+          return new Response(
+            JSON.stringify(createErrorResponse('INVALID_REQUEST', 'query and portfolio_id required for search', 'roomsonline' as any, 'experience-engine')),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const { data: members } = await supabase
+          .from('property_portfolio_members')
+          .select('property_id')
+          .eq('portfolio_id', portfolioId);
+
+        const propIds = (members || []).map((m: any) => m.property_id);
+
+        const { data: props } = await supabase
+          .from('properties')
+          .select('id, name, slug, city, description, amenities')
+          .eq('is_active', true)
+          .in('id', propIds);
+
+        let results: any[] = [];
+        try {
+          const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+          if (LOVABLE_API_KEY && (props || []).length > 0) {
+            const propList = (props || []).map((p: any) => ({
+              slug: p.slug, name: p.name, city: p.city, description: p.description?.substring(0, 150),
+            }));
+
+            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-3-flash-preview',
+                messages: [
+                  { role: 'system', content: 'You are a property search assistant. Score each property against the query on a 0-100 scale. Only return properties with score > 30.' },
+                  { role: 'user', content: `Query: "${query}"\n\nProperties:\n${JSON.stringify(propList)}` },
+                ],
+                tools: [{
+                  type: 'function',
+                  function: {
+                    name: 'rank_properties',
+                    description: 'Return ranked property matches',
+                    parameters: {
+                      type: 'object',
+                      properties: {
+                        results: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              slug: { type: 'string' },
+                              name: { type: 'string' },
+                              score: { type: 'number' },
+                              reason: { type: 'string' },
+                            },
+                            required: ['slug', 'name', 'score', 'reason'],
+                          },
+                        },
+                      },
+                      required: ['results'],
+                    },
+                  },
+                }],
+                tool_choice: { type: 'function', function: { name: 'rank_properties' } },
+              }),
+            });
+
+            if (aiResponse.ok) {
+              const aiData = await aiResponse.json();
+              const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+              if (toolCall?.function?.arguments) {
+                const parsed = JSON.parse(toolCall.function.arguments);
+                results = (parsed.results || []).sort((a: any, b: any) => b.score - a.score);
+              }
+            }
+          }
+        } catch (aiErr) {
+          console.warn('AI portfolio search failed:', aiErr);
+        }
+
+        result = { results };
+
+      } else {
+        const config = await resolveExperienceConfig(supabase, property_id, 'portfolio');
+        result = { config, experience_type };
+      }
     } else {
       // All other types: read from rolos_experience_configs
       const config = await resolveExperienceConfig(supabase, property_id, experience_type);

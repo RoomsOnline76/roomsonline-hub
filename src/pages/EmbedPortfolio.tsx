@@ -1,9 +1,9 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2 } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,30 @@ interface PortfolioProperty {
   max_guests: number | null;
 }
 
+interface AiGroup {
+  group_name: string;
+  property_slugs: string[];
+  description: string;
+}
+
+interface AiBundle {
+  bundle_name: string;
+  property_slugs: string[];
+  pitch: string;
+}
+
+interface AiFeatured {
+  property_slug: string;
+  reason: string;
+}
+
+interface AiSearchResult {
+  slug: string;
+  name: string;
+  score: number;
+  reason: string;
+}
+
 export default function EmbedPortfolio() {
   const { portfolioSlug } = useParams<{ portfolioSlug: string }>();
   const [searchParams] = useSearchParams();
@@ -41,6 +65,14 @@ export default function EmbedPortfolio() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [cityFilter, setCityFilter] = useState<string>("all");
+
+  // AI state
+  const [aiGroups, setAiGroups] = useState<AiGroup[]>([]);
+  const [aiBundles, setAiBundles] = useState<AiBundle[]>([]);
+  const [aiFeatured, setAiFeatured] = useState<AiFeatured | null>(null);
+  const [activeGroup, setActiveGroup] = useState<string>("all");
+  const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
+  const [aiSearching, setAiSearching] = useState(false);
 
   // Resize observer for iframe
   useEffect(() => {
@@ -57,47 +89,80 @@ export default function EmbedPortfolio() {
       if (!portfolioSlug) return;
       setLoading(true);
 
-      // Fetch portfolio
+      // Try the edge function API first with AI enrichment
+      try {
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke("booking-portfolio-api", {
+          body: null,
+          headers: { "Content-Type": "application/json" },
+        });
+
+        // Use direct fetch for GET with query params
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const resp = await fetch(
+          `${supabaseUrl}/functions/v1/booking-portfolio-api?portfolio=${portfolioSlug}&ai=true`,
+          {
+            headers: {
+              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+          }
+        );
+
+        if (resp.ok) {
+          const data = await resp.json();
+          setPortfolio(data.portfolio);
+
+          const mapped: PortfolioProperty[] = (data.properties || []).map((p: any, i: number) => ({
+            id: p.slug || `prop-${i}`,
+            name: p.name,
+            slug: p.slug,
+            city: p.city,
+            description: p.description,
+            hero_image: p.hero_image,
+            starting_rate: p.starting_rate,
+            room_count: p.room_count || 0,
+            max_guests: p.max_guests,
+          }));
+          setProperties(mapped);
+
+          // AI data
+          if (data.ai_groups) setAiGroups(data.ai_groups);
+          if (data.ai_bundles) setAiBundles(data.ai_bundles);
+          if (data.ai_featured) setAiFeatured(data.ai_featured);
+
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // Fall through to direct DB query
+      }
+
+      // Fallback: direct DB queries
       const { data: pf } = await supabase
         .from("property_portfolios" as any)
         .select("*")
         .eq("slug", portfolioSlug)
         .single();
 
-      if (!pf) {
-        setLoading(false);
-        return;
-      }
+      if (!pf) { setLoading(false); return; }
       setPortfolio(pf);
 
-      // Fetch members
       const { data: members } = await supabase
         .from("property_portfolio_members" as any)
         .select("property_id")
         .eq("portfolio_id", (pf as any).id);
 
-      if (!members || members.length === 0) {
-        setProperties([]);
-        setLoading(false);
-        return;
-      }
+      if (!members || members.length === 0) { setProperties([]); setLoading(false); return; }
 
       const propertyIds = (members as any[]).map((m) => m.property_id);
 
-      // Fetch properties
       const { data: props } = await supabase
         .from("properties")
         .select("id, name, slug, city, description, images")
         .eq("is_active", true)
         .in("id", propertyIds);
 
-      if (!props) {
-        setProperties([]);
-        setLoading(false);
-        return;
-      }
+      if (!props) { setProperties([]); setLoading(false); return; }
 
-      // Fetch room types for rates & counts
       const { data: rooms } = await supabase
         .from("hostfully_room_types")
         .select("property_id, daily_rate, max_guests")
@@ -106,16 +171,10 @@ export default function EmbedPortfolio() {
 
       const roomsByProp: Record<string, { count: number; minRate: number; maxGuests: number }> = {};
       (rooms || []).forEach((r) => {
-        if (!roomsByProp[r.property_id]) {
-          roomsByProp[r.property_id] = { count: 0, minRate: Infinity, maxGuests: 0 };
-        }
+        if (!roomsByProp[r.property_id]) roomsByProp[r.property_id] = { count: 0, minRate: Infinity, maxGuests: 0 };
         roomsByProp[r.property_id].count++;
-        if (r.daily_rate && r.daily_rate < roomsByProp[r.property_id].minRate) {
-          roomsByProp[r.property_id].minRate = r.daily_rate;
-        }
-        if (r.max_guests && r.max_guests > roomsByProp[r.property_id].maxGuests) {
-          roomsByProp[r.property_id].maxGuests = r.max_guests;
-        }
+        if (r.daily_rate && r.daily_rate < roomsByProp[r.property_id].minRate) roomsByProp[r.property_id].minRate = r.daily_rate;
+        if (r.max_guests && r.max_guests > roomsByProp[r.property_id].maxGuests) roomsByProp[r.property_id].maxGuests = r.max_guests;
       });
 
       const mapped: PortfolioProperty[] = props.map((p) => {
@@ -125,15 +184,9 @@ export default function EmbedPortfolio() {
           : null;
         const rm = roomsByProp[p.id];
         return {
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          city: p.city,
-          description: p.description,
-          hero_image: heroImg,
+          id: p.id, name: p.name, slug: p.slug, city: p.city, description: p.description, hero_image: heroImg,
           starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
-          room_count: rm?.count || 0,
-          max_guests: rm?.maxGuests || null,
+          room_count: rm?.count || 0, max_guests: rm?.maxGuests || null,
         };
       });
 
@@ -144,25 +197,88 @@ export default function EmbedPortfolio() {
     fetchData();
   }, [portfolioSlug]);
 
+  // AI semantic search for longer queries
+  const doAiSearch = useCallback(async (query: string) => {
+    if (!portfolio || query.split(/\s+/).length < 4) {
+      setAiSearchResults(null);
+      return;
+    }
+    setAiSearching(true);
+    try {
+      // Find a property with experience engine enabled from our properties
+      const propIds = properties.map(p => p.id);
+      if (propIds.length === 0) return;
+
+      const { data } = await supabase.functions.invoke("experience-engine", {
+        body: {
+          property_id: propIds[0],
+          experience_type: "portfolio",
+          payload: { action: "search", query, portfolio_id: portfolio.id || portfolio.slug },
+        },
+      });
+      const results = data?.data?.results || data?.results || [];
+      setAiSearchResults(results.length > 0 ? results : null);
+    } catch {
+      setAiSearchResults(null);
+    } finally {
+      setAiSearching(false);
+    }
+  }, [portfolio, properties]);
+
+  // Debounced AI search
+  useEffect(() => {
+    if (search.split(/\s+/).length < 4) {
+      setAiSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(() => doAiSearch(search), 800);
+    return () => clearTimeout(timer);
+  }, [search, doAiSearch]);
+
   const cities = useMemo(() => {
     const set = new Set(properties.map((p) => p.city).filter(Boolean) as string[]);
     return Array.from(set).sort();
   }, [properties]);
 
   const filtered = useMemo(() => {
+    // If AI search returned results, use that ordering
+    if (aiSearchResults && aiSearchResults.length > 0) {
+      const slugOrder = aiSearchResults.map(r => r.slug);
+      return properties
+        .filter(p => slugOrder.includes(p.slug))
+        .sort((a, b) => slugOrder.indexOf(a.slug) - slugOrder.indexOf(b.slug));
+    }
+
     return properties.filter((p) => {
+      // Group filter
+      if (activeGroup !== "all") {
+        const group = aiGroups.find(g => g.group_name === activeGroup);
+        if (group && !group.property_slugs.includes(p.slug)) return false;
+      }
       if (cityFilter !== "all" && p.city !== cityFilter) return false;
       if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !(p.city || "").toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [properties, search, cityFilter]);
+  }, [properties, search, cityFilter, activeGroup, aiGroups, aiSearchResults]);
+
+  // AI search reason map
+  const aiReasonMap = useMemo(() => {
+    if (!aiSearchResults) return {};
+    const m: Record<string, string> = {};
+    aiSearchResults.forEach(r => { m[r.slug] = r.reason; });
+    return m;
+  }, [aiSearchResults]);
+
+  const featuredProp = useMemo(() => {
+    if (!aiFeatured) return null;
+    return properties.find(p => p.slug === aiFeatured.property_slug) || null;
+  }, [properties, aiFeatured]);
 
   const handleViewProperty = (slug: string) => {
     const params = new URLSearchParams();
     if (brandColor) params.set("brand_color", brandColor);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
-    // If in iframe, navigate within iframe
     if (window.parent !== window) {
       window.location.href = `/embed/property/${slug}?${params.toString()}`;
     } else {
@@ -207,7 +323,7 @@ export default function EmbedPortfolio() {
             )}
             <div>
               <h1 className="text-lg font-semibold" style={{ color: "#1a1a1a" }}>
-                {(portfolio as any).name}
+                {portfolio.name}
               </h1>
               <p className="text-xs text-gray-500">{properties.length} properties</p>
             </div>
@@ -215,39 +331,110 @@ export default function EmbedPortfolio() {
         </div>
       </motion.header>
 
+      {/* AI Featured Banner */}
+      {featuredProp && aiFeatured && !aiSearchResults && activeGroup === "all" && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 pt-4"
+        >
+          <div
+            className="rounded-xl overflow-hidden cursor-pointer group relative"
+            style={{ border: `2px solid ${brandColor}40`, background: `linear-gradient(135deg, ${brandColor}08, ${brandColor}03)` }}
+            onClick={() => handleViewProperty(featuredProp.slug)}
+          >
+            <div className="flex flex-col sm:flex-row">
+              {featuredProp.hero_image && (
+                <div className="sm:w-64 h-40 sm:h-auto overflow-hidden shrink-0">
+                  <img src={featuredProp.hero_image} alt={featuredProp.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                </div>
+              )}
+              <div className="p-4 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Sparkles className="h-4 w-4" style={{ color: brandColor }} />
+                  <span className="text-xs font-medium" style={{ color: brandColor }}>Featured Pick</span>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">{featuredProp.name}</h3>
+                {featuredProp.city && (
+                  <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
+                    <MapPin className="h-3 w-3" /> {featuredProp.city}
+                  </div>
+                )}
+                <p className="text-sm text-gray-600 mt-2">{aiFeatured.reason}</p>
+                <Button size="sm" className="mt-3 text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
+                  View & Book <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Filters */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search properties..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 text-sm"
-            />
-          </div>
-          {cities.length > 1 && (
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant={cityFilter === "all" ? "default" : "outline"}
-                size="sm"
-                className="text-xs h-8"
-                onClick={() => setCityFilter("all")}
-                style={cityFilter === "all" ? { backgroundColor: brandColor } : {}}
-              >
-                All
-              </Button>
-              {cities.map((city) => (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search properties… (try longer queries for AI search)"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 text-sm"
+              />
+              {aiSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />}
+            </div>
+            {cities.length > 1 && (
+              <div className="flex gap-2 flex-wrap">
                 <Button
-                  key={city}
-                  variant={cityFilter === city ? "default" : "outline"}
+                  variant={cityFilter === "all" ? "default" : "outline"}
                   size="sm"
                   className="text-xs h-8"
-                  onClick={() => setCityFilter(city)}
-                  style={cityFilter === city ? { backgroundColor: brandColor } : {}}
+                  onClick={() => setCityFilter("all")}
+                  style={cityFilter === "all" ? { backgroundColor: brandColor } : {}}
                 >
-                  {city}
+                  All
+                </Button>
+                {cities.map((city) => (
+                  <Button
+                    key={city}
+                    variant={cityFilter === city ? "default" : "outline"}
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => setCityFilter(city)}
+                    style={cityFilter === city ? { backgroundColor: brandColor } : {}}
+                  >
+                    {city}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* AI Group Tabs */}
+          {aiGroups.length > 0 && !aiSearchResults && (
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant={activeGroup === "all" ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-7 gap-1"
+                onClick={() => setActiveGroup("all")}
+                style={activeGroup === "all" ? { backgroundColor: brandColor } : {}}
+              >
+                All Themes
+              </Button>
+              {aiGroups.map((g) => (
+                <Button
+                  key={g.group_name}
+                  variant={activeGroup === g.group_name ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-7 gap-1"
+                  onClick={() => setActiveGroup(g.group_name)}
+                  style={activeGroup === g.group_name ? { backgroundColor: brandColor } : {}}
+                  title={g.description}
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {g.group_name}
                 </Button>
               ))}
             </div>
@@ -256,7 +443,7 @@ export default function EmbedPortfolio() {
       </div>
 
       {/* Property Grid */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-4">
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400 text-sm">
             No properties match your search.
@@ -278,68 +465,50 @@ export default function EmbedPortfolio() {
                 )}
                 onClick={() => handleViewProperty(prop.slug)}
               >
-                {/* Image */}
                 <div className={cn(
                   "relative overflow-hidden bg-gray-100",
                   layout === "list" ? "w-48 shrink-0" : "aspect-[4/3]"
                 )}>
                   {prop.hero_image ? (
-                    <img
-                      src={prop.hero_image}
-                      alt={prop.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                    <img src={prop.hero_image} alt={prop.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Building2 className="h-10 w-10 text-gray-300" />
                     </div>
                   )}
                   {prop.starting_rate && (
-                    <Badge
-                      className="absolute top-3 right-3 text-white border-0 text-xs font-semibold"
-                      style={{ backgroundColor: brandColor }}
-                    >
+                    <Badge className="absolute top-3 right-3 text-white border-0 text-xs font-semibold" style={{ backgroundColor: brandColor }}>
                       From R{prop.starting_rate.toLocaleString()}
                     </Badge>
                   )}
                 </div>
-
-                {/* Content */}
                 <div className="p-4 flex-1 flex flex-col">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">
-                    {prop.name}
-                  </h3>
+                  <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{prop.name}</h3>
                   {prop.city && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                      <MapPin className="h-3 w-3" />
-                      {prop.city}
+                      <MapPin className="h-3 w-3" /> {prop.city}
                     </div>
                   )}
-                  {prop.description && (
+                  {aiReasonMap[prop.slug] && (
+                    <div className="mt-1.5 flex items-start gap-1">
+                      <Sparkles className="h-3 w-3 mt-0.5 shrink-0" style={{ color: brandColor }} />
+                      <span className="text-xs" style={{ color: brandColor }}>{aiReasonMap[prop.slug]}</span>
+                    </div>
+                  )}
+                  {prop.description && !aiReasonMap[prop.slug] && (
                     <p className="text-xs text-gray-500 mt-2 line-clamp-2">{prop.description}</p>
                   )}
                   <div className="mt-auto pt-3 flex items-center justify-between">
                     <div className="flex gap-3 text-xs text-gray-400">
                       {prop.room_count > 0 && (
-                        <span className="flex items-center gap-1">
-                          <BedDouble className="h-3 w-3" />
-                          {prop.room_count} rooms
-                        </span>
+                        <span className="flex items-center gap-1"><BedDouble className="h-3 w-3" />{prop.room_count} rooms</span>
                       )}
                       {prop.max_guests && (
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" />
-                          Up to {prop.max_guests}
-                        </span>
+                        <span className="flex items-center gap-1"><Users className="h-3 w-3" />Up to {prop.max_guests}</span>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      className="text-xs h-7 gap-1 text-white"
-                      style={{ backgroundColor: brandColor }}
-                    >
-                      View & Book
-                      <ChevronRight className="h-3 w-3" />
+                    <Button size="sm" className="text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
+                      View & Book <ChevronRight className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -348,6 +517,59 @@ export default function EmbedPortfolio() {
           </div>
         )}
       </div>
+
+      {/* AI Bundle Cards */}
+      {aiBundles.length > 0 && !aiSearchResults && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Package className="h-4 w-4" style={{ color: brandColor }} />
+            <h2 className="text-sm font-semibold text-gray-900">Suggested Packages</h2>
+          </div>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            {aiBundles.map((bundle) => {
+              const bundleProps = properties.filter(p => bundle.property_slugs.includes(p.slug));
+              const combinedRate = bundleProps.reduce((sum, p) => sum + (p.starting_rate || 0), 0);
+              return (
+                <motion.div
+                  key={bundle.bundle_name}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow"
+                >
+                  <h3 className="font-semibold text-sm text-gray-900">{bundle.bundle_name}</h3>
+                  <p className="text-xs text-gray-500 mt-1">{bundle.pitch}</p>
+                  <div className="flex gap-2 mt-3">
+                    {bundleProps.slice(0, 3).map(bp => (
+                      <div key={bp.slug} className="w-16 h-12 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                        {bp.hero_image ? (
+                          <img src={bp.hero_image} alt={bp.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Building2 className="h-4 w-4 text-gray-300" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    {combinedRate > 0 && (
+                      <span className="text-xs text-gray-500">From R{combinedRate.toLocaleString()} combined</span>
+                    )}
+                    <Button
+                      size="sm"
+                      className="text-xs h-7 gap-1 text-white"
+                      style={{ backgroundColor: brandColor }}
+                      onClick={() => bundleProps[0] && handleViewProperty(bundleProps[0].slug)}
+                    >
+                      View Package <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="border-t py-3 px-4 flex justify-center">

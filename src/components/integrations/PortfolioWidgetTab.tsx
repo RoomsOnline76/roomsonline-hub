@@ -140,6 +140,66 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
             </Button>
           </div>
 
+          {/* AI Controls */}
+          <div className="space-y-3 rounded-lg border p-3 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label className="text-xs font-medium">AI Recommendations</Label>
+              </div>
+              <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+            </div>
+            {aiEnabled && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">AI Theme Guidance</Label>
+                  <Input
+                    value={aiTheme}
+                    onChange={(e) => setAiTheme(e.target.value)}
+                    placeholder="e.g. Focus on romantic getaways and adventure"
+                    className="text-xs h-8"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  disabled={!selectedPortfolioId || refreshingAi}
+                  onClick={async () => {
+                    if (!selectedPortfolioId) return;
+                    setRefreshingAi(true);
+                    try {
+                      // Find a property in this portfolio to call experience engine
+                      const { data: members } = await supabase
+                        .from("property_portfolio_members" as any)
+                        .select("property_id")
+                        .eq("portfolio_id", selectedPortfolioId)
+                        .limit(1);
+                      const propId = (members as any)?.[0]?.property_id;
+                      if (propId) {
+                        await supabase.functions.invoke("experience-engine", {
+                          body: {
+                            property_id: propId,
+                            experience_type: "portfolio",
+                            payload: { action: "recommend", portfolio_id: selectedPortfolioId, theme: aiTheme },
+                          },
+                        });
+                        toast({ title: "AI Refreshed", description: "Portfolio recommendations regenerated" });
+                      }
+                    } catch {
+                      toast({ title: "Error", description: "Failed to refresh AI suggestions", variant: "destructive" });
+                    } finally {
+                      setRefreshingAi(false);
+                    }
+                  }}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshingAi ? "animate-spin" : ""}`} />
+                  Refresh AI Suggestions
+                </Button>
+              </>
+            )}
+          </div>
+
           {/* Config controls */}
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
