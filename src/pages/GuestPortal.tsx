@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calendar, MapPin, Users, Mail, CheckCircle, AlertTriangle, Shield } from "lucide-react";
+import { Loader2, Calendar, MapPin, Users, CheckCircle, AlertTriangle, Shield } from "lucide-react";
 import { SmartCancelModal } from "@/components/guest/SmartCancelModal";
 import { format } from "date-fns";
 
