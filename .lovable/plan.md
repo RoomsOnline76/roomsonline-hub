@@ -1,44 +1,102 @@
 
 
-# Generate ROL vs Litchi Feature Comparison Document
+# Accommodation Type System — Room/Unit/Chalet/Apartment Labels
 
-## What This Is
+## Problem
 
-A professional PDF document for ROL ownership that maps each of the 6 features from the Litchi "features_lead.pdf" to ROL's implementation, showing how ROL matches or exceeds each one. The document will be branded with ROL's identity and suitable for stakeholder presentation.
+Every room across the system is generically called a "Room" or "Room Type". The only exception is Hostfully properties, which hardcode "unit/units". In reality, properties have diverse accommodation types — Self Catering Units, Chalets, Apartments, Suites, Cottages, Cabins, etc. The label should be configurable per property and flow through to the `/book` page, showcase, and PMS.
 
-## The 6 Litchi Features vs ROL Implementation
+Additionally, "Self Catering" should be selectable as a property-level attribute (it's a service model, not just a room type).
 
-| # | Litchi Feature | ROL Implementation | ROL Advantage |
-|---|---------------|-------------------|---------------|
-| 1 | Flexible Cancellation Policy for Specified Dates | Phase 1: Dynamic Policy Engine — `rolos_policies` table with date-range policies, evaluated live via Experience Engine | AI-evaluated policies with deposit schedule integration, not just date ranges. Policies cascade through booking flow + guest portal automatically |
-| 2 | Customisable Fonts to Match Your Brand | Phase 2: Full BrandKit System — any Google Font, CSS custom properties, auto-loaded via `useBrandOverride` + `PMSBrandContext` | Unlimited Google Fonts (not a fixed list of 15). Full brand kit with colors, logos, fonts applied across booking engine, PMS, emails, and guest portal |
-| 3 | Online Availability Overview Calendar for Agents | Phase 3: Live Collaborative Command Centre — agent role, multi-property calendar, AI suggestions | AI-powered suggestions for agents. Multi-property view with role-based access. Not just viewing — agents get actionable intelligence |
-| 4 | Customisable Guest Emails | Phase 4: AI Personalised Guest Journey — TipTap rich editor, AI content generation, branded preview, Experience Engine template resolution | AI writes email drafts in the property's brand voice. Rich text editor (not plain text). Live branded preview. Starter template library. Auto-applies brand kit |
-| 5 | Multiple Properties Overview on One Booking Engine | Phase 5: AI Portfolio Experience — semantic grouping, AI bundles, natural language search, featured property recommendations | AI groups properties by theme. Suggests multi-property bundles. Natural language search ("pet-friendly near beach"). Not just a grid — intelligent discovery |
-| 6 | Guest Self-Service Cancellation | Phase 6: Guest Portal + Smart Resolution — token-based access, AI alternatives before cancellation, PMS sync | AI tries to save the booking first (date changes, shorter stays, credits). Token-based security (no login required). Full PMS sync for external systems |
+## Current State
 
-## Document Structure
+- `PropertyForm.tsx` line 5098–5104: Property type dropdown has Hotel, Guest House, B&B, Lodge, Resort, Villa, Apartment — missing Self Catering, Chalet, Cottage, Cabin, etc.
+- `PropertyShowcase.tsx` line 445: `unitLabel` is hardcoded: `isHostfullyProperty ? 'unit' : 'room'` — no awareness of property type or accommodation type
+- `RoomCollection.tsx` and `CategoryCollection.tsx`: Accept `unitLabel`/`unitLabelPlural` props — already support dynamic labels, just need correct values passed in
+- `Booking.tsx`: Uses "Room Type" in UI labels (line 1890–1894) — hardcoded
+- `rolos_room_types` table: No `accommodation_type` column
+- `OnboardingRoomType` in `onboardingFieldSchema.ts`: No accommodation type field
+- `PROPERTY_TYPES` already includes `self_catering` in the onboarding schema but it's not in the PropertyForm dropdown
 
-1. **Cover page** — ROL branding, title "Feature Capability Report", date
-2. **Executive Summary** — ROL doesn't just match Litchi's 6 features; it exceeds them with AI-powered intelligence at every layer
-3. **Feature-by-Feature Comparison** — 6 sections, each with:
-   - Litchi's offering (brief, factual)
-   - ROL's implementation (what we built, how it works)
-   - Why ROL exceeds (the differentiator)
-4. **Architecture Advantage** — The Experience Engine as a unified layer vs point features
-5. **Summary Matrix** — Quick visual comparison table
+## Design
 
-## Technical Approach
+### 1. Property-level accommodation label
 
-- Generate using ReportLab (Python PDF)
-- ROL brand colors from codebase (primary colors used in the platform)
-- Output to `/mnt/documents/ROL_Feature_Capability_Report.pdf`
-- Visual QA via `pdftoppm` conversion
+Add `accommodation_label` to the `properties.amenities` JSONB (no migration needed). This defines how "rooms" are referred to for this property. Options:
+
+| Value | Singular | Plural |
+|-------|----------|--------|
+| `room` | Room | Rooms |
+| `unit` | Unit | Units |
+| `apartment` | Apartment | Apartments |
+| `chalet` | Chalet | Chalets |
+| `cottage` | Cottage | Cottages |
+| `cabin` | Cabin | Cabins |
+| `suite` | Suite | Suites |
+| `villa` | Villa | Villas |
+| `studio` | Studio | Studios |
+| `tent` | Tent | Tents |
+| `pod` | Pod | Pods |
+
+A helper function `getAccommodationLabel(property)` resolves the label with smart defaults based on `property_type` (e.g., `apartment` → "Apartment", `self_catering` → "Unit", `lodge` → "Room").
+
+### 2. Expand property type dropdown
+
+Add missing types to the PropertyForm dropdown: Self Catering, Chalet, Cottage, Cabin, Boutique Hotel, Game Lodge, Safari Lodge, Backpackers.
+
+### 3. Self Catering as property-level flag
+
+Add a "Self Catering" toggle to the amenities/Info & Facilities tab. This is distinct from property type — a Guest House can also offer self-catering units. Stored in `amenities.self_catering: boolean`.
+
+### 4. Flow labels through to all consumer pages
+
+- **PropertyShowcase.tsx**: Replace hardcoded Hostfully check with `getAccommodationLabel(property)` 
+- **Booking.tsx**: Use the label for "Select room type" → "Select apartment" etc.
+- **RoomCollection / CategoryCollection**: Already accept props — just pass correct values
+- **Onboarding wizard**: Add accommodation label selector to StepRoomsOverview
+- **PMS Room Types page**: Use the label in headings
+
+## Technical Details
+
+### Helper utility — `src/lib/accommodationLabels.ts`
+
+```typescript
+const ACCOMMODATION_TYPES = {
+  room: { singular: 'Room', plural: 'Rooms' },
+  unit: { singular: 'Unit', plural: 'Units' },
+  apartment: { singular: 'Apartment', plural: 'Apartments' },
+  chalet: { singular: 'Chalet', plural: 'Chalets' },
+  cottage: { singular: 'Cottage', plural: 'Cottages' },
+  cabin: { singular: 'Cabin', plural: 'Cabins' },
+  suite: { singular: 'Suite', plural: 'Suites' },
+  villa: { singular: 'Villa', plural: 'Villas' },
+  studio: { singular: 'Studio', plural: 'Studios' },
+  tent: { singular: 'Tent', plural: 'Tents' },
+  pod: { singular: 'Pod', plural: 'Pods' },
+};
+
+function getAccommodationLabel(property): { singular: string; plural: string }
+// Checks amenities.accommodation_label first, then infers from property_type + external_system
+```
+
+### Smart defaults by property_type
+- `apartment` → Apartment
+- `villa` → Villa  
+- `self_catering` → Unit
+- `lodge`, `hotel`, `bnb`, `guesthouse` → Room
+- Hostfully properties → Unit (existing behavior preserved)
 
 ## Files
 
-| Action | Details |
-|--------|---------|
-| Script | `/tmp/generate_report.py` — ReportLab PDF generation |
-| Output | `/mnt/documents/ROL_Feature_Capability_Report.pdf` |
+| Action | File |
+|--------|------|
+| Create | `src/lib/accommodationLabels.ts` — label types, resolution helper |
+| Modify | `src/pages/PropertyForm.tsx` — expand property type dropdown, add accommodation label selector, add self-catering toggle |
+| Modify | `src/pages/PropertyShowcase.tsx` — replace hardcoded Hostfully label with `getAccommodationLabel()` |
+| Modify | `src/pages/Booking.tsx` — use dynamic label for "Room Type" references |
+| Modify | `src/components/onboarding/steps/StepRoomsOverview.tsx` — add accommodation label selector |
+| Modify | `src/pages/pms/PMSRoomTypes.tsx` — use dynamic label in headings |
+| Modify | `src/config/onboardingFieldSchema.ts` — add accommodation_label to schema |
+
+No database migration needed — uses existing `amenities` JSONB and `property_type` column.
 
