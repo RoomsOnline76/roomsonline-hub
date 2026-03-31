@@ -98,7 +98,7 @@ export default function AdminAccessRequests() {
     setLoading(false);
   };
 
-  const handleApprove = (request: AccessRequest, role: "admin" | "user" | "sales_rep") => {
+  const handleApprove = (request: AccessRequest, role: "admin" | "user" | "sales_rep" | "agent") => {
     setSelectedRequest(request);
     setSelectedRole(role);
     setAddUserOpen(true);
