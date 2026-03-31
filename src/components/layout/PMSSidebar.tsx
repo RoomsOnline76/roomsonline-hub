@@ -54,6 +54,7 @@ const pmsNavGroups: NavGroup[] = [
     label: "Operations",
     items: [
       { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
+      { title: "Command Centre", icon: Radar, href: "/pms/command-centre", module: "command-centre" },
       { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
       { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },

@@ -15,3 +15,4 @@ export { default as PMSNightAudit } from "./PMSNightAudit";
 export { default as PMSMessaging } from "./PMSMessaging";
 export { default as PMSPortfolio } from "./PMSPortfolio";
 export { default as PMSRevenue } from "./PMSRevenue";
+export { default as PMSCommandCentre } from "./PMSCommandCentre";

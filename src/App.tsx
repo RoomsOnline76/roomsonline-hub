@@ -665,6 +665,7 @@ const App = () => (
               <Route path="messaging" element={<PMSMessaging />} />
               <Route path="portfolio" element={<PMSPortfolio />} />
               <Route path="revenue" element={<PMSRevenue />} />
+              <Route path="command-centre" element={<PMSCommandCentre />} />
             </Route>
             {/* Integration toolkit */}
             <Route
