@@ -67,7 +67,7 @@ export default function AdminAccessRequests() {
   const [loading, setLoading] = useState(true);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | "sales_rep">("user");
+  const [selectedRole, setSelectedRole] = useState<"admin" | "user" | "sales_rep" | "agent">("user");
   const [searchTerm, setSearchTerm] = useState("");
   const [showDeclined, setShowDeclined] = useState(false);
   const [detailRequest, setDetailRequest] = useState<AccessRequest | null>(null);
