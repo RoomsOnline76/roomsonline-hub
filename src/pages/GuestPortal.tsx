@@ -111,7 +111,7 @@ const GuestPortal: React.FC = () => {
       setBooking(data.booking);
       setProperty(data.property);
       setCancellationPolicy(data.cancellation_policy);
-    } catch (err) {
+    } catch (_err) {
       setTokenError("Something went wrong. Please try again.");
     } finally {
       setValidating(false);
