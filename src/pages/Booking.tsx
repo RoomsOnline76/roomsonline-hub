@@ -1977,7 +1977,7 @@ const Booking = () => {
             })}
 
             <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add another room
+              <Plus className="h-3 w-3 mr-1" /> Add another {accommodationLabel.singular.toLowerCase()}
             </Button>
           </motion.div>
 

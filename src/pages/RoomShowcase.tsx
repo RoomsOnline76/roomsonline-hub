@@ -1066,7 +1066,7 @@ export default function RoomShowcase() {
             {/* Property Link */}
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-2">This room is part of</p>
+                <p className="text-sm text-muted-foreground mb-2">This {getAccommodationLabel(property).singular.toLowerCase()} is part of</p>
                 <a 
                   href={getPropertyUrl(property.slug || property.id)}
                   className="font-semibold text-primary hover:underline"
