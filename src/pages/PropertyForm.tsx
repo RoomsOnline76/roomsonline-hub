@@ -3139,6 +3139,8 @@ export default function PropertyForm() {
             brand_secondary_color: (data as any).brand_secondary_color || "",
             brand_font_color: (data as any).brand_font_color || "",
             brand_override_enabled: (data as any).brand_override_enabled ?? false,
+            brand_heading_font: (data as any).brand_heading_font || "",
+            brand_body_font: (data as any).brand_body_font || "",
           });
 
           // Load is_rol_property
