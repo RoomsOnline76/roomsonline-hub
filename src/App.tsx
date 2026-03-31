@@ -35,6 +35,7 @@ import EmbedPortfolio from "./pages/EmbedPortfolio";
 import StaffLogin from "./pages/StaffLogin";
 import ContractSign from "./pages/ContractSign";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
+import GuestPortal from "./pages/GuestPortal";
 
 // Lazy — admin, PMS, dev, dashboard (only loaded when needed)
 const JourneyReview = lazy(() => import("./pages/JourneyReview"));
