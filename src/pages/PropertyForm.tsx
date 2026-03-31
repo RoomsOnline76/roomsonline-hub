@@ -3794,6 +3794,8 @@ export default function PropertyForm() {
         brand_secondary_color: brandingData.brand_secondary_color || null,
         brand_font_color: brandingData.brand_font_color || null,
         brand_override_enabled: brandingData.brand_override_enabled,
+        brand_heading_font: brandingData.brand_heading_font || null,
+        brand_body_font: brandingData.brand_body_font || null,
         amenities: {
           offerings: {
             accommodation: isAccommodation,

@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   hexToHsl,
   autoForeground,
-  type PropertyBrand,
 } from "@/lib/brandOverride";
 import { loadGoogleFont } from "@/lib/brandFonts";
 
