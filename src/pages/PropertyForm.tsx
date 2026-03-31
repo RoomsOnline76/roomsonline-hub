@@ -6353,7 +6353,64 @@ export default function PropertyForm() {
                   </CardContent>
                 </Card>
 
-                {/* Facilities */}
+                {/* Accommodation Type & Self Catering */}
+                <Card>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm">Accommodation Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="accommodation_label" className="text-xs">
+                          Accommodation Label
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground mb-1">
+                          How "rooms" are referred to on your listing (e.g. Units, Chalets, Apartments)
+                        </p>
+                        <Select
+                          value={(formData.amenities as any)?.accommodation_label || getAccommodationLabel({ property_type: formData.property_type, external_system: formData.external_system || null, amenities: formData.amenities as any }).key}
+                          onValueChange={(value) => {
+                            const currentAmenities = (formData.amenities as Record<string, unknown>) || {};
+                            handleInputChange("amenities", { ...currentAmenities, accommodation_label: value });
+                          }}
+                        >
+                          <SelectTrigger id="accommodation_label" className="h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ACCOMMODATION_LABEL_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="self_catering" className="text-xs">
+                          Self Catering
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground mb-1">
+                          Property offers self-catering accommodation (kitchen/kitchenette)
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            id="self_catering"
+                            checked={!!(formData.amenities as any)?.self_catering}
+                            onCheckedChange={(checked) => {
+                              const currentAmenities = (formData.amenities as Record<string, unknown>) || {};
+                              handleInputChange("amenities", { ...currentAmenities, self_catering: checked });
+                            }}
+                          />
+                          <Label htmlFor="self_catering" className="text-xs cursor-pointer">
+                            {(formData.amenities as any)?.self_catering ? 'Yes' : 'No'}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="py-2 px-4">
                     <div className="flex items-center justify-between">
