@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
+import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
