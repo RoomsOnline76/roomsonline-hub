@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -435,6 +435,11 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
         </Card>
       )}
 
+      {/* Experience Engine Toggle — admin/dev only */}
+      {propertyId && (
+        <ExperienceEngineToggle propertyId={propertyId} />
+      )}
+
       {propertyId && ownerEmail && (
         <CopyBrandingModal
           open={copyModalOpen}
@@ -445,5 +450,77 @@ export function BrandingTab({ data, onChange, propertyId, onDirty, canToggleBran
         />
       )}
     </div>
+  );
+}
+
+function ExperienceEngineToggle({ propertyId }: { propertyId: string }) {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Load current state on mount
+  React.useEffect(() => {
+    supabase
+      .from('rolos_ui_configs')
+      .select('experience_engine_enabled')
+      .eq('property_id', propertyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setEnabled(data?.experience_engine_enabled ?? false);
+        setLoading(false);
+      });
+  }, [propertyId]);
+
+  const handleToggle = async (checked: boolean) => {
+    setEnabled(checked);
+    const { error } = await supabase
+      .from('rolos_ui_configs')
+      .update({ experience_engine_enabled: checked })
+      .eq('property_id', propertyId);
+
+    if (error) {
+      // Try upsert if row doesn't exist
+      const { error: upsertError } = await supabase
+        .from('rolos_ui_configs')
+        .upsert({
+          property_id: propertyId,
+          component_type: 'experience_engine',
+          experience_engine_enabled: checked,
+        }, { onConflict: 'property_id,component_type' });
+
+      if (upsertError) {
+        setEnabled(!checked);
+        toast({ title: 'Error', description: 'Failed to update Experience Engine setting', variant: 'destructive' });
+        return;
+      }
+    }
+
+    toast({ title: checked ? 'Experience Engine Enabled' : 'Experience Engine Disabled' });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Experience Engine
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="py-3 px-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Label className="text-sm font-medium">Enable Experience Engine</Label>
+            <p className="text-xs text-muted-foreground">
+              Activates dynamic policies, brand kits, and guest portal features for this property.
+            </p>
+          </div>
+          <Switch
+            checked={enabled}
+            onCheckedChange={handleToggle}
+            disabled={loading}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

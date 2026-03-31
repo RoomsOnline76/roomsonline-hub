@@ -2766,6 +2766,7 @@ export type Database = {
           child_unit_ids: Json | null
           collection_id: string | null
           created_at: string | null
+          experience_mapping: Json | null
           external_id: string
           external_name: string | null
           id: string
@@ -2784,6 +2785,7 @@ export type Database = {
           child_unit_ids?: Json | null
           collection_id?: string | null
           created_at?: string | null
+          experience_mapping?: Json | null
           external_id: string
           external_name?: string | null
           id?: string
@@ -2802,6 +2804,7 @@ export type Database = {
           child_unit_ids?: Json | null
           collection_id?: string | null
           created_at?: string | null
+          experience_mapping?: Json | null
           external_id?: string
           external_name?: string | null
           id?: string
@@ -6095,6 +6098,58 @@ export type Database = {
           },
         ]
       }
+      rolos_experience_configs: {
+        Row: {
+          config: Json
+          created_at: string | null
+          experience_type: string
+          id: string
+          is_active: boolean | null
+          property_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string | null
+          experience_type: string
+          id?: string
+          is_active?: boolean | null
+          property_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string | null
+          experience_type?: string
+          id?: string
+          is_active?: boolean | null
+          property_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_experience_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_experience_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_experience_configs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_folio_transactions: {
         Row: {
           amount: number
@@ -7352,6 +7407,61 @@ export type Database = {
           },
         ]
       }
+      rolos_policies: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_ai_generated: boolean | null
+          last_evaluated_at: string | null
+          policy_type: string
+          property_id: string
+          rule: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_ai_generated?: boolean | null
+          last_evaluated_at?: string | null
+          policy_type: string
+          property_id: string
+          rule: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_ai_generated?: boolean | null
+          last_evaluated_at?: string | null
+          policy_type?: string
+          property_id?: string
+          rule?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_pricing_rules: {
         Row: {
           adjustments: Json
@@ -8275,6 +8385,7 @@ export type Database = {
           component_type: string
           config: Json
           created_at: string | null
+          experience_engine_enabled: boolean | null
           id: string
           is_active: boolean | null
           property_id: string | null
@@ -8285,6 +8396,7 @@ export type Database = {
           component_type: string
           config?: Json
           created_at?: string | null
+          experience_engine_enabled?: boolean | null
           id?: string
           is_active?: boolean | null
           property_id?: string | null
@@ -8295,6 +8407,7 @@ export type Database = {
           component_type?: string
           config?: Json
           created_at?: string | null
+          experience_engine_enabled?: boolean | null
           id?: string
           is_active?: boolean | null
           property_id?: string | null
@@ -9751,7 +9864,13 @@ export type Database = {
       trigger_system_health_check: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "dev" | "fearless_leader" | "sales_rep"
+      app_role:
+        | "admin"
+        | "user"
+        | "dev"
+        | "fearless_leader"
+        | "sales_rep"
+        | "guest"
       audit_action_type:
         | "create"
         | "update"
@@ -10002,7 +10121,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user", "dev", "fearless_leader", "sales_rep"],
+      app_role: [
+        "admin",
+        "user",
+        "dev",
+        "fearless_leader",
+        "sales_rep",
+        "guest",
+      ],
       audit_action_type: [
         "create",
         "update",

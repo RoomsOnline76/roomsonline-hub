@@ -192,6 +192,12 @@
         "name": "tripadvisor-api",
         "purpose": "TripAdvisor reviews integration",
         "category": "integration"
+      },
+      {
+        "name": "experience-engine",
+        "purpose": "Isolated experience layer for policies, brand kits, guest portal, and AI-assisted property experiences",
+        "category": "experience",
+        "notes": "Phase 0 foundation — dormant behind experience_engine_enabled flag per property"
       }
     ],
     "data_authority_model": {
