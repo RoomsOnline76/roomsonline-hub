@@ -120,7 +120,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
     async function fetchBrand() {
       const { data } = await supabase
         .from("properties")
-        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url")
+        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url, brand_heading_font, brand_body_font")
         .eq("id", propertyId!)
         .single();
 
@@ -148,6 +148,8 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
         secondaryColor: data.brand_secondary_color,
         fontColor: data.brand_font_color,
         accentColor: (data as any).brand_accent_color || null,
+        headingFont: (data as any).brand_heading_font || null,
+        bodyFont: (data as any).brand_body_font || null,
         tagline: (brandConfig as any)?.custom_tagline || null,
         brandEnabled: hasColors,
         loading: false,
@@ -161,6 +163,8 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
           data.brand_secondary_color,
           data.brand_font_color,
           (data as any).brand_accent_color,
+          (data as any).brand_heading_font,
+          (data as any).brand_body_font,
         );
       }
     }
