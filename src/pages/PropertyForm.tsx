@@ -6372,10 +6372,10 @@ export default function PropertyForm() {
                           How "rooms" are referred to on your listing (e.g. Units, Chalets, Apartments)
                         </p>
                         <Select
-                          value={(formData.amenities as any)?.accommodation_label || getAccommodationLabel({ property_type: formData.property_type, external_system: formData.external_system || null, amenities: formData.amenities as any }).key}
+                          value={accommodationLabel || getAccommodationLabel({ property_type: formData.property_type, external_system: selectedPMS || null }).key}
                           onValueChange={(value) => {
-                            const currentAmenities = (formData.amenities as Record<string, unknown>) || {};
-                            handleInputChange("amenities", { ...currentAmenities, accommodation_label: value });
+                            setAccommodationLabel(value);
+                            setIsDirty(true);
                           }}
                         >
                           <SelectTrigger id="accommodation_label" className="h-7 text-xs">
@@ -6400,14 +6400,14 @@ export default function PropertyForm() {
                         <div className="flex items-center gap-2 pt-1">
                           <Switch
                             id="self_catering"
-                            checked={!!(formData.amenities as any)?.self_catering}
+                            checked={isSelfCatering}
                             onCheckedChange={(checked) => {
-                              const currentAmenities = (formData.amenities as Record<string, unknown>) || {};
-                              handleInputChange("amenities", { ...currentAmenities, self_catering: checked });
+                              setIsSelfCatering(checked);
+                              setIsDirty(true);
                             }}
                           />
                           <Label htmlFor="self_catering" className="text-xs cursor-pointer">
-                            {(formData.amenities as any)?.self_catering ? 'Yes' : 'No'}
+                            {isSelfCatering ? 'Yes' : 'No'}
                           </Label>
                         </div>
                       </div>
