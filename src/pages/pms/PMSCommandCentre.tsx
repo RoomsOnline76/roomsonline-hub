@@ -51,7 +51,7 @@ export default function PMSCommandCentre() {
   const propertyId = searchParams.get("property");
   const { properties } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
-  const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
+  const { isDev, isAdmin, isFearlessLeader } = useAuth();
 
   const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
   const [occupancy, setOccupancy] = useState<OccupancySummary[]>([]);
