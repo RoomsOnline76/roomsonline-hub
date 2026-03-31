@@ -79,7 +79,7 @@ const GuestPortal: React.FC = () => {
     setLookupLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("guest-portal-access", {
+      const { error } = await supabase.functions.invoke("guest-portal-access", {
         body: {
           action: "request_access",
           email: email.trim().toLowerCase(),
