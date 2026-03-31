@@ -600,6 +600,117 @@ Deno.serve(async (req) => {
         const config = await resolveExperienceConfig(supabase, property_id, 'portfolio');
         result = { config, experience_type };
       }
+    } else if (experience_type === 'guest_portal') {
+      const action = payload?.action;
+
+      if (action === 'alternatives') {
+        // AI-powered save attempt — suggest alternatives before cancellation
+        const bookingId = payload?.booking_id;
+        const checkInDate = payload?.check_in_date;
+        const checkOutDate = payload?.check_out_date;
+        const totalPrice = payload?.total_price || 0;
+        const guestName = payload?.guest_name || 'Guest';
+
+        // Fetch property info
+        const { data: prop } = await supabase
+          .from('properties')
+          .select('name, city, country, property_type')
+          .eq('id', property_id)
+          .single();
+
+        // Fetch nearby availability
+        const checkIn = new Date(checkInDate);
+        const altStart = new Date(checkIn.getTime() - 7 * 86400000).toISOString().split('T')[0];
+        const altEnd = new Date(checkIn.getTime() + 14 * 86400000).toISOString().split('T')[0];
+
+        const { data: availData } = await supabase
+          .from('property_availability')
+          .select('date, available_units, rate_override')
+          .eq('property_id', property_id)
+          .gte('date', altStart)
+          .lte('date', altEnd)
+          .eq('is_stop_sell', false)
+          .gt('available_units', 0)
+          .order('date');
+
+        let alternatives: unknown[] = [];
+        let saveMessage = '';
+
+        try {
+          const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+          if (LOVABLE_API_KEY) {
+            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-3-flash-preview',
+                messages: [
+                  {
+                    role: 'system',
+                    content: `You are a guest retention assistant for ${prop?.name || 'a hotel'}. A guest is about to cancel their booking. Suggest 2-3 alternatives to save the booking. Be empathetic and concise. Consider: date changes to nearby available dates, shorter stays, or future credits. Each alternative should have type (date_change/shorter_stay/credit), title, description, and optional savings text.`,
+                  },
+                  {
+                    role: 'user',
+                    content: `Guest "${guestName}" wants to cancel:\n- Check-in: ${checkInDate}\n- Check-out: ${checkOutDate}\n- Total: R${totalPrice}\n- Property: ${prop?.name} in ${prop?.city}\n\nNearby available dates:\n${JSON.stringify((availData || []).slice(0, 20))}\n\nSuggest alternatives.`,
+                  },
+                ],
+                tools: [{
+                  type: 'function',
+                  function: {
+                    name: 'suggest_alternatives',
+                    description: 'Return cancellation alternatives and a save message',
+                    parameters: {
+                      type: 'object',
+                      properties: {
+                        save_message: { type: 'string', description: 'Empathetic message shown above alternatives' },
+                        alternatives: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              type: { type: 'string', enum: ['date_change', 'shorter_stay', 'credit'] },
+                              title: { type: 'string' },
+                              description: { type: 'string' },
+                              savings: { type: 'string' },
+                            },
+                            required: ['type', 'title', 'description'],
+                          },
+                        },
+                      },
+                      required: ['save_message', 'alternatives'],
+                    },
+                  },
+                }],
+                tool_choice: { type: 'function', function: { name: 'suggest_alternatives' } },
+              }),
+            });
+
+            if (aiResponse.ok) {
+              const aiData = await aiResponse.json();
+              const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+              if (toolCall?.function?.arguments) {
+                const parsed = JSON.parse(toolCall.function.arguments);
+                alternatives = parsed.alternatives || [];
+                saveMessage = parsed.save_message || '';
+              }
+            }
+          }
+        } catch (aiErr) {
+          console.warn('AI alternatives failed:', aiErr);
+        }
+
+        result = { alternatives, save_message: saveMessage };
+
+      } else if (action === 'resolve') {
+        const config = await resolveExperienceConfig(supabase, property_id, 'guest_portal');
+        result = { config, experience_type };
+      } else {
+        const config = await resolveExperienceConfig(supabase, property_id, 'guest_portal');
+        result = { config, experience_type };
+      }
     } else {
       // All other types: read from rolos_experience_configs
       const config = await resolveExperienceConfig(supabase, property_id, experience_type);

@@ -699,6 +699,8 @@ const App = () => (
               <Route path="about" element={<ConnectAbout />} />
               <Route path="journal" element={<ConnectJournal />} />
             </Route>
+            {/* Guest Portal — public self-service booking management */}
+            <Route path="/my-booking" element={<GuestPortal />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
           </Routes>
