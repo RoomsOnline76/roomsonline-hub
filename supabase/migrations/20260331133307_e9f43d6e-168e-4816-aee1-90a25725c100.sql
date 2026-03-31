@@ -1,0 +1,1 @@
+ALTER TABLE public.properties ADD COLUMN IF NOT EXISTS brand_heading_font text, ADD COLUMN IF NOT EXISTS brand_body_font text;

@@ -4,8 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   hexToHsl,
   autoForeground,
-  type PropertyBrand,
 } from "@/lib/brandOverride";
+import { loadGoogleFont } from "@/lib/brandFonts";
 
 interface PMSBrandData {
   propertyName: string;
@@ -15,6 +15,8 @@ interface PMSBrandData {
   secondaryColor: string | null;
   fontColor: string | null;
   accentColor: string | null;
+  headingFont: string | null;
+  bodyFont: string | null;
   tagline: string | null;
   brandEnabled: boolean;
   loading: boolean;
@@ -28,6 +30,8 @@ const defaultBrand: PMSBrandData = {
   secondaryColor: null,
   fontColor: null,
   accentColor: null,
+  headingFont: null,
+  bodyFont: null,
   tagline: null,
   brandEnabled: false,
   loading: true,
@@ -44,7 +48,7 @@ export function usePMSBrand() {
  * the PMS ALWAYS applies brand colours when they exist – no toggle needed.
  * This makes the property feel like it has its own custom software.
  */
-function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null): () => void {
+function applyPmsBrand(primary?: string | null, secondary?: string | null, font?: string | null, accent?: string | null, headingFont?: string | null, bodyFont?: string | null): () => void {
   const root = document.documentElement;
   const applied: string[] = [];
 
@@ -93,6 +97,16 @@ function applyPmsBrand(primary?: string | null, secondary?: string | null, font?
     }
   }
 
+  // Brand fonts
+  if (headingFont) {
+    loadGoogleFont(headingFont);
+    set("--font-heading", `'${headingFont}', serif`);
+  }
+  if (bodyFont) {
+    loadGoogleFont(bodyFont);
+    set("--font-body", `'${bodyFont}', sans-serif`);
+  }
+
   return () => {
     applied.forEach((key) => root.style.removeProperty(key));
   };
@@ -115,7 +129,7 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
     async function fetchBrand() {
       const { data } = await supabase
         .from("properties")
-        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url")
+        .select("name, slug, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_logo_url, brand_heading_font, brand_body_font")
         .eq("id", propertyId!)
         .single();
 
@@ -143,6 +157,8 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
         secondaryColor: data.brand_secondary_color,
         fontColor: data.brand_font_color,
         accentColor: (data as any).brand_accent_color || null,
+        headingFont: (data as any).brand_heading_font || null,
+        bodyFont: (data as any).brand_body_font || null,
         tagline: (brandConfig as any)?.custom_tagline || null,
         brandEnabled: hasColors,
         loading: false,
@@ -156,6 +172,8 @@ export function PMSBrandProvider({ children }: { children: ReactNode }) {
           data.brand_secondary_color,
           data.brand_font_color,
           (data as any).brand_accent_color,
+          (data as any).brand_heading_font,
+          (data as any).brand_body_font,
         );
       }
     }

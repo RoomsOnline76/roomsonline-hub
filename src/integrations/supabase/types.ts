@@ -3374,7 +3374,9 @@ export type Database = {
           benson_environment: string | null
           benson_property_code: string | null
           brand_accent_color: string | null
+          brand_body_font: string | null
           brand_font_color: string | null
+          brand_heading_font: string | null
           brand_logo_url: string | null
           brand_override_enabled: boolean
           brand_primary_color: string | null
@@ -3447,7 +3449,9 @@ export type Database = {
           benson_environment?: string | null
           benson_property_code?: string | null
           brand_accent_color?: string | null
+          brand_body_font?: string | null
           brand_font_color?: string | null
+          brand_heading_font?: string | null
           brand_logo_url?: string | null
           brand_override_enabled?: boolean
           brand_primary_color?: string | null
@@ -3520,7 +3524,9 @@ export type Database = {
           benson_environment?: string | null
           benson_property_code?: string | null
           brand_accent_color?: string | null
+          brand_body_font?: string | null
           brand_font_color?: string | null
+          brand_heading_font?: string | null
           brand_logo_url?: string | null
           brand_override_enabled?: boolean
           brand_primary_color?: string | null

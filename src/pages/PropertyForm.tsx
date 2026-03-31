@@ -1908,6 +1908,8 @@ export default function PropertyForm() {
     brand_secondary_color: "",
     brand_font_color: "",
     brand_override_enabled: false,
+    brand_heading_font: "",
+    brand_body_font: "",
   });
 
   // ROL Spec state
@@ -3137,6 +3139,8 @@ export default function PropertyForm() {
             brand_secondary_color: (data as any).brand_secondary_color || "",
             brand_font_color: (data as any).brand_font_color || "",
             brand_override_enabled: (data as any).brand_override_enabled ?? false,
+            brand_heading_font: (data as any).brand_heading_font || "",
+            brand_body_font: (data as any).brand_body_font || "",
           });
 
           // Load is_rol_property
@@ -3790,6 +3794,8 @@ export default function PropertyForm() {
         brand_secondary_color: brandingData.brand_secondary_color || null,
         brand_font_color: brandingData.brand_font_color || null,
         brand_override_enabled: brandingData.brand_override_enabled,
+        brand_heading_font: brandingData.brand_heading_font || null,
+        brand_body_font: brandingData.brand_body_font || null,
         amenities: {
           offerings: {
             accommodation: isAccommodation,
