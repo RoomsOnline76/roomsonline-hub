@@ -15,6 +15,8 @@ export interface BrandingData {
   brand_secondary_color: string;
   brand_font_color: string;
   brand_override_enabled: boolean;
+  brand_heading_font: string;
+  brand_body_font: string;
 }
 
 interface BrandingTabProps {
