@@ -76,6 +76,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
+import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel, type AccommodationLabelKey } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
 import { getPMSEditorialCapability, canSyncEditorial, getSyncableFields, getAuthorityLabel as getEditorialAuthorityLabel } from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
