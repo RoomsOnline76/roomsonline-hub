@@ -116,9 +116,9 @@ export default function PMSCommandCentre() {
 
       const summaries: OccupancySummary[] = agentProperties.map((p) => {
         const propRows = todayRows.filter((r) => r.property_id === p.id);
-        const totalRooms = propRows.reduce((sum, r) => sum + (r.total_units || 0), 0);
+        const totalRooms = propRows.length; // Each row represents a room type entry
         const availableRooms = propRows.reduce((sum, r) => sum + (r.available_units || 0), 0);
-        const occupied = totalRooms - availableRooms;
+        return {
         return {
           property_id: p.id,
           property_name: p.name,
