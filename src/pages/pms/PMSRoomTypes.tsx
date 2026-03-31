@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +57,7 @@ interface RoomType {
 export default function PMSRoomTypes() {
   const { propertyId, loading: propertyLoading } = usePmsPropertyId();
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [propertyData, setPropertyData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingType, setEditingType] = useState<RoomType | null>(null);
@@ -71,7 +73,7 @@ export default function PMSRoomTypes() {
     if (!propertyId) return;
 
     const [{ data: property }, { data: hostfullyTypes, error: hostfullyErr }] = await Promise.all([
-      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
+      supabase.from("properties").select("is_rol_property, amenities, property_type, external_system").eq("id", propertyId).single(),
       supabase
         .from("hostfully_room_types")
         .select("id, name, description, max_guests, daily_rate, is_active")
@@ -82,6 +84,7 @@ export default function PMSRoomTypes() {
       console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
     }
 
+    setPropertyData(property);
     const amenities = property?.amenities as PropertyAmenities | null;
     const amenitiesRoomTypes: OverviewRoomType[] = Array.isArray(amenities?.room_types)
       ? amenities!.room_types!
@@ -303,9 +306,9 @@ export default function PMSRoomTypes() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Room Types</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{getAccommodationLabel(propertyData).singular} Types</h1>
             <p className="text-sm text-muted-foreground">
-              Manage room categories. Changes sync bidirectionally with Property Overview.
+              Manage {getAccommodationLabel(propertyData).singular.toLowerCase()} categories. Changes sync bidirectionally with Property Overview.
             </p>
           </div>
           <div className="flex gap-2">

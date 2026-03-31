@@ -76,6 +76,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
+import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
 import { getPMSEditorialCapability, canSyncEditorial, getSyncableFields, getAuthorityLabel as getEditorialAuthorityLabel } from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -394,6 +395,10 @@ export default function PropertyForm() {
   const [websiteSyncModalOpen, setWebsiteSyncModalOpen] = useState(false);
   const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
   const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
+
+  // Accommodation label + self catering
+  const [accommodationLabel, setAccommodationLabel] = useState<string>("");
+  const [isSelfCatering, setIsSelfCatering] = useState(false);
 
   // Linked owners state
   const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
@@ -3363,6 +3368,8 @@ export default function PropertyForm() {
           // Load other saved data
           if (amenities?.star_rating) setStarRating(amenities.star_rating);
           if (amenities?.facilities && Array.isArray(amenities.facilities)) setSelectedFacilities(amenities.facilities);
+          if (amenities?.accommodation_label) setAccommodationLabel(amenities.accommodation_label);
+          if (amenities?.self_catering) setIsSelfCatering(!!amenities.self_catering);
           if (amenities?.breakfast_options && Array.isArray(amenities.breakfast_options))
             setSelectedBreakfastOptions(amenities.breakfast_options);
           if (amenities?.cancellation_policies) setCancellationPolicies(amenities.cancellation_policies);
@@ -3859,6 +3866,8 @@ export default function PropertyForm() {
             closest_airport_distance: formData.closest_airport_distance,
           },
           room_types: roomTypes,
+          accommodation_label: accommodationLabel || undefined,
+          self_catering: isSelfCatering || undefined,
           meal_types: selectedMealTypes,
           star_rating: starRating,
           facilities: selectedFacilities,
@@ -5096,12 +5105,20 @@ export default function PropertyForm() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="hotel">Hotel</SelectItem>
+                                <SelectItem value="boutique_hotel">Boutique Hotel</SelectItem>
                                 <SelectItem value="guesthouse">Guest House</SelectItem>
                                 <SelectItem value="bnb">B&B</SelectItem>
                                 <SelectItem value="lodge">Lodge</SelectItem>
+                                <SelectItem value="game_lodge">Game Lodge</SelectItem>
+                                <SelectItem value="safari_lodge">Safari Lodge</SelectItem>
                                 <SelectItem value="resort">Resort</SelectItem>
                                 <SelectItem value="villa">Villa</SelectItem>
                                 <SelectItem value="apartment">Apartment</SelectItem>
+                                <SelectItem value="self_catering">Self Catering</SelectItem>
+                                <SelectItem value="chalet">Chalet</SelectItem>
+                                <SelectItem value="cottage">Cottage</SelectItem>
+                                <SelectItem value="cabin">Cabin</SelectItem>
+                                <SelectItem value="backpackers">Backpackers</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -6344,7 +6361,64 @@ export default function PropertyForm() {
                   </CardContent>
                 </Card>
 
-                {/* Facilities */}
+                {/* Accommodation Type & Self Catering */}
+                <Card>
+                  <CardHeader className="py-2 px-4">
+                    <CardTitle className="text-sm">Accommodation Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="py-2 px-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="accommodation_label" className="text-xs">
+                          Accommodation Label
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground mb-1">
+                          How "rooms" are referred to on your listing (e.g. Units, Chalets, Apartments)
+                        </p>
+                        <Select
+                          value={accommodationLabel || getAccommodationLabel({ property_type: formData.property_type, external_system: selectedPMS || null }).key}
+                          onValueChange={(value) => {
+                            setAccommodationLabel(value);
+                            setIsDirty(true);
+                          }}
+                        >
+                          <SelectTrigger id="accommodation_label" className="h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ACCOMMODATION_LABEL_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="self_catering" className="text-xs">
+                          Self Catering
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground mb-1">
+                          Property offers self-catering accommodation (kitchen/kitchenette)
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <Switch
+                            id="self_catering"
+                            checked={isSelfCatering}
+                            onCheckedChange={(checked) => {
+                              setIsSelfCatering(checked);
+                              setIsDirty(true);
+                            }}
+                          />
+                          <Label htmlFor="self_catering" className="text-xs cursor-pointer">
+                            {isSelfCatering ? 'Yes' : 'No'}
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="py-2 px-4">
                     <div className="flex items-center justify-between">

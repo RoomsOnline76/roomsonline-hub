@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy } from "lucide-react";
 import { StepProps } from "./types";
 import { OnboardingRoomType, RATE_UNIT_OPTIONS } from "@/config/onboardingFieldSchema";
+import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
 
 export function StepRoomsOverview({
   updateField,
@@ -57,6 +58,29 @@ export function StepRoomsOverview({
 
   return (
     <div className="space-y-6">
+      {/* Accommodation Label Selector */}
+      <div className="space-y-2">
+        <Label htmlFor="accommodation_label">What do you call your accommodation?</Label>
+        <p className="text-sm text-muted-foreground">
+          This determines how rooms are labelled across your listing and booking pages.
+        </p>
+        <Select
+          value={getAmenityValue<string>("accommodation_label", "") || getAccommodationLabel({ property_type: getAmenityValue<string>("property_type", "") }).key}
+          onValueChange={(value) => updateField("amenities.accommodation_label", value)}
+        >
+          <SelectTrigger id="accommodation_label" className="w-full max-w-xs">
+            <SelectValue placeholder="Select label" />
+          </SelectTrigger>
+          <SelectContent>
+            {ACCOMMODATION_LABEL_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div>
         <p className="text-muted-foreground">
           Add your room types with basic information. You can add detailed 

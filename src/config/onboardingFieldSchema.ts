@@ -14,11 +14,17 @@ export const WIZARD_VERSION = "2.1";
 
 export const PROPERTY_TYPES = [
   "apartment",
+  "backpackers",
   "bed_and_breakfast", 
   "boutique_hotel",
+  "cabin",
+  "chalet",
+  "cottage",
+  "game_lodge",
   "guest_house",
   "hotel",
   "lodge",
+  "safari_lodge",
   "self_catering",
   "villa",
   "other"

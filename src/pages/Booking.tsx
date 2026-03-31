@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
+import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
@@ -257,6 +258,7 @@ const Booking = () => {
 
   // Extract room types and rate types - prefer amenities, fallback to cached tables
   const amenities = property?.amenities as Record<string, any> | null;
+  const accommodationLabel = getAccommodationLabel(property ? { ...property, amenities: property.amenities as Record<string, unknown> | null } : null);
   
   // Map cached data to expected format - normalize field names from either source
   // Check both amenities.rooms and amenities.room_types (different sources use different keys)
@@ -1891,7 +1893,7 @@ const Booking = () => {
                   {roomTypes.length > 1 && (
                     <Select value={room.roomTypeId} onValueChange={(v) => updateRoom(index, 'roomTypeId', v)}>
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Select room type" />
+                        <SelectValue placeholder={`Select ${accommodationLabel.singular.toLowerCase()} type`} />
                       </SelectTrigger>
                       <SelectContent>
                         {roomTypes.map((rt) => (
