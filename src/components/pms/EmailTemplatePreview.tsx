@@ -51,7 +51,8 @@ export function EmailTemplatePreview({
   const renderedSubject = useMemo(() => {
     let s = subject || "";
     for (const [key, value] of Object.entries(MOCK_DATA)) {
-      s = s.replaceAll(key, propertyName && key === "{{property_name}}" ? propertyName : value);
+      const replacement = propertyName && key === "{{property_name}}" ? propertyName : value;
+      s = s.split(key).join(replacement);
     }
     return s;
   }, [subject, propertyName]);
