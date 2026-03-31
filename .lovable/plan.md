@@ -1,135 +1,147 @@
 
 
-# Phase 1: Dynamic Policy Engine
+# Phase 2: Full BrandKit System
 
 ## Overview
 
-Add a cancellation policy management UI in PropertyForm (Rates tab) and display the evaluated policy during the booking checkout flow. The `experience-engine` edge function already handles `cancellation_policy` routing — this phase populates `rolos_policies` via admin UI and consumes the policy in the guest-facing booking page.
+Add custom font support to the branding system. Properties can select any Google Font for headings and body text. The experience-engine serves the brand_kit config, and both the public booking flow (`useBrandOverride`) and PMS interface (`PMSBrandContext`) automatically load and apply the chosen fonts via CSS custom properties — zero changes to the booking engine itself.
 
-## 1. Policy Management UI — PropertyForm Rates Tab
+## 1. Database Migration
 
-Add a **"Policies"** sub-tab to the existing Rates tab (alongside Rate Types, Seasons, Rate Breakdown, Charges, Billing, Overview).
+Add font columns to the `properties` table:
 
-**File**: `src/pages/PropertyForm.tsx` (line ~7992)
+```sql
+ALTER TABLE public.properties
+  ADD COLUMN IF NOT EXISTS brand_heading_font text,
+  ADD COLUMN IF NOT EXISTS brand_body_font text;
+```
 
-Add `<TabsTrigger value="policies">Policies</TabsTrigger>` to the Rates sub-tabs.
+These store Google Font family names (e.g. `"Playfair Display"`, `"Inter"`). Null = use system default.
 
-**New component**: `src/components/property/PoliciesTab.tsx`
+## 2. BrandingTab UI — Font Picker
 
-Renders a card-based form for each policy type (`cancellation`, `deposit`, `modification`, `no_show`). For cancellation specifically:
+**File**: `src/components/property/BrandingTab.tsx`
 
-- **Policy mode selector**: "Standard" (static rules) or "Dynamic" (AI-assisted with live PMS factors)
-- **Standard fields**:
-  - `days_before` — free cancellation window (number input)
-  - `forfeit_percent` — penalty percentage if cancelled within window (slider 0–100%)
-  - `date_range_start` / `date_range_end` — optional peak season overrides
-  - `non_refundable` — boolean toggle for non-refundable rates
-- **Dynamic fields** (shown when mode = dynamic):
-  - `dynamic_factors` — multi-select checkboxes: `occupancy`, `competitor_pricing`, `season`
-  - `ai_prompt_override` — optional textarea for custom AI evaluation prompt
-- **Preview card** — renders human-readable policy text from the rule JSONB (e.g., "Free cancellation up to 14 days before check-in. After that, 50% of the booking total is charged.")
+Add a new "Typography" card below Brand Colours with two font picker fields:
 
-Reads/writes to `rolos_policies` table with `policy_type = 'cancellation'`.
+- **Heading Font** — text input with autocomplete/search against Google Fonts API (`https://www.googleapis.com/webfonts/v1/webfonts?key=...&sort=popularity`). Since we don't want to require an API key on the client, use a simpler approach: a combobox with a curated popular list (~50 fonts) PLUS a free-text input that accepts any Google Font name. The preview card renders the chosen font live by injecting a `<link>` tag.
+- **Body Font** — same pattern.
 
-**New hook**: `src/hooks/usePolicies.ts`
-- `usePolicies(propertyId)` — fetches all policy rows for a property
-- `upsertPolicy(propertyId, policyType, rule)` — upserts a single policy row
-- Returns loading/error states
+Both fields save to `brand_heading_font` / `brand_body_font` on the property record.
 
-## 2. Display Policy in Booking Checkout
+Update `BrandingData` interface to include `brand_heading_font` and `brand_body_font`.
 
-**File**: `src/pages/Booking.tsx`
+Update `FontPreviewCard` to apply the selected fonts in the preview so admins see real-time rendering.
 
-Between Step 2 (Your Details) and Step 3 (Payment Summary), add a **Cancellation Policy** info card:
+**New component**: `src/components/property/GoogleFontPicker.tsx`
+- Combobox with ~50 popular Google Fonts pre-loaded (Playfair Display, Lora, Merriweather, Montserrat, Inter, Poppins, Raleway, etc.)
+- Free-text "Custom font name" option for any Google Font not in the list
+- On selection, injects `<link href="https://fonts.googleapis.com/css2?family=FontName:wght@400;600;700&display=swap">` into `<head>` for live preview
+- Debounced to avoid spamming font loads
 
-- On mount (when property is loaded), call the `experience-engine` edge function with `experience_type: 'cancellation_policy'` to get the evaluated policy
-- If no policy returned (experience engine disabled or no policy configured), fall back to the existing `amenities.cancellation_policy` free-text field from the property record
-- Display a styled info card showing:
-  - Policy summary text (generated from rule JSONB)
-  - "Free cancellation until X" with the calculated date based on check-in minus `days_before`
-  - Forfeit amount if applicable (calculated from booking total × forfeit_percent)
-  - If dynamic: "Policy may vary based on occupancy" disclaimer
+## 3. Font Loading Utilities
 
-**New utility**: `src/lib/policyFormatter.ts`
-- `formatCancellationPolicy(rule, checkInDate, totalPrice)` — converts rule JSONB into human-readable text + calculates deadline date and forfeit amount
-- Returns `{ summaryText, deadlineDate, forfeitAmount, isNonRefundable }`
+**New file**: `src/lib/brandFonts.ts`
 
-## 3. Policy Enforcement in CancelBookingModal
+```typescript
+export function loadGoogleFont(fontFamily: string): void
+// Injects <link> into <head> if not already present
+// Uses fonts.googleapis.com/css2 URL format
 
-**File**: `src/components/booking/CancelBookingModal.tsx`
+export function applyBrandFonts(headingFont?: string | null, bodyFont?: string | null): () => void
+// Sets CSS custom properties:
+//   --font-heading: 'Playfair Display', serif
+//   --font-body: 'Inter', sans-serif
+// Returns cleanup function
+```
 
-Enhance the modal to:
-- Accept an optional `cancellationPolicy` prop (the evaluated rule)
-- If provided, show the forfeit amount and deadline prominently
-- Display "Within free cancellation period" (green) or "Cancellation fee applies: R{amount}" (amber) based on current date vs deadline
-- The actual financial enforcement (refund calculation) happens server-side in the cancel-booking edge function — this is display-only
+## 4. Extend PropertyBrand & Brand Override System
 
-## 4. Edge Function Enhancement
+**File**: `src/lib/brandOverride.ts`
+
+- Add `headingFont?: string | null` and `bodyFont?: string | null` to `PropertyBrand` interface
+- In `buildBrandVarsMap`, add `--font-heading` and `--font-body` CSS vars when fonts are set
+- In `applyBrandToDocument`, call `loadGoogleFont()` for each configured font before setting vars
+
+**File**: `src/hooks/useBrandOverride.ts`
+
+- Fetch `brand_heading_font` and `brand_body_font` alongside existing color columns
+- Include them in the `PropertyBrand` object saved to session
+
+**File**: `src/contexts/PMSBrandContext.tsx`
+
+- Add `headingFont` and `bodyFont` to `PMSBrandData` interface
+- Fetch the two new columns in the property query
+- In `applyPmsBrand`, load Google Fonts and set `--font-heading` / `--font-body` CSS vars
+
+## 5. CSS Integration
+
+**File**: `src/index.css` (or tailwind config)
+
+Add font-family fallback using CSS custom properties:
+
+```css
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-heading, var(--font-serif, ui-serif, Georgia, serif));
+}
+
+body, .font-body {
+  font-family: var(--font-body, var(--font-sans, ui-sans-serif, system-ui, sans-serif));
+}
+```
+
+This means when `--font-heading` / `--font-body` are not set, everything falls back to system defaults. When a property sets fonts, they cascade everywhere automatically.
+
+## 6. Experience Engine — brand_kit Handler
 
 **File**: `supabase/functions/experience-engine/index.ts`
 
-Minor enhancement to the existing `cancellation_policy` handler:
-- Accept optional `check_in_date` and `total_price` in payload
-- Return pre-calculated `deadline_date` and `forfeit_amount` alongside the raw rule
-- This avoids duplicating calculation logic on the client
-
-## 5. Showcase Page — Policy Display
-
-**File**: `src/pages/PropertyShowcase.tsx`
-
-In the property info section (near house rules / check-in info), add a small "Cancellation Policy" badge/section:
-- Fetch from experience-engine if enabled, else show amenities.cancellation_policy text
-- Simple one-liner like "Free cancellation up to 14 days before arrival" with an expand for full details
-
-## Technical Details
-
-### `rolos_policies` rule JSONB schema (cancellation)
-
-```json
-{
-  "mode": "standard",
-  "days_before": 14,
-  "forfeit_percent": 50,
-  "non_refundable": false,
-  "date_ranges": [
-    { "start": "2026-12-15", "end": "2027-01-05", "days_before": 30, "forfeit_percent": 100 }
-  ],
-  "dynamic_factors": [],
-  "ai_prompt_override": null
-}
-```
-
-### Policy evaluation logic (in experience-engine)
+The existing `brand_kit` route already falls through to `resolveExperienceConfig`. Enhance it to also return the property's font config from the properties table alongside the experience config:
 
 ```typescript
-function evaluatePolicy(rule, checkInDate, totalPrice) {
-  const now = new Date();
-  const checkIn = new Date(checkInDate);
-  const daysUntil = differenceInDays(checkIn, now);
+if (experience_type === 'brand_kit') {
+  const { data: property } = await supabase
+    .from('properties')
+    .select('brand_heading_font, brand_body_font, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url')
+    .eq('id', property_id)
+    .single();
   
-  // Check peak season overrides first
-  const override = rule.date_ranges?.find(r => checkIn >= new Date(r.start) && checkIn <= new Date(r.end));
-  const effectiveRule = override || rule;
-  
-  const isFree = daysUntil >= effectiveRule.days_before;
-  const forfeitAmount = isFree ? 0 : (totalPrice * effectiveRule.forfeit_percent / 100);
-  
-  return { isFree, forfeitAmount, deadlineDays: effectiveRule.days_before, forfeitPercent: effectiveRule.forfeit_percent };
+  const config = await resolveExperienceConfig(supabase, property_id, 'brand_kit');
+  result = { config, fonts: { heading: property?.brand_heading_font, body: property?.brand_body_font }, colors: { ... } };
 }
 ```
+
+## 7. PropertyForm Save Integration
+
+**File**: `src/pages/PropertyForm.tsx`
+
+- Add `brand_heading_font` and `brand_body_font` to the branding state object
+- Load them from the property record on fetch
+- Save them alongside existing brand fields on form submit
+
+## 8. Session Storage for FOUC Prevention
+
+Extend the `index.html` inline script (FOUC prevention) to also load Google Fonts synchronously from the cached brand data. The `PropertyBrand` session object will now include font names, so the inline script can inject `<link>` tags before React mounts.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Create | `src/components/property/PoliciesTab.tsx` — policy management form |
-| Create | `src/hooks/usePolicies.ts` — CRUD hook for rolos_policies |
-| Create | `src/lib/policyFormatter.ts` — rule-to-text utility |
-| Modify | `src/pages/PropertyForm.tsx` — add Policies sub-tab to Rates |
-| Modify | `src/pages/Booking.tsx` — display cancellation policy card in checkout |
-| Modify | `src/components/booking/CancelBookingModal.tsx` — show forfeit/deadline info |
-| Modify | `src/pages/PropertyShowcase.tsx` — policy summary badge |
-| Modify | `supabase/functions/experience-engine/index.ts` — add evaluation logic with dates/amounts |
+| Migration | Add `brand_heading_font`, `brand_body_font` columns to `properties` |
+| Create | `src/components/property/GoogleFontPicker.tsx` — font selection combobox |
+| Create | `src/lib/brandFonts.ts` — Google Font loading + CSS var application |
+| Modify | `src/components/property/BrandingTab.tsx` — add Typography card with font pickers |
+| Modify | `src/lib/brandOverride.ts` — extend PropertyBrand, buildBrandVarsMap with font vars |
+| Modify | `src/hooks/useBrandOverride.ts` — fetch font columns, include in session |
+| Modify | `src/contexts/PMSBrandContext.tsx` — fetch + apply fonts in PMS context |
+| Modify | `src/pages/PropertyForm.tsx` — load/save font fields |
+| Modify | `src/index.css` — add CSS custom property font-family rules |
+| Modify | `supabase/functions/experience-engine/index.ts` — enhance brand_kit handler |
+| Modify | `index.html` — extend FOUC script for font preloading |
 
-No database migration needed — `rolos_policies` table already exists from Phase 0.
+## Rollout
+
+- Fonts default to null (system fonts) — zero visual change for existing properties
+- PMSBrandContext and useBrandOverride automatically pick up fonts when set
+- No changes needed in Booking.tsx, PropertyShowcase.tsx, or any page component — CSS custom properties cascade everywhere
 
