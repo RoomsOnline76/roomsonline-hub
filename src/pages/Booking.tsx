@@ -1419,7 +1419,7 @@ const Booking = () => {
       }
 
       if (rooms.length === 0) {
-        throw new Error("At least one room is required");
+        throw new Error(`At least one ${accommodationLabel.singular.toLowerCase()} is required`);
       }
 
       // Use calculated total cost or pre-selected total
