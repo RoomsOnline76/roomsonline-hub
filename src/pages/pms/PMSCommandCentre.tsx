@@ -30,7 +30,6 @@ interface AvailabilityRow {
   room_type_name: string;
   date: string;
   available_units: number;
-  total_units: number;
 }
 
 interface OccupancySummary {
