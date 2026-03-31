@@ -258,6 +258,7 @@ const Booking = () => {
 
   // Extract room types and rate types - prefer amenities, fallback to cached tables
   const amenities = property?.amenities as Record<string, any> | null;
+  const accommodationLabel = getAccommodationLabel(property);
   
   // Map cached data to expected format - normalize field names from either source
   // Check both amenities.rooms and amenities.room_types (different sources use different keys)
