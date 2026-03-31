@@ -441,9 +441,10 @@ export default function PropertyShowcase() {
   const isNightsBridgeProperty = property?.external_system === "nightsbridge";
   const isHostfullyProperty = property?.external_system === "hostfully";
   
-  // Dynamic terminology for Hostfully (units/apartments) vs traditional (rooms)
-  const unitLabel = isHostfullyProperty ? 'unit' : 'room';
-  const unitLabelPlural = isHostfullyProperty ? 'units' : 'rooms';
+  // Dynamic terminology based on property configuration
+  const accommodationLabel = getAccommodationLabel(property);
+  const unitLabel = accommodationLabel.singular.toLowerCase();
+  const unitLabelPlural = accommodationLabel.plural.toLowerCase();
   
   // NightsBridge tracking: create session when property loads
   useEffect(() => {

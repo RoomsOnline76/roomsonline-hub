@@ -1891,7 +1891,7 @@ const Booking = () => {
                   {roomTypes.length > 1 && (
                     <Select value={room.roomTypeId} onValueChange={(v) => updateRoom(index, 'roomTypeId', v)}>
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Select room type" />
+                        <SelectValue placeholder={`Select ${accommodationLabel.singular.toLowerCase()} type`} />
                       </SelectTrigger>
                       <SelectContent>
                         {roomTypes.map((rt) => (

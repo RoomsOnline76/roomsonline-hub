@@ -5096,12 +5096,20 @@ export default function PropertyForm() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="hotel">Hotel</SelectItem>
+                                <SelectItem value="boutique_hotel">Boutique Hotel</SelectItem>
                                 <SelectItem value="guesthouse">Guest House</SelectItem>
                                 <SelectItem value="bnb">B&B</SelectItem>
                                 <SelectItem value="lodge">Lodge</SelectItem>
+                                <SelectItem value="game_lodge">Game Lodge</SelectItem>
+                                <SelectItem value="safari_lodge">Safari Lodge</SelectItem>
                                 <SelectItem value="resort">Resort</SelectItem>
                                 <SelectItem value="villa">Villa</SelectItem>
                                 <SelectItem value="apartment">Apartment</SelectItem>
+                                <SelectItem value="self_catering">Self Catering</SelectItem>
+                                <SelectItem value="chalet">Chalet</SelectItem>
+                                <SelectItem value="cottage">Cottage</SelectItem>
+                                <SelectItem value="cabin">Cabin</SelectItem>
+                                <SelectItem value="backpackers">Backpackers</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
