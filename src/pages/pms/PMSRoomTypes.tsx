@@ -72,7 +72,7 @@ export default function PMSRoomTypes() {
     if (!propertyId) return;
 
     const [{ data: property }, { data: hostfullyTypes, error: hostfullyErr }] = await Promise.all([
-      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
+      supabase.from("properties").select("is_rol_property, amenities, property_type, external_system").eq("id", propertyId).single(),
       supabase
         .from("hostfully_room_types")
         .select("id, name, description, max_guests, daily_rate, is_active")
