@@ -458,8 +458,8 @@ function ExperienceEngineToggle({ propertyId }: { propertyId: string }) {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Load current state
-  useState(() => {
+  // Load current state on mount
+  React.useEffect(() => {
     supabase
       .from('rolos_ui_configs')
       .select('experience_engine_enabled')
@@ -469,7 +469,7 @@ function ExperienceEngineToggle({ propertyId }: { propertyId: string }) {
         setEnabled(data?.experience_engine_enabled ?? false);
         setLoading(false);
       });
-  });
+  }, [propertyId]);
 
   const handleToggle = async (checked: boolean) => {
     setEnabled(checked);
