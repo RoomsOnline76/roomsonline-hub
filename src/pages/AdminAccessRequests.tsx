@@ -344,6 +344,9 @@ export default function AdminAccessRequests() {
                                 <DropdownMenuItem onClick={() => handleApprove(request, "sales_rep")}>
                                   <Handshake className="h-3 w-3 mr-2" />As Sales Rep
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleApprove(request, "agent")}>
+                                  <Radar className="h-3 w-3 mr-2" />As Agent
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                             <Button
