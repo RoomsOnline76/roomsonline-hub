@@ -119,7 +119,6 @@ export default function PMSCommandCentre() {
         const totalRooms = propRows.length; // Each row represents a room type entry
         const availableRooms = propRows.reduce((sum, r) => sum + (r.available_units || 0), 0);
         return {
-        return {
           property_id: p.id,
           property_name: p.name,
           occupancy_pct: totalRooms > 0 ? Math.max(0, Math.round(((totalRooms - availableRooms) / Math.max(totalRooms, 1)) * 100)) : 0,
