@@ -120,8 +120,8 @@ const PMSEvents = lazy(() => import("./pages/pms/PMSEvents"));
 const PMSNightAudit = lazy(() => import("./pages/pms/PMSNightAudit"));
 const PMSMessaging = lazy(() => import("./pages/pms/PMSMessaging"));
 const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
+const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
 const PMSCommandCentre = lazy(() => import("./pages/pms/PMSCommandCentre"));
-
 import { PMSShell } from "./components/layout/PMSShell";
 import { ConnectLayout } from "./components/layout/ConnectLayout";
 import { isConnectDomain } from "./lib/config";
