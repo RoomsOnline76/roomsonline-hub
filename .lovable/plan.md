@@ -1,106 +1,126 @@
 
 
-# Phase 3: Live Collaborative Command Centre
+# Phase 4: AI Personalised Guest Journey Emails
 
 ## Overview
 
-Add an "agent" PMS staff role and a new "Command Centre" view within the PMS shell. Agents see a read-only, multi-property availability calendar with AI-powered suggestions (via the `agent_command` experience-engine handler). Admins can assign the "agent" role via access requests and staff management.
+Transform the PMS Messaging tab from a basic textarea template editor into a rich, property-specific email design system with AI content generation. The `experience-engine` gains a `guest_email` handler that resolves per-property email templates and generates AI-personalised content. The existing `send-booking-email` edge function gains an Experience Engine integration point so properties with the feature enabled get their customised templates automatically.
 
-## 1. Add `agent` Staff Role
+## Current State
 
-**File**: `src/lib/pmsPermissions.ts`
+- **PMSMessaging.tsx**: Simple 3-tab page (Templates, Log, Queue) with basic textarea editor, placeholder buttons, trigger events. Templates stored in `rolos_message_templates`.
+- **send-booking-email**: 1314-line monolith that checks `property.amenities.templates.template_content` for custom HTML, else generates hardcoded HTML. Uses Resend directly. Supports branding via `resolveBranding()`.
+- **pms-message-dispatcher**: Handles template CRUD + queue processing + manual sends via `rolos_message_templates`.
+- **experience-engine**: `guest_email` type exists in valid types but currently falls through to generic `resolveExperienceConfig` (returns empty config).
 
-Add `"agent"` to `PmsStaffRole` union type. Add permission row — agents see: `dashboard` (RO), `calendar` (RO), `rooms` (RO), `groups` (RO), and a new `"command-centre"` module (FULL). Everything else NONE.
+## 1. Enhanced Template Editor UI — PMSMessaging.tsx
 
-Add `"command-centre"` to `PmsModule` union type. Update all existing role rows to include `"command-centre": NONE` except agent (FULL) and property_owner/general_manager (FULL).
+Replace the textarea-based template editor dialog with a rich editing experience:
 
-Add agent to `ROLE_LABELS` and `ROLE_DESCRIPTIONS`.
+**Rich Text Editor**: Replace `<Textarea>` body field with TipTap editor (already available in the project via contract editor). Include:
+- Toolbar: bold, italic, headings, links, images, alignment
+- Placeholder insertion buttons (existing `MESSAGE_PLACEHOLDERS`) as TipTap inline nodes or click-to-insert
+- **AI Writer button**: "Generate with AI" button that calls the experience-engine `guest_email` handler to generate email content based on the trigger event, property details, and an optional prompt. The generated content populates the TipTap editor for further editing.
+- **Live preview pane**: Side-by-side or toggle view showing the rendered email with property branding applied (colors, logo, fonts from brand_kit)
 
-## 2. Database: Add `agent` to `property_staff.staff_role` Check
+**Template categories**: Group templates by trigger event with visual cards showing template name, trigger, channel, active status, and a mini-preview snippet.
 
-**Migration**: If `staff_role` on `property_staff` uses a check constraint or enum, extend it to include `'agent'`. This allows assigning staff as agents on specific properties.
+**New trigger events**: Add `modification` and `invoice` to `TRIGGER_EVENTS` array.
 
-## 3. Command Centre Page
-
-**New file**: `src/pages/pms/PMSCommandCentre.tsx`
-
-A read-only, multi-property availability overview:
-
-- **Property selector**: If agent is linked to multiple properties, show a multi-select or "all properties" view
-- **Availability grid**: Re-uses the same `fetchPmsAvailability()` pattern from `CalendarAccommodation.tsx` — queries `pms_availability_cache` and/or live adapter. Renders a simplified week/month calendar grid showing room availability per room type across properties
-- **Occupancy summary cards**: Today's occupancy %, arrivals, departures per property
-- **AI Suggestions panel** (optional, collapsible): Calls `experience-engine` with `experience_type: 'agent_command'` to get AI-powered suggestions (e.g., "Property X has 40% vacancy next week — consider promoting"). Uses Lovable AI via the edge function
-- **Quick actions**: "Copy availability link", "Share with client" (generates a shareable read-only view URL)
-
-The view is read-only — no rate changes, no bookings from this screen. Agents wanting to book redirect to the property's booking page.
-
-## 4. Experience Engine: `agent_command` Handler
+## 2. Experience Engine — `guest_email` Handler
 
 **File**: `supabase/functions/experience-engine/index.ts`
 
-The `agent_command` case already falls through to `resolveExperienceConfig`. Enhance it to:
+Add a dedicated `guest_email` case (currently falls through to generic). Two sub-actions via `payload.action`:
 
-- Accept payload with `{ properties: string[], date_range: { start, end } }`
-- Query `pms_availability_cache` for the given properties and date range
-- Call Lovable AI (via gateway) with occupancy data + a system prompt to generate agent-facing suggestions
-- Return `{ suggestions: [...], availability_summary: {...} }`
+### `generate` — AI content generation
+- Accepts: `trigger_event`, `tone` (formal/friendly/luxury), `property_context` (name, location, amenities), `custom_prompt`
+- Calls Lovable AI to generate email subject + body HTML matching the property's brand voice
+- Returns: `{ subject, body_html, tone_used }`
+- System prompt stored in `rolos_experience_configs` for customisation per property
 
-The AI prompt is stored in `rolos_experience_configs` for the property (or a global default), allowing customization.
+### `resolve` — Template resolution for sending
+- Accepts: `trigger_event`, `booking_id`
+- Looks up the property's active template from `rolos_message_templates` for that trigger
+- If no property-specific template exists, falls back to global default
+- Returns the resolved template with placeholders intact (caller does variable replacement)
 
-## 5. Route + Navigation
+## 3. Send-Booking-Email Integration
 
-**File**: `src/App.tsx`
+**File**: `supabase/functions/send-booking-email/index.ts`
 
-Add route: `<Route path="command-centre" element={<PMSCommandCentre />} />` inside the `/pms` shell.
+Add an Experience Engine integration point at ~line 1135 (where custom templates are currently resolved from `amenities.templates`):
 
-**PMS sidebar**: Add "Command Centre" nav item, visible when `getModuleAccess(role, 'command-centre').visible` is true.
+```
+// NEW: Check Experience Engine for property-specific template
+1. Check if property has experience_engine_enabled via rolos_ui_configs
+2. If enabled, query rolos_message_templates for trigger = booking_confirmed/cancellation
+3. If a matching active template exists, use it (with replaceTemplateVariables)
+4. If not, fall through to existing amenities.templates.template_content check
+5. If neither, use hardcoded default template
+```
 
-## 6. Access Request: Agent Role Assignment
+This is **backwards compatible** — properties without the experience engine enabled continue using the existing flow unchanged. The template resolution order becomes:
+1. Experience Engine template (from `rolos_message_templates`, if engine enabled)
+2. Legacy custom template (from `amenities.templates.template_content`)
+3. Hardcoded default HTML
 
-**File**: `src/pages/AdminAccessRequests.tsx`
+## 4. AI Content Generation Edge Function Logic
 
-When approving an access request, the role dropdown already supports multiple roles. Add "Agent" as an assignable role option. When selected, show a property multi-select so the admin can link the agent to specific properties (inserts into `property_staff` with `staff_role = 'agent'`).
+Inside the `guest_email` handler, when `payload.action === 'generate'`:
 
-**File**: `src/components/AddUserModal.tsx`
+- Fetch property details (name, location, amenities, brand colors)
+- Build a system prompt combining the property context with the config from `rolos_experience_configs`
+- Call Lovable AI (`google/gemini-3-flash-preview`) with tool calling to extract structured output: `{ subject, body_html }`
+- The body_html uses `{{placeholder}}` syntax so it works with the existing `replaceTemplateVariables` function
+- Return the generated content for the admin to review/edit in the TipTap editor before saving
 
-Add "Agent" to the role options. When selected, show property assignment fields.
+## 5. Template Preview with Branding
 
-## 7. Agent Dashboard Landing
+**New component**: `src/components/pms/EmailTemplatePreview.tsx`
 
-When an agent logs in and navigates to `/pms`, they land on the Command Centre (since `dashboard` is RO for them). The PMS sidebar shows only their permitted modules: Command Centre, Calendar (RO), Rooms (RO), Groups (RO).
+A preview component that:
+- Takes template HTML + property brand data
+- Renders the email wrapped in the same `wrapCustomTemplate` / `generateEmailHeader` / `generateEmailFooter` logic used by `send-booking-email`
+- Shows realistic mock data (sample guest name, dates, amounts)
+- Applies brand colors, logo, fonts from the property record
+
+Used in both the template editor dialog and as a standalone preview accessible from the template cards.
+
+## 6. Template Duplication + Starter Library
+
+Add a "Use Starter Template" option when creating a new template. Pre-built templates for each trigger event:
+- Booking Confirmed (warm welcome with property details)
+- Pre-Arrival (check-in info, local tips)
+- Check-Out (thank you, review request)
+- Cancellation (policy summary, rebooking encouragement)
+- Payment Request (invoice details, payment link)
+
+These are stored as seed data in the code (not DB) and inserted into the TipTap editor as a starting point when selected.
 
 ## Technical Details
 
-### Permission matrix entry for `agent`
+### AI generation prompt structure
 ```
-agent: {
-  dashboard: RO, rooms: RO, "rate-plans": NONE, guests: NONE,
-  housekeeping: NONE, reports: NONE, branding: NONE, integrations: NONE,
-  staff: NONE, calendar: RO, channels: NONE, groups: RO, events: NONE,
-  "night-audit": NONE, messaging: NONE, portfolio: NONE, revenue: NONE,
-  "command-centre": FULL,
-}
+System: You are an email copywriter for {property_name}, a {property_type} in {location}.
+Write a {trigger_event} email in a {tone} tone. Use these placeholders: {{guest_name}}, {{check_in_date}}, etc.
+Return HTML suitable for email clients (table-based layout, inline styles).
 ```
 
-### AI suggestion prompt (stored in `rolos_experience_configs`)
-```json
-{
-  "system_prompt": "You are a travel agent assistant. Given property availability data, suggest actionable recommendations for agents to maximize bookings.",
-  "model": "google/gemini-3-flash-preview",
-  "max_suggestions": 5
-}
-```
+### TipTap integration
+Reuse the TipTap setup from the contract editor (`AdminContractEditor` pattern). Add custom placeholder node extension that renders `{{placeholder}}` as styled chips in the editor.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Migration | Extend `property_staff.staff_role` to allow `'agent'` value |
-| Create | `src/pages/pms/PMSCommandCentre.tsx` — multi-property availability + AI suggestions |
-| Modify | `src/lib/pmsPermissions.ts` — add `agent` role + `command-centre` module |
-| Modify | `src/App.tsx` — add `/pms/command-centre` route |
-| Modify | PMS sidebar component — add Command Centre nav item |
-| Modify | `src/pages/AdminAccessRequests.tsx` — add Agent role option with property assignment |
-| Modify | `src/components/AddUserModal.tsx` — support agent role |
-| Modify | `supabase/functions/experience-engine/index.ts` — enhance `agent_command` handler with AI |
+| Modify | `src/pages/pms/PMSMessaging.tsx` — replace textarea with TipTap editor, add AI writer button, preview pane, starter templates |
+| Create | `src/components/pms/EmailTemplatePreview.tsx` — branded email preview component |
+| Create | `src/components/pms/EmailAIWriter.tsx` — AI content generation dialog |
+| Modify | `src/hooks/usePmsMessaging.ts` — add `useGenerateEmailContent` hook calling experience-engine |
+| Modify | `supabase/functions/experience-engine/index.ts` — add `guest_email` handler with generate + resolve actions |
+| Modify | `supabase/functions/send-booking-email/index.ts` — add Experience Engine template resolution before legacy fallback |
+| Modify | `src/hooks/usePmsMessaging.ts` — add `modification` and `invoice` trigger events |
+
+No database migration needed — `rolos_message_templates` and `rolos_experience_configs` tables already exist.
 
