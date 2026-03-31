@@ -1,126 +1,127 @@
 
 
-# Phase 4: AI Personalised Guest Journey Emails
+# Phase 5: AI Portfolio Experience
 
 ## Overview
 
-Transform the PMS Messaging tab from a basic textarea template editor into a rich, property-specific email design system with AI content generation. The `experience-engine` gains a `guest_email` handler that resolves per-property email templates and generates AI-personalised content. The existing `send-booking-email` edge function gains an Experience Engine integration point so properties with the feature enabled get their customised templates automatically.
+Enhance the portfolio system with AI-powered property grouping, bundle recommendations, and semantic search. The `experience-engine` gains a `portfolio` handler that analyzes portfolio properties and generates intelligent recommendations. The `booking-portfolio-api` edge function is upgraded to optionally call the experience engine. The public `EmbedPortfolio` page gains AI recommendation cards and smarter filtering.
 
-## Current State
-
-- **PMSMessaging.tsx**: Simple 3-tab page (Templates, Log, Queue) with basic textarea editor, placeholder buttons, trigger events. Templates stored in `rolos_message_templates`.
-- **send-booking-email**: 1314-line monolith that checks `property.amenities.templates.template_content` for custom HTML, else generates hardcoded HTML. Uses Resend directly. Supports branding via `resolveBranding()`.
-- **pms-message-dispatcher**: Handles template CRUD + queue processing + manual sends via `rolos_message_templates`.
-- **experience-engine**: `guest_email` type exists in valid types but currently falls through to generic `resolveExperienceConfig` (returns empty config).
-
-## 1. Enhanced Template Editor UI — PMSMessaging.tsx
-
-Replace the textarea-based template editor dialog with a rich editing experience:
-
-**Rich Text Editor**: Replace `<Textarea>` body field with TipTap editor (already available in the project via contract editor). Include:
-- Toolbar: bold, italic, headings, links, images, alignment
-- Placeholder insertion buttons (existing `MESSAGE_PLACEHOLDERS`) as TipTap inline nodes or click-to-insert
-- **AI Writer button**: "Generate with AI" button that calls the experience-engine `guest_email` handler to generate email content based on the trigger event, property details, and an optional prompt. The generated content populates the TipTap editor for further editing.
-- **Live preview pane**: Side-by-side or toggle view showing the rendered email with property branding applied (colors, logo, fonts from brand_kit)
-
-**Template categories**: Group templates by trigger event with visual cards showing template name, trigger, channel, active status, and a mini-preview snippet.
-
-**New trigger events**: Add `modification` and `invoice` to `TRIGGER_EVENTS` array.
-
-## 2. Experience Engine — `guest_email` Handler
+## 1. Experience Engine — `portfolio` Handler
 
 **File**: `supabase/functions/experience-engine/index.ts`
 
-Add a dedicated `guest_email` case (currently falls through to generic). Two sub-actions via `payload.action`:
+Replace the generic fallthrough for `portfolio` with a dedicated handler. Two sub-actions via `payload.action`:
 
-### `generate` — AI content generation
-- Accepts: `trigger_event`, `tone` (formal/friendly/luxury), `property_context` (name, location, amenities), `custom_prompt`
-- Calls Lovable AI to generate email subject + body HTML matching the property's brand voice
-- Returns: `{ subject, body_html, tone_used }`
-- System prompt stored in `rolos_experience_configs` for customisation per property
+### `recommend` — AI bundle/grouping suggestions
+- Fetches all portfolio member properties with their metadata (city, description, amenities, room types, rates)
+- Calls Lovable AI (`google/gemini-3-flash-preview`) with tool calling to return structured output:
+  - `semantic_groups`: properties grouped by theme (e.g. "Beach Escapes", "City Stays", "Family-Friendly")
+  - `bundles`: suggested multi-property packages (e.g. "Cape Town + Winelands combo")
+  - `featured`: AI-picked top property with reason
+- System prompt stored in `rolos_experience_configs` for per-portfolio customization
 
-### `resolve` — Template resolution for sending
-- Accepts: `trigger_event`, `booking_id`
-- Looks up the property's active template from `rolos_message_templates` for that trigger
-- If no property-specific template exists, falls back to global default
-- Returns the resolved template with placeholders intact (caller does variable replacement)
+### `search` — Semantic property matching
+- Accepts `query` (natural language, e.g. "pet-friendly near the beach")
+- AI scores each property against the query and returns a ranked list with match reasons
+- Returns `{ results: [{ slug, name, score, reason }] }`
 
-## 3. Send-Booking-Email Integration
+## 2. Upgrade `booking-portfolio-api` Edge Function
 
-**File**: `supabase/functions/send-booking-email/index.ts`
+**File**: `supabase/functions/booking-portfolio-api/index.ts`
 
-Add an Experience Engine integration point at ~line 1135 (where custom templates are currently resolved from `amenities.templates`):
+Add optional Experience Engine enrichment:
+- New query param: `?ai=true`
+- When `ai=true`, after building the standard `mapped` properties array, check if any portfolio member has `experience_engine_enabled`
+- If so, call the experience-engine internally with `experience_type: 'portfolio'`, `action: 'recommend'`
+- Append `ai_groups`, `ai_bundles`, and `ai_featured` to the response alongside existing `properties` array
+- Backwards compatible — without `?ai=true`, response is unchanged
+- Cache AI results for 5 minutes to avoid repeated AI calls
 
-```
-// NEW: Check Experience Engine for property-specific template
-1. Check if property has experience_engine_enabled via rolos_ui_configs
-2. If enabled, query rolos_message_templates for trigger = booking_confirmed/cancellation
-3. If a matching active template exists, use it (with replaceTemplateVariables)
-4. If not, fall through to existing amenities.templates.template_content check
-5. If neither, use hardcoded default template
-```
+## 3. Enhanced `EmbedPortfolio` Page
 
-This is **backwards compatible** — properties without the experience engine enabled continue using the existing flow unchanged. The template resolution order becomes:
-1. Experience Engine template (from `rolos_message_templates`, if engine enabled)
-2. Legacy custom template (from `amenities.templates.template_content`)
-3. Hardcoded default HTML
+**File**: `src/pages/EmbedPortfolio.tsx`
 
-## 4. AI Content Generation Edge Function Logic
+### AI Recommendation Banner
+- If the portfolio API response includes `ai_featured`, show a highlighted "Featured" card at the top with the AI's reason
+- Styled with a subtle gradient border using brand color
 
-Inside the `guest_email` handler, when `payload.action === 'generate'`:
+### Semantic Group Tabs
+- If `ai_groups` are present, add horizontal pill tabs above the grid (e.g. "All", "Beach Escapes", "City Stays")
+- Selecting a group filters to those properties
+- Coexists with existing city filter — city filter applies within the selected group
 
-- Fetch property details (name, location, amenities, brand colors)
-- Build a system prompt combining the property context with the config from `rolos_experience_configs`
-- Call Lovable AI (`google/gemini-3-flash-preview`) with tool calling to extract structured output: `{ subject, body_html }`
-- The body_html uses `{{placeholder}}` syntax so it works with the existing `replaceTemplateVariables` function
-- Return the generated content for the admin to review/edit in the TipTap editor before saving
+### AI Bundle Cards
+- If `ai_bundles` exist, render a "Suggested Packages" section below the main grid
+- Each bundle card shows 2-3 property thumbnails, a bundle name, combined starting rate, and a "View Package" CTA
+- Clicking opens the first property's booking page with a `bundle` query param (future use)
 
-## 5. Template Preview with Branding
+### Natural Language Search
+- Replace the simple text input with an enhanced search that detects longer queries (>3 words)
+- For short queries: existing client-side filter
+- For longer queries: call the experience-engine `portfolio` handler with `action: 'search'` and display results ranked by AI relevance score with match reasons shown as subtle badges
 
-**New component**: `src/components/pms/EmailTemplatePreview.tsx`
+## 4. PortfolioWidgetTab Admin Enhancement
 
-A preview component that:
-- Takes template HTML + property brand data
-- Renders the email wrapped in the same `wrapCustomTemplate` / `generateEmailHeader` / `generateEmailFooter` logic used by `send-booking-email`
-- Shows realistic mock data (sample guest name, dates, amounts)
-- Applies brand colors, logo, fonts from the property record
+**File**: `src/components/integrations/PortfolioWidgetTab.tsx`
 
-Used in both the template editor dialog and as a standalone preview accessible from the template cards.
-
-## 6. Template Duplication + Starter Library
-
-Add a "Use Starter Template" option when creating a new template. Pre-built templates for each trigger event:
-- Booking Confirmed (warm welcome with property details)
-- Pre-Arrival (check-in info, local tips)
-- Check-Out (thank you, review request)
-- Cancellation (policy summary, rebooking encouragement)
-- Payment Request (invoice details, payment link)
-
-These are stored as seed data in the code (not DB) and inserted into the TipTap editor as a starting point when selected.
+- Add "Enable AI Recommendations" toggle (writes to `rolos_experience_configs` for the portfolio)
+- Add "AI Theme" text input for custom system prompt guidance (e.g. "Focus on romantic getaways and adventure")
+- Preview section shows AI groups/bundles when enabled
+- New "Refresh AI Suggestions" button that calls experience-engine to regenerate
 
 ## Technical Details
 
-### AI generation prompt structure
-```
-System: You are an email copywriter for {property_name}, a {property_type} in {location}.
-Write a {trigger_event} email in a {tone} tone. Use these placeholders: {{guest_name}}, {{check_in_date}}, etc.
-Return HTML suitable for email clients (table-based layout, inline styles).
+### AI tool-calling schema for `recommend`
+```json
+{
+  "name": "portfolio_recommendations",
+  "parameters": {
+    "properties": {
+      "semantic_groups": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "group_name": { "type": "string" },
+            "property_slugs": { "type": "array", "items": { "type": "string" } },
+            "description": { "type": "string" }
+          }
+        }
+      },
+      "bundles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "bundle_name": { "type": "string" },
+            "property_slugs": { "type": "array", "items": { "type": "string" } },
+            "pitch": { "type": "string" }
+          }
+        }
+      },
+      "featured": {
+        "type": "object",
+        "properties": {
+          "property_slug": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}
 ```
 
-### TipTap integration
-Reuse the TipTap setup from the contract editor (`AdminContractEditor` pattern). Add custom placeholder node extension that renders `{{placeholder}}` as styled chips in the editor.
+### Caching strategy
+The `booking-portfolio-api` stores AI results in a local variable with a 5-minute TTL keyed by portfolio slug. This avoids hitting the AI gateway on every page load while keeping recommendations fresh enough.
 
 ## Files
 
 | Action | File |
 |--------|------|
-| Modify | `src/pages/pms/PMSMessaging.tsx` — replace textarea with TipTap editor, add AI writer button, preview pane, starter templates |
-| Create | `src/components/pms/EmailTemplatePreview.tsx` — branded email preview component |
-| Create | `src/components/pms/EmailAIWriter.tsx` — AI content generation dialog |
-| Modify | `src/hooks/usePmsMessaging.ts` — add `useGenerateEmailContent` hook calling experience-engine |
-| Modify | `supabase/functions/experience-engine/index.ts` — add `guest_email` handler with generate + resolve actions |
-| Modify | `supabase/functions/send-booking-email/index.ts` — add Experience Engine template resolution before legacy fallback |
-| Modify | `src/hooks/usePmsMessaging.ts` — add `modification` and `invoice` trigger events |
+| Modify | `supabase/functions/experience-engine/index.ts` — add `portfolio` handler with `recommend` + `search` actions |
+| Modify | `supabase/functions/booking-portfolio-api/index.ts` — add `?ai=true` param, call experience-engine, append AI data |
+| Modify | `src/pages/EmbedPortfolio.tsx` — featured banner, group tabs, bundle cards, semantic search |
+| Modify | `src/components/integrations/PortfolioWidgetTab.tsx` — AI toggle, theme input, refresh button |
 
-No database migration needed — `rolos_message_templates` and `rolos_experience_configs` tables already exist.
+No database migration needed — `rolos_experience_configs` already supports arbitrary JSONB config per property/type.
 
