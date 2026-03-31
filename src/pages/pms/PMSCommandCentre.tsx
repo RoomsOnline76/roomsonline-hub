@@ -10,10 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
-  BedDouble,
   CalendarDays,
-  TrendingUp,
-  Users,
   Sparkles,
   ChevronDown,
   Copy,
