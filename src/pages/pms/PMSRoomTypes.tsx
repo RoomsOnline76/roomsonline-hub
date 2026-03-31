@@ -84,6 +84,7 @@ export default function PMSRoomTypes() {
       console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
     }
 
+    setPropertyData(property);
     const amenities = property?.amenities as PropertyAmenities | null;
     const amenitiesRoomTypes: OverviewRoomType[] = Array.isArray(amenities?.room_types)
       ? amenities!.room_types!
