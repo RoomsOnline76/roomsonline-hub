@@ -33,7 +33,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiTheme, setAiTheme] = useState("");
   const [refreshingAi, setRefreshingAi] = useState(false);
-  const queryClient = useQueryClient();
+  
 
   // Fetch portfolios this property belongs to
   const { data: memberOf = [] } = useQuery({
