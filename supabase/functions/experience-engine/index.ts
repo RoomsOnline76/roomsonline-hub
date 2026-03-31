@@ -90,11 +90,49 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Evaluate policy with dates if provided
+      let evaluation: Record<string, unknown> | null = null;
+      const policyRule = policy?.rule as Record<string, unknown> | null;
+      if (policyRule && payload?.check_in_date) {
+        const checkIn = new Date(payload.check_in_date);
+        const now = new Date();
+        const msPerDay = 86400000;
+        const daysUntil = Math.floor((checkIn.getTime() - now.getTime()) / msPerDay);
+
+        let effectiveDaysBefore = (policyRule.days_before as number) ?? 0;
+        let effectiveForfeitPct = (policyRule.forfeit_percent as number) ?? 100;
+
+        // Check date range overrides
+        const dateRanges = policyRule.date_ranges as Array<{ start: string; end: string; days_before?: number; forfeit_percent?: number }> | undefined;
+        if (dateRanges?.length) {
+          const override = dateRanges.find(r => checkIn >= new Date(r.start) && checkIn <= new Date(r.end));
+          if (override) {
+            effectiveDaysBefore = override.days_before ?? effectiveDaysBefore;
+            effectiveForfeitPct = override.forfeit_percent ?? effectiveForfeitPct;
+          }
+        }
+
+        const isFree = daysUntil >= effectiveDaysBefore;
+        const totalPrice = (payload.total_price as number) || 0;
+        const forfeitAmount = isFree ? 0 : (totalPrice * effectiveForfeitPct / 100);
+        const deadlineDate = new Date(checkIn.getTime() - effectiveDaysBefore * msPerDay).toISOString().split('T')[0];
+
+        evaluation = {
+          is_free_cancel: isFree,
+          forfeit_amount: forfeitAmount,
+          forfeit_percent: effectiveForfeitPct,
+          deadline_date: deadlineDate,
+          days_until_deadline: daysUntil - effectiveDaysBefore,
+          is_non_refundable: !!(policyRule.non_refundable),
+        };
+      }
+
       result = {
-        policy: policy?.rule || null,
+        policy: policyRule || null,
         is_ai_generated: policy?.is_ai_generated || false,
         last_evaluated_at: policy?.last_evaluated_at || null,
         live_occupancy: liveData || null,
+        evaluation,
       };
     } else {
       // All other types: read from rolos_experience_configs
