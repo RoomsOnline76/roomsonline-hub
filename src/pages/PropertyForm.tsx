@@ -11299,8 +11299,8 @@ export default function PropertyForm() {
               </Card>
             </TabsContent>
 
-            {/* Integrations Tab - Only for ROL Properties */}
-            {selectedPMS === "roomsonline" && propertyId && (
+            {/* Integrations Tab - All Properties */}
+            {propertyId && (
               <TabsContent value="integrations" className="space-y-2">
                 <PropertyFormIntegrationsTab 
                   property={{ 
