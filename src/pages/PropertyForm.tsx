@@ -4507,7 +4507,7 @@ export default function PropertyForm() {
                 { value: "specials", icon: Calendar, label: "Specials", highlight: false },
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
-                { value: "integrations", icon: Link, label: "Integrations", highlight: false, rolOnly: true },
+                { value: "integrations", icon: Link, label: "Integrations", highlight: false },
               ]
                 .filter(
                   (tab) => {
