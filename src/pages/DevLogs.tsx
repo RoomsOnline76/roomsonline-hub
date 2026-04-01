@@ -58,7 +58,7 @@ export default function DevLogs() {
   const [searchInput, setSearchInput] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<string>("7d");
+  const [dateRange, setDateRange] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [sources, setSources] = useState<string[]>([]);
   const [stats, setStats] = useState({ total: 0, errors: 0, warnings: 0, info: 0 });
