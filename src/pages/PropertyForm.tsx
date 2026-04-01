@@ -87,6 +87,7 @@ import { AlertTriangle, Sparkles, Globe, Palette } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
+import { ExperienceEmailDesigner } from "@/components/property/ExperienceEmailDesigner";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
@@ -400,6 +401,7 @@ export default function PropertyForm() {
   // Accommodation label + self catering
   const [accommodationLabel, setAccommodationLabel] = useState<string>("");
   const [isSelfCatering, setIsSelfCatering] = useState(false);
+  const [experienceEngineEnabled, setExperienceEngineEnabled] = useState(false);
 
   // Linked owners state
   const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
@@ -2915,6 +2917,16 @@ export default function PropertyForm() {
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
 
+          // Check if Experience Engine is enabled
+          supabase
+            .from('rolos_ui_configs')
+            .select('experience_engine_enabled')
+            .eq('property_id', data.id)
+            .maybeSingle()
+            .then(({ data: uiCfg }) => {
+              setExperienceEngineEnabled(uiCfg?.experience_engine_enabled ?? false);
+            });
+
           // Populate form data
           const amenities = data.amenities as any;
           const houseRules = amenities?.house_rules || {};
@@ -4507,18 +4519,16 @@ export default function PropertyForm() {
                 { value: "specials", icon: Calendar, label: "Specials", highlight: false },
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
-                { value: "integrations", icon: Link, label: "Integrations", highlight: false, rolOnly: true },
+                { value: "integrations", icon: Link, label: "Integrations", highlight: false },
               ]
                 .filter(
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
-                    // Hide integrations tab for non-ROL properties
-                    if ((tab as any).rolOnly && selectedPMS !== "roomsonline") return false;
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding" || tab.value === "integrations";
                     }
                     return true;
                   }
@@ -7375,6 +7385,9 @@ export default function PropertyForm() {
 
             {/* Templates and Notifications Tab */}
             <TabsContent value="templates">
+              {experienceEngineEnabled && propertyId ? (
+                <ExperienceEmailDesigner propertyId={propertyId} />
+              ) : (
               <Card>
                 <CardContent className="py-3 px-4 space-y-3">
                   {/* Template Selection Buttons */}
@@ -7468,6 +7481,7 @@ export default function PropertyForm() {
                   </div>
                 </CardContent>
               </Card>
+              )}
 
               <div className="flex justify-end gap-2 mt-3">
                 <Button
@@ -11301,8 +11315,8 @@ export default function PropertyForm() {
               </Card>
             </TabsContent>
 
-            {/* Integrations Tab - Only for ROL Properties */}
-            {selectedPMS === "roomsonline" && propertyId && (
+            {/* Integrations Tab - All Properties */}
+            {propertyId && (
               <TabsContent value="integrations" className="space-y-2">
                 <PropertyFormIntegrationsTab 
                   property={{ 
