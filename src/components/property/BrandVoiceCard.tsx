@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Sparkles, Save } from 'lucide-react';
+import type { Json } from '@/integrations/supabase/types';
 
 const TONE_OPTIONS = [
   { value: 'friendly and informative', label: 'Friendly & Informative' },
@@ -35,7 +36,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
       .from('rolos_experience_configs')
       .select('id, config')
       .eq('property_id', propertyId)
-      .eq('config_type', 'brand_kit')
+      .eq('experience_type', 'brand_kit')
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
@@ -51,7 +52,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const configPayload = {
+      const configPayload: Json = {
         brand_voice: brandVoice,
         ai_email_tone: aiTone,
         heading_font: null,
@@ -61,7 +62,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
       if (configId) {
         const { error } = await supabase
           .from('rolos_experience_configs')
-          .update({ config: configPayload as unknown as Record<string, unknown> })
+          .update({ config: configPayload })
           .eq('id', configId);
         if (error) throw error;
       } else {
@@ -69,8 +70,8 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
           .from('rolos_experience_configs')
           .insert({
             property_id: propertyId,
-            config_type: 'brand_kit',
-            config: configPayload as unknown as Record<string, unknown>,
+            experience_type: 'brand_kit',
+            config: configPayload,
           })
           .select('id')
           .single();

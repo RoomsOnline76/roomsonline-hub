@@ -86,6 +86,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
+import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
