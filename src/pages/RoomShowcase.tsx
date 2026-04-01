@@ -7,6 +7,7 @@ import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
 import { useItinerary } from "@/contexts/ItineraryContext";
+import { useMobileBooking } from "@/contexts/MobileBookingContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
