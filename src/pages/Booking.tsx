@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO, differenceInDays, addDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelecto
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
+import { BottomSheetDatePicker } from "@/components/booking/BottomSheetDatePicker";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
@@ -187,6 +188,10 @@ const Booking = () => {
   const [showDateReselectDialog, setShowDateReselectDialog] = useState(false);
   const [pendingCheckIn, setPendingCheckIn] = useState<Date | undefined>();
   const [pendingCheckOut, setPendingCheckOut] = useState<Date | undefined>();
+  
+  // Availability calendar map (rates + blocked dates)
+  const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -295,7 +300,67 @@ const Booking = () => {
       }))
   ) || [];
 
-  // Initialize rooms with pre-selected or restore from session storage
+  // Fetch calendar availability for date picker (rates + blocked dates)
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!property?.id) return;
+      const isManual = !property.external_system;
+      const amenitiesData = property.amenities as Record<string, any> | null;
+      if (!isManual || !amenitiesData) return;
+
+      const today = new Date();
+      const endDate = addDays(today, 395);
+      const todayStr = format(today, "yyyy-MM-dd");
+      const endStr = format(endDate, "yyyy-MM-dd");
+
+      const wizardRooms = amenitiesData.room_types || [];
+      const firstRoom = wizardRooms[0];
+      const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
+      const pmsRateTypes = amenitiesData.pms_rate_types || [];
+      const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
+      const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
+
+      const { data: blockedData } = await supabase
+        .from("property_availability")
+        .select("date, available_units, is_stop_sell")
+        .eq("property_id", property.id)
+        .gte("date", todayStr)
+        .lte("date", endStr);
+
+      const blockedDates = new Set<string>();
+      if (blockedData) {
+        blockedData.forEach((item) => {
+          if (item.is_stop_sell || item.available_units === 0) {
+            blockedDates.add(item.date);
+          }
+        });
+      }
+
+      const calendarMap = new Map<string, { available: boolean; rate?: number }>();
+      for (let i = 0; i < 395; i++) {
+        const date = addDays(today, i);
+        const dateStr = format(date, "yyyy-MM-dd");
+        const isBlocked = blockedDates.has(dateStr);
+        let dayRate = baseRate;
+        const seasons = amenitiesData.seasons || [];
+        const seasonRates = amenitiesData.season_rates || {};
+        for (const season of seasons) {
+          if (dateStr >= season.from && dateStr <= season.to) {
+            const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
+            const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+            if (seasonRateData?.roomAmount) {
+              dayRate = seasonRateData.roomAmount;
+            }
+            break;
+          }
+        }
+        calendarMap.set(dateStr, { available: !isBlocked, rate: dayRate });
+      }
+      setCalendarAvailability(calendarMap);
+    };
+    fetchAvailability();
+  }, [property?.id, property?.external_system, property?.amenities]);
+
   useEffect(() => {
     if (property && rooms.length === 0) {
       // Check for existing booking state in session storage (multi-room flow)
@@ -1838,32 +1903,30 @@ const Booking = () => {
                   <CalendarDays className="h-4 w-4" />
                   Select your dates
                 </div>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {checkIn && checkOut ? (
-                        <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
-                      ) : (
-                        <span className="text-muted-foreground">Pick check-in & check-out dates</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
-                    <CalendarComponent
-                      initialFocus
-                      mode="range"
-                      selected={checkIn && checkOut ? { from: parseISO(checkIn), to: parseISO(checkOut) } : undefined}
-                      onSelect={(range) => {
-                        if (range?.from) setCheckIn(format(range.from, "yyyy-MM-dd"));
-                        if (range?.to) setCheckOut(format(range.to, "yyyy-MM-dd"));
-                      }}
-                      numberOfMonths={1}
-                      disabled={(date) => date < new Date()}
-                      className="p-3"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                  onClick={() => setDatePickerOpen(true)}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {checkIn && checkOut ? (
+                    <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
+                  ) : (
+                    <span className="text-muted-foreground">Pick check-in & check-out dates</span>
+                  )}
+                </Button>
+                <BottomSheetDatePicker
+                  open={datePickerOpen}
+                  onOpenChange={setDatePickerOpen}
+                  checkIn={checkIn ? parseISO(checkIn) : null}
+                  checkOut={checkOut ? parseISO(checkOut) : null}
+                  onDatesChange={(ci, co) => {
+                    setCheckIn(format(ci, "yyyy-MM-dd"));
+                    setCheckOut(format(co, "yyyy-MM-dd"));
+                    setDatePickerOpen(false);
+                  }}
+                  availabilityMap={calendarAvailability}
+                />
                 {checkIn && !checkOut && (
                   <p className="text-xs text-muted-foreground">Now select your check-out date</p>
                 )}

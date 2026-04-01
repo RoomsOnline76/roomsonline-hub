@@ -13,10 +13,20 @@ import { PropertyRecommendations } from '@/components/booking/PropertyRecommenda
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
+import { PublicLayout } from '@/components/layout/PublicLayout';
+import { WhiteLabelLayout } from '@/components/layout/WhiteLabelLayout';
+import { loadBrandFromSession } from '@/lib/brandOverride';
+import { useBrandOverride } from '@/hooks/useBrandOverride';
 
 export default function JourneyReview() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Brand override - check if first stay has a branded property
+  const cachedBrand = loadBrandFromSession();
+  const isBranded = !!cachedBrand?.enabled;
+  useBrandOverride(cachedBrand?.propertyId);
+  
   const {
     stays,
     guestDetails,
@@ -60,9 +70,14 @@ export default function JourneyReview() {
     navigate('/journey/checkout');
   };
 
+  const LayoutWrapper = isBranded ? WhiteLabelLayout : PublicLayout;
+  const layoutProps = isBranded
+    ? { propertyName: stays[0]?.property_name }
+    : { hideJourneyBuilder: true };
+
   if (!hasStays) {
     return (
-      <div className="min-h-screen bg-background">
+      <LayoutWrapper {...layoutProps as any}>
         <div className="container max-w-4xl py-16 text-center">
           <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
           <h1 className="text-3xl font-serif font-semibold mb-4">
@@ -75,12 +90,12 @@ export default function JourneyReview() {
             Browse Properties
           </Button>
         </div>
-      </div>
+      </LayoutWrapper>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <LayoutWrapper {...layoutProps as any}>
         {/* Header */}
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
           <div className="container flex items-center justify-between h-16">
@@ -288,6 +303,6 @@ export default function JourneyReview() {
             }}
           />
         )}
-      </div>
+      </LayoutWrapper>
   );
 }
