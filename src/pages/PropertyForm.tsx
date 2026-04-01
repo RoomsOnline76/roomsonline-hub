@@ -236,7 +236,7 @@ export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
   const { toast } = useToast();
-  const { isDev, isAdmin, user, profile, loading: authLoading } = useAuth();
+  const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
   const [loading, setLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
