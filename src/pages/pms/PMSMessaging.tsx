@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -76,6 +78,28 @@ function PMSMessaging() {
   const propertyId = searchParams.get("property");
   const { propertyId: hookPropertyId } = usePmsPropertyId();
   const pid = propertyId || hookPropertyId;
+
+  const { data: propertyBrand } = useQuery({
+    queryKey: ["property-brand", pid],
+    queryFn: async () => {
+      if (!pid) return null;
+      const { data } = await supabase
+        .from("properties")
+        .select("name, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url")
+        .eq("id", pid)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!pid,
+  });
+
+  const previewBrandColors = useMemo(() => ({
+    primary: propertyBrand?.brand_primary_color || null,
+    secondary: propertyBrand?.brand_secondary_color || null,
+    font: propertyBrand?.brand_font_color || null,
+  }), [propertyBrand]);
+  const previewLogoUrl = propertyBrand?.brand_logo_url || null;
+  const previewPropertyName = propertyBrand?.name || undefined;
 
   const { data: templates = [], isLoading: templatesLoading } = useMessageTemplates(pid);
   const { data: log = [], isLoading: logLoading } = useMessageLog(pid);
@@ -465,6 +489,9 @@ function PMSMessaging() {
                   <EmailTemplatePreview
                     subject={editForm.subject as string || ""}
                     bodyHtml={editForm.body as string || ""}
+                    brandColors={previewBrandColors}
+                    logoUrl={previewLogoUrl}
+                    propertyName={previewPropertyName}
                   />
                 )}
                 {!showPreview && (
