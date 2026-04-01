@@ -43,6 +43,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
         if (data) {
           setConfigId(data.id);
           const cfg = data.config as Record<string, unknown> | null;
+          setExistingConfig(cfg);
           setBrandVoice((cfg?.brand_voice as string) || '');
           setAiTone((cfg?.ai_email_tone as string) || 'friendly and informative');
         }
