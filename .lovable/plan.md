@@ -1,34 +1,26 @@
 
 
-# Integrations Tab for All Properties + Experience Engine Templates
+# Fix Circular Booking Flow for Manual Rates Properties
 
-## Two Changes
+## Problem
 
-### 1. Make Integrations Tab Available to All Properties
+The booking flow goes in circles: Property → Room Showcase → Property → Room Showcase → ...
 
-Currently the tab has `rolOnly: true` and is filtered out for non-ROL PMS properties (line 4517). Also wrapped in `selectedPMS === "roomsonline"` guard at line 11305.
+**Root cause**: When a user selects dates via the AI Concierge on the property page, dates are stored in `MobileBookingContext` (React state/sessionStorage). When they click a room and land on `RoomShowcase`, the "Select Dates & Book" button calls `handleCheckAvailability()` which only checks **URL search params** for `checkIn`/`checkOut`. Since dates aren't in the URL, it navigates back to the property page with `?selectDates=true`. But the property page **never reads `selectDates`**, so the user just sees the property page again — stuck in a loop.
 
-**Fix**: Remove the `rolOnly` flag from the integrations tab definition (line 4510) and remove the `selectedPMS === "roomsonline"` wrapper around the `TabsContent` (line 11305). The NightsBridge filter (line 4519) also needs `"integrations"` added to its allowed tabs.
+## Fix (2 changes in 1 file)
 
-### 2. Upgrade Templates Tab When Experience Engine Is Enabled
+### 1. RoomShowcase: Read dates from MobileBookingContext
 
-The existing Templates tab (line 7377) is a basic `RichTextEditor` + mailer timing fields stored in `amenities.templates`. For properties with Experience Engine enabled, this should show the richer AI-powered email designer (similar to what PMS Messaging has).
+Import `useMobileBooking` and in `handleCheckAvailability()` for manual rates properties, check MobileBookingContext dates as a fallback when URL params are absent. If dates exist there, add the stay to cart and navigate to checkout — same as the existing "has dates" branch.
 
-**Approach**: 
-- Check if the property has `experience_engine_enabled` in `rolos_ui_configs`
-- If YES: render a new `ExperienceEmailDesigner` component that reads/writes `rolos_message_templates` with the AI writer (`EmailAIWriter`) and TipTap editor — same components used in `PMSMessaging.tsx`
-- If NO: show the existing basic textarea UI (current behavior)
+### 2. RoomShowcase: Handle the "still no dates" case properly
 
-This requires creating an `ExperienceEmailDesigner` component that reuses existing hooks (`usePmsMessaging` template CRUD + `EmailAIWriter`) but works outside the PMS shell context by accepting a `propertyId` prop directly.
+When neither URL params nor context have dates, instead of navigating to the property page (which creates the loop), navigate directly to `/book/{slug}?roomTypeId=...&roomTypeName=...` — the Booking page which already has an inline date picker built in (added in the previous fix). This breaks the circle by sending the user to a page that can collect dates and complete checkout.
 
 ## Files
 
 | Action | File | What |
 |--------|------|------|
-| Modify | `src/pages/PropertyForm.tsx` line 4510 | Remove `rolOnly: true` from integrations tab |
-| Modify | `src/pages/PropertyForm.tsx` line 4517 | Remove the `rolOnly` filter logic |
-| Modify | `src/pages/PropertyForm.tsx` line 4519-4521 | Add `"integrations"` to NightsBridge allowed tabs |
-| Modify | `src/pages/PropertyForm.tsx` line 11305 | Remove `selectedPMS === "roomsonline"` guard |
-| Create | `src/components/property/ExperienceEmailDesigner.tsx` | AI-powered template editor using `EmailAIWriter` + `usePmsMessaging` hooks |
-| Modify | `src/pages/PropertyForm.tsx` Templates tab (~line 7377) | Conditionally render `ExperienceEmailDesigner` when experience engine is enabled |
+| Modify | `src/pages/RoomShowcase.tsx` | Import `useMobileBooking`, update `handleCheckAvailability` to read context dates, and change no-dates fallback to `/book/` route |
 
