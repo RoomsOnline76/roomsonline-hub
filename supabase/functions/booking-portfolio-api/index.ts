@@ -100,6 +100,7 @@ serve(async (req) => {
         starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
+        brand_primary_color: p.brand_primary_color || null,
       };
     });
 

@@ -25,6 +25,7 @@ interface PortfolioProperty {
   starting_rate: number | null;
   room_count: number;
   max_guests: number | null;
+  brand_primary_color?: string | null;
 }
 
 interface AiGroup {
@@ -56,8 +57,8 @@ export default function EmbedPortfolio() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const brandColor = searchParams.get("brand_color") || "#2563eb";
-  const brandLogo = searchParams.get("brand_logo");
+  const urlBrandColor = searchParams.get("brand_color");
+  const urlBrandLogo = searchParams.get("brand_logo");
   const layout = searchParams.get("layout") || "grid";
 
   const [portfolio, setPortfolio] = useState<any>(null);
@@ -73,6 +74,11 @@ export default function EmbedPortfolio() {
   const [activeGroup, setActiveGroup] = useState<string>("all");
   const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
+
+  // Resolve branding: URL params override portfolio metadata
+  const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
+  const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
+  const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
 
   // Resize observer for iframe
   useEffect(() => {
@@ -116,6 +122,7 @@ export default function EmbedPortfolio() {
             starting_rate: p.starting_rate,
             room_count: p.room_count || 0,
             max_guests: p.max_guests,
+            brand_primary_color: p.brand_primary_color,
           }));
           setProperties(mapped);
 
@@ -270,8 +277,10 @@ export default function EmbedPortfolio() {
   }, [properties, aiFeatured]);
 
   const handleViewProperty = (slug: string) => {
+    const prop = properties.find(p => p.slug === slug);
+    const propColor = prop?.brand_primary_color || brandColor;
     const params = new URLSearchParams();
-    if (brandColor) params.set("brand_color", brandColor);
+    if (propColor) params.set("brand_color", propColor);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (window.parent !== window) {

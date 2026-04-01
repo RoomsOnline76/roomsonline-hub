@@ -18,12 +18,22 @@ import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Load
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 
+interface PortfolioBranding {
+  primary_color?: string;
+  secondary_color?: string;
+  font_color?: string;
+  logo_url?: string;
+  heading_font?: string;
+  body_font?: string;
+}
+
 interface Portfolio {
   id: string;
   name: string;
   slug: string;
   owner_id: string | null;
   created_at: string;
+  metadata?: { branding?: PortfolioBranding } | null;
 }
 
 interface PortfolioMember {
@@ -49,6 +59,12 @@ export default function AdminPortfolios() {
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
+  const [brandPrimary, setBrandPrimary] = useState("#2563eb");
+  const [brandSecondary, setBrandSecondary] = useState("#1e40af");
+  const [brandFontColor, setBrandFontColor] = useState("#333333");
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  const [brandHeadingFont, setBrandHeadingFont] = useState("");
+  const [brandBodyFont, setBrandBodyFont] = useState("");
 
   const { data: portfolios = [], isLoading } = useQuery({
     queryKey: ["admin-portfolios"],
@@ -91,10 +107,14 @@ export default function AdminPortfolios() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const branding: PortfolioBranding = {
+        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+      };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id } as any)
+        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding } } as any)
         .select()
         .single();
       if (error) throw error;
@@ -117,9 +137,14 @@ export default function AdminPortfolios() {
     mutationFn: async () => {
       if (!editPortfolio) return;
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const branding: PortfolioBranding = {
+        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+      };
+      const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug } as any)
+        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding } } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
@@ -155,12 +180,25 @@ export default function AdminPortfolios() {
     setFormSlug("");
     setSelectedProps([]);
     setPropertySearch("");
+    setBrandPrimary("#2563eb");
+    setBrandSecondary("#1e40af");
+    setBrandFontColor("#333333");
+    setBrandLogoUrl("");
+    setBrandHeadingFont("");
+    setBrandBodyFont("");
   };
 
   const openEdit = (p: Portfolio) => {
     setFormName(p.name);
     setFormSlug(p.slug || "");
     setSelectedProps(members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id));
+    const b = p.metadata?.branding;
+    setBrandPrimary(b?.primary_color || "#2563eb");
+    setBrandSecondary(b?.secondary_color || "#1e40af");
+    setBrandFontColor(b?.font_color || "#333333");
+    setBrandLogoUrl(b?.logo_url || "");
+    setBrandHeadingFont(b?.heading_font || "");
+    setBrandBodyFont(b?.body_font || "");
     setEditPortfolio(p);
   };
 
@@ -238,6 +276,55 @@ export default function AdminPortfolios() {
         />
         <p className="text-[10px] text-muted-foreground">Used in embed URLs: /embed/portfolio/{formSlug || "auto"}</p>
       </div>
+
+      {/* Branding Section */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <Label className="text-xs font-semibold">Branding</Label>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Logo URL</Label>
+          <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Primary</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Secondary</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Font Color</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Heading Font</Label>
+            <Input value={brandHeadingFont} onChange={(e) => setBrandHeadingFont(e.target.value)} placeholder="e.g. Playfair Display" className="text-xs h-7" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Body Font</Label>
+            <Input value={brandBodyFont} onChange={(e) => setBrandBodyFont(e.target.value)} placeholder="e.g. Lato" className="text-xs h-7" />
+          </div>
+        </div>
+        {brandLogoUrl && (
+          <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
+            <img src={brandLogoUrl} alt="Logo preview" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <span className="text-[10px] text-muted-foreground">Logo preview</span>
+          </div>
+        )}
+      </div>
+
       <PropertyPicker />
     </div>
   );
