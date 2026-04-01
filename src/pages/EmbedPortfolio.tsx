@@ -277,8 +277,10 @@ export default function EmbedPortfolio() {
   }, [properties, aiFeatured]);
 
   const handleViewProperty = (slug: string) => {
+    const prop = properties.find(p => p.slug === slug);
+    const propColor = prop?.brand_primary_color || brandColor;
     const params = new URLSearchParams();
-    if (brandColor) params.set("brand_color", brandColor);
+    if (propColor) params.set("brand_color", propColor);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (window.parent !== window) {
