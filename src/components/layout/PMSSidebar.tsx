@@ -234,7 +234,7 @@ export function PMSSidebar() {
             onClick={() => navigate("/admin/property-overview")}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-              "hover:bg-accent hover:text-accent-foreground text-foreground/70"
+              "hover:bg-accent hover:text-accent-foreground text-foreground/80"
             )}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />

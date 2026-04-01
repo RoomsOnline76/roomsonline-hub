@@ -1,0 +1,1 @@
+UPDATE properties SET brand_heading_font = 'Playfair Display', brand_body_font = 'Lato' WHERE owner_name = 'Julius Erasmus';
