@@ -1,29 +1,34 @@
 
 
-# Journey Review Branding + Checkout Stay Removal + Availability Calendar in Date Pickers
+# Fix: "Select Dates & Book" Skips Date Selection on RoomShowcase
 
-## Three Issues
+## Problem
 
-### 1. `/journey/review` Not Branded
-`JourneyReview.tsx` renders a raw `<div>` with a custom header — no `WhiteLabelLayout` or `PublicLayout`. When a guest arrives via a branded integration flow, there's no visual continuity.
+`MobileBookingContext` initializes with default dates (tomorrow/day-after) in `getDefaultState()`. In `RoomShowcase.handleCheckAvailability()`, the fallback on line 427 reads these default dates and treats them as "user-selected dates", immediately adding the stay to cart and navigating to checkout. The user never gets to pick dates.
 
-**Fix**: Wrap the page in the same conditional layout pattern used by `Booking.tsx` and `JourneyCheckout.tsx`. Check `sessionStorage` for `brand_override` flag and first stay's property branding. Use `WhiteLabelLayout` when branded, `PublicLayout` otherwise.
+## Fix (1 file)
 
-### 2. Can't Remove Stays from Checkout (`JourneyCheckout.tsx`)
-The booking summary sidebar lists stays read-only — no way to remove one without going back to `/journey/review`. 
+**`src/pages/RoomShowcase.tsx`** — line 427
 
-**Fix**: Add a small `X` button next to each stay in the checkout summary. Wire it to `removeStay` from `useItinerary()`. If the last stay is removed, redirect back to `/journey/review`. Show a brief toast confirmation.
+Only trust MobileBookingContext dates if they were explicitly set during this session (i.e., the user interacted with a date picker on the property page). The simplest reliable approach: **only use URL search params** as the date source in `handleCheckAvailability`. Remove the `mobileBooking?.state` fallback.
 
-### 3. No Availability/Cost Calendar in Booking Date Pickers
-The `BottomSheetDatePicker` already supports `availabilityMap` (shows rates + blocked dates), and `PropertyShowcase` fetches a 90-day availability map. But `Booking.tsx` uses a plain `CalendarComponent` with no availability data — guests can't see pricing or blocked dates.
+```
+// Before (line 427-428):
+const checkInParam = searchParams.get('checkIn') || mobileBooking?.state?.checkIn || null;
+const checkOutParam = searchParams.get('checkOut') || mobileBooking?.state?.checkOut || null;
 
-**Fix**: Replace the plain `CalendarComponent` range picker in `Booking.tsx` (Step 1 date selection) with the `BottomSheetDatePicker`, passing the property's availability map. This requires fetching availability in `Booking.tsx` the same way `PropertyShowcase` does (query `property_availability` table + manual rates fallback).
+// After:
+const checkInParam = searchParams.get('checkIn') || null;
+const checkOutParam = searchParams.get('checkOut') || null;
+```
+
+This means when a user clicks "Select Dates & Book" without having selected dates via URL params, they'll be routed to `/book/{slug}?roomTypeId=...` which has the inline date picker with availability calendar — exactly the right UX.
+
+Dates selected via the AI Concierge on the property page will still work because the concierge dispatches navigation with URL params included.
 
 ## Files
 
 | Action | File | What |
 |--------|------|------|
-| Modify | `src/pages/JourneyReview.tsx` | Wrap in `WhiteLabelLayout`/`PublicLayout` based on brand override state |
-| Modify | `src/pages/JourneyCheckout.tsx` | Add remove button per stay in summary sidebar, import `removeStay` |
-| Modify | `src/pages/Booking.tsx` | Replace plain calendar with `BottomSheetDatePicker`, fetch availability map from `property_availability` table |
+| Modify | `src/pages/RoomShowcase.tsx` line 427-428 | Remove `mobileBooking?.state` fallback from date detection |
 
