@@ -107,10 +107,14 @@ export default function AdminPortfolios() {
   const createMutation = useMutation({
     mutationFn: async () => {
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const branding: PortfolioBranding = {
+        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+      };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id } as any)
+        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding } } as any)
         .select()
         .single();
       if (error) throw error;
