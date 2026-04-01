@@ -4513,12 +4513,10 @@ export default function PropertyForm() {
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
-                    // Hide integrations tab for non-ROL properties
-                    if ((tab as any).rolOnly && selectedPMS !== "roomsonline") return false;
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding" || tab.value === "integrations";
                     }
                     return true;
                   }
