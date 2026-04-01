@@ -47,6 +47,7 @@ export default function JourneyCheckout() {
     setSpecialRequests,
     saveToDatabase,
     clearItinerary,
+    removeStay,
     hasStays
   } = useItinerary();
 
