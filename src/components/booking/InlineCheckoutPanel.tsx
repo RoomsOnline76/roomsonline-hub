@@ -223,6 +223,18 @@ export function InlineCheckoutPanel({
                   {stay.rooms.map(r => r.room_type_name).join(", ")}
                 </p>
               </div>
+              {stays.length > 1 && (
+                <button
+                  onClick={() => {
+                    removeStay(stay.id);
+                    toast.info("Stay removed from itinerary");
+                  }}
+                  className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  aria-label="Remove stay"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
