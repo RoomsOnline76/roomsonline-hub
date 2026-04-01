@@ -13,6 +13,10 @@ import { PropertyRecommendations } from '@/components/booking/PropertyRecommenda
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
+import { PublicLayout } from '@/components/layout/PublicLayout';
+import { WhiteLabelLayout } from '@/components/layout/WhiteLabelLayout';
+import { loadBrandFromSession } from '@/lib/brandOverride';
+import { useBrandOverride } from '@/hooks/useBrandOverride';
 
 export default function JourneyReview() {
   const navigate = useNavigate();
