@@ -369,6 +369,7 @@ const App = () => (
           <Route path="/property/:id" element={<PropertyShowcase />} />
           <Route path="/property/:propertySlug/room/:roomSlug" element={<RoomShowcase />} />
           <Route path="/property/:propertySlug/room/:roomSlug/availability" element={<RoomAvailability />} />
+          <Route path="/book/:id" element={<Booking />} />
           <Route path="/booking/:id" element={<Booking />} />
           <Route path="/booking-confirmation/:bookingId" element={<BookingConfirmation />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
