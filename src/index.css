@@ -116,7 +116,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     --secondary-foreground: 40 6% 95%;
 
     --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
+    --muted-foreground: 220 10% 65%;
 
     /* Accent - Brighter gold for dark mode */
     --accent: 38 75% 55%;
