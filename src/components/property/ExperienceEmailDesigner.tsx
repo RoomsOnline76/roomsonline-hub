@@ -244,6 +244,14 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
               <Label className="text-xs">Send Offset (hours before/after trigger)</Label>
               <Input type="number" className="h-8 text-sm w-32" value={editForm.send_offset_hours as number || 0} onChange={e => setEditForm(f => ({ ...f, send_offset_hours: Number(e.target.value) }))} />
             </div>
+
+            {/* Live branded preview */}
+            <EmailTemplatePreview
+              subject={editForm.subject as string || ""}
+              bodyHtml={editForm.body as string || ""}
+              brandColors={brandColors}
+              logoUrl={logoUrl}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button>
