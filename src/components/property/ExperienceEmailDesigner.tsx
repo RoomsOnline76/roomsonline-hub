@@ -51,12 +51,26 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
     enabled: !!propertyId,
   });
 
+  const { data: propertyData } = useQuery({
+    queryKey: ['property-brand-fallback', propertyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('properties')
+        .select('name, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url')
+        .eq('id', propertyId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!propertyId,
+  });
+
   const brandColors = useMemo(() => ({
-    primary: (brandConfig?.primary_color as string) || null,
-    secondary: (brandConfig?.secondary_color as string) || null,
-    font: (brandConfig?.font_color as string) || null,
-  }), [brandConfig]);
-  const logoUrl = (brandConfig?.logo_url as string) || null;
+    primary: (brandConfig?.primary_color as string) || propertyData?.brand_primary_color || null,
+    secondary: (brandConfig?.secondary_color as string) || propertyData?.brand_secondary_color || null,
+    font: (brandConfig?.font_color as string) || propertyData?.brand_font_color || null,
+  }), [brandConfig, propertyData]);
+  const logoUrl = (brandConfig?.logo_url as string) || propertyData?.brand_logo_url || null;
+  const propertyName = propertyData?.name || undefined;
 
   const [editOpen, setEditOpen] = useState(false);
   const [aiWriterOpen, setAiWriterOpen] = useState(false);
