@@ -137,9 +137,14 @@ export default function AdminPortfolios() {
     mutationFn: async () => {
       if (!editPortfolio) return;
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+      const branding: PortfolioBranding = {
+        primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
+        logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+      };
+      const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug } as any)
+        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding } } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
