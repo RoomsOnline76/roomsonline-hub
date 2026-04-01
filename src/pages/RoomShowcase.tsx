@@ -424,8 +424,8 @@ export default function RoomShowcase() {
     
     // For manual rates properties, check if we have dates in URL params or context
     if (isManualRatesProperty && property && room) {
-      const checkInParam = searchParams.get('checkIn') || mobileBooking?.state?.checkIn || null;
-      const checkOutParam = searchParams.get('checkOut') || mobileBooking?.state?.checkOut || null;
+      const checkInParam = searchParams.get('checkIn') || null;
+      const checkOutParam = searchParams.get('checkOut') || null;
       
       // If we have dates (from URL or context), auto-add to cart and navigate to checkout
       if (checkInParam && checkOutParam) {
