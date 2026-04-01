@@ -122,6 +122,7 @@ export default function EmbedPortfolio() {
             starting_rate: p.starting_rate,
             room_count: p.room_count || 0,
             max_guests: p.max_guests,
+            brand_primary_color: p.brand_primary_color,
           }));
           setProperties(mapped);
 
