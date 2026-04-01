@@ -303,6 +303,6 @@ export default function JourneyReview() {
             }}
           />
         )}
-      </div>
+      </LayoutWrapper>
   );
 }
