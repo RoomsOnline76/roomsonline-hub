@@ -57,8 +57,8 @@ export default function EmbedPortfolio() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const brandColor = searchParams.get("brand_color") || "#2563eb";
-  const brandLogo = searchParams.get("brand_logo");
+  const urlBrandColor = searchParams.get("brand_color");
+  const urlBrandLogo = searchParams.get("brand_logo");
   const layout = searchParams.get("layout") || "grid";
 
   const [portfolio, setPortfolio] = useState<any>(null);
