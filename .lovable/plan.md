@@ -1,32 +1,34 @@
 
 
-# Fix Billing Slug Bug + Expose Voice & Template Editing
+# Integrations Tab for All Properties + Experience Engine Templates
 
-## Three Issues Found
+## Two Changes
 
-### 1. Billing Config Error (Bug)
-**Root cause**: `PropertyForm.tsx` line 9388 passes `id!` (the URL slug "latter-days") to `BillingConfigTab` instead of `propertyId` (the resolved UUID state). Same issue on line 9390 for `ReferralSection`.
+### 1. Make Integrations Tab Available to All Properties
 
-**Fix**: Change `propertyId={id!}` → `propertyId={propertyId}` on both lines.
+Currently the tab has `rolOnly: true` and is filtered out for non-ROL PMS properties (line 4517). Also wrapped in `selectedPMS === "roomsonline"` guard at line 11305.
 
-### 2. Email Templates — Where to Edit
-Templates are edited in **PMS → Messaging** (`/pms/messaging`). The TipTap rich-text editor with AI writer is already built there. This is NOT in the property edit form — it's in the PMS shell because templates are per-property PMS features.
+**Fix**: Remove the `rolOnly` flag from the integrations tab definition (line 4510) and remove the `selectedPMS === "roomsonline"` wrapper around the `TabsContent` (line 11305). The NightsBridge filter (line 4519) also needs `"integrations"` added to its allowed tabs.
 
-### 3. Brand Voice — No UI Exists Yet
-The `brand_voice` and `ai_email_tone` fields were seeded into `rolos_experience_configs` via SQL, but **no admin UI was ever built** to view or edit them. The Phase 2 and Phase 4 implementations created the edge function handlers and data structures but skipped the settings UI.
+### 2. Upgrade Templates Tab When Experience Engine Is Enabled
 
-**Fix**: Add a "Voice & Tone" card to the Property Branding tab where admins can set:
-- **Brand Voice** (textarea) — describes the property's personality for AI content
-- **AI Email Tone** (select) — friendly, professional, casual, luxury, etc.
+The existing Templates tab (line 7377) is a basic `RichTextEditor` + mailer timing fields stored in `amenities.templates`. For properties with Experience Engine enabled, this should show the richer AI-powered email designer (similar to what PMS Messaging has).
 
-This reads/writes `rolos_experience_configs` where `config_type = 'brand_kit'`.
+**Approach**: 
+- Check if the property has `experience_engine_enabled` in `rolos_ui_configs`
+- If YES: render a new `ExperienceEmailDesigner` component that reads/writes `rolos_message_templates` with the AI writer (`EmailAIWriter`) and TipTap editor — same components used in `PMSMessaging.tsx`
+- If NO: show the existing basic textarea UI (current behavior)
 
-## Changes
+This requires creating an `ExperienceEmailDesigner` component that reuses existing hooks (`usePmsMessaging` template CRUD + `EmailAIWriter`) but works outside the PMS shell context by accepting a `propertyId` prop directly.
+
+## Files
 
 | Action | File | What |
 |--------|------|------|
-| Modify | `src/pages/PropertyForm.tsx` line 9388 | `propertyId={id!}` → `propertyId={propertyId}` |
-| Modify | `src/pages/PropertyForm.tsx` line 9390 | Same fix for ReferralSection |
-| Create | `src/components/property/BrandVoiceCard.tsx` | Voice & Tone editor card (textarea + select) |
-| Modify | `src/pages/PropertyForm.tsx` Branding tab | Add BrandVoiceCard below existing branding fields |
+| Modify | `src/pages/PropertyForm.tsx` line 4510 | Remove `rolOnly: true` from integrations tab |
+| Modify | `src/pages/PropertyForm.tsx` line 4517 | Remove the `rolOnly` filter logic |
+| Modify | `src/pages/PropertyForm.tsx` line 4519-4521 | Add `"integrations"` to NightsBridge allowed tabs |
+| Modify | `src/pages/PropertyForm.tsx` line 11305 | Remove `selectedPMS === "roomsonline"` guard |
+| Create | `src/components/property/ExperienceEmailDesigner.tsx` | AI-powered template editor using `EmailAIWriter` + `usePmsMessaging` hooks |
+| Modify | `src/pages/PropertyForm.tsx` Templates tab (~line 7377) | Conditionally render `ExperienceEmailDesigner` when experience engine is enabled |
 
