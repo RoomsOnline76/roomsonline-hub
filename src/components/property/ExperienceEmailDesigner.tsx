@@ -15,7 +15,7 @@ import TextAlign from "@tiptap/extension-text-align";
 import Image from "@tiptap/extension-image";
 import {
   Plus, Save, Trash2, Sparkles, Bold, Italic, UnderlineIcon, AlignLeft, AlignCenter, AlignRight,
-  List, ListOrdered, Link as LinkIcon, ImageIcon, Loader2, Tag,
+  List, ListOrdered, Loader2, Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
