@@ -1,45 +1,86 @@
 
 
-# Dynamic Accommodation Labels — RoomShowcase + Booking Hardcoded Fixes
+# Enable Experience Engine for Latter Days + Seed Data
 
-## Problem
+## What This Does
 
-The screenshot shows "This room is part of SIX ON N" on the room detail page, but SIX ON N has its accommodation label set to "Apartment". Several user-facing strings in `RoomShowcase.tsx` and `Booking.tsx` still hardcode "room" instead of using the dynamic `getAccommodationLabel()` helper.
+Turn on the Experience Engine for "[SANDBOX] Latter Days - STILBAAI" (property ID: `ea9a019d-1299-46eb-b371-a0b25eb60350`) and populate it with starter policies and brand config.
 
-## Changes
+## Current State
 
-### 1. `src/pages/RoomShowcase.tsx`
+- **Property**: Villa in Stilbaai, 2 room types (3 Bedroomed Holiday House, Dungeon)
+- **Experience Engine**: OFF (`amenities.experience_engine_enabled` is null)
+- **rolos_policies**: 0 rows for this property
+- **rolos_experience_configs**: 0 rows for this property
+- **Old cancellation rules**: Exist in `amenities.cancellation_policies` (999 days/10%, 30 days/100%)
 
-**Add `property_type` to the Property interface** (it comes from `public_properties` but isn't typed).
+## Data Operations (via insert tool)
 
-**Import `getAccommodationLabel`** and derive the label from `property` state.
+### 1. Enable the toggle
 
-**Replace hardcoded strings:**
+```sql
+UPDATE properties
+SET amenities = jsonb_set(
+  amenities,
+  '{experience_engine_enabled}',
+  'true'
+)
+WHERE id = 'ea9a019d-1299-46eb-b371-a0b25eb60350';
+```
 
-| Line | Current | New |
-|------|---------|-----|
-| 1067 | `"This room is part of"` | `"This {label.singular} is part of"` |
-| 889 | `"This room uses the..."` | `"This {label.singular} uses the..."` |
-| 780 | `{/* Room Summary Card */}` (comment only, cosmetic) | no change needed |
+### 2. Seed cancellation policy (migrating existing rules)
 
-### 2. `src/pages/Booking.tsx`
+```sql
+INSERT INTO rolos_policies (property_id, policy_type, rule)
+VALUES ('ea9a019d-1299-46eb-b371-a0b25eb60350', 'cancellation', '{
+  "mode": "standard",
+  "days_before": 30,
+  "forfeit_percent": 100,
+  "non_refundable": false,
+  "date_ranges": [
+    {"start": "2026-12-15", "end": "2027-01-15", "days_before": 60, "forfeit_percent": 100}
+  ],
+  "dynamic_factors": [],
+  "ai_prompt_override": null
+}');
+```
 
-Already imports `getAccommodationLabel` and has `accommodationLabel` variable. Fix remaining hardcoded spots:
+This preserves the existing 30-day/100% rule and adds a peak season override for Dec–Jan (Stilbaai's peak).
 
-| Line | Current | New |
-|------|---------|-----|
-| 1875 | `` `Room ${index + 1}` `` | `` `${accommodationLabel.singular} ${index + 1}` `` |
-| 1980 | `"Add another room"` | `"Add another ${accommodationLabel.singular.toLowerCase()}"` |
-| 1422 | `"At least one room is required"` | `"At least one ${accommodationLabel.singular.toLowerCase()} is required"` |
+### 3. Seed brand kit config
 
-### 3. No database or migration changes needed
+```sql
+INSERT INTO rolos_experience_configs (property_id, config_type, config)
+VALUES ('ea9a019d-1299-46eb-b371-a0b25eb60350', 'brand_kit', '{
+  "heading_font": null,
+  "body_font": null,
+  "brand_voice": "Warm, coastal, family-friendly. Latter Days is a relaxed Stilbaai holiday home.",
+  "ai_email_tone": "friendly and informative"
+}');
+```
 
-The property already has `amenities.accommodation_label` set to `apartment`. The fix is purely about consuming the label in the two page components.
+### 4. Set accommodation label to "House"
 
-## Files
+Since this is a holiday house/villa:
 
-| Action | File |
-|--------|------|
-| Modify | `src/pages/RoomShowcase.tsx` — import helper, add `property_type` to interface, replace 2 hardcoded "room" strings |
-| Modify | `src/pages/Booking.tsx` — replace 3 remaining hardcoded "room" strings with `accommodationLabel` |
+```sql
+UPDATE properties
+SET amenities = jsonb_set(
+  amenities,
+  '{accommodation_label}',
+  '"villa"'
+)
+WHERE id = 'ea9a019d-1299-46eb-b371-a0b25eb60350';
+```
+
+## Summary
+
+| Item | Value |
+|------|-------|
+| Experience Engine | ON |
+| Cancellation Policy | 30 days / 100% forfeit, peak Dec–Jan override |
+| Brand Kit | Seeded with warm coastal voice |
+| Accommodation Label | Villa |
+
+No code changes needed — purely data operations.
 
