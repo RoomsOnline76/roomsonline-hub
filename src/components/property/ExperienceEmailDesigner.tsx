@@ -265,6 +265,7 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
               bodyHtml={editForm.body as string || ""}
               brandColors={brandColors}
               logoUrl={logoUrl}
+              propertyName={propertyName}
             />
           </div>
           <DialogFooter>

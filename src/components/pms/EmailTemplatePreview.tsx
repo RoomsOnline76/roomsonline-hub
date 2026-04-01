@@ -58,6 +58,8 @@ export function EmailTemplatePreview({
   }, [subject, propertyName]);
 
   const primaryColor = brandColors?.primary || "#1a1a2e";
+  const secondaryColor = brandColors?.secondary || "#e8e8e8";
+  const displayName = propertyName || "Sample Property";
 
   return (
     <Card className="border-dashed">
@@ -69,22 +71,23 @@ export function EmailTemplatePreview({
       <CardContent>
         <div
           className="rounded-lg border overflow-hidden"
-          style={{ maxHeight: 400, overflowY: "auto" }}
+          style={{ maxHeight: 480, overflowY: "auto", backgroundColor: "#f4f4f4" }}
         >
-          {/* Email header bar */}
+          {/* Email header */}
           <div
-            className="px-4 py-3 text-white text-xs"
+            className="px-6 py-4 text-white"
             style={{ backgroundColor: primaryColor }}
           >
             {logoUrl && (
-              <img src={logoUrl} alt="Logo" className="h-6 mb-1" />
+              <img src={logoUrl} alt={displayName} className="h-8 mb-2 object-contain" />
             )}
-            <div className="font-semibold text-sm">{renderedSubject || "Subject line preview"}</div>
-            <div className="opacity-70 mt-0.5">To: jane@example.com</div>
+            <div className="font-semibold text-base">{renderedSubject || "Subject line preview"}</div>
+            <div className="opacity-70 text-xs mt-1">To: jane@example.com</div>
           </div>
+
           {/* Email body */}
           <div
-            className="p-4 bg-white text-sm"
+            className="mx-4 my-4 bg-white rounded-md shadow-sm p-6 text-sm"
             style={{
               fontFamily: "Arial, sans-serif",
               color: brandColors?.font || "#333",
@@ -92,6 +95,14 @@ export function EmailTemplatePreview({
             }}
             dangerouslySetInnerHTML={{ __html: renderedHtml || '<p style="color:#999">Email body will appear here…</p>' }}
           />
+
+          {/* Footer */}
+          <div
+            className="px-6 py-3 text-center text-xs"
+            style={{ color: "#666", borderTop: `2px solid ${secondaryColor}` }}
+          >
+            © {new Date().getFullYear()} {displayName}. All rights reserved.
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -489,6 +489,9 @@ function PMSMessaging() {
                   <EmailTemplatePreview
                     subject={editForm.subject as string || ""}
                     bodyHtml={editForm.body as string || ""}
+                    brandColors={previewBrandColors}
+                    logoUrl={previewLogoUrl}
+                    propertyName={previewPropertyName}
                   />
                 )}
                 {!showPreview && (
