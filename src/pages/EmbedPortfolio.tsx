@@ -25,6 +25,7 @@ interface PortfolioProperty {
   starting_rate: number | null;
   room_count: number;
   max_guests: number | null;
+  brand_primary_color?: string | null;
 }
 
 interface AiGroup {
