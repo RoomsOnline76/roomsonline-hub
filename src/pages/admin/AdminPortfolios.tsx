@@ -192,6 +192,13 @@ export default function AdminPortfolios() {
     setFormName(p.name);
     setFormSlug(p.slug || "");
     setSelectedProps(members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id));
+    const b = p.metadata?.branding;
+    setBrandPrimary(b?.primary_color || "#2563eb");
+    setBrandSecondary(b?.secondary_color || "#1e40af");
+    setBrandFontColor(b?.font_color || "#333333");
+    setBrandLogoUrl(b?.logo_url || "");
+    setBrandHeadingFont(b?.heading_font || "");
+    setBrandBodyFont(b?.body_font || "");
     setEditPortfolio(p);
   };
 
