@@ -310,6 +310,7 @@ export function useActivationReadiness(propertyId: string) {
       if (error) throw error;
       return data as ActivationReadinessResponse;
     },
+    enabled: !!propertyId,
     staleTime: 30000,
     refetchOnWindowFocus: false
   });
