@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +25,7 @@ import {
   MESSAGE_PLACEHOLDERS, TRIGGER_EVENTS,
 } from "@/hooks/usePmsMessaging";
 import { EmailAIWriter } from "@/components/pms/EmailAIWriter";
+import { EmailTemplatePreview } from "@/components/pms/EmailTemplatePreview";
 import type { PmsMessageTemplate } from "@/types/pmsTypes";
 
 interface ExperienceEmailDesignerProps {
@@ -33,6 +36,27 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
   const { data: templates = [], isLoading } = useMessageTemplates(propertyId);
   const upsertTemplate = useUpsertTemplate(propertyId);
   const deleteTemplate = useDeleteTemplate(propertyId);
+
+  const { data: brandConfig } = useQuery({
+    queryKey: ['brand-kit', propertyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('rolos_experience_configs')
+        .select('config')
+        .eq('property_id', propertyId)
+        .eq('experience_type', 'brand_kit')
+        .maybeSingle();
+      return (data?.config as Record<string, unknown>) || null;
+    },
+    enabled: !!propertyId,
+  });
+
+  const brandColors = useMemo(() => ({
+    primary: (brandConfig?.primary_color as string) || null,
+    secondary: (brandConfig?.secondary_color as string) || null,
+    font: (brandConfig?.font_color as string) || null,
+  }), [brandConfig]);
+  const logoUrl = (brandConfig?.logo_url as string) || null;
 
   const [editOpen, setEditOpen] = useState(false);
   const [aiWriterOpen, setAiWriterOpen] = useState(false);
@@ -220,6 +244,14 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
               <Label className="text-xs">Send Offset (hours before/after trigger)</Label>
               <Input type="number" className="h-8 text-sm w-32" value={editForm.send_offset_hours as number || 0} onChange={e => setEditForm(f => ({ ...f, send_offset_hours: Number(e.target.value) }))} />
             </div>
+
+            {/* Live branded preview */}
+            <EmailTemplatePreview
+              subject={editForm.subject as string || ""}
+              bodyHtml={editForm.body as string || ""}
+              brandColors={brandColors}
+              logoUrl={logoUrl}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button>
