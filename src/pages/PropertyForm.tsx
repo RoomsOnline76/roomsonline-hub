@@ -6282,7 +6282,7 @@ export default function PropertyForm() {
               />
             </TabsContent>
 
-            <TabsContent value="branding">
+             <TabsContent value="branding">
               <BrandingTab
                 data={brandingData}
                 onChange={setBrandingData}
@@ -6291,7 +6291,8 @@ export default function PropertyForm() {
                 canToggleBrand={isAdmin || isDev}
                 ownerEmail={formData.owner_email}
               />
-            </TabsContent>
+              {propertyId && <BrandVoiceCard propertyId={propertyId} />}
+             </TabsContent>
 
             <TabsContent value="info-facilities">
               <form onSubmit={handleSubmit} className="space-y-3">
