@@ -465,13 +465,8 @@ export default function RoomShowcase() {
         return;
       }
       
-      // No dates - navigate directly to booking page with room pre-selected
-      const roomSlugName = slugifyRoomName(room.name);
-      const bookingParams = new URLSearchParams({
-        roomTypeId: room.id,
-        roomTypeName: room.name,
-      });
-      navigate(`/book/${property.slug || property.id}?${bookingParams.toString()}`);
+      // No dates - navigate to property page and trigger date picker
+      navigate(`/property/${property.slug || property.id}?selectDates=true&roomTypeId=${room.id}&roomTypeName=${encodeURIComponent(room.name)}`);
       return;
     }
     
