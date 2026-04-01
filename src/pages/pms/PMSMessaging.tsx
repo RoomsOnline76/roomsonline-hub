@@ -79,6 +79,28 @@ function PMSMessaging() {
   const { propertyId: hookPropertyId } = usePmsPropertyId();
   const pid = propertyId || hookPropertyId;
 
+  const { data: propertyBrand } = useQuery({
+    queryKey: ["property-brand", pid],
+    queryFn: async () => {
+      if (!pid) return null;
+      const { data } = await supabase
+        .from("properties")
+        .select("name, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url")
+        .eq("id", pid)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!pid,
+  });
+
+  const previewBrandColors = useMemo(() => ({
+    primary: propertyBrand?.brand_primary_color || null,
+    secondary: propertyBrand?.brand_secondary_color || null,
+    font: propertyBrand?.brand_font_color || null,
+  }), [propertyBrand]);
+  const previewLogoUrl = propertyBrand?.brand_logo_url || null;
+  const previewPropertyName = propertyBrand?.name || undefined;
+
   const { data: templates = [], isLoading: templatesLoading } = useMessageTemplates(pid);
   const { data: log = [], isLoading: logLoading } = useMessageLog(pid);
   const { data: queue = [] } = useMessageQueue(pid);
