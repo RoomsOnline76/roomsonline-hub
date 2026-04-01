@@ -225,6 +225,14 @@ export default function PropertyShowcase() {
   const { hasStays } = useItinerary();
   const { data: reviewData } = usePropertyReviews(property?.id);
 
+  // Auto-open checkout when navigated with #checkout hash (e.g. from RoomShowcase)
+  useEffect(() => {
+    if (window.location.hash === '#checkout' && hasStays) {
+      setCheckoutOpen(true);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [hasStays]);
+
   // Handle AI concierge error - gracefully fall back to legacy flow
   const handleAIError = useCallback(() => {
     setAiFailed(true);
