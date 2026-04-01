@@ -316,6 +316,9 @@ export default function AdminPortfolios() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(`${PUBLIC_DOMAIN}/embed/portfolio/${p.slug}`, '_blank')}>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copySnippet(p.slug)}>
                             <Copy className="h-3.5 w-3.5" />
                           </Button>
