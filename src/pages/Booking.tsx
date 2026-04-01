@@ -300,7 +300,67 @@ const Booking = () => {
       }))
   ) || [];
 
-  // Initialize rooms with pre-selected or restore from session storage
+  // Fetch calendar availability for date picker (rates + blocked dates)
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!property?.id) return;
+      const isManual = !property.external_system;
+      const amenitiesData = property.amenities as Record<string, any> | null;
+      if (!isManual || !amenitiesData) return;
+
+      const today = new Date();
+      const endDate = addDays(today, 395);
+      const todayStr = format(today, "yyyy-MM-dd");
+      const endStr = format(endDate, "yyyy-MM-dd");
+
+      const wizardRooms = amenitiesData.room_types || [];
+      const firstRoom = wizardRooms[0];
+      const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
+      const pmsRateTypes = amenitiesData.pms_rate_types || [];
+      const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
+      const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
+
+      const { data: blockedData } = await supabase
+        .from("property_availability")
+        .select("date, available_units, is_stop_sell")
+        .eq("property_id", property.id)
+        .gte("date", todayStr)
+        .lte("date", endStr);
+
+      const blockedDates = new Set<string>();
+      if (blockedData) {
+        blockedData.forEach((item) => {
+          if (item.is_stop_sell || item.available_units === 0) {
+            blockedDates.add(item.date);
+          }
+        });
+      }
+
+      const calendarMap = new Map<string, { available: boolean; rate?: number }>();
+      for (let i = 0; i < 395; i++) {
+        const date = addDays(today, i);
+        const dateStr = format(date, "yyyy-MM-dd");
+        const isBlocked = blockedDates.has(dateStr);
+        let dayRate = baseRate;
+        const seasons = amenitiesData.seasons || [];
+        const seasonRates = amenitiesData.season_rates || {};
+        for (const season of seasons) {
+          if (dateStr >= season.from && dateStr <= season.to) {
+            const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
+            const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+            if (seasonRateData?.roomAmount) {
+              dayRate = seasonRateData.roomAmount;
+            }
+            break;
+          }
+        }
+        calendarMap.set(dateStr, { available: !isBlocked, rate: dayRate });
+      }
+      setCalendarAvailability(calendarMap);
+    };
+    fetchAvailability();
+  }, [property?.id, property?.external_system, property?.amenities]);
+
   useEffect(() => {
     if (property && rooms.length === 0) {
       // Check for existing booking state in session storage (multi-room flow)
