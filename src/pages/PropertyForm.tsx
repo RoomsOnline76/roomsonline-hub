@@ -510,7 +510,7 @@ export default function PropertyForm() {
           if (!error && data) {
             setOwnerHostfullyCredential(data);
           }
-        } else if ((isAdmin || isDev) && ownerPmsCredentialId) {
+        } else if ((isAdmin || isDev || isFearlessLeader) && ownerPmsCredentialId) {
           // Admin/dev editing - load via property's credential link
           const { data, error } = await supabase
             .from("owner_pms_credentials")
@@ -4975,7 +4975,7 @@ export default function PropertyForm() {
                       )}
 
                       {/* Consolidated Hostfully Sync button for admin/dev */}
-                      {selectedPMS === "hostfully" && !authLoading && propertyId && (ownerPmsCredentialId || hostfullyPropertyUid) && (isAdmin || isDev) && (
+                      {selectedPMS === "hostfully" && !authLoading && propertyId && (ownerPmsCredentialId || hostfullyPropertyUid) && (isAdmin || isDev || isFearlessLeader) && (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
                             <Button
@@ -5262,7 +5262,7 @@ export default function PropertyForm() {
                             </Popover>
                           </div>
                           {/* Linked Additional Owners */}
-                          {propertyId && (isAdmin || isDev) && (
+                          {propertyId && (isAdmin || isDev || isFearlessLeader) && (
                             <div className="flex flex-col gap-1 col-span-2">
                               <Label className="text-xs">Additional Owners</Label>
                               {linkedOwners.length > 0 && (
@@ -8086,7 +8086,7 @@ export default function PropertyForm() {
                       <TabsTrigger value="season">Seasons</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
-                      {(isAdmin || isDev) && <TabsTrigger value="billing">Billing</TabsTrigger>}
+                      {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
                       <TabsTrigger value="policies">Policies</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
                       {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
@@ -9399,7 +9399,7 @@ export default function PropertyForm() {
                     </TabsContent>
 
                     {/* Billing Sub-tab (includes Commission) */}
-                    {(isAdmin || isDev) && (
+                    {(isAdmin || isDev || isFearlessLeader) && (
                       <TabsContent value="billing">
                         <BillingConfigTab propertyId={propertyId} />
                         <div className="mt-4">
