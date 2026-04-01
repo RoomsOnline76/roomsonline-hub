@@ -50,6 +50,7 @@ export function InlineCheckoutPanel({
     stays, guestDetails, setGuestDetails,
     specialRequests, setSpecialRequests,
     totalPrice, totalNights, saveToDatabase,
+    removeStay, hasStays,
   } = useItinerary();
   const { formatPrice } = useCurrency();
   const { gateways: activeGateways } = useActivePaymentGateways();

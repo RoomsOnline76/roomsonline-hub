@@ -216,6 +216,16 @@ export default function PropertyShowcase() {
   const [externalBookingUrl, setExternalBookingUrl] = useState<string>("");
   const [quickBookDrawerOpen, setQuickBookDrawerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  
+  // Auto-open checkout when navigated with #checkout hash (e.g. from RoomShowcase)
+  useEffect(() => {
+    if (window.location.hash === '#checkout' && hasStays) {
+      setCheckoutOpen(true);
+      // Clean up hash
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }, [hasStays]);
+
   // Calendar availability for 90-day range
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   
