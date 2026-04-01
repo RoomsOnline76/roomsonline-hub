@@ -1933,24 +1933,7 @@ const Booking = () => {
               </div>
             )}
 
-            {/* Rate Type Selection (if applicable) */}
-            {rateTypes.length > 1 && (
-              <div className="rounded-xl border border-border/50 bg-card p-4">
-                <Label className="text-xs text-muted-foreground">Rate Type</Label>
-                <Select value={selectedRateType} onValueChange={setSelectedRateType}>
-                  <SelectTrigger className="mt-1 h-9">
-                    <SelectValue placeholder="Select rate type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rateTypes.map((rt) => (
-                      <SelectItem key={rt.id} value={String(rt.id)}>
-                        {rt.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {/* Rate type is determined by room type — not guest-selectable */}
 
             {/* Room Cards */}
             {rooms.map((room, index) => {
