@@ -26,7 +26,8 @@ import {
   Users, 
   CreditCard,
   Shield,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from "lucide-react";
 
 export default function JourneyCheckout() {
