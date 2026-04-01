@@ -156,6 +156,7 @@ export default function RoomShowcase() {
   const [searchParams] = useSearchParams();
   const { currency } = useCurrency();
   const { addStay } = useItinerary();
+  const mobileBooking = useMobileBooking();
   const [property, setProperty] = useState<Property | null>(null);
   const [room, setRoom] = useState<RoomType | null>(null);
   const [rates, setRates] = useState<RateData[]>([]);
