@@ -19,9 +19,13 @@ interface EmailAIWriterProps {
 
 const TONE_OPTIONS = [
   { value: "friendly", label: "Friendly & Warm" },
+  { value: "friendly and informative", label: "Friendly & Informative" },
   { value: "formal", label: "Professional & Formal" },
+  { value: "professional", label: "Professional" },
   { value: "luxury", label: "Luxury & Elegant" },
   { value: "casual", label: "Casual & Relaxed" },
+  { value: "warm and welcoming", label: "Warm & Welcoming" },
+  { value: "adventurous", label: "Adventurous" },
 ];
 
 export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, onGenerated }: EmailAIWriterProps) {
