@@ -1831,6 +1831,45 @@ const Booking = () => {
               <h3 className="font-medium">Your Stay</h3>
             </div>
 
+            {/* Inline Date Picker when no dates selected */}
+            {(!checkIn || !checkOut) && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                  <CalendarDays className="h-4 w-4" />
+                  Select your dates
+                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {checkIn && checkOut ? (
+                        <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
+                      ) : (
+                        <span className="text-muted-foreground">Pick check-in & check-out dates</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+                    <CalendarComponent
+                      initialFocus
+                      mode="range"
+                      selected={checkIn && checkOut ? { from: parseISO(checkIn), to: parseISO(checkOut) } : undefined}
+                      onSelect={(range) => {
+                        if (range?.from) setCheckIn(format(range.from, "yyyy-MM-dd"));
+                        if (range?.to) setCheckOut(format(range.to, "yyyy-MM-dd"));
+                      }}
+                      numberOfMonths={1}
+                      disabled={(date) => date < new Date()}
+                      className="p-3"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {checkIn && !checkOut && (
+                  <p className="text-xs text-muted-foreground">Now select your check-out date</p>
+                )}
+              </div>
+            )}
+
             {/* Rate Type Selection (if applicable) */}
             {rateTypes.length > 1 && (
               <div className="rounded-xl border border-border/50 bg-card p-4">
