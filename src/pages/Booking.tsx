@@ -31,6 +31,7 @@ import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelecto
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { motion } from "framer-motion";
+import { BottomSheetDatePicker } from "@/components/booking/BottomSheetDatePicker";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
