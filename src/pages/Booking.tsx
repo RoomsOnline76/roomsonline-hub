@@ -979,10 +979,38 @@ const Booking = () => {
             }
             
             // Generate synthetic room types with daily rates
+            const pmsRateTypes = amenities?.pms_rate_types || [];
             const syntheticRoomTypes = wizardRooms.map((room: any) => {
               const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
-              const baseRate = room.base_rate || room.baseRate || room.daily_rate || 0;
-              const rateUnit = room.rate_unit || room.rateUnit || 'per_night';
+              
+              // Resolve rate: check linkedRateTypes first, then direct baseRate
+              let baseRate = 0;
+              let rateUnit = room.rate_unit || room.rateUnit || 'per_night';
+              let pricingModel = '';
+              let adult1Rate = 0;
+              let adult2Rate = 0;
+              let childRate = 0;
+              let teenRate = 0;
+              let infantRate = 0;
+              
+              if (room.linkedRateTypes?.length > 0 && pmsRateTypes.length > 0) {
+                const linkedRT = pmsRateTypes.find((rt: any) => rt.id === room.linkedRateTypes[0]);
+                if (linkedRT) {
+                  baseRate = linkedRT.baseRate || 0;
+                  pricingModel = linkedRT.pricingModel || linkedRT.priceType || '';
+                  adult1Rate = linkedRT.adult1Rate || 0;
+                  adult2Rate = linkedRT.adult2Rate || 0;
+                  childRate = linkedRT.childRate || 0;
+                  teenRate = linkedRT.teenRate || 0;
+                  infantRate = linkedRT.infantRate || 0;
+                  if (pricingModel.toLowerCase().includes('person')) {
+                    rateUnit = 'per_person';
+                  }
+                }
+              }
+              if (!baseRate) {
+                baseRate = room.base_rate || room.baseRate || room.daily_rate || 0;
+              }
               
               // Generate daily rates with season adjustments
               const dailyRates = generateDailyRates(checkIn!, checkOut!, baseRate, seasons, seasonRates, roomId);
