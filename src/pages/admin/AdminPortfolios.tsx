@@ -59,6 +59,12 @@ export default function AdminPortfolios() {
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
+  const [brandPrimary, setBrandPrimary] = useState("#2563eb");
+  const [brandSecondary, setBrandSecondary] = useState("#1e40af");
+  const [brandFontColor, setBrandFontColor] = useState("#333333");
+  const [brandLogoUrl, setBrandLogoUrl] = useState("");
+  const [brandHeadingFont, setBrandHeadingFont] = useState("");
+  const [brandBodyFont, setBrandBodyFont] = useState("");
 
   const { data: portfolios = [], isLoading } = useQuery({
     queryKey: ["admin-portfolios"],
