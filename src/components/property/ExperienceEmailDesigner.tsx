@@ -37,6 +37,27 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
   const upsertTemplate = useUpsertTemplate(propertyId);
   const deleteTemplate = useDeleteTemplate(propertyId);
 
+  const { data: brandConfig } = useQuery({
+    queryKey: ['brand-kit', propertyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('rolos_experience_configs')
+        .select('config')
+        .eq('property_id', propertyId)
+        .eq('experience_type', 'brand_kit')
+        .maybeSingle();
+      return (data?.config as Record<string, unknown>) || null;
+    },
+    enabled: !!propertyId,
+  });
+
+  const brandColors = useMemo(() => ({
+    primary: (brandConfig?.primary_color as string) || null,
+    secondary: (brandConfig?.secondary_color as string) || null,
+    font: (brandConfig?.font_color as string) || null,
+  }), [brandConfig]);
+  const logoUrl = (brandConfig?.logo_url as string) || null;
+
   const [editOpen, setEditOpen] = useState(false);
   const [aiWriterOpen, setAiWriterOpen] = useState(false);
   const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
