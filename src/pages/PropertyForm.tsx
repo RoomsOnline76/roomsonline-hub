@@ -2917,6 +2917,16 @@ export default function PropertyForm() {
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
 
+          // Check if Experience Engine is enabled
+          supabase
+            .from('rolos_ui_configs')
+            .select('experience_engine_enabled')
+            .eq('property_id', data.id)
+            .maybeSingle()
+            .then(({ data: uiCfg }) => {
+              setExperienceEngineEnabled(uiCfg?.experience_engine_enabled ?? false);
+            });
+
           // Populate form data
           const amenities = data.amenities as any;
           const houseRules = amenities?.house_rules || {};
