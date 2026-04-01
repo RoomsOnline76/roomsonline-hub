@@ -75,6 +75,11 @@ export default function EmbedPortfolio() {
   const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
 
+  // Resolve branding: URL params override portfolio metadata
+  const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
+  const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
+  const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
+
   // Resize observer for iframe
   useEffect(() => {
     if (window.parent === window) return;
