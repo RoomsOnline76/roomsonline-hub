@@ -18,12 +18,22 @@ import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Load
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 
+interface PortfolioBranding {
+  primary_color?: string;
+  secondary_color?: string;
+  font_color?: string;
+  logo_url?: string;
+  heading_font?: string;
+  body_font?: string;
+}
+
 interface Portfolio {
   id: string;
   name: string;
   slug: string;
   owner_id: string | null;
   created_at: string;
+  metadata?: { branding?: PortfolioBranding } | null;
 }
 
 interface PortfolioMember {
