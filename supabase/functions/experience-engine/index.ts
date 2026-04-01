@@ -283,8 +283,23 @@ Deno.serve(async (req) => {
           .single();
 
         const config = await resolveExperienceConfig(supabase, property_id, 'guest_email');
-        const systemPrompt = (config as any)?.system_prompt ||
+
+        // Fetch brand voice/tone from brand_kit config
+        const { data: brandKitRow } = await supabase
+          .from('rolos_experience_configs')
+          .select('config')
+          .eq('property_id', property_id)
+          .eq('experience_type', 'brand_kit')
+          .maybeSingle();
+        const brandKitCfg = brandKitRow?.config as Record<string, unknown> | null;
+        const brandVoice = brandKitCfg?.brand_voice as string || '';
+        const aiEmailTone = brandKitCfg?.ai_email_tone as string || tone;
+
+        let systemPromptBase = (config as any)?.system_prompt ||
           `You are an email copywriter for ${prop?.name || 'a property'}, a ${prop?.property_type || 'accommodation'} in ${[prop?.city, prop?.country].filter(Boolean).join(', ') || 'a beautiful destination'}. Write engaging, on-brand guest emails. Use these placeholders where appropriate: {{guest_name}}, {{guest_first_name}}, {{property_name}}, {{check_in_date}}, {{check_out_date}}, {{confirmation_number}}, {{total_amount}}, {{nights}}. Return HTML suitable for email clients with inline styles.`;
+        if (brandVoice) systemPromptBase += ` Brand voice: ${brandVoice}.`;
+        if (aiEmailTone) systemPromptBase += ` Write in a ${aiEmailTone} tone.`;
+        const systemPrompt = systemPromptBase;
         const model = (config as any)?.model || 'google/gemini-3-flash-preview';
 
         let generated: { subject: string; body_html: string; tone_used: string } = { subject: '', body_html: '', tone_used: tone };

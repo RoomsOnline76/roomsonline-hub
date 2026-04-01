@@ -14,17 +14,22 @@ interface EmailAIWriterProps {
   propertyId: string | null;
   triggerEvent: string;
   onGenerated: (subject: string, bodyHtml: string) => void;
+  defaultTone?: string;
 }
 
 const TONE_OPTIONS = [
   { value: "friendly", label: "Friendly & Warm" },
+  { value: "friendly and informative", label: "Friendly & Informative" },
   { value: "formal", label: "Professional & Formal" },
+  { value: "professional", label: "Professional" },
   { value: "luxury", label: "Luxury & Elegant" },
   { value: "casual", label: "Casual & Relaxed" },
+  { value: "warm and welcoming", label: "Warm & Welcoming" },
+  { value: "adventurous", label: "Adventurous" },
 ];
 
-export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, onGenerated }: EmailAIWriterProps) {
-  const [tone, setTone] = useState("friendly");
+export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, onGenerated, defaultTone }: EmailAIWriterProps) {
+  const [tone, setTone] = useState(defaultTone || "friendly");
   const [customPrompt, setCustomPrompt] = useState("");
   const generateContent = useGenerateEmailContent(propertyId);
 

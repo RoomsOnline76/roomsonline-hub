@@ -26,6 +26,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
   const [brandVoice, setBrandVoice] = useState('');
   const [aiTone, setAiTone] = useState('friendly and informative');
   const [configId, setConfigId] = useState<string | null>(null);
+  const [existingConfig, setExistingConfig] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +43,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
         if (data) {
           setConfigId(data.id);
           const cfg = data.config as Record<string, unknown> | null;
+          setExistingConfig(cfg);
           setBrandVoice((cfg?.brand_voice as string) || '');
           setAiTone((cfg?.ai_email_tone as string) || 'friendly and informative');
         }
@@ -53,10 +55,9 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
     setSaving(true);
     try {
       const configPayload: Json = {
+        ...(existingConfig as Record<string, Json> || {}),
         brand_voice: brandVoice,
         ai_email_tone: aiTone,
-        heading_font: null,
-        body_font: null,
       };
 
       if (configId) {
