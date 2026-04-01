@@ -4528,7 +4528,7 @@ export default function PropertyForm() {
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "onboarding" || tab.value === "integrations";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations";
                     }
                     return true;
                   }
