@@ -21,6 +21,12 @@ import { useBrandOverride } from '@/hooks/useBrandOverride';
 export default function JourneyReview() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Brand override - check if first stay has a branded property
+  const cachedBrand = loadBrandFromSession();
+  const isBranded = !!cachedBrand?.enabled;
+  useBrandOverride(cachedBrand?.propertyId);
+  
   const {
     stays,
     guestDetails,
