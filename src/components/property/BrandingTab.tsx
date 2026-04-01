@@ -505,24 +505,16 @@ function ExperienceEngineToggle({ propertyId }: { propertyId: string }) {
     setEnabled(checked);
     const { error } = await supabase
       .from('rolos_ui_configs')
-      .update({ experience_engine_enabled: checked })
-      .eq('property_id', propertyId);
+      .upsert({
+        property_id: propertyId,
+        component_type: 'experience_engine',
+        experience_engine_enabled: checked,
+      }, { onConflict: 'property_id,component_type' });
 
     if (error) {
-      // Try upsert if row doesn't exist
-      const { error: upsertError } = await supabase
-        .from('rolos_ui_configs')
-        .upsert({
-          property_id: propertyId,
-          component_type: 'experience_engine',
-          experience_engine_enabled: checked,
-        }, { onConflict: 'property_id,component_type' });
-
-      if (upsertError) {
-        setEnabled(!checked);
-        toast({ title: 'Error', description: 'Failed to update Experience Engine setting', variant: 'destructive' });
-        return;
-      }
+      setEnabled(!checked);
+      toast({ title: 'Error', description: 'Failed to update Experience Engine setting', variant: 'destructive' });
+      return;
     }
 
     toast({ title: checked ? 'Experience Engine Enabled' : 'Experience Engine Disabled' });
