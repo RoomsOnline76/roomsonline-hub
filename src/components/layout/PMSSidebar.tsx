@@ -206,7 +206,7 @@ export function PMSSidebar() {
           return (
             <div key={group.label}>
               {!collapsed && (
-                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   {group.label}
                 </p>
               )}
