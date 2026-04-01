@@ -400,6 +400,7 @@ export default function PropertyForm() {
   // Accommodation label + self catering
   const [accommodationLabel, setAccommodationLabel] = useState<string>("");
   const [isSelfCatering, setIsSelfCatering] = useState(false);
+  const [experienceEngineEnabled, setExperienceEngineEnabled] = useState(false);
 
   // Linked owners state
   const [linkedOwners, setLinkedOwners] = useState<Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>>([]);
