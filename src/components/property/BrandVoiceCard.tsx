@@ -55,10 +55,9 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
     setSaving(true);
     try {
       const configPayload: Json = {
+        ...(existingConfig as Record<string, Json> || {}),
         brand_voice: brandVoice,
         ai_email_tone: aiTone,
-        heading_font: null,
-        body_font: null,
       };
 
       if (configId) {

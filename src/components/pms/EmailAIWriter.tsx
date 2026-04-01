@@ -28,8 +28,8 @@ const TONE_OPTIONS = [
   { value: "adventurous", label: "Adventurous" },
 ];
 
-export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, onGenerated }: EmailAIWriterProps) {
-  const [tone, setTone] = useState("friendly");
+export function EmailAIWriter({ open, onOpenChange, propertyId, triggerEvent, onGenerated, defaultTone }: EmailAIWriterProps) {
+  const [tone, setTone] = useState(defaultTone || "friendly");
   const [customPrompt, setCustomPrompt] = useState("");
   const generateContent = useGenerateEmailContent(propertyId);
 

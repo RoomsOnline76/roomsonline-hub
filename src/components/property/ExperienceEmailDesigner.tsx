@@ -270,6 +270,7 @@ export function ExperienceEmailDesigner({ propertyId }: ExperienceEmailDesignerP
         propertyId={propertyId}
         triggerEvent={editForm.trigger_event as string || "manual"}
         onGenerated={handleAIGenerated}
+        defaultTone={(brandConfig?.ai_email_tone as string) || undefined}
       />
     </>
   );
