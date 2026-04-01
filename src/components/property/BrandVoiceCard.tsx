@@ -26,6 +26,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
   const [brandVoice, setBrandVoice] = useState('');
   const [aiTone, setAiTone] = useState('friendly and informative');
   const [configId, setConfigId] = useState<string | null>(null);
+  const [existingConfig, setExistingConfig] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
