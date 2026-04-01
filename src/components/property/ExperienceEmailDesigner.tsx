@@ -25,6 +25,7 @@ import {
   MESSAGE_PLACEHOLDERS, TRIGGER_EVENTS,
 } from "@/hooks/usePmsMessaging";
 import { EmailAIWriter } from "@/components/pms/EmailAIWriter";
+import { EmailTemplatePreview } from "@/components/pms/EmailTemplatePreview";
 import type { PmsMessageTemplate } from "@/types/pmsTypes";
 
 interface ExperienceEmailDesignerProps {
