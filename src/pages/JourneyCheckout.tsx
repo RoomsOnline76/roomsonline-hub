@@ -408,7 +408,7 @@ export default function JourneyCheckout() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {stays.map((stay, index) => (
-                      <div key={stay.id} className="flex items-start gap-3">
+                      <div key={stay.id} className="flex items-start gap-3 group">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
                           {index + 1}
                         </div>
@@ -418,8 +418,22 @@ export default function JourneyCheckout() {
                             {new Date(stay.dates.check_in).toLocaleDateString()} - {new Date(stay.dates.check_out).toLocaleDateString()}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="flex items-center gap-1">
                           <FormattedPrice amount={stay.price_breakdown.total} className="text-sm font-medium" />
+                          {stays.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeStay(stay.id);
+                                toast.success(`${stay.property_name} removed`);
+                                if (stays.length <= 1) navigate('/journey/review');
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                              title="Remove stay"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
