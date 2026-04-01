@@ -116,7 +116,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     --secondary-foreground: 40 6% 95%;
 
     --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
+    --muted-foreground: 220 10% 65%;
 
     /* Accent - Brighter gold for dark mode */
     --accent: 38 75% 55%;
@@ -149,7 +149,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     --sidebar-foreground: 40 6% 95%;
     --sidebar-primary: 326 85% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 16%;
+    --sidebar-accent: 220 15% 20%;
     --sidebar-accent-foreground: 40 6% 95%;
     --sidebar-border: 220 15% 18%;
     --sidebar-ring: 326 85% 60%;

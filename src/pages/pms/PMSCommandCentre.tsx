@@ -99,12 +99,21 @@ export default function PMSCommandCentre() {
         .gte("date", startDate)
         .lte("date", endDate);
 
+      // Fetch room type names for all properties
+      const { data: roomTypes } = await supabase
+        .from("rolos_room_types")
+        .select("id, name, property_id")
+        .in("property_id", propertyIds);
+      const roomTypeMap = Object.fromEntries(
+        (roomTypes || []).map((rt: any) => [rt.id, rt.name])
+      );
+
       // Map property names
       const propMap = Object.fromEntries(agentProperties.map((p) => [p.id, p.name]));
       const rows: AvailabilityRow[] = (cacheData || []).map((r: any) => ({
         property_id: r.property_id,
         property_name: propMap[r.property_id] || "Unknown",
-        room_type_name: r.external_room_type_id || "Room",
+        room_type_name: roomTypeMap[r.external_room_type_id] || r.external_room_type_id || "Room",
         date: r.date,
         available_units: r.available_units ?? 0,
       }));

@@ -122,7 +122,7 @@ export function PMSSidebar() {
           "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
           "hover:bg-accent hover:text-accent-foreground",
           active && "bg-accent text-primary border-l-2 border-primary",
-          !active && "text-foreground/70"
+          !active && "text-foreground/80"
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -206,7 +206,7 @@ export function PMSSidebar() {
           return (
             <div key={group.label}>
               {!collapsed && (
-                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   {group.label}
                 </p>
               )}
@@ -234,7 +234,7 @@ export function PMSSidebar() {
             onClick={() => navigate("/admin/property-overview")}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all",
-              "hover:bg-accent hover:text-accent-foreground text-foreground/70"
+              "hover:bg-accent hover:text-accent-foreground text-foreground/80"
             )}
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
