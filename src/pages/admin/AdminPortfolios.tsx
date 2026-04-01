@@ -276,6 +276,55 @@ export default function AdminPortfolios() {
         />
         <p className="text-[10px] text-muted-foreground">Used in embed URLs: /embed/portfolio/{formSlug || "auto"}</p>
       </div>
+
+      {/* Branding Section */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <Label className="text-xs font-semibold">Branding</Label>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Logo URL</Label>
+          <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Primary</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandPrimary} onChange={(e) => setBrandPrimary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Secondary</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandSecondary} onChange={(e) => setBrandSecondary(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Font Color</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Heading Font</Label>
+            <Input value={brandHeadingFont} onChange={(e) => setBrandHeadingFont(e.target.value)} placeholder="e.g. Playfair Display" className="text-xs h-7" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Body Font</Label>
+            <Input value={brandBodyFont} onChange={(e) => setBrandBodyFont(e.target.value)} placeholder="e.g. Lato" className="text-xs h-7" />
+          </div>
+        </div>
+        {brandLogoUrl && (
+          <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
+            <img src={brandLogoUrl} alt="Logo preview" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+            <span className="text-[10px] text-muted-foreground">Logo preview</span>
+          </div>
+        )}
+      </div>
+
       <PropertyPicker />
     </div>
   );
