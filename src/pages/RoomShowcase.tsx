@@ -421,12 +421,12 @@ export default function RoomShowcase() {
       return;
     }
     
-    // For manual rates properties, check if we have dates in URL params
+    // For manual rates properties, check if we have dates in URL params or context
     if (isManualRatesProperty && property && room) {
-      const checkInParam = searchParams.get('checkIn');
-      const checkOutParam = searchParams.get('checkOut');
+      const checkInParam = searchParams.get('checkIn') || mobileBooking?.state?.checkIn || null;
+      const checkOutParam = searchParams.get('checkOut') || mobileBooking?.state?.checkOut || null;
       
-      // If we have dates in URL, auto-add to cart and navigate to checkout
+      // If we have dates (from URL or context), auto-add to cart and navigate to checkout
       if (checkInParam && checkOutParam) {
         const checkIn = new Date(checkInParam);
         const checkOut = new Date(checkOutParam);
@@ -466,8 +466,8 @@ export default function RoomShowcase() {
         return;
       }
       
-      // No dates - navigate to property page and trigger date picker
-      navigate(`/property/${property.slug || property.id}?selectDates=true&roomTypeId=${room.id}&roomTypeName=${encodeURIComponent(room.name)}`);
+      // No dates anywhere - go to /book/ page which has inline date picker (breaks the loop)
+      navigate(`/book/${property.slug || property.id}?roomTypeId=${room.id}&roomTypeName=${encodeURIComponent(room.name)}`);
       return;
     }
     
