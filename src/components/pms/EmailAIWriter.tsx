@@ -14,6 +14,7 @@ interface EmailAIWriterProps {
   propertyId: string | null;
   triggerEvent: string;
   onGenerated: (subject: string, bodyHtml: string) => void;
+  defaultTone?: string;
 }
 
 const TONE_OPTIONS = [
