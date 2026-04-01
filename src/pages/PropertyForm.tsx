@@ -9385,9 +9385,9 @@ export default function PropertyForm() {
                     {/* Billing Sub-tab (includes Commission) */}
                     {(isAdmin || isDev) && (
                       <TabsContent value="billing">
-                        <BillingConfigTab propertyId={id!} />
+                        <BillingConfigTab propertyId={propertyId} />
                         <div className="mt-4">
-                          <ReferralSection propertyId={id!} />
+                          <ReferralSection propertyId={propertyId} />
                         </div>
                       </TabsContent>
                     )}
