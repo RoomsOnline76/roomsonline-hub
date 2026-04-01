@@ -1,86 +1,32 @@
 
 
-# Enable Experience Engine for Latter Days + Seed Data
+# Fix Billing Slug Bug + Expose Voice & Template Editing
 
-## What This Does
+## Three Issues Found
 
-Turn on the Experience Engine for "[SANDBOX] Latter Days - STILBAAI" (property ID: `ea9a019d-1299-46eb-b371-a0b25eb60350`) and populate it with starter policies and brand config.
+### 1. Billing Config Error (Bug)
+**Root cause**: `PropertyForm.tsx` line 9388 passes `id!` (the URL slug "latter-days") to `BillingConfigTab` instead of `propertyId` (the resolved UUID state). Same issue on line 9390 for `ReferralSection`.
 
-## Current State
+**Fix**: Change `propertyId={id!}` → `propertyId={propertyId}` on both lines.
 
-- **Property**: Villa in Stilbaai, 2 room types (3 Bedroomed Holiday House, Dungeon)
-- **Experience Engine**: OFF (`amenities.experience_engine_enabled` is null)
-- **rolos_policies**: 0 rows for this property
-- **rolos_experience_configs**: 0 rows for this property
-- **Old cancellation rules**: Exist in `amenities.cancellation_policies` (999 days/10%, 30 days/100%)
+### 2. Email Templates — Where to Edit
+Templates are edited in **PMS → Messaging** (`/pms/messaging`). The TipTap rich-text editor with AI writer is already built there. This is NOT in the property edit form — it's in the PMS shell because templates are per-property PMS features.
 
-## Data Operations (via insert tool)
+### 3. Brand Voice — No UI Exists Yet
+The `brand_voice` and `ai_email_tone` fields were seeded into `rolos_experience_configs` via SQL, but **no admin UI was ever built** to view or edit them. The Phase 2 and Phase 4 implementations created the edge function handlers and data structures but skipped the settings UI.
 
-### 1. Enable the toggle
+**Fix**: Add a "Voice & Tone" card to the Property Branding tab where admins can set:
+- **Brand Voice** (textarea) — describes the property's personality for AI content
+- **AI Email Tone** (select) — friendly, professional, casual, luxury, etc.
 
-```sql
-UPDATE properties
-SET amenities = jsonb_set(
-  amenities,
-  '{experience_engine_enabled}',
-  'true'
-)
-WHERE id = 'ea9a019d-1299-46eb-b371-a0b25eb60350';
-```
+This reads/writes `rolos_experience_configs` where `config_type = 'brand_kit'`.
 
-### 2. Seed cancellation policy (migrating existing rules)
+## Changes
 
-```sql
-INSERT INTO rolos_policies (property_id, policy_type, rule)
-VALUES ('ea9a019d-1299-46eb-b371-a0b25eb60350', 'cancellation', '{
-  "mode": "standard",
-  "days_before": 30,
-  "forfeit_percent": 100,
-  "non_refundable": false,
-  "date_ranges": [
-    {"start": "2026-12-15", "end": "2027-01-15", "days_before": 60, "forfeit_percent": 100}
-  ],
-  "dynamic_factors": [],
-  "ai_prompt_override": null
-}');
-```
-
-This preserves the existing 30-day/100% rule and adds a peak season override for Dec–Jan (Stilbaai's peak).
-
-### 3. Seed brand kit config
-
-```sql
-INSERT INTO rolos_experience_configs (property_id, config_type, config)
-VALUES ('ea9a019d-1299-46eb-b371-a0b25eb60350', 'brand_kit', '{
-  "heading_font": null,
-  "body_font": null,
-  "brand_voice": "Warm, coastal, family-friendly. Latter Days is a relaxed Stilbaai holiday home.",
-  "ai_email_tone": "friendly and informative"
-}');
-```
-
-### 4. Set accommodation label to "House"
-
-Since this is a holiday house/villa:
-
-```sql
-UPDATE properties
-SET amenities = jsonb_set(
-  amenities,
-  '{accommodation_label}',
-  '"villa"'
-)
-WHERE id = 'ea9a019d-1299-46eb-b371-a0b25eb60350';
-```
-
-## Summary
-
-| Item | Value |
-|------|-------|
-| Experience Engine | ON |
-| Cancellation Policy | 30 days / 100% forfeit, peak Dec–Jan override |
-| Brand Kit | Seeded with warm coastal voice |
-| Accommodation Label | Villa |
-
-No code changes needed — purely data operations.
+| Action | File | What |
+|--------|------|------|
+| Modify | `src/pages/PropertyForm.tsx` line 9388 | `propertyId={id!}` → `propertyId={propertyId}` |
+| Modify | `src/pages/PropertyForm.tsx` line 9390 | Same fix for ReferralSection |
+| Create | `src/components/property/BrandVoiceCard.tsx` | Voice & Tone editor card (textarea + select) |
+| Modify | `src/pages/PropertyForm.tsx` Branding tab | Add BrandVoiceCard below existing branding fields |
 
