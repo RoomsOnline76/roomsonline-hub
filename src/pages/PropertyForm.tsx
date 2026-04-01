@@ -86,6 +86,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette } from "lucide-react";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
+import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
 import { ContextualHelp, ImpactWarning } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { parseHostfullyProperties } from "@/lib/hostfullyBuildingParser";
@@ -6282,7 +6283,7 @@ export default function PropertyForm() {
               />
             </TabsContent>
 
-            <TabsContent value="branding">
+             <TabsContent value="branding">
               <BrandingTab
                 data={brandingData}
                 onChange={setBrandingData}
@@ -6291,7 +6292,8 @@ export default function PropertyForm() {
                 canToggleBrand={isAdmin || isDev}
                 ownerEmail={formData.owner_email}
               />
-            </TabsContent>
+              {propertyId && <BrandVoiceCard propertyId={propertyId} />}
+             </TabsContent>
 
             <TabsContent value="info-facilities">
               <form onSubmit={handleSubmit} className="space-y-3">
@@ -9385,9 +9387,9 @@ export default function PropertyForm() {
                     {/* Billing Sub-tab (includes Commission) */}
                     {(isAdmin || isDev) && (
                       <TabsContent value="billing">
-                        <BillingConfigTab propertyId={id!} />
+                        <BillingConfigTab propertyId={propertyId} />
                         <div className="mt-4">
-                          <ReferralSection propertyId={id!} />
+                          <ReferralSection propertyId={propertyId} />
                         </div>
                       </TabsContent>
                     )}
