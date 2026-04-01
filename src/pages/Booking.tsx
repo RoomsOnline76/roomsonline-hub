@@ -188,6 +188,10 @@ const Booking = () => {
   const [showDateReselectDialog, setShowDateReselectDialog] = useState(false);
   const [pendingCheckIn, setPendingCheckIn] = useState<Date | undefined>();
   const [pendingCheckOut, setPendingCheckOut] = useState<Date | undefined>();
+  
+  // Availability calendar map (rates + blocked dates)
+  const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
