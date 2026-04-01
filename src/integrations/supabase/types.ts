@@ -9911,6 +9911,42 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      search_audit_logs: {
+        Args: {
+          date_from?: string
+          date_to?: string
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          source_filter?: string
+        }
+        Returns: {
+          action_type: string
+          change_summary: string
+          changed_fields: string[]
+          correlation_id: string
+          created_at: string
+          edge_function_name: string
+          id: string
+          immutable_hash: string
+          ip_address: string
+          is_sensitive: boolean
+          metadata: Json
+          new_values: Json
+          old_values: Json
+          property_id: string
+          record_id: string
+          redacted_fields: string[]
+          request_origin: string
+          session_id: string
+          table_name: string
+          total_count: number
+          user_agent: string
+          user_email: string
+          user_id: string
+          user_role: string
+        }[]
+      }
       trigger_daily_health_report: { Args: never; Returns: undefined }
       trigger_system_health_check: { Args: never; Returns: undefined }
     }
