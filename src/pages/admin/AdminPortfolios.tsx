@@ -180,6 +180,12 @@ export default function AdminPortfolios() {
     setFormSlug("");
     setSelectedProps([]);
     setPropertySearch("");
+    setBrandPrimary("#2563eb");
+    setBrandSecondary("#1e40af");
+    setBrandFontColor("#333333");
+    setBrandLogoUrl("");
+    setBrandHeadingFont("");
+    setBrandBodyFont("");
   };
 
   const openEdit = (p: Portfolio) => {
