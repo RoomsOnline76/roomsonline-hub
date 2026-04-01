@@ -7385,6 +7385,9 @@ export default function PropertyForm() {
 
             {/* Templates and Notifications Tab */}
             <TabsContent value="templates">
+              {experienceEngineEnabled && propertyId ? (
+                <ExperienceEmailDesigner propertyId={propertyId} />
+              ) : (
               <Card>
                 <CardContent className="py-3 px-4 space-y-3">
                   {/* Template Selection Buttons */}
@@ -7478,6 +7481,7 @@ export default function PropertyForm() {
                   </div>
                 </CardContent>
               </Card>
+              )}
 
               <div className="flex justify-end gap-2 mt-3">
                 <Button
