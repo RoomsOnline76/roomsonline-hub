@@ -96,35 +96,20 @@ export default function DevLogs() {
       setLoading(true);
       const dateStart = getDateFilter();
 
-      // Build base query for count
-      let countQuery = supabase
-        .from("audit_logs")
-        .select("*", { count: "exact", head: true });
+      // Use RPC for deep search (searches inside JSON columns too)
+      const { data, error } = await supabase.rpc("search_audit_logs", {
+        search_text: searchQuery || null,
+        date_from: dateStart || null,
+        date_to: null,
+        source_filter: sourceFilter !== "all" ? sourceFilter : null,
+        result_limit: PAGE_SIZE,
+        result_offset: page * PAGE_SIZE,
+      });
 
-      if (dateStart) countQuery = countQuery.gte("created_at", dateStart);
-      if (sourceFilter !== "all") countQuery = countQuery.eq("table_name", sourceFilter);
-      if (searchQuery) countQuery = countQuery.or(
-        `change_summary.ilike.%${searchQuery}%,user_email.ilike.%${searchQuery}%,record_id.ilike.%${searchQuery}%,table_name.ilike.%${searchQuery}%`
-      );
-
-      const { count } = await countQuery;
-      setTotalCount(count || 0);
-
-      // Build data query
-      let query = supabase
-        .from("audit_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-      if (dateStart) query = query.gte("created_at", dateStart);
-      if (sourceFilter !== "all") query = query.eq("table_name", sourceFilter);
-      if (searchQuery) query = query.or(
-        `change_summary.ilike.%${searchQuery}%,user_email.ilike.%${searchQuery}%,record_id.ilike.%${searchQuery}%,table_name.ilike.%${searchQuery}%`
-      );
-
-      const { data, error } = await query;
       if (error) throw error;
+
+      const totalFromRpc = (data as any)?.[0]?.total_count || 0;
+      setTotalCount(Number(totalFromRpc));
 
       const logEntries: LogEntry[] = (data || []).map((log: any) => ({
         id: log.id,
@@ -145,7 +130,7 @@ export default function DevLogs() {
       const errors = logEntries.filter((l) => l.level === "error").length;
       const warnings = logEntries.filter((l) => l.level === "warning").length;
       const infos = logEntries.filter((l) => l.level === "info").length;
-      setStats({ total: count || 0, errors, warnings, info: infos });
+      setStats({ total: Number(totalFromRpc), errors, warnings, info: infos });
     } catch (error) {
       console.error("Error loading logs:", error);
       toast.error("Failed to load logs");
