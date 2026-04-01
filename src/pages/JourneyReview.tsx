@@ -70,9 +70,14 @@ export default function JourneyReview() {
     navigate('/journey/checkout');
   };
 
+  const LayoutWrapper = isBranded ? WhiteLabelLayout : PublicLayout;
+  const layoutProps = isBranded
+    ? { propertyName: stays[0]?.property_name }
+    : { hideJourneyBuilder: true };
+
   if (!hasStays) {
     return (
-      <div className="min-h-screen bg-background">
+      <LayoutWrapper {...layoutProps as any}>
         <div className="container max-w-4xl py-16 text-center">
           <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
           <h1 className="text-3xl font-serif font-semibold mb-4">
@@ -85,7 +90,7 @@ export default function JourneyReview() {
             Browse Properties
           </Button>
         </div>
-      </div>
+      </LayoutWrapper>
     );
   }
 
