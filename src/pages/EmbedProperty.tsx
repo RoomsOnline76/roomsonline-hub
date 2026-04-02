@@ -412,23 +412,34 @@ export default function EmbedProperty() {
 
       {/* ── Date Controls ── */}
       <motion.div
+        ref={dateControlsRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
         className="bg-card border-b border-border px-4 sm:px-5 py-3 flex items-center gap-3 flex-wrap text-sm"
+        style={datesPulse ? {
+          boxShadow: `0 0 0 3px ${brandColor}60`,
+          transition: "box-shadow 0.3s ease",
+        } : { transition: "box-shadow 0.3s ease" }}
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dates</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {!datesConfirmed ? "👉 Select your dates" : "Dates"}
+          </span>
           <EmbedDatePicker
             checkIn={checkIn}
             checkOut={checkOut}
             onCheckInChange={(d) => {
               setCheckIn(d);
+              setDatesConfirmed(true);
               if (d && (!checkOut || new Date(checkOut) <= new Date(d))) {
                 setCheckOut(format(addDays(new Date(d), 1), "yyyy-MM-dd"));
               }
             }}
-            onCheckOutChange={setCheckOut}
+            onCheckOutChange={(d) => {
+              setCheckOut(d);
+              setDatesConfirmed(true);
+            }}
             brandColor={brandColor}
             fontColor={fontColor}
           />
