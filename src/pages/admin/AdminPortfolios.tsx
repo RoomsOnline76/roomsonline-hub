@@ -347,7 +347,7 @@ export default function AdminPortfolios() {
               <DialogHeader>
                 <DialogTitle>Create Portfolio</DialogTitle>
               </DialogHeader>
-              <PortfolioFormFields />
+              {renderFormFields()}
               <DialogFooter>
                 <Button onClick={() => createMutation.mutate()} disabled={!formName.trim() || createMutation.isPending} size="sm">
                   {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
