@@ -564,22 +564,73 @@ export default function EmbedProperty() {
                 : [];
               const thumb = roomImages[0] || room.thumbnail_url || heroImage;
 
+              // ── Availability badge logic ──
+              const roomCache = pmsCacheMap[room.id] || {};
+              const todayStr = format(today, 'yyyy-MM-dd');
+              const todayEntry = roomCache[todayStr];
+              const todayUnits = todayEntry?.available_units ?? (room.total_units || 0);
+
+              let badgeType: 'low' | 'future' | 'soldout' | null = null;
+              let badgeText = '';
+              let nextAvailDay: { units: number; dayName: string } | null = null;
+
+              if (todayUnits > 0 && todayUnits <= 3) {
+                badgeType = 'low';
+                badgeText = `${todayUnits} left today`;
+              } else if (todayUnits <= 0) {
+                // Scan next 7 days
+                for (let d = 1; d <= 7; d++) {
+                  const dateStr = format(addDays(today, d), 'yyyy-MM-dd');
+                  const dayEntry = roomCache[dateStr];
+                  const units = dayEntry?.available_units ?? 0;
+                  if (units > 0) {
+                    nextAvailDay = { units, dayName: format(addDays(today, d), 'EEEE') };
+                    break;
+                  }
+                }
+                if (nextAvailDay) {
+                  badgeType = 'future';
+                  badgeText = `${nextAvailDay.units} available from ${nextAvailDay.dayName}`;
+                } else if (Object.keys(roomCache).length > 0) {
+                  badgeType = 'soldout';
+                }
+              }
+
+              const cardOpacity = badgeType === 'soldout' ? 0.5 : badgeType === 'future' ? 0.8 : 1;
+
               return (
                 <motion.div
                   key={room.id}
                   initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  animate={{ opacity: cardOpacity, x: 0 }}
                   className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  style={badgeType === 'soldout' ? { pointerEvents: 'none' as const } : undefined}
                 >
                   <div className="flex flex-col sm:flex-row">
-                    {/* Room Image */}
+                    {/* Room Image with availability badge */}
                     {thumb && (
-                      <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-muted">
+                      <div className="sm:w-36 h-32 sm:h-auto shrink-0 bg-muted relative">
                         <img
                           src={thumb}
                           alt={room.name}
                           className="h-full w-full object-cover"
                         />
+                        {badgeType === 'low' && (
+                          <span style={{
+                            position: 'absolute', top: 8, left: 8,
+                            background: 'rgba(239,68,68,0.9)', color: '#fff',
+                            fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                            borderRadius: 9999, lineHeight: '16px',
+                          }}>{badgeText}</span>
+                        )}
+                        {badgeType === 'future' && (
+                          <span style={{
+                            position: 'absolute', top: 8, left: 8,
+                            background: 'rgba(5,150,105,0.9)', color: '#fff',
+                            fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                            borderRadius: 9999, lineHeight: '16px',
+                          }}>{badgeText}</span>
+                        )}
                       </div>
                     )}
 
