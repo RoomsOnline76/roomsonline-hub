@@ -226,8 +226,27 @@ export default function AdminPortfolios() {
     navigator.clipboard.writeText(snippet);
     toast({ title: "Snippet copied to clipboard" });
   };
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const fileName = `portfolio-logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("portfolio-logos").upload(fileName, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("portfolio-logos").getPublicUrl(fileName);
+      setBrandLogoUrl(urlData.publicUrl);
+      toast({ title: "Logo uploaded" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
 
-  const renderPropertyPicker = () => (
+
     <div className="space-y-2">
       <Label className="text-xs">Properties</Label>
       <Input
