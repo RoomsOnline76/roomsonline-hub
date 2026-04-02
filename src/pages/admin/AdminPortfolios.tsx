@@ -361,14 +361,18 @@ export default function AdminPortfolios() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Heading Font</Label>
-            <Input value={brandHeadingFont} onChange={(e) => setBrandHeadingFont(e.target.value)} placeholder="e.g. Playfair Display" className="text-xs h-7" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Body Font</Label>
-            <Input value={brandBodyFont} onChange={(e) => setBrandBodyFont(e.target.value)} placeholder="e.g. Lato" className="text-xs h-7" />
-          </div>
+          <GoogleFontPicker
+            label=""
+            description="Heading Font"
+            value={brandHeadingFont || null}
+            onChange={(f) => setBrandHeadingFont(f || "")}
+          />
+          <GoogleFontPicker
+            label=""
+            description="Body Font"
+            value={brandBodyFont || null}
+            onChange={(f) => setBrandBodyFont(f || "")}
+          />
         </div>
         {brandLogoUrl && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
