@@ -211,8 +211,26 @@ export default function AdminPortfolios() {
     setEditPortfolio(p);
   };
 
+  // Auto-populate branding from first selected property if portfolio branding fields are at defaults
+  const maybeInheritBranding = (newSelectedProps: string[]) => {
+    if (newSelectedProps.length === 0) return;
+    const firstProp = properties.find((p) => p.id === newSelectedProps[0]);
+    if (!firstProp) return;
+    // Only inherit if field is still at default (empty or default hex)
+    if (brandPrimary === "#2563eb" && firstProp.brand_primary_color) setBrandPrimary(firstProp.brand_primary_color);
+    if (brandSecondary === "#1e40af" && firstProp.brand_secondary_color) setBrandSecondary(firstProp.brand_secondary_color);
+    if (brandFontColor === "#333333" && firstProp.brand_font_color) setBrandFontColor(firstProp.brand_font_color);
+    if (!brandLogoUrl && firstProp.brand_logo_url) setBrandLogoUrl(firstProp.brand_logo_url);
+    if (!brandHeadingFont && firstProp.brand_heading_font) setBrandHeadingFont(firstProp.brand_heading_font);
+    if (!brandBodyFont && firstProp.brand_body_font) setBrandBodyFont(firstProp.brand_body_font);
+  };
+
   const toggleProp = (id: string) => {
-    setSelectedProps((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setSelectedProps((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (!prev.includes(id)) maybeInheritBranding(next);
+      return next;
+    });
   };
 
   const getMemberCount = (pid: string) => members.filter((m) => m.portfolio_id === pid).length;
