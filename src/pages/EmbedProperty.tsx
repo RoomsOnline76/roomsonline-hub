@@ -86,7 +86,7 @@ export default function EmbedProperty() {
       if (!slug) return;
       const { data: prop } = await supabase
         .from("properties")
-        .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, images, description, amenities, address, city, is_rol_property")
+        .select("id, name, slug, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, images, description, amenities, address, city, is_rol_property, external_system")
         .eq("slug", slug)
         .eq("is_active", true)
         .single();
