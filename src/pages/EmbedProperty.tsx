@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, differenceInCalendarDays, startOfDay, eachDayOfInterval } from "date-fns";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
@@ -48,6 +48,9 @@ export default function EmbedProperty() {
   const [checkOut, setCheckOut] = useState<string>(format(addDays(today, 2), "yyyy-MM-dd"));
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
+  const [datesConfirmed, setDatesConfirmed] = useState(false);
+  const dateControlsRef = useRef<HTMLDivElement>(null);
+  const [datesPulse, setDatesPulse] = useState(false);
 
   // Resize observer — post height changes to parent
   useEffect(() => {
@@ -66,6 +69,7 @@ export default function EmbedProperty() {
       if (e.data.type === "rolos:setDates") {
         if (e.data.checkIn) setCheckIn(e.data.checkIn);
         if (e.data.checkOut) setCheckOut(e.data.checkOut);
+        setDatesConfirmed(true);
       }
       if (e.data.type === "rolos:setPromo" && e.data.code) {
         setPromoCode(e.data.code);
@@ -281,6 +285,15 @@ export default function EmbedProperty() {
   }, [property, tripadvisorId]);
 
   const handleBookRoom = (roomId: string, roomName: string) => {
+    // If user hasn't explicitly selected dates, prompt them first
+    if (!datesConfirmed) {
+      setShowCalendar(true);
+      setDatesPulse(true);
+      setTimeout(() => setDatesPulse(false), 2000);
+      dateControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     const room = roomTypes.find((r) => r.id === roomId);
     const rate = room?.daily_rate ? Number(room.daily_rate) : null;
     const rolosPlan = room?.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
@@ -400,23 +413,34 @@ export default function EmbedProperty() {
 
       {/* ── Date Controls ── */}
       <motion.div
+        ref={dateControlsRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.1 }}
         className="bg-card border-b border-border px-4 sm:px-5 py-3 flex items-center gap-3 flex-wrap text-sm"
+        style={datesPulse ? {
+          boxShadow: `0 0 0 3px ${brandColor}60`,
+          transition: "box-shadow 0.3s ease",
+        } : { transition: "box-shadow 0.3s ease" }}
       >
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Dates</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {!datesConfirmed ? "👉 Select your dates" : "Dates"}
+          </span>
           <EmbedDatePicker
             checkIn={checkIn}
             checkOut={checkOut}
             onCheckInChange={(d) => {
               setCheckIn(d);
+              setDatesConfirmed(true);
               if (d && (!checkOut || new Date(checkOut) <= new Date(d))) {
                 setCheckOut(format(addDays(new Date(d), 1), "yyyy-MM-dd"));
               }
             }}
-            onCheckOutChange={setCheckOut}
+            onCheckOutChange={(d) => {
+              setCheckOut(d);
+              setDatesConfirmed(true);
+            }}
             brandColor={brandColor}
             fontColor={fontColor}
           />
