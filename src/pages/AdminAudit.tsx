@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { Download, RefreshCw, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Download, RefreshCw, ChevronDown, ChevronUp, X, Archive } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -104,6 +104,7 @@ export default function AdminAudit() {
   const [detailOpen, setDetailOpen] = useState(false);
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Redirect if not admin or dev
   useEffect(() => {
@@ -115,14 +116,18 @@ export default function AdminAudit() {
   // Load properties for filter dropdown
   useEffect(() => {
     const loadProperties = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("properties")
         .select("id, name")
         .order("name");
+      if (!showArchived) {
+        query = query.eq("is_active", true);
+      }
+      const { data } = await query;
       setProperties(data || []);
     };
     loadProperties();
-  }, []);
+  }, [showArchived]);
 
   const fetchLogs = useCallback(async (cursor?: string, append = false) => {
     if (!append) setLoading(true);
