@@ -8089,7 +8089,7 @@ export default function PropertyForm() {
                       {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
                       <TabsTrigger value="policies">Policies</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
-                      {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
+                      {(isDev || isFearlessLeader) && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
 
                     {/* Rate Types Sub-tab */}
