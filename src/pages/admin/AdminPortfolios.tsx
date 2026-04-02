@@ -246,7 +246,7 @@ export default function AdminPortfolios() {
     }
   };
 
-
+  const renderPropertyPicker = () => (
     <div className="space-y-2">
       <Label className="text-xs">Properties</Label>
       <Input
