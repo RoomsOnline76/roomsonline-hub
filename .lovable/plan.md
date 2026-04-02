@@ -1,55 +1,98 @@
 
+Goal: determine whether duplicate property names are blocking creation for Carike (Fearless Leader), and fix the real blocker with full dev parity.
 
-# Portfolio Branding Editor + Domain-Aware Embed Branding
+What I found
+- Duplicate property names are not the blocker.
+- The property form inserts directly into `properties` without any pre-check on `name`.
+- `properties.slug` is auto-generated and made unique by `generate_property_slug(...)`, so duplicate names should become unique slugs like `tugela`, `tugela-1`, etc.
+- Database check confirms a property named `Tugela` already exists, which means a second “Tugela” should still be possible from a naming perspective.
+- There is no existing `Explores Club` property, so that one definitely should not be failing because of duplicates.
 
-## Problem
+Most likely root cause
+- The main `properties` INSERT policy already includes `fearless_leader`.
+- But the post-create sync path for new ROL'OS properties writes to auxiliary tables right after the property insert:
+  - `hostfully_room_types`
+  - `rolos_room_types`
+  - `rolos_rooms`
+  - `rolos_rate_plans`
+- Some of those RLS policies still allow only `admin` or `dev`, excluding `fearless_leader`.
+- That matches the previous symptom you reported before: the property may insert successfully, but the later sync step fails and the UI shows “Failed to create property”.
 
-1. **No branding editor**: The portfolio create/edit dialog only has Name, Slug, and Property Picker — no way to set logo, colors, or fonts
-2. **Embed ignores portfolio branding**: `EmbedPortfolio.tsx` reads `brand_color` from URL params only (defaulting to `#2563eb`), not from the portfolio's stored `metadata.branding`
-3. **Cross-brand portfolios**: When navigating from portfolio to a property embed, the portfolio-level `brandColor` is passed — but if properties have their own branding, the property's colors should take precedence
+Important evidence
+- `src/pages/PropertyForm.tsx`
+  - new property creation is:
+    `supabase.from("properties").insert([propertyData]).select("id, slug").single()`
+  - no duplicate-name validation exists
+  - after insert, the form immediately syncs ROL'OS room/rate data into other tables
+- `supabase/migrations/20260401165926_11a6bbf7...sql`
+  - `properties` INSERT policy includes `fearless_leader`
+- `supabase/migrations/20260308085613_b5185577...sql`
+  - `rolos_room_types`, `rolos_rooms`, and `rolos_rate_plans` policies still mention only `admin` and `dev`
+- Database read:
+  - `Tugela` already exists
+  - `Explores Club` does not exist
+- Carike accounts:
+  - `carike@roomsonline.co.za` = `fearless_leader`
+  - `carike.ligthelm@gmail.com` = `user`
+  - `sleepinafrica@roomsonline.co.za` = `user`
 
-## Design
+Conclusion
+- No: duplicate names are not what is blocking her.
+- Yes: the bigger risk is either:
+  1. she is logged into one of the non-privileged Carike accounts, or
+  2. the property insert succeeds, then the ROL'OS follow-up inserts fail because `fearless_leader` is still excluded in some table policies.
 
-The `property_portfolios.metadata` JSONB column already exists. Store branding under `metadata.branding`:
+Implementation plan
+1. Backend parity fix
+- Update the remaining RLS policies on all property-creation-related PMS tables so `fearless_leader` is treated exactly like `dev`.
+- Priority tables:
+  - `rolos_room_types`
+  - `rolos_rooms`
+  - `rolos_rate_plans`
+  - any adjacent ROL'OS tables touched during create flow if still missing parity
 
-```json
-{
-  "branding": {
-    "primary_color": "#F5A623",
-    "secondary_color": "#1B7FAD",
-    "font_color": "#333333",
-    "logo_url": "https://...",
-    "heading_font": "Playfair Display",
-    "body_font": "Lato"
-  }
-}
+2. Audit-role parity fix
+- Update `get_user_audit_role(...)` so `fearless_leader` is not downgraded to `owner`.
+- If needed, extend the audit enum/logic so audit-triggered writes and logs treat fearless leader as privileged instead of owner.
+
+3. Frontend error clarity
+- Improve the create-property error handling in `PropertyForm.tsx` so the actual failing step is surfaced:
+  - property insert failed
+  - room sync failed
+  - rate sync failed
+  - RLS/permission failed
+- This prevents a successful insert from being reported as a total failure.
+
+4. Account mismatch guard
+- Verify the current signed-in account in the auth/profile UI and make the role visible near create/edit actions.
+- If desired, add a small admin-only “current backend role” badge to avoid repeating this confusion.
+
+5. Verification after fix
+- Test creating:
+  - `Explores Club` as a fresh property
+  - another `Tugela`-named property to confirm duplicate names are allowed and slug uniqueness handles it
+- Confirm Carike can:
+  - create property
+  - edit owners
+  - access billing
+  - complete all property-edit functions with the same rights as dev
+
+Technical notes
+- Duplicate names: allowed
+- Unique slug behavior:
+```text
+name = "Tugela"
+existing slug = tugela
+new slug should become tugela-1
 ```
+- Current gap is not in the top-level `properties` insert, but in downstream synced tables and possibly audit-role classification.
 
-No schema changes needed.
+Files likely to change
+- `supabase/migrations/...` new migration to update missing RLS policies
+- `supabase/migrations/...` new migration to update audit role handling
+- `src/pages/PropertyForm.tsx` to improve step-specific error reporting
 
-## Changes
-
-### 1. `src/pages/admin/AdminPortfolios.tsx`
-- Add state for branding fields: `brandPrimaryColor`, `brandSecondaryColor`, `brandFontColor`, `brandLogoUrl`
-- Add a "Branding" section to `PortfolioFormFields` with color inputs and logo URL input
-- On create/save, merge branding into `metadata.branding` JSONB
-- On edit open, populate branding state from `portfolio.metadata?.branding`
-- Update Portfolio interface to include `metadata`
-
-### 2. `src/pages/EmbedPortfolio.tsx`
-- After fetching portfolio data (both API and fallback paths), read `portfolio.metadata?.branding` and use as defaults when URL params are absent
-- Pass portfolio branding (logo, colors) to the header
-- In `handleViewProperty`: pass the **property's own** `brand_primary_color` (already fetched in the properties query) instead of the portfolio-level color, so each property embed gets its own branding. Fall back to portfolio color if property has none.
-
-### 3. `supabase/functions/booking-portfolio-api/index.ts`
-- Already returns `portfolio.metadata` — just ensure the response includes it in a usable shape (currently does via `branding: portfolio.metadata?.branding`)
-- Add `brand_primary_color` to each property in the response (already selected on line 63)
-
-## Files
-
-| Action | File | What |
-|--------|------|------|
-| Modify | `src/pages/admin/AdminPortfolios.tsx` | Add branding fields (colors, logo) to create/edit dialog, persist to `metadata.branding` |
-| Modify | `src/pages/EmbedPortfolio.tsx` | Read portfolio branding from metadata, use property-level colors when navigating to individual properties |
-| Modify | `supabase/functions/booking-portfolio-api/index.ts` | Ensure `brand_primary_color` is passed per-property in response |
-
+Expected outcome
+- Fearless Leader will truly have dev parity for property creation and full property editing.
+- Duplicate property names will continue to work safely through unique slug generation.
+- Future failures, if any, will point to the exact blocked table/step instead of a generic “Failed to create property”.
