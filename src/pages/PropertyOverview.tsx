@@ -511,7 +511,7 @@ const PropertyOverview = () => {
         subtitle="Manage your portfolio"
         actions={
           <div className="flex gap-2">
-            {(isAdmin || isDev) && (
+            {(isAdmin || isDev || isFearlessLeader) && (
               <Button onClick={() => navigate("/admin/properties/new/preflight")} size="sm" variant="default" className="gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 Start New Listing

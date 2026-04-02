@@ -19,7 +19,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
         navigate("/auth");
       } else if (requireAdmin && !isAdmin) {
         navigate("/");
-      } else if (requireDev && !isDev) {
+      } else if (requireDev && !isDev && !isFearlessLeader) {
         navigate("/");
       } else if (requireDevOrFearless && !isDev && !isFearlessLeader) {
         navigate("/");
@@ -35,7 +35,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
     );
   }
 
-  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
+  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev && !isFearlessLeader) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
     return null;
   }
 
