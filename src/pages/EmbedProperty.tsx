@@ -284,6 +284,15 @@ export default function EmbedProperty() {
   }, [property, tripadvisorId]);
 
   const handleBookRoom = (roomId: string, roomName: string) => {
+    // If user hasn't explicitly selected dates, prompt them first
+    if (!datesConfirmed) {
+      setShowCalendar(true);
+      setDatesPulse(true);
+      setTimeout(() => setDatesPulse(false), 2000);
+      dateControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     const room = roomTypes.find((r) => r.id === roomId);
     const rate = room?.daily_rate ? Number(room.daily_rate) : null;
     const rolosPlan = room?.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
