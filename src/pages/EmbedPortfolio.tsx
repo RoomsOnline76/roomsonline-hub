@@ -202,6 +202,27 @@ export default function EmbedPortfolio() {
     fetchData();
   }, [portfolioSlug]);
 
+  // Background live ARI resolution for PMS-backed properties
+  useEffect(() => {
+    if (properties.length === 0) return;
+    const pmsProperties = properties.filter(p => p.external_system && p.external_system !== "manual" && p.external_system !== "roomsonline");
+    if (pmsProperties.length === 0) return;
+
+    const resolve = async () => {
+      const batch = pmsProperties.map(p => ({ id: p.id, external_system: p.external_system || null }));
+      const results = await fetchLiveRatesBatch(batch);
+      
+      setProperties(prev => prev.map(p => {
+        const live = results[p.id];
+        if (live?.lowestRate != null) {
+          return { ...p, starting_rate: live.lowestRate };
+        }
+        return p;
+      }));
+    };
+    resolve();
+  }, [properties.length]); // only re-run when property count changes
+
   // AI semantic search for longer queries
   const doAiSearch = useCallback(async (query: string) => {
     if (!portfolio || query.split(/\s+/).length < 4) {
