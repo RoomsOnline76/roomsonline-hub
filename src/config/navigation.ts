@@ -143,7 +143,7 @@ const systemControlSection: NavSection = {
     { id: 'system-health', title: 'System Health', icon: HeartPulse, href: '/dev/system-health', minRole: 'dev', description: 'Overview, components & maintenance' },
     { id: 'pms-control', title: 'PMS Control', icon: Server, href: '/dev/pms', minRole: 'dev', description: 'Adapter status & controls' },
     { id: 'integrations', title: 'Integrations', icon: KeyRound, href: '/admin-keys', minRole: 'admin', description: 'API keys, PMS credentials & external tools' },
-    { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/dev/logs', minRole: 'dev', description: 'Sync and error logs' },
+    { id: 'data-logs', title: 'Data & Logs', icon: Database, href: '/admin/audit', minRole: 'admin', description: 'Audit trail & logs' },
     { id: 'feature-flags', title: 'Feature Flags', icon: Flag, href: '/dev/features', minRole: 'dev' },
     { id: 'task-tracker', title: 'Task Tracker', icon: ClipboardCheck, href: '/dev/tasks', minRole: 'dev', description: 'Dev task board' },
     { id: 'api-configurator', title: 'API Configurator', icon: Code2, href: '/admin/system/api-configurator', minRole: 'dev', description: 'UI config for WP plugin & embeds' },

@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import { AuditLogTable } from "@/components/audit/AuditLogTable";
 import { AuditLogDetail } from "@/components/audit/AuditLogDetail";
 
@@ -104,6 +105,7 @@ export default function AdminAudit() {
   const [detailOpen, setDetailOpen] = useState(false);
 
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Redirect if not admin or dev
   useEffect(() => {
@@ -115,14 +117,18 @@ export default function AdminAudit() {
   // Load properties for filter dropdown
   useEffect(() => {
     const loadProperties = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("properties")
         .select("id, name")
         .order("name");
+      if (!showArchived) {
+        query = query.eq("is_active", true);
+      }
+      const { data } = await query;
       setProperties(data || []);
     };
     loadProperties();
-  }, []);
+  }, [showArchived]);
 
   const fetchLogs = useCallback(async (cursor?: string, append = false) => {
     if (!append) setLoading(true);
@@ -380,7 +386,13 @@ export default function AdminAudit() {
 
                 {/* Property */}
                 <div className="space-y-2">
-                  <Label>Property</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Property</Label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                      <Switch checked={showArchived} onCheckedChange={setShowArchived} className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 data-[state=checked]:[&>span]:translate-x-4" />
+                      Archived
+                    </label>
+                  </div>
                   <Select
                     value={filters.property_id}
                     onValueChange={(v) => setFilters((p) => ({ ...p, property_id: v === "all" ? "" : v }))}

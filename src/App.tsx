@@ -77,7 +77,7 @@ const AdminReviewQueue = lazy(() => import("./pages/AdminReviewQueue"));
 const PropertyProgress = lazy(() => import("./pages/PropertyProgress"));
 const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
 const DevPMS = lazy(() => import("./pages/DevPMS"));
-const DevLogs = lazy(() => import("./pages/DevLogs"));
+
 const DevFeatures = lazy(() => import("./pages/DevFeatures"));
 const DevTesting = lazy(() => import("./pages/DevTesting"));
 const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
@@ -605,14 +605,8 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/dev/logs"
-              element={
-                <ProtectedRoute requireDev={true}>
-                  <DevLogs />
-                </ProtectedRoute>
-              }
-            />
+
+
             <Route
               path="/dev/features"
               element={
