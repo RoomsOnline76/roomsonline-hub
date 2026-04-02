@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
+import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 
 interface PortfolioBranding {
   primary_color?: string;
