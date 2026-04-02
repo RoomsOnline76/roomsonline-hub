@@ -4256,9 +4256,13 @@ export default function PropertyForm() {
           variant: "destructive",
         });
       } else {
+        const errMsg = error instanceof Error ? error.message : "Unknown error";
+        console.error("Property save error:", error);
         toast({
           title: "Error",
-          description: "Failed to create property",
+          description: isEditMode
+            ? `Failed to update property: ${errMsg}`
+            : `Failed to create property: ${errMsg}`,
           variant: "destructive",
         });
       }
