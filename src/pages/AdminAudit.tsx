@@ -385,7 +385,13 @@ export default function AdminAudit() {
 
                 {/* Property */}
                 <div className="space-y-2">
-                  <Label>Property</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Property</Label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                      <Switch checked={showArchived} onCheckedChange={setShowArchived} className="h-4 w-8 [&>span]:h-3 [&>span]:w-3 data-[state=checked]:[&>span]:translate-x-4" />
+                      Archived
+                    </label>
+                  </div>
                   <Select
                     value={filters.property_id}
                     onValueChange={(v) => setFilters((p) => ({ ...p, property_id: v === "all" ? "" : v }))}
