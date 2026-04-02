@@ -125,6 +125,7 @@ export function RatesOverviewPanel({
   const today = new Date();
   const activeSeason = seasons.find(s => {
     try {
+      if (!s.from || !s.to) return false;
       return isWithinInterval(today, { 
         start: parseISO(s.from), 
         end: parseISO(s.to) 
