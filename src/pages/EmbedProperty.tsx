@@ -52,6 +52,8 @@ export default function EmbedProperty() {
   const [datesConfirmed, setDatesConfirmed] = useState(false);
   const dateControlsRef = useRef<HTMLDivElement>(null);
   const [datesPulse, setDatesPulse] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingRoom, setPendingRoom] = useState<{ roomId: string; roomName: string } | null>(null);
 
   // Resize observer — post height changes to parent
   useEffect(() => {
