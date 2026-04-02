@@ -225,7 +225,7 @@ export default function AdminPortfolios() {
     toast({ title: "Snippet copied to clipboard" });
   };
 
-  const PropertyPicker = () => (
+  const renderPropertyPicker = () => (
     <div className="space-y-2">
       <Label className="text-xs">Properties</Label>
       <Input
@@ -260,7 +260,7 @@ export default function AdminPortfolios() {
     </div>
   );
 
-  const PortfolioFormFields = () => (
+  const renderFormFields = () => (
     <div className="space-y-4">
       <div className="space-y-1">
         <Label className="text-xs">Portfolio Name</Label>
@@ -325,7 +325,7 @@ export default function AdminPortfolios() {
         )}
       </div>
 
-      <PropertyPicker />
+      {renderPropertyPicker()}
     </div>
   );
 
