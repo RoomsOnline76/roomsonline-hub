@@ -170,6 +170,50 @@ export default function EmbedProperty() {
     fetchOverrides();
   }, [property?.id, roomTypes, checkIn]);
 
+  // Fetch PMS availability cache for Hostfully properties (rates + availability per date)
+  useEffect(() => {
+    if (!property?.id || roomTypes.length === 0) return;
+    const fetchPmsCache = async () => {
+      const start = new Date(checkIn);
+      const endDate = addDays(start, 30);
+      // Build lookup: hostfully_room_id → our room id
+      const hostfullyIdToRoomId: Record<string, string> = {};
+      for (const room of roomTypes) {
+        if (room.hostfully_room_id) {
+          hostfullyIdToRoomId[room.hostfully_room_id] = room.id;
+        }
+      }
+      const externalIds = Object.keys(hostfullyIdToRoomId);
+      if (externalIds.length === 0) {
+        setPmsCacheMap({});
+        return;
+      }
+      const { data } = await supabase
+        .from("pms_availability_cache")
+        .select("external_room_type_id, date, available_units, rates")
+        .eq("property_id", property.id)
+        .in("external_room_type_id", externalIds)
+        .gte("date", format(start, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
+      if (data) {
+        const map: Record<string, Record<string, { available_units: number; rate: number | null }>> = {};
+        for (const row of data) {
+          const roomId = hostfullyIdToRoomId[row.external_room_type_id];
+          if (!roomId) continue;
+          if (!map[roomId]) map[roomId] = {};
+          const ratesArr = row.rates as any[];
+          const dayRate = Array.isArray(ratesArr) && ratesArr.length > 0 ? (ratesArr[0]?.room_amount ?? null) : null;
+          map[roomId][row.date] = {
+            available_units: row.available_units ?? 0,
+            rate: dayRate != null ? Number(dayRate) : null,
+          };
+        }
+        setPmsCacheMap(map);
+      }
+    };
+    fetchPmsCache();
+  }, [property?.id, roomTypes, checkIn]);
+
   const gridRooms = useMemo(() => {
     if (!checkIn) return [];
     const start = new Date(checkIn);
@@ -185,8 +229,9 @@ export default function EmbedProperty() {
       const linkedRateTypeId = Array.isArray(wizardRoom?.linkedRateTypes) ? wizardRoom.linkedRateTypes[0] : undefined;
       const linkedRateType = linkedRateTypeId ? wizardRateTypes.find((rt: any) => String(rt?.id) === String(linkedRateTypeId)) : null;
       const wizardRate = linkedRateType?.baseRate != null ? Number(linkedRateType.baseRate) : wizardRoom?.baseRate != null ? Number(wizardRoom.baseRate) : null;
-      const effectiveRate = rate ?? (rolosPlan?.base_rate ?? wizardRate ?? null);
+      const fallbackRate = rate ?? (rolosPlan?.base_rate ?? wizardRate ?? null);
       const roomOverrides = availabilityOverrides[room.name] || availabilityOverrides[String(room.id)] || {};
+      const roomPmsCache = pmsCacheMap[room.id] || {};
 
       const ratesByDate: Record<string, number | null> = {};
       dates.forEach((d) => {
@@ -194,8 +239,18 @@ export default function EmbedProperty() {
         const override = roomOverrides[dateKey];
         if (override && (override.is_stop_sell || override.available_units === 0)) {
           ratesByDate[dateKey] = null;
+          return;
+        }
+        // Use PMS cache if available (has per-day rates and availability)
+        const cached = roomPmsCache[dateKey];
+        if (cached) {
+          if (cached.available_units <= 0) {
+            ratesByDate[dateKey] = null; // SOLD
+          } else {
+            ratesByDate[dateKey] = cached.rate ?? fallbackRate;
+          }
         } else {
-          ratesByDate[dateKey] = effectiveRate;
+          ratesByDate[dateKey] = fallbackRate;
         }
       });
 
@@ -207,7 +262,7 @@ export default function EmbedProperty() {
         ratesByDate,
       };
     });
-  }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides]);
+  }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap]);
 
   const tripadvisorId = useMemo(() => {
     if (!property?.amenities) return null;
