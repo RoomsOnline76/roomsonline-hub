@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
