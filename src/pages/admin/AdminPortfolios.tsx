@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 
@@ -65,6 +65,8 @@ export default function AdminPortfolios() {
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [brandHeadingFont, setBrandHeadingFont] = useState("");
   const [brandBodyFont, setBrandBodyFont] = useState("");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfolios = [], isLoading } = useQuery({
     queryKey: ["admin-portfolios"],
@@ -224,6 +226,25 @@ export default function AdminPortfolios() {
     navigator.clipboard.writeText(snippet);
     toast({ title: "Snippet copied to clipboard" });
   };
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const fileName = `portfolio-logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("portfolio-logos").upload(fileName, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("portfolio-logos").getPublicUrl(fileName);
+      setBrandLogoUrl(urlData.publicUrl);
+      toast({ title: "Logo uploaded" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setLogoUploading(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
 
   const renderPropertyPicker = () => (
     <div className="space-y-2">
@@ -281,8 +302,15 @@ export default function AdminPortfolios() {
       <div className="space-y-2 border-t border-border pt-3">
         <Label className="text-xs font-semibold">Branding</Label>
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Logo URL</Label>
-          <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm" />
+          <Label className="text-[10px] text-muted-foreground">Logo</Label>
+          <div className="flex gap-2 items-center">
+            <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm flex-1" />
+            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} />
+            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" disabled={logoUploading} onClick={() => logoInputRef.current?.click()}>
+              {logoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              Upload
+            </Button>
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
@@ -320,7 +348,10 @@ export default function AdminPortfolios() {
         {brandLogoUrl && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
             <img src={brandLogoUrl} alt="Logo preview" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            <span className="text-[10px] text-muted-foreground">Logo preview</span>
+            <span className="text-[10px] text-muted-foreground flex-1">Logo preview</span>
+            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setBrandLogoUrl("")}>
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         )}
       </div>
@@ -343,7 +374,7 @@ export default function AdminPortfolios() {
                 New Portfolio
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Portfolio</DialogTitle>
               </DialogHeader>
@@ -451,7 +482,7 @@ export default function AdminPortfolios() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editPortfolio} onOpenChange={(o) => { if (!o) { setEditPortfolio(null); resetForm(); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Portfolio</DialogTitle>
           </DialogHeader>
