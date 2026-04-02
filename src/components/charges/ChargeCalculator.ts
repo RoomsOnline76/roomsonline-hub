@@ -247,7 +247,7 @@ export function calculateCharges(
     }
   }
 
-  return applicableCharges.map(charge => {
+  return deduped.map(charge => {
     const { amount, breakdown } = calculateChargeAmount(charge, context);
     return {
       charge,
