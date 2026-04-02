@@ -492,7 +492,7 @@ export default function PropertyForm() {
   // Load owner's Hostfully credential
   // For owners: load their own credential
   // For admin/dev: load the property owner's credential via ownerPmsCredentialId
-  const isOwnerUser = user && !isAdmin && !isDev;
+  const isOwnerUser = user && !isAdmin && !isDev && !isFearlessLeader;
   
   useEffect(() => {
     const loadOwnerHostfullyCredential = async () => {
