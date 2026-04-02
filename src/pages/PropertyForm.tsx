@@ -6299,7 +6299,7 @@ export default function PropertyForm() {
                 onChange={setBrandingData}
                 propertyId={propertyId}
                 onDirty={() => setIsDirty(true)}
-                canToggleBrand={isAdmin || isDev}
+                canToggleBrand={isAdmin || isDev || isFearlessLeader}
                 ownerEmail={formData.owner_email}
               />
               {propertyId && <BrandVoiceCard propertyId={propertyId} />}
