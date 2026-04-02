@@ -52,6 +52,8 @@ export default function EmbedProperty() {
   const [datesConfirmed, setDatesConfirmed] = useState(false);
   const dateControlsRef = useRef<HTMLDivElement>(null);
   const [datesPulse, setDatesPulse] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingRoom, setPendingRoom] = useState<{ roomId: string; roomName: string } | null>(null);
 
   // Resize observer — post height changes to parent
   useEffect(() => {
@@ -333,9 +335,11 @@ export default function EmbedProperty() {
   const handleBookRoom = (roomId: string, roomName: string) => {
     // If user hasn't explicitly selected dates, prompt them first
     if (!datesConfirmed) {
+      setPendingRoom({ roomId, roomName });
       setShowCalendar(true);
+      setPickerOpen(true);
       setDatesPulse(true);
-      setTimeout(() => setDatesPulse(false), 2000);
+      setTimeout(() => setDatesPulse(false), 4000);
       dateControlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
@@ -485,12 +489,37 @@ export default function EmbedProperty() {
             }}
             onCheckOutChange={(d) => {
               setCheckOut(d);
-              setDatesConfirmed(true);
+              if (d) {
+                setDatesConfirmed(true);
+                setDatesPulse(false);
+                // Auto-proceed if a pending room was stored
+                if (pendingRoom) {
+                  const pr = pendingRoom;
+                  setPendingRoom(null);
+                  setTimeout(() => handleBookRoom(pr.roomId, pr.roomName), 150);
+                }
+              }
             }}
             brandColor={brandColor}
             fontColor={fontColor}
+            controlledOpen={pickerOpen}
+            onOpenChange={setPickerOpen}
           />
         </div>
+        {/* Prompt banner when user needs to pick dates */}
+        <AnimatePresence>
+          {datesPulse && pendingRoom && (
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              className="text-xs font-medium"
+              style={{ color: brandColor }}
+            >
+              ← Pick check-in & check-out to book {pendingRoom.roomName}
+            </motion.span>
+          )}
+        </AnimatePresence>
         {nights > 0 && (
           <span
             className="text-xs font-bold px-3 py-1 rounded-full"
