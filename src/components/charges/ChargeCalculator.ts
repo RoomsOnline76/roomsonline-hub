@@ -214,7 +214,6 @@ export function calculateCharges(
   const applicableCharges = charges
     .filter(charge => isChargeApplicable(charge, context))
     .sort((a, b) => {
-      // Sort by category priority, then display_order
       const categoryOrder: Record<ChargeCategory, number> = {
         tax: 1,
         fee: 2,
@@ -226,6 +225,27 @@ export function calculateCharges(
       if (catDiff !== 0) return catDiff;
       return a.display_order - b.display_order;
     });
+
+  // Dedup: when multiple charges share the same name (case-insensitive),
+  // prefer room-specific over applies_to_all_rooms to prevent double-charging
+  const deduped: PropertyCharge[] = [];
+  const seenNames = new Map<string, PropertyCharge>();
+  for (const charge of applicableCharges) {
+    const key = charge.name.toLowerCase().trim();
+    const existing = seenNames.get(key);
+    if (!existing) {
+      seenNames.set(key, charge);
+      deduped.push(charge);
+    } else {
+      // If existing is global and new is room-specific, replace
+      if (existing.applies_to_all_rooms && !charge.applies_to_all_rooms) {
+        const idx = deduped.indexOf(existing);
+        if (idx !== -1) deduped[idx] = charge;
+        seenNames.set(key, charge);
+      }
+      // Otherwise skip the duplicate (keep first or room-specific)
+    }
+  }
 
   return applicableCharges.map(charge => {
     const { amount, breakdown } = calculateChargeAmount(charge, context);
