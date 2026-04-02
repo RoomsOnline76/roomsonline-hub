@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import { AuditLogTable } from "@/components/audit/AuditLogTable";
 import { AuditLogDetail } from "@/components/audit/AuditLogDetail";
 
