@@ -348,7 +348,10 @@ export default function AdminPortfolios() {
         {brandLogoUrl && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
             <img src={brandLogoUrl} alt="Logo preview" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-            <span className="text-[10px] text-muted-foreground">Logo preview</span>
+            <span className="text-[10px] text-muted-foreground flex-1">Logo preview</span>
+            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setBrandLogoUrl("")}>
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         )}
       </div>
