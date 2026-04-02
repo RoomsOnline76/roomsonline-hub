@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
 
 function postToParent(data: Record<string, unknown>) {
   if (window.parent !== window) {
@@ -26,6 +27,7 @@ interface PortfolioProperty {
   room_count: number;
   max_guests: number | null;
   brand_primary_color?: string | null;
+  external_system?: string | null;
 }
 
 interface AiGroup {
@@ -113,7 +115,7 @@ export default function EmbedPortfolio() {
           setPortfolio(data.portfolio);
 
           const mapped: PortfolioProperty[] = (data.properties || []).map((p: any, i: number) => ({
-            id: p.slug || `prop-${i}`,
+            id: p.id || p.slug || `prop-${i}`,
             name: p.name,
             slug: p.slug,
             city: p.city,
@@ -123,6 +125,7 @@ export default function EmbedPortfolio() {
             room_count: p.room_count || 0,
             max_guests: p.max_guests,
             brand_primary_color: p.brand_primary_color,
+            external_system: p.external_system || null,
           }));
           setProperties(mapped);
 
