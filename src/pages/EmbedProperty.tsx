@@ -219,6 +219,51 @@ export default function EmbedProperty() {
     fetchPmsCache();
   }, [property?.id, roomTypes, checkIn]);
 
+  // Live ARI refresh for PMS-backed properties (background, non-blocking)
+  const [liveRates, setLiveRates] = useState<LivePropertyRates | null>(null);
+  useEffect(() => {
+    if (!property?.id || !property?.external_system) return;
+    if (property.external_system === "manual" || property.external_system === "roomsonline") return;
+    
+    const resolve = async () => {
+      const result = await fetchLiveRates(property.id, property.external_system, checkIn, checkOut);
+      setLiveRates(result);
+      
+      // Also update pmsCacheMap from live data if we got rooms
+      if (result.rooms.length > 0) {
+        // Build a supplementary cache from live rates for rooms missing from pms_availability_cache
+        setPmsCacheMap(prev => {
+          const updated = { ...prev };
+          for (const liveRoom of result.rooms) {
+            // Try to match live room to our room types by ID or name
+            const matchedRoom = roomTypes.find(rt => 
+              rt.hostfully_room_id === liveRoom.roomTypeId || 
+              rt.id === liveRoom.roomTypeId ||
+              rt.name === liveRoom.roomName
+            );
+            if (matchedRoom && !updated[matchedRoom.id]) {
+              // Only fill in if cache is missing for this room
+              if (liveRoom.minRate != null) {
+                const start = new Date(checkIn);
+                const dates = eachDayOfInterval({ start, end: addDays(start, 13) });
+                const dateMap: Record<string, { available_units: number; rate: number | null }> = {};
+                dates.forEach(d => {
+                  dateMap[format(d, "yyyy-MM-dd")] = {
+                    available_units: liveRoom.available ? 1 : 0,
+                    rate: liveRoom.minRate,
+                  };
+                });
+                updated[matchedRoom.id] = dateMap;
+              }
+            }
+          }
+          return updated;
+        });
+      }
+    };
+    resolve();
+  }, [property?.id, property?.external_system, checkIn, checkOut]);
+
   const gridRooms = useMemo(() => {
     if (!checkIn) return [];
     const start = new Date(checkIn);
