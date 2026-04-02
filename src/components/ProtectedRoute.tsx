@@ -35,7 +35,7 @@ export function ProtectedRoute({ children, requireAdmin = false, requireDev = fa
     );
   }
 
-  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
+  if (!user || (requireAdmin && !isAdmin) || (requireDev && !isDev && !isFearlessLeader) || (requireDevOrFearless && !isDev && !isFearlessLeader)) {
     return null;
   }
 
