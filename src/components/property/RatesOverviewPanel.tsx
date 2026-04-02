@@ -125,6 +125,7 @@ export function RatesOverviewPanel({
   const today = new Date();
   const activeSeason = seasons.find(s => {
     try {
+      if (!s.from || !s.to) return false;
       return isWithinInterval(today, { 
         start: parseISO(s.from), 
         end: parseISO(s.to) 
@@ -415,7 +416,7 @@ export function RatesOverviewPanel({
                                     <tr key={season.id} className="border-t">
                                       <td className="py-2 font-medium">{season.name || season.title}</td>
                                       <td className="py-2 text-muted-foreground">
-                                        {format(parseISO(season.from), "d MMM")} - {format(parseISO(season.to), "d MMM")}
+                                        {season.from && season.to ? `${format(parseISO(season.from), "d MMM")} - ${format(parseISO(season.to), "d MMM")}` : "—"}
                                       </td>
                                       <td className="py-2 text-right font-mono">
                                         {rates?.roomAmount ? formatCurrency(rates.roomAmount) : "—"}
@@ -477,7 +478,7 @@ export function RatesOverviewPanel({
                             )}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {format(parseISO(season.from), "d MMM yyyy")} — {format(parseISO(season.to), "d MMM yyyy")}
+                            {season.from && season.to ? `${format(parseISO(season.from), "d MMM yyyy")} — ${format(parseISO(season.to), "d MMM yyyy")}` : "Dates not set"}
                           </p>
                         </div>
                       </div>

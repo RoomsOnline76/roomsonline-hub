@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color")
+      .select("id, name, slug, city, description, images, brand_primary_color, external_system")
       .eq("is_active", true)
       .in("id", propertyIds);
 
@@ -92,6 +92,7 @@ serve(async (req) => {
         : null;
       const rm = roomsByProp[p.id];
       return {
+        id: p.id,
         slug: p.slug,
         name: p.name,
         city: p.city,
@@ -101,6 +102,7 @@ serve(async (req) => {
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
+        external_system: p.external_system || null,
       };
     });
 
