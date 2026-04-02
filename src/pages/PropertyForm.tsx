@@ -492,7 +492,7 @@ export default function PropertyForm() {
   // Load owner's Hostfully credential
   // For owners: load their own credential
   // For admin/dev: load the property owner's credential via ownerPmsCredentialId
-  const isOwnerUser = user && !isAdmin && !isDev;
+  const isOwnerUser = user && !isAdmin && !isDev && !isFearlessLeader;
   
   useEffect(() => {
     const loadOwnerHostfullyCredential = async () => {
@@ -6299,7 +6299,7 @@ export default function PropertyForm() {
                 onChange={setBrandingData}
                 propertyId={propertyId}
                 onDirty={() => setIsDirty(true)}
-                canToggleBrand={isAdmin || isDev}
+                canToggleBrand={isAdmin || isDev || isFearlessLeader}
                 ownerEmail={formData.owner_email}
               />
               {propertyId && <BrandVoiceCard propertyId={propertyId} />}
@@ -8089,7 +8089,7 @@ export default function PropertyForm() {
                       {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
                       <TabsTrigger value="policies">Policies</TabsTrigger>
                       <TabsTrigger value="overview">Overview</TabsTrigger>
-                      {isDev && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
+                      {(isDev || isFearlessLeader) && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
                     </TabsList>
 
                     {/* Rate Types Sub-tab */}
@@ -9683,7 +9683,7 @@ export default function PropertyForm() {
                     </TabsContent>
 
                     {/* Data Explorer Sub-tab - Dev only */}
-                    {isDev && (
+                    {(isDev || isFearlessLeader) && (
                       <TabsContent value="data-explorer" className="p-6 space-y-4">
                         {(() => {
                           const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
