@@ -21,6 +21,8 @@ interface EmbedDatePickerProps {
   onCheckOutChange: (date: string) => void;
   brandColor: string;
   fontColor?: string;
+  controlledOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function EmbedDatePicker({
@@ -30,12 +32,20 @@ export function EmbedDatePicker({
   onCheckOutChange,
   brandColor,
   fontColor = "#fff",
+  controlledOpen,
+  onOpenChange,
 }: EmbedDatePickerProps) {
   const today = startOfDay(new Date());
   const initialMonth = today.getDate() > 25 ? addMonths(today, 1) : today;
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(initialMonth));
   const [selectingCheckOut, setSelectingCheckOut] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = (v: boolean) => {
+    setInternalOpen(v);
+    onOpenChange?.(v);
+  };
 
   const ciDate = checkIn ? startOfDay(new Date(checkIn)) : null;
   const coDate = checkOut ? startOfDay(new Date(checkOut)) : null;
