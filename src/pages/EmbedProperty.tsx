@@ -48,6 +48,9 @@ export default function EmbedProperty() {
   const [checkOut, setCheckOut] = useState<string>(format(addDays(today, 2), "yyyy-MM-dd"));
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
+  const [datesConfirmed, setDatesConfirmed] = useState(false);
+  const dateControlsRef = useRef<HTMLDivElement>(null);
+  const [datesPulse, setDatesPulse] = useState(false);
 
   // Resize observer — post height changes to parent
   useEffect(() => {
