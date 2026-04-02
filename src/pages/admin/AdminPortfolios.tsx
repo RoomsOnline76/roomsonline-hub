@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
+import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
 
 interface PortfolioBranding {
   primary_color?: string;
@@ -46,6 +47,12 @@ interface Property {
   name: string;
   owner_email: string | null;
   city: string | null;
+  brand_primary_color: string | null;
+  brand_secondary_color: string | null;
+  brand_font_color: string | null;
+  brand_logo_url: string | null;
+  brand_heading_font: string | null;
+  brand_body_font: string | null;
 }
 
 export default function AdminPortfolios() {
@@ -94,7 +101,7 @@ export default function AdminPortfolios() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city")
+        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font")
         .eq("is_active", true)
         .order("name");
       return (data || []) as Property[];
@@ -204,8 +211,26 @@ export default function AdminPortfolios() {
     setEditPortfolio(p);
   };
 
+  // Auto-populate branding from first selected property if portfolio branding fields are at defaults
+  const maybeInheritBranding = (newSelectedProps: string[]) => {
+    if (newSelectedProps.length === 0) return;
+    const firstProp = properties.find((p) => p.id === newSelectedProps[0]);
+    if (!firstProp) return;
+    // Only inherit if field is still at default (empty or default hex)
+    if (brandPrimary === "#2563eb" && firstProp.brand_primary_color) setBrandPrimary(firstProp.brand_primary_color);
+    if (brandSecondary === "#1e40af" && firstProp.brand_secondary_color) setBrandSecondary(firstProp.brand_secondary_color);
+    if (brandFontColor === "#333333" && firstProp.brand_font_color) setBrandFontColor(firstProp.brand_font_color);
+    if (!brandLogoUrl && firstProp.brand_logo_url) setBrandLogoUrl(firstProp.brand_logo_url);
+    if (!brandHeadingFont && firstProp.brand_heading_font) setBrandHeadingFont(firstProp.brand_heading_font);
+    if (!brandBodyFont && firstProp.brand_body_font) setBrandBodyFont(firstProp.brand_body_font);
+  };
+
   const toggleProp = (id: string) => {
-    setSelectedProps((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setSelectedProps((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (!prev.includes(id)) maybeInheritBranding(next);
+      return next;
+    });
   };
 
   const getMemberCount = (pid: string) => members.filter((m) => m.portfolio_id === pid).length;
@@ -336,14 +361,18 @@ export default function AdminPortfolios() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Heading Font</Label>
-            <Input value={brandHeadingFont} onChange={(e) => setBrandHeadingFont(e.target.value)} placeholder="e.g. Playfair Display" className="text-xs h-7" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] text-muted-foreground">Body Font</Label>
-            <Input value={brandBodyFont} onChange={(e) => setBrandBodyFont(e.target.value)} placeholder="e.g. Lato" className="text-xs h-7" />
-          </div>
+          <GoogleFontPicker
+            label=""
+            description="Heading Font"
+            value={brandHeadingFont || null}
+            onChange={(f) => setBrandHeadingFont(f || "")}
+          />
+          <GoogleFontPicker
+            label=""
+            description="Body Font"
+            value={brandBodyFont || null}
+            onChange={(f) => setBrandBodyFont(f || "")}
+          />
         </div>
         {brandLogoUrl && (
           <div className="flex items-center gap-2 p-2 rounded-md bg-muted/50 border border-border">
