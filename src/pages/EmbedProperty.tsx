@@ -69,6 +69,7 @@ export default function EmbedProperty() {
       if (e.data.type === "rolos:setDates") {
         if (e.data.checkIn) setCheckIn(e.data.checkIn);
         if (e.data.checkOut) setCheckOut(e.data.checkOut);
+        setDatesConfirmed(true);
       }
       if (e.data.type === "rolos:setPromo" && e.data.code) {
         setPromoCode(e.data.code);
