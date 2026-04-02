@@ -302,8 +302,15 @@ export default function AdminPortfolios() {
       <div className="space-y-2 border-t border-border pt-3">
         <Label className="text-xs font-semibold">Branding</Label>
         <div className="space-y-1">
-          <Label className="text-[10px] text-muted-foreground">Logo URL</Label>
-          <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm" />
+          <Label className="text-[10px] text-muted-foreground">Logo</Label>
+          <div className="flex gap-2 items-center">
+            <Input value={brandLogoUrl} onChange={(e) => setBrandLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className="text-sm flex-1" />
+            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoUpload} />
+            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" disabled={logoUploading} onClick={() => logoInputRef.current?.click()}>
+              {logoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              Upload
+            </Button>
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="space-y-1">
