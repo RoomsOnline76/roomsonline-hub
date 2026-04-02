@@ -482,7 +482,7 @@ export default function AdminPortfolios() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editPortfolio} onOpenChange={(o) => { if (!o) { setEditPortfolio(null); resetForm(); } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Portfolio</DialogTitle>
           </DialogHeader>
