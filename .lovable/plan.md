@@ -1,46 +1,44 @@
 
 
-# Fix: Owner Edit Not Saving for Fearless Leader
+# Plan: Consolidate Audit Logs, Fix Role Display, Filter Archived Properties
 
-## Root Cause Found
+## Three Issues to Fix
 
-**Two issues identified:**
+### 1. Remove `/dev/logs` (DevLogs) — Keep `/admin/audit` (AdminAudit)
 
-### 1. Owner Dropdown is Empty for Fearless Leader
-The owner picker queries `user_roles` table to find users with role `'user'`, then loads their profiles. But the `user_roles` table has a restrictive RLS SELECT policy:
-```
-"Users can view their own roles" → auth.uid() = user_id
-```
-This means Fearless Leader can only see **her own** roles. Since she only has the `fearless_leader` role (not `user`), the query returns zero results → the owner dropdown shows "No owner found."
+The `/admin/audit` page (used by contracts audit trail links) is the better implementation. The `/dev/logs` page is a separate, less capable view.
 
-**This also affects admins/devs** — they can only see their own roles too, meaning the owner dropdown likely only works if admins happen to also have the `user` role.
+**Changes:**
+- Remove `src/pages/DevLogs.tsx`
+- Update `src/config/navigation.ts`: change the "Data & Logs" nav item to point to `/admin/audit` instead of `/dev/logs`, lower `minRole` to `'admin'` so fearless_leader can access it
+- Update `src/App.tsx`: remove the `/dev/logs` route and `DevLogs` lazy import
 
-### 2. Potential Save Failure
-Even if an owner is somehow selected, the save could fail silently if Zod validation catches an unrelated field error (shown as a quick toast that may be missed).
+### 2. Carike's Role Showing as "owner" in Audit Logs
 
-## Fix Plan
+Carike has the `fearless_leader` role in `user_roles`. The `get_user_audit_role()` function correctly maps `fearless_leader` → `admin` (fixed in the April 2 migration). However, the `audit_user_role` enum only has values: `admin`, `dev`, `owner`, `system` — there is no `fearless_leader` value.
 
-### Migration: Add SELECT policy on `user_roles` for privileged roles
-Add an RLS policy allowing `admin`, `dev`, and `fearless_leader` to SELECT all rows from `user_roles`:
+**This means:** Audit entries written **before** the April 2 fix will show `owner` for Carike. New entries should show `admin`. The screenshot showing "owner" is likely from old audit data.
 
-```sql
-CREATE POLICY "Admins devs and fearless can view all roles"
-ON public.user_roles FOR SELECT TO authenticated
-USING (
-  has_role(auth.uid(), 'admin') OR
-  has_role(auth.uid(), 'dev') OR
-  has_role(auth.uid(), 'fearless_leader')
-);
-```
+**This is NOT causing the create/edit properties issues** — the `fearless_leader` role is checked directly via `has_role()` in RLS policies, not via `audit_user_role`. The audit role is only used for labeling log entries.
 
-This single change fixes the owner dropdown for all privileged users.
+**Action:** No code change needed for the role mapping (already fixed). Old entries will retain their original labels — this is expected for an immutable audit trail.
 
-### No code changes needed
-The `PropertyForm.tsx` owner loading logic (lines 278-296) and save logic (lines 3770-3780) are already correct — they just need the data to actually flow through.
+### 3. Property Dropdown — Exclude Archived/Deleted by Default
 
-## Files
+The property dropdown in `AdminAudit.tsx` (line 118-122) loads all properties without filtering by `is_active`. This should default to active-only, with a toggle to show archived.
 
-| Action | File | What |
-|--------|------|------|
-| DB migration | `user_roles` RLS | Add SELECT policy for admin/dev/fearless_leader to view all roles |
+**Changes in `src/pages/AdminAudit.tsx`:**
+- Add `showArchived` state (default `false`)
+- Update property fetch query: add `.eq("is_active", true)` unless `showArchived` is toggled on
+- Add a small toggle/switch next to the Property dropdown: "Show archived"
+- When toggled, re-fetch properties to include inactive ones (remove the `.eq` filter)
+
+## Files to Modify
+
+| File | Change |
+|------|--------|
+| `src/pages/DevLogs.tsx` | **Delete** |
+| `src/App.tsx` | Remove DevLogs import and `/dev/logs` route |
+| `src/config/navigation.ts` | Point "Data & Logs" to `/admin/audit`, set minRole to `'admin'` |
+| `src/pages/AdminAudit.tsx` | Add archived toggle for property dropdown filter |
 
