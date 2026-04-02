@@ -47,6 +47,12 @@ interface Property {
   name: string;
   owner_email: string | null;
   city: string | null;
+  brand_primary_color: string | null;
+  brand_secondary_color: string | null;
+  brand_font_color: string | null;
+  brand_logo_url: string | null;
+  brand_heading_font: string | null;
+  brand_body_font: string | null;
 }
 
 export default function AdminPortfolios() {
