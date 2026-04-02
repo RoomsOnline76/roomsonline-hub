@@ -225,7 +225,7 @@ export default function AdminPortfolios() {
     toast({ title: "Snippet copied to clipboard" });
   };
 
-  const PropertyPicker = () => (
+  const renderPropertyPicker = () => (
     <div className="space-y-2">
       <Label className="text-xs">Properties</Label>
       <Input
@@ -260,7 +260,7 @@ export default function AdminPortfolios() {
     </div>
   );
 
-  const PortfolioFormFields = () => (
+  const renderFormFields = () => (
     <div className="space-y-4">
       <div className="space-y-1">
         <Label className="text-xs">Portfolio Name</Label>
@@ -325,7 +325,7 @@ export default function AdminPortfolios() {
         )}
       </div>
 
-      <PropertyPicker />
+      {renderPropertyPicker()}
     </div>
   );
 
@@ -347,7 +347,7 @@ export default function AdminPortfolios() {
               <DialogHeader>
                 <DialogTitle>Create Portfolio</DialogTitle>
               </DialogHeader>
-              <PortfolioFormFields />
+              {renderFormFields()}
               <DialogFooter>
                 <Button onClick={() => createMutation.mutate()} disabled={!formName.trim() || createMutation.isPending} size="sm">
                   {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
@@ -455,7 +455,7 @@ export default function AdminPortfolios() {
           <DialogHeader>
             <DialogTitle>Edit Portfolio</DialogTitle>
           </DialogHeader>
-          <PortfolioFormFields />
+          {renderFormFields()}
           <DialogFooter>
             <Button onClick={() => updateMutation.mutate()} disabled={!formName.trim() || updateMutation.isPending} size="sm">
               {updateMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
