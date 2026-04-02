@@ -90,7 +90,7 @@ export default function EmbedProperty() {
         setProperty(prop);
         const { data: rooms } = await supabase
           .from("hostfully_room_types")
-          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities, linked_rolos_id")
+          .select("id, name, description, daily_rate, max_guests, beds, bedrooms, bathrooms, images, thumbnail_url, is_active, amenities, linked_rolos_id, hostfully_room_id")
           .eq("property_id", prop.id)
           .eq("is_active", true)
           .order("name");
