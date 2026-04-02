@@ -38,6 +38,7 @@ export default function EmbedProperty() {
   const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
   const [ratePlanMap, setRatePlanMap] = useState<Record<string, { base_rate: number; pricing_model: string }>>({});
+  const [pmsCacheMap, setPmsCacheMap] = useState<Record<string, Record<string, { available_units: number; rate: number | null }>>>({});
   const [loading, setLoading] = useState(true);
   const [showCalendar, setShowCalendar] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
