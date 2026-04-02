@@ -9683,7 +9683,7 @@ export default function PropertyForm() {
                     </TabsContent>
 
                     {/* Data Explorer Sub-tab - Dev only */}
-                    {isDev && (
+                    {(isDev || isFearlessLeader) && (
                       <TabsContent value="data-explorer" className="p-6 space-y-4">
                         {(() => {
                           const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
