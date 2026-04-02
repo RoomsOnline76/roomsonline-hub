@@ -1,39 +1,46 @@
 
 
-# Add Availability Indicators to Embed Property Room Cards
+# Fix: Book Now Buttons Not Working (Date Selection Flow)
 
-## What
+## Root Cause
 
-Add the same availability badges ("3 left today", "1 available from Friday") that appear on the property showcase (`RoomCollection.tsx`) to the embed property's "Rooms & Suites" section in `EmbedProperty.tsx`.
+When the user clicks any "Book Now" button, `handleBookRoom` checks a `datesConfirmed` flag. On page load this is `false`, so the function just scrolls to the date picker area and adds a brief glow effect — but never opens the date picker or gives clear guidance. The user is left confused with nothing happening.
 
-## Data Already Available
+The `EmbedDatePicker` is a small pill button that must be manually clicked to open a calendar dropdown. The scroll-and-pulse effect is too subtle to communicate this.
 
-The embed page already has all the data needed:
-- `pmsCacheMap[roomId]` — per-date availability with `available_units`
-- `availabilityOverrides[roomId]` — manual stop-sell / unit overrides
-- `liveRates` — live PMS data with availability flags
-- `gridRooms` — already computes per-date rates including SOLD status
+## Fix
 
-## Implementation
+### 1. Auto-open the date picker when Book Now is clicked without dates confirmed
 
-### Single file change: `src/pages/EmbedProperty.tsx`
+In `handleBookRoom`, when `!datesConfirmed`, in addition to scrolling, programmatically open the `EmbedDatePicker` calendar. This requires:
+- Adding a controlled `isOpen` prop (or a ref-based `.open()` method) to `EmbedDatePicker`
+- `EmbedProperty.tsx` passes a state variable to control the picker's open state
+- When Book Now is clicked without confirmed dates, set this state to `true` — the calendar drops down automatically
 
-Inside the `roomTypes.map()` block (lines 554–635), compute availability for today and next 7 days, then render badges on the room image:
+### 2. Store the pending room selection and auto-proceed after dates are picked
 
-1. **Compute today's availability** from `pmsCacheMap` and `availabilityOverrides`:
-   - Count available units for today's date
-   - If 0 today, scan the next 7 days for the first date with availability (same logic as `RoomCollection`)
+Currently the user must click Book Now twice (once to trigger date selection, once after selecting dates). Fix:
+- Add `pendingRoom` state: `{ roomId, roomName } | null`
+- When Book Now is clicked without dates → store the room in `pendingRoom`, open the date picker
+- When check-out date is selected (completing date selection) → if `pendingRoom` is set, auto-navigate to checkout immediately
+- This makes it a single-click flow: Book Now → calendar opens → pick dates → auto-redirect to checkout
 
-2. **Render badges** on the room image area (top-left corner, matching the showcase style):
-   - `{n} left today` (red badge) when 1–3 units remain
-   - `{n} available from {dayName}` (green badge) when sold out today but available within 7 days
-   - Reduce card opacity to 80% when sold out today but future availability exists
-   - Reduce to 50% opacity when fully unavailable
+### 3. Show a visible prompt banner
 
-3. **Style** uses inline styles (consistent with the rest of EmbedProperty) with the same visual treatment as `RoomCollection`:
-   - Red: `background: rgba(239,68,68,0.9)`, white text
-   - Green: `background: rgba(5,150,105,0.9)`, white text
-   - Small pill shape, `font-size: 10px`
+When `datesPulse` is active (user clicked Book without dates), show a brief inline banner above the date picker:
+> "Select your check-in and check-out dates to continue booking"
 
-### No new files or dependencies needed
+This provides clear textual feedback in addition to the visual glow.
+
+## Files to Change
+
+| File | Change |
+|------|--------|
+| `src/components/embed/EmbedDatePicker.tsx` | Add controlled `isOpen` prop alongside internal state |
+| `src/pages/EmbedProperty.tsx` | Add `pendingRoom` state, auto-open picker, auto-proceed after date selection, add prompt banner |
+
+## Expected Outcome
+- User clicks "Book Now" → calendar opens automatically at the top → user picks check-in → picks check-out → immediately redirected to checkout page
+- Single-click booking flow instead of the current broken two-click flow
+- Works for both room card buttons and availability grid "Book" buttons
 
