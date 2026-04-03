@@ -1,119 +1,130 @@
 
-# Fix portfolio detection for Julius across ROL'OS PMS pages
+# Fix portfolio detection across Dashboard, Branding, Staff URLs, and Integrations
 
-## What is actually wrong
-I checked the code and data:
+## What is actually broken
+The shared PMS portfolio hook is still failing for owner users like Julius, so all pages that depend on it think there is no portfolio.
 
-- Dassiesingel is correctly linked to the `jongensfontein` portfolio.
-- That portfolio has 4 active properties: Dassiesingel, Seesig, Tidal Pools, Fonteinhutte.
-- Julius owns the properties via `properties.owner_email = julius@polka.co.za`.
-- But the portfolio record has `owner_id = null`.
+The likely root cause is the last backend policy change:
+- `property_portfolio_members` now has a `SELECT` policy that queries `property_portfolio_members` again inside the policy itself.
+- That is the exact self-referential RLS pattern that can fail with recursive policy evaluation.
+- In `usePmsPropertyId()`, all portfolio queries ignore errors, so a backend failure is silently treated as “no memberships”.
+- The pages then hide:
+  - Dashboard toggle
+  - Integrations toggle
+  - Branding portfolio switch / extra review IDs
+  - Staff portfolio + per-property login URLs
 
-So the portfolio toggle is not showing because `usePmsPropertyId()` asks the backend for `property_portfolio_members`, and current access rules only allow:
-- admin/dev users, or
-- the explicit `property_portfolios.owner_id`
-
-Julius is neither of those for the portfolio record, so the hook cannot read the portfolio membership rows. As a result:
-- Dashboard toggle stays hidden
-- Integrations toggle stays hidden
-- Branding cannot recognize the portfolio
-- Branding also currently has no portfolio toggle UI implemented at all
+The Portfolio page can still appear “correct” because it has its own portfolio fetch path (`PortfolioManager` / direct portfolio queries), so it is not a reliable proof that the shared hook is healthy.
 
 ## Implementation plan
 
-### 1. Fix backend access rules for portfolios
-Update portfolio access so a user can read a portfolio and its members when they own any property inside that portfolio, including linked owners.
+### 1. Replace the broken recursive portfolio-member RLS rule
+Create a new security-definer helper function, for example:
 
-Add/adjust policies so authenticated users can `SELECT`:
-- `property_portfolios` if they own at least one member property
-- `property_portfolio_members` if they own the member property, or any property inside that portfolio
+```text
+public.user_can_access_portfolio(_portfolio_id uuid, _user_id uuid)
+```
 
-Use the existing helper patterns:
-- `is_property_owner(property_id, auth.uid())`
-- `is_linked_owner(property_id, auth.uid())`
+It should:
+- look up member properties inside the portfolio
+- return true if the user is a primary owner or linked owner of any member property
 
-This is the core fix that will unblock all PMS pages.
+Then update policies:
 
-### 2. Strengthen `usePmsPropertyId`
-Keep the current shared-selection approach, but make the hook more resilient:
-- include hook loading from auth readiness, not only property query loading
-- ensure portfolio membership fetch waits for a resolved usable `propertyId`
-- keep returning all active portfolio members once membership is visible
+- `property_portfolios` SELECT:
+  - allow if `owner_id = auth.uid()`
+  - or `user_can_access_portfolio(id, auth.uid())`
 
-This avoids false “no portfolio” states during initial load.
+- `property_portfolio_members` SELECT:
+  - allow if `is_property_owner(property_id, auth.uid())`
+  - or `is_linked_owner(property_id, auth.uid())`
+  - or `user_can_access_portfolio(portfolio_id, auth.uid())`
 
-### 3. Make Dashboard toggle reliably appear
-`PMSDashboard.tsx` already has the toggle UI.
-After the backend policy fix, it should appear automatically for Julius when a Jongensfontein property is selected.
+This removes the self-query from the policy and makes owner access safe and deterministic.
 
-I would still tighten the render logic slightly:
-- derive `showPortfolioToggle` from loaded portfolio context
-- optionally reset invalid `dashboardView="portfolio"` when portfolio size drops below 2
+### 2. Harden `usePmsPropertyId()`
+Update the hook so it no longer silently collapses to “no portfolio”:
 
-### 4. Make Integrations toggle reliably appear
-`PMSIntegrations.tsx` already has the toggle UI as well.
-After the same hook fix, the toggle should become visible.
+- include `user?.id` and auth loading state in the portfolio query key / enable condition
+- wait for auth readiness before fetching portfolio membership
+- capture query errors from:
+  - membership lookup
+  - sibling member lookup
+  - member property lookup
+- expose clearer state such as:
+  - `portfolioLoading`
+  - `hasPortfolio`
+  - `showPortfolioToggle`
 
-I would also align it with Dashboard behavior:
-- use the same “portfolio context loaded + more than 1 member” rule
-- avoid brief hidden/visible flicker during load
+Also return hook loading as:
+```text
+auth loading OR property loading OR portfolio loading
+```
 
-### 5. Add missing Portfolio toggle to Branding
-`PMSBranding.tsx` currently has no portfolio toggle logic at all.
-I would add:
-- a `Single / Portfolio` toggle in the page header
-- single-property mode = current branding form
-- portfolio mode = portfolio branding form using `property_portfolios.metadata.branding`
+### 3. Use the hook’s resolved portfolio state consistently
+Update PMS pages to rely on the new hook booleans instead of recomputing from a maybe-null array during load.
 
-Portfolio mode should allow editing:
-- logo
-- primary / secondary / font colors
-- optional heading/body fonts if already used elsewhere
-
-This matches the user expectation that Branding should also recognize portfolio context.
-
-### 6. Reuse existing portfolio branding patterns
-There is already established portfolio branding storage in admin portfolio management and staff login branding.
-So Branding page should reuse that same source of truth:
-- read portfolio branding from `property_portfolios.metadata.branding`
-- save back to the same structure
-- avoid creating new tables or duplicate fields
-
-## Files likely involved
-- `src/hooks/usePmsPropertyId.ts`
+Target pages:
 - `src/pages/pms/PMSDashboard.tsx`
 - `src/pages/pms/PMSIntegrations.tsx`
 - `src/pages/pms/PMSBranding.tsx`
-- new migration updating portfolio read policies:
-  - `property_portfolios`
-  - `property_portfolio_members`
+- `src/pages/pms/PMSStaff.tsx`
+
+Behavior:
+- while portfolio context is resolving, do not render a false “single-only” state
+- once resolved, show portfolio UI immediately if the property belongs to a multi-property portfolio
+
+### 4. Keep existing UI, only unblock it
+These pieces mostly already exist:
+- Dashboard toggle already exists
+- Integrations toggle already exists
+- Branding portfolio switch already exists
+- Staff portfolio + per-property login URLs already exist
+- Branding portfolio review-platform cards already exist
+
+So this is mainly a shared data-access + loading-state repair, not a rebuild.
+
+## Files to change
+- `supabase/migrations/...`  
+  Add security-definer helper function and replace the recursive `SELECT` policy logic
+- `src/hooks/usePmsPropertyId.ts`  
+  Add auth-aware loading, non-silent error handling, and explicit portfolio state
+- `src/pages/pms/PMSDashboard.tsx`  
+  Use resolved hook state for toggle visibility
+- `src/pages/pms/PMSIntegrations.tsx`  
+  Use resolved hook state for toggle visibility
+- `src/pages/pms/PMSBranding.tsx`  
+  Use resolved hook state for portfolio switch / review IDs
+- `src/pages/pms/PMSStaff.tsx`  
+  Use resolved hook state for portfolio URL + per-property URLs
+
+## Expected result
+When Julius selects Dassiesingel, Seesig, Tidal Pools, or Fonteinhutte:
+
+- Dashboard shows the Single / Portfolio toggle
+- Integrations shows the Property / Portfolio toggle
+- Branding shows the Single / Portfolio switch
+- Branding portfolio mode shows the extra review-platform ID cards per property
+- Staff Management shows:
+  - the portfolio login URL
+  - one staff login URL for each property in the portfolio
 
 ## Technical details
 ```text
-Current failure path:
-Julius selects Dassiesingel
--> usePmsPropertyId(propertyId = Dassiesingel)
--> query property_portfolio_members where property_id = Dassiesingel
--> RLS blocks rows because portfolio.owner_id is null
--> portfolioContext = null
+Current failure path
+selected property -> usePmsPropertyId()
+-> property_portfolio_members SELECT hits recursive/self-referential policy
+-> query errors or returns no usable rows
+-> hook suppresses error
 -> portfolioProperties = null
--> toggle condition fails on Dashboard/Integrations
--> Branding has no portfolio UI anyway
+-> all PMS pages conclude "not in a portfolio"
 ```
 
 ```text
-Desired behavior:
-Julius owns Dassiesingel / Seesig / Tidal / Fonteinhutte
--> backend allows reading their portfolio memberships
--> usePmsPropertyId returns all Jongensfontein portfolio properties
--> Dashboard toggle shows
--> Integrations toggle shows
--> Branding also offers Single / Portfolio switch
+Fixed path
+selected property -> usePmsPropertyId()
+-> non-recursive security-definer portfolio access check succeeds
+-> hook resolves member properties and loading state correctly
+-> pages receive hasPortfolio/showPortfolioToggle = true
+-> toggles and portfolio-specific UI appear everywhere consistently
 ```
-
-## Expected result
-When Julius is logged in and selects any Jongensfontein property:
-- Dashboard shows the Single / Portfolio toggle
-- Integrations shows the Single / Portfolio toggle
-- Branding recognizes the portfolio and shows a Single / Portfolio switch
-- all 4 Jongensfontein properties are used as the portfolio context
