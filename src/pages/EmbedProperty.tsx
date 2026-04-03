@@ -269,6 +269,64 @@ export default function EmbedProperty() {
     resolve();
   }, [property?.id, property?.external_system, checkIn, checkOut]);
 
+  // ── Season rate resolver ──
+  // Resolves the correct rate for a given room + date using amenities.season_rates
+  const resolveSeasonRate = useMemo(() => {
+    const amenitiesData = property?.amenities as any;
+    const seasons = Array.isArray(amenitiesData?.seasons) ? amenitiesData.seasons : [];
+    const seasonRates = amenitiesData?.season_rates || {};
+    const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
+
+    // Build a lookup: for each date, find which season it belongs to
+    const findSeasonForDate = (dateStr: string): string | null => {
+      const d = new Date(dateStr);
+      for (const season of seasons) {
+        const periods = Array.isArray(season.periods) ? season.periods : [];
+        // Also check top-level from/to as a single period
+        const allPeriods = periods.length > 0 ? periods : [{ from: season.from, to: season.to }];
+        for (const p of allPeriods) {
+          if (!p?.from || !p?.to) continue;
+          const from = new Date(p.from);
+          const to = new Date(p.to);
+          if (d >= from && d <= to) return String(season.id);
+        }
+      }
+      return null;
+    };
+
+    return (roomId: string, roomName: string, dateStr: string, fallbackRate: number | null): number | null => {
+      // Find the wizard room to get its amenities ID and linked rate type
+      const wizardRoom = wizardRooms.find((wr: any) => String(wr?.id) === String(roomId) || wr?.name === roomName);
+      if (!wizardRoom) return fallbackRate;
+
+      const wizardRoomId = String(wizardRoom.id);
+      const roomSeasonRates = seasonRates[wizardRoomId];
+      if (!roomSeasonRates) return fallbackRate;
+
+      const seasonId = findSeasonForDate(dateStr);
+      if (!seasonId) return fallbackRate;
+
+      // Try linked rate type first, then any matching season key
+      const linkedRateTypeId = Array.isArray(wizardRoom.linkedRateTypes) ? wizardRoom.linkedRateTypes[0] : null;
+      const preferredKey = linkedRateTypeId ? `${seasonId}-${linkedRateTypeId}` : null;
+      
+      if (preferredKey && roomSeasonRates[preferredKey]) {
+        const amt = roomSeasonRates[preferredKey]?.roomAmount;
+        if (amt != null && Number(amt) > 0) return Number(amt);
+      }
+
+      // Fallback: try any key starting with the seasonId
+      for (const key of Object.keys(roomSeasonRates)) {
+        if (key.startsWith(`${seasonId}-`)) {
+          const amt = roomSeasonRates[key]?.roomAmount;
+          if (amt != null && Number(amt) > 0) return Number(amt);
+        }
+      }
+
+      return fallbackRate;
+    };
+  }, [property]);
+
   const gridRooms = useMemo(() => {
     if (!checkIn) return [];
     const start = new Date(checkIn);
@@ -302,10 +360,11 @@ export default function EmbedProperty() {
           if (cached.available_units <= 0) {
             ratesByDate[dateKey] = null; // SOLD
           } else {
-            ratesByDate[dateKey] = cached.rate ?? fallbackRate;
+            ratesByDate[dateKey] = cached.rate ?? resolveSeasonRate(room.id, room.name, dateKey, fallbackRate);
           }
         } else {
-          ratesByDate[dateKey] = fallbackRate;
+          // Resolve season rate for this specific date
+          ratesByDate[dateKey] = resolveSeasonRate(room.id, room.name, dateKey, fallbackRate);
         }
       });
 
@@ -321,7 +380,7 @@ export default function EmbedProperty() {
       const values = Object.values(room.ratesByDate);
       return values.length === 0 || values.some((v) => v !== null);
     });
-  }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap]);
+  }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap, resolveSeasonRate]);
 
   const tripadvisorId = useMemo(() => {
     if (!property?.amenities) return null;
