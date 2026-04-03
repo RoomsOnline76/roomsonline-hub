@@ -246,12 +246,12 @@ export default function PMSDashboard() {
     return chunks;
   }, [dates, viewMode]);
 
-  // Fetch property name
+  // Fetch property name + amenities for season rate fallback
   const { data: propertyData } = useQuery({
     queryKey: ["pms-prop-name", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const { data } = await supabase.from("properties").select("name").eq("id", propertyId).single();
+      const { data } = await supabase.from("properties").select("name, amenities").eq("id", propertyId).single();
       return data;
     },
     enabled: !!propertyId,
