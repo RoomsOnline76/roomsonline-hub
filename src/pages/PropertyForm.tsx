@@ -4068,29 +4068,7 @@ export default function PropertyForm() {
           }
           console.log(`[ROL Sync] Synced ${roomTypes.length} room types to hostfully_room_types`);
 
-          // Deactivate orphan hostfully_room_types no longer in the form
-          const savedRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
-          const savedRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
-          const { data: allDbRooms } = await supabase
-            .from("hostfully_room_types")
-            .select("id, name")
-            .eq("property_id", savedPropertyId)
-            .eq("is_active", true);
-          
-          if (allDbRooms) {
-            const orphans = allDbRooms.filter((dbRoom: any) => 
-              !savedRoomIds.includes(dbRoom.id) && 
-              !savedRoomNames.includes((dbRoom.name || '').toLowerCase().trim())
-            );
-            if (orphans.length > 0) {
-              const orphanIds = orphans.map((o: any) => o.id);
-              await supabase
-                .from("hostfully_room_types")
-                .update({ is_active: false })
-                .in("id", orphanIds);
-              console.log(`[ROL Sync] Deactivated ${orphans.length} orphan room types:`, orphans.map((o: any) => o.name));
-            }
-          }
+          // Orphan cleanup now handled universally below (outside ROL block)
 
           // Now ensure physical rolos_rooms exist for all rolos_room_types
           const { data: allRolosTypes } = await supabase
@@ -4124,6 +4102,36 @@ export default function PropertyForm() {
         } catch (syncErr) {
           console.warn("Room types sync warning:", syncErr);
         }
+        }
+
+        // Universal: Deactivate orphan hostfully_room_types for ANY property type
+        if (savedPropertyId) {
+          try {
+            const currentRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
+            const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
+            const { data: allActiveDbRooms } = await supabase
+              .from("hostfully_room_types")
+              .select("id, name")
+              .eq("property_id", savedPropertyId)
+              .eq("is_active", true);
+            
+            if (allActiveDbRooms) {
+              const orphanRooms = allActiveDbRooms.filter((dbRoom: any) => 
+                !currentRoomIds.includes(dbRoom.id) && 
+                !currentRoomNames.includes((dbRoom.name || '').toLowerCase().trim())
+              );
+              if (orphanRooms.length > 0) {
+                const orphanIds = orphanRooms.map((o: any) => o.id);
+                await supabase
+                  .from("hostfully_room_types")
+                  .update({ is_active: false, updated_at: new Date().toISOString() })
+                  .in("id", orphanIds);
+                console.log(`[Save] Deactivated ${orphanRooms.length} orphan hostfully_room_types:`, orphanRooms.map((o: any) => o.name));
+              }
+            }
+          } catch (orphanErr) {
+            console.warn("[Save] Orphan room cleanup warning:", orphanErr);
+          }
         }
 
         // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
