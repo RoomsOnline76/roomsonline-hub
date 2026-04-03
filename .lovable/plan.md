@@ -1,41 +1,48 @@
-# Fix: Seesig ROL'OS Dashboard — Missing Rooms and Wrong Rates
 
-## Root Cause (Two Problems)
 
-**Problem 1 — Only 4 of 9 room types are active.**
-Edit Property correctly shows all 9 chalets (SEESTER, WITMOSSEL, SWARTMOSSEL, ANEMOON, OESTER, STANDLOPER, ALBATROS, DUIKER, TOBIE). But `rolos_room_types` has only 4 active — the other 5 were deactivated by a previous cleanup. The Dashboard only queries `is_active = true`, so it shows 4 rooms. Unlike the Rooms page, the Dashboard never calls the sync function that would reactivate them.
+# Fix: Duplicate Physical Rooms on Dashboard (Tidal Pools & Dassiesingel)
 
-**Problem 2 — Rates don't resolve from season calendar.**
-The season rates in `amenities.season_rates` are keyed by amenity room type IDs (e.g., `1775237066341` for SEESTER). But the Dashboard's `getRateForDate` looks up by rolos UUID (e.g., `4a885682-...`). The `linked_overview_id` fallback is `null` for amenities-sourced types, and the name fallback also fails because keys are numeric IDs, not names. So the Dashboard falls back to `default_rate` on the room type (which may be stale or null) instead of using the correct seasonal rates (e.g., LOW=960, MIDDLE=1170, HIGH=2100 for SEESTER).
+## Root Cause
 
-## Solution
+Each room type has TWO physical room entries in `rolos_rooms`:
+- One linked to an **active** UPPERCASE type (e.g., "BOSBOK" → active type)
+- One linked to an **inactive** Title case type (e.g., "Bosbok" → inactive type)
 
-### 1. Data fix — Activate all 9 Seesig room types
+The Dashboard's `roomsByType` grouping does a name-based fallback: when a room's `room_type_id` doesn't match any active type, it looks up by name. Since "bosbok" matches "BOSBOK", the phantom room gets remapped into the canonical group — giving 2 rooms per type instead of 1.
 
-Use the insert tool to set `is_active = true` on the 5 deactivated room types (ALBATROS, DUIKER, OESTER, STANDLOPER, TOBIE). This is a one-time fix. Check for Phantom previously created rooms in ROLOS. They have Title case names and not CAPTIALS as NAMES, they should not be in ROLOS. Check all other [JOngensfontein.com](http://JOngensfontein.com) properties. This issue is common for all. 
+## Data to Clean
 
-### 2. Dashboard calls sync on load
+**Dassiesingel** — 4 phantom rooms to delete (linked to inactive types):
+- Bosbok, Dassie, Grysbok, Steenbok
 
-Add a call to `syncRolosRoomTypesFromOverview` in the Dashboard's room types query (same pattern as PMSRooms). This ensures future deactivations are auto-corrected when any PMS page loads, not just the Rooms page.
+**Tidal Pools** — 4 phantom rooms to delete (linked to inactive types):
+- Elf, Geelstert, Leervis, Wildeperd
 
-### 3. Fix rate lookup to resolve amenity IDs
+Also delete the 8 inactive room types (the Title case / duplicate ones) to prevent re-creation.
 
-In `getRateForDate`, after the existing key attempts fail, build a name→amenityId map from `amenities.room_types` and try looking up season_rates by the amenity ID that matches the room type's name. This bridges the ID mismatch for ROL properties.
+## Code Fix
+
+In `src/pages/pms/PMSDashboard.tsx`, update the `roomsByType` grouping to skip rooms whose `room_type_id` points to an inactive/unknown type AND whose name already has a canonical match. This prevents any future phantom rooms from appearing even if database cleanup is missed.
 
 ```text
-Rate resolution chain (updated):
-1. rolos_seasonal_prices (existing)
-2. amenities.season_rates[rolosRoomTypeId]     ← existing, works for non-ROL
-3. amenities.season_rates[linked_overview_id]   ← existing, works for hostfully
-4. amenities.season_rates[amenityRoomTypeId]    ← NEW: match by name → amenity ID
-5. rate plan base_rate                          ← existing fallback
-6. room type default_rate                       ← existing fallback
+Current logic:
+  room → find matching active type by ID → if not found, try by name → group
+
+Fixed logic:
+  room → find matching active type by ID → group
+       → if not found by ID, check if another room already covers this name → skip duplicate
 ```
+
+## Steps
+
+1. **Database**: Delete 8 phantom physical rooms from `rolos_rooms`
+2. **Database**: Delete 8 inactive duplicate room types from `rolos_room_types`  
+3. **Code**: Update `roomsByType` in `PMSDashboard.tsx` to deduplicate rooms mapped by name fallback — keep only one physical room per canonical type name
 
 ## Files to Change
 
+| Target | Change |
+|--------|--------|
+| Database | Delete phantom `rolos_rooms` and inactive `rolos_room_types` for both properties |
+| `src/pages/pms/PMSDashboard.tsx` | Filter duplicate rooms in `roomsByType` to prevent name-fallback from doubling units |
 
-| File                             | Changes                                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Database** (insert tool)       | `UPDATE rolos_room_types SET is_active = true` for the 5 inactive Seesig room types                                           |
-| `src/pages/pms/PMSDashboard.tsx` | Import and call `syncRolosRoomTypesFromOverview` inside the room types query; add amenity-ID-based lookup in `getRateForDate` |
