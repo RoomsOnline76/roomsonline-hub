@@ -570,6 +570,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("owner_notes", e.target.value)}
                   placeholder="Internal notes from the property owner..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
             </CardContent>
