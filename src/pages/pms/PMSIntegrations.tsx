@@ -503,6 +503,33 @@ function PortfolioFullEmbed({ propertyId, portfolioProperties }: { propertyId: s
   );
 }
 
+/* Reusable wrapper for per-property card sections in portfolio mode */
+function PortfolioPerPropertyCards({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PortfolioPropertyCard({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 border-b last:border-b-0 pb-6 last:pb-0">
+      <h4 className="text-sm font-semibold flex items-center gap-1.5">
+        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+        {name}
+      </h4>
+      {children}
+    </div>
+  );
+}
+
 // Re-export needed icons for inline components
 import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
