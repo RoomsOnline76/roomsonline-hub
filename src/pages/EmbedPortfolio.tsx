@@ -101,6 +101,7 @@ export default function EmbedPortfolio() {
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
+  const brandSecondaryColor = portfolioBranding.secondary_color || brandColor;
   const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
 
   // Resize observer for iframe
