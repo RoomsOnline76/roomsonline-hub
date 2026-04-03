@@ -101,6 +101,7 @@ import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
+import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
@@ -8088,6 +8089,7 @@ export default function PropertyForm() {
                     <TabsList>
                       <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
                       <TabsTrigger value="season">Seasons</TabsTrigger>
+                      <TabsTrigger value="seasons-calendar">Calendar</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
                       {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
@@ -8752,7 +8754,25 @@ export default function PropertyForm() {
                       </Dialog>
                     </TabsContent>
 
-                    {/* Rate Breakdown Sub-tab */}
+                    {/* Seasons Calendar Sub-tab */}
+                    <TabsContent value="seasons-calendar" className="p-4">
+                      <SeasonsCalendar
+                        seasons={seasons}
+                        seasonRates={seasonRates}
+                        roomTypes={roomTypes}
+                        selectedRoomType={selectedRoomType}
+                        pmsRateTypes={pmsRateTypes}
+                        pricingModel={pmsRateTypes[0]?.pricingModel || pmsRateTypes[0]?.priceType || "per_unit"}
+                        currency={formData.currency || "ZAR"}
+                        isReadOnly={!!(selectedPMS && selectedPMS !== "roomsonline" && selectedPMS !== "none")}
+                        externalSystem={selectedPMS}
+                        mealTypeSuggestions={selectedMealTypes}
+                        onSeasonsChange={(s) => { setSeasons(s); setIsDirty(true); }}
+                        onSeasonRatesChange={(r) => { setSeasonRates(r); setIsDirty(true); }}
+                        onSelectedRoomTypeChange={(id) => setSelectedRoomType(id)}
+                      />
+                    </TabsContent>
+
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
                       {seasons.length === 0 ? (
                         (() => {
