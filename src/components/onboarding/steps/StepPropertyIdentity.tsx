@@ -65,8 +65,27 @@ export function StepPropertyIdentity({
   const numberOfFloors = getAmenityValue<number | null>("number_of_floors", null);
   const starGrading = getAmenityValue<string>("star_grading", "");
   const tripadvisorId = getAmenityValue<string>("tripadvisor_id", "");
-  const pmsName = getAmenityValue<string>("pms_name", "");
-  const channelManager = getAmenityValue<string>("channel_manager", "");
+  const pmsSystems = getAmenityValue<string[]>("pms_systems", []);
+  const channelManagers = getAmenityValue<string[]>("channel_managers", []);
+  const [pmsOpen, setPmsOpen] = useState(false);
+  const [cmOpen, setCmOpen] = useState(false);
+
+  const togglePmsSystem = (key: string) => {
+    const updated = pmsSystems.includes(key)
+      ? pmsSystems.filter(k => k !== key)
+      : [...pmsSystems, key];
+    updateField("amenities.pms_systems", updated);
+    // Backward compat
+    updateField("amenities.pms_name", updated[0] ? VISIBLE_PMS_SYSTEMS.find(s => s.key === updated[0])?.name || "" : "");
+  };
+
+  const toggleChannelManager = (key: string) => {
+    const updated = channelManagers.includes(key)
+      ? channelManagers.filter(k => k !== key)
+      : [...channelManagers, key];
+    updateField("amenities.channel_managers", updated);
+    updateField("amenities.channel_manager", updated[0] ? VISIBLE_PMS_SYSTEMS.find(s => s.key === updated[0])?.name || "" : "");
+  };
 
   // Business Registration
   const registeredBusinessName = getAmenityValue<string>("registered_business_name", "");
