@@ -346,7 +346,7 @@ export default function SeasonsCalendar({
   ];
   const rateFields = allRateFields.filter((f) => f.show);
 
-  const activeMealTypes = mealTypeSuggestions.length > 0 ? mealTypeSuggestions : [""];
+  // activeMealTypes no longer used — rate grid now keyed by rate type
 
   const cancelSelection = () => {
     setIsAdding(false);
