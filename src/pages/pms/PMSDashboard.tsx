@@ -265,6 +265,8 @@ export default function PMSDashboard() {
     queryKey: ["pms-cal-room-types", propertyId],
     queryFn: async () => {
       if (!propertyId) return [];
+      // Sync room types from overview on load (reactivates deactivated types)
+      try { await syncRolosRoomTypesFromOverview(propertyId); } catch (e) { console.warn("[PMSDashboard] sync error:", e); }
       const { data } = await supabase
         .from("rolos_room_types")
         .select("id, name, default_rate, is_active, max_occupancy, linked_overview_id")
