@@ -1,130 +1,51 @@
 
-# Fix portfolio detection across Dashboard, Branding, Staff URLs, and Integrations
 
-## What is actually broken
-The shared PMS portfolio hook is still failing for owner users like Julius, so all pages that depend on it think there is no portfolio.
+# Expand Portfolio Integrations to Full Parity with Single Property
 
-The likely root cause is the last backend policy change:
-- `property_portfolio_members` now has a `SELECT` policy that queries `property_portfolio_members` again inside the policy itself.
-- That is the exact self-referential RLS pattern that can fail with recursive policy evaluation.
-- In `usePmsPropertyId()`, all portfolio queries ignore errors, so a backend failure is silently treated as “no memberships”.
-- The pages then hide:
-  - Dashboard toggle
-  - Integrations toggle
-  - Branding portfolio switch / extra review IDs
-  - Staff portfolio + per-property login URLs
+## Problem
+Portfolio mode in `/pms/integrations` currently only has 4 tabs: Portfolio Widget, Direct Link, Full Embed, and Payment. Single property mode has 9 tabs. The missing tabs are: **Smart Button, Widget, Booking Bar, WordPress, Elementor, and API**.
 
-The Portfolio page can still appear “correct” because it has its own portfolio fetch path (`PortfolioManager` / direct portfolio queries), so it is not a reliable proof that the shared hook is healthy.
+## Solution
+Expand the portfolio integration tabs to include all 9 integration types. Each tab renders per-property sections — a card per portfolio member with that property's integration component inside it — so owners can configure and copy snippets for every property from a single portfolio view.
 
-## Implementation plan
+## Changes
 
-### 1. Replace the broken recursive portfolio-member RLS rule
-Create a new security-definer helper function, for example:
+### `src/pages/pms/PMSIntegrations.tsx`
+
+1. Expand the portfolio `TabsList` from 4 tabs to 9+1 (matching single property's 9, plus Payment which is portfolio-specific):
+   - Smart Button, Direct Link, Widget, Booking Bar, Full Embed, WordPress, Elementor, API, Portfolio Widget, Payment
+
+2. For each new tab content, render a per-property loop card pattern:
+   ```text
+   For each portfolioProperty:
+     <Card>
+       <CardHeader>{property.name}</CardHeader>
+       <CardContent>
+         <SmartBookButtonGenerator property={pp} />  // or WidgetTab, BookingBarTab, etc.
+       </CardContent>
+     </Card>
+   ```
+
+3. Fetch full property details (id, name, slug, brand_primary_color) for all portfolio members — the current query only fetches id/name. Add slug and brand_primary_color to the portfolio properties query so the existing integration components receive the props they need.
+
+4. Keep the existing `PortfolioDirectLinks` and `PortfolioFullEmbed` inline components but also include the richer single-property `DirectLinkTab` / `FullEmbedTab` per property (with documentation) alongside the quick-copy portfolio summaries.
+
+### `src/hooks/usePmsPropertyId.ts`
+
+Ensure `portfolioProperties` includes `slug` and `brand_primary_color` fields — currently these may not be fetched. Add them to the member properties select query.
+
+## Tab layout (Portfolio mode)
 
 ```text
-public.user_can_access_portfolio(_portfolio_id uuid, _user_id uuid)
+Smart Button | Direct Link | Widget | Booking Bar | Full Embed | WordPress | Elementor | API | Portfolio Widget | Payment
 ```
 
-It should:
-- look up member properties inside the portfolio
-- return true if the user is a primary owner or linked owner of any member property
-
-Then update policies:
-
-- `property_portfolios` SELECT:
-  - allow if `owner_id = auth.uid()`
-  - or `user_can_access_portfolio(id, auth.uid())`
-
-- `property_portfolio_members` SELECT:
-  - allow if `is_property_owner(property_id, auth.uid())`
-  - or `is_linked_owner(property_id, auth.uid())`
-  - or `user_can_access_portfolio(portfolio_id, auth.uid())`
-
-This removes the self-query from the policy and makes owner access safe and deterministic.
-
-### 2. Harden `usePmsPropertyId()`
-Update the hook so it no longer silently collapses to “no portfolio”:
-
-- include `user?.id` and auth loading state in the portfolio query key / enable condition
-- wait for auth readiness before fetching portfolio membership
-- capture query errors from:
-  - membership lookup
-  - sibling member lookup
-  - member property lookup
-- expose clearer state such as:
-  - `portfolioLoading`
-  - `hasPortfolio`
-  - `showPortfolioToggle`
-
-Also return hook loading as:
-```text
-auth loading OR property loading OR portfolio loading
-```
-
-### 3. Use the hook’s resolved portfolio state consistently
-Update PMS pages to rely on the new hook booleans instead of recomputing from a maybe-null array during load.
-
-Target pages:
-- `src/pages/pms/PMSDashboard.tsx`
-- `src/pages/pms/PMSIntegrations.tsx`
-- `src/pages/pms/PMSBranding.tsx`
-- `src/pages/pms/PMSStaff.tsx`
-
-Behavior:
-- while portfolio context is resolving, do not render a false “single-only” state
-- once resolved, show portfolio UI immediately if the property belongs to a multi-property portfolio
-
-### 4. Keep existing UI, only unblock it
-These pieces mostly already exist:
-- Dashboard toggle already exists
-- Integrations toggle already exists
-- Branding portfolio switch already exists
-- Staff portfolio + per-property login URLs already exist
-- Branding portfolio review-platform cards already exist
-
-So this is mainly a shared data-access + loading-state repair, not a rebuild.
+Each tab (except Portfolio Widget and Payment which already work) shows a stacked list of property cards, one per portfolio member, each containing the same component used in single-property mode.
 
 ## Files to change
-- `supabase/migrations/...`  
-  Add security-definer helper function and replace the recursive `SELECT` policy logic
-- `src/hooks/usePmsPropertyId.ts`  
-  Add auth-aware loading, non-silent error handling, and explicit portfolio state
-- `src/pages/pms/PMSDashboard.tsx`  
-  Use resolved hook state for toggle visibility
-- `src/pages/pms/PMSIntegrations.tsx`  
-  Use resolved hook state for toggle visibility
-- `src/pages/pms/PMSBranding.tsx`  
-  Use resolved hook state for portfolio switch / review IDs
-- `src/pages/pms/PMSStaff.tsx`  
-  Use resolved hook state for portfolio URL + per-property URLs
 
-## Expected result
-When Julius selects Dassiesingel, Seesig, Tidal Pools, or Fonteinhutte:
+| File | Change |
+|------|--------|
+| `src/pages/pms/PMSIntegrations.tsx` | Add 6 missing tabs to portfolio mode, render per-property integration components, fetch full property details for portfolio members |
+| `src/hooks/usePmsPropertyId.ts` | Add `slug`, `brand_primary_color` to portfolio member property query |
 
-- Dashboard shows the Single / Portfolio toggle
-- Integrations shows the Property / Portfolio toggle
-- Branding shows the Single / Portfolio switch
-- Branding portfolio mode shows the extra review-platform ID cards per property
-- Staff Management shows:
-  - the portfolio login URL
-  - one staff login URL for each property in the portfolio
-
-## Technical details
-```text
-Current failure path
-selected property -> usePmsPropertyId()
--> property_portfolio_members SELECT hits recursive/self-referential policy
--> query errors or returns no usable rows
--> hook suppresses error
--> portfolioProperties = null
--> all PMS pages conclude "not in a portfolio"
-```
-
-```text
-Fixed path
-selected property -> usePmsPropertyId()
--> non-recursive security-definer portfolio access check succeeds
--> hook resolves member properties and loading state correctly
--> pages receive hasPortfolio/showPortfolioToggle = true
--> toggles and portfolio-specific UI appear everywhere consistently
-```
