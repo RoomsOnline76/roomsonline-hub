@@ -212,7 +212,7 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                       setCommissionType(v as CommissionType);
                       setNewRate(v === "pms" ? 2 : 10);
                     }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="listing">Listing (Marketplace)</SelectItem>
                         <SelectItem value="pms">PMS (Integrations)</SelectItem>
