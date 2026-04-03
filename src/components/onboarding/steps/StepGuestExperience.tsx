@@ -32,7 +32,7 @@ export function StepGuestExperience({
   const [isGenerating, setIsGenerating] = useState(false);
 
   const isPMSDesc = isPMSManaged("description");
-  const mealPlan = getAmenityValue<string[]>("meal_plan", []);
+  const mealPlan = getAmenityValue<string[]>("meal_types", []);
   const description = propertyData.description || "";
   const shortDescription = propertyData.short_description || "";
   const uniqueSellingPoints = getAmenityValue<string>("unique_selling_points", "");
