@@ -666,21 +666,38 @@ export default function SeasonsCalendar({
                 <h3 className="text-sm font-semibold">Room Rates by Season</h3>
                 <span className="text-[10px] text-muted-foreground">(per room/unit)</span>
               </div>
-              {roomTypes.length > 1 && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Set rates for:</Label>
-                  <Select value={selectedRoomType} onValueChange={(v) => onSelectedRoomTypeChange?.(v)}>
-                    <SelectTrigger className="h-8 text-xs w-[200px]">
-                      <SelectValue placeholder="Select room" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roomTypes.map((r) => (
-                        <SelectItem key={r.id} value={r.id} className="text-xs">{r.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                {roomTypes.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Room:</Label>
+                    <Select value={selectedRoomType} onValueChange={(v) => onSelectedRoomTypeChange?.(v)}>
+                      <SelectTrigger className="h-8 text-xs w-[180px]">
+                        <SelectValue placeholder="Select room" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roomTypes.map((r) => (
+                          <SelectItem key={r.id} value={r.id} className="text-xs">{r.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {linkedRateTypes.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Rate Type:</Label>
+                    <Select value={selectedRateTypeId} onValueChange={(v) => setSelectedRateTypeId(v)}>
+                      <SelectTrigger className="h-8 text-xs w-[180px]">
+                        <SelectValue placeholder="Select rate type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {linkedRateTypes.map((rt) => (
+                          <SelectItem key={String(rt.id)} value={String(rt.id)} className="text-xs">{rt.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
             {currentRoom && (
@@ -689,59 +706,55 @@ export default function SeasonsCalendar({
                   <p className="text-xs text-muted-foreground mb-2">Rates for: <span className="font-medium text-foreground">{currentRoom.name}</span></p>
                 )}
 
-                {/* Rate grid: one row per season, columns = rate fields */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[140px]">Season</th>
-                        {activeMealTypes.length > 1 && (
-                          <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[100px]">Meal Plan</th>
-                        )}
-                        {rateFields.map((rf) => (
-                          <th key={rf.key} className="text-left py-2 px-2 font-medium text-muted-foreground">
-                            {rf.label} ({currency})
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {seasons.map((season, sIdx) => {
-                        const c = getSeasonColor(season, sIdx);
-                        return activeMealTypes.map((mealType, mIdx) => (
-                          <tr
-                            key={`${season.id}-${mealType || "__default"}`}
-                            className={cn("border-b last:border-b-0", mIdx > 0 && "border-t-0")}
-                          >
-                            {mIdx === 0 && (
-                              <td className="py-1.5 px-2" rowSpan={activeMealTypes.length}>
+                {linkedRateTypes.length === 0 && (
+                  <div className="border rounded-lg p-4 text-center text-muted-foreground text-sm">
+                    No rate types linked to this room. Link rate types in the Rate Types tab.
+                  </div>
+                )}
+
+                {linkedRateTypes.length > 0 && selectedRateTypeId && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[140px]">Season</th>
+                          {rateFields.map((rf) => (
+                            <th key={rf.key} className="text-left py-2 px-2 font-medium text-muted-foreground">
+                              {rf.label} ({currency})
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {seasons.map((season, sIdx) => {
+                          const c = getSeasonColor(season, sIdx);
+                          return (
+                            <tr key={season.id} className="border-b last:border-b-0">
+                              <td className="py-1.5 px-2">
                                 <div className="flex items-center gap-1.5">
                                   <span className={cn("inline-block w-3 h-3 rounded-sm shrink-0", c.bg, c.border, "border")} />
                                   <span className="font-medium">{season.name || season.title}</span>
                                 </div>
                               </td>
-                            )}
-                            {activeMealTypes.length > 1 && (
-                              <td className="py-1.5 px-2 capitalize text-muted-foreground">{mealType || "Default"}</td>
-                            )}
-                            {rateFields.map((rf) => (
-                              <td key={rf.key} className="py-1.5 px-2">
-                                <Input
-                                  className="h-7 text-xs w-[100px]"
-                                  type="number"
-                                  min={0}
-                                  value={getRate(season.id, mealType, rf.key) || ""}
-                                  onChange={(e) => updateRate(season.id, mealType, rf.key, parseFloat(e.target.value) || 0)}
-                                  disabled={isReadOnly}
-                                />
-                              </td>
-                            ))}
-                          </tr>
-                        ));
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              {rateFields.map((rf) => (
+                                <td key={rf.key} className="py-1.5 px-2">
+                                  <Input
+                                    className="h-7 text-xs w-[100px]"
+                                    type="number"
+                                    min={0}
+                                    value={getRate(season.id, "", rf.key) || ""}
+                                    onChange={(e) => updateRate(season.id, "", rf.key, parseFloat(e.target.value) || 0)}
+                                    disabled={isReadOnly}
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
