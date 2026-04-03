@@ -701,7 +701,19 @@ export default function PMSCommandCentre() {
                     {sg.cards.map((summary) => (
                       <Card key={summary.property_id} className="relative overflow-hidden">
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium truncate">{summary.property_name}</CardTitle>
+                          <div className="flex items-center justify-between gap-1">
+                            <CardTitle className="text-sm font-medium truncate">{summary.property_name}</CardTitle>
+                            {summary.last_updated && (() => {
+                              const ageMs = Date.now() - new Date(summary.last_updated!).getTime();
+                              const ageHours = ageMs / (1000 * 60 * 60);
+                              const color = ageHours < 2 ? "text-status-healthy" : ageHours < 24 ? "text-status-warning" : "text-destructive";
+                              return (
+                                <span className={`text-[9px] ${color} whitespace-nowrap`}>
+                                  {formatDistanceToNow(new Date(summary.last_updated!), { addSuffix: true })}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           <div className="flex items-end gap-2">
