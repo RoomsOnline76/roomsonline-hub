@@ -11987,8 +11987,18 @@ export default function PropertyForm() {
             if (key === "selectedFacilities" && Array.isArray(suggestion.suggested)) {
               setSelectedFacilities(suggestion.suggested as string[]);
               appliedCount++;
+            } else if (key === "starRating" && typeof suggestion.suggested === "number") {
+              setStarRating(suggestion.suggested);
+              appliedCount++;
+            } else if (key === "uploadedImages" && Array.isArray(suggestion.suggested)) {
+              setUploadedImages((prev) => [...new Set([...prev, ...(suggestion.suggested as string[])])]);
+              appliedCount++;
+            } else if (key.startsWith("formData.")) {
+              // Should not happen after replace, but safety net
+              setFormData((prev) => ({ ...prev, [key.replace("formData.", "")]: suggestion.suggested }));
+              appliedCount++;
             } else {
-              // Always try to update formData - the key should exist if suggestion was generated
+              // Default: set on formData (covers telephone, description, address, etc.)
               setFormData((prev) => ({ ...prev, [key]: suggestion.suggested }));
               appliedCount++;
             }
