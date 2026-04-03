@@ -1,0 +1,1 @@
+UPDATE public.hostfully_room_types SET is_active = false WHERE id = 'dd18aae5-5e21-460b-9697-58b1a7eaa0fe';
