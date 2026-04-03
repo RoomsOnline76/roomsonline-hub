@@ -11971,6 +11971,26 @@ export default function PropertyForm() {
           });
         }}
       />
+
+      {/* Sync Rate Types / Seasons Dialogs */}
+      {propertyId && (
+        <>
+          <SyncRatesDialog
+            open={syncRateTypesOpen}
+            onOpenChange={setSyncRateTypesOpen}
+            mode="rate-types"
+            currentPropertyId={propertyId}
+            currentAmenities={{ rate_types: pmsRateTypes }}
+          />
+          <SyncRatesDialog
+            open={syncSeasonsOpen}
+            onOpenChange={setSyncSeasonsOpen}
+            mode="seasons"
+            currentPropertyId={propertyId}
+            currentAmenities={{ seasons }}
+          />
+        </>
+      )}
     </AppLayout>
   );
 }
