@@ -87,12 +87,10 @@ const pmsNavGroups: NavGroup[] = [
 export function PMSSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const propertyId = searchParams.get("property");
   const { signOut, isDev, isAdmin, isFearlessLeader } = useAuth();
   const { propertyName, logoUrl, brandEnabled } = usePMSBrand();
+  const { propertyId, properties, switchProperty } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
-  const { properties, switchProperty } = usePmsPropertyId();
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
   const [collapsed, setCollapsed] = useState(() => {
