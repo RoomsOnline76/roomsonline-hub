@@ -154,6 +154,7 @@ export default function AdminPortfolios() {
         const rows = selectedProps.map((pid) => ({ portfolio_id: (portfolio as any).id, property_id: pid }));
         await supabase.from("property_portfolio_members" as any).insert(rows as any);
       }
+      await saveReviewIds();
       return portfolio;
     },
     onSuccess: () => {
