@@ -199,7 +199,7 @@ function getStatusColor(status: string) {
 }
 
 export default function PMSDashboard() {
-  const { propertyId, properties, portfolioProperties, loading: propLoading, switchProperty } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   // If selected property is in a portfolio, scope dropdown to portfolio members
   const displayProperties = portfolioProperties || properties;
   const { propertyName: brandName } = usePMSBrand();
@@ -217,7 +217,6 @@ export default function PMSDashboard() {
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
-  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
   const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
   const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
 

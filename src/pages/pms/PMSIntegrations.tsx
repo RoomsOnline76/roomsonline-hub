@@ -22,10 +22,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function PMSIntegrations() {
-  const { propertyId, properties, portfolioProperties, portfolioIds, loading: propertyLoading, switchProperty } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, portfolioIds, loading: propertyLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
 
-  const hasPortfolio = (portfolioProperties?.length || 0) > 1;
+  const hasPortfolio = showPortfolioToggle;
 
   const { data: property, isLoading: propertyDataLoading } = useQuery({
     queryKey: ["pms-property-detail", propertyId],
