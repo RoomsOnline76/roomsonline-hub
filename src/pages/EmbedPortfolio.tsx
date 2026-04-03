@@ -605,6 +605,11 @@ export default function EmbedPortfolio() {
                       From R{prop.starting_rate.toLocaleString()}
                     </Badge>
                   )}
+                  {specials.some(s => s.property_id === prop.id) && (
+                    <Badge className="absolute top-3 left-3 text-white border-0 text-[10px] font-semibold gap-1" style={{ backgroundColor: "#e11d48" }}>
+                      <Tag className="h-3 w-3" /> Special
+                    </Badge>
+                  )}
                 </div>
                 <div className="p-4 flex-1 flex flex-col">
                   <h3 className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{prop.name}</h3>
