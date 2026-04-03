@@ -4125,11 +4125,7 @@ export default function PropertyForm() {
                 infant_rate: rateType.infantRate ?? null,
               };
 
-              // Check if a rate plan with this exact ID or code already exists
-              // First try exact UUID match, then fall back to code match
               let existingPlan: { id: string } | null = null;
-              
-              // Try matching by full UUID id first
               const fullId = String(rateType.id);
               const { data: idMatch } = await supabase
                 .from("rolos_rate_plans")
@@ -4141,7 +4137,6 @@ export default function PropertyForm() {
               if (idMatch) {
                 existingPlan = idMatch;
               } else {
-                // Fall back to code match only (not name, to avoid duplicate creation)
                 const { data: codeMatch } = await supabase
                   .from("rolos_rate_plans")
                   .select("id")
@@ -4166,35 +4161,40 @@ export default function PropertyForm() {
               }
             }
             console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
+          } catch (rateSyncErr) {
+            console.warn("[ROL Sync] Rate plan sync error:", rateSyncErr);
+          }
+        }
 
-            // Deactivate rolos_rate_plans that were removed from pmsRateTypes
-            try {
-              const { data: allExistingPlans } = await supabase
-                .from("rolos_rate_plans")
-                .select("id, code, name")
-                .eq("property_id", savedPropertyId)
-                .eq("is_active", true);
+        // Deactivate stale rolos_rate_plans (runs even when pmsRateTypes is empty to clean up all)
+        if (isRolProperty && savedPropertyId) {
+          try {
+            const { data: allExistingPlans } = await supabase
+              .from("rolos_rate_plans")
+              .select("id, code, name")
+              .eq("property_id", savedPropertyId)
+              .eq("is_active", true);
 
-              if (allExistingPlans) {
-                const currentRateIds = new Set(pmsRateTypes.map((rt: any) => String(rt.id)));
-                const currentRateCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
-                const currentRateNames = new Set(pmsRateTypes.map((rt: any) => (rt.name || '').toLowerCase()));
+            if (allExistingPlans && allExistingPlans.length > 0) {
+              const currentRateIds = new Set(pmsRateTypes.map((rt: any) => String(rt.id)));
+              const currentRateCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
 
-                const stalePlans = allExistingPlans.filter(p =>
-                  !currentRateIds.has(p.id) && !currentRateCodes.has(p.code) && !currentRateNames.has(p.name.toLowerCase())
-                );
+              const stalePlans = allExistingPlans.filter(p =>
+                !currentRateIds.has(p.id) && !currentRateCodes.has(p.code)
+              );
 
-                for (const stale of stalePlans) {
-                  await supabase
-                    .from("rolos_rate_plans")
-                    .update({ is_active: false })
-                    .eq("id", stale.id);
-                  console.log(`[ROL Sync] Deactivated removed rate plan: ${stale.name}`);
-                }
+              for (const stale of stalePlans) {
+                await supabase
+                  .from("rolos_rate_plans")
+                  .update({ is_active: false })
+                  .eq("id", stale.id);
+                console.log(`[ROL Sync] Deactivated removed rate plan: ${stale.name}`);
               }
-            } catch (cleanupErr) {
-              console.warn("[ROL Sync] Rate plan cleanup warning:", cleanupErr);
             }
+          } catch (cleanupErr) {
+            console.warn("[ROL Sync] Rate plan cleanup warning:", cleanupErr);
+          }
+        }
 
             // Auto-link rate plans to room types based on amenities linkedRateTypes
             try {
