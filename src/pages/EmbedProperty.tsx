@@ -185,14 +185,18 @@ export default function EmbedProperty() {
     const fetchPmsCache = async () => {
       const start = new Date(checkIn);
       const endDate = addDays(start, 30);
-      // Build lookup: hostfully_room_id → our room id
-      const hostfullyIdToRoomId: Record<string, string> = {};
+      // Build lookup: external_room_type_id → our room id
+      // The cache may store either the hostfully_room_id (API UUID) or the hostfully_room_types.id (our DB ID)
+      const externalIdToRoomId: Record<string, string> = {};
       for (const room of roomTypes) {
+        // Map by hostfully_room_id (legacy / API UUID)
         if (room.hostfully_room_id) {
-          hostfullyIdToRoomId[room.hostfully_room_id] = room.id;
+          externalIdToRoomId[room.hostfully_room_id] = room.id;
         }
+        // Also map by our own room type ID (used when cache stores hostfully_room_types.id)
+        externalIdToRoomId[room.id] = room.id;
       }
-      const externalIds = Object.keys(hostfullyIdToRoomId);
+      const externalIds = Object.keys(externalIdToRoomId);
       if (externalIds.length === 0) {
         setPmsCacheMap({});
         return;
@@ -207,7 +211,7 @@ export default function EmbedProperty() {
       if (data) {
         const map: Record<string, Record<string, { available_units: number; rate: number | null }>> = {};
         for (const row of data) {
-          const roomId = hostfullyIdToRoomId[row.external_room_type_id];
+          const roomId = externalIdToRoomId[row.external_room_type_id];
           if (!roomId) continue;
           if (!map[roomId]) map[roomId] = {};
           const ratesArr = row.rates as any[];
