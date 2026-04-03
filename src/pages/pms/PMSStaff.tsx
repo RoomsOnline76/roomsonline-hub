@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getStaffLoginUrl } from "@/lib/config";
+import { getStaffLoginUrl, getPortfolioStaffLoginUrl } from "@/lib/config";
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
