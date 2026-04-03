@@ -254,7 +254,7 @@ export default function PMSDashboard() {
     queryKey: ["pms-prop-name", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const { data } = await supabase.from("properties").select("name, amenities").eq("id", propertyId).single();
+      const { data } = await supabase.from("properties").select("name, amenities, is_rol_property").eq("id", propertyId).single();
       return data;
     },
     enabled: !!propertyId,
