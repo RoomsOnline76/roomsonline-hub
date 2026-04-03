@@ -212,7 +212,7 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                       setCommissionType(v as CommissionType);
                       setNewRate(v === "pms" ? 2 : 10);
                     }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="listing">Listing (Marketplace)</SelectItem>
                         <SelectItem value="pms">PMS (Integrations)</SelectItem>
@@ -221,16 +221,16 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                   </div>
                   <div>
                     <Label>Revenue Share (%)</Label>
-                    <Input type="number" min={0} max={100} step={0.5} value={newRate} onChange={(e) => setNewRate(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" min={0} max={100} step={0.5} value={newRate} onChange={(e) => setNewRate(parseFloat(e.target.value) || 0)} className="text-xs" />
                   </div>
                   <div>
                     <Label>Effective From</Label>
-                    <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+                    <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="text-xs" />
                   </div>
                 </div>
                 <div>
                   <Label>Notes (optional)</Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for rate change..." rows={2} />
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for rate change..." rows={2} className="text-xs" />
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleSave} disabled={saving}>

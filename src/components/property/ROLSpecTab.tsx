@@ -420,7 +420,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   value={data.editorial_rating || ""}
                   onValueChange={(value) => updateField("editorial_rating", value)}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full text-xs">
                     <SelectValue placeholder="Select a rating...">
                       {data.editorial_rating && (() => {
                         const selected = EDITORIAL_RATINGS.find(r => r.value === data.editorial_rating);
@@ -510,6 +510,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("why_we_chose_this_place", e.target.value)}
                   placeholder="What makes this property stand out..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
@@ -521,6 +522,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("who_this_suits", e.target.value)}
                   placeholder="The ideal guest for this property..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
@@ -532,6 +534,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("what_its_really_like", e.target.value)}
                   placeholder="An honest description of the experience..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
@@ -543,6 +546,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("why_this_place_matters", e.target.value)}
                   placeholder="The significance and impact of this property..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
@@ -554,6 +558,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("who_its_not_for", e.target.value)}
                   placeholder="Guests who might not enjoy this property..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
@@ -565,6 +570,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("owner_notes", e.target.value)}
                   placeholder="Internal notes from the property owner..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
             </CardContent>

@@ -117,7 +117,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
         <div className="space-y-2">
           <Label>Billing Strategy</Label>
           <Select value={strategy} onValueChange={setStrategy}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -145,6 +145,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={commissionRate}
               onChange={(e) => setCommissionRate(e.target.value)}
               placeholder={globalDefaults?.default_commission_rate?.toString() ?? (strategy === "default" ? "10" : "5")}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
@@ -161,6 +162,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={subscriptionFee}
               onChange={(e) => setSubscriptionFee(e.target.value)}
               placeholder={globalDefaults?.default_subscription_fee?.toString() ?? "0"}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_subscription_fee} label=" ZAR" />
           </div>
@@ -178,6 +180,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={transactionFee}
               onChange={(e) => setTransactionFee(e.target.value)}
               placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
           </div>
@@ -223,13 +226,14 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
           <div className="space-y-2">
             <div className="space-y-1">
               <Label>White-Label Monthly Fee (ZAR)</Label>
-              <Input
+            <Input
                 type="number"
                 step="50"
                 min="0"
                 value={whiteLabelFee}
                 onChange={(e) => setWhiteLabelFee(e.target.value)}
                 placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
+                className="text-xs"
               />
               <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
             </div>
@@ -259,6 +263,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
             type="date"
             value={billingStartDate}
             onChange={(e) => setBillingStartDate(e.target.value)}
+            className="text-xs"
           />
         </div>
 

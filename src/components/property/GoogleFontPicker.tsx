@@ -73,7 +73,7 @@ export function GoogleFontPicker({ label, description, value, onChange }: Google
             value={open ? search : value || ""}
             onFocus={() => { setOpen(true); setSearch(""); }}
             onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
-            className="text-sm"
+            className="text-xs"
           />
           {value && (
             <button

@@ -472,7 +472,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
                   placeholder="Describe what needs to be fixed before this property can be approved..."
                   value={fixesRequested}
                   onChange={(e) => setFixesRequested(e.target.value)}
-                  className="text-sm min-h-[80px]"
+                  className="text-xs min-h-[80px]"
                 />
                 <Button
                   variant="outline"
@@ -550,7 +550,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
               placeholder="Explain why this property is being rejected..."
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              className="mt-2"
+              className="mt-2 text-xs"
             />
           </div>
           
@@ -595,7 +595,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
               placeholder="Explain why you're overriding the quality gate..."
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
-              className="mt-2"
+              className="mt-2 text-xs"
             />
           </div>
           

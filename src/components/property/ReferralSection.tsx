@@ -109,7 +109,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <div className="space-y-1">
             <Label className="text-xs">Sales Rep</Label>
             <Select value={repId} onValueChange={setRepId}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select rep..." /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select rep..." /></SelectTrigger>
               <SelectContent>
                 {reps.filter((r) => r.is_active).map((r) => (
                   <SelectItem key={r.id} value={r.id}>{r.display_name} ({r.rep_code})</SelectItem>
@@ -120,7 +120,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <div className="space-y-1">
             <Label className="text-xs">Lead Source</Label>
             <Select value={leadSource} onValueChange={setLeadSource}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {LEAD_SOURCES.map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -130,12 +130,12 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Referral Date</Label>
-            <Input type="date" value={referralDate} onChange={(e) => setReferralDate(e.target.value)} className="h-8 text-sm" />
+            <Input type="date" value={referralDate} onChange={(e) => setReferralDate(e.target.value)} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="qualified">Qualified</SelectItem>
