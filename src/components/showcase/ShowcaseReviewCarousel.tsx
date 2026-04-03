@@ -54,17 +54,9 @@ export function ShowcaseReviewCarousel({ reviews, tobiBlurb }: ShowcaseReviewCar
       {/* TOBI Blurb */}
       {tobiBlurb && (
         <div className="mb-8 p-5 rounded-2xl bg-primary/5 border border-primary/10">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-primary">T</span>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-primary mb-1">TOBI's take</p>
-              <p className="text-sm text-foreground/80 leading-relaxed italic">
-                "{tobiBlurb}"
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-foreground/80 leading-relaxed italic">
+            "{tobiBlurb}"
+          </p>
         </div>
       )}
 
