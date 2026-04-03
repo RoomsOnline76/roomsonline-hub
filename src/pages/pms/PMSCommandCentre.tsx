@@ -193,7 +193,7 @@ export default function PMSCommandCentre() {
           .in("property_id", propIds),
         supabase
           .from("hostfully_room_types")
-          .select("id, name, property_id, is_active")
+          .select("id, name, property_id, is_active, hostfully_room_id")
           .in("property_id", propIds),
         supabase
           .from("properties")
