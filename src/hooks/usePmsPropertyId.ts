@@ -13,6 +13,10 @@ export interface RolProperty {
  * Resolves the current PMS property ID.
  * Priority: 1) ?property= query param  2) auto-detect from user's ROL properties
  * Uses React Query for caching so navigation between PMS pages doesn't re-fetch.
+ *
+ * When a selected property belongs to a portfolio, `portfolioPropertyIds` contains
+ * all sibling property IDs (including the selected one). Pages can use
+ * `portfolioProperties` to scope their views.
  */
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,20 +85,65 @@ export function usePmsPropertyId() {
 
   // Resolve effective property ID
   const propertyId = useMemo(() => {
-    // Manual selection takes priority
     if (manualPropertyId && properties.some(p => p.id === manualPropertyId)) {
       return manualPropertyId;
     }
-    // Then URL param
     if (paramId && properties.some(p => p.id === paramId)) {
       return paramId;
     }
-    // Auto-select first
     if (properties.length > 0) {
       return properties[0].id;
     }
     return null;
   }, [manualPropertyId, paramId, properties]);
+
+  // Fetch portfolio memberships for the selected property
+  const { data: portfolioContext } = useQuery({
+    queryKey: ["pms-property-portfolio-context", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return null;
+
+      // Get portfolios this property belongs to
+      const { data: memberships } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("portfolio_id")
+        .eq("property_id", propertyId);
+
+      if (!memberships || memberships.length === 0) return null;
+
+      const portfolioIds = (memberships as any[]).map((m: any) => m.portfolio_id);
+
+      // Get all member property IDs across all portfolios
+      const { data: allMembers } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("property_id, portfolio_id")
+        .in("portfolio_id", portfolioIds);
+
+      const memberIds = new Set<string>();
+      (allMembers as any[] || []).forEach((m: any) => memberIds.add(m.property_id));
+
+      // Fetch those properties
+      const { data: memberProps } = await supabase
+        .from("properties")
+        .select("id, name")
+        .in("id", Array.from(memberIds))
+        .eq("is_active", true)
+        .order("name");
+
+      return {
+        portfolioIds,
+        properties: (memberProps || []) as RolProperty[],
+      };
+    },
+    enabled: !!propertyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Portfolio-scoped properties: if selected property is in a portfolio, show only those
+  const portfolioProperties = useMemo(() => {
+    if (!portfolioContext?.properties?.length) return null;
+    return portfolioContext.properties;
+  }, [portfolioContext]);
 
   // Sync URL param when propertyId changes
   useEffect(() => {
@@ -114,5 +163,14 @@ export function usePmsPropertyId() {
     }, { replace: true });
   };
 
-  return { propertyId, properties, loading: isLoading, switchProperty };
+  return {
+    propertyId,
+    properties,
+    /** Properties scoped to portfolio (null if not in a portfolio) */
+    portfolioProperties,
+    /** Portfolio IDs the selected property belongs to */
+    portfolioIds: portfolioContext?.portfolioIds || [],
+    loading: isLoading,
+    switchProperty,
+  };
 }
