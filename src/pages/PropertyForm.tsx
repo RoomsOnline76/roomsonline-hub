@@ -2294,21 +2294,29 @@ export default function PropertyForm() {
     const title = seasonForm.name || generateSeasonTitle(seasonForm.from, seasonForm.to);
 
     if (editingSeason) {
-      // Update existing season
+      // Update existing season — sync periods[0] with from/to
       setSeasons(
-        seasons.map((s) =>
-          s.id === editingSeason.id
-            ? {
-                ...s,
-                name: seasonForm.name,
-                title,
-                from: seasonForm.from,
-                to: seasonForm.to,
-                minStay: seasonForm.minStay,
-                maxStay: seasonForm.maxStay,
-              }
-            : s,
-        ),
+        seasons.map((s) => {
+          if (s.id !== editingSeason.id) return s;
+          const updatedSeason: any = {
+            ...s,
+            name: seasonForm.name,
+            title,
+            from: seasonForm.from,
+            to: seasonForm.to,
+            minStay: seasonForm.minStay,
+            maxStay: seasonForm.maxStay,
+          };
+          // Keep periods in sync: update first period, preserve additional periods
+          const existingPeriods = s.periods && s.periods.length > 0 ? [...s.periods] : [];
+          if (existingPeriods.length > 0) {
+            existingPeriods[0] = { from: seasonForm.from, to: seasonForm.to };
+            updatedSeason.periods = existingPeriods;
+          } else {
+            updatedSeason.periods = [{ from: seasonForm.from, to: seasonForm.to }];
+          }
+          return updatedSeason;
+        }),
       );
       toast({ title: "Season updated", description: "Season has been updated successfully." });
     } else {
