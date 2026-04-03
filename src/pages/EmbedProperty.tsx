@@ -189,11 +189,8 @@ export default function EmbedProperty() {
       // The cache may store either the hostfully_room_id (API UUID) or the hostfully_room_types.id (our DB ID)
       const externalIdToRoomId: Record<string, string> = {};
       for (const room of roomTypes) {
-        // Map by hostfully_room_id (legacy / API UUID)
-        if (room.hostfully_room_id) {
-          externalIdToRoomId[room.hostfully_room_id] = room.id;
-        }
-        // Also map by our own room type ID (used when cache stores hostfully_room_types.id)
+        // Only map by our own active room type ID — avoid hostfully_room_id
+        // which points to old inactive entries with stale/conflicting data
         externalIdToRoomId[room.id] = room.id;
       }
       const externalIds = Object.keys(externalIdToRoomId);
@@ -319,6 +316,10 @@ export default function EmbedProperty() {
         beds: room.beds,
         ratesByDate,
       };
+    }).filter((room) => {
+      // Hide rooms where every date is SOLD (null rate) — e.g. Template rooms with zero availability
+      const values = Object.values(room.ratesByDate);
+      return values.length === 0 || values.some((v) => v !== null);
     });
   }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap]);
 
