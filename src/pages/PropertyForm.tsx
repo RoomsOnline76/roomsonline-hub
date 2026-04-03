@@ -9722,7 +9722,7 @@ export default function PropertyForm() {
                 <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1">
-                      <h3 className="font-semibold text-xs">ROOM TYPES</h3>
+                      <h3 className="font-semibold text-xs">{(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES</h3>
                       {selectedPMS && !isRolProperty && isFieldPopulatedByPMS("room_types", selectedPMS) && (
                         <TooltipProvider>
                           <Tooltip>
