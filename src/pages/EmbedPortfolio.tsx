@@ -60,6 +60,19 @@ interface AiSearchResult {
   reason: string;
 }
 
+interface PortfolioSpecial {
+  id: string;
+  name: string;
+  description: string | null;
+  discount_type: string | null;
+  discount_value: number | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  property_id: string;
+  property_name: string | null;
+  property_slug: string | null;
+}
+
 export default function EmbedPortfolio() {
   const { portfolioSlug } = useParams<{ portfolioSlug: string }>();
   const [searchParams] = useSearchParams();
