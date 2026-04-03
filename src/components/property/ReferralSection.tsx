@@ -130,7 +130,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Referral Date</Label>
-            <Input type="date" value={referralDate} onChange={(e) => setReferralDate(e.target.value)} className="h-8 text-sm" />
+            <Input type="date" value={referralDate} onChange={(e) => setReferralDate(e.target.value)} className="h-8 text-xs" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
