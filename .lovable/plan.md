@@ -1,48 +1,27 @@
+# Add Portfolio View Toggle to ROL'OS Dashboard
 
+## What
+Add a toggle next to the property selector that switches between **Single Property** view (current behavior) and **Portfolio** view. In portfolio view, the calendar grid shows all portfolio properties stacked, each with a property name header row followed by its room types/rooms.
 
-# Fix: Duplicate Physical Rooms on Dashboard (Tidal Pools & Dassiesingel)
+## How
 
-## Root Cause
+### 1. Add state + toggle UI
+In `PMSDashboard.tsx`, add a `dashboardView` state (`"single" | "portfolio"`). Render a toggle button group (similar to `PulseViewToggle` style) next to the property selector. Only show when `portfolioProperties` exists and has >1 property.
 
-Each room type has TWO physical room entries in `rolos_rooms`:
-- One linked to an **active** UPPERCASE type (e.g., "BOSBOK" → active type)
-- One linked to an **inactive** Title case type (e.g., "Bosbok" → inactive type)
+### 2. Portfolio data fetching
+When in portfolio view, fetch room types, rooms, bookings, rate data, and overrides for **all** portfolio property IDs (not just the selected one). Use parallel queries keyed by `portfolioProperties.map(p => p.id)`.
 
-The Dashboard's `roomsByType` grouping does a name-based fallback: when a room's `room_type_id` doesn't match any active type, it looks up by name. Since "bosbok" matches "BOSBOK", the phantom room gets remapped into the canonical group — giving 2 rooms per type instead of 1.
+### 3. Portfolio calendar rendering
+When `dashboardView === "portfolio"`, render a modified grid that groups by property:
+- For each property in the portfolio, render a **property header row** (property name, styled distinctly)
+- Below it, render that property's room types and rooms (same grid cells as current single-property view)
+- Stat pills at the top aggregate across all portfolio properties
 
-## Data to Clean
-
-**Dassiesingel** — 4 phantom rooms to delete (linked to inactive types):
-- Bosbok, Dassie, Grysbok, Steenbok
-
-**Tidal Pools** — 4 phantom rooms to delete (linked to inactive types):
-- Elf, Geelstert, Leervis, Wildeperd
-
-Also delete the 8 inactive room types (the Title case / duplicate ones) to prevent re-creation.
-
-## Code Fix
-
-In `src/pages/pms/PMSDashboard.tsx`, update the `roomsByType` grouping to skip rooms whose `room_type_id` points to an inactive/unknown type AND whose name already has a canonical match. This prevents any future phantom rooms from appearing even if database cleanup is missed.
-
-```text
-Current logic:
-  room → find matching active type by ID → if not found, try by name → group
-
-Fixed logic:
-  room → find matching active type by ID → group
-       → if not found by ID, check if another room already covers this name → skip duplicate
-```
-
-## Steps
-
-1. **Database**: Delete 8 phantom physical rooms from `rolos_rooms`
-2. **Database**: Delete 8 inactive duplicate room types from `rolos_room_types`  
-3. **Code**: Update `roomsByType` in `PMSDashboard.tsx` to deduplicate rooms mapped by name fallback — keep only one physical room per canonical type name
+### 4. Reuse existing grid components
+Pass property-scoped data subsets to the existing `WeekCalendarGrid` / `MonthCalendarGrid` components per property, or extend them to accept a `propertyGroups` array.
 
 ## Files to Change
 
-| Target | Change |
-|--------|--------|
-| Database | Delete phantom `rolos_rooms` and inactive `rolos_room_types` for both properties |
-| `src/pages/pms/PMSDashboard.tsx` | Filter duplicate rooms in `roomsByType` to prevent name-fallback from doubling units |
-
+| File | Changes |
+|------|---------|
+| `src/pages/pms/PMSDashboard.tsx` | Add `dashboardView` state, toggle UI, multi-property data fetching, grouped rendering loop |
