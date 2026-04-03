@@ -4759,6 +4759,109 @@ export type Database = {
           },
         ]
       }
+      property_specials: {
+        Row: {
+          applicable_room_ids: string[] | null
+          category: string
+          created_at: string | null
+          created_by: string | null
+          currency: string | null
+          description: string | null
+          discount_percent: number | null
+          fixed_amount: number | null
+          fixed_price: number | null
+          id: string
+          images: Json | null
+          included_items: Json | null
+          is_active: boolean | null
+          is_public: boolean | null
+          max_stay: number | null
+          min_stay: number | null
+          name: string
+          property_id: string
+          sort_order: number | null
+          special_type: string
+          terms: string | null
+          updated_at: string | null
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          applicable_room_ids?: string[] | null
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          fixed_amount?: number | null
+          fixed_price?: number | null
+          id?: string
+          images?: Json | null
+          included_items?: Json | null
+          is_active?: boolean | null
+          is_public?: boolean | null
+          max_stay?: number | null
+          min_stay?: number | null
+          name: string
+          property_id: string
+          sort_order?: number | null
+          special_type?: string
+          terms?: string | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          applicable_room_ids?: string[] | null
+          category?: string
+          created_at?: string | null
+          created_by?: string | null
+          currency?: string | null
+          description?: string | null
+          discount_percent?: number | null
+          fixed_amount?: number | null
+          fixed_price?: number | null
+          id?: string
+          images?: Json | null
+          included_items?: Json | null
+          is_active?: boolean | null
+          is_public?: boolean | null
+          max_stay?: number | null
+          min_stay?: number | null
+          name?: string
+          property_id?: string
+          sort_order?: number | null
+          special_type?: string
+          terms?: string | null
+          updated_at?: string | null
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_specials_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_specials_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_specials_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_staff: {
         Row: {
           created_at: string
