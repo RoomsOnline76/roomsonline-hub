@@ -154,6 +154,7 @@ export default function EmbedPortfolio() {
           if (data.ai_groups) setAiGroups(data.ai_groups);
           if (data.ai_bundles) setAiBundles(data.ai_bundles);
           if (data.ai_featured) setAiFeatured(data.ai_featured);
+          if (data.specials) setSpecials(data.specials);
 
           setLoading(false);
           return;
