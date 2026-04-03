@@ -633,6 +633,7 @@ const PropertyOverview = () => {
                             {getSortIcon("property_type")}
                           </div>
                         </TableHead>
+                        <TableHead className="py-1 text-xs">OWNER</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("total_bookings")}
@@ -699,6 +700,7 @@ const PropertyOverview = () => {
                             className="h-6 text-xs"
                           />
                         </TableCell>
+                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
@@ -710,7 +712,7 @@ const PropertyOverview = () => {
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={12} className="text-center py-6">
+                          <TableCell colSpan={15} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -862,6 +864,9 @@ const PropertyOverview = () => {
                           </TableCell>
                           <TableCell className="py-1 text-xs">
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
+                          </TableCell>
+                          <TableCell className="py-1 text-xs truncate max-w-[120px]" title={property.owner_name || property.owner_email || ""}>
+                            {property.owner_name || property.owner_email || "—"}
                           </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
                           <TableCell className="py-1">
