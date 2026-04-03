@@ -8617,6 +8617,12 @@ export default function PropertyForm() {
                           PMS.
                         </p>
                         <div className="flex gap-2">
+                          {propertyId && (
+                            <Button variant="outline" size="sm" onClick={() => setSyncSeasonsOpen(true)} className="gap-1">
+                              <Copy className="h-3 w-3" />
+                              Sync to Others
+                            </Button>
+                          )}
                           {seasons.length === 0 && (
                             <Button variant="outline" onClick={createDefaultSeasons} className="gap-2">
                               <Calendar className="h-4 w-4" />
