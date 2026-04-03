@@ -96,15 +96,19 @@ export default function PMSStaff() {
       .then(({ data }) => setPropertySlug(data?.slug || null));
   }, [propertyId]);
 
-  const staffLoginUrl = propertySlug
-    ? getStaffLoginUrl(propertySlug)
-    : null;
+  // Fetch portfolio slug
+  useEffect(() => {
+    if (!portfolioIds?.length) { setPortfolioSlug(null); return; }
+    supabase.from("property_portfolios" as any).select("slug").eq("id", portfolioIds[0]).single()
+      .then(({ data }: any) => setPortfolioSlug(data?.slug || null));
+  }, [portfolioIds]);
 
-  const copyLoginUrl = () => {
-    if (staffLoginUrl) {
-      navigator.clipboard.writeText(staffLoginUrl);
-      toast.success("Staff login URL copied");
-    }
+  const portfolioLoginUrl = portfolioSlug ? getPortfolioStaffLoginUrl(portfolioSlug) : null;
+  const staffLoginUrl = propertySlug ? getStaffLoginUrl(propertySlug) : null;
+
+  const copyUrl = (url: string, label: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success(`${label} URL copied`);
   };
 
   const fetchStaff = async () => {
