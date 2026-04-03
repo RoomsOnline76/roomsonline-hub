@@ -225,7 +225,7 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                   </div>
                   <div>
                     <Label>Effective From</Label>
-                    <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+                    <Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="text-xs" />
                   </div>
                 </div>
                 <div>
