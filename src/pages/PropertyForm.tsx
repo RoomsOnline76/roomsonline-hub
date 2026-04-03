@@ -8753,7 +8753,25 @@ export default function PropertyForm() {
                       </Dialog>
                     </TabsContent>
 
-                    {/* Rate Breakdown Sub-tab */}
+                    {/* Seasons Calendar Sub-tab */}
+                    <TabsContent value="seasons-calendar" className="p-4">
+                      <SeasonsCalendar
+                        seasons={seasons}
+                        seasonRates={seasonRates}
+                        roomTypes={roomTypes}
+                        selectedRoomType={selectedRoomType}
+                        pmsRateTypes={pmsRateTypes}
+                        pricingModel={pmsRateTypes[0]?.pricingModel || pmsRateTypes[0]?.priceType || "per_unit"}
+                        currency={formData.currency || "ZAR"}
+                        isReadOnly={!!(selectedPMS && selectedPMS !== "roomsonline" && selectedPMS !== "none")}
+                        externalSystem={selectedPMS}
+                        mealTypeSuggestions={selectedMealTypes}
+                        onSeasonsChange={(s) => { setSeasons(s); setIsDirty(true); }}
+                        onSeasonRatesChange={(r) => { setSeasonRates(r); setIsDirty(true); }}
+                        onSelectedRoomTypeChange={(id) => setSelectedRoomType(id)}
+                      />
+                    </TabsContent>
+
                     <TabsContent value="rate-breakdown" className="p-6 space-y-6">
                       {seasons.length === 0 ? (
                         (() => {
