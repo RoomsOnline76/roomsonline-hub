@@ -3,12 +3,18 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
+
+interface ReviewRating {
+  source: string;
+  rating: number;
+  totalReviews: number;
+}
 
 function postToParent(data: Record<string, unknown>) {
   if (window.parent !== window) {
@@ -76,6 +82,7 @@ export default function EmbedPortfolio() {
   const [activeGroup, setActiveGroup] = useState<string>("all");
   const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
+  const [reviewRatings, setReviewRatings] = useState<Record<string, ReviewRating[]>>({});
 
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
@@ -197,6 +204,27 @@ export default function EmbedPortfolio() {
 
       setProperties(mapped);
       setLoading(false);
+
+      // Fetch review ratings for all property IDs
+      const allIds = mapped.map(p => p.id);
+      if (allIds.length > 0) {
+        const { data: reviewData } = await supabase
+          .from('property_review_cache')
+          .select('property_id, source, overall_rating, total_reviews')
+          .in('property_id', allIds)
+          .gt('overall_rating', 0);
+
+        const rMap: Record<string, ReviewRating[]> = {};
+        (reviewData || []).forEach((r: any) => {
+          if (!rMap[r.property_id]) rMap[r.property_id] = [];
+          rMap[r.property_id].push({
+            source: r.source,
+            rating: parseFloat(r.overall_rating),
+            totalReviews: r.total_reviews || 0,
+          });
+        });
+        setReviewRatings(rMap);
+      }
     };
 
     fetchData();
@@ -515,6 +543,28 @@ export default function EmbedPortfolio() {
                   {prop.city && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                       <MapPin className="h-3 w-3" /> {prop.city}
+                    </div>
+                  )}
+                  {reviewRatings[prop.id]?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {reviewRatings[prop.id].map((r) => {
+                        const isGoogle = r.source === 'google';
+                        const label = isGoogle ? 'G' : 'TA';
+                        const bg = isGoogle ? 'rgba(66,133,244,0.1)' : 'rgba(52,211,153,0.1)';
+                        const color = isGoogle ? '#4285F4' : '#34D399';
+                        return (
+                          <span
+                            key={r.source}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                            style={{ background: bg, color }}
+                          >
+                            <span className="font-bold">{label}</span>
+                            <Star className="h-2.5 w-2.5 fill-current" />
+                            <span>{r.rating.toFixed(1)}</span>
+                            {r.totalReviews > 0 && <span className="opacity-70">({r.totalReviews})</span>}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                   {aiReasonMap[prop.slug] && (

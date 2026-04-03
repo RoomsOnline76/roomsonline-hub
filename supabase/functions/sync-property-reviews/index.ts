@@ -103,7 +103,12 @@ serve(async (req) => {
       }
 
       // --- GOOGLE REVIEWS using Places API (New) ---
-      if (googlePlaceId && googleKey) {
+      // Skip numeric-only Place IDs — they're legacy and incompatible with Places API (New)
+      const isNumericPlaceId = /^\d+$/.test(googlePlaceId);
+      if (isNumericPlaceId && googlePlaceId) {
+        console.warn(`Property ${property.name}: Google Place ID "${googlePlaceId}" is numeric (legacy format). Please update to a "ChIJ..." format ID in the property editor. Skipping Google API call, preserving cached data.`);
+      }
+      if (googlePlaceId && googleKey && !isNumericPlaceId) {
         try {
           const detailsResp = await fetch(`https://places.googleapis.com/v1/places/${googlePlaceId}`, {
             method: 'GET',
@@ -183,6 +188,12 @@ serve(async (req) => {
           );
           const reviewsData = await reviewsResp.json();
           console.log(`TripAdvisor for ${property.name}: rating=${detailsData.rating}, reviews=${detailsData.num_reviews}, fetched=${reviewsData.data?.length || 0}`);
+          
+          // Log full response when no data found for debugging
+          if (!detailsData.rating && (!reviewsData.data || reviewsData.data.length === 0)) {
+            console.warn(`TripAdvisor empty response for ${property.name} (ID: ${tripadvisorId}). Details response:`, JSON.stringify(detailsData).substring(0, 500));
+            console.warn(`TripAdvisor reviews response:`, JSON.stringify(reviewsData).substring(0, 500));
+          }
 
           const normalizedReviews = (reviewsData.data || []).map((r: any) => ({
             author: r.user?.username || 'Traveler',
