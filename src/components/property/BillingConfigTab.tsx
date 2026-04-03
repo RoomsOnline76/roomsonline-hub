@@ -145,6 +145,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={commissionRate}
               onChange={(e) => setCommissionRate(e.target.value)}
               placeholder={globalDefaults?.default_commission_rate?.toString() ?? (strategy === "default" ? "10" : "5")}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
