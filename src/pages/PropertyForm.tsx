@@ -4126,6 +4126,36 @@ export default function PropertyForm() {
         }
         }
 
+        // Universal: Deactivate orphan hostfully_room_types for ANY property type
+        if (savedPropertyId) {
+          try {
+            const currentRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
+            const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
+            const { data: allActiveDbRooms } = await supabase
+              .from("hostfully_room_types")
+              .select("id, name")
+              .eq("property_id", savedPropertyId)
+              .eq("is_active", true);
+            
+            if (allActiveDbRooms) {
+              const orphanRooms = allActiveDbRooms.filter((dbRoom: any) => 
+                !currentRoomIds.includes(dbRoom.id) && 
+                !currentRoomNames.includes((dbRoom.name || '').toLowerCase().trim())
+              );
+              if (orphanRooms.length > 0) {
+                const orphanIds = orphanRooms.map((o: any) => o.id);
+                await supabase
+                  .from("hostfully_room_types")
+                  .update({ is_active: false, updated_at: new Date().toISOString() })
+                  .in("id", orphanIds);
+                console.log(`[Save] Deactivated ${orphanRooms.length} orphan hostfully_room_types:`, orphanRooms.map((o: any) => o.name));
+              }
+            }
+          } catch (orphanErr) {
+            console.warn("[Save] Orphan room cleanup warning:", orphanErr);
+          }
+        }
+
         // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
         if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
           try {
