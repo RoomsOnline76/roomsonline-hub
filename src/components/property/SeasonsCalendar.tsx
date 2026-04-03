@@ -127,7 +127,7 @@ export default function SeasonsCalendar({
   const linkedRateTypes = useMemo(() => {
     const linked = currentRoom?.linkedRateTypes || [];
     if (linked.length === 0) return pmsRateTypes;
-    return pmsRateTypes.filter((rt) => linked.includes(rt.id));
+    return pmsRateTypes.filter((rt) => linked.includes(String(rt.id)));
   }, [currentRoom, pmsRateTypes]);
 
   // Build day cells per month
