@@ -680,9 +680,16 @@ export default function PMSDashboard() {
               .map(l => l.rate_plan_id);
             const ratePlanId = linkedPlanIds[0] || '';
             
-            const seasonRate = roomSeasonRates[`${season.id}-${ratePlanId}`]
+            let seasonRate = roomSeasonRates[`${season.id}-${ratePlanId}`]
               || roomSeasonRates[`${season.id}-Self Catering`]
               || roomSeasonRates[season.id];
+            
+            // Fallback: find any key starting with the season ID
+            if (!seasonRate) {
+              const prefix = `${season.id}-`;
+              const fallbackKey = Object.keys(roomSeasonRates).find(k => k.startsWith(prefix));
+              if (fallbackKey) seasonRate = roomSeasonRates[fallbackKey];
+            }
             
             if (seasonRate?.roomAmount != null) return seasonRate.roomAmount;
             if (typeof seasonRate === 'number') return seasonRate;
