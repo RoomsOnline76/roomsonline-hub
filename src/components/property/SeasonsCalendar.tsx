@@ -55,7 +55,7 @@ interface RoomType {
 }
 
 interface RateType {
-  id: string;
+  id: string | number;
   name: string;
   pms_synced?: boolean;
 }
