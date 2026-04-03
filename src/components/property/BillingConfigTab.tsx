@@ -180,6 +180,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={transactionFee}
               onChange={(e) => setTransactionFee(e.target.value)}
               placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
           </div>
