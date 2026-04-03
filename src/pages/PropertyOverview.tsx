@@ -139,6 +139,7 @@ const PropertyOverview = () => {
       
       return propertiesWithExtras;
     },
+    enabled: !authLoading && !!user,
   });
 
   // Fetch PMS tracker status to check if integrations are enabled
