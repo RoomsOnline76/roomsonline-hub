@@ -426,7 +426,7 @@ export default function PMSDashboard() {
 
   // Fetch rate plan → room type links
   const { data: ratePlanRoomLinks = [] } = useQuery({
-    queryKey: ["pms-cal-rate-plan-links", propertyId],
+    queryKey: ["pms-cal-rate-plan-links", propertyId, roomTypes],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data: plans } = await supabase
@@ -439,9 +439,20 @@ export default function PMSDashboard() {
         .from("rolos_rate_plan_room_types")
         .select("rate_plan_id, room_type_id")
         .in("rate_plan_id", plans.map(p => p.id));
-      return (data || []) as { rate_plan_id: string; room_type_id: string }[];
+
+      const canonicalRoomTypeIdByName = new Map(roomTypes.map((roomType) => [roomType.name.trim().toLowerCase(), roomType.id]));
+      const roomTypeNameById = new Map(roomTypes.map((roomType) => [roomType.id, roomType.name.trim().toLowerCase()]));
+
+      return (data || []).map((link) => {
+        const canonicalName = roomTypeNameById.get(link.room_type_id);
+        const canonicalRoomTypeId = canonicalName ? canonicalRoomTypeIdByName.get(canonicalName) : undefined;
+        return {
+          rate_plan_id: link.rate_plan_id,
+          room_type_id: canonicalRoomTypeId || link.room_type_id,
+        };
+      }) as { rate_plan_id: string; room_type_id: string }[];
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && roomTypes.length > 0,
   });
 
   const { data: rateSeasons = [] } = useQuery({
