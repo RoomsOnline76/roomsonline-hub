@@ -4068,6 +4068,30 @@ export default function PropertyForm() {
           }
           console.log(`[ROL Sync] Synced ${roomTypes.length} room types to hostfully_room_types`);
 
+          // Deactivate orphan hostfully_room_types no longer in the form
+          const savedRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
+          const savedRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
+          const { data: allDbRooms } = await supabase
+            .from("hostfully_room_types")
+            .select("id, name")
+            .eq("property_id", savedPropertyId)
+            .eq("is_active", true);
+          
+          if (allDbRooms) {
+            const orphans = allDbRooms.filter((dbRoom: any) => 
+              !savedRoomIds.includes(dbRoom.id) && 
+              !savedRoomNames.includes((dbRoom.name || '').toLowerCase().trim())
+            );
+            if (orphans.length > 0) {
+              const orphanIds = orphans.map((o: any) => o.id);
+              await supabase
+                .from("hostfully_room_types")
+                .update({ is_active: false })
+                .in("id", orphanIds);
+              console.log(`[ROL Sync] Deactivated ${orphans.length} orphan room types:`, orphans.map((o: any) => o.name));
+            }
+          }
+
           // Now ensure physical rolos_rooms exist for all rolos_room_types
           const { data: allRolosTypes } = await supabase
             .from("rolos_room_types")
