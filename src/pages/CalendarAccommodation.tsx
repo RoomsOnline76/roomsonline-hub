@@ -841,10 +841,6 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
               } : {}),
             });
           }
-                infantAmount: matchedRateType?.infantRate ?? 0,
-              } : {}),
-            });
-          }
         } else {
           // No linked rate types - create a default rate from room's base rate or first pms_rate_type
           const defaultRateType = pmsRateTypes[0];
