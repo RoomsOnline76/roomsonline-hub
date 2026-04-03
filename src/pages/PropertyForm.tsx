@@ -105,6 +105,7 @@ import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
+import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 
 // Check if a PMS is fully integrated (all milestones complete)
