@@ -60,6 +60,7 @@ export function SyncRatesDialog({
           .from("properties")
           .select("id, name")
           .eq("owner_email", current.owner_email)
+          .eq("is_active", true)
           .neq("id", currentPropertyId);
 
         (ownerProps || []).forEach((p) => {
