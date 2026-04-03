@@ -154,7 +154,34 @@ export default function EmbedPortfolio() {
           if (data.ai_groups) setAiGroups(data.ai_groups);
           if (data.ai_bundles) setAiBundles(data.ai_bundles);
           if (data.ai_featured) setAiFeatured(data.ai_featured);
-          if (data.specials) setSpecials(data.specials);
+          if (data.specials && data.specials.length > 0) {
+            setSpecials(data.specials);
+          } else {
+            // Fallback: fetch specials client-side if API returned empty
+            const propIds = mapped.map((p: PortfolioProperty) => p.id);
+            if (propIds.length > 0) {
+              const today = new Date().toISOString().split("T")[0];
+              const { data: fallbackSpecials } = await supabase
+                .from("property_specials" as any)
+                .select("id, name, description, special_type, discount_percent, fixed_amount, fixed_price, currency, valid_from, valid_to, property_id")
+                .eq("is_active", true)
+                .eq("is_public", true)
+                .gte("valid_to", today)
+                .in("property_id", propIds);
+              if (fallbackSpecials && fallbackSpecials.length > 0) {
+                const fbMapped = (fallbackSpecials as any[]).map((s) => {
+                  const prop = mapped.find((p: PortfolioProperty) => p.id === s.property_id);
+                  let discount_type = "percentage";
+                  let discount_value = s.discount_percent || s.fixed_amount || s.fixed_price || 0;
+                  if (s.discount_percent) { discount_type = "percentage"; discount_value = s.discount_percent; }
+                  else if (s.fixed_amount) { discount_type = "fixed_amount"; discount_value = s.fixed_amount; }
+                  else if (s.fixed_price) { discount_type = "fixed_price"; discount_value = s.fixed_price; }
+                  return { id: s.id, name: s.name, description: s.description, discount_type, discount_value, valid_from: s.valid_from, valid_to: s.valid_to, property_id: s.property_id, property_name: prop?.name || null, property_slug: prop?.slug || null };
+                });
+                setSpecials(fbMapped);
+              }
+            }
+          }
 
           setLoading(false);
           return;
@@ -218,6 +245,29 @@ export default function EmbedPortfolio() {
       });
 
       setProperties(mapped);
+
+      // Fetch specials for fallback path
+      const today = new Date().toISOString().split("T")[0];
+      const { data: fbSpecials } = await supabase
+        .from("property_specials" as any)
+        .select("id, name, description, special_type, discount_percent, fixed_amount, fixed_price, currency, valid_from, valid_to, property_id")
+        .eq("is_active", true)
+        .eq("is_public", true)
+        .gte("valid_to", today)
+        .in("property_id", propertyIds);
+      if (fbSpecials && (fbSpecials as any[]).length > 0) {
+        const sm = (fbSpecials as any[]).map((s) => {
+          const prop = mapped.find(p => p.id === s.property_id);
+          let discount_type = "percentage";
+          let discount_value = s.discount_percent || s.fixed_amount || s.fixed_price || 0;
+          if (s.discount_percent) { discount_type = "percentage"; discount_value = s.discount_percent; }
+          else if (s.fixed_amount) { discount_type = "fixed_amount"; discount_value = s.fixed_amount; }
+          else if (s.fixed_price) { discount_type = "fixed_price"; discount_value = s.fixed_price; }
+          return { id: s.id, name: s.name, description: s.description, discount_type, discount_value, valid_from: s.valid_from, valid_to: s.valid_to, property_id: s.property_id, property_name: prop?.name || null, property_slug: prop?.slug || null };
+        });
+        setSpecials(sm);
+      }
+
       setLoading(false);
 
       // Fetch review ratings for all property IDs
