@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus, Building2, BedDouble } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -143,7 +143,7 @@ export default function SeasonsCalendar({
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
-  const [isAddingPeriod, setIsAddingPeriod] = useState(false); // adding period to existing season
+  const [isAddingPeriod, setIsAddingPeriod] = useState(false);
   const [selectionStart, setSelectionStart] = useState<Date | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
@@ -179,7 +179,6 @@ export default function SeasonsCalendar({
   const handleCellClick = useCallback((date: Date) => {
     if (isReadOnly) return;
 
-    // Adding period to existing season
     if (isAddingPeriod && selectedSeasonId) {
       if (!selectionStart) {
         setSelectionStart(date);
@@ -205,7 +204,6 @@ export default function SeasonsCalendar({
       }
       return;
     }
-    // In add mode: select range
     if (!selectionStart) {
       setSelectionStart(date);
       setSelectionEnd(null);
@@ -265,7 +263,7 @@ export default function SeasonsCalendar({
     const updated = seasons.map((s) => {
       if (s.id !== seasonId) return s;
       const periods = getSeasonPeriods(s);
-      if (periods.length <= 1) return s; // can't delete last period
+      if (periods.length <= 1) return s;
       const newPeriods = periods.filter((_, i) => i !== periodIndex);
       return syncTopLevel({ ...s, periods: newPeriods });
     });
@@ -357,22 +355,22 @@ export default function SeasonsCalendar({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+    <div className="space-y-6">
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 1: PROPERTY SEASONS (global — applies to all rooms)   */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
         <div className="flex items-center gap-2">
-          {roomTypes.length > 1 && (
-            <Select value={selectedRoomType} onValueChange={(v) => onSelectedRoomTypeChange?.(v)}>
-              <SelectTrigger className="h-8 text-xs w-[180px]">
-                <SelectValue placeholder="Select room" />
-              </SelectTrigger>
-              <SelectContent>
-                {roomTypes.map((r) => (
-                  <SelectItem key={r.id} value={r.id} className="text-xs">{r.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <Building2 className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Property Seasons</h3>
+          <span className="text-[10px] text-muted-foreground">(applies to all rooms)</span>
+          {isReadOnly && (
+            <Badge variant="outline" className="text-[10px] gap-1 ml-auto"><Lock className="h-3 w-3" /> Synced from {externalSystem || "PMS"}</Badge>
           )}
+        </div>
+
+        {/* Year nav + Add Season */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setYear((y) => y - 1)}>
               <ChevronLeft className="h-4 w-4" />
@@ -382,195 +380,122 @@ export default function SeasonsCalendar({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <div className="flex items-center gap-2">
+            {!isReadOnly && !isAdding && !isAddingPeriod && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setIsAdding(true); setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
+                <Plus className="h-3 w-3 mr-1" /> Add Season
+              </Button>
+            )}
+            {(isAdding || isAddingPeriod) && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelSelection}>
+                <X className="h-3 w-3 mr-1" /> Cancel
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isReadOnly && (
-            <Badge variant="outline" className="text-xs gap-1"><Lock className="h-3 w-3" /> Synced from {externalSystem || "PMS"}</Badge>
-          )}
-          {!isReadOnly && !isAdding && !isAddingPeriod && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setIsAdding(true); setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
-              <Plus className="h-3 w-3 mr-1" /> Add Season
-            </Button>
-          )}
-          {(isAdding || isAddingPeriod) && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelSelection}>
-              <X className="h-3 w-3 mr-1" /> Cancel
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {isAdding && (
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-          Click a start date, then an end date on the calendar below to define the season range.
-        </div>
-      )}
-      {isAddingPeriod && selectedSeason && (
-        <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-          Adding period to <strong>{selectedSeason.name}</strong> — click a start date, then an end date.
-        </div>
-      )}
+        {isAdding && (
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+            Click a start date, then an end date on the calendar below to define the season range.
+          </div>
+        )}
+        {isAddingPeriod && selectedSeason && (
+          <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+            Adding period to <strong>{selectedSeason.name}</strong> — click a start date, then an end date.
+          </div>
+        )}
 
-      {/* Calendar Grid */}
-      <div className="overflow-x-auto border rounded-md">
-        <table className="w-full text-[10px] border-collapse">
-          <thead>
-            <tr>
-              <th className="sticky left-0 bg-background z-10 px-2 py-1 text-left font-medium border-b w-10"></th>
-              {Array.from({ length: 31 }, (_, i) => (
-                <th key={i} className="px-0 py-1 text-center font-normal border-b text-muted-foreground w-6 min-w-[20px]">{i + 1}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {monthsGrid.map(({ month, days }) => (
-              <tr key={month} className="group">
-                <td className="sticky left-0 bg-background z-10 px-2 py-0.5 font-medium border-r text-xs">{MONTH_NAMES[month]}</td>
-                {Array.from({ length: 31 }, (_, d) => {
-                  const day = d + 1;
-                  if (day > days) return <td key={d} className="bg-muted/20" />;
-                  const date = new Date(year, month, day);
-                  const season = getSeasonForDate(date, seasons);
-                  const seasonIdx = season ? seasons.indexOf(season) : -1;
-                  const colorDef = season ? getSeasonColor(season, seasonIdx) : null;
-                  const inSel = (isAdding || isAddingPeriod) && isInSelection(date);
-                  const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
-
-                  return (
-                    <td
-                      key={d}
-                      className={cn(
-                        "px-0 py-0.5 text-center cursor-pointer transition-colors border-r border-b",
-                        colorDef ? colorDef.cell : "hover:bg-accent/30",
-                        inSel && "!bg-primary/30 ring-1 ring-primary",
-                        isToday && !colorDef && "bg-accent/50",
-                        season && selectedSeasonId === season.id && "ring-1 ring-primary/50",
-                      )}
-                      onClick={() => handleCellClick(date)}
-                      title={season ? `${season.name}` : format(date, "yyyy-MM-dd")}
-                    >
-                      <span className={cn("inline-block w-full", colorDef?.text)}>{day}</span>
-                    </td>
-                  );
-                })}
+        {/* Calendar Grid */}
+        <div className="overflow-x-auto border rounded-md">
+          <table className="w-full text-[10px] border-collapse">
+            <thead>
+              <tr>
+                <th className="sticky left-0 bg-background z-10 px-2 py-1 text-left font-medium border-b w-10"></th>
+                {Array.from({ length: 31 }, (_, i) => (
+                  <th key={i} className="px-0 py-1 text-center font-normal border-b text-muted-foreground w-6 min-w-[20px]">{i + 1}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {monthsGrid.map(({ month, days }) => (
+                <tr key={month} className="group">
+                  <td className="sticky left-0 bg-background z-10 px-2 py-0.5 font-medium border-r text-xs">{MONTH_NAMES[month]}</td>
+                  {Array.from({ length: 31 }, (_, d) => {
+                    const day = d + 1;
+                    if (day > days) return <td key={d} className="bg-muted/20" />;
+                    const date = new Date(year, month, day);
+                    const season = getSeasonForDate(date, seasons);
+                    const seasonIdx = season ? seasons.indexOf(season) : -1;
+                    const colorDef = season ? getSeasonColor(season, seasonIdx) : null;
+                    const inSel = (isAdding || isAddingPeriod) && isInSelection(date);
+                    const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
-      {/* Legend */}
-      {seasons.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {seasons.map((s, i) => {
-            const c = getSeasonColor(s, i);
-            const periodCount = getSeasonPeriods(s).length;
-            return (
-              <button
-                key={s.id}
-                onClick={() => { setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id); setIsAddingPeriod(false); }}
-                className={cn(
-                  "flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-all",
-                  c.bg, c.border, c.text,
-                  selectedSeasonId === s.id && "ring-2 ring-primary shadow-sm",
-                )}
-              >
-                {s.name || s.title}
-                {periodCount > 1 && <span className="opacity-60">({periodCount})</span>}
-                {!isReadOnly && (
-                  <Trash2
-                    className="h-3 w-3 ml-1 opacity-50 hover:opacity-100"
-                    onClick={(e) => { e.stopPropagation(); deleteSeason(s.id); }}
-                  />
-                )}
-              </button>
-            );
-          })}
+                    return (
+                      <td
+                        key={d}
+                        className={cn(
+                          "px-0 py-0.5 text-center cursor-pointer transition-colors border-r border-b",
+                          colorDef ? colorDef.cell : "hover:bg-accent/30",
+                          inSel && "!bg-primary/30 ring-1 ring-primary",
+                          isToday && !colorDef && "bg-accent/50",
+                          season && selectedSeasonId === season.id && "ring-1 ring-primary/50",
+                        )}
+                        onClick={() => handleCellClick(date)}
+                        title={season ? `${season.name}` : format(date, "yyyy-MM-dd")}
+                      >
+                        <span className={cn("inline-block w-full", colorDef?.text)}>{day}</span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
 
-      {/* Add Season Form (when range selected) */}
-      {isAdding && selectionStart && selectionEnd && (
-        <Card className="border-primary/30">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-xs font-medium">New Season: {format(selectionStart, "dd MMM yyyy")} — {format(selectionEnd, "dd MMM yyyy")}</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <Label className="text-xs">Name</Label>
-                <Input className="h-7 text-xs" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Peak, Low, Festive" />
-              </div>
-              <div>
-                <Label className="text-xs">Color</Label>
-                <Select value={editForm.color} onValueChange={(v) => setEditForm({ ...editForm, color: v })}>
-                  <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SEASON_COLORS.map((c) => (
-                      <SelectItem key={c.value} value={c.value} className="text-xs">
-                        <span className={cn("inline-block w-3 h-3 rounded-sm mr-1", c.bg)} /> {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Min Stay</Label>
-                <Input className="h-7 text-xs" type="number" min={1} value={editForm.minStay} onChange={(e) => setEditForm({ ...editForm, minStay: parseInt(e.target.value) || 1 })} />
-              </div>
-              <div>
-                <Label className="text-xs">Max Stay</Label>
-                <Input className="h-7 text-xs" type="number" min={1} value={editForm.maxStay} onChange={(e) => setEditForm({ ...editForm, maxStay: parseInt(e.target.value) || 30 })} />
-              </div>
-            </div>
-            <Button size="sm" className="h-7 text-xs" onClick={confirmAddSeason}>Create Season</Button>
-          </CardContent>
-        </Card>
-      )}
+        {/* Legend */}
+        {seasons.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {seasons.map((s, i) => {
+              const c = getSeasonColor(s, i);
+              const periodCount = getSeasonPeriods(s).length;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => { setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id); setIsAddingPeriod(false); }}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-all",
+                    c.bg, c.border, c.text,
+                    selectedSeasonId === s.id && "ring-2 ring-primary shadow-sm",
+                  )}
+                >
+                  {s.name || s.title}
+                  {periodCount > 1 && <span className="opacity-60">({periodCount})</span>}
+                  {!isReadOnly && (
+                    <Trash2
+                      className="h-3 w-3 ml-1 opacity-50 hover:opacity-100"
+                      onClick={(e) => { e.stopPropagation(); deleteSeason(s.id); }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-      {/* Confirm Add Period */}
-      {isAddingPeriod && selectionStart && selectionEnd && selectedSeason && (
-        <Card className="border-primary/30">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-xs font-medium">
-              Add period to <strong>{selectedSeason.name}</strong>: {format(selectionStart, "dd MMM yyyy")} — {format(selectionEnd, "dd MMM yyyy")}
-            </p>
-            <Button size="sm" className="h-7 text-xs" onClick={confirmAddPeriod}>Add Period</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Season Detail / Rate Editor */}
-      {selectedSeason && !isAdding && (
-        <Card className="border-primary/20">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold">{selectedSeason.name || selectedSeason.title}</h4>
-              <div className="flex items-center gap-1">
-                {!isReadOnly && !isAddingPeriod && (
-                  <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={startAddPeriod}>
-                    <CalendarPlus className="h-3 w-3" /> Add Period
-                  </Button>
-                )}
-                {!isReadOnly && (
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteSeason(selectedSeason.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Season metadata */}
-            {!isReadOnly && (
+        {/* Add Season Form (when range selected) */}
+        {isAdding && selectionStart && selectionEnd && (
+          <Card className="border-primary/30">
+            <CardContent className="p-4 space-y-3">
+              <p className="text-xs font-medium">New Season: {format(selectionStart, "dd MMM yyyy")} — {format(selectionEnd, "dd MMM yyyy")}</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <Label className="text-xs">Name</Label>
-                  <Input className="h-7 text-xs" value={selectedSeason.name || ""} onChange={(e) => updateSeason("name", e.target.value)} />
+                  <Input className="h-7 text-xs" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Peak, Low, Festive" />
                 </div>
                 <div>
                   <Label className="text-xs">Color</Label>
-                  <Select value={selectedSeason.color || "red"} onValueChange={(v) => updateSeason("color", v)}>
+                  <Select value={editForm.color} onValueChange={(v) => setEditForm({ ...editForm, color: v })}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {SEASON_COLORS.map((c) => (
@@ -583,98 +508,239 @@ export default function SeasonsCalendar({
                 </div>
                 <div>
                   <Label className="text-xs">Min Stay</Label>
-                  <Input className="h-7 text-xs" type="number" min={1} value={selectedSeason.minStay || 1} onChange={(e) => updateSeason("minStay", parseInt(e.target.value) || 1)} />
+                  <Input className="h-7 text-xs" type="number" min={1} value={editForm.minStay} onChange={(e) => setEditForm({ ...editForm, minStay: parseInt(e.target.value) || 1 })} />
                 </div>
                 <div>
                   <Label className="text-xs">Max Stay</Label>
-                  <Input className="h-7 text-xs" type="number" min={1} value={selectedSeason.maxStay || 30} onChange={(e) => updateSeason("maxStay", parseInt(e.target.value) || 30)} />
+                  <Input className="h-7 text-xs" type="number" min={1} value={editForm.maxStay} onChange={(e) => setEditForm({ ...editForm, maxStay: parseInt(e.target.value) || 30 })} />
                 </div>
               </div>
-            )}
+              <Button size="sm" className="h-7 text-xs" onClick={confirmAddSeason}>Create Season</Button>
+            </CardContent>
+          </Card>
+        )}
 
-            {/* Periods list */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Periods ({getSeasonPeriods(selectedSeason).length})
-              </Label>
-              {getSeasonPeriods(selectedSeason).map((period, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  {!isReadOnly ? (
-                    <>
-                      <Input
-                        className="h-7 text-xs w-[130px]"
-                        type="date"
-                        value={period.from}
-                        onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "from", e.target.value)}
-                      />
-                      <span className="text-xs text-muted-foreground">—</span>
-                      <Input
-                        className="h-7 text-xs w-[130px]"
-                        type="date"
-                        value={period.to}
-                        onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "to", e.target.value)}
-                      />
-                      {getSeasonPeriods(selectedSeason).length > 1 && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 shrink-0"
-                          onClick={() => deletePeriod(selectedSeason.id, idx)}
-                        >
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </Button>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      {period.from && period.to
-                        ? `${format(parseISO(period.from), "dd MMM yyyy")} — ${format(parseISO(period.to), "dd MMM yyyy")}`
-                        : "No dates"}
-                    </span>
+        {/* Confirm Add Period */}
+        {isAddingPeriod && selectionStart && selectionEnd && selectedSeason && (
+          <Card className="border-primary/30">
+            <CardContent className="p-4 space-y-3">
+              <p className="text-xs font-medium">
+                Add period to <strong>{selectedSeason.name}</strong>: {format(selectionStart, "dd MMM yyyy")} — {format(selectionEnd, "dd MMM yyyy")}
+              </p>
+              <Button size="sm" className="h-7 text-xs" onClick={confirmAddPeriod}>Add Period</Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Season Detail (property-level only — no rates here) */}
+        {selectedSeason && !isAdding && (
+          <Card className="border-primary/20">
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">{selectedSeason.name || selectedSeason.title}</h4>
+                <div className="flex items-center gap-1">
+                  {!isReadOnly && !isAddingPeriod && (
+                    <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={startAddPeriod}>
+                      <CalendarPlus className="h-3 w-3" /> Add Period
+                    </Button>
                   )}
+                  {!isReadOnly && (
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteSeason(selectedSeason.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            {/* Rate Editor per meal type */}
-            {currentRoom && (
-              <div className="space-y-3">
-                <p className="text-xs font-medium text-muted-foreground">Rates for: {currentRoom.name}</p>
-                {activeMealTypes.map((mealType) => (
-                  <div key={mealType || "__default"} className="space-y-1">
-                    {mealType && <p className="text-xs font-medium capitalize">{mealType}</p>}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                      {rateFields.map((rf) => (
-                        <div key={rf.key}>
-                          <Label className="text-[10px] text-muted-foreground">{rf.label} ({currency})</Label>
-                          <Input
-                            className="h-7 text-xs"
-                            type="number"
-                            min={0}
-                            value={getRate(selectedSeason.id, mealType, rf.key) || ""}
-                            onChange={(e) => updateRate(selectedSeason.id, mealType, rf.key, parseFloat(e.target.value) || 0)}
-                            disabled={isReadOnly}
-                          />
-                        </div>
-                      ))}
-                    </div>
+              {/* Season metadata */}
+              {!isReadOnly && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label className="text-xs">Name</Label>
+                    <Input className="h-7 text-xs" value={selectedSeason.name || ""} onChange={(e) => updateSeason("name", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Color</Label>
+                    <Select value={selectedSeason.color || "red"} onValueChange={(v) => updateSeason("color", v)}>
+                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {SEASON_COLORS.map((c) => (
+                          <SelectItem key={c.value} value={c.value} className="text-xs">
+                            <span className={cn("inline-block w-3 h-3 rounded-sm mr-1", c.bg)} /> {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Min Stay</Label>
+                    <Input className="h-7 text-xs" type="number" min={1} value={selectedSeason.minStay || 1} onChange={(e) => updateSeason("minStay", parseInt(e.target.value) || 1)} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Max Stay</Label>
+                    <Input className="h-7 text-xs" type="number" min={1} value={selectedSeason.maxStay || 30} onChange={(e) => updateSeason("maxStay", parseInt(e.target.value) || 30)} />
+                  </div>
+                </div>
+              )}
+
+              {/* Periods list */}
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Periods ({getSeasonPeriods(selectedSeason).length})
+                </Label>
+                {getSeasonPeriods(selectedSeason).map((period, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    {!isReadOnly ? (
+                      <>
+                        <Input
+                          className="h-7 text-xs w-[130px]"
+                          type="date"
+                          value={period.from}
+                          onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "from", e.target.value)}
+                        />
+                        <span className="text-xs text-muted-foreground">—</span>
+                        <Input
+                          className="h-7 text-xs w-[130px]"
+                          type="date"
+                          value={period.to}
+                          onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "to", e.target.value)}
+                        />
+                        {getSeasonPeriods(selectedSeason).length > 1 && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 shrink-0"
+                            onClick={() => deletePeriod(selectedSeason.id, idx)}
+                          >
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {period.from && period.to
+                          ? `${format(parseISO(period.from), "dd MMM yyyy")} — ${format(parseISO(period.to), "dd MMM yyyy")}`
+                          : "No dates"}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
 
-            {linkedRateTypes.length > 0 && (
-              <div className="text-xs text-muted-foreground mt-2">
-                Linked rate types: {linkedRateTypes.map((rt) => rt.name).join(", ")}
+              {linkedRateTypes.length > 0 && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  Linked rate types: {linkedRateTypes.map((rt) => rt.name).join(", ")}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {seasons.length === 0 && !isAdding && (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            {isReadOnly ? "No seasons synced from PMS." : "No seasons defined. Click \"Add Season\" to get started."}
+          </div>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* SECTION 2: ROOM RATES BY SEASON (per room/unit)               */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {seasons.length > 0 && (
+        <div className="space-y-4">
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <BedDouble className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Room Rates by Season</h3>
+                <span className="text-[10px] text-muted-foreground">(per room/unit)</span>
+              </div>
+              {roomTypes.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Set rates for:</Label>
+                  <Select value={selectedRoomType} onValueChange={(v) => onSelectedRoomTypeChange?.(v)}>
+                    <SelectTrigger className="h-8 text-xs w-[200px]">
+                      <SelectValue placeholder="Select room" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roomTypes.map((r) => (
+                        <SelectItem key={r.id} value={r.id} className="text-xs">{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {currentRoom && (
+              <div className="space-y-2">
+                {roomTypes.length <= 1 && currentRoom && (
+                  <p className="text-xs text-muted-foreground mb-2">Rates for: <span className="font-medium text-foreground">{currentRoom.name}</span></p>
+                )}
+
+                {/* Rate grid: one row per season, columns = rate fields */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[140px]">Season</th>
+                        {activeMealTypes.length > 1 && (
+                          <th className="text-left py-2 px-2 font-medium text-muted-foreground w-[100px]">Meal Plan</th>
+                        )}
+                        {rateFields.map((rf) => (
+                          <th key={rf.key} className="text-left py-2 px-2 font-medium text-muted-foreground">
+                            {rf.label} ({currency})
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {seasons.map((season, sIdx) => {
+                        const c = getSeasonColor(season, sIdx);
+                        return activeMealTypes.map((mealType, mIdx) => (
+                          <tr
+                            key={`${season.id}-${mealType || "__default"}`}
+                            className={cn("border-b last:border-b-0", mIdx > 0 && "border-t-0")}
+                          >
+                            {mIdx === 0 && (
+                              <td className="py-1.5 px-2" rowSpan={activeMealTypes.length}>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={cn("inline-block w-3 h-3 rounded-sm shrink-0", c.bg, c.border, "border")} />
+                                  <span className="font-medium">{season.name || season.title}</span>
+                                </div>
+                              </td>
+                            )}
+                            {activeMealTypes.length > 1 && (
+                              <td className="py-1.5 px-2 capitalize text-muted-foreground">{mealType || "Default"}</td>
+                            )}
+                            {rateFields.map((rf) => (
+                              <td key={rf.key} className="py-1.5 px-2">
+                                <Input
+                                  className="h-7 text-xs w-[100px]"
+                                  type="number"
+                                  min={0}
+                                  value={getRate(season.id, mealType, rf.key) || ""}
+                                  onChange={(e) => updateRate(season.id, mealType, rf.key, parseFloat(e.target.value) || 0)}
+                                  disabled={isReadOnly}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
 
-      {seasons.length === 0 && !isAdding && (
-        <div className="text-center py-8 text-sm text-muted-foreground">
-          {isReadOnly ? "No seasons synced from PMS." : "No seasons defined. Click \"Add Season\" to get started."}
+            {!currentRoom && roomTypes.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">Add rooms to this property to set rates per season.</p>
+            )}
+          </div>
         </div>
       )}
     </div>
