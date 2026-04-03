@@ -510,6 +510,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("why_we_chose_this_place", e.target.value)}
                   placeholder="What makes this property stand out..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
