@@ -262,7 +262,7 @@ export default function PMSDashboard() {
 
   // Fetch room types (with linked overview data for unit counts)
   const { data: roomTypes = [] } = useQuery({
-    queryKey: ["pms-cal-room-types", propertyId],
+    queryKey: ["pms-cal-room-types", propertyId, (propertyData as any)?.amenities?.room_types],
     queryFn: async () => {
       if (!propertyId) return [];
       // Sync room types from overview on load (reactivates deactivated types)
@@ -282,8 +282,7 @@ export default function PMSDashboard() {
         .eq("is_active", true);
 
       const overviewMap = new Map((overviewData || []).map(o => [o.id, o]));
-
-      return (data || []).map(rt => {
+      const rawRoomTypes = (data || []).map(rt => {
         const overview = overviewMap.get((rt as any).linked_overview_id);
         return {
           ...rt,
@@ -291,6 +290,34 @@ export default function PMSDashboard() {
           property_type: overview?.property_type || null,
         } as RoomType;
       });
+
+      const canonicalAmenityNames = new Set(
+        (((propertyData as any)?.is_rol_property ? (propertyData as any)?.amenities?.room_types : []) || [])
+          .map((roomType: any) => String(roomType?.name || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+
+      if (canonicalAmenityNames.size === 0) return rawRoomTypes;
+
+      const deduped = new Map<string, RoomType>();
+      for (const roomType of rawRoomTypes) {
+        const normalizedName = roomType.name.trim().toLowerCase();
+        if (!canonicalAmenityNames.has(normalizedName)) continue;
+
+        const existing = deduped.get(normalizedName);
+        if (!existing) {
+          deduped.set(normalizedName, roomType);
+          continue;
+        }
+
+        const existingScore = Number(Boolean(existing.linked_overview_id)) * 10 + Number(existing.default_rate ?? 0);
+        const nextScore = Number(Boolean(roomType.linked_overview_id)) * 10 + Number(roomType.default_rate ?? 0);
+        if (nextScore > existingScore) {
+          deduped.set(normalizedName, roomType);
+        }
+      }
+
+      return Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
     enabled: !!propertyId,
   });
