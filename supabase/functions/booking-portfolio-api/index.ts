@@ -108,22 +108,35 @@ serve(async (req) => {
 
     // Fetch active public specials for member properties
     const today = new Date().toISOString().split("T")[0];
-    const { data: specials } = await supabase
+    const { data: specials, error: specialsError } = await supabase
       .from("property_specials")
-      .select("id, name, description, discount_type, discount_value, valid_from, valid_to, property_id")
+      .select("id, name, description, special_type, discount_percent, fixed_amount, fixed_price, currency, valid_from, valid_to, property_id")
       .eq("is_active", true)
       .eq("is_public", true)
       .gte("valid_to", today)
       .in("property_id", propertyIds);
 
+    if (specialsError) {
+      console.error("Specials query error:", specialsError);
+    }
+    console.log("Specials found:", specials?.length || 0, "for propertyIds:", propertyIds);
+
     const mappedSpecials = (specials || []).map((s: any) => {
       const prop = (properties || []).find((p: any) => p.id === s.property_id);
+      // Compute a unified discount_type and discount_value for the UI
+      let discount_type = s.special_type || "percentage";
+      let discount_value = s.discount_percent || s.fixed_amount || s.fixed_price || 0;
+      if (s.discount_percent) { discount_type = "percentage"; discount_value = s.discount_percent; }
+      else if (s.fixed_amount) { discount_type = "fixed_amount"; discount_value = s.fixed_amount; }
+      else if (s.fixed_price) { discount_type = "fixed_price"; discount_value = s.fixed_price; }
+
       return {
         id: s.id,
         name: s.name,
         description: s.description,
-        discount_type: s.discount_type,
-        discount_value: s.discount_value,
+        discount_type,
+        discount_value,
+        currency: s.currency || "ZAR",
         valid_from: s.valid_from,
         valid_to: s.valid_to,
         property_id: s.property_id,
