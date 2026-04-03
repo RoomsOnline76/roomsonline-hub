@@ -34,10 +34,18 @@ interface PropertySummary {
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 
 export default function PMSPortfolio() {
-  const { properties, loading: propLoading } = usePmsPropertyId();
+  const { properties, portfolioProperties, portfolioIds, loading: propLoading } = usePmsPropertyId();
   const [, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  // Auto-select portfolio if selected property belongs to one
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
+
+  // Auto-set portfolio filter when property context provides one
+  useEffect(() => {
+    if (portfolioIds.length > 0 && !selectedPortfolioId) {
+      setSelectedPortfolioId(portfolioIds[0]);
+    }
+  }, [portfolioIds]);
 
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
