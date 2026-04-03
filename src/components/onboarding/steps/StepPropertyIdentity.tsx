@@ -5,11 +5,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertTriangle, ChevronDown, Building2, Sparkles, Briefcase, Globe } from "lucide-react";
+import { AlertTriangle, ChevronDown, Building2, Sparkles, Briefcase, Globe, X } from "lucide-react";
 import { PROPERTY_TYPES, OnboardingOfferings } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { Badge } from "@/components/ui/badge";
+
+// Separate PMS vs Channel Manager systems
+const PMS_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => !s.isInternal && !['siteminder', 'rentalsunited'].includes(s.key));
+const CHANNEL_MANAGER_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => ['siteminder', 'rentalsunited', 'profitroom'].includes(s.key));
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: "Apartments",
