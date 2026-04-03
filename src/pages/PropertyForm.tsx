@@ -2320,13 +2320,14 @@ export default function PropertyForm() {
       );
       toast({ title: "Season updated", description: "Season has been updated successfully." });
     } else {
-      // Add new season
+      // Add new season — always include periods array
       const newSeason = {
         id: Date.now().toString(),
         name: seasonForm.name,
         title,
         from: seasonForm.from,
         to: seasonForm.to,
+        periods: [{ from: seasonForm.from, to: seasonForm.to }],
         minStay: seasonForm.minStay,
         maxStay: seasonForm.maxStay,
       };
