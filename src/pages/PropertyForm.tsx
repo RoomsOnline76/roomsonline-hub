@@ -8065,7 +8065,7 @@ export default function PropertyForm() {
                 {/* Left Sidebar - Room Types List */}
                 <div className="w-56 border-r bg-muted/30 p-2 space-y-1">
                   <div className="flex items-center justify-between mb-2 px-1">
-                    <h3 className="font-semibold text-xs text-muted-foreground">ROOM TYPES</h3>
+                    <h3 className="font-semibold text-xs text-muted-foreground">{(accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.label?.toUpperCase() : "ROOM")} TYPES</h3>
                   </div>
                   {roomTypes.map((room) => (
                     <div
