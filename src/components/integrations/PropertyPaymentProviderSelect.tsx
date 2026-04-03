@@ -194,6 +194,9 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
   const [hasCredChanges, setHasCredChanges] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [mainOpen, setMainOpen] = useState(false);
+  const [saOpen, setSaOpen] = useState(false);
+  const [intlOpen, setIntlOpen] = useState(false);
 
   // ── Fetch current providers ───────────────────────────────────────────────
 
