@@ -44,7 +44,7 @@ const SHIFT_TYPES = [
 ];
 
 export default function PMSStaff() {
-  const { propertyId, portfolioIds } = usePmsPropertyId();
+  const { propertyId, portfolioIds, portfolioProperties } = usePmsPropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -89,7 +89,9 @@ export default function PMSStaff() {
     [weekStart]
   );
 
-  // Fetch property slug
+  // Fetch all portfolio property slugs
+  const [portfolioPropertySlugs, setPortfolioPropertySlugs] = useState<{ id: string; name: string; slug: string }[]>([]);
+
   useEffect(() => {
     if (!propertyId) return;
     supabase.from("properties").select("slug").eq("id", propertyId).single()
@@ -102,6 +104,16 @@ export default function PMSStaff() {
     supabase.from("property_portfolios" as any).select("slug").eq("id", portfolioIds[0]).single()
       .then(({ data }: any) => setPortfolioSlug(data?.slug || null));
   }, [portfolioIds]);
+
+  // Fetch slugs for all properties in the portfolio
+  useEffect(() => {
+    if (!portfolioProperties?.length) { setPortfolioPropertySlugs([]); return; }
+    const ids = portfolioProperties.map(p => p.id);
+    supabase.from("properties").select("id, name, slug").in("id", ids).order("name")
+      .then(({ data }) => {
+        setPortfolioPropertySlugs((data || []).filter(p => p.slug).map(p => ({ id: p.id, name: p.name, slug: p.slug! })));
+      });
+  }, [portfolioProperties]);
 
   const portfolioLoginUrl = portfolioSlug ? getPortfolioStaffLoginUrl(portfolioSlug) : null;
   const staffLoginUrl = propertySlug ? getStaffLoginUrl(propertySlug) : null;
@@ -266,7 +278,7 @@ export default function PMSStaff() {
         </div>
 
         {/* Staff Login URLs */}
-        {(portfolioLoginUrl || staffLoginUrl) && (
+        {(portfolioLoginUrl || staffLoginUrl || portfolioPropertySlugs.length > 0) && (
           <Card className="border-dashed">
             <CardContent className="py-4 px-5 space-y-3">
               {portfolioLoginUrl && (
@@ -279,7 +291,29 @@ export default function PMSStaff() {
                   <Button variant="outline" size="sm" onClick={() => copyUrl(portfolioLoginUrl, "Portfolio login")}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
                 </div>
               )}
-              {staffLoginUrl && (
+              {/* Per-property login URLs */}
+              {portfolioPropertySlugs.length > 1 ? (
+                <>
+                  <div className="border-t pt-3 mt-1">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Property Staff Logins</p>
+                    <div className="space-y-2">
+                      {portfolioPropertySlugs.map((pp) => {
+                        const url = getStaffLoginUrl(pp.slug);
+                        return (
+                          <div key={pp.id} className="flex items-center gap-3">
+                            <Link2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-medium text-muted-foreground">{pp.name}</p>
+                              <code className="text-xs text-foreground bg-muted px-2 py-0.5 rounded block truncate">{url}</code>
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7" onClick={() => copyUrl(url, pp.name)}><Copy className="h-3 w-3" /></Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : staffLoginUrl && (
                 <div className="flex items-center gap-3">
                   <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
