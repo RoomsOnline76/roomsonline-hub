@@ -11,9 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2, Clock,
+  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2,
 } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, differenceInHours, formatDistanceToNow } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 interface AvailabilityRow {
