@@ -265,16 +265,30 @@ export default function PMSStaff() {
           </Button>
         </div>
 
-        {/* Staff Login URL */}
-        {staffLoginUrl && (
+        {/* Staff Login URLs */}
+        {(portfolioLoginUrl || staffLoginUrl) && (
           <Card className="border-dashed">
-            <CardContent className="py-4 px-5 flex items-center gap-3">
-              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Branded Staff Login URL</p>
-                <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{staffLoginUrl}</code>
-              </div>
-              <Button variant="outline" size="sm" onClick={copyLoginUrl}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+            <CardContent className="py-4 px-5 space-y-3">
+              {portfolioLoginUrl && (
+                <div className="flex items-center gap-3">
+                  <Link2 className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-primary mb-1">Portfolio Staff Login (Primary)</p>
+                    <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{portfolioLoginUrl}</code>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => copyUrl(portfolioLoginUrl, "Portfolio login")}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+                </div>
+              )}
+              {staffLoginUrl && (
+                <div className="flex items-center gap-3">
+                  <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Property Staff Login</p>
+                    <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{staffLoginUrl}</code>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => copyUrl(staffLoginUrl, "Property login")}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
