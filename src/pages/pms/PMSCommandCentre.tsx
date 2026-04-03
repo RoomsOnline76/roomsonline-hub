@@ -33,6 +33,7 @@ interface OccupancySummary {
   departures: number;
   available_rooms: number;
   total_rooms: number;
+  last_updated: string | null;
 }
 
 interface AISuggestion {
