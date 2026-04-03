@@ -640,11 +640,37 @@ export default function PMSDashboard() {
     const map = new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
 
     for (const prop of portfolioProperties || []) {
-      const propRoomTypes = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
+      const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRooms = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
       const propBookings = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
       const propData = portfolioPropertiesData.find(p => p.id === prop.id);
+
+      // Deduplicate room types using same logic as single-property mode
+      let propRoomTypes = propRoomTypesRaw;
+      const canonicalAmenityNames = new Set(
+        (((propData as any)?.is_rol_property ? (propData as any)?.amenities?.room_types : []) || [])
+          .map((roomType: any) => String(roomType?.name || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+      if (canonicalAmenityNames.size > 0) {
+        const deduped = new Map<string, RoomType>();
+        for (const roomType of propRoomTypesRaw) {
+          const normalizedName = roomType.name.trim().toLowerCase();
+          if (!canonicalAmenityNames.has(normalizedName)) continue;
+          const existing = deduped.get(normalizedName);
+          if (!existing) {
+            deduped.set(normalizedName, roomType);
+            continue;
+          }
+          const existingScore = Number(Boolean(existing.linked_overview_id)) * 10 + Number(existing.default_rate ?? 0);
+          const nextScore = Number(Boolean(roomType.linked_overview_id)) * 10 + Number(roomType.default_rate ?? 0);
+          if (nextScore > existingScore) {
+            deduped.set(normalizedName, roomType);
+          }
+        }
+        propRoomTypes = Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
+      }
 
       const oMap = new Map<string, AvailabilityOverride>();
       propOverrides.forEach(o => oMap.set(`${o.room_type}-${o.date}`, o));
