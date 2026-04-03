@@ -56,11 +56,39 @@ export default function StaffLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Resolve branding: query param > route param > localStorage > default
+  // Resolve branding: portfolio param > property param > route param > localStorage > default
   useEffect(() => {
+    const portfolioSlugParam = searchParams.get("portfolio");
     const slug = searchParams.get("property") || propertySlug;
 
-    if (slug) {
+    if (portfolioSlugParam) {
+      // Fetch portfolio branding
+      supabase
+        .from("property_portfolios" as any)
+        .select("id, name, slug, metadata")
+        .eq("slug", portfolioSlugParam)
+        .single()
+        .then(({ data }: any) => {
+          if (data) {
+            const meta = data.metadata || {};
+            const branding = meta.branding || {};
+            const fetched: PropertyBrand = {
+              slug: data.slug,
+              name: data.name,
+              brand_logo_url: branding.logo_url || null,
+              brand_primary_color: branding.primary_color || "#1a1a2e",
+              brand_secondary_color: branding.secondary_color || "#16213e",
+              brand_font_color: branding.font_color || "#ffffff",
+              property_id: "", // portfolio login — no single property
+            };
+            setBrand(fetched);
+            saveBrandToStorage(fetched);
+          } else {
+            setBrand(loadBrandFromStorage());
+          }
+          setLoading(false);
+        });
+    } else if (slug) {
       // Fetch from DB
       supabase
         .from("properties")
@@ -82,13 +110,11 @@ export default function StaffLogin() {
             setBrand(fetched);
             saveBrandToStorage(fetched);
           } else {
-            // Slug invalid — fall back to localStorage or default
             setBrand(loadBrandFromStorage());
           }
           setLoading(false);
         });
     } else {
-      // No slug — try localStorage
       setBrand(loadBrandFromStorage());
       setLoading(false);
     }
