@@ -135,7 +135,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="qualified">Qualified</SelectItem>

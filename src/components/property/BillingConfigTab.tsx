@@ -263,6 +263,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
             type="date"
             value={billingStartDate}
             onChange={(e) => setBillingStartDate(e.target.value)}
+            className="text-xs"
           />
         </div>
 

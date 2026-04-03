@@ -134,7 +134,7 @@ export function SmartRoomInput({ onRoomParsed, propertyContext, className }: Sma
           placeholder="Describe the room in natural language, e.g.: 'Ocean view suite with king bed, balcony, sleeps 2, 45sqm'"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="min-h-[80px]"
+          className="min-h-[80px] text-xs"
         />
         <div className="flex items-center gap-2">
           <Button

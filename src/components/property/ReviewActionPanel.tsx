@@ -595,7 +595,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
               placeholder="Explain why you're overriding the quality gate..."
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
-              className="mt-2"
+              className="mt-2 text-xs"
             />
           </div>
           

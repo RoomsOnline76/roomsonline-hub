@@ -114,7 +114,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
         <div className="space-y-2">
           <Label className="text-xs">AI Email Tone</Label>
           <Select value={aiTone} onValueChange={setAiTone}>
-            <SelectTrigger className="h-9 text-sm">
+            <SelectTrigger className="h-9 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

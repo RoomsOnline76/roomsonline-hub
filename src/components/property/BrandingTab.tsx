@@ -149,11 +149,11 @@ function ColorField({
       </div>
       <div className="flex items-center gap-2 mt-1">
         <span className="text-xs text-muted-foreground w-6">R</span>
-        <Input type="number" min={0} max={255} value={rgb?.r ?? ""} onChange={(e) => handleRgbChange("r", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
+        <Input type="number" min={0} max={255} value={rgb?.r ?? ""} onChange={(e) => handleRgbChange("r", e.target.value)} className="font-mono text-xs h-8 max-w-[72px]" placeholder="0" />
         <span className="text-xs text-muted-foreground w-6">G</span>
-        <Input type="number" min={0} max={255} value={rgb?.g ?? ""} onChange={(e) => handleRgbChange("g", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
+        <Input type="number" min={0} max={255} value={rgb?.g ?? ""} onChange={(e) => handleRgbChange("g", e.target.value)} className="font-mono text-xs h-8 max-w-[72px]" placeholder="0" />
         <span className="text-xs text-muted-foreground w-6">B</span>
-        <Input type="number" min={0} max={255} value={rgb?.b ?? ""} onChange={(e) => handleRgbChange("b", e.target.value)} className="font-mono text-sm h-8 max-w-[72px]" placeholder="0" />
+        <Input type="number" min={0} max={255} value={rgb?.b ?? ""} onChange={(e) => handleRgbChange("b", e.target.value)} className="font-mono text-xs h-8 max-w-[72px]" placeholder="0" />
       </div>
     </div>
   );

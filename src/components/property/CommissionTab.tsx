@@ -230,7 +230,7 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                 </div>
                 <div>
                   <Label>Notes (optional)</Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for rate change..." rows={2} />
+                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Reason for rate change..." rows={2} className="text-xs" />
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleSave} disabled={saving}>
