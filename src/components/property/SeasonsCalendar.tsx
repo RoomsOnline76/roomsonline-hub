@@ -311,8 +311,8 @@ export default function SeasonsCalendar({
     toast({ title: "Season deleted" });
   };
 
-  const updateRate = (seasonId: string, mealTypeKey: string, field: RateField, value: number) => {
-    const rateKey = mealTypeKey ? `${seasonId}-${mealTypeKey}` : seasonId;
+  const updateRate = (seasonId: string, _unused: string, field: RateField, value: number) => {
+    const rateKey = selectedRateTypeId ? `${seasonId}-${selectedRateTypeId}` : seasonId;
     const updated: SeasonRates = {
       ...seasonRates,
       [selectedRoomType]: {
@@ -326,8 +326,8 @@ export default function SeasonsCalendar({
     onSeasonRatesChange(updated);
   };
 
-  const getRate = (seasonId: string, mealTypeKey: string, field: RateField): number => {
-    const rateKey = mealTypeKey ? `${seasonId}-${mealTypeKey}` : seasonId;
+  const getRate = (seasonId: string, _unused: string, field: RateField): number => {
+    const rateKey = selectedRateTypeId ? `${seasonId}-${selectedRateTypeId}` : seasonId;
     return seasonRates[selectedRoomType]?.[rateKey]?.[field] || 0;
   };
 
