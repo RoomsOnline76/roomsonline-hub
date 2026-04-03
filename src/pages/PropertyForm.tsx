@@ -3378,6 +3378,9 @@ export default function PropertyForm() {
               }));
               setPmsRateTypes(transformedRateTypes);
             }
+          } else if (hasSavedRateTypes) {
+            // pms_rate_types was explicitly saved as [] — respect deletion, don't regenerate
+            setPmsRateTypes([]);
           } else if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Auto-generate rate types from ALL wizard rooms (not just those with rates)
             // This ensures every room has a linkable rate type entry
