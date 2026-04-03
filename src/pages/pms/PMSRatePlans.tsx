@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -384,6 +385,20 @@ export default function PMSRatePlans() {
     fetchData();
   };
 
+  const handleDeletePlan = async (plan: RatePlan) => {
+    // Delete linked room types first, then seasons/prices, then the plan itself
+    await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", plan.id);
+    const { data: seasons } = await supabase.from("rolos_rate_seasons").select("id").eq("rate_plan_id", plan.id);
+    if (seasons?.length) {
+      await supabase.from("rolos_rate_prices").delete().in("season_id", seasons.map(s => s.id));
+      await supabase.from("rolos_rate_seasons").delete().eq("rate_plan_id", plan.id);
+    }
+    const { error } = await supabase.from("rolos_rate_plans").delete().eq("id", plan.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Rate plan "${plan.name}" deleted`);
+    fetchData();
+  };
+
   const toggleRoomType = (roomTypeId: string) => {
     setForm(prev => ({
       ...prev,
@@ -486,10 +501,31 @@ export default function PMSRatePlans() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{plan.name}{plan.is_active === false && <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>}</CardTitle>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete "{plan.name}"?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete this rate plan, its seasons, prices, and room type links. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeletePlan(plan)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
                       </div>
                     </div>
