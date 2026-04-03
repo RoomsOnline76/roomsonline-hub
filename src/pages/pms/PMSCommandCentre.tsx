@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2,
 } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
 interface AvailabilityRow {
@@ -33,6 +33,7 @@ interface OccupancySummary {
   departures: number;
   available_rooms: number;
   total_rooms: number;
+  last_updated: string | null;
 }
 
 interface AISuggestion {
@@ -178,11 +179,11 @@ export default function PMSCommandCentre() {
     const endDate = format(weekEnd, "yyyy-MM-dd");
 
     try {
-      // Parallel fetch: cache data + room types + property info
+      // Parallel fetch: cache data + room types + property info + bookings for ROL'OS
       const [cacheResult, rolosResult, hostfullyResult, propsResult] = await Promise.all([
         supabase
           .from("pms_availability_cache")
-          .select("property_id, external_room_type_id, date, available_units")
+          .select("property_id, external_room_type_id, date, available_units, updated_at")
           .in("property_id", propIds)
           .gte("date", startDate)
           .lte("date", endDate),
@@ -202,17 +203,11 @@ export default function PMSCommandCentre() {
 
       const cacheData = cacheResult.data || [];
 
-      // ============================================================
-      // ALLOWLIST APPROACH: Only show cache rows matching ACTIVE room types
-      // Build per-property sets of valid room type keys (UUID + slug)
-      // ============================================================
+      // Build name map and active allowlist
       const nameMap: Record<string, string> = {};
       const activeRoomKeys = new Set<string>();
-
-      // Track which properties have active types in rolos or hostfully
       const propsWithActiveTypes = new Set<string>();
 
-      // Rolos room types — only add ACTIVE to allowlist
       for (const rt of rolosResult.data || []) {
         const slug = slugify(rt.name);
         nameMap[rt.id] = rt.name;
@@ -224,7 +219,6 @@ export default function PMSCommandCentre() {
         }
       }
 
-      // Hostfully room types — only add ACTIVE to allowlist
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
         if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
@@ -236,7 +230,7 @@ export default function PMSCommandCentre() {
         }
       }
 
-      // Amenities JSONB fallback — only for properties with NO active types in either table
+      // Amenities JSONB fallback
       for (const prop of propsResult.data || []) {
         if (propsWithActiveTypes.has(prop.id)) continue;
         const amenities = prop.amenities as { room_types?: Array<{ id?: string; name?: string }> } | null;
@@ -255,61 +249,137 @@ export default function PMSCommandCentre() {
         }
       }
 
-      // Property name map
       const propMap = Object.fromEntries(filteredProperties.map((p) => [p.id, p.name]));
 
-      // Build external_system lookup for live fetch
+      // Build external_system lookup
       const externalSystemMap: Record<string, string | null> = {};
       for (const prop of propsResult.data || []) {
         externalSystemMap[prop.id] = (prop as any).external_system || null;
       }
 
-      // ALLOWLIST FILTER: only include cache rows matching active room types
-      const rows: AvailabilityRow[] = cacheData
+      // Track per-property cache freshness
+      const perPropertyFreshness: Record<string, string | null> = {};
+      for (const row of cacheData) {
+        const r = row as any;
+        if (r.updated_at) {
+          if (!perPropertyFreshness[r.property_id] || r.updated_at > (perPropertyFreshness[r.property_id] || "")) {
+            perPropertyFreshness[r.property_id] = r.updated_at;
+          }
+        }
+      }
+
+      // === SPLIT: ROL'OS properties vs PMS properties ===
+      const rolosPropertyIds = propIds.filter((pid) => {
+        const ext = externalSystemMap[pid];
+        return ext === "roomsonline";
+      });
+      const pmsPropertyIds = propIds.filter((pid) => {
+        const ext = externalSystemMap[pid];
+        return ext && ext !== "roomsonline" && ext !== "manual";
+      });
+
+      // --- PMS properties: use cache with allowlist filter ---
+      const pmsRows: AvailabilityRow[] = cacheData
         .filter((r: any) => {
           const extId = r.external_room_type_id || "";
-          return activeRoomKeys.has(extId);
+          return activeRoomKeys.has(extId) && pmsPropertyIds.includes(r.property_id);
         })
         .map((r: any) => {
           const extId = r.external_room_type_id || "";
-          const resolvedName = nameMap[extId] || slugToTitle(extId);
           return {
             property_id: r.property_id,
             property_name: propMap[r.property_id] || "Unknown",
-            room_type_name: resolvedName,
+            room_type_name: nameMap[extId] || slugToTitle(extId),
             date: r.date,
             available_units: r.available_units ?? 0,
           };
         });
 
-      setAvailability(rows);
+      // --- ROL'OS properties: derive from rolos_room_types + bookings ---
+      let rolosRows: AvailabilityRow[] = [];
+      if (rolosPropertyIds.length > 0) {
+        // Each active rolos_room_type is 1 unit. Check bookings to see if booked.
+        const { data: rolosBookings } = await supabase
+          .from("bookings")
+          .select("property_id, room_type_id, check_in_date, check_out_date")
+          .in("property_id", rolosPropertyIds)
+          .in("status", ["confirmed", "checked_in"])
+          .lte("check_in_date", endDate)
+          .gte("check_out_date", startDate);
 
-      // If no matching rows after allowlist filter, trigger live fetch for PMS-backed properties
-      if (rows.length === 0 && propIds.length > 0) {
-        const pmsBackedIds = propIds.filter((pid) => {
-          const ext = externalSystemMap[pid];
-          return ext && ext !== "manual" && ext !== "roomsonline";
-        });
-        if (pmsBackedIds.length > 0) {
-          triggerLiveFetch(pmsBackedIds, startDate, endDate, propMap);
+        const activeRolosRooms = (rolosResult.data || []).filter(
+          (rt) => rt.is_active && rolosPropertyIds.includes(rt.property_id)
+        );
+
+        // Build a set of "propertyId:roomTypeId:date" that are booked
+        const bookedSet = new Set<string>();
+        for (const b of rolosBookings || []) {
+          if (!b.room_type_id) continue;
+          const ciDate = new Date(b.check_in_date);
+          const coDate = new Date(b.check_out_date);
+          const rangeStart = ciDate < new Date(startDate) ? new Date(startDate) : ciDate;
+          const rangeEnd = coDate > new Date(endDate) ? new Date(endDate) : coDate;
+          const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeEnd, -1) });
+          for (const d of days) {
+            bookedSet.add(`${b.property_id}:${b.room_type_id}:${format(d, "yyyy-MM-dd")}`);
+          }
+        }
+
+        for (const rt of activeRolosRooms) {
+          for (const day of weekDays) {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const isBooked = bookedSet.has(`${rt.property_id}:${rt.id}:${dateStr}`);
+            rolosRows.push({
+              property_id: rt.property_id,
+              property_name: propMap[rt.property_id] || "Unknown",
+              room_type_name: rt.name,
+              date: dateStr,
+              available_units: isBooked ? 0 : 1,
+            });
+          }
+        }
+
+        // ROL'OS freshness = "live" (derived from bookings, always current)
+        for (const pid of rolosPropertyIds) {
+          perPropertyFreshness[pid] = new Date().toISOString();
         }
       }
 
+      const allRows = [...pmsRows, ...rolosRows];
+      setAvailability(allRows);
+
+      // --- Per-property staleness-based live fetch for PMS properties ---
+      const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+      const now = Date.now();
+      const staleOrEmptyPmsIds = pmsPropertyIds.filter((pid) => {
+        const hasPmsRows = pmsRows.some((r) => r.property_id === pid);
+        if (!hasPmsRows) return true; // empty → fetch
+        const freshest = perPropertyFreshness[pid];
+        if (!freshest) return true;
+        return now - new Date(freshest).getTime() > STALE_THRESHOLD_MS;
+      });
+
+      if (staleOrEmptyPmsIds.length > 0) {
+        triggerLiveFetch(staleOrEmptyPmsIds, startDate, endDate, propMap, allRows, rolosRows);
+      }
+
       // Calculate occupancy summaries
-      buildOccupancySummaries(rows, propIds, propMap);
+      buildOccupancySummaries(allRows, propIds, propMap, perPropertyFreshness);
     } catch (err) {
       console.error("Command Centre load error:", err);
     } finally {
       setLoading(false);
     }
-  }, [filteredPropertyIds, weekOffset, weekStart, weekEnd, filteredProperties]);
+  }, [filteredPropertyIds, weekStart, weekEnd, filteredProperties]);
 
-  /** Trigger live ARI fetch when cache is empty */
+  /** Trigger live ARI fetch for stale/empty PMS properties */
   const triggerLiveFetch = async (
     propIds: string[],
     startDate: string,
     endDate: string,
-    propMap: Record<string, string>
+    propMap: Record<string, string>,
+    _existingRows: AvailabilityRow[],
+    _rolosRows: AvailabilityRow[],
   ) => {
     setLiveFetching(true);
     try {
@@ -353,9 +423,13 @@ export default function PMSCommandCentre() {
       );
 
       if (liveRows.length > 0) {
-        setAvailability(liveRows);
-        const propIdsStr = propIds.join(",");
-        buildOccupancySummaries(liveRows, propIds, propMap);
+        // Merge: keep ROL'OS rows + replace stale PMS rows with live data for fetched properties
+        const fetchedPids = new Set(propIds);
+        const keptRows = _existingRows.filter((r) => !fetchedPids.has(r.property_id));
+        const merged = [...keptRows, ...liveRows];
+        setAvailability(merged);
+        const allPropIds = [...new Set(merged.map((r) => r.property_id))];
+        buildOccupancySummaries(merged, allPropIds, propMap, {});
       }
     } catch (err) {
       console.error("Live fetch error:", err);
@@ -368,7 +442,8 @@ export default function PMSCommandCentre() {
   const buildOccupancySummaries = async (
     rows: AvailabilityRow[],
     propIds: string[],
-    propMap: Record<string, string>
+    propMap: Record<string, string>,
+    freshnessMap: Record<string, string | null>,
   ) => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
     const todayRows = rows.filter((r) => r.date === todayStr);
@@ -386,6 +461,7 @@ export default function PMSCommandCentre() {
         departures: 0,
         available_rooms: availableRooms,
         total_rooms: totalRooms,
+        last_updated: freshnessMap[pid] || null,
       };
     });
 
@@ -625,7 +701,19 @@ export default function PMSCommandCentre() {
                     {sg.cards.map((summary) => (
                       <Card key={summary.property_id} className="relative overflow-hidden">
                         <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium truncate">{summary.property_name}</CardTitle>
+                          <div className="flex items-center justify-between gap-1">
+                            <CardTitle className="text-sm font-medium truncate">{summary.property_name}</CardTitle>
+                            {summary.last_updated && (() => {
+                              const ageMs = Date.now() - new Date(summary.last_updated!).getTime();
+                              const ageHours = ageMs / (1000 * 60 * 60);
+                              const color = ageHours < 2 ? "text-status-healthy" : ageHours < 24 ? "text-status-warning" : "text-destructive";
+                              return (
+                                <span className={`text-[9px] ${color} whitespace-nowrap`}>
+                                  {formatDistanceToNow(new Date(summary.last_updated!), { addSuffix: true })}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           <div className="flex items-end gap-2">
@@ -719,7 +807,7 @@ export default function PMSCommandCentre() {
                 onClick={() => {
                   const propIds = filteredPropertyIds.split(",").filter(Boolean);
                   const propMap = Object.fromEntries(filteredProperties.map((p) => [p.id, p.name]));
-                  triggerLiveFetch(propIds, format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd"), propMap);
+                  triggerLiveFetch(propIds, format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd"), propMap, [], []);
                 }}
                 disabled={liveFetching}
               >
