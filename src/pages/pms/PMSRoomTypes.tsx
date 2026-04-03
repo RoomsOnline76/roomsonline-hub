@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Layers, Users, DollarSign, Pencil, Trash2, Link2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { toast } from "sonner";
 
 interface PropertyAmenities {
@@ -32,16 +33,6 @@ interface PropertyAmenities {
     baseRate?: number;
   }>;
   external_ids?: Record<string, string>;
-}
-
-interface OverviewRoomType {
-  id: string;
-  name: string;
-  description: string | null;
-  max_guests: number;
-  daily_rate: number | null;
-  is_active?: boolean;
-  source: 'amenities' | 'hostfully';
 }
 
 interface RoomType {
@@ -72,70 +63,15 @@ export default function PMSRoomTypes() {
   const syncFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    const [{ data: property }, { data: hostfullyTypes, error: hostfullyErr }] = await Promise.all([
-      supabase.from("properties").select("is_rol_property, amenities, property_type, external_system").eq("id", propertyId).single(),
-      supabase
-        .from("hostfully_room_types")
-        .select("id, name, description, max_guests, daily_rate, is_active")
-        .eq("property_id", propertyId),
+    const [{ data: property }, syncResult] = await Promise.all([
+      supabase.from("properties").select("property_type, external_system").eq("id", propertyId).single(),
+      syncRolosRoomTypesFromOverview(propertyId),
     ]);
 
-    if (hostfullyErr) {
-      console.warn("[PMSRoomTypes] Failed to fetch hostfully_room_types:", hostfullyErr);
-    }
-
     setPropertyData(property);
-    const amenities = property?.amenities as PropertyAmenities | null;
-    const amenitiesRoomTypes: OverviewRoomType[] = Array.isArray(amenities?.room_types)
-      ? amenities!.room_types!
-          .filter((rt) => rt?.name)
-          .map((rt, index) => ({
-            id: `amenity-${rt.id || index}`,
-            name: String(rt.name),
-            description: rt.description || null,
-            max_guests: Number(rt.maxPeople ?? rt.max_guests ?? rt.max_adults ?? 2) || 2,
-            daily_rate: rt.baseRate ?? rt.base_rate ?? null,
-            is_active: true,
-            source: 'amenities' as const,
-          }))
-      : [];
 
-    const activeHostfully: OverviewRoomType[] = (hostfullyTypes || [])
-      .filter((ot) => ot.is_active !== false)
-      .map((ot) => ({ ...ot, max_guests: ot.max_guests || 2, source: 'hostfully' as const }));
-
-    const overviewTypes: OverviewRoomType[] = property?.is_rol_property && amenitiesRoomTypes.length > 0
-      ? amenitiesRoomTypes
-      : activeHostfully;
-
-    if (overviewTypes.length === 0) return;
-
-    const { data: existingRolos } = await supabase
-      .from("rolos_room_types")
-      .select("id, name, linked_overview_id")
-      .eq("property_id", propertyId);
-
-    const linkedIds = new Set((existingRolos || []).map((r) => r.linked_overview_id).filter(Boolean));
-    const existingNames = new Set((existingRolos || []).map((r) => r.name.toLowerCase()));
-
-    const missing = overviewTypes.filter((ot) => !linkedIds.has(ot.id) && !existingNames.has(ot.name.toLowerCase()));
-    if (missing.length === 0) return;
-
-    const rows = missing.map((ot) => ({
-      property_id: propertyId,
-      name: ot.name,
-      description: ot.description || null,
-      max_occupancy: ot.max_guests || 2,
-      default_rate: ot.daily_rate || null,
-      is_active: true,
-      linked_overview_id: ot.source === 'hostfully' ? ot.id : null,
-    }));
-
-    const { error } = await supabase.from("rolos_room_types").insert(rows);
-    if (!error) {
-      toast.success(`Synced ${missing.length} room type${missing.length !== 1 ? 's' : ''} from Property Overview`);
-    } else {
-      console.warn("[PMSRoomTypes] Sync insert error:", error);
+    if (syncResult.inserted > 0 || syncResult.reactivated > 0) {
+      toast.success(`Synced ${syncResult.inserted + syncResult.reactivated} room type${syncResult.inserted + syncResult.reactivated !== 1 ? "s" : ""} from Property Overview`);
     }
   }, [propertyId]);
 

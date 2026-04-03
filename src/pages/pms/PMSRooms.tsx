@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, BedDouble, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { toast } from "sonner";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -51,77 +52,8 @@ export default function PMSRooms() {
   const syncRoomTypesFromOverview = useCallback(async () => {
     if (!propertyId) return;
 
-    const [{ data: property }, { data: hostfullyTypes, error: hostfullyErr }] = await Promise.all([
-      supabase.from("properties").select("is_rol_property, amenities").eq("id", propertyId).single(),
-      supabase
-        .from("hostfully_room_types")
-        .select("id, name, description, max_guests, daily_rate, is_active")
-        .eq("property_id", propertyId),
-    ]);
+    await syncRolosRoomTypesFromOverview(propertyId);
 
-    if (hostfullyErr) console.warn("[PMS Rooms] Failed to fetch hostfully_room_types:", hostfullyErr);
-
-    const amenitiesRoomTypes = Array.isArray((property as any)?.amenities?.room_types)
-      ? ((property as any).amenities.room_types as any[])
-          .filter((rt) => rt?.name)
-          .map((rt, index) => ({
-            id: `amenity-${rt.id || index}`,
-            name: String(rt.name),
-            description: rt.description || null,
-            max_guests: Number(rt.maxPeople ?? rt.max_guests ?? rt.max_adults ?? 2) || 2,
-            daily_rate: rt.baseRate ?? rt.base_rate ?? null,
-            is_active: true,
-            source: "amenities" as const,
-          }))
-      : [];
-
-    const activeHostfully = (hostfullyTypes || [])
-      .filter((ot) => ot.is_active !== false)
-      .map((ot) => ({ ...ot, source: "hostfully" as const }));
-
-    const overviewTypes = (property as any)?.is_rol_property && amenitiesRoomTypes.length > 0
-      ? amenitiesRoomTypes
-      : activeHostfully;
-
-    if (overviewTypes.length === 0) return;
-
-    const { data: existingRolos } = await supabase
-      .from("rolos_room_types")
-      .select("id, name, linked_overview_id")
-      .eq("property_id", propertyId);
-
-    const linkedIds = new Set((existingRolos || []).map((r) => r.linked_overview_id).filter(Boolean));
-    const existingNames = new Set((existingRolos || []).map((r) => r.name.toLowerCase()));
-
-    const missing = overviewTypes.filter((ot) => !linkedIds.has((ot as any).id) && !existingNames.has(ot.name.toLowerCase()));
-    if (missing.length === 0) return;
-
-    const rows = missing.map((ot) => ({
-      property_id: propertyId,
-      name: ot.name,
-      description: ot.description || null,
-      max_occupancy: ot.max_guests || 2,
-      default_rate: ot.daily_rate || null,
-      is_active: true,
-      linked_overview_id: (ot as any).source === "hostfully" ? (ot as any).id : null,
-    }));
-
-    const { data: insertedTypes, error } = await supabase.from("rolos_room_types").insert(rows).select("id, name");
-    if (error) console.warn("[PMS Rooms] Auto-sync room types warning:", error);
-
-    if (insertedTypes && insertedTypes.length > 0) {
-      const physicalRooms = insertedTypes.map((rt) => ({
-        property_id: propertyId,
-        room_number: rt.name,
-        room_name: rt.name,
-        room_type_id: rt.id,
-        status: "available",
-      }));
-      const { error: roomErr } = await supabase.from("rolos_rooms").insert(physicalRooms);
-      if (roomErr) console.warn("[PMS Rooms] Auto-create physical rooms warning:", roomErr);
-    }
-
-    // Backfill physical rooms for existing types missing them
     const { data: allRolosTypes } = await supabase
       .from("rolos_room_types")
       .select("id, name")
@@ -134,15 +66,15 @@ export default function PMSRooms() {
         .select("room_type_id")
         .eq("property_id", propertyId);
 
-      const hasPhysical = new Set((existingPhysical || []).map(r => r.room_type_id).filter(Boolean));
-      const missingPhysical = allRolosTypes.filter(rt => !hasPhysical.has(rt.id));
+      const hasPhysical = new Set((existingPhysical || []).map((room) => room.room_type_id).filter(Boolean));
+      const missingPhysical = allRolosTypes.filter((roomType) => !hasPhysical.has(roomType.id));
 
       if (missingPhysical.length > 0) {
-        const backfillRooms = missingPhysical.map(rt => ({
+        const backfillRooms = missingPhysical.map((roomType) => ({
           property_id: propertyId,
-          room_number: rt.name,
-          room_name: rt.name,
-          room_type_id: rt.id,
+          room_number: roomType.name,
+          room_name: roomType.name,
+          room_type_id: roomType.id,
           status: "available",
         }));
         await supabase.from("rolos_rooms").insert(backfillRooms);
