@@ -318,7 +318,7 @@ export default function PMSCommandCentre() {
             const { data, error } = await supabase.functions.invoke("roomsonline-pms-api", {
               body: {
                 action: "fetch_availability",
-                property_id: pid,
+                propertyId: pid,
                 start_date: startDate,
                 end_date: endDate,
               },
