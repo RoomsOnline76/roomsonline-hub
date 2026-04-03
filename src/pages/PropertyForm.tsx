@@ -4161,6 +4161,35 @@ export default function PropertyForm() {
             }
             console.log(`[ROL Sync] Synced ${pmsRateTypes.length} rate types to rolos_rate_plans`);
 
+            // Deactivate rolos_rate_plans that were removed from pmsRateTypes
+            try {
+              const { data: allExistingPlans } = await supabase
+                .from("rolos_rate_plans")
+                .select("id, code, name")
+                .eq("property_id", savedPropertyId)
+                .eq("is_active", true);
+
+              if (allExistingPlans) {
+                const currentRateIds = new Set(pmsRateTypes.map((rt: any) => String(rt.id)));
+                const currentRateCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
+                const currentRateNames = new Set(pmsRateTypes.map((rt: any) => (rt.name || '').toLowerCase()));
+
+                const stalePlans = allExistingPlans.filter(p =>
+                  !currentRateIds.has(p.id) && !currentRateCodes.has(p.code) && !currentRateNames.has(p.name.toLowerCase())
+                );
+
+                for (const stale of stalePlans) {
+                  await supabase
+                    .from("rolos_rate_plans")
+                    .update({ is_active: false })
+                    .eq("id", stale.id);
+                  console.log(`[ROL Sync] Deactivated removed rate plan: ${stale.name}`);
+                }
+              }
+            } catch (cleanupErr) {
+              console.warn("[ROL Sync] Rate plan cleanup warning:", cleanupErr);
+            }
+
             // Auto-link rate plans to room types based on amenities linkedRateTypes
             try {
               const { data: allPlans } = await supabase
