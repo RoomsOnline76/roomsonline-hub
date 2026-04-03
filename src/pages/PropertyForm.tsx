@@ -11471,6 +11471,7 @@ export default function PropertyForm() {
             <div>
               <Label htmlFor="package-description">Description</Label>
               <Textarea
+                className="text-xs"
                 id="package-description"
                 value={packageForm.description}
                 onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
