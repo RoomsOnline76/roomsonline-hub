@@ -117,7 +117,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
         <div className="space-y-2">
           <Label>Billing Strategy</Label>
           <Select value={strategy} onValueChange={setStrategy}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
