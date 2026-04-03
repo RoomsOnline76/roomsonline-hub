@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Loader2, Globe, MapPin, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -193,6 +194,9 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
   const [hasCredChanges, setHasCredChanges] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+  const [mainOpen, setMainOpen] = useState(false);
+  const [saOpen, setSaOpen] = useState(false);
+  const [intlOpen, setIntlOpen] = useState(false);
 
   // ── Fetch current providers ───────────────────────────────────────────────
 
@@ -339,179 +343,205 @@ export function PropertyPaymentProviderSelect({ propertyId }: PropertyPaymentPro
     credentialsMutation.mutate(filtered);
   };
 
-  // ── Render provider group ─────────────────────────────────────────────────
+  // ── Render provider list ────────────────────────────────────────────────
 
-  const renderGroup = (label: string, icon: React.ReactNode, providers: ProviderDef[]) => (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="space-y-1">
-        {providers.map((p) => {
-          const isSelected = selectedProviders.includes(p.value);
-          const isExpanded = expandedProvider === p.value && isSelected;
+  const renderProviderList = (providers: ProviderDef[]) => (
+    <div className="space-y-1">
+      {providers.map((p) => {
+        const isSelected = selectedProviders.includes(p.value);
+        const isExpanded = expandedProvider === p.value && isSelected;
 
-          return (
-            <div key={p.value} className="space-y-0">
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors cursor-pointer",
-                  isSelected
-                    ? "border-primary/40 bg-primary/5"
-                    : "border-border/50 hover:border-border"
-                )}
-                onClick={() => {
-                  if (isSelected && p.credentials.length > 0) {
-                    setExpandedProvider(isExpanded ? null : p.value);
-                  }
-                }}
-              >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggleProvider(p.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{p.label}</span>
-                    {isSelected && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        Active
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {p.docsUrl && (
-                    <a
-                      href={p.docsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-muted-foreground hover:text-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  {isSelected && p.credentials.length > 0 && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {isExpanded ? "▲" : "▼"}
-                    </span>
+        return (
+          <div key={p.value} className="space-y-0">
+            <div
+              className={cn(
+                "flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors cursor-pointer",
+                isSelected
+                  ? "border-primary/40 bg-primary/5"
+                  : "border-border/50 hover:border-border"
+              )}
+              onClick={() => {
+                if (isSelected && p.credentials.length > 0) {
+                  setExpandedProvider(isExpanded ? null : p.value);
+                }
+              }}
+            >
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => toggleProvider(p.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{p.label}</span>
+                  {isSelected && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      Active
+                    </Badge>
                   )}
                 </div>
               </div>
-
-              {/* Inline credential fields */}
-              {isExpanded && p.credentials.length > 0 && (
-                <div className="ml-9 space-y-2 py-2 pl-2 border-l-2 border-primary/20">
-                  {p.credentials.map((field) => {
-                    const isSensitive = field.sensitive !== false;
-                    const isVisible = visibleFields[field.key] || !isSensitive;
-                    const currentValue = credentialValues[field.key] || "";
-
-                    return (
-                      <div key={field.key} className="space-y-1">
-                        <Label htmlFor={`cred-${p.value}-${field.key}`} className="text-xs font-medium">
-                          {field.label}
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id={`cred-${p.value}-${field.key}`}
-                            type={isVisible ? "text" : "password"}
-                            value={currentValue}
-                            onChange={(e) => updateField(field.key, e.target.value)}
-                            placeholder={field.placeholder}
-                            className="pr-10 text-sm font-mono h-8"
-                          />
-                          {isSensitive && (
-                            <button
-                              type="button"
-                              onClick={() => toggleFieldVisibility(field.key)}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              {isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {p.docsUrl && (
+                  <a
+                    href={p.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-muted-foreground hover:text-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                {isSelected && p.credentials.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {isExpanded ? "▲" : "▼"}
+                  </span>
+                )}
+              </div>
             </div>
-          );
-        })}
-      </div>
+
+            {isExpanded && p.credentials.length > 0 && (
+              <div className="ml-9 space-y-2 py-2 pl-2 border-l-2 border-primary/20">
+                {p.credentials.map((field) => {
+                  const isSensitive = field.sensitive !== false;
+                  const isVisible = visibleFields[field.key] || !isSensitive;
+                  const currentValue = credentialValues[field.key] || "";
+
+                  return (
+                    <div key={field.key} className="space-y-1">
+                      <Label htmlFor={`cred-${p.value}-${field.key}`} className="text-xs font-medium">
+                        {field.label}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id={`cred-${p.value}-${field.key}`}
+                          type={isVisible ? "text" : "password"}
+                          value={currentValue}
+                          onChange={(e) => updateField(field.key, e.target.value)}
+                          placeholder={field.placeholder}
+                          className="pr-10 text-xs font-mono h-8"
+                        />
+                        {isSensitive && (
+                          <button
+                            type="button"
+                            onClick={() => toggleFieldVisibility(field.key)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {isVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
+
+  const saActiveCount = selectedProviders.filter(p => SA_PROVIDERS.some(sp => sp.value === p)).length;
+  const intlActiveCount = selectedProviders.filter(p => INTERNATIONAL_PROVIDERS.some(ip => ip.value === p)).length;
 
   // ── Main render ───────────────────────────────────────────────────────────
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-5 w-5 text-primary" />
-          <div>
-            <CardTitle className="text-base">Payment Providers</CardTitle>
-            <CardDescription className="text-xs">
-              Select one or more payment gateways for this property. Guests will choose at checkout.
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            {renderGroup(
-              "South African",
-              <MapPin className="h-3.5 w-3.5" />,
-              SA_PROVIDERS
-            )}
-
-            {renderGroup(
-              "International",
-              <Globe className="h-3.5 w-3.5" />,
-              INTERNATIONAL_PROVIDERS
-            )}
-
-            {selectedProviders.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">
-                No providers selected — the platform default (PayFast) will be used.
-              </p>
-            )}
-
-            {/* Save credentials button */}
-            {hasCredChanges && (
-              <div className="flex items-center gap-2 pt-2 border-t">
-                <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground flex-1">
-                  Credentials are stored securely per-property.
-                </p>
-                <Button
-                  size="sm"
-                  onClick={handleSaveCredentials}
-                  disabled={credentialsMutation.isPending}
-                  className="gap-1.5"
-                >
-                  {credentialsMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  Save Credentials
-                </Button>
+      <Collapsible open={mainOpen} onOpenChange={setMainOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle className="text-base">Payment Providers</CardTitle>
+                  <CardDescription className="text-xs">
+                    {selectedProviders.length > 0
+                      ? `${selectedProviders.length} provider${selectedProviders.length !== 1 ? "s" : ""} active`
+                      : "Select payment gateways for this property"}
+                  </CardDescription>
+                </div>
               </div>
+              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", mainOpen && "rotate-180")} />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="space-y-3 pt-0">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <Collapsible open={saOpen} onOpenChange={setSaOpen}>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border px-3 py-2 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>South African</span>
+                      {saActiveCount > 0 && (
+                        <Badge variant="default" className="text-[9px] px-1.5 py-0">{saActiveCount}</Badge>
+                      )}
+                    </div>
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", saOpen && "rotate-180")} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    {renderProviderList(SA_PROVIDERS)}
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <Collapsible open={intlOpen} onOpenChange={setIntlOpen}>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full rounded-lg border px-3 py-2 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      <Globe className="h-3.5 w-3.5" />
+                      <span>International</span>
+                      {intlActiveCount > 0 && (
+                        <Badge variant="default" className="text-[9px] px-1.5 py-0">{intlActiveCount}</Badge>
+                      )}
+                    </div>
+                    <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", intlOpen && "rotate-180")} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    {renderProviderList(INTERNATIONAL_PROVIDERS)}
+                  </CollapsibleContent>
+                </Collapsible>
+
+                {selectedProviders.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">
+                    No providers selected — the platform default (PayFast) will be used.
+                  </p>
+                )}
+
+                {hasCredChanges && (
+                  <div className="flex items-center gap-2 pt-2 border-t">
+                    <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground flex-1">
+                      Credentials are stored securely per-property.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveCredentials}
+                      disabled={credentialsMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      {credentialsMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
+                      Save Credentials
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
