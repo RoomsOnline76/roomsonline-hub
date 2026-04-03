@@ -498,7 +498,7 @@ export default function EmbedProperty() {
                 if (pendingRoom) {
                   const pr = pendingRoom;
                   setPendingRoom(null);
-                  setTimeout(() => handleBookRoom(pr.roomId, pr.roomName), 150);
+                  setTimeout(() => handleBookRoom(pr.roomId, pr.roomName, d), 150);
                 }
               }
             }}
