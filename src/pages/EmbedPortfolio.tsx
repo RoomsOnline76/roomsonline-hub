@@ -545,6 +545,28 @@ export default function EmbedPortfolio() {
                       <MapPin className="h-3 w-3" /> {prop.city}
                     </div>
                   )}
+                  {reviewRatings[prop.id]?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {reviewRatings[prop.id].map((r) => {
+                        const isGoogle = r.source === 'google';
+                        const label = isGoogle ? 'G' : 'TA';
+                        const bg = isGoogle ? 'rgba(66,133,244,0.1)' : 'rgba(52,211,153,0.1)';
+                        const color = isGoogle ? '#4285F4' : '#34D399';
+                        return (
+                          <span
+                            key={r.source}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+                            style={{ background: bg, color }}
+                          >
+                            <span className="font-bold">{label}</span>
+                            <Star className="h-2.5 w-2.5 fill-current" />
+                            <span>{r.rating.toFixed(1)}</span>
+                            {r.totalReviews > 0 && <span className="opacity-70">({r.totalReviews})</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   {aiReasonMap[prop.slug] && (
                     <div className="mt-1.5 flex items-start gap-1">
                       <Sparkles className="h-3 w-3 mt-0.5 shrink-0" style={{ color: brandColor }} />

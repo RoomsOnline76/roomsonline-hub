@@ -188,6 +188,12 @@ serve(async (req) => {
           );
           const reviewsData = await reviewsResp.json();
           console.log(`TripAdvisor for ${property.name}: rating=${detailsData.rating}, reviews=${detailsData.num_reviews}, fetched=${reviewsData.data?.length || 0}`);
+          
+          // Log full response when no data found for debugging
+          if (!detailsData.rating && (!reviewsData.data || reviewsData.data.length === 0)) {
+            console.warn(`TripAdvisor empty response for ${property.name} (ID: ${tripadvisorId}). Details response:`, JSON.stringify(detailsData).substring(0, 500));
+            console.warn(`TripAdvisor reviews response:`, JSON.stringify(reviewsData).substring(0, 500));
+          }
 
           const normalizedReviews = (reviewsData.data || []).map((r: any) => ({
             author: r.user?.username || 'Traveler',
