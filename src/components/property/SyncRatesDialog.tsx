@@ -105,7 +105,8 @@ export function SyncRatesDialog({
               const { data: props } = await supabase
                 .from("properties")
                 .select("id, name")
-                .in("id", propIds);
+                .in("id", propIds)
+                .eq("is_active", true);
 
               (props || []).forEach((p) => {
                 seenIds.add(p.id);
