@@ -147,6 +147,7 @@ export default function SeasonsCalendar({
   const [selectionStart, setSelectionStart] = useState<Date | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
+  const [selectedRateTypeId, setSelectedRateTypeId] = useState<string>("");
 
   // Normalize legacy seasons that don't have periods array on first render
   React.useEffect(() => {
@@ -168,6 +169,13 @@ export default function SeasonsCalendar({
     if (linked.length === 0) return pmsRateTypes;
     return pmsRateTypes.filter((rt) => linked.includes(String(rt.id)));
   }, [currentRoom, pmsRateTypes]);
+
+  // Auto-select first rate type when room changes or on mount
+  React.useEffect(() => {
+    if (linkedRateTypes.length > 0 && !linkedRateTypes.find(rt => String(rt.id) === selectedRateTypeId)) {
+      setSelectedRateTypeId(String(linkedRateTypes[0].id));
+    }
+  }, [linkedRateTypes, selectedRateTypeId]);
 
   const monthsGrid = useMemo(() => {
     return Array.from({ length: 12 }, (_, m) => {
