@@ -1146,7 +1146,61 @@ export default function PMSDashboard() {
             </div>
 
             {/* Calendar Grid */}
-            {viewMode === "week" ? (
+            {isPortfolioMode ? (
+              <div className="space-y-6">
+                {(portfolioProperties || []).map(prop => {
+                  const propData = portfolioDataByProperty.get(prop.id);
+                  if (!propData || propData.roomTypes.length === 0) return null;
+                  const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
+                  const propGetSuffix = () => '';
+                  const propGetRestriction = (rtName: string, date: Date) =>
+                    propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
+
+                  return (
+                    <div key={prop.id}>
+                      <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
+                        <Building2 className="h-4 w-4 text-primary shrink-0" />
+                        <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
+                        <Badge variant="outline" className="text-[10px]">
+                          {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                        </Badge>
+                      </div>
+                      {viewMode === "week" ? (
+                        <WeekCalendarGrid
+                          dates={dates}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings}
+                          rooms={propData.rooms}
+                          overrideMap={propData.overrideMap}
+                          getRateForDate={propGetRate}
+                          getPricingSuffix={propGetSuffix}
+                          getSeasonForDate={getSeasonForDate}
+                          getRestriction={propGetRestriction}
+                          onSelectBooking={setSelectedBooking}
+                          bookingsLoading={false}
+                        />
+                      ) : (
+                        <MonthCalendarGrid
+                          weekChunks={weekChunks}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings}
+                          rooms={propData.rooms}
+                          overrideMap={propData.overrideMap}
+                          getRateForDate={propGetRate}
+                          getPricingSuffix={propGetSuffix}
+                          getSeasonForDate={getSeasonForDate}
+                          getRestriction={propGetRestriction}
+                          onSelectBooking={setSelectedBooking}
+                          bookingsLoading={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : viewMode === "week" ? (
               <WeekCalendarGrid
                 dates={dates}
                 roomTypes={roomTypes}
