@@ -2156,19 +2156,29 @@ export default function PropertyForm() {
     setExpandedMealTypes((prev) => ({ ...prev, [mealType]: !prev[mealType] }));
   };
 
-  // Calculate min/max rates for a season across all meal types (room-specific)
+  // Calculate min/max rates for a season across all rate types (room-specific)
   const getSeasonRateSummary = (seasonId: string, roomId: string) => {
-    const rateFields = ["roomAmount", "adultAmount", "teenAmount", "childAmount", "infantAmount"] as const;
+    const rateFieldKeys = ["roomAmount", "adultAmount", "teenAmount", "childAmount", "infantAmount"] as const;
     let minRate = Infinity;
     let maxRate = -Infinity;
 
-    // Use room-specific meal types
+    // Use room-specific linked rate types, falling back to all rate types
     const room = roomTypes.find((r) => r.id === roomId);
-    const roomMealTypes = room?.mealTypes || [];
+    const linked = room?.linkedRateTypes || [];
+    const rateTypeIds = linked.length > 0
+      ? linked.map((id: string | number) => String(id))
+      : (pmsRateTypes || []).map((rt: any) => String(rt.id));
 
-    roomMealTypes.forEach((mealType: string) => {
-      const key = `${seasonId}-${mealType}`;
-      rateFields.forEach((field) => {
+    // Also check legacy meal-type keys and bare season keys for backward compat
+    const roomMealTypes = room?.mealTypes || [];
+    const keysToCheck = [
+      ...rateTypeIds.map((rtId: string) => `${seasonId}-${rtId}`),
+      ...roomMealTypes.map((mt: string) => `${seasonId}-${mt}`),
+      seasonId,
+    ];
+
+    keysToCheck.forEach((key: string) => {
+      rateFieldKeys.forEach((field) => {
         const rate = seasonRates[roomId]?.[key]?.[field] || 0;
         if (rate > 0) {
           minRate = Math.min(minRate, rate);
