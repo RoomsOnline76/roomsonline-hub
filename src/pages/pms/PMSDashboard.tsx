@@ -610,10 +610,21 @@ export default function PMSDashboard() {
     if (amenities?.seasons?.length && amenities?.season_rates) {
       const rt = roomTypes.find(t => t.id === roomTypeId);
       const overviewId = rt?.linked_overview_id;
-      // Try both rolos room type id and linked overview id as keys
+      
+      // Build amenity ID lookup by name (for ROL properties where keys are numeric amenity IDs)
+      let amenityIdForName: string | null = null;
+      if (rt?.name && Array.isArray(amenities.room_types)) {
+        const match = amenities.room_types.find((art: any) => 
+          art?.name && art.name.toLowerCase() === rt.name.toLowerCase()
+        );
+        if (match?.id) amenityIdForName = String(match.id);
+      }
+      
+      // Try rolos UUID, linked overview id, name, and amenity ID as keys
       const roomSeasonRates = amenities.season_rates[roomTypeId] 
         || (overviewId ? amenities.season_rates[overviewId] : null)
-        || (rt?.name ? amenities.season_rates[rt.name] : null);
+        || (rt?.name ? amenities.season_rates[rt.name] : null)
+        || (amenityIdForName ? amenities.season_rates[amenityIdForName] : null);
       
       if (roomSeasonRates) {
         for (const season of amenities.seasons) {
