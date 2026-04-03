@@ -144,7 +144,7 @@ export function usePmsPropertyId() {
 
       const { data: memberProps } = await supabase
         .from("properties")
-        .select("id, name")
+        .select("id, name, slug, brand_primary_color")
         .in("id", Array.from(memberIds))
         .eq("is_active", true)
         .order("name");
