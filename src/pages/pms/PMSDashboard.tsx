@@ -197,7 +197,9 @@ function getStatusColor(status: string) {
 }
 
 export default function PMSDashboard() {
-  const { propertyId, properties, loading: propLoading, switchProperty } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, loading: propLoading, switchProperty } = usePmsPropertyId();
+  // If selected property is in a portfolio, scope dropdown to portfolio members
+  const displayProperties = portfolioProperties || properties;
   const { propertyName: brandName } = usePMSBrand();
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>("month");
