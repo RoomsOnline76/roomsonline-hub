@@ -419,10 +419,11 @@ const Booking = () => {
 
     if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
       const hasPreSelectedGuests = searchParams.has("adults");
+      const fallbackAdults = urlMaxGuests > 0 ? Math.max(1, Math.min(2, urlMaxGuests)) : 2;
       setRooms([{
         roomTypeId: preSelectedRoomTypeId,
         roomTypeName: preSelectedRoomTypeName,
-        numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : 2,
+        numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : fallbackAdults,
         numberOfTeens: preSelectedTeens,
         numberOfChildren: preSelectedChildren,
         numberOfInfants: preSelectedInfants,
