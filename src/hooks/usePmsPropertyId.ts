@@ -70,7 +70,13 @@ export function usePmsPropertyId() {
         }
 
         const { data } = await query;
-        rolProperties = data || [];
+        // Deduplicate — a user can be both primary owner and linked owner
+        const seen = new Set<string>();
+        rolProperties = (data || []).filter((p) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
       }
 
       setProperties(rolProperties);
