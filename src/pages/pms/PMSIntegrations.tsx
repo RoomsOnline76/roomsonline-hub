@@ -137,19 +137,43 @@ export default function PMSIntegrations() {
             </Card>
 
             {/* Portfolio Tabs */}
-            <Tabs defaultValue="portfolio_widget" className="space-y-4">
-              <TabsList className="w-full max-w-3xl">
-                <TabsTrigger value="portfolio_widget" className="gap-1.5 text-xs">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Portfolio Widget
+            <Tabs defaultValue="smart_button" className="space-y-4">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-10 w-full max-w-5xl">
+                <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Smart Button
                 </TabsTrigger>
                 <TabsTrigger value="portfolio_direct" className="gap-1.5 text-xs">
                   <Link2 className="h-3.5 w-3.5" />
                   Direct Link
                 </TabsTrigger>
+                <TabsTrigger value="widget" className="gap-1.5 text-xs">
+                  <Code2 className="h-3.5 w-3.5" />
+                  Widget
+                </TabsTrigger>
+                <TabsTrigger value="bar" className="gap-1.5 text-xs">
+                  <LayoutTemplate className="h-3.5 w-3.5" />
+                  Booking Bar
+                </TabsTrigger>
                 <TabsTrigger value="portfolio_embed" className="gap-1.5 text-xs">
                   <Globe className="h-3.5 w-3.5" />
                   Full Embed
+                </TabsTrigger>
+                <TabsTrigger value="wordpress" className="gap-1.5 text-xs">
+                  <Puzzle className="h-3.5 w-3.5" />
+                  WordPress
+                </TabsTrigger>
+                <TabsTrigger value="elementor" className="gap-1.5 text-xs">
+                  <Blocks className="h-3.5 w-3.5" />
+                  Elementor
+                </TabsTrigger>
+                <TabsTrigger value="api" className="gap-1.5 text-xs">
+                  <Terminal className="h-3.5 w-3.5" />
+                  API
+                </TabsTrigger>
+                <TabsTrigger value="portfolio_widget" className="gap-1.5 text-xs">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Portfolio Widget
                 </TabsTrigger>
                 <TabsTrigger value="portfolio_payment" className="gap-1.5 text-xs">
                   <LayoutTemplate className="h-3.5 w-3.5" />
@@ -157,18 +181,102 @@ export default function PMSIntegrations() {
                 </TabsTrigger>
               </TabsList>
 
+              {/* Smart Button — per property */}
+              <TabsContent value="smart_button" className="space-y-4">
+                <PortfolioPerPropertyCards title="Smart Booking Buttons" description="Configure a smart booking button for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <SmartBookButtonGenerator property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Direct Links */}
+              <TabsContent value="portfolio_direct" className="space-y-4">
+                <PortfolioDirectLinks propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
+                <PortfolioPerPropertyCards title="Direct Link Details" description="Full direct link configuration per property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <DirectLinkTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Widget — per property */}
+              <TabsContent value="widget" className="space-y-4">
+                <PortfolioPerPropertyCards title="Booking Widgets" description="Configure an embeddable widget for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <WidgetTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Booking Bar — per property */}
+              <TabsContent value="bar" className="space-y-4">
+                <PortfolioPerPropertyCards title="Booking Bars" description="Configure a booking bar for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <BookingBarTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Full Embed */}
+              <TabsContent value="portfolio_embed" className="space-y-4">
+                <PortfolioFullEmbed propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
+                <PortfolioPerPropertyCards title="Full Embed Details" description="Full embed configuration per property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <FullEmbedTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* WordPress — per property */}
+              <TabsContent value="wordpress" className="space-y-4">
+                <PortfolioPerPropertyCards title="WordPress Integration" description="WordPress plugin setup for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <WordPressTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Elementor — per property */}
+              <TabsContent value="elementor" className="space-y-4">
+                <PortfolioPerPropertyCards title="Elementor Integration" description="Elementor widget setup for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <ElementorTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* API — per property */}
+              <TabsContent value="api" className="space-y-4">
+                <PortfolioPerPropertyCards title="API Access" description="API credentials and documentation for each property.">
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <ApiTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "" }} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
+
+              {/* Portfolio Widget */}
               <TabsContent value="portfolio_widget" className="space-y-4">
                 <PortfolioWidgetTab property={property} />
               </TabsContent>
 
-              <TabsContent value="portfolio_direct" className="space-y-4">
-                <PortfolioDirectLinks propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
-              </TabsContent>
-
-              <TabsContent value="portfolio_embed" className="space-y-4">
-                <PortfolioFullEmbed propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
-              </TabsContent>
-
+              {/* Payment — per property */}
               <TabsContent value="portfolio_payment" className="space-y-4">
                 <Card>
                   <CardHeader>
@@ -392,6 +500,33 @@ function PortfolioFullEmbed({ propertyId, portfolioProperties }: { propertyId: s
         })}
       </CardContent>
     </Card>
+  );
+}
+
+/* Reusable wrapper for per-property card sections in portfolio mode */
+function PortfolioPerPropertyCards({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PortfolioPropertyCard({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 border-b last:border-b-0 pb-6 last:pb-0">
+      <h4 className="text-sm font-semibold flex items-center gap-1.5">
+        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+        {name}
+      </h4>
+      {children}
+    </div>
   );
 }
 
