@@ -32,6 +32,15 @@ import {
   FolderOpen,
   Megaphone,
   FileText,
+  Radar,
+  Radio,
+  UsersRound,
+  CalendarHeart,
+  Moon,
+  MessageSquare,
+  UserCog,
+  Palette,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
@@ -160,12 +169,25 @@ const pmsSection: NavSection = {
   collapsible: true,
   defaultOpen: false,
   items: [
+    // Operations
     { id: 'pms-dashboard', title: 'PMS Dashboard', icon: LayoutDashboard, href: '/pms', minRole: 'owner', description: 'Native PMS overview' },
+    { id: 'pms-command-centre', title: 'Command Centre', icon: Radar, href: '/pms/command-centre', minRole: 'owner', description: 'Availability & operations' },
     { id: 'pms-rooms', title: 'Rooms', icon: BedDouble, href: '/pms/rooms', minRole: 'owner', description: 'Physical room inventory' },
-    { id: 'pms-rate-plans', title: 'Rate Plans', icon: TrendingUp, href: '/pms/rate-plans', minRole: 'owner', description: 'Pricing strategies' },
     { id: 'pms-guests', title: 'Guests', icon: Users, href: '/pms/guests', minRole: 'owner', description: 'Guest CRM' },
     { id: 'pms-housekeeping', title: 'Housekeeping', icon: Sparkles, href: '/pms/housekeeping', minRole: 'owner', description: 'Task board' },
+    // Revenue
+    { id: 'pms-rate-plans', title: 'Rate Plans', icon: TrendingUp, href: '/pms/rate-plans', minRole: 'owner', description: 'Pricing strategies' },
+    { id: 'pms-revenue', title: 'Revenue Mgmt', icon: Gauge, href: '/pms/revenue', minRole: 'owner', description: 'Revenue management' },
+    { id: 'pms-channels', title: 'Channels', icon: Radio, href: '/pms/channels', minRole: 'owner', description: 'Channel distribution' },
+    { id: 'pms-groups', title: 'Groups', icon: UsersRound, href: '/pms/groups', minRole: 'owner', description: 'Group bookings' },
+    { id: 'pms-events', title: 'Events', icon: CalendarHeart, href: '/pms/events', minRole: 'owner', description: 'Events management' },
+    // Management
+    { id: 'pms-portfolio', title: 'Portfolio', icon: Building2, href: '/pms/portfolio', minRole: 'owner', description: 'Property portfolio' },
+    { id: 'pms-night-audit', title: 'Night Audit', icon: Moon, href: '/pms/night-audit', minRole: 'owner', description: 'End-of-day reconciliation' },
+    { id: 'pms-messaging', title: 'Messaging', icon: MessageSquare, href: '/pms/messaging', minRole: 'owner', description: 'Guest communication' },
     { id: 'pms-reports', title: 'Reports', icon: BarChart3, href: '/pms/reports', minRole: 'owner', description: 'ADR, RevPAR, occupancy' },
+    { id: 'pms-staff', title: 'Staff', icon: UserCog, href: '/pms/staff', minRole: 'owner', description: 'Staff management' },
+    { id: 'pms-branding', title: 'Branding', icon: Palette, href: '/pms/branding', minRole: 'owner', description: 'PMS branding' },
     { id: 'pms-integrations', title: 'Integrations', icon: Code2, href: '/pms/integrations', minRole: 'owner', description: 'Website widgets & embeds' },
   ],
 };
