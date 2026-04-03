@@ -138,7 +138,7 @@ function ColorField({
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder="#000000"
-          className="font-mono text-sm max-w-[120px]"
+          className="font-mono text-xs max-w-[120px]"
         />
         {value && (
           <div
