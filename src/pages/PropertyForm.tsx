@@ -2145,6 +2145,8 @@ export default function PropertyForm() {
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
   const [expandedMealTypes, setExpandedMealTypes] = useState<Record<string, boolean>>({});
+  const [syncRateTypesOpen, setSyncRateTypesOpen] = useState(false);
+  const [syncSeasonsOpen, setSyncSeasonsOpen] = useState(false);
   const [rateBreakdownGroupBy, setRateBreakdownGroupBy] = useState<"season" | "mealType">("season");
 
   // Toggle season expand/collapse
