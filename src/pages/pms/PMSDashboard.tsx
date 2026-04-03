@@ -546,13 +546,18 @@ export default function PMSDashboard() {
   // Group rooms by room type
   const roomsByType = useMemo(() => {
     const map = new Map<string, Room[]>();
-    rooms.forEach(r => {
-      const key = r.room_type_id || "unassigned";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
+    const roomTypeIdByName = new Map(roomTypes.map((roomType) => [roomType.name.trim().toLowerCase(), roomType.id]));
+
+    rooms.forEach((room) => {
+      const matchedRoomType = roomTypes.find((roomType) => roomType.id === room.room_type_id);
+      const normalizedRoomName = String(room.room_name || room.room_number || "").trim().toLowerCase();
+      const canonicalTypeId = matchedRoomType?.id || roomTypeIdByName.get(normalizedRoomName) || room.room_type_id || "unassigned";
+      if (!map.has(canonicalTypeId)) map.set(canonicalTypeId, []);
+      map.get(canonicalTypeId)!.push(room);
     });
+
     return map;
-  }, [rooms]);
+  }, [rooms, roomTypes]);
 
   // Dynamic stats based on actual bookings for today
   // Uses rolos_rooms if available, otherwise derives unit counts from room types
