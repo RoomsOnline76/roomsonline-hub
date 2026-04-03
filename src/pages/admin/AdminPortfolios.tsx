@@ -106,7 +106,7 @@ export default function AdminPortfolios() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font")
+        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities")
         .eq("is_active", true)
         .order("name");
       return (data || []) as Property[];
