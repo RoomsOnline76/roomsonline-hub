@@ -204,6 +204,27 @@ export default function EmbedPortfolio() {
 
       setProperties(mapped);
       setLoading(false);
+
+      // Fetch review ratings for all property IDs
+      const allIds = mapped.map(p => p.id);
+      if (allIds.length > 0) {
+        const { data: reviewData } = await supabase
+          .from('property_review_cache')
+          .select('property_id, source, overall_rating, total_reviews')
+          .in('property_id', allIds)
+          .gt('overall_rating', 0);
+
+        const rMap: Record<string, ReviewRating[]> = {};
+        (reviewData || []).forEach((r: any) => {
+          if (!rMap[r.property_id]) rMap[r.property_id] = [];
+          rMap[r.property_id].push({
+            source: r.source,
+            rating: parseFloat(r.overall_rating),
+            totalReviews: r.total_reviews || 0,
+          });
+        });
+        setReviewRatings(rMap);
+      }
     };
 
     fetchData();
