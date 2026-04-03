@@ -1942,7 +1942,7 @@ export default function PropertyForm() {
   const addRoomType = () => {
     const newRoom = {
       id: Date.now().toString(),
-      name: "New Room Type",
+      name: `New ${accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.label || "Room" : "Room"} Type`,
       url: "",
       selected: false,
       numRooms: 1,
