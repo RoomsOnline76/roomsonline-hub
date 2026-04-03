@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
@@ -215,6 +216,10 @@ export default function PMSDashboard() {
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
+  const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
+  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
+  const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
+  const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
 
   // Compute date range
   const dateRange = useMemo(() => {
@@ -554,6 +559,162 @@ export default function PMSDashboard() {
     return map;
   }, [availOverrides]);
 
+  // ──────────── Portfolio-level queries (only in portfolio mode) ────────────
+  const { data: portfolioRoomTypesRaw = [] } = useQuery({
+    queryKey: ["pms-portfolio-room-types", portfolioPropertyIds],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      await Promise.allSettled(portfolioPropertyIds.map(id => syncRolosRoomTypesFromOverview(id)));
+      const { data } = await supabase
+        .from("rolos_room_types")
+        .select("id, name, default_rate, is_active, max_occupancy, linked_overview_id, property_id")
+        .in("property_id", portfolioPropertyIds)
+        .eq("is_active", true)
+        .order("name");
+      return (data || []) as (RoomType & { property_id: string })[];
+    },
+    enabled: isPortfolioMode,
+  });
+
+  const { data: portfolioRoomsRaw = [] } = useQuery({
+    queryKey: ["pms-portfolio-rooms", portfolioPropertyIds],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("rolos_rooms")
+        .select("id, room_number, room_name, room_type_id, status, property_id")
+        .in("property_id", portfolioPropertyIds)
+        .order("room_number");
+      return (data || []) as (Room & { property_id: string })[];
+    },
+    enabled: isPortfolioMode,
+  });
+
+  const { data: portfolioBookingsRaw = [] } = useQuery({
+    queryKey: ["pms-portfolio-bookings", portfolioPropertyIds, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id")
+        .in("property_id", portfolioPropertyIds)
+        .neq("status", "cancelled")
+        .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
+        .gte("check_out_date", format(dateRange.start, "yyyy-MM-dd"))
+        .limit(1000);
+      return (data || []) as (BookingRow & { property_id: string })[];
+    },
+    enabled: isPortfolioMode,
+  });
+
+  const { data: portfolioOverridesRaw = [] } = useQuery({
+    queryKey: ["pms-portfolio-overrides", portfolioPropertyIds, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("property_availability")
+        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, property_id")
+        .in("property_id", portfolioPropertyIds)
+        .gte("date", format(dateRange.start, "yyyy-MM-dd"))
+        .lte("date", format(dateRange.end, "yyyy-MM-dd"));
+      return (data || []) as (AvailabilityOverride & { property_id: string })[];
+    },
+    enabled: isPortfolioMode,
+  });
+
+  const { data: portfolioPropertiesData = [] } = useQuery({
+    queryKey: ["pms-portfolio-props-data", portfolioPropertyIds],
+    queryFn: async () => {
+      if (!portfolioPropertyIds.length) return [];
+      const { data } = await supabase
+        .from("properties")
+        .select("id, name, amenities, is_rol_property")
+        .in("id", portfolioPropertyIds);
+      return (data || []) as { id: string; name: string; amenities: any; is_rol_property: boolean }[];
+    },
+    enabled: isPortfolioMode,
+  });
+
+  // Group portfolio data by property
+  const portfolioDataByProperty = useMemo(() => {
+    if (!isPortfolioMode) return new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
+    const map = new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
+
+    for (const prop of portfolioProperties || []) {
+      const propRoomTypes = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
+      const propRooms = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
+      const propBookings = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
+      const propData = portfolioPropertiesData.find(p => p.id === prop.id);
+
+      const oMap = new Map<string, AvailabilityOverride>();
+      propOverrides.forEach(o => oMap.set(`${o.room_type}-${o.date}`, o));
+
+      const rbtMap = new Map<string, Room[]>();
+      const roomTypeIdByName = new Map(propRoomTypes.map(rt => [rt.name.trim().toLowerCase(), rt.id]));
+      const namesCovered = new Set<string>();
+      propRooms.forEach(room => {
+        const matched = propRoomTypes.find(rt => rt.id === room.room_type_id);
+        if (matched) namesCovered.add(matched.name.trim().toLowerCase());
+      });
+      propRooms.forEach(room => {
+        const matched = propRoomTypes.find(rt => rt.id === room.room_type_id);
+        if (matched) {
+          if (!rbtMap.has(matched.id)) rbtMap.set(matched.id, []);
+          rbtMap.get(matched.id)!.push(room);
+        } else {
+          const normName = String(room.room_name || room.room_number || "").trim().toLowerCase();
+          const canonId = roomTypeIdByName.get(normName);
+          if (canonId && !namesCovered.has(normName)) {
+            if (!rbtMap.has(canonId)) rbtMap.set(canonId, []);
+            rbtMap.get(canonId)!.push(room);
+          }
+        }
+      });
+
+      map.set(prop.id, { roomTypes: propRoomTypes, rooms: propRooms, bookings: propBookings, overrideMap: oMap, roomsByType: rbtMap, propertyData: propData });
+    }
+    return map;
+  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData]);
+
+  // Portfolio rate lookup
+  const getPortfolioRateForDate = useCallback((propId: string, roomTypeId: string, date: Date): number | null => {
+    const propData = portfolioDataByProperty.get(propId);
+    if (!propData) return null;
+    const rt = propData.roomTypes.find(t => t.id === roomTypeId);
+    if (!rt) return null;
+    const amenities = propData.propertyData?.amenities;
+    const dateStr = format(date, "yyyy-MM-dd");
+    if (amenities?.seasons?.length && amenities?.season_rates) {
+      let amenityIdForName: string | null = null;
+      if (rt.name && Array.isArray(amenities.room_types)) {
+        const match = amenities.room_types.find((art: any) => art?.name && art.name.toLowerCase() === rt.name.toLowerCase());
+        if (match?.id) amenityIdForName = String(match.id);
+      }
+      const roomSeasonRates = amenities.season_rates[roomTypeId]
+        || (rt.linked_overview_id ? amenities.season_rates[rt.linked_overview_id] : null)
+        || (rt.name ? amenities.season_rates[rt.name] : null)
+        || (amenityIdForName ? amenities.season_rates[amenityIdForName] : null);
+      if (roomSeasonRates) {
+        for (const season of amenities.seasons) {
+          const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
+          const inSeason = periods.some((p: any) => dateStr >= p.from && dateStr <= p.to);
+          if (inSeason) {
+            let seasonRate = roomSeasonRates[season.id];
+            if (!seasonRate) {
+              const fallbackKey = Object.keys(roomSeasonRates).find(k => k.startsWith(`${season.id}-`));
+              if (fallbackKey) seasonRate = roomSeasonRates[fallbackKey];
+            }
+            if (seasonRate?.roomAmount != null) return seasonRate.roomAmount;
+            if (typeof seasonRate === 'number') return seasonRate;
+            break;
+          }
+        }
+      }
+    }
+    return rt.default_rate || null;
+  }, [portfolioDataByProperty]);
+
   // Group rooms by room type
   const roomsByType = useMemo(() => {
     const map = new Map<string, Room[]>();
@@ -843,6 +1004,23 @@ export default function PMSDashboard() {
                 </SelectContent>
               </Select>
             )}
+            {showPortfolioToggle && (
+              <ToggleGroup
+                type="single"
+                value={dashboardView}
+                onValueChange={(v) => v && setDashboardView(v as "single" | "portfolio")}
+                className="bg-muted/50 p-0.5 rounded-lg"
+              >
+                <ToggleGroupItem value="single" aria-label="Single Property" className="gap-1 px-2.5 py-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <Building2 className="h-3 w-3" />
+                  <span className="hidden sm:inline">Single</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="portfolio" aria-label="Portfolio View" className="gap-1 px-2.5 py-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <Users className="h-3 w-3" />
+                  <span className="hidden sm:inline">Portfolio</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
           </div>
 
           {/* Compact stat pills — horizontal strip */}
@@ -968,7 +1146,61 @@ export default function PMSDashboard() {
             </div>
 
             {/* Calendar Grid */}
-            {viewMode === "week" ? (
+            {isPortfolioMode ? (
+              <div className="space-y-6">
+                {(portfolioProperties || []).map(prop => {
+                  const propData = portfolioDataByProperty.get(prop.id);
+                  if (!propData || propData.roomTypes.length === 0) return null;
+                  const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
+                  const propGetSuffix = () => '';
+                  const propGetRestriction = (rtName: string, date: Date) =>
+                    propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
+
+                  return (
+                    <div key={prop.id}>
+                      <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
+                        <Building2 className="h-4 w-4 text-primary shrink-0" />
+                        <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
+                        <Badge variant="outline" className="text-[10px]">
+                          {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                        </Badge>
+                      </div>
+                      {viewMode === "week" ? (
+                        <WeekCalendarGrid
+                          dates={dates}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings}
+                          rooms={propData.rooms}
+                          overrideMap={propData.overrideMap}
+                          getRateForDate={propGetRate}
+                          getPricingSuffix={propGetSuffix}
+                          getSeasonForDate={getSeasonForDate}
+                          getRestriction={propGetRestriction}
+                          onSelectBooking={setSelectedBooking}
+                          bookingsLoading={false}
+                        />
+                      ) : (
+                        <MonthCalendarGrid
+                          weekChunks={weekChunks}
+                          roomTypes={propData.roomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings}
+                          rooms={propData.rooms}
+                          overrideMap={propData.overrideMap}
+                          getRateForDate={propGetRate}
+                          getPricingSuffix={propGetSuffix}
+                          getSeasonForDate={getSeasonForDate}
+                          getRestriction={propGetRestriction}
+                          onSelectBooking={setSelectedBooking}
+                          bookingsLoading={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : viewMode === "week" ? (
               <WeekCalendarGrid
                 dates={dates}
                 roomTypes={roomTypes}
