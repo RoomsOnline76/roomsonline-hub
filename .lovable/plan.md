@@ -1,44 +1,27 @@
 
 
-# Fix Embed Rate/Availability Mismatch & Hide Zero-Availability Rooms
+# Fix Rate Type Deletion Not Persisting for ROL'OS Properties
 
 ## Problem
+When deleting rate types from a ROL'OS property and saving, they reappear on re-entry. Two bugs cause this:
 
-Two issues:
+1. **Auto-regeneration on load**: When all rate types are deleted, `amenities.pms_rate_types` is saved as `[]`. On reload, the empty array fails the `length > 0` check (line 3332), so the fallback at line 3378 auto-generates rate types from `amenities.room_types` — resurrecting deleted rates.
 
-1. **Embed page shows wrong rates/availability** compared to admin calendar. Root cause: the `pms_availability_cache` has entries keyed by BOTH active and inactive `hostfully_room_types` IDs. The embed's ID mapping via `hostfully_room_id` picks up stale inactive entries alongside active ones, and last-write-wins produces inconsistent data. For example, "Studio" has cache entries under both `5a11a26c` (inactive, 0 units, R1,175) and `7260ec2d` (active, 3 units, R1,949) — whichever processes last determines what the guest sees.
+2. **Deactivation skipped when empty**: The `rolos_rate_plans` deactivation block is guarded by `pmsRateTypes.length > 0` (line 4100), so deleting all rate types skips the cleanup entirely — stale plans remain active in the database.
 
-2. **Admin calendar shows "Template" room** (and similar) with zero availability across all dates. These should be hidden.
+3. **Overly lenient stale detection**: The deactivation filter uses `!matchId && !matchCode && !matchName` (all three must fail). Name matching means a renamed-then-deleted plan can survive cleanup.
 
 ## Solution
 
-### 1. Fix embed cache lookup (`src/pages/EmbedProperty.tsx`)
+### File: `src/pages/PropertyForm.tsx`
 
-Stop mapping via `hostfully_room_id` (which points to the old inactive entry). Only use the active room type's own `id` for cache lookups. When both active and inactive cache entries exist, prefer the active one (which has correct data from the latest sync).
+**Change 1 — Prevent fallback regeneration when rate types were explicitly saved as empty** (~line 3328-3332):
+- Check if `amenities.pms_rate_types` exists as an array (even if empty). If it's `[]`, treat it as intentional — set `pmsRateTypes` to `[]` and skip the room-based fallback generation.
+- Only fall through to auto-generation when `pms_rate_types` key is completely absent (fresh/legacy properties).
 
-**Change in `fetchPmsCache` (~line 190):**
-- Remove the `hostfully_room_id` mapping that causes stale inactive cache entries to be included
-- Only map `room.id → room.id` for active room types
-- This ensures only the freshest cache data (keyed by the current active ID) is used
+**Change 2 — Move deactivation outside the `pmsRateTypes.length > 0` guard** (~line 4100):
+- Extract the deactivation block (lines 4164-4191) so it runs even when `pmsRateTypes` is empty. When empty, ALL active `rolos_rate_plans` for that property should be deactivated.
 
-### 2. Hide always-sold-out rooms from embed (`src/pages/EmbedProperty.tsx`)
-
-After building `gridRooms`, filter out any room where every date in the visible range has `null` rate (SOLD). This removes rooms like "Template" that never have availability.
-
-**Change in `gridRooms` memo (~line 275):**
-- Add a `.filter()` after the `.map()` to exclude rooms where all `ratesByDate` values are `null`
-
-### 3. Hide zero-availability rooms from admin calendar (`src/pages/CalendarAccommodation.tsx`)
-
-In `calendarRoomData`, after building the room list, filter out rooms where availability is 0 across ALL visible dates.
-
-**Change in `calendarRoomData` memo (~line 1006):**
-- After the room data mapping, add a filter: if a room's `availability` object has all values ≤ 0 (or is empty), exclude it from the result
-
-## Files to change
-
-| File | Change |
-|------|--------|
-| `src/pages/EmbedProperty.tsx` | Remove `hostfully_room_id` from cache ID mapping; filter out always-SOLD rooms from `gridRooms` |
-| `src/pages/CalendarAccommodation.tsx` | Filter out room types with zero availability across all visible dates from `calendarRoomData` |
+**Change 3 — Tighten stale detection** (~line 4177):
+- Change from triple-AND (`!id && !code && !name`) to only match on `id` and `code`. Remove name matching to prevent false retention of renamed plans.
 
