@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 export interface RolProperty {
   id: string;
   name: string;
+  slug?: string;
+  brand_primary_color?: string | null;
 }
 
 // ── Shared selection store (singleton across all hook instances) ──
