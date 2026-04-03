@@ -795,7 +795,7 @@ export default function PMSCommandCentre() {
                 onClick={() => {
                   const propIds = filteredPropertyIds.split(",").filter(Boolean);
                   const propMap = Object.fromEntries(filteredProperties.map((p) => [p.id, p.name]));
-                  triggerLiveFetch(propIds, format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd"), propMap);
+                  triggerLiveFetch(propIds, format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd"), propMap, [], []);
                 }}
                 disabled={liveFetching}
               >
