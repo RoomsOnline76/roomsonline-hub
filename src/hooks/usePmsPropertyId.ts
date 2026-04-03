@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useSyncExternalStore } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,22 +9,39 @@ export interface RolProperty {
   name: string;
 }
 
+// ── Shared selection store (singleton across all hook instances) ──
+let _selectedId: string | null = null;
+const _listeners = new Set<() => void>();
+
+function getSelectedId() {
+  return _selectedId;
+}
+
+function setSelectedId(id: string | null) {
+  if (id === _selectedId) return;
+  _selectedId = id;
+  _listeners.forEach((l) => l());
+}
+
+function subscribe(cb: () => void) {
+  _listeners.add(cb);
+  return () => { _listeners.delete(cb); };
+}
+
 /**
  * Resolves the current PMS property ID.
- * Priority: 1) ?property= query param  2) auto-detect from user's ROL properties
- * Uses React Query for caching so navigation between PMS pages doesn't re-fetch.
- *
- * When a selected property belongs to a portfolio, `portfolioPropertyIds` contains
- * all sibling property IDs (including the selected one). Pages can use
- * `portfolioProperties` to scope their views.
+ * Priority: 1) shared selected property  2) ?property= query param  3) first available
+ * Uses a module-level store so all PMS pages/components share the same selection.
  */
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
   const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
-  const [manualPropertyId, setManualPropertyId] = useState<string | null>(null);
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
+
+  // Read shared selection via useSyncExternalStore for proper reactivity
+  const sharedSelectedId = useSyncExternalStore(subscribe, getSelectedId);
 
   // Cached query for available properties — shared across all PMS pages
   const { data: properties = [], isLoading } = useQuery({
@@ -83,19 +100,22 @@ export function usePmsPropertyId() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Resolve effective property ID
+  // Resolve effective property ID using shared state
   const propertyId = useMemo(() => {
-    if (manualPropertyId && properties.some(p => p.id === manualPropertyId)) {
-      return manualPropertyId;
+    // 1) Shared selection (if still valid)
+    if (sharedSelectedId && properties.some(p => p.id === sharedSelectedId)) {
+      return sharedSelectedId;
     }
+    // 2) URL param
     if (paramId && properties.some(p => p.id === paramId)) {
       return paramId;
     }
+    // 3) First available
     if (properties.length > 0) {
       return properties[0].id;
     }
     return null;
-  }, [manualPropertyId, paramId, properties]);
+  }, [sharedSelectedId, paramId, properties]);
 
   // Fetch portfolio memberships for the selected property
   const { data: portfolioContext } = useQuery({
@@ -103,7 +123,6 @@ export function usePmsPropertyId() {
     queryFn: async () => {
       if (!propertyId) return null;
 
-      // Get portfolios this property belongs to
       const { data: memberships } = await supabase
         .from("property_portfolio_members" as any)
         .select("portfolio_id")
@@ -113,7 +132,6 @@ export function usePmsPropertyId() {
 
       const portfolioIds = (memberships as any[]).map((m: any) => m.portfolio_id);
 
-      // Get all member property IDs across all portfolios
       const { data: allMembers } = await supabase
         .from("property_portfolio_members" as any)
         .select("property_id, portfolio_id")
@@ -122,7 +140,6 @@ export function usePmsPropertyId() {
       const memberIds = new Set<string>();
       (allMembers as any[] || []).forEach((m: any) => memberIds.add(m.property_id));
 
-      // Fetch those properties
       const { data: memberProps } = await supabase
         .from("properties")
         .select("id, name")
@@ -139,36 +156,38 @@ export function usePmsPropertyId() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Portfolio-scoped properties: if selected property is in a portfolio, show only those
   const portfolioProperties = useMemo(() => {
     if (!portfolioContext?.properties?.length) return null;
     return portfolioContext.properties;
   }, [portfolioContext]);
 
-  // Sync URL param when propertyId changes
+  // Keep shared store + URL in sync when propertyId resolves
   useEffect(() => {
-    if (propertyId && propertyId !== paramId) {
-      setSearchParams((prev) => {
-        prev.set("property", propertyId);
-        return prev;
-      }, { replace: true });
+    if (propertyId) {
+      // Update shared store
+      setSelectedId(propertyId);
+      // Sync URL
+      if (propertyId !== paramId) {
+        setSearchParams((prev) => {
+          prev.set("property", propertyId);
+          return prev;
+        }, { replace: true });
+      }
     }
   }, [propertyId]);
 
-  const switchProperty = (id: string) => {
-    setManualPropertyId(id);
+  const switchProperty = useCallback((id: string) => {
+    setSelectedId(id);
     setSearchParams((prev) => {
       prev.set("property", id);
       return prev;
     }, { replace: true });
-  };
+  }, [setSearchParams]);
 
   return {
     propertyId,
     properties,
-    /** Properties scoped to portfolio (null if not in a portfolio) */
     portfolioProperties,
-    /** Portfolio IDs the selected property belongs to */
     portfolioIds: portfolioContext?.portfolioIds || [],
     loading: isLoading,
     switchProperty,
