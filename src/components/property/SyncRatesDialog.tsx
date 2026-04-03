@@ -241,7 +241,12 @@ export function SyncRatesDialog({
         }
       }
 
-      toast.success(`Synced ${mode === "rate-types" ? "rate types" : "seasons"} to ${selected.size} ${selected.size === 1 ? "property" : "properties"}`);
+      if (errors.length > 0) {
+        toast.error(`Failed to sync to ${errors.length} ${errors.length === 1 ? "property" : "properties"}`);
+      }
+      if (successCount > 0) {
+        toast.success(`Synced ${mode === "rate-types" ? "rate types" : "seasons"} to ${successCount} ${successCount === 1 ? "property" : "properties"}`);
+      }
       onOpenChange(false);
       setSelected(new Set());
     } catch (err: any) {
