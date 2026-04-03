@@ -85,7 +85,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
 
   const fetchSpecials = useCallback(async () => {
     const { data, error } = await supabase
-      .from("property_specials")
+      .from("property_specials" as any)
       .select("*")
       .eq("property_id", propertyId)
       .eq("category", category)
