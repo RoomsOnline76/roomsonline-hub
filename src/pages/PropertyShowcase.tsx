@@ -660,17 +660,19 @@ export default function PropertyShowcase() {
 
   const getRoomTypes = (): RoomType[] => {
     const rawRooms = property?.amenities?.room_types || [];
-    return rawRooms.map((rt: any) => ({
-      ...rt,
-      // Normalize ID fields for HotelBeds compatibility
-      id: rt.id || rt.room_type_id,
-      pmsRoomId: rt.pmsRoomId || rt.room_type_id,
-      maxPeople: rt.maxPeople || rt.max_guests,
-      // Normalize images: convert {url, alt} objects to string URLs
-      images: Array.isArray(rt.images) 
-        ? rt.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
-        : [],
-    }));
+    return rawRooms
+      .filter((rt: any) => rt.is_active !== false)
+      .map((rt: any) => ({
+        ...rt,
+        // Normalize ID fields for HotelBeds compatibility
+        id: rt.id || rt.room_type_id,
+        pmsRoomId: rt.pmsRoomId || rt.room_type_id,
+        maxPeople: rt.maxPeople || rt.max_guests,
+        // Normalize images: convert {url, alt} objects to string URLs
+        images: Array.isArray(rt.images) 
+          ? rt.images.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean)
+          : [],
+      }));
   };
   
   const getAvailabilityForRoom = (room: RoomType): AvailabilityData | undefined => {
