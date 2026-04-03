@@ -109,7 +109,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <div className="space-y-1">
             <Label className="text-xs">Sales Rep</Label>
             <Select value={repId} onValueChange={setRepId}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select rep..." /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select rep..." /></SelectTrigger>
               <SelectContent>
                 {reps.filter((r) => r.is_active).map((r) => (
                   <SelectItem key={r.id} value={r.id}>{r.display_name} ({r.rep_code})</SelectItem>
