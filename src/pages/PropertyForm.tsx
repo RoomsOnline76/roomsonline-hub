@@ -2294,31 +2294,40 @@ export default function PropertyForm() {
     const title = seasonForm.name || generateSeasonTitle(seasonForm.from, seasonForm.to);
 
     if (editingSeason) {
-      // Update existing season
+      // Update existing season — sync periods[0] with from/to
       setSeasons(
-        seasons.map((s) =>
-          s.id === editingSeason.id
-            ? {
-                ...s,
-                name: seasonForm.name,
-                title,
-                from: seasonForm.from,
-                to: seasonForm.to,
-                minStay: seasonForm.minStay,
-                maxStay: seasonForm.maxStay,
-              }
-            : s,
-        ),
+        seasons.map((s) => {
+          if (s.id !== editingSeason.id) return s;
+          const updatedSeason: any = {
+            ...s,
+            name: seasonForm.name,
+            title,
+            from: seasonForm.from,
+            to: seasonForm.to,
+            minStay: seasonForm.minStay,
+            maxStay: seasonForm.maxStay,
+          };
+          // Keep periods in sync: update first period, preserve additional periods
+          const existingPeriods = s.periods && s.periods.length > 0 ? [...s.periods] : [];
+          if (existingPeriods.length > 0) {
+            existingPeriods[0] = { from: seasonForm.from, to: seasonForm.to };
+            updatedSeason.periods = existingPeriods;
+          } else {
+            updatedSeason.periods = [{ from: seasonForm.from, to: seasonForm.to }];
+          }
+          return updatedSeason;
+        }),
       );
       toast({ title: "Season updated", description: "Season has been updated successfully." });
     } else {
-      // Add new season
+      // Add new season — always include periods array
       const newSeason = {
         id: Date.now().toString(),
         name: seasonForm.name,
         title,
         from: seasonForm.from,
         to: seasonForm.to,
+        periods: [{ from: seasonForm.from, to: seasonForm.to }],
         minStay: seasonForm.minStay,
         maxStay: seasonForm.maxStay,
       };
@@ -2340,6 +2349,7 @@ export default function PropertyForm() {
         title: "Summer (Peak)",
         from: `${currentYear}-12-01`,
         to: `${currentYear + 1}-02-28`,
+        periods: [{ from: `${currentYear}-12-01`, to: `${currentYear + 1}-02-28` }],
         minStay: 2,
         maxStay: 0,
       },
@@ -2349,6 +2359,7 @@ export default function PropertyForm() {
         title: "Autumn (Shoulder)",
         from: `${currentYear}-03-01`,
         to: `${currentYear}-05-31`,
+        periods: [{ from: `${currentYear}-03-01`, to: `${currentYear}-05-31` }],
         minStay: 1,
         maxStay: 0,
       },
@@ -2358,6 +2369,7 @@ export default function PropertyForm() {
         title: "Winter (Low)",
         from: `${currentYear}-06-01`,
         to: `${currentYear}-08-31`,
+        periods: [{ from: `${currentYear}-06-01`, to: `${currentYear}-08-31` }],
         minStay: 1,
         maxStay: 0,
       },
@@ -2367,6 +2379,7 @@ export default function PropertyForm() {
         title: "Spring (Shoulder)",
         from: `${currentYear}-09-01`,
         to: `${currentYear}-11-30`,
+        periods: [{ from: `${currentYear}-09-01`, to: `${currentYear}-11-30` }],
         minStay: 1,
         maxStay: 0,
       },

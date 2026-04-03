@@ -148,6 +148,19 @@ export default function SeasonsCalendar({
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
 
+  // Normalize legacy seasons that don't have periods array on first render
+  React.useEffect(() => {
+    const needsNormalization = seasons.some(s => !s.periods || s.periods.length === 0);
+    if (needsNormalization) {
+      const normalized = seasons.map(s => {
+        if (s.periods && s.periods.length > 0) return s;
+        if (s.from && s.to) return { ...s, periods: [{ from: s.from, to: s.to }] };
+        return s;
+      });
+      onSeasonsChange(normalized);
+    }
+  }, []); // only on mount
+
   const selectedSeason = useMemo(() => seasons.find((s) => s.id === selectedSeasonId) || null, [seasons, selectedSeasonId]);
   const currentRoom = useMemo(() => roomTypes.find((r) => r.id === selectedRoomType), [roomTypes, selectedRoomType]);
   const linkedRateTypes = useMemo(() => {
