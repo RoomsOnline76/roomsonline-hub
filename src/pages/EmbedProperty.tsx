@@ -185,13 +185,17 @@ export default function EmbedProperty() {
     const fetchPmsCache = async () => {
       const start = new Date(checkIn);
       const endDate = addDays(start, 30);
-      // Build lookup: external_room_type_id → our room id
-      // The cache may store either the hostfully_room_id (API UUID) or the hostfully_room_types.id (our DB ID)
+      // Build lookup: external_room_type_id → our active room id
+      // Cache entries may be keyed by either room.id (active DB ID) or room.hostfully_room_id (old API UUID)
+      // We map both but track priority: direct ID matches take precedence over hostfully_room_id matches
+      const directIdSet = new Set<string>();
       const externalIdToRoomId: Record<string, string> = {};
       for (const room of roomTypes) {
-        // Only map by our own active room type ID — avoid hostfully_room_id
-        // which points to old inactive entries with stale/conflicting data
         externalIdToRoomId[room.id] = room.id;
+        directIdSet.add(room.id);
+        if (room.hostfully_room_id) {
+          externalIdToRoomId[room.hostfully_room_id] = room.id;
+        }
       }
       const externalIds = Object.keys(externalIdToRoomId);
       if (externalIds.length === 0) {
@@ -207,9 +211,22 @@ export default function EmbedProperty() {
         .lte("date", format(endDate, "yyyy-MM-dd"));
       if (data) {
         const map: Record<string, Record<string, { available_units: number; rate: number | null }>> = {};
-        for (const row of data) {
+        // Track which room+date combos already have data from a direct ID match
+        const directHits = new Set<string>();
+        // Process direct ID matches first, then hostfully_room_id fallbacks
+        const sorted = [...data].sort((a, b) => {
+          const aIsDirect = directIdSet.has(a.external_room_type_id) ? 0 : 1;
+          const bIsDirect = directIdSet.has(b.external_room_type_id) ? 0 : 1;
+          return aIsDirect - bIsDirect;
+        });
+        for (const row of sorted) {
           const roomId = externalIdToRoomId[row.external_room_type_id];
           if (!roomId) continue;
+          const hitKey = `${roomId}:${row.date}`;
+          const isDirect = directIdSet.has(row.external_room_type_id);
+          // Skip hostfully_room_id entries if we already have a direct ID entry for this room+date
+          if (!isDirect && directHits.has(hitKey)) continue;
+          if (isDirect) directHits.add(hitKey);
           if (!map[roomId]) map[roomId] = {};
           const ratesArr = row.rates as any[];
           const dayRate = Array.isArray(ratesArr) && ratesArr.length > 0 ? (ratesArr[0]?.room_amount ?? null) : null;
