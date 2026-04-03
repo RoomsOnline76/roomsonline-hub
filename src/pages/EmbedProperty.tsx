@@ -649,13 +649,16 @@ export default function EmbedProperty() {
           <h3 className="text-sm font-semibold tracking-tight text-foreground">Rooms & Suites</h3>
           <div className="space-y-3">
             {roomTypes.map((room) => {
-              const rate = room.daily_rate ? Number(room.daily_rate) : null;
-              const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
-              const amenitiesData = property?.amenities as any;
-              const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
-              const wizardRoom = wizardRooms.find((wr: any) => String(wr?.id) === String(room.id) || wr?.name === room.name);
-              const wizardRate = wizardRoom?.baseRate || wizardRoom?.base_rate || null;
-              const effectiveRate = rate ?? rolosPlan?.base_rate ?? wizardRate ?? null;
+               const rate = room.daily_rate ? Number(room.daily_rate) : null;
+               const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+               const amenitiesData = property?.amenities as any;
+               const wizardRooms = Array.isArray(amenitiesData?.room_types) ? amenitiesData.room_types : [];
+               const wizardRoom = wizardRooms.find((wr: any) => String(wr?.id) === String(room.id) || wr?.name === room.name);
+               const wizardRate = wizardRoom?.baseRate || wizardRoom?.base_rate || null;
+               const baseFallback = rate ?? rolosPlan?.base_rate ?? wizardRate ?? null;
+               // Use today's season rate for the room card display price
+               const todayDateStr = format(today, 'yyyy-MM-dd');
+               const effectiveRate = resolveSeasonRate(room.id, room.name, todayDateStr, baseFallback);
               const roomImages = Array.isArray(room.images)
                 ? room.images.map((img: any) => img?.url || img).filter(Boolean)
                 : [];
