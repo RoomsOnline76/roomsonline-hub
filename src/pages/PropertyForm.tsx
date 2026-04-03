@@ -102,6 +102,7 @@ import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
 import SeasonsCalendar from "@/components/property/SeasonsCalendar";
+import { SyncRatesDialog } from "@/components/property/SyncRatesDialog";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
@@ -2144,6 +2145,8 @@ export default function PropertyForm() {
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
   const [expandedMealTypes, setExpandedMealTypes] = useState<Record<string, boolean>>({});
+  const [syncRateTypesOpen, setSyncRateTypesOpen] = useState(false);
+  const [syncSeasonsOpen, setSyncSeasonsOpen] = useState(false);
   const [rateBreakdownGroupBy, setRateBreakdownGroupBy] = useState<"season" | "mealType">("season");
 
   // Toggle season expand/collapse
@@ -8132,35 +8135,49 @@ export default function PropertyForm() {
                         <p className="text-sm text-muted-foreground">
                           Manage rate types for this property. Each room type needs at least one rate type linked.
                         </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newId = `manual-rate-${Date.now()}`;
-                            setPmsRateTypes((prev) => [
-                              ...prev,
-                              {
-                                id: newId,
-                                name: "New Rate Type",
-                                priceType: "per_room",
-                                minStayDays: 1,
-                                maxStayDays: 0,
-                                minAdvanceDays: 0,
-                                maxAdvanceDays: 0,
-                                description: "",
-                                baseRate: null,
-                                pms_synced: false,
-                                linkedRoomId: null,
-                              },
-                            ]);
-                            setIsDirty(true);
-                          }}
-                          className="gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add Rate Type
-                        </Button>
+                        <div className="flex gap-2">
+                          {propertyId && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSyncRateTypesOpen(true)}
+                              className="gap-1"
+                            >
+                              <Copy className="h-3 w-3" />
+                              Sync to Others
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newId = `manual-rate-${Date.now()}`;
+                              setPmsRateTypes((prev) => [
+                                ...prev,
+                                {
+                                  id: newId,
+                                  name: "New Rate Type",
+                                  priceType: "per_room",
+                                  minStayDays: 1,
+                                  maxStayDays: 0,
+                                  minAdvanceDays: 0,
+                                  maxAdvanceDays: 0,
+                                  description: "",
+                                  baseRate: null,
+                                  pms_synced: false,
+                                  linkedRoomId: null,
+                                },
+                              ]);
+                              setIsDirty(true);
+                            }}
+                            className="gap-1"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add Rate Type
+                          </Button>
+                        </div>
                       </div>
 
                       {pmsRateTypes.length === 0 ? (
@@ -8602,6 +8619,12 @@ export default function PropertyForm() {
                           PMS.
                         </p>
                         <div className="flex gap-2">
+                          {propertyId && (
+                            <Button variant="outline" size="sm" onClick={() => setSyncSeasonsOpen(true)} className="gap-1">
+                              <Copy className="h-3 w-3" />
+                              Sync to Others
+                            </Button>
+                          )}
                           {seasons.length === 0 && (
                             <Button variant="outline" onClick={createDefaultSeasons} className="gap-2">
                               <Calendar className="h-4 w-4" />
@@ -11948,6 +11971,26 @@ export default function PropertyForm() {
           });
         }}
       />
+
+      {/* Sync Rate Types / Seasons Dialogs */}
+      {propertyId && (
+        <>
+          <SyncRatesDialog
+            open={syncRateTypesOpen}
+            onOpenChange={setSyncRateTypesOpen}
+            mode="rate-types"
+            currentPropertyId={propertyId}
+            currentAmenities={{ rate_types: pmsRateTypes }}
+          />
+          <SyncRatesDialog
+            open={syncSeasonsOpen}
+            onOpenChange={setSyncSeasonsOpen}
+            mode="seasons"
+            currentPropertyId={propertyId}
+            currentAmenities={{ seasons }}
+          />
+        </>
+      )}
     </AppLayout>
   );
 }
