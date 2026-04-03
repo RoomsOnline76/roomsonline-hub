@@ -700,6 +700,7 @@ const PropertyOverview = () => {
                             className="h-6 text-xs"
                           />
                         </TableCell>
+                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
                         <TableCell className="py-1"></TableCell>
