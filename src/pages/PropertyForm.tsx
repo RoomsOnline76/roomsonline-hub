@@ -6361,7 +6361,6 @@ export default function PropertyForm() {
                         Description
                       </Label>
                       <Textarea
-                        className="text-xs"
                         id="description"
                         value={formData.description}
                         onChange={(e) => handleInputChange("description", e.target.value)}
