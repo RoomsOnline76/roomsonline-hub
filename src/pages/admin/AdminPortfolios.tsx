@@ -53,7 +53,11 @@ interface Property {
   brand_logo_url: string | null;
   brand_heading_font: string | null;
   brand_body_font: string | null;
+  amenities: any;
 }
+
+// Review platform IDs per property: { propertyId: { google_place_id, tripadvisor_id } }
+type ReviewIds = Record<string, { google_place_id: string; tripadvisor_id: string }>;
 
 export default function AdminPortfolios() {
   const { toast } = useToast();
