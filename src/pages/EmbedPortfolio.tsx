@@ -82,6 +82,7 @@ export default function EmbedPortfolio() {
   const [activeGroup, setActiveGroup] = useState<string>("all");
   const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
+  const [reviewRatings, setReviewRatings] = useState<Record<string, ReviewRating[]>>({});
 
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
