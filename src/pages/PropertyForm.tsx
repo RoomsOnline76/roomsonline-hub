@@ -76,7 +76,7 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { PropertyMap } from "@/components/PropertyMap";
 import { TagInput } from "@/components/TagInput";
-import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
+import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, getAccommodationLabel, type AccommodationLabelKey } from "@/lib/accommodationLabels";
 import { getPMSFieldClass, getPMSDisplayName, isFieldPopulatedByPMS, getFieldAuthority, getAuthorityLabel } from "@/lib/pmsFieldConfig";
 import { getPMSEditorialCapability, canSyncEditorial, getSyncableFields, getAuthorityLabel as getEditorialAuthorityLabel } from "@/lib/pmsEditorialConfig";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -9909,7 +9909,7 @@ export default function PropertyForm() {
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <Label className="text-xs whitespace-nowrap"># Rooms</Label>
+                          <Label className="text-xs whitespace-nowrap"># {ACCOMMODATION_TYPES[accommodationLabel as AccommodationLabelKey]?.plural || "Units"}</Label>
                           <Input
                             type="number"
                             className="h-7 text-xs w-20"
