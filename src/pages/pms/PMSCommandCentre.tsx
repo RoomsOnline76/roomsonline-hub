@@ -425,7 +425,7 @@ export default function PMSCommandCentre() {
       if (liveRows.length > 0) {
         // Merge: keep ROL'OS rows + replace stale PMS rows with live data for fetched properties
         const fetchedPids = new Set(propIds);
-        const keptRows = existingRows.filter((r) => !fetchedPids.has(r.property_id));
+        const keptRows = _existingRows.filter((r) => !fetchedPids.has(r.property_id));
         const merged = [...keptRows, ...liveRows];
         setAvailability(merged);
         const allPropIds = [...new Set(merged.map((r) => r.property_id))];
