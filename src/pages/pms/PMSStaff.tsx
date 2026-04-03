@@ -89,7 +89,9 @@ export default function PMSStaff() {
     [weekStart]
   );
 
-  // Fetch property slug
+  // Fetch all portfolio property slugs
+  const [portfolioPropertySlugs, setPortfolioPropertySlugs] = useState<{ id: string; name: string; slug: string }[]>([]);
+
   useEffect(() => {
     if (!propertyId) return;
     supabase.from("properties").select("slug").eq("id", propertyId).single()
@@ -102,6 +104,16 @@ export default function PMSStaff() {
     supabase.from("property_portfolios" as any).select("slug").eq("id", portfolioIds[0]).single()
       .then(({ data }: any) => setPortfolioSlug(data?.slug || null));
   }, [portfolioIds]);
+
+  // Fetch slugs for all properties in the portfolio
+  useEffect(() => {
+    if (!portfolioProperties?.length) { setPortfolioPropertySlugs([]); return; }
+    const ids = portfolioProperties.map(p => p.id);
+    supabase.from("properties").select("id, name, slug").in("id", ids).order("name")
+      .then(({ data }) => {
+        setPortfolioPropertySlugs((data || []).filter(p => p.slug).map(p => ({ id: p.id, name: p.name, slug: p.slug! })));
+      });
+  }, [portfolioProperties]);
 
   const portfolioLoginUrl = portfolioSlug ? getPortfolioStaffLoginUrl(portfolioSlug) : null;
   const staffLoginUrl = propertySlug ? getStaffLoginUrl(propertySlug) : null;
