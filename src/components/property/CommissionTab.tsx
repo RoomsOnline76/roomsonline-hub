@@ -221,7 +221,7 @@ export function CommissionTab({ propertyId, isAdmin }: CommissionTabProps) {
                   </div>
                   <div>
                     <Label>Revenue Share (%)</Label>
-                    <Input type="number" min={0} max={100} step={0.5} value={newRate} onChange={(e) => setNewRate(parseFloat(e.target.value) || 0)} />
+                    <Input type="number" min={0} max={100} step={0.5} value={newRate} onChange={(e) => setNewRate(parseFloat(e.target.value) || 0)} className="text-xs" />
                   </div>
                   <div>
                     <Label>Effective From</Label>
