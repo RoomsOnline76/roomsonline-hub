@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
@@ -53,7 +53,11 @@ interface Property {
   brand_logo_url: string | null;
   brand_heading_font: string | null;
   brand_body_font: string | null;
+  amenities: any;
 }
+
+// Review platform IDs per property: { propertyId: { google_place_id, tripadvisor_id } }
+type ReviewIds = Record<string, { google_place_id: string; tripadvisor_id: string }>;
 
 export default function AdminPortfolios() {
   const { toast } = useToast();
@@ -73,6 +77,7 @@ export default function AdminPortfolios() {
   const [brandHeadingFont, setBrandHeadingFont] = useState("");
   const [brandBodyFont, setBrandBodyFont] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfolios = [], isLoading } = useQuery({
@@ -101,7 +106,7 @@ export default function AdminPortfolios() {
     queryFn: async () => {
       const { data } = await supabase
         .from("properties")
-        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font")
+        .select("id, name, owner_email, city, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, amenities")
         .eq("is_active", true)
         .order("name");
       return (data || []) as Property[];
@@ -111,8 +116,26 @@ export default function AdminPortfolios() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-portfolios"] });
     queryClient.invalidateQueries({ queryKey: ["admin-portfolio-members"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-portfolios-properties"] });
   };
 
+  // Save review platform IDs to each property's amenities.external_ids
+  const saveReviewIds = async () => {
+    const updates = Object.entries(reviewIds).filter(([pid]) => selectedProps.includes(pid));
+    for (const [pid, ids] of updates) {
+      const prop = properties.find((p) => p.id === pid);
+      const existingAmenities = prop?.amenities || {};
+      const existingExtIds = existingAmenities.external_ids || {};
+      const newExtIds = {
+        ...existingExtIds,
+        google_place_id: ids.google_place_id || existingExtIds.google_place_id || null,
+        tripadvisor_id: ids.tripadvisor_id || existingExtIds.tripadvisor_id || null,
+      };
+      await supabase.from("properties").update({
+        amenities: { ...existingAmenities, external_ids: newExtIds },
+      }).eq("id", pid);
+    }
+  };
   const createMutation = useMutation({
     mutationFn: async () => {
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
@@ -131,6 +154,7 @@ export default function AdminPortfolios() {
         const rows = selectedProps.map((pid) => ({ portfolio_id: (portfolio as any).id, property_id: pid }));
         await supabase.from("property_portfolio_members" as any).insert(rows as any);
       }
+      await saveReviewIds();
       return portfolio;
     },
     onSuccess: () => {
@@ -162,6 +186,7 @@ export default function AdminPortfolios() {
         const rows = selectedProps.map((pid) => ({ portfolio_id: editPortfolio.id, property_id: pid }));
         await supabase.from("property_portfolio_members" as any).insert(rows as any);
       }
+      await saveReviewIds();
     },
     onSuccess: () => {
       invalidate();
@@ -195,12 +220,14 @@ export default function AdminPortfolios() {
     setBrandLogoUrl("");
     setBrandHeadingFont("");
     setBrandBodyFont("");
+    setReviewIds({});
   };
 
   const openEdit = (p: Portfolio) => {
     setFormName(p.name);
     setFormSlug(p.slug || "");
-    setSelectedProps(members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id));
+    const memberPropIds = members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id);
+    setSelectedProps(memberPropIds);
     const b = p.metadata?.branding;
     setBrandPrimary(b?.primary_color || "#2563eb");
     setBrandSecondary(b?.secondary_color || "#1e40af");
@@ -208,6 +235,14 @@ export default function AdminPortfolios() {
     setBrandLogoUrl(b?.logo_url || "");
     setBrandHeadingFont(b?.heading_font || "");
     setBrandBodyFont(b?.body_font || "");
+    // Populate review IDs from property amenities
+    const ids: ReviewIds = {};
+    memberPropIds.forEach((pid) => {
+      const prop = properties.find((pr) => pr.id === pid);
+      const ext = prop?.amenities?.external_ids || {};
+      ids[pid] = { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" };
+    });
+    setReviewIds(ids);
     setEditPortfolio(p);
   };
 
@@ -228,7 +263,13 @@ export default function AdminPortfolios() {
   const toggleProp = (id: string) => {
     setSelectedProps((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      if (!prev.includes(id)) maybeInheritBranding(next);
+      if (!prev.includes(id)) {
+        maybeInheritBranding(next);
+        // Initialize review IDs from property data
+        const prop = properties.find((p) => p.id === id);
+        const ext = prop?.amenities?.external_ids || {};
+        setReviewIds((r) => ({ ...r, [id]: { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" } }));
+      }
       return next;
     });
   };
@@ -386,6 +427,55 @@ export default function AdminPortfolios() {
       </div>
 
       {renderPropertyPicker()}
+
+      {/* Review Platforms — per property */}
+      {selectedProps.length > 0 && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <Label className="text-xs font-semibold flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5" /> Review Platforms
+          </Label>
+          <p className="text-[10px] text-muted-foreground">Set Google & TripAdvisor IDs for each property to display ratings on the portfolio.</p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {selectedProps.map((pid) => {
+              const prop = properties.find((p) => p.id === pid);
+              if (!prop) return null;
+              const ids = reviewIds[pid] || { google_place_id: "", tripadvisor_id: "" };
+              return (
+                <div key={pid} className="rounded-md border border-border p-3 bg-muted/20 space-y-2">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    {prop.name}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> Google Place ID
+                      </Label>
+                      <Input
+                        value={ids.google_place_id}
+                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
+                        placeholder="e.g. ChIJ..."
+                        className="text-xs font-mono h-7"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Star className="h-3 w-3" /> TripAdvisor ID
+                      </Label>
+                      <Input
+                        value={ids.tripadvisor_id}
+                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, tripadvisor_id: e.target.value } }))}
+                        placeholder="e.g. 12345678"
+                        className="text-xs font-mono h-7"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
