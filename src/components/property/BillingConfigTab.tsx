@@ -226,13 +226,14 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
           <div className="space-y-2">
             <div className="space-y-1">
               <Label>White-Label Monthly Fee (ZAR)</Label>
-              <Input
+            <Input
                 type="number"
                 step="50"
                 min="0"
                 value={whiteLabelFee}
                 onChange={(e) => setWhiteLabelFee(e.target.value)}
                 placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
+                className="text-xs"
               />
               <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
             </div>
