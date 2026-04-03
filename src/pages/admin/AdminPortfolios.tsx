@@ -116,8 +116,26 @@ export default function AdminPortfolios() {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["admin-portfolios"] });
     queryClient.invalidateQueries({ queryKey: ["admin-portfolio-members"] });
+    queryClient.invalidateQueries({ queryKey: ["admin-portfolios-properties"] });
   };
 
+  // Save review platform IDs to each property's amenities.external_ids
+  const saveReviewIds = async () => {
+    const updates = Object.entries(reviewIds).filter(([pid]) => selectedProps.includes(pid));
+    for (const [pid, ids] of updates) {
+      const prop = properties.find((p) => p.id === pid);
+      const existingAmenities = prop?.amenities || {};
+      const existingExtIds = existingAmenities.external_ids || {};
+      const newExtIds = {
+        ...existingExtIds,
+        google_place_id: ids.google_place_id || existingExtIds.google_place_id || null,
+        tripadvisor_id: ids.tripadvisor_id || existingExtIds.tripadvisor_id || null,
+      };
+      await supabase.from("properties").update({
+        amenities: { ...existingAmenities, external_ids: newExtIds },
+      }).eq("id", pid);
+    }
+  };
   const createMutation = useMutation({
     mutationFn: async () => {
       const autoSlug = formSlug.trim() || formName.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
