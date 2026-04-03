@@ -10052,6 +10052,10 @@ export type Database = {
       }
       trigger_daily_health_report: { Args: never; Returns: undefined }
       trigger_system_health_check: { Args: never; Returns: undefined }
+      user_can_access_portfolio: {
+        Args: { _portfolio_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:

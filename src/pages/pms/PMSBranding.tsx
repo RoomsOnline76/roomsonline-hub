@@ -220,7 +220,7 @@ function ReviewPlatformsCard({ propertyId }: { propertyId: string }) {
 }
 
 export default function PMSBranding() {
-  const { propertyId, portfolioProperties, portfolioIds, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, portfolioProperties, portfolioIds, loading: propertyLoading, showPortfolioToggle } = usePmsPropertyId();
   const { propertyName, propertySlug } = usePMSBrand();
   const [propertySlugLocal, setPropertySlugLocal] = useState<string | null>(null);
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
@@ -236,8 +236,6 @@ export default function PMSBranding() {
   }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "" });
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
-
-  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
 
   // Load portfolio branding when in portfolio view
   useEffect(() => {

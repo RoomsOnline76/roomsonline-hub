@@ -44,7 +44,7 @@ const SHIFT_TYPES = [
 ];
 
 export default function PMSStaff() {
-  const { propertyId, portfolioIds, portfolioProperties } = usePmsPropertyId();
+  const { propertyId, portfolioIds, portfolioProperties, showPortfolioToggle } = usePmsPropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);

@@ -38,7 +38,7 @@ function subscribe(cb: () => void) {
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
-  const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
+  const { user, isDev, isAdmin, isFearlessLeader, loading: authLoading } = useAuth();
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
@@ -46,7 +46,7 @@ export function usePmsPropertyId() {
   const sharedSelectedId = useSyncExternalStore(subscribe, getSelectedId);
 
   // Cached query for available properties — shared across all PMS pages
-  const { data: properties = [], isLoading } = useQuery({
+  const { data: properties = [], isLoading: propertiesLoading } = useQuery({
     queryKey: ["pms-available-properties", user?.id, isPlatformUser],
     queryFn: async () => {
       if (!user) return [];
@@ -97,7 +97,7 @@ export function usePmsPropertyId() {
         return true;
       });
     },
-    enabled: !!user,
+    enabled: !!user && !authLoading,
     staleTime: 5 * 60 * 1000, // 5 min cache
     gcTime: 10 * 60 * 1000,
   });
@@ -120,24 +120,34 @@ export function usePmsPropertyId() {
   }, [sharedSelectedId, paramId, properties]);
 
   // Fetch portfolio memberships for the selected property
-  const { data: portfolioContext } = useQuery({
-    queryKey: ["pms-property-portfolio-context", propertyId],
+  const { data: portfolioContext, isLoading: portfolioLoading, error: portfolioError } = useQuery({
+    queryKey: ["pms-property-portfolio-context", propertyId, user?.id],
     queryFn: async () => {
       if (!propertyId) return null;
 
-      const { data: memberships } = await supabase
+      const { data: memberships, error: memberErr } = await supabase
         .from("property_portfolio_members" as any)
         .select("portfolio_id")
         .eq("property_id", propertyId);
+
+      if (memberErr) {
+        console.error("[usePmsPropertyId] portfolio membership error:", memberErr);
+        return null;
+      }
 
       if (!memberships || memberships.length === 0) return null;
 
       const portfolioIds = (memberships as any[]).map((m: any) => m.portfolio_id);
 
-      const { data: allMembers } = await supabase
+      const { data: allMembers, error: siblingErr } = await supabase
         .from("property_portfolio_members" as any)
         .select("property_id, portfolio_id")
         .in("portfolio_id", portfolioIds);
+
+      if (siblingErr) {
+        console.error("[usePmsPropertyId] sibling members error:", siblingErr);
+        return null;
+      }
 
       const memberIds = new Set<string>();
       (allMembers as any[] || []).forEach((m: any) => memberIds.add(m.property_id));
@@ -154,7 +164,7 @@ export function usePmsPropertyId() {
         properties: (memberProps || []) as RolProperty[],
       };
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && !!user && !authLoading,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -162,6 +172,9 @@ export function usePmsPropertyId() {
     if (!portfolioContext?.properties?.length) return null;
     return portfolioContext.properties;
   }, [portfolioContext]);
+
+  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
+  const isLoading = authLoading || propertiesLoading || (!!propertyId && portfolioLoading);
 
   // Keep shared store + URL in sync when propertyId resolves
   useEffect(() => {
@@ -192,6 +205,7 @@ export function usePmsPropertyId() {
     portfolioProperties,
     portfolioIds: portfolioContext?.portfolioIds || [],
     loading: isLoading,
+    showPortfolioToggle,
     switchProperty,
   };
 }
