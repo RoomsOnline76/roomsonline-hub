@@ -1004,6 +1004,23 @@ export default function PMSDashboard() {
                 </SelectContent>
               </Select>
             )}
+            {showPortfolioToggle && (
+              <ToggleGroup
+                type="single"
+                value={dashboardView}
+                onValueChange={(v) => v && setDashboardView(v as "single" | "portfolio")}
+                className="bg-muted/50 p-0.5 rounded-lg"
+              >
+                <ToggleGroupItem value="single" aria-label="Single Property" className="gap-1 px-2.5 py-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <Building2 className="h-3 w-3" />
+                  <span className="hidden sm:inline">Single</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="portfolio" aria-label="Portfolio View" className="gap-1 px-2.5 py-1 text-xs data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                  <Users className="h-3 w-3" />
+                  <span className="hidden sm:inline">Portfolio</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
           </div>
 
           {/* Compact stat pills — horizontal strip */}
