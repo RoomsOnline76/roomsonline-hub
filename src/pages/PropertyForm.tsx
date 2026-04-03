@@ -9815,7 +9815,8 @@ export default function PropertyForm() {
                   <Tabs defaultValue="room-type" className="w-full">
                     <TabsList className="h-8">
                       <TabsTrigger value="room-type" className="text-xs h-7">
-                        Room Type
+                        {accommodationLabel ? ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.label || "Room" : "Room"} Type
+                      </TabsTrigger>
                       </TabsTrigger>
                       {selectedPMS !== "nightsbridge" && (
                         <TabsTrigger value="rate-types" className="text-xs h-7">
