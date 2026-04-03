@@ -42,25 +42,36 @@ export default function PMSPortfolio() {
   const today = format(new Date(), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
 
-  // Fetch portfolio members for filtering
-  const { data: portfolioMembers = [] } = useQuery({
+  // Fetch portfolio members and their properties directly by ID
+  const { data: portfolioMemberProperties = [] } = useQuery({
     queryKey: ["portfolio-members-filter", selectedPortfolioId],
     queryFn: async () => {
       if (!selectedPortfolioId) return [];
-      const { data } = await supabase
+      const { data: members } = await supabase
         .from("property_portfolio_members" as any)
         .select("property_id")
         .eq("portfolio_id", selectedPortfolioId);
-      return (data || []).map((m: any) => m.property_id) as string[];
+      const memberIds = (members || []).map((m: any) => m.property_id) as string[];
+      if (memberIds.length === 0) return [];
+
+      // Fetch properties directly by ID (regardless of ownership)
+      const { data: memberProps } = await supabase
+        .from("properties")
+        .select("id, name")
+        .in("id", memberIds)
+        .eq("is_active", true)
+        .order("name");
+      return (memberProps || []) as { id: string; name: string }[];
     },
     enabled: !!selectedPortfolioId,
   });
 
-  // Filter properties by portfolio
+  // Filter properties by portfolio — use direct fetch for portfolio members
   const filteredProperties = useMemo(() => {
-    if (!selectedPortfolioId || portfolioMembers.length === 0) return properties;
-    return properties.filter(p => portfolioMembers.includes(p.id));
-  }, [properties, selectedPortfolioId, portfolioMembers]);
+    if (!selectedPortfolioId) return properties;
+    if (portfolioMemberProperties.length > 0) return portfolioMemberProperties;
+    return [];
+  }, [properties, selectedPortfolioId, portfolioMemberProperties]);
 
   // Fetch bookings for all properties in last 30 days
   const { data: allBookings = [], isLoading: bookingsLoading } = useQuery({

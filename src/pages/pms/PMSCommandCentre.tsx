@@ -9,14 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  CalendarDays,
-  Sparkles,
-  ChevronDown,
-  Copy,
-  ExternalLink,
-  RefreshCw,
-  Lightbulb,
+  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb,
 } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
 import { toast } from "sonner";
@@ -45,8 +40,16 @@ interface AISuggestion {
   priority: "high" | "medium" | "low";
 }
 
+/** Convert slug like "one-bedroom-suite" to "One Bedroom Suite" */
+function slugToTitle(slug: string): string {
+  return slug
+    .split(/[-_]/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export default function PMSCommandCentre() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const propertyId = searchParams.get("property");
   const { properties } = usePmsPropertyId();
@@ -60,15 +63,27 @@ export default function PMSCommandCentre() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedPropertyFilter, setSelectedPropertyFilter] = useState<string>("all");
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
-  // Get the list of properties this agent can see
   const agentProperties = useMemo(() => {
     if (isPlatformUser || !staffRole) return properties;
-    // Staff agents see only properties they're linked to
     return properties;
   }, [properties, isPlatformUser, staffRole]);
+
+  // Filtered properties based on dropdown selection
+  const filteredProperties = useMemo(() => {
+    if (selectedPropertyFilter === "all") return agentProperties;
+    return agentProperties.filter((p) => p.id === selectedPropertyFilter);
+  }, [agentProperties, selectedPropertyFilter]);
+
+  // Sync URL param to filter on mount
+  useEffect(() => {
+    if (propertyId && agentProperties.some((p) => p.id === propertyId)) {
+      setSelectedPropertyFilter(propertyId);
+    }
+  }, [propertyId, agentProperties]);
 
   // Week date range
   const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 1 });
@@ -77,16 +92,18 @@ export default function PMSCommandCentre() {
 
   useEffect(() => {
     loadData();
-  }, [agentProperties, weekOffset]);
+  }, [filteredProperties, weekOffset]);
 
   const loadData = async () => {
-    if (agentProperties.length === 0) {
+    if (filteredProperties.length === 0) {
       setLoading(false);
+      setAvailability([]);
+      setOccupancy([]);
       return;
     }
 
     setLoading(true);
-    const propertyIds = agentProperties.map((p) => p.id);
+    const propertyIds = filteredProperties.map((p) => p.id);
     const startDate = format(weekStart, "yyyy-MM-dd");
     const endDate = format(weekEnd, "yyyy-MM-dd");
 
@@ -99,39 +116,88 @@ export default function PMSCommandCentre() {
         .gte("date", startDate)
         .lte("date", endDate);
 
-      // Fetch room type names for all properties
-      const { data: roomTypes } = await supabase
+      // --- Room type name resolution: 3-level fallback ---
+      // 1. rolos_room_types (ALL, including inactive — to identify deleted ones)
+      const { data: rolosRt } = await supabase
         .from("rolos_room_types")
-        .select("id, name, property_id")
+        .select("id, name, property_id, is_active")
         .in("property_id", propertyIds);
-      const roomTypeMap = Object.fromEntries(
-        (roomTypes || []).map((rt: any) => [rt.id, rt.name])
-      );
+
+      // 2. hostfully_room_types
+      const { data: hostfullyRt } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, property_id, is_active")
+        .in("property_id", propertyIds);
+
+      // 3. properties.amenities for JSONB fallback
+      const { data: propsAmenities } = await supabase
+        .from("properties")
+        .select("id, amenities")
+        .in("id", propertyIds);
+
+      // Build name map and inactive set
+      const nameMap: Record<string, string> = {};
+      const inactiveIds = new Set<string>();
+
+      // Rolos room types (primary)
+      for (const rt of rolosRt || []) {
+        nameMap[rt.id] = rt.name;
+        if (!rt.is_active) inactiveIds.add(rt.id);
+      }
+
+      // Hostfully room types (secondary - don't overwrite rolos)
+      for (const rt of hostfullyRt || []) {
+        if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
+        if (rt.is_active === false) inactiveIds.add(rt.id);
+      }
+
+      // Amenities JSONB fallback (tertiary)
+      for (const prop of propsAmenities || []) {
+        const amenities = prop.amenities as { room_types?: Array<{ id?: string; name?: string }> } | null;
+        if (Array.isArray(amenities?.room_types)) {
+          for (const rt of amenities!.room_types) {
+            if (rt?.id && rt?.name && !nameMap[rt.id]) {
+              nameMap[rt.id] = rt.name;
+            }
+          }
+        }
+      }
 
       // Map property names
-      const propMap = Object.fromEntries(agentProperties.map((p) => [p.id, p.name]));
-      const rows: AvailabilityRow[] = (cacheData || []).map((r: any) => ({
-        property_id: r.property_id,
-        property_name: propMap[r.property_id] || "Unknown",
-        room_type_name: roomTypeMap[r.external_room_type_id] || r.external_room_type_id || "Room",
-        date: r.date,
-        available_units: r.available_units ?? 0,
-      }));
+      const propMap = Object.fromEntries(filteredProperties.map((p) => [p.id, p.name]));
+
+      // Filter out inactive room types and resolve names
+      const rows: AvailabilityRow[] = (cacheData || [])
+        .filter((r: any) => !inactiveIds.has(r.external_room_type_id))
+        .map((r: any) => {
+          const extId = r.external_room_type_id || "";
+          // Resolve name: nameMap → slug-to-title fallback
+          const resolvedName = nameMap[extId] || (
+            /^[0-9a-f]{8}-/.test(extId) ? extId.slice(0, 8) + "…" : slugToTitle(extId)
+          );
+          return {
+            property_id: r.property_id,
+            property_name: propMap[r.property_id] || "Unknown",
+            room_type_name: resolvedName,
+            date: r.date,
+            available_units: r.available_units ?? 0,
+          };
+        });
       setAvailability(rows);
 
       // Calculate occupancy summaries for today
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const todayRows = rows.filter((r) => r.date === todayStr);
 
-      const summaries: OccupancySummary[] = agentProperties.map((p) => {
+      const summaries: OccupancySummary[] = filteredProperties.map((p) => {
         const propRows = todayRows.filter((r) => r.property_id === p.id);
-        const totalRooms = propRows.length; // Each row represents a room type entry
+        const totalRooms = propRows.length;
         const availableRooms = propRows.reduce((sum, r) => sum + (r.available_units || 0), 0);
         return {
           property_id: p.id,
           property_name: p.name,
           occupancy_pct: totalRooms > 0 ? Math.max(0, Math.round(((totalRooms - availableRooms) / Math.max(totalRooms, 1)) * 100)) : 0,
-          arrivals: 0, // Would need bookings query for this
+          arrivals: 0,
           departures: 0,
           available_rooms: availableRooms,
           total_rooms: totalRooms,
@@ -164,11 +230,11 @@ export default function PMSCommandCentre() {
   };
 
   const loadAiSuggestions = async () => {
-    if (agentProperties.length === 0) return;
+    if (filteredProperties.length === 0) return;
     setAiLoading(true);
 
     try {
-      const propertyIds = agentProperties.map((p) => p.id);
+      const propertyIds = filteredProperties.map((p) => p.id);
       const { data, error } = await supabase.functions.invoke("experience-engine", {
         body: {
           property_id: propertyIds[0],
@@ -205,7 +271,7 @@ export default function PMSCommandCentre() {
   };
 
   const copyAvailabilityLink = () => {
-    const url = `${window.location.origin}/pms/command-centre${propertyId ? `?property=${propertyId}` : ""}`;
+    const url = `${window.location.origin}/pms/command-centre${selectedPropertyFilter !== "all" ? `?property=${selectedPropertyFilter}` : ""}`;
     navigator.clipboard.writeText(url);
     toast.success("Availability link copied");
   };
@@ -215,6 +281,18 @@ export default function PMSCommandCentre() {
     if (prop) {
       navigate(`/property/${(prop as any).slug || propId}`);
     }
+  };
+
+  const handlePropertyFilterChange = (value: string) => {
+    setSelectedPropertyFilter(value);
+    setSearchParams((prev) => {
+      if (value === "all") {
+        prev.delete("property");
+      } else {
+        prev.set("property", value);
+      }
+      return prev;
+    }, { replace: true });
   };
 
   // Group availability by property → room type
@@ -229,6 +307,12 @@ export default function PMSCommandCentre() {
     return grouped;
   }, [availability]);
 
+  // Group occupancy cards by portfolio
+  const { data: portfolioData } = useMemo(() => {
+    // We'll fetch this in the effect; for now use a simple structure
+    return { data: null };
+  }, []);
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "high":
@@ -240,7 +324,7 @@ export default function PMSCommandCentre() {
     }
   };
 
-  if (loading) {
+  if (loading && availability.length === 0) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
@@ -257,15 +341,31 @@ export default function PMSCommandCentre() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Command Centre</h1>
           <p className="text-sm text-muted-foreground">
             Multi-property availability overview
-            {agentProperties.length > 0 && ` · ${agentProperties.length} properties`}
+            {filteredProperties.length > 0 && ` · ${filteredProperties.length} properties`}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Property filter dropdown */}
+          {agentProperties.length > 1 && (
+            <Select value={selectedPropertyFilter} onValueChange={handlePropertyFilterChange}>
+              <SelectTrigger className="w-[200px] h-8 text-xs">
+                <SelectValue placeholder="All Properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Properties</SelectItem>
+                {agentProperties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" onClick={copyAvailabilityLink}>
             <Copy className="h-3.5 w-3.5 mr-1.5" />
             Copy Link
@@ -280,7 +380,9 @@ export default function PMSCommandCentre() {
       {/* Occupancy Summary Cards */}
       {occupancy.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {occupancy.map((summary) => (
+          {occupancy
+            .sort((a, b) => a.property_name.localeCompare(b.property_name))
+            .map((summary) => (
             <Card key={summary.property_id} className="relative overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium truncate">{summary.property_name}</CardTitle>
