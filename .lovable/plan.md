@@ -1,46 +1,56 @@
 
 
-# Fix: Book Now Buttons Not Working (Date Selection Flow)
+# Fix: Review Ratings on Portfolio Cards + TripAdvisor Data Issues
 
-## Root Cause
+## Two Problems Found
 
-When the user clicks any "Book Now" button, `handleBookRoom` checks a `datesConfirmed` flag. On page load this is `false`, so the function just scrolls to the date picker area and adds a brief glow effect — but never opens the date picker or gives clear guidance. The user is left confused with nothing happening.
+### 1. Portfolio cards never show review ratings
+`EmbedPortfolio.tsx` has zero reference to reviews, ratings, or `property_review_cache`. The property cards only show name, city, image, price, room count — no guest ratings whatsoever.
 
-The `EmbedDatePicker` is a small pill button that must be manually clicked to open a calendar dropdown. The scroll-and-pulse effect is too subtle to communicate this.
+### 2. TripAdvisor sync returns empty data for SIX ON N
+- TripAdvisor ID `33433520` returns `rating=undefined, reviews=0` from the API
+- Google Place ID `2502548` also fails on re-sync (numeric format, but previous cached data from March 27 is preserved)
+- The sync function works correctly — it's the IDs that may be wrong or the TripAdvisor Content API may not have data for this location ID
+- This is a data/configuration issue, not a code bug — the IDs need to be verified in the property editor
 
-## Fix
+## Plan
 
-### 1. Auto-open the date picker when Book Now is clicked without dates confirmed
+### A. Add review rating badges to portfolio property cards
 
-In `handleBookRoom`, when `!datesConfirmed`, in addition to scrolling, programmatically open the `EmbedDatePicker` calendar. This requires:
-- Adding a controlled `isOpen` prop (or a ref-based `.open()` method) to `EmbedDatePicker`
-- `EmbedProperty.tsx` passes a state variable to control the picker's open state
-- When Book Now is clicked without confirmed dates, set this state to `true` — the calendar drops down automatically
+**File: `src/pages/EmbedPortfolio.tsx`**
 
-### 2. Store the pending room selection and auto-proceed after dates are picked
+1. After loading portfolio properties, fetch review ratings from `property_review_cache` for all property IDs in one query
+2. Build a map: `propertyId → { source, rating, totalReviews }[]`
+3. On each property card, below the city line, render small rating pills:
+   - Google pill: Google icon + "4.7 (246)" 
+   - TripAdvisor pill: TA icon + "4.5 (89)"
+   - Only show pills where `overall_rating > 0`
+4. Style: small inline badges with source-specific colors (Google blue, TA green), matching the `EmbedReviewPlatforms` component style
 
-Currently the user must click Book Now twice (once to trigger date selection, once after selecting dates). Fix:
-- Add `pendingRoom` state: `{ roomId, roomName } | null`
-- When Book Now is clicked without dates → store the room in `pendingRoom`, open the date picker
-- When check-out date is selected (completing date selection) → if `pendingRoom` is set, auto-navigate to checkout immediately
-- This makes it a single-click flow: Book Now → calendar opens → pick dates → auto-redirect to checkout
+### B. Fix Google Place ID format in sync function
 
-### 3. Show a visible prompt banner
+**File: `supabase/functions/sync-property-reviews/index.ts`**
 
-When `datesPulse` is active (user clicked Book without dates), show a brief inline banner above the date picker:
-> "Select your check-in and check-out dates to continue booking"
+The Google Places API (New) expects IDs like `ChIJ...` but some properties have old numeric IDs (like `2502548`). The sync function should:
+1. Detect numeric-only Place IDs
+2. For numeric IDs, skip the Places API (New) call and preserve existing cached data
+3. Log a warning so admins know the ID needs updating
 
-This provides clear textual feedback in addition to the visual glow.
+### C. Add better TripAdvisor error logging
+
+**File: `supabase/functions/sync-property-reviews/index.ts`**
+
+Log the actual API response body when TripAdvisor returns no rating, so we can diagnose whether the location ID is wrong or the API has no data.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/components/embed/EmbedDatePicker.tsx` | Add controlled `isOpen` prop alongside internal state |
-| `src/pages/EmbedProperty.tsx` | Add `pendingRoom` state, auto-open picker, auto-proceed after date selection, add prompt banner |
+| `src/pages/EmbedPortfolio.tsx` | Fetch review cache, render rating pills on property cards |
+| `supabase/functions/sync-property-reviews/index.ts` | Handle numeric Google Place IDs gracefully, add TA response logging |
 
-## Expected Outcome
-- User clicks "Book Now" → calendar opens automatically at the top → user picks check-in → picks check-out → immediately redirected to checkout page
-- Single-click booking flow instead of the current broken two-click flow
-- Works for both room card buttons and availability grid "Book" buttons
+## Technical Notes
+- The `property_review_cache` table already has data for properties with valid IDs (SIX ON N has Google 4.7/246 reviews cached)
+- Portfolio query is a single SELECT with `property_id IN (...)` — no N+1 queries
+- Existing cached review data will display immediately; only future syncs for bad IDs will be affected by the fix
 
