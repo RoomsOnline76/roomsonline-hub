@@ -332,7 +332,7 @@ export default function EmbedProperty() {
     return platforms;
   }, [property, tripadvisorId]);
 
-  const handleBookRoom = (roomId: string, roomName: string) => {
+  const handleBookRoom = (roomId: string, roomName: string, overrideCheckOut?: string) => {
     // If user hasn't explicitly selected dates, prompt them first
     if (!datesConfirmed) {
       setPendingRoom({ roomId, roomName });
@@ -353,11 +353,12 @@ export default function EmbedProperty() {
     // Notify parent of step change
     postToParent({ type: "rolos:step-change", step: "checkout", slug });
 
+    const finalCheckOut = overrideCheckOut || checkOut;
     const params = new URLSearchParams({
       roomTypeId: roomId,
       roomTypeName: roomName,
       checkIn,
-      checkOut,
+      checkOut: finalCheckOut,
       integration,
       property_id: property.id,
       adults: String(Math.min(room?.max_guests || 2, 2)),
