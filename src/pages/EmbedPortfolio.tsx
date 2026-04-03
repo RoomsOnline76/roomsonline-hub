@@ -101,6 +101,7 @@ export default function EmbedPortfolio() {
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
+  const brandSecondaryColor = portfolioBranding.secondary_color || brandColor;
   const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
 
   // Resize observer for iframe
@@ -509,35 +510,36 @@ export default function EmbedPortfolio() {
                 : "Special";
               const validTo = s.valid_to ? new Date(s.valid_to).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) : null;
               return (
-                <motion.div
-                  key={s.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="min-w-[220px] max-w-[280px] shrink-0 rounded-xl border overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                  style={{ borderColor: `${brandColor}30` }}
-                  onClick={() => s.property_slug && handleViewProperty(s.property_slug)}
-                >
-                  <div className="px-4 py-2 text-white text-xs font-bold" style={{ backgroundColor: brandColor }}>
-                    {discountLabel}
-                  </div>
-                  <div className="p-3">
-                    <h3 className="font-semibold text-sm text-gray-900 line-clamp-1">{s.name}</h3>
-                    {s.property_name && (
-                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" /> {s.property_name}
-                      </p>
-                    )}
-                    {s.description && (
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{s.description}</p>
-                    )}
-                    <div className="flex items-center justify-between mt-2">
-                      {validTo && <span className="text-[10px] text-gray-400">Until {validTo}</span>}
-                      <Button size="sm" className="text-[10px] h-6 gap-0.5 text-white ml-auto" style={{ backgroundColor: brandColor }}>
-                        View & Book <ChevronRight className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </motion.div>
+                 <motion.div
+                   key={s.id}
+                   initial={{ opacity: 0, scale: 0.95 }}
+                   animate={{ opacity: 1, scale: 1 }}
+                   className="min-w-[220px] max-w-[280px] shrink-0 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+                   style={{ border: `2px solid ${brandSecondaryColor}`, boxShadow: `0 4px 12px ${brandSecondaryColor}25` }}
+                   onClick={() => s.property_slug && handleViewProperty(s.property_slug)}
+                 >
+                   <div className="px-4 py-2.5 text-white text-xs font-bold flex items-center gap-1.5" style={{ background: `linear-gradient(135deg, ${brandSecondaryColor}, ${brandColor})` }}>
+                     <Tag className="h-3.5 w-3.5" />
+                     {discountLabel}
+                   </div>
+                   <div className="p-3" style={{ backgroundColor: `${brandSecondaryColor}08` }}>
+                     <h3 className="font-semibold text-sm text-gray-900 line-clamp-1">{s.name}</h3>
+                     {s.property_name && (
+                       <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                         <MapPin className="h-3 w-3" /> {s.property_name}
+                       </p>
+                     )}
+                     {s.description && (
+                       <p className="text-xs text-gray-500 mt-1 line-clamp-2">{s.description}</p>
+                     )}
+                     <div className="flex items-center justify-between mt-2">
+                       {validTo && <span className="text-[10px] text-gray-400">Until {validTo}</span>}
+                       <Button size="sm" className="text-[10px] h-6 gap-0.5 text-white ml-auto" style={{ backgroundColor: brandSecondaryColor }}>
+                         View & Book <ChevronRight className="h-3 w-3" />
+                       </Button>
+                     </div>
+                   </div>
+                 </motion.div>
               );
             })}
           </div>
