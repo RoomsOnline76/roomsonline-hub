@@ -206,7 +206,8 @@ export default function AdminPortfolios() {
   const openEdit = (p: Portfolio) => {
     setFormName(p.name);
     setFormSlug(p.slug || "");
-    setSelectedProps(members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id));
+    const memberPropIds = members.filter((m) => m.portfolio_id === p.id).map((m) => m.property_id);
+    setSelectedProps(memberPropIds);
     const b = p.metadata?.branding;
     setBrandPrimary(b?.primary_color || "#2563eb");
     setBrandSecondary(b?.secondary_color || "#1e40af");
@@ -214,6 +215,14 @@ export default function AdminPortfolios() {
     setBrandLogoUrl(b?.logo_url || "");
     setBrandHeadingFont(b?.heading_font || "");
     setBrandBodyFont(b?.body_font || "");
+    // Populate review IDs from property amenities
+    const ids: ReviewIds = {};
+    memberPropIds.forEach((pid) => {
+      const prop = properties.find((pr) => pr.id === pid);
+      const ext = prop?.amenities?.external_ids || {};
+      ids[pid] = { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" };
+    });
+    setReviewIds(ids);
     setEditPortfolio(p);
   };
 
