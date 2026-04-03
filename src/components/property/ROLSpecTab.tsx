@@ -522,6 +522,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("who_this_suits", e.target.value)}
                   placeholder="The ideal guest for this property..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
