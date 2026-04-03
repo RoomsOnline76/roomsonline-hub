@@ -195,6 +195,7 @@ serve(async (req) => {
         branding: portfolio.metadata?.branding || {},
       },
       properties: mapped,
+      specials: mappedSpecials,
       ...aiData,
       snippet: `<div data-rolos-portfolio="${portfolio.slug}"></div>\n<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`,
     }), {
