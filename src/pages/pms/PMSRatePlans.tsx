@@ -114,6 +114,23 @@ export default function PMSRatePlans() {
       }
     }
 
+    // Remove rate plans that no longer exist in amenities
+    const amenityCodes = new Set(pmsRateTypes.map((rt: any) => typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id)));
+    const amenityNames = new Set(pmsRateTypes.map((rt: any) => (rt.name || '').toLowerCase()));
+    const stalePlans = (existingPlans || []).filter(p => 
+      !amenityCodes.has(p.code) && !amenityNames.has(p.name.toLowerCase())
+    );
+    for (const stale of stalePlans) {
+      // Deactivate rather than delete to preserve history
+      await supabase
+        .from("rolos_rate_plans")
+        .update({ is_active: false })
+        .eq("id", stale.id);
+    }
+    if (stalePlans.length > 0) {
+      toast.info(`Deactivated ${stalePlans.length} rate plan${stalePlans.length !== 1 ? 's' : ''} removed from Property Overview`);
+    }
+
     // Clean stale "configure rate amount" descriptions on existing plans
     for (const plan of (existingPlans || [])) {
       if (plan.description && typeof plan.description === 'string' && plan.description.toLowerCase().includes('configure rate amount')) {

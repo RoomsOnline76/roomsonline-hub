@@ -246,12 +246,12 @@ export default function PMSDashboard() {
     return chunks;
   }, [dates, viewMode]);
 
-  // Fetch property name
+  // Fetch property name + amenities for season rate fallback
   const { data: propertyData } = useQuery({
     queryKey: ["pms-prop-name", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const { data } = await supabase.from("properties").select("name").eq("id", propertyId).single();
+      const { data } = await supabase.from("properties").select("name, amenities").eq("id", propertyId).single();
       return data;
     },
     enabled: !!propertyId,
@@ -592,14 +592,48 @@ export default function PMSDashboard() {
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
-    // 1. Check seasonal prices first
+    // 1. Check rolos seasonal prices first
     for (const season of rateSeasons) {
       if (dateStr >= season.start_date && dateStr <= season.end_date) {
         const price = ratePrices.find(p => p.season_id === season.id && p.room_type_id === roomTypeId);
         if (price) return price.base_rate;
       }
     }
-    // 2. Check linked rate plan base_rate
+    
+    // 2. Check amenities season_rates (canonical source from SeasonsCalendar)
+    const amenities = (propertyData as any)?.amenities;
+    if (amenities?.seasons?.length && amenities?.season_rates) {
+      const rt = roomTypes.find(t => t.id === roomTypeId);
+      const overviewId = rt?.linked_overview_id;
+      // Try both rolos room type id and linked overview id as keys
+      const roomSeasonRates = amenities.season_rates[roomTypeId] 
+        || (overviewId ? amenities.season_rates[overviewId] : null)
+        || (rt?.name ? amenities.season_rates[rt.name] : null);
+      
+      if (roomSeasonRates) {
+        for (const season of amenities.seasons) {
+          const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
+          const inSeason = periods.some((p: any) => dateStr >= p.from && dateStr <= p.to);
+          if (inSeason) {
+            // Try all possible key formats
+            const linkedPlanIds = ratePlanRoomLinks
+              .filter(l => l.room_type_id === roomTypeId)
+              .map(l => l.rate_plan_id);
+            const ratePlanId = linkedPlanIds[0] || '';
+            
+            const seasonRate = roomSeasonRates[`${season.id}-${ratePlanId}`]
+              || roomSeasonRates[`${season.id}-Self Catering`]
+              || roomSeasonRates[season.id];
+            
+            if (seasonRate?.roomAmount != null) return seasonRate.roomAmount;
+            if (typeof seasonRate === 'number') return seasonRate;
+            break;
+          }
+        }
+      }
+    }
+    
+    // 3. Check linked rate plan base_rate
     const linkedPlanIds = ratePlanRoomLinks
       .filter(l => l.room_type_id === roomTypeId)
       .map(l => l.rate_plan_id);
@@ -607,11 +641,11 @@ export default function PMSDashboard() {
       const plan = ratePlansWithRate.find(p => p.id === planId);
       if (plan?.base_rate && plan.base_rate > 0) return plan.base_rate;
     }
-    // 3. Fallback to room type default_rate
-    const rt = roomTypes.find(t => t.id === roomTypeId);
-    if (rt?.default_rate) return rt.default_rate;
+    // 4. Fallback to room type default_rate
+    const rtFallback = roomTypes.find(t => t.id === roomTypeId);
+    if (rtFallback?.default_rate) return rtFallback.default_rate;
 
-    // 4. Fallback: check pms_availability_cache for non-ROL properties
+    // 5. Fallback: check pms_availability_cache for non-ROL properties
     const cacheEntry = cacheRateMap?.get(roomTypeId);
     if (cacheEntry) return cacheEntry;
 

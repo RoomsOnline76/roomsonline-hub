@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -11,109 +12,107 @@ export interface RolProperty {
 /**
  * Resolves the current PMS property ID.
  * Priority: 1) ?property= query param  2) auto-detect from user's ROL properties
- * Also returns all available ROL properties for switching.
+ * Uses React Query for caching so navigation between PMS pages doesn't re-fetch.
  */
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
   const { user, isDev, isAdmin, isFearlessLeader } = useAuth();
-  const [propertyId, setPropertyId] = useState<string | null>(paramId);
-  const [properties, setProperties] = useState<RolProperty[]>([]);
-  const [loading, setLoading] = useState(!paramId);
+  const [manualPropertyId, setManualPropertyId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
-    const resolve = async () => {
-      setLoading(true);
+  // Cached query for available properties — shared across all PMS pages
+  const { data: properties = [], isLoading } = useQuery({
+    queryKey: ["pms-available-properties", user?.id, isPlatformUser],
+    queryFn: async () => {
+      if (!user) return [];
 
-      let rolProperties: RolProperty[] = [];
-
-      if (isDev || isAdmin || isFearlessLeader) {
+      if (isPlatformUser) {
         const { data } = await supabase
           .from("properties")
           .select("id, name")
           .eq("is_active", true)
           .order("name");
-        rolProperties = data || [];
-    } else {
-        // Check both primary ownership (via owner_email) and linked ownership (via property_owners)
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("id", user.id)
-          .single();
-
-        const { data: owned } = await supabase
-          .from("property_owners")
-          .select("property_id")
-          .eq("user_id", user.id);
-
-        const linkedIds = owned?.map((o) => o.property_id) || [];
-
-        // Fetch active properties where user is primary owner OR linked owner
-        let query = supabase
-          .from("properties")
-          .select("id, name")
-          .eq("is_active", true)
-          .order("name");
-
-        if (profile?.email && linkedIds.length > 0) {
-          query = query.or(`owner_email.eq.${profile.email},id.in.(${linkedIds.join(",")})`);
-        } else if (profile?.email) {
-          query = query.eq("owner_email", profile.email);
-        } else if (linkedIds.length > 0) {
-          query = query.in("id", linkedIds);
-        }
-
-        const { data } = await query;
-        // Deduplicate — a user can be both primary owner and linked owner
-        const seen = new Set<string>();
-        rolProperties = (data || []).filter((p) => {
-          if (seen.has(p.id)) return false;
-          seen.add(p.id);
-          return true;
-        });
+        return (data || []) as RolProperty[];
       }
 
-      setProperties(rolProperties);
+      // Check both primary ownership and linked ownership
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", user.id)
+        .single();
 
-      // If paramId is valid and in the list, use it
-      if (paramId && rolProperties.some((p) => p.id === paramId)) {
-        setPropertyId(paramId);
-      } else if (rolProperties.length > 0) {
-        // Auto-select first
-        const first = rolProperties[0].id;
-        setPropertyId(first);
-        setSearchParams((prev) => {
-          prev.set("property", first);
-          return prev;
-        }, { replace: true });
+      const { data: owned } = await supabase
+        .from("property_owners")
+        .select("property_id")
+        .eq("user_id", user.id);
+
+      const linkedIds = owned?.map((o) => o.property_id) || [];
+
+      let query = supabase
+        .from("properties")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (profile?.email && linkedIds.length > 0) {
+        query = query.or(`owner_email.eq.${profile.email},id.in.(${linkedIds.join(",")})`);
+      } else if (profile?.email) {
+        query = query.eq("owner_email", profile.email);
+      } else if (linkedIds.length > 0) {
+        query = query.in("id", linkedIds);
       }
 
-      setLoading(false);
-    };
+      const { data } = await query;
+      // Deduplicate
+      const seen = new Set<string>();
+      return ((data || []) as RolProperty[]).filter((p) => {
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000, // 5 min cache
+    gcTime: 10 * 60 * 1000,
+  });
 
-    resolve();
-  }, [user, isDev, isAdmin, isFearlessLeader]);
-
-  // When paramId changes externally, sync
-  useEffect(() => {
-    if (paramId && paramId !== propertyId) {
-      setPropertyId(paramId);
+  // Resolve effective property ID
+  const propertyId = useMemo(() => {
+    // Manual selection takes priority
+    if (manualPropertyId && properties.some(p => p.id === manualPropertyId)) {
+      return manualPropertyId;
     }
-  }, [paramId]);
+    // Then URL param
+    if (paramId && properties.some(p => p.id === paramId)) {
+      return paramId;
+    }
+    // Auto-select first
+    if (properties.length > 0) {
+      return properties[0].id;
+    }
+    return null;
+  }, [manualPropertyId, paramId, properties]);
+
+  // Sync URL param when propertyId changes
+  useEffect(() => {
+    if (propertyId && propertyId !== paramId) {
+      setSearchParams((prev) => {
+        prev.set("property", propertyId);
+        return prev;
+      }, { replace: true });
+    }
+  }, [propertyId]);
 
   const switchProperty = (id: string) => {
-    setPropertyId(id);
+    setManualPropertyId(id);
     setSearchParams((prev) => {
       prev.set("property", id);
       return prev;
     }, { replace: true });
   };
 
-  return { propertyId, properties, loading, switchProperty };
+  return { propertyId, properties, loading: isLoading, switchProperty };
 }
