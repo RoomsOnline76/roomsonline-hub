@@ -52,6 +52,7 @@ export default function PMSStaff() {
   const [showShiftDialog, setShowShiftDialog] = useState(false);
   const [editingShift, setEditingShift] = useState<any>(null);
   const [propertySlug, setPropertySlug] = useState<string | null>(null);
+  const [portfolioSlug, setPortfolioSlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("roster");
   const [weekOffset, setWeekOffset] = useState(0);
   const [activityFilter, setActivityFilter] = useState("");
