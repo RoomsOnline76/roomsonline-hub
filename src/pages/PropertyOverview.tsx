@@ -712,7 +712,7 @@ const PropertyOverview = () => {
                     <TableBody>
                       {activeProperties.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={12} className="text-center py-6">
+                          <TableCell colSpan={15} className="text-center py-6">
                             {(searchName || searchPms || searchHero || searchPropertyType) ? (
                               <div>
                                 <AlertTriangle className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
