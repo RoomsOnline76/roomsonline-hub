@@ -120,7 +120,7 @@ export function ReferralSection({ propertyId }: ReferralSectionProps) {
           <div className="space-y-1">
             <Label className="text-xs">Lead Source</Label>
             <Select value={leadSource} onValueChange={setLeadSource}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {LEAD_SOURCES.map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
