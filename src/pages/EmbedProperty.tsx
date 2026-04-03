@@ -332,7 +332,7 @@ export default function EmbedProperty() {
     return platforms;
   }, [property, tripadvisorId]);
 
-  const handleBookRoom = (roomId: string, roomName: string) => {
+  const handleBookRoom = (roomId: string, roomName: string, overrideCheckOut?: string) => {
     // If user hasn't explicitly selected dates, prompt them first
     if (!datesConfirmed) {
       setPendingRoom({ roomId, roomName });
@@ -353,15 +353,17 @@ export default function EmbedProperty() {
     // Notify parent of step change
     postToParent({ type: "rolos:step-change", step: "checkout", slug });
 
+    const finalCheckOut = overrideCheckOut || checkOut;
     const params = new URLSearchParams({
       roomTypeId: roomId,
       roomTypeName: roomName,
       checkIn,
-      checkOut,
+      checkOut: finalCheckOut,
       integration,
       property_id: property.id,
-      adults: "2",
+      adults: String(Math.min(room?.max_guests || 2, 2)),
     });
+    if (room?.max_guests) params.set("max_guests", String(room.max_guests));
     if (effectiveRate) params.set("embed_rate", String(effectiveRate));
     if (pricingModel) params.set("embed_pricing_model", pricingModel);
     if (room?.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
@@ -496,7 +498,7 @@ export default function EmbedProperty() {
                 if (pendingRoom) {
                   const pr = pendingRoom;
                   setPendingRoom(null);
-                  setTimeout(() => handleBookRoom(pr.roomId, pr.roomName), 150);
+                  setTimeout(() => handleBookRoom(pr.roomId, pr.roomName, d), 150);
                 }
               }
             }}
