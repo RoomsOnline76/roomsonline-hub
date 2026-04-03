@@ -32,6 +32,15 @@ import {
   FolderOpen,
   Megaphone,
   FileText,
+  Radar,
+  Radio,
+  UsersRound,
+  CalendarHeart,
+  Moon,
+  MessageSquare,
+  UserCog,
+  Palette,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 import { UserRole } from "@/lib/permissions";
