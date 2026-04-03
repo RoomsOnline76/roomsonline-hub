@@ -81,7 +81,7 @@ export function StepGuestExperience({
     const newMealPlan = checked
       ? [...mealPlan, option]
       : mealPlan.filter(m => m !== option);
-    updateField("amenities.meal_plan", newMealPlan);
+    updateField("amenities.meal_types", newMealPlan);
   };
 
   return (
