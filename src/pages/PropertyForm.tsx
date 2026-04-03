@@ -8042,16 +8042,20 @@ export default function PropertyForm() {
                     </div>
                   )}
 
-                  {specialsCategory === "accommodations" && (
-                    <div className="text-center py-6 text-xs text-muted-foreground">
-                      Accommodation specials coming soon...
-                    </div>
+                  {specialsCategory === "accommodations" && propertyId && (
+                    <AccommodationSpecialsTab
+                      propertyId={propertyId}
+                      category="accommodation"
+                      roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                    />
                   )}
 
-                  {specialsCategory === "event-wedding" && (
-                    <div className="text-center py-6 text-xs text-muted-foreground">
-                      Event/Wedding specials coming soon...
-                    </div>
+                  {specialsCategory === "event-wedding" && propertyId && (
+                    <AccommodationSpecialsTab
+                      propertyId={propertyId}
+                      category="event_wedding"
+                      roomTypes={roomTypes.map((rt: any) => ({ id: rt.id || rt.name, name: rt.name }))}
+                    />
                   )}
 
                   {specialsCategory === "vouchers" && propertyId && (
