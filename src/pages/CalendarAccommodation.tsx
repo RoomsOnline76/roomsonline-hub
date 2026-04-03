@@ -828,13 +828,17 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           const checkDate = new Date(iterDate);
           
           for (const season of seasons) {
-            const seasonStart = new Date(season.from || season.startDate);
-            const seasonEnd = new Date(season.to || season.endDate);
-            if (checkDate >= seasonStart && checkDate <= seasonEnd) {
-              // Try to find a season rate for this room
+            const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
+            const inSeason = periods.some((p: any) => {
+              const pStart = new Date(p.from);
+              const pEnd = new Date(p.to);
+              return checkDate >= pStart && checkDate <= pEnd;
+            });
+            if (inSeason) {
               const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
               const defaultRateId = defaultRateType?.id || 'default';
-              const seasonRate = roomSeasonRates[defaultRateId] || roomSeasonRates[`${roomId}-${defaultRateId}`];
+              // Key format: ${seasonId}-${rateTypeId} (canonical from SeasonsCalendar)
+              const seasonRate = roomSeasonRates[`${season.id}-${defaultRateId}`] || roomSeasonRates[`${season.id}-Self Catering`] || roomSeasonRates[season.id];
               
               if (seasonRate?.roomAmount != null) {
                 rateAmount = seasonRate.roomAmount;
