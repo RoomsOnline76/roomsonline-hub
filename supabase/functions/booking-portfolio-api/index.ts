@@ -106,6 +106,32 @@ serve(async (req) => {
       };
     });
 
+    // Fetch active public specials for member properties
+    const today = new Date().toISOString().split("T")[0];
+    const { data: specials } = await supabase
+      .from("property_specials")
+      .select("id, name, description, discount_type, discount_value, valid_from, valid_to, property_id")
+      .eq("is_active", true)
+      .eq("is_public", true)
+      .gte("valid_to", today)
+      .in("property_id", propertyIds);
+
+    const mappedSpecials = (specials || []).map((s: any) => {
+      const prop = (properties || []).find((p: any) => p.id === s.property_id);
+      return {
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        discount_type: s.discount_type,
+        discount_value: s.discount_value,
+        valid_from: s.valid_from,
+        valid_to: s.valid_to,
+        property_id: s.property_id,
+        property_name: prop?.name || null,
+        property_slug: prop?.slug || null,
+      };
+    });
+
     // AI enrichment when ?ai=true
     const wantAi = url.searchParams.get("ai") === "true";
     let aiData: Record<string, unknown> = {};
@@ -169,6 +195,7 @@ serve(async (req) => {
         branding: portfolio.metadata?.branding || {},
       },
       properties: mapped,
+      specials: mappedSpecials,
       ...aiData,
       snippet: `<div data-rolos-portfolio="${portfolio.slug}"></div>\n<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`,
     }), {

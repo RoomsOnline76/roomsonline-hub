@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +60,19 @@ interface AiSearchResult {
   reason: string;
 }
 
+interface PortfolioSpecial {
+  id: string;
+  name: string;
+  description: string | null;
+  discount_type: string | null;
+  discount_value: number | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  property_id: string;
+  property_name: string | null;
+  property_slug: string | null;
+}
+
 export default function EmbedPortfolio() {
   const { portfolioSlug } = useParams<{ portfolioSlug: string }>();
   const [searchParams] = useSearchParams();
@@ -83,6 +96,7 @@ export default function EmbedPortfolio() {
   const [aiSearchResults, setAiSearchResults] = useState<AiSearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
   const [reviewRatings, setReviewRatings] = useState<Record<string, ReviewRating[]>>({});
+  const [specials, setSpecials] = useState<PortfolioSpecial[]>([]);
 
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
@@ -140,6 +154,7 @@ export default function EmbedPortfolio() {
           if (data.ai_groups) setAiGroups(data.ai_groups);
           if (data.ai_bundles) setAiBundles(data.ai_bundles);
           if (data.ai_featured) setAiFeatured(data.ai_featured);
+          if (data.specials) setSpecials(data.specials);
 
           setLoading(false);
           return;
@@ -426,6 +441,59 @@ export default function EmbedPortfolio() {
         </motion.div>
       )}
 
+      {/* Specials Banner */}
+      {specials.length > 0 && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="h-4 w-4" style={{ color: brandColor }} />
+            <h2 className="text-sm font-semibold text-gray-900">Special Offers</h2>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
+            {specials.map((s) => {
+              const discountLabel = s.discount_type === "percentage" && s.discount_value
+                ? `${s.discount_value}% Off`
+                : s.discount_type === "fixed_amount" && s.discount_value
+                ? `R${s.discount_value} Off`
+                : s.discount_type === "fixed_price" && s.discount_value
+                ? `R${s.discount_value}`
+                : "Special";
+              const validTo = s.valid_to ? new Date(s.valid_to).toLocaleDateString("en-ZA", { day: "numeric", month: "short" }) : null;
+              return (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="min-w-[220px] max-w-[280px] shrink-0 rounded-xl border overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                  style={{ borderColor: `${brandColor}30` }}
+                  onClick={() => s.property_slug && handleViewProperty(s.property_slug)}
+                >
+                  <div className="px-4 py-2 text-white text-xs font-bold" style={{ backgroundColor: brandColor }}>
+                    {discountLabel}
+                  </div>
+                  <div className="p-3">
+                    <h3 className="font-semibold text-sm text-gray-900 line-clamp-1">{s.name}</h3>
+                    {s.property_name && (
+                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> {s.property_name}
+                      </p>
+                    )}
+                    {s.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{s.description}</p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      {validTo && <span className="text-[10px] text-gray-400">Until {validTo}</span>}
+                      <Button size="sm" className="text-[10px] h-6 gap-0.5 text-white ml-auto" style={{ backgroundColor: brandColor }}>
+                        View & Book <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
         <div className="flex flex-col gap-3">
@@ -535,6 +603,11 @@ export default function EmbedPortfolio() {
                   {prop.starting_rate && (
                     <Badge className="absolute top-3 right-3 text-white border-0 text-xs font-semibold" style={{ backgroundColor: brandColor }}>
                       From R{prop.starting_rate.toLocaleString()}
+                    </Badge>
+                  )}
+                  {specials.some(s => s.property_id === prop.id) && (
+                    <Badge className="absolute top-3 left-3 text-white border-0 text-[10px] font-semibold gap-1" style={{ backgroundColor: "#e11d48" }}>
+                      <Tag className="h-3 w-3" /> Special
                     </Badge>
                   )}
                 </div>
