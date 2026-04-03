@@ -8133,35 +8133,49 @@ export default function PropertyForm() {
                         <p className="text-sm text-muted-foreground">
                           Manage rate types for this property. Each room type needs at least one rate type linked.
                         </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newId = `manual-rate-${Date.now()}`;
-                            setPmsRateTypes((prev) => [
-                              ...prev,
-                              {
-                                id: newId,
-                                name: "New Rate Type",
-                                priceType: "per_room",
-                                minStayDays: 1,
-                                maxStayDays: 0,
-                                minAdvanceDays: 0,
-                                maxAdvanceDays: 0,
-                                description: "",
-                                baseRate: null,
-                                pms_synced: false,
-                                linkedRoomId: null,
-                              },
-                            ]);
-                            setIsDirty(true);
-                          }}
-                          className="gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add Rate Type
-                        </Button>
+                        <div className="flex gap-2">
+                          {propertyId && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSyncRateTypesOpen(true)}
+                              className="gap-1"
+                            >
+                              <Copy className="h-3 w-3" />
+                              Sync to Others
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newId = `manual-rate-${Date.now()}`;
+                              setPmsRateTypes((prev) => [
+                                ...prev,
+                                {
+                                  id: newId,
+                                  name: "New Rate Type",
+                                  priceType: "per_room",
+                                  minStayDays: 1,
+                                  maxStayDays: 0,
+                                  minAdvanceDays: 0,
+                                  maxAdvanceDays: 0,
+                                  description: "",
+                                  baseRate: null,
+                                  pms_synced: false,
+                                  linkedRoomId: null,
+                                },
+                              ]);
+                              setIsDirty(true);
+                            }}
+                            className="gap-1"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add Rate Type
+                          </Button>
+                        </div>
                       </div>
 
                       {pmsRateTypes.length === 0 ? (
