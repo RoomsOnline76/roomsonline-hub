@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy } from "lucide-react";
 import { StepProps } from "./types";
 import { OnboardingRoomType, RATE_UNIT_OPTIONS } from "@/config/onboardingFieldSchema";
-import { ACCOMMODATION_LABEL_OPTIONS, getAccommodationLabel } from "@/lib/accommodationLabels";
+import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, getAccommodationLabel, AccommodationLabelKey } from "@/lib/accommodationLabels";
 
 export function StepRoomsOverview({
   updateField,
@@ -15,8 +15,15 @@ export function StepRoomsOverview({
 }: StepProps) {
   const roomTypes = getAmenityValue<OnboardingRoomType[]>("room_types", []);
 
+  // Resolve the accommodation label for dynamic text
+  const labelKey = (getAmenityValue<string>("accommodation_label", "") || getAccommodationLabel({ property_type: getAmenityValue<string>("property_type", "") }).key) as AccommodationLabelKey;
+  const label = ACCOMMODATION_TYPES[labelKey] || ACCOMMODATION_TYPES.room;
+  const s = label.singular; // e.g. "Tent"
+  const p = label.plural;   // e.g. "Tents"
+  const sLower = s.toLowerCase(); // e.g. "tent"
+  const pLower = p.toLowerCase(); // e.g. "tents"
+
   const addRoom = () => {
-    // Generate stable ID for consistent linking between wizard and property form
     const roomId = `wizard-room-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const newRoom: OnboardingRoomType = {
       id: roomId,
@@ -43,7 +50,6 @@ export function StepRoomsOverview({
 
   const duplicateRoom = (index: number) => {
     const room = roomTypes[index];
-    // Generate new stable ID for duplicated room
     const roomId = `wizard-room-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
     const duplicated: OnboardingRoomType = {
       ...room,
@@ -62,10 +68,10 @@ export function StepRoomsOverview({
       <div className="space-y-2">
         <Label htmlFor="accommodation_label">What do you call your accommodation?</Label>
         <p className="text-sm text-muted-foreground">
-          This determines how rooms are labelled across your listing and booking pages.
+          This determines how {pLower} are labelled across your listing and booking pages.
         </p>
         <Select
-          value={getAmenityValue<string>("accommodation_label", "") || getAccommodationLabel({ property_type: getAmenityValue<string>("property_type", "") }).key}
+          value={labelKey}
           onValueChange={(value) => updateField("amenities.accommodation_label", value)}
         >
           <SelectTrigger id="accommodation_label" className="w-full max-w-xs">
@@ -83,12 +89,12 @@ export function StepRoomsOverview({
 
       <div>
         <p className="text-muted-foreground">
-          Add your room types with basic information. You can add detailed 
-          configuration later in the full rooms section.
+          Add your {sLower} types with basic information. You can add detailed
+          configuration later in the full {pLower} section.
         </p>
         {roomTypes.length > 0 && (
           <p className="text-sm text-primary font-medium mt-2">
-            {roomTypes.length} room type{roomTypes.length !== 1 ? 's' : ''} • {totalUnits} total units • Capacity: {totalCapacity} guests
+            {roomTypes.length} {sLower} type{roomTypes.length !== 1 ? 's' : ''} • {totalUnits} total units • Capacity: {totalCapacity} guests
           </p>
         )}
       </div>
@@ -101,7 +107,7 @@ export function StepRoomsOverview({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Bed className="h-4 w-4 text-primary" />
-                  Room Type {index + 1}
+                  {s} Type {index + 1}
                 </CardTitle>
                 <div className="flex gap-1">
                   <Button
@@ -127,19 +133,18 @@ export function StepRoomsOverview({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Room Name */}
+              {/* Name */}
               <div className="space-y-2">
-                <Label htmlFor={`room-name-${index}`}>Room Name *</Label>
+                <Label htmlFor={`room-name-${index}`}>{s} Name *</Label>
                 <Input
                   id={`room-name-${index}`}
                   value={room.name || ""}
                   onChange={(e) => updateRoom(index, "name", e.target.value)}
-                  placeholder="e.g., Deluxe Double, Family Suite"
+                  placeholder={`e.g., Deluxe Double, Family ${s}`}
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                {/* Number of Units */}
                 <div className="space-y-2">
                   <Label htmlFor={`room-units-${index}`} className="flex items-center gap-1.5">
                     <Hash className="h-3 w-3" />
@@ -155,7 +160,6 @@ export function StepRoomsOverview({
                   />
                 </div>
 
-                {/* Max Guests */}
                 <div className="space-y-2">
                   <Label htmlFor={`room-guests-${index}`} className="flex items-center gap-1.5">
                     <Users className="h-3 w-3" />
@@ -171,7 +175,6 @@ export function StepRoomsOverview({
                   />
                 </div>
 
-                {/* Base Rate */}
                 <div className="space-y-2">
                   <Label htmlFor={`room-rate-${index}`} className="flex items-center gap-1.5">
                     <DollarSign className="h-3 w-3" />
@@ -208,14 +211,14 @@ export function StepRoomsOverview({
                 </Select>
               </div>
 
-              {/* Room Description */}
+              {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor={`room-desc-${index}`}>Room Description</Label>
+                <Label htmlFor={`room-desc-${index}`}>{s} Description</Label>
                 <Textarea
                   id={`room-desc-${index}`}
                   value={room.description || ""}
                   onChange={(e) => updateRoom(index, "description", e.target.value)}
-                  placeholder="Describe this room type - features, views, amenities..."
+                  placeholder={`Describe this ${sLower} type - features, views, amenities...`}
                   rows={2}
                 />
               </div>
@@ -224,7 +227,7 @@ export function StepRoomsOverview({
         ))}
       </div>
 
-      {/* Add room button */}
+      {/* Add button */}
       <Button
         type="button"
         variant="outline"
@@ -232,20 +235,20 @@ export function StepRoomsOverview({
         className="w-full gap-2"
       >
         <Plus className="h-4 w-4" />
-        Add Room Type
+        Add {s} Type
       </Button>
 
-      {/* No rooms message */}
+      {/* Empty state */}
       {roomTypes.length === 0 && (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <Bed className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <h3 className="font-medium mb-1">No room types yet</h3>
+          <h3 className="font-medium mb-1">No {sLower} types yet</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Add your first room type to get started
+            Add your first {sLower} type to get started
           </p>
           <Button type="button" onClick={addRoom} className="gap-2">
             <Plus className="h-4 w-4" />
-            Add Room Type
+            Add {s} Type
           </Button>
         </div>
       )}
@@ -255,8 +258,8 @@ export function StepRoomsOverview({
         <div className="rounded-lg border bg-muted/30 p-4">
           <h4 className="font-medium text-sm mb-2">Tip</h4>
           <p className="text-sm text-muted-foreground">
-            Use the "Duplicate" button to quickly create similar room types. 
-            Room images can be uploaded in the Media section.
+            Use the "Duplicate" button to quickly create similar {sLower} types.
+            {s} images can be uploaded in the Media section.
           </p>
         </div>
       )}

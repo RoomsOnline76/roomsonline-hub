@@ -5,11 +5,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { AlertTriangle, ChevronDown, Building2, Sparkles, Briefcase, Globe } from "lucide-react";
+import { AlertTriangle, ChevronDown, Building2, Sparkles, Briefcase, Globe, X } from "lucide-react";
 import { PROPERTY_TYPES, OnboardingOfferings } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { VISIBLE_PMS_SYSTEMS } from "@/lib/pmsSystemsConfig";
+import { Badge } from "@/components/ui/badge";
+
+// Separate PMS vs Channel Manager systems
+const PMS_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => !s.isInternal && !['siteminder', 'rentalsunited'].includes(s.key));
+const CHANNEL_MANAGER_OPTIONS = VISIBLE_PMS_SYSTEMS.filter(s => ['siteminder', 'rentalsunited', 'profitroom'].includes(s.key));
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   apartment: "Apartments",
@@ -59,8 +65,27 @@ export function StepPropertyIdentity({
   const numberOfFloors = getAmenityValue<number | null>("number_of_floors", null);
   const starGrading = getAmenityValue<string>("star_grading", "");
   const tripadvisorId = getAmenityValue<string>("tripadvisor_id", "");
-  const pmsName = getAmenityValue<string>("pms_name", "");
-  const channelManager = getAmenityValue<string>("channel_manager", "");
+  const pmsSystems = getAmenityValue<string[]>("pms_systems", []);
+  const channelManagers = getAmenityValue<string[]>("channel_managers", []);
+  const [pmsOpen, setPmsOpen] = useState(false);
+  const [cmOpen, setCmOpen] = useState(false);
+
+  const togglePmsSystem = (key: string) => {
+    const updated = pmsSystems.includes(key)
+      ? pmsSystems.filter(k => k !== key)
+      : [...pmsSystems, key];
+    updateField("amenities.pms_systems", updated);
+    // Backward compat
+    updateField("amenities.pms_name", updated[0] ? VISIBLE_PMS_SYSTEMS.find(s => s.key === updated[0])?.name || "" : "");
+  };
+
+  const toggleChannelManager = (key: string) => {
+    const updated = channelManagers.includes(key)
+      ? channelManagers.filter(k => k !== key)
+      : [...channelManagers, key];
+    updateField("amenities.channel_managers", updated);
+    updateField("amenities.channel_manager", updated[0] ? VISIBLE_PMS_SYSTEMS.find(s => s.key === updated[0])?.name || "" : "");
+  };
 
   // Business Registration
   const registeredBusinessName = getAmenityValue<string>("registered_business_name", "");
@@ -303,26 +328,78 @@ export function StepPropertyIdentity({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="pms_name">PMS</Label>
-              <Input
-                id="pms_name"
-                value={pmsName}
-                onChange={(e) => updateField("amenities.pms_name", e.target.value)}
-                placeholder="e.g., Hostfully"
-              />
-            </div>
+          {/* PMS Multi-Select */}
+          <div className="space-y-2">
+            <Label>Property Management System (PMS)</Label>
+            {pmsSystems.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-1">
+                {pmsSystems.map(key => {
+                  const sys = VISIBLE_PMS_SYSTEMS.find(s => s.key === key);
+                  return (
+                    <Badge key={key} variant="secondary" className="gap-1 pr-1">
+                      {sys?.name || key}
+                      <button type="button" onClick={() => togglePmsSystem(key)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+            <Collapsible open={pmsOpen} onOpenChange={setPmsOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronDown className={cn("h-4 w-4 transition-transform", pmsOpen && "rotate-180")} />
+                {pmsSystems.length === 0 ? "Select your PMS" : "Change selection"}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-1 max-h-48 overflow-y-auto rounded-md border p-2">
+                {PMS_OPTIONS.map(sys => (
+                  <label key={sys.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                    <Checkbox
+                      checked={pmsSystems.includes(sys.key)}
+                      onCheckedChange={() => togglePmsSystem(sys.key)}
+                    />
+                    {sys.name}
+                  </label>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="channel_manager">Channel Manager</Label>
-              <Input
-                id="channel_manager"
-                value={channelManager}
-                onChange={(e) => updateField("amenities.channel_manager", e.target.value)}
-                placeholder="e.g., SiteMinder"
-              />
-            </div>
+          {/* Channel Manager Multi-Select */}
+          <div className="space-y-2">
+            <Label>Channel Manager</Label>
+            {channelManagers.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-1">
+                {channelManagers.map(key => {
+                  const sys = VISIBLE_PMS_SYSTEMS.find(s => s.key === key);
+                  return (
+                    <Badge key={key} variant="secondary" className="gap-1 pr-1">
+                      {sys?.name || key}
+                      <button type="button" onClick={() => toggleChannelManager(key)} className="ml-0.5 rounded-full hover:bg-muted p-0.5">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+            <Collapsible open={cmOpen} onOpenChange={setCmOpen}>
+              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronDown className={cn("h-4 w-4 transition-transform", cmOpen && "rotate-180")} />
+                {channelManagers.length === 0 ? "Select your channel manager" : "Change selection"}
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-1 max-h-48 overflow-y-auto rounded-md border p-2">
+                {CHANNEL_MANAGER_OPTIONS.map(sys => (
+                  <label key={sys.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted/50 cursor-pointer text-sm">
+                    <Checkbox
+                      checked={channelManagers.includes(sys.key)}
+                      onCheckedChange={() => toggleChannelManager(sys.key)}
+                    />
+                    {sys.name}
+                  </label>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
         </CollapsibleContent>
       </Collapsible>
