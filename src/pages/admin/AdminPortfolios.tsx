@@ -200,6 +200,7 @@ export default function AdminPortfolios() {
     setBrandLogoUrl("");
     setBrandHeadingFont("");
     setBrandBodyFont("");
+    setReviewIds({});
   };
 
   const openEdit = (p: Portfolio) => {
