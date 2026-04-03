@@ -258,7 +258,7 @@ serve(async (req) => {
           });
 
           if (allReviewTexts.length > 0) {
-            const prompt = `You are TOBI, a warm and enthusiastic travel concierge. Based on these guest reviews for "${property.name}" in ${property.city}, ${property.country}, write a 2-3 sentence summary of why guests love this place. Be specific about what makes it special — mention actual details from the reviews. Keep it warm, genuine, and compelling. Do NOT use generic phrases.
+            const prompt = `Based on these guest reviews for "${property.name}" in ${property.city}, ${property.country}, write a 2-3 sentence summary of why guests love this place. Be specific about what makes it special — mention actual details from the reviews. Keep it warm, genuine, and compelling. Do NOT use generic phrases. Do NOT introduce yourself or refer to yourself. Just write the summary directly.
 
 Reviews:
 ${allReviewTexts.slice(0, 8).join('\n')}
