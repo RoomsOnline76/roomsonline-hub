@@ -85,7 +85,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
 
   const fetchSpecials = useCallback(async () => {
     const { data, error } = await supabase
-      .from("property_specials")
+      .from("property_specials" as any)
       .select("*")
       .eq("property_id", propertyId)
       .eq("category", category)
@@ -112,12 +112,12 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
     const newSpecial = emptySpecial(propertyId, category);
     const name = `New Special ${specials.length + 1}`;
     const { data, error } = await supabase
-      .from("property_specials")
+      .from("property_specials" as any)
       .insert({ ...newSpecial, name } as any)
       .select()
       .single();
     if (error) {
-      toast.error("Failed to create special");
+      toast.error("Failed to create special: " + error.message);
       return;
     }
     await fetchSpecials();
@@ -127,8 +127,8 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   const save = async () => {
     if (!selectedId || !draft.name) return;
     setSaving(true);
-    const { error } = await supabase
-      .from("property_specials")
+    const { data: updated, error } = await supabase
+      .from("property_specials" as any)
       .update({
         name: draft.name,
         description: draft.description || null,
@@ -147,10 +147,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         is_active: draft.is_active ?? true,
         is_public: draft.is_public ?? true,
       } as any)
-      .eq("id", selectedId);
+      .eq("id", selectedId)
+      .select();
     setSaving(false);
     if (error) {
-      toast.error("Failed to save");
+      toast.error("Failed to save: " + error.message);
+      return;
+    }
+    if (!updated || (updated as any[]).length === 0) {
+      toast.error("Save failed — no rows updated (permission issue?)");
       return;
     }
     toast.success("Special saved");
@@ -158,7 +163,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   };
 
   const deleteSpecial = async (id: string) => {
-    await supabase.from("property_specials").delete().eq("id", id);
+    await supabase.from("property_specials" as any).delete().eq("id", id);
     if (selectedId === id) setSelectedId(null);
     await fetchSpecials();
     toast.success("Deleted");
