@@ -243,7 +243,13 @@ export default function AdminPortfolios() {
   const toggleProp = (id: string) => {
     setSelectedProps((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      if (!prev.includes(id)) maybeInheritBranding(next);
+      if (!prev.includes(id)) {
+        maybeInheritBranding(next);
+        // Initialize review IDs from property data
+        const prop = properties.find((p) => p.id === id);
+        const ext = prop?.amenities?.external_ids || {};
+        setReviewIds((r) => ({ ...r, [id]: { google_place_id: ext.google_place_id || "", tripadvisor_id: ext.tripadvisor_id || "" } }));
+      }
       return next;
     });
   };
