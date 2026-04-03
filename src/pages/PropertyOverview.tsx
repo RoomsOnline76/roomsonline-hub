@@ -541,10 +541,12 @@ const PropertyOverview = () => {
                 {deletedProperties.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="bookpage" className="gap-1 text-xs py-1">
-              <Image className="h-3 w-3 mr-1" />
-              Book Page
-            </TabsTrigger>
+            {(isAdmin || isDev || isFearlessLeader) && (
+              <TabsTrigger value="bookpage" className="gap-1 text-xs py-1">
+                <Image className="h-3 w-3 mr-1" />
+                Book Page
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="active">
