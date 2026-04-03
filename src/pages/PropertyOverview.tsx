@@ -865,6 +865,9 @@ const PropertyOverview = () => {
                           <TableCell className="py-1 text-xs">
                             <span className="capitalize">{property.property_type?.replace(/_/g, ' ') || "-"}</span>
                           </TableCell>
+                          <TableCell className="py-1 text-xs truncate max-w-[120px]" title={property.owner_name || property.owner_email || ""}>
+                            {property.owner_name || property.owner_email || "—"}
+                          </TableCell>
                           <TableCell className="py-1 text-xs">{property.total_bookings || 0}</TableCell>
                           <TableCell className="py-1">
                             {(() => {
