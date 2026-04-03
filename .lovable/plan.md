@@ -1,70 +1,79 @@
+# Fix: Command Centre — Comprehensive Rewrite
+
+## Root Cause Analysis
+
+The previous "fixes" failed because of a fundamental ID mismatch:
+
+- `pms_availability_cache.external_room_type_id` stores **slugs** (e.g. `holiday-house`, `dungeon`, `3-bedroom-house`)
+- `rolos_room_types.id` stores **UUIDs**
+- The name resolution does `nameMap[rt.id] = rt.name` — mapping UUID to name
+- The filter does `inactiveIds.has(r.external_room_type_id)` — checking slug against UUIDs
+- **Result**: Nothing ever matches. Names fall through to `slugToTitle()`, and inactive filtering never works.
+
+## Five Fixes
+
+### 1. Room type name resolution + inactive filtering (the real fix)
+
+Build the name map and inactive set indexed by **slug** (derived from `rt.name`), not just by UUID. For each `rolos_room_types` row, add entries for:
+
+- `rt.id` (UUID — for cache entries that use UUIDs)
+- `slugify(rt.name)` (e.g. "Dungeon" → `dungeon`, "3 Bedroom House" → `3-bedroom-house`)
+
+Same for `hostfully_room_types`. This way, when the cache has `external_room_type_id = "dungeon"`, the lookup finds the name AND the `is_active` status.
+
+**Inactive room types whose slugified name matches the cache entry will be filtered out.** This removes "Dungeon", "3 Bedroom House", etc.
+
+### 2. Property filter actually filters cards
+
+Currently `filteredProperties` controls which cache data is fetched, but `occupancy` cards always render for ALL `filteredProperties`. The issue is that when `selectedPropertyFilter` is set, `filteredProperties` correctly returns only that property — but the **occupancy cards section** renders all entries in the `occupancy` state array. This actually should work given the current code. The real issue is likely that `filteredProperties` reference changes cause the effect to not re-fire properly (React memoization + array identity). Fix: use `propertyIds` string as the effect dependency instead of the array reference.
+
+### 3. Week paging — trigger live refresh when cache is empty
+
+When navigating to prev/next week and no cache data exists:
+
+- Show a "No cached data — fetching live availability..." message
+- Automatically invoke `roomsonline-pms-api` with `get_availability` for the selected date range
+- Populate the grid with the live response
+- "This Week" button must restore `weekOffset` to 0 AND trigger a re-fetch (currently it does, but the effect dependency on `filteredProperties` array reference may prevent re-fire if the reference hasn't changed)
+
+### 4. Card grouping — portfolio + property type
+
+Fetch `property_portfolio_members` and `property_portfolios` to group occupancy cards:
+
+- Section 1: Each portfolio as a group header, with member properties underneath
+- Within each portfolio, sub-group by `property_type` if there are multiple types
+- Section 2: "Other Properties" for properties not in any portfolio
+- Each section header shows aggregate occupancy
+
+### 5. Restore grid when clicking "This Week"
+
+The bug: clicking prev/next clears `availability` state. Clicking "This Week" sets `weekOffset` to 0, but if it was already 0 before the prev/next clicks changed it, the effect fires. However, the real issue is the effect dependency `[filteredProperties, weekOffset]` — `filteredProperties` is a memoized array that may have a new reference each render due to the filter logic. Fix: use a stable key (comma-joined property IDs) as the actual trigger.
+
+## File Changes
 
 
-# Fix: Command Centre — 5 Issues
+| File                                 | Changes                                                                                                                                                                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/pages/pms/PMSCommandCentre.tsx` | Rewrite `loadData` name resolution to use slug-based matching; fix inactive filtering; add live-fetch fallback for empty weeks; fix effect dependencies; add portfolio-based card grouping; fix property filter to use stable dependency |
 
-## Problems Found
 
-### 1. Availability grid shows ALL properties, ignores dropdown selection
-The Command Centre reads `propertyId` from `searchParams.get("property")` (line 51) but **never uses it to filter**. `loadData()` always fetches cache data for ALL `agentProperties`. When a property is selected in the PMS sidebar dropdown, the grid should show only that property's data.
+## Technical Detail
 
-### 2. Room type names show as UUID/slug IDs instead of human-readable names
-The room type resolution (line 103-109) only checks `rolos_room_types` by matching `rt.id` against `external_room_type_id`. But:
-- Many cache entries use **slug-based keys** (e.g. `one-bedroom-suite`, `holiday-house`) — not UUIDs
-- Many `rolos_room_types` entries are `is_active: false` and excluded from the query
-- `hostfully_room_types` is never checked as a fallback
-- The `properties.amenities.room_types` JSONB fallback is also missing
+```typescript
+// Build slug-keyed maps for resolution
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+}
 
-The existing `usePropertyRoomTypes` hook already implements the correct 3-level fallback chain. The Command Centre should use a similar approach, plus slug-to-name matching.
+// For each rolos_room_types row:
+nameMap[rt.id] = rt.name;           // UUID key
+nameMap[slugify(rt.name)] = rt.name; // slug key
+if (!rt.is_active) {
+  inactiveIds.add(rt.id);
+  inactiveIds.add(slugify(rt.name)); // slug key too!
+}
+```
 
-### 3. Deleted/inactive room types still appear in the grid
-Cache entries for old room types like "3 Bedroom House" and "Dungeon" (Latter Days property) still exist in `pms_availability_cache` even though those `rolos_room_types` rows have `is_active: false`. The grid needs to filter out inactive room types.
-
-### 4. Paging to prev/next week shows no data
-`loadData()` runs whenever `agentProperties` or `weekOffset` changes (line 80). The `weekStart`/`weekEnd` calculations (lines 74-76) are correct, but the cache query (lines 95-100) might not have data for those dates. However, the real issue is likely that the effect dependency is on `agentProperties` (the array reference), which doesn't change — and `weekOffset` triggers a re-fetch but the `weekStart`/`weekEnd` values used inside `loadData()` are stale closures because they're calculated outside the effect using the component-level `weekOffset`. Actually, looking again — `weekStart` and `weekEnd` are derived from `weekOffset` at render time, and `loadData` captures them via closure. When `weekOffset` changes, the component re-renders with new `weekStart`/`weekEnd`, then the effect fires `loadData()` which uses the new values. This should work. Let me check if the issue is that the cache simply has no data beyond the current week. More likely: the `rolos_room_types` query has no `is_active` filter, so it might be returning rooms, but the real problem is the room type ID mismatch — rows exist but names don't resolve, making it look empty.
-
-### 5. Occupancy summary cards are unorganized
-Currently renders a flat grid of all property cards with no grouping. User wants them grouped by property type or portfolio.
-
-### 6. Portfolio Overview shows blank — doesn't sync from admin
-`PMSPortfolio.tsx` fetches portfolios from `property_portfolios` and members from `property_portfolio_members`. The data exists (Jongensfontein has 4 members). The issue is that `PortfolioManager` component only provides a filter selector — it doesn't display portfolio contents. When selecting a portfolio, `filteredProperties` filters by `portfolioMembers`, but these properties must also exist in the `properties` list returned by `usePmsPropertyId`. If the user's properties don't include Dassiesingel, Seesig, etc. (because they're owned by someone else), the filtered list will be empty.
-
-## Plan
-
-### File: `src/pages/pms/PMSCommandCentre.tsx`
-
-**A. Filter by selected property**
-- When `propertyId` is set (from URL param / dropdown), filter `loadData()` to only query that property's cache data and only show that property's occupancy card
-- When no property selected, show all (current behavior)
-
-**B. Fix room type name resolution**
-- After fetching `pms_availability_cache`, collect all unique `(property_id, external_room_type_id)` pairs
-- Build a name map using the 3-level fallback: `rolos_room_types` (active + inactive) → `hostfully_room_types` → slug-to-title conversion (e.g. `one-bedroom-suite` → `One Bedroom Suite`)
-- Also check `rolos_room_types.is_active` and `hostfully_room_types.is_active` to mark inactive rooms
-
-**C. Filter out inactive/deleted room types**
-- After resolving names, exclude rows where the room type exists in `rolos_room_types` with `is_active = false`
-- This removes "Dungeon" and other deleted rooms from the grid
-
-**D. Add property dropdown selector**
-- Add a `Select` dropdown at the top to pick a specific property or "All Properties"
-- Sync with URL param `?property=`
-
-**E. Group occupancy cards**
-- Group summary cards by portfolio membership (if portfolios exist) with section headers
-- Properties not in any portfolio go under "Other Properties"
-
-### File: `src/pages/pms/PMSPortfolio.tsx`
-
-**F. Fix portfolio property listing**
-- The `filteredProperties` depends on `properties` from `usePmsPropertyId()`, which only returns properties the current user owns
-- For admin/fearless leader users, this returns all active properties — should work
-- For regular owners, portfolio members that belong to other owners won't appear
-- Fix: when a portfolio is selected, fetch the member properties directly from the `properties` table by their IDs, regardless of ownership (for display purposes only)
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/pms/PMSCommandCentre.tsx` | Add property filter, fix room type resolution with 3-level fallback, filter inactive rooms, add property selector dropdown, group occupancy cards |
-| `src/pages/pms/PMSPortfolio.tsx` | Fix portfolio member listing to fetch properties by ID directly when portfolio is selected |
-
+This ensures `external_room_type_id = "dungeon"` matches `slugify("Dungeon") = "dungeon"` → filtered out as inactive.  
+  
+Test this on page after declaring the issue has been fixed
