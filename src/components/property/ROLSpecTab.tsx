@@ -420,7 +420,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   value={data.editorial_rating || ""}
                   onValueChange={(value) => updateField("editorial_rating", value)}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full text-xs">
                     <SelectValue placeholder="Select a rating...">
                       {data.editorial_rating && (() => {
                         const selected = EDITORIAL_RATINGS.find(r => r.value === data.editorial_rating);
