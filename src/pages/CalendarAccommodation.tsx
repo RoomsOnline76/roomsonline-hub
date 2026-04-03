@@ -1089,7 +1089,7 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           r.name === pmsRoom.roomTypeName
         );
         
-        return {
+      return {
           name: pmsRoom.roomTypeName,
           pmsRoomTypeId: pmsRoom.roomTypeId,
           rates,
@@ -1100,6 +1100,10 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
           minGuests: matchingRoom?.minGuests ?? 1,
           units: matchingRoom?.units ?? matchingRoom?.numRooms ?? 1,
         };
+      }).filter(room => {
+        // Hide rooms with zero availability across ALL visible dates
+        const avails = Object.values(room.availability);
+        return avails.length === 0 || avails.some((v: any) => v > 0);
       });
     }
     

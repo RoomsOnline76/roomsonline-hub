@@ -316,6 +316,10 @@ export default function EmbedProperty() {
         beds: room.beds,
         ratesByDate,
       };
+    }).filter((room) => {
+      // Hide rooms where every date is SOLD (null rate) — e.g. Template rooms with zero availability
+      const values = Object.values(room.ratesByDate);
+      return values.length === 0 || values.some((v) => v !== null);
     });
   }, [roomTypes, ratePlanMap, checkIn, property, availabilityOverrides, pmsCacheMap]);
 
