@@ -1,60 +1,98 @@
 
 
-# Fix: Command Centre — Live Fetch Failures & Stale Cache
+# Seasons Calendar — Visual Rate & Season Management
 
-## Root Causes Found (from database)
+## Problem
+Currently, seasons and rates are managed across three separate sub-tabs (Seasons, Rate Types, Rate Breakdown) within the Rates tab. Users must jump between tabs to define a season, then set rates for it, then check the breakdown. This is confusing and error-prone.
 
-### 1. ONE46 ON M — Zero cache data
-Property `464c5d9f` (hostfully) has **no rows at all** in `pms_availability_cache`. The live fetch filter on line 291 correctly identifies it as PMS-backed, but `roomsonline-pms-api` may not handle Hostfully properties — it's a generic dispatcher. The edge function logs show it IS being called for this property, so the issue is likely the API returning empty/error data.
+## Solution
+Add a new **Seasons Calendar** sub-tab inside the existing Rates tab that provides an annual calendar view where users can:
+1. Visually select date ranges and label them as seasons (drag or click start/end)
+2. Set rates per room type directly within each season block
+3. See the full year at a glance with color-coded season bands
 
-### 2. ONEHUNDRED ON M — Cache exists but stale
-Property `a761931e` has cache data last updated **March 25** (9 days ago). The live fetch is only triggered when `rows.length === 0` (line 288), so if there IS cached data (even stale), no live fetch occurs.
+For external PMS properties, this calendar is **read-only** — seasons and rates are synced from the PMS and displayed for reference.
 
-### 3. Dassiesingel — ROL'OS property, zero cache, excluded from live fetch
-Property `a22384f0` has `external_system: roomsonline`. Line 291 **explicitly excludes** `roomsonline` properties from live fetch (`ext !== "roomsonline"`). It also has zero rows in `pms_availability_cache` AND zero rows in `rolos_inventory_calendar`. Since ROL'OS properties own their own availability data, the Command Centre should read from `rolos_inventory_calendar` or `property_availability` tables instead.
+## Design
 
-### 4. SIX ON N (roomsonline) — Cache from February 16
-The ROL'OS version (`b6ef9ec6`) has cache data from **Feb 16** — nearly 2 months stale.
-
-### 5. Cache freshness indicator missing
-When data IS shown, there's no indication of how old it is. The user has no way to know they're looking at 9-day-old data.
-
-## Fix Plan
-
-### File: `src/pages/pms/PMSCommandCentre.tsx`
-
-**Three changes:**
-
-1. **ROL'OS properties: Read from `rolos_inventory_calendar`**
-   - For properties with `external_system === "roomsonline"`, query `rolos_inventory_calendar` joined with `rolos_room_types` (active only) instead of `pms_availability_cache`
-   - Compute `available_units` as `total_units - booked_units`
-   - Merge these rows into the same `availability` state alongside cache rows from PMS properties
-   - If `rolos_inventory_calendar` is empty, fall back to `rolos_room_types` with `total_inventory` and assume all available
-
-2. **Per-property live fetch when cache is stale (not just empty)**
-   - Change the live fetch trigger from "all rows empty" to "per-property check"
-   - For each PMS-backed property, check if its cache data `updated_at` is older than 2 hours
-   - If stale OR empty, trigger live fetch for that specific property
-   - This replaces the current all-or-nothing approach
-
-3. **Show cache freshness indicator**
-   - Add a small badge/timestamp showing "Last updated: X ago" per property in the grid header or occupancy card
-   - Color-code: green (<2h), yellow (2-24h), red (>24h)
-
-### Data Flow Summary
-
+### Calendar Layout
 ```text
-Property Type        Data Source               Fallback
-─────────────────    ──────────────────────     ────────────────
-roomsonline (ROL)    rolos_inventory_calendar   rolos_room_types (total_inventory)
-hostfully            pms_availability_cache     roomsonline-pms-api live fetch
-other PMS            pms_availability_cache     roomsonline-pms-api live fetch
-manual               skip                      skip
+┌─────────────────────────────────────────────────────┐
+│  [Room: ▼ 3-Bedroom House]   [Year: ◄ 2026 ►]     │
+├─────────────────────────────────────────────────────┤
+│  JAN  │████ SUMMER (PEAK) ████│                     │
+│  FEB  │████ SUMMER (PEAK) ████│                     │
+│  MAR  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
+│  APR  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
+│  MAY  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
+│  JUN  │░░░ WINTER (LOW) ░░░░░░│                     │
+│  ...  │                        │                     │
+│       │  [+ Add Season]       │                     │
+├─────────────────────────────────────────────────────┤
+│  Click a season band to edit rates & dates          │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Files to Change
+Each month row shows 1-31 day cells. Season bands span across cells with distinct colors. Clicking a band opens an inline editor for that season's dates, name, min/max stay, and per-room rates.
 
-| File | Changes |
-|------|---------|
-| `src/pages/pms/PMSCommandCentre.tsx` | Add ROL'OS inventory calendar query, per-property staleness check, freshness indicator |
+### Interaction Flow
+1. **Add Season**: Click "+ Add Season", select date range on the calendar (or type dates), name it, set color
+2. **Set Rates**: Click an existing season band → expands an inline panel below showing rate fields for the selected room (room amount, adult, teen, child, infant — based on pricing model)
+3. **Edit/Delete**: Right-click or use edit/delete buttons on the expanded panel
+4. **Drag to Resize**: Drag season edges to adjust dates (stretch goal)
+
+### Bidirectional Sync
+- Creating/editing a season in the calendar updates `seasons[]` and `seasonRates{}` state in PropertyForm
+- Edits in the existing Seasons or Rate Breakdown sub-tabs reflect in the calendar
+- Last edit wins — both write to the same state variables
+
+### External PMS (read-only mode)
+- For non-ROL'OS properties (`external_system !== "roomsonline"` and `!== "none"`), the calendar renders `rolos_rate_seasons` data as read-only color bands
+- No add/edit/delete controls shown
+- Badge: "Synced from [PMS name]"
+
+## Implementation
+
+### New Component: `src/components/property/SeasonsCalendar.tsx`
+- Props: `seasons`, `seasonRates`, `roomTypes`, `selectedRoomType`, `pmsRateTypes`, `pricingModel`, `currency`, `isReadOnly`, `onSeasonsChange`, `onSeasonRatesChange`
+- Renders a 12-month horizontal grid (each month = row of day cells)
+- Season bands rendered as absolutely positioned overlays with color coding
+- Click handler opens inline rate editor panel
+- Add season flow: click two dates to define range, then fill in details
+
+### PropertyForm.tsx Changes
+- Add new sub-tab `"seasons-calendar"` to the Rates tab's inner `<Tabs>` (between "Seasons" and "Rate Breakdown")
+- Pass existing `seasons`, `seasonRates`, `roomTypes`, `selectedRoomType`, `pmsRateTypes` state
+- Wire `onSeasonsChange` to `setSeasons` and `onSeasonRatesChange` to `setSeasonRates`
+- Mark `setIsDirty(true)` on any change
+
+### Season Colors
+- Peak/Summer: red/orange band
+- Shoulder/Autumn/Spring: amber/yellow band  
+- Low/Winter: blue/teal band
+- Custom: user-selectable from preset palette
+- Stored as `color` field on each season object (backward compatible — existing seasons get auto-assigned colors)
+
+### Rate Editor (inline panel)
+When a season band is clicked, show below the calendar:
+- Season name, date range (editable)
+- Min/max stay
+- Rate fields per linked rate type for the selected room
+- Uses same `updateSeasonRate()` function already in PropertyForm
+
+### Booking Engine Check
+No changes needed — the existing `QuickBookDrawer.tsx` already iterates `seasons[]` and checks `seasonRates{}` per date. The calendar just provides a better UI for the same data.
+
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `src/components/property/SeasonsCalendar.tsx` | **Create** — new calendar component (~400 lines) |
+| `src/pages/PropertyForm.tsx` | **Modify** — add "Calendar" sub-tab in Rates, wire props |
+
+## What This Does NOT Change
+- Existing Seasons and Rate Breakdown sub-tabs remain functional (users can use either)
+- Data model unchanged (same `amenities.seasons` and `amenities.season_rates`)
+- Booking engine pricing logic unchanged
+- External PMS sync logic unchanged
 
