@@ -8088,6 +8088,7 @@ export default function PropertyForm() {
                     <TabsList>
                       <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
                       <TabsTrigger value="season">Seasons</TabsTrigger>
+                      <TabsTrigger value="seasons-calendar">Calendar</TabsTrigger>
                       <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
                       <TabsTrigger value="charges">Charges</TabsTrigger>
                       {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
