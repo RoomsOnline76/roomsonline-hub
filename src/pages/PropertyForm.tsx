@@ -4196,80 +4196,74 @@ export default function PropertyForm() {
           }
         }
 
-            // Auto-link rate plans to room types based on amenities linkedRateTypes
-            try {
-              const { data: allPlans } = await supabase
-                .from("rolos_rate_plans")
-                .select("id, code, name")
-                .eq("property_id", savedPropertyId);
+        // Auto-link rate plans to room types based on amenities linkedRateTypes
+        if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+          try {
+            const { data: allPlans } = await supabase
+              .from("rolos_rate_plans")
+              .select("id, code, name")
+              .eq("property_id", savedPropertyId);
 
-              const { data: allRolosRoomTypes } = await supabase
-                .from("rolos_room_types")
-                .select("id, name")
-                .eq("property_id", savedPropertyId)
-                .eq("is_active", true);
+            const { data: allRolosRoomTypes } = await supabase
+              .from("rolos_room_types")
+              .select("id, name")
+              .eq("property_id", savedPropertyId)
+              .eq("is_active", true);
 
-              if (allPlans && allRolosRoomTypes) {
-                const planByCode = new Map(allPlans.map(p => [p.code, p.id]));
-                const planByName = new Map(allPlans.map(p => [p.name.toLowerCase(), p.id]));
-                const rolosRtByName = new Map(allRolosRoomTypes.map(rt => [rt.name.toLowerCase(), rt.id]));
+            if (allPlans && allRolosRoomTypes) {
+              const planByCode = new Map(allPlans.map(p => [p.code, p.id]));
+              const planByName = new Map(allPlans.map(p => [p.name.toLowerCase(), p.id]));
+              const rolosRtByName = new Map(allRolosRoomTypes.map(rt => [rt.name.toLowerCase(), rt.id]));
 
-                const linkRows: { rate_plan_id: string; room_type_id: string }[] = [];
+              const linkRows: { rate_plan_id: string; room_type_id: string }[] = [];
 
-                for (const room of roomTypes) {
-                  const rolosRtId = rolosRtByName.get((room.name || '').toLowerCase());
-                  if (!rolosRtId) continue;
+              for (const room of roomTypes) {
+                const rolosRtId = rolosRtByName.get((room.name || '').toLowerCase());
+                if (!rolosRtId) continue;
 
-                  // Find linked rate types from amenities
-                  const linkedRates = (room as any).linkedRateTypes || (room as any).rates || [];
-                  for (const lr of (Array.isArray(linkedRates) ? linkedRates : [])) {
-                    const rateId = typeof lr === 'string' ? lr : lr?.id;
-                    if (!rateId) continue;
-                    const rateCode = typeof rateId === 'string' ? rateId.substring(0, 20) : String(rateId);
-                    const planId = planByCode.get(rateCode);
+                const linkedRates = (room as any).linkedRateTypes || (room as any).rates || [];
+                for (const lr of (Array.isArray(linkedRates) ? linkedRates : [])) {
+                  const rateId = typeof lr === 'string' ? lr : lr?.id;
+                  if (!rateId) continue;
+                  const rateCode = typeof rateId === 'string' ? rateId.substring(0, 20) : String(rateId);
+                  const planId = planByCode.get(rateCode);
+                  if (planId) {
+                    linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
+                  }
+                }
+
+                for (const rt of pmsRateTypes as any[]) {
+                  if (rt.linkedRoomId === room.id || rt.id === `wizard-rate-${room.id}`) {
+                    const rtCode = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
+                    const planId = planByCode.get(rtCode) || planByName.get((rt.name || '').toLowerCase());
                     if (planId) {
                       linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
-                    }
-                  }
 
-                  // Also match rate types by checking pmsRateTypes linkedRoomId
-                  for (const rt of pmsRateTypes as any[]) {
-                    if (rt.linkedRoomId === room.id || rt.id === `wizard-rate-${room.id}`) {
-                      const rtCode = typeof rt.id === 'string' ? rt.id.substring(0, 20) : String(rt.id);
-                      const planId = planByCode.get(rtCode) || planByName.get((rt.name || '').toLowerCase());
-                      if (planId) {
-                        linkRows.push({ rate_plan_id: planId, room_type_id: rolosRtId });
-
-                        // Also update rolos_room_types.default_rate from the rate's baseRate
-                        if (rt.baseRate) {
-                          await supabase
-                            .from("rolos_room_types")
-                            .update({ default_rate: rt.baseRate })
-                            .eq("id", rolosRtId)
-                            .is("default_rate", null);
-                        }
+                      if (rt.baseRate) {
+                        await supabase
+                          .from("rolos_room_types")
+                          .update({ default_rate: rt.baseRate })
+                          .eq("id", rolosRtId)
+                          .is("default_rate", null);
                       }
                     }
                   }
                 }
-
-                // Deduplicate and upsert links
-                const uniqueLinks = Array.from(
-                  new Map(linkRows.map(l => [`${l.rate_plan_id}-${l.room_type_id}`, l])).values()
-                );
-                if (uniqueLinks.length > 0) {
-                  const { error: linkErr } = await supabase
-                    .from("rolos_rate_plan_room_types")
-                    .upsert(uniqueLinks, { onConflict: "rate_plan_id,room_type_id" });
-                  if (linkErr) console.warn("[ROL Sync] Rate-room link error:", linkErr);
-                  else console.log(`[ROL Sync] Linked ${uniqueLinks.length} rate plan → room type pairs`);
-                }
               }
-            } catch (linkErr) {
-              console.warn("[ROL Sync] Rate-room linking warning:", linkErr);
+
+              const uniqueLinks = Array.from(
+                new Map(linkRows.map(l => [`${l.rate_plan_id}-${l.room_type_id}`, l])).values()
+              );
+              if (uniqueLinks.length > 0) {
+                const { error: linkErr } = await supabase
+                  .from("rolos_rate_plan_room_types")
+                  .upsert(uniqueLinks, { onConflict: "rate_plan_id,room_type_id" });
+                if (linkErr) console.warn("[ROL Sync] Rate-room link error:", linkErr);
+                else console.log(`[ROL Sync] Linked ${uniqueLinks.length} rate plan → room type pairs`);
+              }
             }
-          } catch (syncErr) {
-            console.warn("Rate plans sync warning:", syncErr);
+          } catch (linkErr) {
+            console.warn("[ROL Sync] Rate-room linking warning:", linkErr);
           }
         }
 
