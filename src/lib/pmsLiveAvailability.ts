@@ -57,7 +57,7 @@ export async function fetchLiveRates(
   try {
     const { data, error } = await supabase.functions.invoke("roomsonline-pms-api", {
       body: {
-        action: "get_availability",
+        action: "fetch_availability",
         property_id: propertyId,
         start_date: ci,
         end_date: co,
