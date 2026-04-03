@@ -1,89 +1,60 @@
 
 
-# Fix: Onboarding Wizard Data Not Persisting to Property Form
+# Fix: Command Centre — Live Fetch Failures & Stale Cache
 
-## Root Cause
+## Root Causes Found (from database)
 
-The onboarding wizard and PropertyForm use **different data structures** for the same fields. The wizard writes flat keys to amenities, but the PropertyForm reads from nested objects — and when the PropertyForm saves, it **overwrites the entire amenities JSONB**, erasing any wizard-only keys.
+### 1. ONE46 ON M — Zero cache data
+Property `464c5d9f` (hostfully) has **no rows at all** in `pms_availability_cache`. The live fetch filter on line 291 correctly identifies it as PMS-backed, but `roomsonline-pms-api` may not handle Hostfully properties — it's a generic dispatcher. The edge function logs show it IS being called for this property, so the issue is likely the API returning empty/error data.
 
-### Data Structure Mismatch
+### 2. ONEHUNDRED ON M — Cache exists but stale
+Property `a761931e` has cache data last updated **March 25** (9 days ago). The live fetch is only triggered when `rows.length === 0` (line 288), so if there IS cached data (even stale), no live fetch occurs.
 
-| Data | Wizard writes to | PropertyForm reads from |
-|------|------------------|------------------------|
-| Check-in time | `amenities.check_in_from` | `amenities.house_rules.check_in_from` |
-| Check-out time | `amenities.check_out_to` | `amenities.house_rules.check_out_to` |
-| Bank name | `amenities.bank_name` | `amenities.banking.bank_name` |
-| Account number | `amenities.account_number` | `amenities.banking.account_number` |
-| Pets allowed | `amenities.pets_allowed` | `amenities.house_rules.pets_allowed` |
-| Pets policy | `amenities.pets_policy` | `amenities.house_rules.pets_policy` |
-| Children policy | `amenities.children_policy` | `amenities.house_rules.children_policy` |
-| Min check-in age | `amenities.min_check_in_age` | `amenities.house_rules.min_check_in_age` |
-| House rules text | `amenities.house_rules` (string) | `amenities.house_rules` (object) |
-| Payment policy | `amenities.payment_policy` | `amenities.house_rules` area |
-| Cancellation policy | `amenities.cancellation_policy` | `amenities.cancellation_policies` |
-| Key collection | `amenities.key_collection_procedure` | Not read at all |
-| Reception hours | `amenities.reception_hours` | Not read at all |
+### 3. Dassiesingel — ROL'OS property, zero cache, excluded from live fetch
+Property `a22384f0` has `external_system: roomsonline`. Line 291 **explicitly excludes** `roomsonline` properties from live fetch (`ext !== "roomsonline"`). It also has zero rows in `pms_availability_cache` AND zero rows in `rolos_inventory_calendar`. Since ROL'OS properties own their own availability data, the Command Centre should read from `rolos_inventory_calendar` or `property_availability` tables instead.
 
-### Working fields (same path in both)
-- `amenities.room_types` ✓
-- `amenities.facilities` ✓ 
-- `amenities.accommodation_label` ✓
-- `amenities.meal_plan` → PropertyForm uses `amenities.meal_types` (minor mismatch)
-- `properties.address`, `city`, `country` ✓
-- `properties.description`, `short_description` ✓
-- `properties.images` ✓
+### 4. SIX ON N (roomsonline) — Cache from February 16
+The ROL'OS version (`b6ef9ec6`) has cache data from **Feb 16** — nearly 2 months stale.
 
-### Accommodation label not carrying to Rooms tab
-The Rooms tab in PropertyForm uses hardcoded "Room Type" strings instead of the dynamic `accommodationLabel` state variable that's set from `amenities.accommodation_label`.
+### 5. Cache freshness indicator missing
+When data IS shown, there's no indication of how old it is. The user has no way to know they're looking at 9-day-old data.
 
-## Fix Strategy
+## Fix Plan
 
-**Align the wizard to write in the PropertyForm's nested structure** rather than changing the PropertyForm. The PropertyForm's structure is established and used across many places.
+### File: `src/pages/pms/PMSCommandCentre.tsx`
 
-### File: `src/components/onboarding/steps/StepPoliciesPricing.tsx`
+**Three changes:**
 
-Change all `updateField` calls to write to the nested paths the PropertyForm expects:
+1. **ROL'OS properties: Read from `rolos_inventory_calendar`**
+   - For properties with `external_system === "roomsonline"`, query `rolos_inventory_calendar` joined with `rolos_room_types` (active only) instead of `pms_availability_cache`
+   - Compute `available_units` as `total_units - booked_units`
+   - Merge these rows into the same `availability` state alongside cache rows from PMS properties
+   - If `rolos_inventory_calendar` is empty, fall back to `rolos_room_types` with `total_inventory` and assume all available
 
-- `amenities.check_in_from` → `amenities.house_rules.check_in_from` (but this requires nested object support)
+2. **Per-property live fetch when cache is stale (not just empty)**
+   - Change the live fetch trigger from "all rows empty" to "per-property check"
+   - For each PMS-backed property, check if its cache data `updated_at` is older than 2 hours
+   - If stale OR empty, trigger live fetch for that specific property
+   - This replaces the current all-or-nothing approach
 
-Since `updateField` only supports one level of nesting (`amenities.X`), the fix needs to:
-1. Read the current `house_rules` object from amenities
-2. Merge the new field into it
-3. Write the whole `house_rules` object back
+3. **Show cache freshness indicator**
+   - Add a small badge/timestamp showing "Last updated: X ago" per property in the grid header or occupancy card
+   - Color-code: green (<2h), yellow (2-24h), red (>24h)
 
-Same approach for `banking` fields.
+### Data Flow Summary
 
-**Specific changes in StepPoliciesPricing.tsx:**
-- Create helper `updateHouseRule(field, value)` that reads `getAmenityValue("house_rules", {})`, merges `{[field]: value}`, writes `updateField("amenities.house_rules", merged)`
-- Create helper `updateBanking(field, value)` that reads `getAmenityValue("banking", {})`, merges, writes `updateField("amenities.banking", merged)`
-- Replace all 20+ direct `updateField("amenities.check_in_from", ...)` calls with `updateHouseRule("check_in_from", ...)`
-- Replace all banking field calls with `updateBanking("bank_name", ...)`
-- Reading: Change `getAmenityValue("check_in_from", "")` → read from `getAmenityValue("house_rules", {}).check_in_from`
+```text
+Property Type        Data Source               Fallback
+─────────────────    ──────────────────────     ────────────────
+roomsonline (ROL)    rolos_inventory_calendar   rolos_room_types (total_inventory)
+hostfully            pms_availability_cache     roomsonline-pms-api live fetch
+other PMS            pms_availability_cache     roomsonline-pms-api live fetch
+manual               skip                      skip
+```
 
-### File: `src/components/onboarding/steps/StepGuestExperience.tsx`
-- `amenities.meal_plan` → `amenities.meal_types` (to match PropertyForm's `selectedMealTypes`)
+## Files to Change
 
-### File: `src/components/onboarding/steps/StepLocation.tsx`  
-- Already writes to `amenities.property_info` correctly ✓
-- No changes needed
-
-### File: `src/pages/PropertyForm.tsx`
-- In the Rooms tab section, replace hardcoded "Room Type" labels with `getAccommodationLabel({...}).singular + " Type"` using the already-loaded `accommodationLabel` state
-
-### File: `src/hooks/usePropertyOnboarding.tsx`
-- Update `calculateScores` to also check nested paths when scoring (it already checks some nested paths via `getNestedValue`)
-
-## Summary of Changes
-
-| File | What changes |
-|------|-------------|
-| `StepPoliciesPricing.tsx` | Add `updateHouseRule`/`updateBanking` helpers; rewire all 20+ field read/write calls to use nested structure |
-| `StepGuestExperience.tsx` | Change `amenities.meal_plan` → `amenities.meal_types` |
-| `PropertyForm.tsx` | Replace hardcoded "Room Type" labels in Rooms tab with dynamic accommodation label |
-
-## Expected Outcome
-- All wizard data persists correctly and shows up in PropertyForm tabs
-- Accommodation type setting (e.g. "Tent") carries through to Rooms tab labels
-- House rules, banking, check-in times, policies all survive the wizard→PropertyForm transition
-- Images and rooms already work (confirmed in DB)
+| File | Changes |
+|------|---------|
+| `src/pages/pms/PMSCommandCentre.tsx` | Add ROL'OS inventory calendar query, per-property staleness check, freshness indicator |
 
