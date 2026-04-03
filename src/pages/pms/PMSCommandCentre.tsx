@@ -378,8 +378,8 @@ export default function PMSCommandCentre() {
     startDate: string,
     endDate: string,
     propMap: Record<string, string>,
-    existingRows: AvailabilityRow[],
-    rolosRows: AvailabilityRow[],
+    _existingRows: AvailabilityRow[],
+    _rolosRows: AvailabilityRow[],
   ) => {
     setLiveFetching(true);
     try {
