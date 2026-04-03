@@ -739,15 +739,23 @@ export default function PMSDashboard() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-            {properties.length > 1 && (
+            {displayProperties.length > 1 && (
               <Select value={propertyId || ""} onValueChange={switchProperty}>
                 <SelectTrigger className="w-[220px] h-8 text-sm">
                   <SelectValue placeholder="Switch property" />
                 </SelectTrigger>
                 <SelectContent>
-                  {properties.map((p) => (
+                  {displayProperties.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
+                  {portfolioProperties && properties.length > portfolioProperties.length && (
+                    <>
+                      <div className="px-2 py-1 text-[10px] text-muted-foreground border-t mt-1 pt-1">All Properties</div>
+                      {properties.filter(p => !portfolioProperties.some(pp => pp.id === p.id)).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             )}
