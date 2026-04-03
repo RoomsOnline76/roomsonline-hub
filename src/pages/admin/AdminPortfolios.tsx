@@ -427,6 +427,55 @@ export default function AdminPortfolios() {
       </div>
 
       {renderPropertyPicker()}
+
+      {/* Review Platforms — per property */}
+      {selectedProps.length > 0 && (
+        <div className="space-y-2 border-t border-border pt-3">
+          <Label className="text-xs font-semibold flex items-center gap-1.5">
+            <Star className="h-3.5 w-3.5" /> Review Platforms
+          </Label>
+          <p className="text-[10px] text-muted-foreground">Set Google & TripAdvisor IDs for each property to display ratings on the portfolio.</p>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {selectedProps.map((pid) => {
+              const prop = properties.find((p) => p.id === pid);
+              if (!prop) return null;
+              const ids = reviewIds[pid] || { google_place_id: "", tripadvisor_id: "" };
+              return (
+                <div key={pid} className="rounded-md border border-border p-3 bg-muted/20 space-y-2">
+                  <p className="text-xs font-medium flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    {prop.name}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> Google Place ID
+                      </Label>
+                      <Input
+                        value={ids.google_place_id}
+                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
+                        placeholder="e.g. ChIJ..."
+                        className="text-xs font-mono h-7"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Star className="h-3 w-3" /> TripAdvisor ID
+                      </Label>
+                      <Input
+                        value={ids.tripadvisor_id}
+                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, tripadvisor_id: e.target.value } }))}
+                        placeholder="e.g. 12345678"
+                        className="text-xs font-mono h-7"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
