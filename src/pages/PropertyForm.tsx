@@ -8243,7 +8243,7 @@ export default function PropertyForm() {
                                             setIsDirty(true);
                                           }}
                                         >
-                                          <SelectTrigger className="bg-background">
+                                          <SelectTrigger className="bg-background text-xs h-7">
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
