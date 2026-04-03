@@ -77,6 +77,7 @@ export default function AdminPortfolios() {
   const [brandHeadingFont, setBrandHeadingFont] = useState("");
   const [brandBodyFont, setBrandBodyFont] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfolios = [], isLoading } = useQuery({
