@@ -802,18 +802,45 @@ const [viewMode, setViewMode] = useState<"week" | "month">("month");
             const matchedId = matchedRateType?.id || pmsRateTypes[0]?.id || 'default';
             const orphanPriceType = matchedRateType?.pricingModel || matchedRateType?.priceType || 'per_room';
             const isOrphanPerPerson = orphanPriceType.toLowerCase().includes('person');
+            
+            // Check for seasonal rate override
+            let orphanRateAmount = baseRate;
+            const orphanCheckDate = new Date(iterDate);
+            for (const season of seasons) {
+              const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
+              const inSeason = periods.some((p: any) => {
+                const pStart = new Date(p.from);
+                const pEnd = new Date(p.to);
+                return orphanCheckDate >= pStart && orphanCheckDate <= pEnd;
+              });
+              if (inSeason) {
+                const roomSeasonRates = seasonRates[roomId] || seasonRates[room.name] || {};
+                const seasonRate = roomSeasonRates[`${season.id}-${matchedId}`] || roomSeasonRates[`${season.id}-Self Catering`] || roomSeasonRates[season.id];
+                if (seasonRate?.roomAmount != null) {
+                  orphanRateAmount = seasonRate.roomAmount;
+                } else if (typeof seasonRate === 'number') {
+                  orphanRateAmount = seasonRate;
+                }
+                break;
+              }
+            }
+            
             ratesByDate[dateStr].push({
               rateTypeId: String(matchedId),
               rateTypeName: matchedRateType?.name || room.name || 'Standard Rate',
               priceType: orphanPriceType,
-              roomAmount: baseRate,
+              roomAmount: orphanRateAmount,
               ...(isOrphanPerPerson ? {
                 adultAmounts: {
-                  adultAmount1: matchedRateType?.adult1Rate ?? baseRate,
-                  adultAmount2: matchedRateType?.adult2Rate ?? baseRate,
+                  adultAmount1: matchedRateType?.adult1Rate ?? orphanRateAmount,
+                  adultAmount2: matchedRateType?.adult2Rate ?? orphanRateAmount,
                 },
                 teenAmount: matchedRateType?.teenRate ?? 0,
                 childAmount: matchedRateType?.childRate ?? 0,
+                infantAmount: matchedRateType?.infantRate ?? 0,
+              } : {}),
+            });
+          }
                 infantAmount: matchedRateType?.infantRate ?? 0,
               } : {}),
             });
