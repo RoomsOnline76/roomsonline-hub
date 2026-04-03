@@ -105,7 +105,7 @@ export function BrandVoiceCard({ propertyId }: BrandVoiceCardProps) {
             onChange={(e) => setBrandVoice(e.target.value)}
             placeholder="Describe this property's personality for AI-generated content, e.g. 'Warm, coastal, family-friendly. A relaxed beach getaway.'"
             rows={3}
-            className="text-sm"
+            className="text-xs"
           />
           <p className="text-xs text-muted-foreground">
             Used by the AI to generate emails, descriptions, and guest communications in this property's style.
