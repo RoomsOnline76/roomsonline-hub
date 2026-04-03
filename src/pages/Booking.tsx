@@ -363,124 +363,122 @@ const Booking = () => {
   }, [property?.id, property?.external_system, property?.amenities]);
 
   useEffect(() => {
-    if (property && rooms.length === 0) {
-      // Check for existing booking state in session storage (multi-room flow)
-      const savedState = sessionStorage.getItem(`booking_state_${property.id}`);
-      
-      if (savedState) {
-        const parsedState = JSON.parse(savedState);
-        const existingRooms = parsedState.rooms || [];
-        
-        if (preSelectedRoomTypeId) {
-          // We're adding a new room to existing booking
-          // Use URL dates for this specific room (they may differ from default dates)
-          const newRoom: RoomBooking = {
-            roomTypeId: preSelectedRoomTypeId,
-            roomTypeName: preSelectedRoomTypeName || '',
-            numberOfAdults: Math.max(1, preSelectedAdults),
-            numberOfTeens: preSelectedTeens,
-            numberOfChildren: preSelectedChildren,
-            numberOfInfants: preSelectedInfants,
-            numberOfPets: preSelectedPets,
-            // Store this room's dates if they differ from the saved default dates
-            checkIn: urlCheckIn || parsedState.defaultCheckIn,
-            checkOut: urlCheckOut || parsedState.defaultCheckOut,
-          };
-          
-          setRooms([...existingRooms, newRoom]);
-          
-          // Restore default dates from saved state (not URL params for new room)
-          if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
-          if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
-        } else {
-          // Returning to booking without adding a new room (e.g., "Check Out Now")
-          setRooms(existingRooms);
-          
-          // Restore dates from saved state
-          if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
-          if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
-        }
-        
-        // Restore form state
-        if (parsedState.guestName) setGuestName(parsedState.guestName);
-        if (parsedState.guestEmail) setGuestEmail(parsedState.guestEmail);
-        if (parsedState.guestPhone) setGuestPhone(parsedState.guestPhone);
-        if (parsedState.voucher) setVoucher(parsedState.voucher);
-        if (parsedState.specialRequests) setSpecialRequests(parsedState.specialRequests);
-        if (parsedState.selectedRateType) setSelectedRateType(parsedState.selectedRateType);
-        
-        // Restore availability and cost data to avoid API calls
-        if (parsedState.availabilityData) setAvailabilityData(parsedState.availabilityData);
-        if (parsedState.costBreakdown) setCostBreakdown(parsedState.costBreakdown);
-        if (parsedState.totalCost) setTotalCost(parsedState.totalCost);
-        
-        // Clear the session storage after restoring
-        sessionStorage.removeItem(`booking_state_${property.id}`);
-      } else if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
-        // New booking with pre-selected room from URL
-        const hasPreSelectedGuests = searchParams.has("adults");
-        setRooms([{
+    if (!property || rooms.length !== 0) return;
+
+    const isAddRoomMode = searchParams.get("addRoom") === "true";
+    const savedState = sessionStorage.getItem(`booking_state_${property.id}`);
+
+    if (isAddRoomMode && savedState) {
+      const parsedState = JSON.parse(savedState);
+      const existingRooms = parsedState.rooms || [];
+
+      if (preSelectedRoomTypeId) {
+        // Explicit add-room flow: append the newly selected room to the saved booking
+        const newRoom: RoomBooking = {
           roomTypeId: preSelectedRoomTypeId,
-          roomTypeName: preSelectedRoomTypeName,
-          numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : 2,
+          roomTypeName: preSelectedRoomTypeName || "",
+          numberOfAdults: Math.max(1, preSelectedAdults),
           numberOfTeens: preSelectedTeens,
           numberOfChildren: preSelectedChildren,
           numberOfInfants: preSelectedInfants,
           numberOfPets: preSelectedPets,
-          // Store dates for first room
+          checkIn: urlCheckIn || parsedState.defaultCheckIn,
+          checkOut: urlCheckOut || parsedState.defaultCheckOut,
+        };
+
+        setRooms([...existingRooms, newRoom]);
+
+        if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
+        if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
+      } else {
+        // Resume existing multi-room checkout state only for explicit add-room returns
+        setRooms(existingRooms);
+
+        if (parsedState.defaultCheckIn) setCheckIn(parsedState.defaultCheckIn);
+        if (parsedState.defaultCheckOut) setCheckOut(parsedState.defaultCheckOut);
+      }
+
+      if (parsedState.guestName) setGuestName(parsedState.guestName);
+      if (parsedState.guestEmail) setGuestEmail(parsedState.guestEmail);
+      if (parsedState.guestPhone) setGuestPhone(parsedState.guestPhone);
+      if (parsedState.voucher) setVoucher(parsedState.voucher);
+      if (parsedState.specialRequests) setSpecialRequests(parsedState.specialRequests);
+      if (parsedState.selectedRateType) setSelectedRateType(parsedState.selectedRateType);
+      if (parsedState.availabilityData) setAvailabilityData(parsedState.availabilityData);
+      if (parsedState.costBreakdown) setCostBreakdown(parsedState.costBreakdown);
+      if (parsedState.totalCost) setTotalCost(parsedState.totalCost);
+
+      sessionStorage.removeItem(`booking_state_${property.id}`);
+      return;
+    }
+
+    // Fresh embed/property booking: ignore stale saved state and trust the URL selection
+    if (savedState) {
+      sessionStorage.removeItem(`booking_state_${property.id}`);
+    }
+
+    if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
+      const hasPreSelectedGuests = searchParams.has("adults");
+      const fallbackAdults = urlMaxGuests > 0 ? Math.max(1, Math.min(2, urlMaxGuests)) : 2;
+      setRooms([{
+        roomTypeId: preSelectedRoomTypeId,
+        roomTypeName: preSelectedRoomTypeName,
+        numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : fallbackAdults,
+        numberOfTeens: preSelectedTeens,
+        numberOfChildren: preSelectedChildren,
+        numberOfInfants: preSelectedInfants,
+        numberOfPets: preSelectedPets,
+        checkIn: urlCheckIn || undefined,
+        checkOut: urlCheckOut || undefined,
+      }]);
+    } else if (roomTypes.length > 0) {
+      // For ROL'OS properties without a pre-selected room, try to use hfRoom IDs
+      // which match the synthetic availability builder (avoids ID mismatch)
+      const initRoom = async () => {
+        const firstRoom = roomTypes[0];
+        let bestId = String(firstRoom.id);
+        let bestName = firstRoom.name;
+        let bestMax = firstRoom.maxGuests || 2;
+
+        if (property) {
+          const { data: hfRooms } = await supabase
+            .from("hostfully_room_types")
+            .select("id, name, linked_rolos_id, max_guests, is_active")
+            .eq("property_id", property.id)
+            .eq("is_active", true)
+            .limit(1);
+
+          if (hfRooms && hfRooms.length > 0) {
+            bestId = hfRooms[0].id;
+            bestName = hfRooms[0].name;
+            bestMax = hfRooms[0].max_guests || bestMax;
+            console.log('[Booking] Using hfRoom ID for initialization:', bestId, bestName);
+          }
+        }
+
+        setRooms([{
+          roomTypeId: bestId,
+          roomTypeName: bestName,
+          numberOfAdults: Math.min(initialGuests, bestMax),
+          numberOfTeens: 0,
+          numberOfChildren: 0,
+          numberOfInfants: 0,
+          numberOfPets: 0,
           checkIn: urlCheckIn || undefined,
           checkOut: urlCheckOut || undefined,
         }]);
-      } else if (roomTypes.length > 0) {
-        // For ROL'OS properties without a pre-selected room, try to use hfRoom IDs
-        // which match the synthetic availability builder (avoids ID mismatch)
-        const initRoom = async () => {
-          const firstRoom = roomTypes[0];
-          let bestId = String(firstRoom.id);
-          let bestName = firstRoom.name;
-          let bestMax = firstRoom.maxGuests || 2;
-
-          if (property) {
-            const { data: hfRooms } = await supabase
-              .from("hostfully_room_types")
-              .select("id, name, linked_rolos_id, max_guests, is_active")
-              .eq("property_id", property.id)
-              .eq("is_active", true)
-              .limit(1);
-
-            if (hfRooms && hfRooms.length > 0) {
-              bestId = hfRooms[0].id;
-              bestName = hfRooms[0].name;
-              bestMax = hfRooms[0].max_guests || bestMax;
-              console.log('[Booking] Using hfRoom ID for initialization:', bestId, bestName);
-            }
-          }
-
-          setRooms([{
-            roomTypeId: bestId,
-            roomTypeName: bestName,
-            numberOfAdults: Math.min(initialGuests, bestMax),
-            numberOfTeens: 0,
-            numberOfChildren: 0,
-            numberOfInfants: 0,
-            numberOfPets: 0,
-            checkIn: urlCheckIn || undefined,
-            checkOut: urlCheckOut || undefined,
-          }]);
-        };
-        initRoom();
-      }
+      };
+      initRoom();
     }
-    // Use pre-selected rate type if available
+
     if (preSelectedRateTypeId && !selectedRateType) {
       setSelectedRateType(preSelectedRateTypeId);
     } else if (rateTypes.length > 0 && !selectedRateType) {
       setSelectedRateType(String(rateTypes[0].id));
     } else if (rateTypes.length === 0 && !selectedRateType) {
-      // For properties without rate types (no PMS), use 'default' 
       setSelectedRateType('default');
     }
-  }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRateTypeId, searchParams]);
+  }, [property, roomTypes, rateTypes, initialGuests, preSelectedRoomTypeId, preSelectedRoomTypeName, preSelectedRateTypeId, preSelectedAdults, preSelectedTeens, preSelectedChildren, preSelectedInfants, preSelectedPets, rooms.length, searchParams, selectedRateType, urlCheckIn, urlCheckOut]);
 
   // Fix timing race: When cachedRateTypes loads AFTER selectedRateType was set to 'default',
   // update to use the actual rate type from the database

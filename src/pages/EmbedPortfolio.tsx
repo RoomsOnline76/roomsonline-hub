@@ -401,6 +401,18 @@ export default function EmbedPortfolio() {
     if (propColor) params.set("brand_color", propColor);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
+    const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
+    const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
+    const forwardedAdults = searchParams.get("adults");
+    const forwardedChildren = searchParams.get("children");
+    const forwardedInfants = searchParams.get("infants");
+    const forwardedVoucher = searchParams.get("voucher");
+    if (forwardedCheckIn) params.set("checkIn", forwardedCheckIn);
+    if (forwardedCheckOut) params.set("checkOut", forwardedCheckOut);
+    if (forwardedAdults) params.set("adults", forwardedAdults);
+    if (forwardedChildren) params.set("children", forwardedChildren);
+    if (forwardedInfants) params.set("infants", forwardedInfants);
+    if (forwardedVoucher) params.set("voucher", forwardedVoucher);
     if (window.parent !== window) {
       window.location.href = `/embed/property/${slug}?${params.toString()}`;
     } else {

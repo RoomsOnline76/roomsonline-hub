@@ -45,11 +45,13 @@ export default function EmbedProperty() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const today = startOfDay(new Date());
-  const [checkIn, setCheckIn] = useState<string>(format(today, "yyyy-MM-dd"));
-  const [checkOut, setCheckOut] = useState<string>(format(addDays(today, 2), "yyyy-MM-dd"));
+  const initialCheckIn = searchParams.get("checkIn") || searchParams.get("checkin") || format(today, "yyyy-MM-dd");
+  const initialCheckOut = searchParams.get("checkOut") || searchParams.get("checkout") || format(addDays(today, 2), "yyyy-MM-dd");
+  const [checkIn, setCheckIn] = useState<string>(initialCheckIn);
+  const [checkOut, setCheckOut] = useState<string>(initialCheckOut);
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
-  const [datesConfirmed, setDatesConfirmed] = useState(false);
+  const [datesConfirmed, setDatesConfirmed] = useState(!!(searchParams.get("checkIn") || searchParams.get("checkin")) && !!(searchParams.get("checkOut") || searchParams.get("checkout")));
   const dateControlsRef = useRef<HTMLDivElement>(null);
   const [datesPulse, setDatesPulse] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
