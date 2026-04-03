@@ -51,7 +51,7 @@ export default function EmbedProperty() {
   const [checkOut, setCheckOut] = useState<string>(initialCheckOut);
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
-  const [datesConfirmed, setDatesConfirmed] = useState(false);
+  const [datesConfirmed, setDatesConfirmed] = useState(!!(searchParams.get("checkIn") || searchParams.get("checkin")) && !!(searchParams.get("checkOut") || searchParams.get("checkout")));
   const dateControlsRef = useRef<HTMLDivElement>(null);
   const [datesPulse, setDatesPulse] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
