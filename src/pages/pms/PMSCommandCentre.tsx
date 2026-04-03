@@ -286,11 +286,15 @@ export default function PMSCommandCentre() {
         return ext && ext !== "roomsonline" && ext !== "manual";
       });
 
-      // --- PMS properties: use cache with allowlist filter ---
+      // --- PMS properties: use cache with NAME-BASED matching ---
       const pmsRows: AvailabilityRow[] = cacheData
         .filter((r: any) => {
+          if (!pmsPropertyIds.includes(r.property_id)) return false;
           const extId = r.external_room_type_id || "";
-          return activeRoomKeys.has(extId) && pmsPropertyIds.includes(r.property_id);
+          // Resolve cache ID to a name, then check if that name is active
+          const resolvedName = nameMap[extId];
+          if (!resolvedName) return false;
+          return activeRoomNames.has(resolvedName.toLowerCase());
         })
         .map((r: any) => {
           const extId = r.external_room_type_id || "";
