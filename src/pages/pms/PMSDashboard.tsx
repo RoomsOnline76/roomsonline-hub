@@ -558,13 +558,33 @@ export default function PMSDashboard() {
   const roomsByType = useMemo(() => {
     const map = new Map<string, Room[]>();
     const roomTypeIdByName = new Map(roomTypes.map((roomType) => [roomType.name.trim().toLowerCase(), roomType.id]));
+    // Track which canonical type names already have a direct-ID-matched room to avoid duplicates from name fallback
+    const namesCoveredByDirectMatch = new Set<string>();
+
+    // First pass: find all rooms that match an active type by ID
+    rooms.forEach((room) => {
+      const matchedRoomType = roomTypes.find((roomType) => roomType.id === room.room_type_id);
+      if (matchedRoomType) {
+        namesCoveredByDirectMatch.add(matchedRoomType.name.trim().toLowerCase());
+      }
+    });
 
     rooms.forEach((room) => {
       const matchedRoomType = roomTypes.find((roomType) => roomType.id === room.room_type_id);
-      const normalizedRoomName = String(room.room_name || room.room_number || "").trim().toLowerCase();
-      const canonicalTypeId = matchedRoomType?.id || roomTypeIdByName.get(normalizedRoomName) || room.room_type_id || "unassigned";
-      if (!map.has(canonicalTypeId)) map.set(canonicalTypeId, []);
-      map.get(canonicalTypeId)!.push(room);
+      if (matchedRoomType) {
+        // Direct ID match — always include
+        if (!map.has(matchedRoomType.id)) map.set(matchedRoomType.id, []);
+        map.get(matchedRoomType.id)!.push(room);
+      } else {
+        // Name fallback — only include if this name doesn't already have a direct-matched room
+        const normalizedRoomName = String(room.room_name || room.room_number || "").trim().toLowerCase();
+        const canonicalTypeId = roomTypeIdByName.get(normalizedRoomName);
+        if (canonicalTypeId && !namesCoveredByDirectMatch.has(normalizedRoomName)) {
+          if (!map.has(canonicalTypeId)) map.set(canonicalTypeId, []);
+          map.get(canonicalTypeId)!.push(room);
+        }
+        // If name is already covered by a direct match, skip this phantom room
+      }
     });
 
     return map;
