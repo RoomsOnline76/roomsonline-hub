@@ -38,40 +38,64 @@ export function StepPoliciesPricing({
   });
   const [isUploadingLetter, setIsUploadingLetter] = useState(false);
 
-  // Check-in/out time ranges
-  const checkInFrom = getAmenityValue<string>("check_in_from", "");
-  const checkInTo = getAmenityValue<string>("check_in_to", "");
-  const checkOutFrom = getAmenityValue<string>("check_out_from", "");
-  const checkOutTo = getAmenityValue<string>("check_out_to", "");
-  const reception24h = getAmenityValue<boolean>("twenty_four_hour_reception", false);
+  // ── Nested object helpers ──
+  // The PropertyForm reads house_rules as an object (house_rules.check_in_from, etc.)
+  // so the wizard must write into that nested structure to persist correctly.
+  const houseRules = getAmenityValue<Record<string, unknown>>("house_rules", {});
+  const banking = getAmenityValue<Record<string, unknown>>("banking", {});
 
-  // Operational procedures
-  const keyCollectionProcedure = getAmenityValue<string>("key_collection_procedure", "");
-  const receptionHours = getAmenityValue<string>("reception_hours", "");
-  const lateCheckInProcedure = getAmenityValue<string>("late_check_in_procedure", "");
-  const afterHoursContact = getAmenityValue<string>("after_hours_contact", "");
+  const getHouseRule = <T,>(key: string, defaultValue: T): T => {
+    const val = houseRules?.[key];
+    return (val !== undefined && val !== null ? val : defaultValue) as T;
+  };
 
-  // Guest policies
-  const minCheckInAge = getAmenityValue<number | null>("min_check_in_age", null);
-  const childAdultAge = getAmenityValue<number | null>("child_adult_age", null);
-  const petsAllowed = getAmenityValue<boolean>("pets_allowed", false);
-  const petsPolicy = getAmenityValue<string>("pets_policy", "");
-  const childrenPolicy = getAmenityValue<string>("children_policy", "");
+  const getBanking = <T,>(key: string, defaultValue: T): T => {
+    const val = banking?.[key];
+    return (val !== undefined && val !== null ? val : defaultValue) as T;
+  };
 
-  // Banking
-  const bankName = getAmenityValue<string>("bank_name", "");
-  const branchCode = getAmenityValue<string>("branch_code", "");
-  const accountHolder = getAmenityValue<string>("account_holder", "");
-  const accountNumber = getAmenityValue<string>("account_number", "");
-  const accountType = getAmenityValue<string>("account_type", "");
-  const swiftCode = getAmenityValue<string>("swift_code", "");
-  const bankConfirmationLetterUrl = getAmenityValue<string>("bank_confirmation_letter_url", "");
+  const updateHouseRule = (key: string, value: unknown) => {
+    updateField("amenities.house_rules", { ...houseRules, [key]: value });
+  };
 
-  // Terms
-  const paymentPolicy = getAmenityValue<string>("payment_policy", "");
-  const cancellationPolicy = getAmenityValue<string>("cancellation_policy", "");
-  const noShowPolicy = getAmenityValue<string>("no_show_policy", "");
-  const houseRules = getAmenityValue<string>("house_rules", "");
+  const updateBanking = (key: string, value: unknown) => {
+    updateField("amenities.banking", { ...banking, [key]: value });
+  };
+
+  // Check-in/out time ranges — nested under house_rules
+  const checkInFrom = getHouseRule<string>("check_in_from", "");
+  const checkInTo = getHouseRule<string>("check_in_to", "");
+  const checkOutFrom = getHouseRule<string>("check_out_from", "");
+  const checkOutTo = getHouseRule<string>("check_out_to", "");
+  const reception24h = getHouseRule<boolean>("twenty_four_hour_reception", false);
+
+  // Operational procedures — nested under house_rules
+  const keyCollectionProcedure = getHouseRule<string>("key_collection_procedure", "");
+  const receptionHours = getHouseRule<string>("reception_hours", "");
+  const lateCheckInProcedure = getHouseRule<string>("late_check_in_procedure", "");
+  const afterHoursContact = getHouseRule<string>("after_hours_contact", "");
+
+  // Guest policies — nested under house_rules
+  const minCheckInAge = getHouseRule<number | null>("min_check_in_age", null);
+  const childAdultAge = getHouseRule<number | null>("child_adult_age", null);
+  const petsAllowed = getHouseRule<boolean>("pets_allowed", false);
+  const petsPolicy = getHouseRule<string>("pets_policy", "");
+  const childrenPolicy = getHouseRule<string>("children_policy", "");
+
+  // Banking — nested under banking
+  const bankName = getBanking<string>("bank_name", "");
+  const branchCode = getBanking<string>("branch_code", "");
+  const accountHolder = getBanking<string>("account_holder", "");
+  const accountNumber = getBanking<string>("account_number", "");
+  const accountType = getBanking<string>("account_type", "");
+  const swiftCode = getBanking<string>("swift_code", "");
+  const bankConfirmationLetterUrl = getBanking<string>("bank_confirmation_letter_url", "");
+
+  // Terms — nested under house_rules (text fields)
+  const paymentPolicy = getHouseRule<string>("payment_policy", "");
+  const cancellationPolicy = getAmenityValue<string>("cancellation_policies", "");
+  const noShowPolicy = getHouseRule<string>("no_show_policy", "");
+  const houseRulesText = getHouseRule<string>("house_rules_text", "");
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -99,7 +123,7 @@ export function StepPoliciesPricing({
         .from("property-documents")
         .getPublicUrl(fileName);
 
-      updateField("amenities.bank_confirmation_letter_url", publicUrl);
+      updateBanking("bank_confirmation_letter_url", publicUrl);
       toast({ title: "Bank confirmation letter uploaded" });
     } catch (error) {
       toast({ title: "Upload failed", variant: "destructive" });
@@ -107,7 +131,7 @@ export function StepPoliciesPricing({
       setIsUploadingLetter(false);
       e.target.value = "";
     }
-  }, [propertyData.id, updateField, toast]);
+  }, [propertyData.id, banking, updateField, toast]);
 
   return (
     <div className="space-y-4">
@@ -131,7 +155,7 @@ export function StepPoliciesPricing({
                   id="check_in_from"
                   type="time"
                   value={checkInFrom}
-                  onChange={(e) => updateField("amenities.check_in_from", e.target.value)}
+                  onChange={(e) => updateHouseRule("check_in_from", e.target.value)}
                 />
               </div>
               <div className="space-y-1">
@@ -140,7 +164,7 @@ export function StepPoliciesPricing({
                   id="check_in_to"
                   type="time"
                   value={checkInTo}
-                  onChange={(e) => updateField("amenities.check_in_to", e.target.value)}
+                  onChange={(e) => updateHouseRule("check_in_to", e.target.value)}
                 />
               </div>
             </div>
@@ -156,7 +180,7 @@ export function StepPoliciesPricing({
                   id="check_out_from"
                   type="time"
                   value={checkOutFrom}
-                  onChange={(e) => updateField("amenities.check_out_from", e.target.value)}
+                  onChange={(e) => updateHouseRule("check_out_from", e.target.value)}
                 />
               </div>
               <div className="space-y-1">
@@ -165,7 +189,7 @@ export function StepPoliciesPricing({
                   id="check_out_to"
                   type="time"
                   value={checkOutTo}
-                  onChange={(e) => updateField("amenities.check_out_to", e.target.value)}
+                  onChange={(e) => updateHouseRule("check_out_to", e.target.value)}
                 />
               </div>
             </div>
@@ -176,7 +200,7 @@ export function StepPoliciesPricing({
             <Switch
               id="reception_24h"
               checked={reception24h}
-              onCheckedChange={(checked) => updateField("amenities.twenty_four_hour_reception", checked)}
+              onCheckedChange={(checked) => updateHouseRule("twenty_four_hour_reception", checked)}
             />
           </div>
         </CollapsibleContent>
@@ -197,7 +221,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="key_collection_procedure"
               value={keyCollectionProcedure}
-              onChange={(e) => updateField("amenities.key_collection_procedure", e.target.value)}
+              onChange={(e) => updateHouseRule("key_collection_procedure", e.target.value)}
               placeholder="Describe how guests collect keys (reception, lockbox, meet & greet, etc.)"
               rows={2}
             />
@@ -208,7 +232,7 @@ export function StepPoliciesPricing({
             <Input
               id="reception_hours"
               value={receptionHours}
-              onChange={(e) => updateField("amenities.reception_hours", e.target.value)}
+              onChange={(e) => updateHouseRule("reception_hours", e.target.value)}
               placeholder="e.g., 08:00 - 20:00 daily"
             />
           </div>
@@ -218,7 +242,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="late_check_in_procedure"
               value={lateCheckInProcedure}
-              onChange={(e) => updateField("amenities.late_check_in_procedure", e.target.value)}
+              onChange={(e) => updateHouseRule("late_check_in_procedure", e.target.value)}
               placeholder="What should guests do if arriving after reception hours?"
               rows={2}
             />
@@ -232,7 +256,7 @@ export function StepPoliciesPricing({
             <Input
               id="after_hours_contact"
               value={afterHoursContact}
-              onChange={(e) => updateField("amenities.after_hours_contact", e.target.value)}
+              onChange={(e) => updateHouseRule("after_hours_contact", e.target.value)}
               placeholder="Emergency contact number or instructions"
             />
           </div>
@@ -258,7 +282,7 @@ export function StepPoliciesPricing({
                 min={0}
                 max={99}
                 value={minCheckInAge || ""}
-                onChange={(e) => updateField("amenities.min_check_in_age", e.target.value ? parseInt(e.target.value) : null)}
+                onChange={(e) => updateHouseRule("min_check_in_age", e.target.value ? parseInt(e.target.value) : null)}
                 placeholder="18"
               />
             </div>
@@ -270,7 +294,7 @@ export function StepPoliciesPricing({
                 min={0}
                 max={99}
                 value={childAdultAge || ""}
-                onChange={(e) => updateField("amenities.child_adult_age", e.target.value ? parseInt(e.target.value) : null)}
+                onChange={(e) => updateHouseRule("child_adult_age", e.target.value ? parseInt(e.target.value) : null)}
                 placeholder="12"
               />
             </div>
@@ -285,7 +309,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="children_policy"
               value={childrenPolicy}
-              onChange={(e) => updateField("amenities.children_policy", e.target.value)}
+              onChange={(e) => updateHouseRule("children_policy", e.target.value)}
               placeholder="e.g., Children of all ages welcome. Cots available on request. Children under 12 stay free..."
               rows={2}
             />
@@ -296,14 +320,14 @@ export function StepPoliciesPricing({
             <Switch
               id="pets_allowed"
               checked={petsAllowed}
-              onCheckedChange={(checked) => updateField("amenities.pets_allowed", checked)}
+              onCheckedChange={(checked) => updateHouseRule("pets_allowed", checked)}
             />
           </div>
 
           {petsAllowed && (
             <Textarea
               value={petsPolicy}
-              onChange={(e) => updateField("amenities.pets_policy", e.target.value)}
+              onChange={(e) => updateHouseRule("pets_policy", e.target.value)}
               placeholder="Pet policy details (size restrictions, fees, etc.)"
               rows={2}
             />
@@ -339,7 +363,7 @@ export function StepPoliciesPricing({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => updateField("amenities.bank_confirmation_letter_url", "")}
+                  onClick={() => updateBanking("bank_confirmation_letter_url", "")}
                 >
                   Remove
                 </Button>
@@ -381,7 +405,7 @@ export function StepPoliciesPricing({
             <Input
               id="bank_name"
               value={bankName}
-              onChange={(e) => updateField("amenities.bank_name", e.target.value)}
+              onChange={(e) => updateBanking("bank_name", e.target.value)}
               placeholder="e.g., Standard Bank"
             />
           </div>
@@ -392,7 +416,7 @@ export function StepPoliciesPricing({
               <Input
                 id="branch_code"
                 value={branchCode}
-                onChange={(e) => updateField("amenities.branch_code", e.target.value)}
+                onChange={(e) => updateBanking("branch_code", e.target.value)}
                 placeholder="e.g., 051001"
               />
             </div>
@@ -401,7 +425,7 @@ export function StepPoliciesPricing({
               <Input
                 id="swift_code"
                 value={swiftCode}
-                onChange={(e) => updateField("amenities.swift_code", e.target.value)}
+                onChange={(e) => updateBanking("swift_code", e.target.value)}
                 placeholder="e.g., SBZAZAJJ"
               />
             </div>
@@ -411,7 +435,7 @@ export function StepPoliciesPricing({
             <Label htmlFor="account_type">Account Type</Label>
             <Select
               value={accountType}
-              onValueChange={(value) => updateField("amenities.account_type", value)}
+              onValueChange={(value) => updateBanking("account_type", value)}
             >
               <SelectTrigger id="account_type">
                 <SelectValue placeholder="Select type" />
@@ -431,7 +455,7 @@ export function StepPoliciesPricing({
             <Input
               id="account_holder"
               value={accountHolder}
-              onChange={(e) => updateField("amenities.account_holder", e.target.value)}
+              onChange={(e) => updateBanking("account_holder", e.target.value)}
               placeholder="Name on account"
             />
           </div>
@@ -441,7 +465,7 @@ export function StepPoliciesPricing({
             <Input
               id="account_number"
               value={accountNumber}
-              onChange={(e) => updateField("amenities.account_number", e.target.value)}
+              onChange={(e) => updateBanking("account_number", e.target.value)}
               placeholder="Your account number"
               type="password"
               autoComplete="off"
@@ -465,7 +489,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="cancellation_policy"
               value={cancellationPolicy}
-              onChange={(e) => updateField("amenities.cancellation_policy", e.target.value)}
+              onChange={(e) => updateField("amenities.cancellation_policies", e.target.value)}
               placeholder="e.g., Free cancellation up to 48 hours before arrival..."
               rows={3}
             />
@@ -479,7 +503,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="no_show_policy"
               value={noShowPolicy}
-              onChange={(e) => updateField("amenities.no_show_policy", e.target.value)}
+              onChange={(e) => updateHouseRule("no_show_policy", e.target.value)}
               placeholder="e.g., Full charge applies for no-shows. Guest must cancel 24 hours prior..."
               rows={2}
             />
@@ -490,7 +514,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="payment_policy"
               value={paymentPolicy}
-              onChange={(e) => updateField("amenities.payment_policy", e.target.value)}
+              onChange={(e) => updateHouseRule("payment_policy", e.target.value)}
               placeholder="e.g., 50% deposit required, balance due on arrival..."
               rows={3}
             />
@@ -500,8 +524,8 @@ export function StepPoliciesPricing({
             <Label htmlFor="house_rules">House Rules / T&Cs</Label>
             <Textarea
               id="house_rules"
-              value={houseRules}
-              onChange={(e) => updateField("amenities.house_rules", e.target.value)}
+              value={houseRulesText}
+              onChange={(e) => updateHouseRule("house_rules_text", e.target.value)}
               placeholder="Any specific rules, noise policies, smoking rules, etc."
               rows={4}
             />

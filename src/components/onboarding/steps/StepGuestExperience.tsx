@@ -32,7 +32,7 @@ export function StepGuestExperience({
   const [isGenerating, setIsGenerating] = useState(false);
 
   const isPMSDesc = isPMSManaged("description");
-  const mealPlan = getAmenityValue<string[]>("meal_plan", []);
+  const mealPlan = getAmenityValue<string[]>("meal_types", []);
   const description = propertyData.description || "";
   const shortDescription = propertyData.short_description || "";
   const uniqueSellingPoints = getAmenityValue<string>("unique_selling_points", "");
@@ -81,7 +81,7 @@ export function StepGuestExperience({
     const newMealPlan = checked
       ? [...mealPlan, option]
       : mealPlan.filter(m => m !== option);
-    updateField("amenities.meal_plan", newMealPlan);
+    updateField("amenities.meal_types", newMealPlan);
   };
 
   return (
