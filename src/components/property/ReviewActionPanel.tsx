@@ -550,7 +550,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
               placeholder="Explain why this property is being rejected..."
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              className="mt-2"
+              className="mt-2 text-xs"
             />
           </div>
           
