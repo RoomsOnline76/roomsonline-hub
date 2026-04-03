@@ -162,6 +162,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
               value={subscriptionFee}
               onChange={(e) => setSubscriptionFee(e.target.value)}
               placeholder={globalDefaults?.default_subscription_fee?.toString() ?? "0"}
+              className="text-xs"
             />
             <GlobalHint value={globalDefaults?.default_subscription_fee} label=" ZAR" />
           </div>
