@@ -591,7 +591,7 @@ export default function PMSCommandCentre() {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" size="sm" onClick={() => { setWeekOffset(0); loadData(); }}>
+          <Button variant="outline" size="sm" onClick={copyAvailabilityLink}>
             <Copy className="h-3.5 w-3.5 mr-1.5" />
             Copy Link
           </Button>
