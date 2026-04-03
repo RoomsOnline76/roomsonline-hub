@@ -254,7 +254,7 @@ export default function PMSDashboard() {
     queryKey: ["pms-prop-name", propertyId],
     queryFn: async () => {
       if (!propertyId) return null;
-      const { data } = await supabase.from("properties").select("name, amenities").eq("id", propertyId).single();
+      const { data } = await supabase.from("properties").select("name, amenities, is_rol_property").eq("id", propertyId).single();
       return data;
     },
     enabled: !!propertyId,
@@ -262,7 +262,7 @@ export default function PMSDashboard() {
 
   // Fetch room types (with linked overview data for unit counts)
   const { data: roomTypes = [] } = useQuery({
-    queryKey: ["pms-cal-room-types", propertyId],
+    queryKey: ["pms-cal-room-types", propertyId, (propertyData as any)?.amenities?.room_types],
     queryFn: async () => {
       if (!propertyId) return [];
       // Sync room types from overview on load (reactivates deactivated types)
@@ -282,8 +282,7 @@ export default function PMSDashboard() {
         .eq("is_active", true);
 
       const overviewMap = new Map((overviewData || []).map(o => [o.id, o]));
-
-      return (data || []).map(rt => {
+      const rawRoomTypes = (data || []).map(rt => {
         const overview = overviewMap.get((rt as any).linked_overview_id);
         return {
           ...rt,
@@ -291,6 +290,34 @@ export default function PMSDashboard() {
           property_type: overview?.property_type || null,
         } as RoomType;
       });
+
+      const canonicalAmenityNames = new Set(
+        (((propertyData as any)?.is_rol_property ? (propertyData as any)?.amenities?.room_types : []) || [])
+          .map((roomType: any) => String(roomType?.name || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+
+      if (canonicalAmenityNames.size === 0) return rawRoomTypes;
+
+      const deduped = new Map<string, RoomType>();
+      for (const roomType of rawRoomTypes) {
+        const normalizedName = roomType.name.trim().toLowerCase();
+        if (!canonicalAmenityNames.has(normalizedName)) continue;
+
+        const existing = deduped.get(normalizedName);
+        if (!existing) {
+          deduped.set(normalizedName, roomType);
+          continue;
+        }
+
+        const existingScore = Number(Boolean(existing.linked_overview_id)) * 10 + Number(existing.default_rate ?? 0);
+        const nextScore = Number(Boolean(roomType.linked_overview_id)) * 10 + Number(roomType.default_rate ?? 0);
+        if (nextScore > existingScore) {
+          deduped.set(normalizedName, roomType);
+        }
+      }
+
+      return Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
     },
     enabled: !!propertyId,
   });
@@ -399,7 +426,7 @@ export default function PMSDashboard() {
 
   // Fetch rate plan → room type links
   const { data: ratePlanRoomLinks = [] } = useQuery({
-    queryKey: ["pms-cal-rate-plan-links", propertyId],
+    queryKey: ["pms-cal-rate-plan-links", propertyId, roomTypes],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data: plans } = await supabase
@@ -412,9 +439,20 @@ export default function PMSDashboard() {
         .from("rolos_rate_plan_room_types")
         .select("rate_plan_id, room_type_id")
         .in("rate_plan_id", plans.map(p => p.id));
-      return (data || []) as { rate_plan_id: string; room_type_id: string }[];
+
+      const canonicalRoomTypeIdByName = new Map(roomTypes.map((roomType) => [roomType.name.trim().toLowerCase(), roomType.id]));
+      const roomTypeNameById = new Map(roomTypes.map((roomType) => [roomType.id, roomType.name.trim().toLowerCase()]));
+
+      return (data || []).map((link) => {
+        const canonicalName = roomTypeNameById.get(link.room_type_id);
+        const canonicalRoomTypeId = canonicalName ? canonicalRoomTypeIdByName.get(canonicalName) : undefined;
+        return {
+          rate_plan_id: link.rate_plan_id,
+          room_type_id: canonicalRoomTypeId || link.room_type_id,
+        };
+      }) as { rate_plan_id: string; room_type_id: string }[];
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && roomTypes.length > 0,
   });
 
   const { data: rateSeasons = [] } = useQuery({
@@ -519,13 +557,18 @@ export default function PMSDashboard() {
   // Group rooms by room type
   const roomsByType = useMemo(() => {
     const map = new Map<string, Room[]>();
-    rooms.forEach(r => {
-      const key = r.room_type_id || "unassigned";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
+    const roomTypeIdByName = new Map(roomTypes.map((roomType) => [roomType.name.trim().toLowerCase(), roomType.id]));
+
+    rooms.forEach((room) => {
+      const matchedRoomType = roomTypes.find((roomType) => roomType.id === room.room_type_id);
+      const normalizedRoomName = String(room.room_name || room.room_number || "").trim().toLowerCase();
+      const canonicalTypeId = matchedRoomType?.id || roomTypeIdByName.get(normalizedRoomName) || room.room_type_id || "unassigned";
+      if (!map.has(canonicalTypeId)) map.set(canonicalTypeId, []);
+      map.get(canonicalTypeId)!.push(room);
     });
+
     return map;
-  }, [rooms]);
+  }, [rooms, roomTypes]);
 
   // Dynamic stats based on actual bookings for today
   // Uses rolos_rooms if available, otherwise derives unit counts from room types
