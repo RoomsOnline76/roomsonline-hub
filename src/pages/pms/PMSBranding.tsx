@@ -220,7 +220,7 @@ function ReviewPlatformsCard({ propertyId }: { propertyId: string }) {
 }
 
 export default function PMSBranding() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, portfolioProperties, portfolioIds, loading: propertyLoading } = usePmsPropertyId();
   const { propertyName, propertySlug } = usePMSBrand();
   const [propertySlugLocal, setPropertySlugLocal] = useState<string | null>(null);
   const [config, setConfig] = useState<BrandConfig>(defaultConfig);
@@ -228,6 +228,62 @@ export default function PMSBranding() {
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [brandingView, setBrandingView] = useState<"single" | "portfolio">("single");
+
+  // Portfolio branding state
+  const [portfolioBranding, setPortfolioBranding] = useState<{
+    logo_url: string; primary_color: string; secondary_color: string; font_color: string;
+  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "" });
+  const [portfolioLoaded, setPortfolioLoaded] = useState(false);
+  const [portfolioSaving, setPortfolioSaving] = useState(false);
+
+  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
+
+  // Load portfolio branding when in portfolio view
+  useEffect(() => {
+    if (!portfolioIds?.length || brandingView !== "portfolio") return;
+    (async () => {
+      const { data } = await supabase
+        .from("property_portfolios" as any)
+        .select("id, name, metadata")
+        .in("id", portfolioIds)
+        .limit(1)
+        .single();
+      if (data) {
+        const b = (data as any).metadata?.branding || {};
+        setPortfolioBranding({
+          logo_url: b.logo_url || "",
+          primary_color: b.primary_color || "",
+          secondary_color: b.secondary_color || "",
+          font_color: b.font_color || "",
+        });
+      }
+      setPortfolioLoaded(true);
+    })();
+  }, [portfolioIds, brandingView]);
+
+  const handleSavePortfolioBranding = async () => {
+    if (!portfolioIds?.length) return;
+    setPortfolioSaving(true);
+    try {
+      const { data: current } = await supabase
+        .from("property_portfolios" as any)
+        .select("metadata")
+        .eq("id", portfolioIds[0])
+        .single();
+      const metadata = ((current as any)?.metadata as any) || {};
+      metadata.branding = { ...metadata.branding, ...portfolioBranding };
+      const { error } = await supabase
+        .from("property_portfolios" as any)
+        .update({ metadata } as any)
+        .eq("id", portfolioIds[0]);
+      if (error) throw error;
+      toast.success("Portfolio branding saved");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save portfolio branding");
+    }
+    setPortfolioSaving(false);
+  };
 
   // Load both stationery (rolos_brand_config) and visual brand (properties) in parallel
   useEffect(() => {
@@ -315,7 +371,6 @@ export default function PMSBranding() {
       if (prErr) throw prErr;
 
       toast.success("Branding & stationery saved");
-      // Brand context will pick up changes on next load
     } catch (e: any) {
       toast.error(e.message || "Failed to save");
     }
@@ -331,12 +386,99 @@ export default function PMSBranding() {
   return (
     <>
       <div className="space-y-6 max-w-5xl">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Palette className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold tracking-tight">Branding & Stationery</h1>
+          {showPortfolioToggle && (
+            <div className="ml-auto flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-0.5">
+              <button
+                onClick={() => setBrandingView("single")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  brandingView === "single"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Single Property
+              </button>
+              <button
+                onClick={() => setBrandingView("portfolio")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  brandingView === "portfolio"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Portfolio
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        {brandingView === "portfolio" && showPortfolioToggle ? (
+          /* ── Portfolio Branding View ── */
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Palette className="h-4 w-4 text-primary" /> Portfolio Branding</CardTitle>
+                <CardDescription>These settings apply to your portfolio showcase page and shared guest-facing assets across all {portfolioProperties?.length} properties.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Portfolio Logo */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Portfolio Logo</Label>
+                  {portfolioBranding.logo_url ? (
+                    <div className="relative inline-block rounded-lg border border-border bg-muted/30 p-4">
+                      <img src={portfolioBranding.logo_url} alt="Portfolio logo" className="max-h-24 max-w-[240px] object-contain" />
+                      <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6" onClick={() => setPortfolioBranding(p => ({ ...p, logo_url: "" }))}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder="Logo URL"
+                      value={portfolioBranding.logo_url}
+                      onChange={(e) => setPortfolioBranding(p => ({ ...p, logo_url: e.target.value }))}
+                    />
+                  )}
+                </div>
+                <Separator />
+                <ColorField
+                  label="Primary Color"
+                  description="Main brand color for buttons and highlights on the portfolio page"
+                  value={portfolioBranding.primary_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, primary_color: v }))}
+                />
+                <ColorField
+                  label="Secondary Color"
+                  description="Accent or secondary brand color"
+                  value={portfolioBranding.secondary_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, secondary_color: v }))}
+                />
+                <ColorField
+                  label="Font Color"
+                  description="Text color on light backgrounds"
+                  value={portfolioBranding.font_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, font_color: v }))}
+                />
+                <Button onClick={handleSavePortfolioBranding} disabled={portfolioSaving} className="w-full">
+                  <Save className="h-4 w-4 mr-2" />
+                  {portfolioSaving ? "Saving…" : "Save Portfolio Branding"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Per-property review platforms in portfolio view */}
+            {portfolioProperties?.map((pp) => (
+              <div key={pp.id}>
+                <h3 className="text-sm font-semibold text-foreground mb-2">{pp.name} — Review Platforms</h3>
+                <ReviewPlatformsCard propertyId={pp.id} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* ── Single Property View (existing) ── */
+          <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-6">
 
@@ -614,6 +756,7 @@ export default function PMSBranding() {
             </Card>
           </div>
         </div>
+        )}
       </div>
     </>
   );
