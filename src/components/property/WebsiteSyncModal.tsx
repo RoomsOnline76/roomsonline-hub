@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +41,10 @@ export function WebsiteSyncModal({
   onApply,
 }: WebsiteSyncModalProps) {
   // Pre-select suggestions where current value is empty
-  const [selected, setSelected] = useState<Set<string>>(() => {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Re-initialize selection whenever suggestions change (modal reopen)
+  useEffect(() => {
     const initial = new Set<string>();
     suggestions.forEach((s) => {
       const isEmpty = !s.current || 
@@ -51,8 +54,8 @@ export function WebsiteSyncModal({
         initial.add(s.stateVariable);
       }
     });
-    return initial;
-  });
+    setSelected(initial);
+  }, [suggestions]);
 
   const toggleSelection = (stateVariable: string) => {
     setSelected((prev) => {
