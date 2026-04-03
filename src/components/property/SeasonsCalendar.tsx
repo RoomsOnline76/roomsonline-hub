@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Lock, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,12 +23,18 @@ const SEASON_COLORS = [
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+interface SeasonPeriod {
+  from: string;
+  to: string;
+}
+
 interface Season {
   id: string;
   name: string;
   title?: string;
   from: string;
   to: string;
+  periods?: SeasonPeriod[];
   minStay?: number;
   maxStay?: number;
   color?: string;
@@ -85,18 +91,37 @@ function getSeasonColor(season: Season, index: number) {
   return SEASON_COLORS[index % SEASON_COLORS.length];
 }
 
+/** Get all periods for a season, falling back to from/to if no periods array */
+function getSeasonPeriods(s: Season): SeasonPeriod[] {
+  if (s.periods && s.periods.length > 0) return s.periods;
+  if (s.from && s.to) return [{ from: s.from, to: s.to }];
+  return [];
+}
+
 function getSeasonForDate(date: Date, seasons: Season[]): Season | null {
   for (const s of seasons) {
-    if (!s.from || !s.to) continue;
-    try {
-      const from = startOfDay(parseISO(s.from));
-      const to = startOfDay(parseISO(s.to));
-      if (isWithinInterval(date, { start: from, end: to })) return s;
-    } catch {
-      continue;
+    const periods = getSeasonPeriods(s);
+    for (const p of periods) {
+      if (!p.from || !p.to) continue;
+      try {
+        const from = startOfDay(parseISO(p.from));
+        const to = startOfDay(parseISO(p.to));
+        if (isWithinInterval(date, { start: from, end: to })) return s;
+      } catch {
+        continue;
+      }
     }
   }
   return null;
+}
+
+/** Sync top-level from/to with periods[0] */
+function syncTopLevel(season: Season): Season {
+  const periods = season.periods || [];
+  if (periods.length > 0) {
+    return { ...season, from: periods[0].from, to: periods[0].to };
+  }
+  return season;
 }
 
 export default function SeasonsCalendar({
@@ -118,6 +143,7 @@ export default function SeasonsCalendar({
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isAddingPeriod, setIsAddingPeriod] = useState(false); // adding period to existing season
   const [selectionStart, setSelectionStart] = useState<Date | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({ name: "", color: "red", minStay: 1, maxStay: 30 });
@@ -130,7 +156,6 @@ export default function SeasonsCalendar({
     return pmsRateTypes.filter((rt) => linked.includes(String(rt.id)));
   }, [currentRoom, pmsRateTypes]);
 
-  // Build day cells per month
   const monthsGrid = useMemo(() => {
     return Array.from({ length: 12 }, (_, m) => {
       const daysInMonth = getDaysInMonth(new Date(year, m));
@@ -140,12 +165,30 @@ export default function SeasonsCalendar({
 
   const handleCellClick = useCallback((date: Date) => {
     if (isReadOnly) return;
+
+    // Adding period to existing season
+    if (isAddingPeriod && selectedSeasonId) {
+      if (!selectionStart) {
+        setSelectionStart(date);
+        setSelectionEnd(null);
+      } else if (!selectionEnd) {
+        const end = date >= selectionStart ? date : selectionStart;
+        const start = date >= selectionStart ? selectionStart : date;
+        setSelectionStart(start);
+        setSelectionEnd(end);
+      } else {
+        setSelectionStart(date);
+        setSelectionEnd(null);
+      }
+      return;
+    }
+
     if (!isAdding) {
-      // Check if clicking on a season
       const s = getSeasonForDate(date, seasons);
       if (s) {
         setSelectedSeasonId(s.id);
         setIsAdding(false);
+        setIsAddingPeriod(false);
       }
       return;
     }
@@ -159,20 +202,22 @@ export default function SeasonsCalendar({
       setSelectionStart(start);
       setSelectionEnd(end);
     } else {
-      // Reset
       setSelectionStart(date);
       setSelectionEnd(null);
     }
-  }, [isAdding, isReadOnly, selectionStart, selectionEnd, seasons]);
+  }, [isAdding, isAddingPeriod, isReadOnly, selectionStart, selectionEnd, seasons, selectedSeasonId]);
 
   const confirmAddSeason = () => {
     if (!selectionStart || !selectionEnd) return;
+    const fromStr = format(selectionStart, "yyyy-MM-dd");
+    const toStr = format(selectionEnd, "yyyy-MM-dd");
     const newSeason: Season = {
       id: Date.now().toString(),
       name: editForm.name || `Season ${seasons.length + 1}`,
       title: editForm.name || `Season ${seasons.length + 1}`,
-      from: format(selectionStart, "yyyy-MM-dd"),
-      to: format(selectionEnd, "yyyy-MM-dd"),
+      from: fromStr,
+      to: toStr,
+      periods: [{ from: fromStr, to: toStr }],
       minStay: editForm.minStay,
       maxStay: editForm.maxStay,
       color: editForm.color,
@@ -184,6 +229,45 @@ export default function SeasonsCalendar({
     setEditForm({ name: "", color: "red", minStay: 1, maxStay: 30 });
     setSelectedSeasonId(newSeason.id);
     toast({ title: "Season created" });
+  };
+
+  const confirmAddPeriod = () => {
+    if (!selectionStart || !selectionEnd || !selectedSeasonId) return;
+    const fromStr = format(selectionStart, "yyyy-MM-dd");
+    const toStr = format(selectionEnd, "yyyy-MM-dd");
+    const updated = seasons.map((s) => {
+      if (s.id !== selectedSeasonId) return s;
+      const existingPeriods = getSeasonPeriods(s);
+      const newPeriods = [...existingPeriods, { from: fromStr, to: toStr }];
+      return syncTopLevel({ ...s, periods: newPeriods });
+    });
+    onSeasonsChange(updated);
+    setIsAddingPeriod(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+    toast({ title: "Period added" });
+  };
+
+  const deletePeriod = (seasonId: string, periodIndex: number) => {
+    const updated = seasons.map((s) => {
+      if (s.id !== seasonId) return s;
+      const periods = getSeasonPeriods(s);
+      if (periods.length <= 1) return s; // can't delete last period
+      const newPeriods = periods.filter((_, i) => i !== periodIndex);
+      return syncTopLevel({ ...s, periods: newPeriods });
+    });
+    onSeasonsChange(updated);
+    toast({ title: "Period removed" });
+  };
+
+  const updatePeriodDate = (seasonId: string, periodIndex: number, field: "from" | "to", value: string) => {
+    const updated = seasons.map((s) => {
+      if (s.id !== seasonId) return s;
+      const periods = [...getSeasonPeriods(s)];
+      periods[periodIndex] = { ...periods[periodIndex], [field]: value };
+      return syncTopLevel({ ...s, periods });
+    });
+    onSeasonsChange(updated);
   };
 
   const updateSeason = (field: string, value: any) => {
@@ -204,6 +288,7 @@ export default function SeasonsCalendar({
     });
     onSeasonRatesChange(updatedRates);
     if (selectedSeasonId === id) setSelectedSeasonId(null);
+    setIsAddingPeriod(false);
     toast({ title: "Season deleted" });
   };
 
@@ -244,6 +329,20 @@ export default function SeasonsCalendar({
 
   const activeMealTypes = mealTypeSuggestions.length > 0 ? mealTypeSuggestions : [""];
 
+  const cancelSelection = () => {
+    setIsAdding(false);
+    setIsAddingPeriod(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
+  const startAddPeriod = () => {
+    setIsAddingPeriod(true);
+    setIsAdding(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -275,13 +374,13 @@ export default function SeasonsCalendar({
           {isReadOnly && (
             <Badge variant="outline" className="text-xs gap-1"><Lock className="h-3 w-3" /> Synced from {externalSystem || "PMS"}</Badge>
           )}
-          {!isReadOnly && !isAdding && (
-            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setIsAdding(true); setSelectedSeasonId(null); }}>
+          {!isReadOnly && !isAdding && !isAddingPeriod && (
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setIsAdding(true); setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
               <Plus className="h-3 w-3 mr-1" /> Add Season
             </Button>
           )}
-          {isAdding && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsAdding(false); setSelectionStart(null); setSelectionEnd(null); }}>
+          {(isAdding || isAddingPeriod) && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelSelection}>
               <X className="h-3 w-3 mr-1" /> Cancel
             </Button>
           )}
@@ -291,6 +390,11 @@ export default function SeasonsCalendar({
       {isAdding && (
         <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
           Click a start date, then an end date on the calendar below to define the season range.
+        </div>
+      )}
+      {isAddingPeriod && selectedSeason && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+          Adding period to <strong>{selectedSeason.name}</strong> — click a start date, then an end date.
         </div>
       )}
 
@@ -316,7 +420,7 @@ export default function SeasonsCalendar({
                   const season = getSeasonForDate(date, seasons);
                   const seasonIdx = season ? seasons.indexOf(season) : -1;
                   const colorDef = season ? getSeasonColor(season, seasonIdx) : null;
-                  const inSel = isAdding && isInSelection(date);
+                  const inSel = (isAdding || isAddingPeriod) && isInSelection(date);
                   const isToday = format(date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
                   return (
@@ -330,7 +434,7 @@ export default function SeasonsCalendar({
                         season && selectedSeasonId === season.id && "ring-1 ring-primary/50",
                       )}
                       onClick={() => handleCellClick(date)}
-                      title={season ? `${season.name}: ${season.from} — ${season.to}` : format(date, "yyyy-MM-dd")}
+                      title={season ? `${season.name}` : format(date, "yyyy-MM-dd")}
                     >
                       <span className={cn("inline-block w-full", colorDef?.text)}>{day}</span>
                     </td>
@@ -347,10 +451,11 @@ export default function SeasonsCalendar({
         <div className="flex flex-wrap gap-2">
           {seasons.map((s, i) => {
             const c = getSeasonColor(s, i);
+            const periodCount = getSeasonPeriods(s).length;
             return (
               <button
                 key={s.id}
-                onClick={() => setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id)}
+                onClick={() => { setSelectedSeasonId(s.id === selectedSeasonId ? null : s.id); setIsAddingPeriod(false); }}
                 className={cn(
                   "flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-all",
                   c.bg, c.border, c.text,
@@ -358,6 +463,7 @@ export default function SeasonsCalendar({
                 )}
               >
                 {s.name || s.title}
+                {periodCount > 1 && <span className="opacity-60">({periodCount})</span>}
                 {!isReadOnly && (
                   <Trash2
                     className="h-3 w-3 ml-1 opacity-50 hover:opacity-100"
@@ -378,7 +484,7 @@ export default function SeasonsCalendar({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <Label className="text-xs">Name</Label>
-                <Input className="h-7 text-xs" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Summer Peak" />
+                <Input className="h-7 text-xs" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="e.g. Peak, Low, Festive" />
               </div>
               <div>
                 <Label className="text-xs">Color</Label>
@@ -407,6 +513,18 @@ export default function SeasonsCalendar({
         </Card>
       )}
 
+      {/* Confirm Add Period */}
+      {isAddingPeriod && selectionStart && selectionEnd && selectedSeason && (
+        <Card className="border-primary/30">
+          <CardContent className="p-4 space-y-3">
+            <p className="text-xs font-medium">
+              Add period to <strong>{selectedSeason.name}</strong>: {format(selectionStart, "dd MMM yyyy")} — {format(selectionEnd, "dd MMM yyyy")}
+            </p>
+            <Button size="sm" className="h-7 text-xs" onClick={confirmAddPeriod}>Add Period</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Season Detail / Rate Editor */}
       {selectedSeason && !isAdding && (
         <Card className="border-primary/20">
@@ -414,12 +532,17 @@ export default function SeasonsCalendar({
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold">{selectedSeason.name || selectedSeason.title}</h4>
               <div className="flex items-center gap-1">
+                {!isReadOnly && !isAddingPeriod && (
+                  <Button size="sm" variant="outline" className="h-6 text-[10px] gap-1" onClick={startAddPeriod}>
+                    <CalendarPlus className="h-3 w-3" /> Add Period
+                  </Button>
+                )}
                 {!isReadOnly && (
                   <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteSeason(selectedSeason.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 )}
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setSelectedSeasonId(null)}>
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setSelectedSeasonId(null); setIsAddingPeriod(false); }}>
                   <X className="h-3 w-3" />
                 </Button>
               </div>
@@ -427,18 +550,23 @@ export default function SeasonsCalendar({
 
             {/* Season metadata */}
             {!isReadOnly && (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <Label className="text-xs">Name</Label>
                   <Input className="h-7 text-xs" value={selectedSeason.name || ""} onChange={(e) => updateSeason("name", e.target.value)} />
                 </div>
                 <div>
-                  <Label className="text-xs">From</Label>
-                  <Input className="h-7 text-xs" type="date" value={selectedSeason.from || ""} onChange={(e) => updateSeason("from", e.target.value)} />
-                </div>
-                <div>
-                  <Label className="text-xs">To</Label>
-                  <Input className="h-7 text-xs" type="date" value={selectedSeason.to || ""} onChange={(e) => updateSeason("to", e.target.value)} />
+                  <Label className="text-xs">Color</Label>
+                  <Select value={selectedSeason.color || "red"} onValueChange={(v) => updateSeason("color", v)}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SEASON_COLORS.map((c) => (
+                        <SelectItem key={c.value} value={c.value} className="text-xs">
+                          <span className={cn("inline-block w-3 h-3 rounded-sm mr-1", c.bg)} /> {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-xs">Min Stay</Label>
@@ -451,14 +579,49 @@ export default function SeasonsCalendar({
               </div>
             )}
 
-            {isReadOnly && (
-              <div className="text-xs text-muted-foreground">
-                {selectedSeason.from && selectedSeason.to
-                  ? `${format(parseISO(selectedSeason.from), "dd MMM yyyy")} — ${format(parseISO(selectedSeason.to), "dd MMM yyyy")}`
-                  : "No dates set"}
-                {selectedSeason.minStay && ` · Min ${selectedSeason.minStay} nights`}
-              </div>
-            )}
+            {/* Periods list */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Periods ({getSeasonPeriods(selectedSeason).length})
+              </Label>
+              {getSeasonPeriods(selectedSeason).map((period, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  {!isReadOnly ? (
+                    <>
+                      <Input
+                        className="h-7 text-xs w-[130px]"
+                        type="date"
+                        value={period.from}
+                        onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "from", e.target.value)}
+                      />
+                      <span className="text-xs text-muted-foreground">—</span>
+                      <Input
+                        className="h-7 text-xs w-[130px]"
+                        type="date"
+                        value={period.to}
+                        onChange={(e) => updatePeriodDate(selectedSeason.id, idx, "to", e.target.value)}
+                      />
+                      {getSeasonPeriods(selectedSeason).length > 1 && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 shrink-0"
+                          onClick={() => deletePeriod(selectedSeason.id, idx)}
+                        >
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {period.from && period.to
+                        ? `${format(parseISO(period.from), "dd MMM yyyy")} — ${format(parseISO(period.to), "dd MMM yyyy")}`
+                        : "No dates"}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
 
             {/* Rate Editor per meal type */}
             {currentRoom && (
