@@ -265,7 +265,7 @@ export default function PMSIntegrations() {
                 <PortfolioPerPropertyCards title="API Access" description="API credentials and documentation for each property.">
                   {(portfolioProperties || []).map((pp) => (
                     <PortfolioPropertyCard key={pp.id} name={pp.name}>
-                      <ApiTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "", brand_primary_color: pp.brand_primary_color || null }} />
+                      <ApiTab property={{ id: pp.id, name: pp.name, slug: pp.slug || "" }} />
                     </PortfolioPropertyCard>
                   ))}
                 </PortfolioPerPropertyCards>
