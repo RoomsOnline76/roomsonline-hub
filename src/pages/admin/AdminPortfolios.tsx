@@ -274,7 +274,11 @@ export default function AdminPortfolios() {
     });
   };
 
-  const getMemberCount = (pid: string) => members.filter((m) => m.portfolio_id === pid).length;
+  const getMemberCount = (pid: string) => {
+    const memberPropIds = members.filter((m) => m.portfolio_id === pid).map((m) => m.property_id);
+    const activePropertyIds = new Set(properties.map((p) => p.id));
+    return memberPropIds.filter((id) => activePropertyIds.has(id)).length;
+  };
   const getMemberProperties = (pid: string) => {
     const memberPropIds = members.filter((m) => m.portfolio_id === pid).map((m) => m.property_id);
     return properties.filter((p) => memberPropIds.includes(p.id));
