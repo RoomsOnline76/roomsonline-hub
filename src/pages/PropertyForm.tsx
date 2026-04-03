@@ -101,6 +101,7 @@ import { AdditionalChargesManager } from "@/components/charges";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { CommissionTab } from "@/components/property/CommissionTab";
+import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
