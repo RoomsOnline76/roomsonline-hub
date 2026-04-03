@@ -10531,7 +10531,7 @@ export default function PropertyForm() {
                                     value={currentRoom?.rateType || "per-unit"}
                                     onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
                                   >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-xs h-7">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
