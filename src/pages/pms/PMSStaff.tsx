@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getStaffLoginUrl } from "@/lib/config";
+import { getStaffLoginUrl, getPortfolioStaffLoginUrl } from "@/lib/config";
 
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,7 +44,7 @@ const SHIFT_TYPES = [
 ];
 
 export default function PMSStaff() {
-  const { propertyId } = usePmsPropertyId();
+  const { propertyId, portfolioIds } = usePmsPropertyId();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -52,6 +52,7 @@ export default function PMSStaff() {
   const [showShiftDialog, setShowShiftDialog] = useState(false);
   const [editingShift, setEditingShift] = useState<any>(null);
   const [propertySlug, setPropertySlug] = useState<string | null>(null);
+  const [portfolioSlug, setPortfolioSlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("roster");
   const [weekOffset, setWeekOffset] = useState(0);
   const [activityFilter, setActivityFilter] = useState("");
@@ -95,15 +96,19 @@ export default function PMSStaff() {
       .then(({ data }) => setPropertySlug(data?.slug || null));
   }, [propertyId]);
 
-  const staffLoginUrl = propertySlug
-    ? getStaffLoginUrl(propertySlug)
-    : null;
+  // Fetch portfolio slug
+  useEffect(() => {
+    if (!portfolioIds?.length) { setPortfolioSlug(null); return; }
+    supabase.from("property_portfolios" as any).select("slug").eq("id", portfolioIds[0]).single()
+      .then(({ data }: any) => setPortfolioSlug(data?.slug || null));
+  }, [portfolioIds]);
 
-  const copyLoginUrl = () => {
-    if (staffLoginUrl) {
-      navigator.clipboard.writeText(staffLoginUrl);
-      toast.success("Staff login URL copied");
-    }
+  const portfolioLoginUrl = portfolioSlug ? getPortfolioStaffLoginUrl(portfolioSlug) : null;
+  const staffLoginUrl = propertySlug ? getStaffLoginUrl(propertySlug) : null;
+
+  const copyUrl = (url: string, label: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success(`${label} URL copied`);
   };
 
   const fetchStaff = async () => {
@@ -260,16 +265,30 @@ export default function PMSStaff() {
           </Button>
         </div>
 
-        {/* Staff Login URL */}
-        {staffLoginUrl && (
+        {/* Staff Login URLs */}
+        {(portfolioLoginUrl || staffLoginUrl) && (
           <Card className="border-dashed">
-            <CardContent className="py-4 px-5 flex items-center gap-3">
-              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Branded Staff Login URL</p>
-                <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{staffLoginUrl}</code>
-              </div>
-              <Button variant="outline" size="sm" onClick={copyLoginUrl}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+            <CardContent className="py-4 px-5 space-y-3">
+              {portfolioLoginUrl && (
+                <div className="flex items-center gap-3">
+                  <Link2 className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-primary mb-1">Portfolio Staff Login (Primary)</p>
+                    <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{portfolioLoginUrl}</code>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => copyUrl(portfolioLoginUrl, "Portfolio login")}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+                </div>
+              )}
+              {staffLoginUrl && (
+                <div className="flex items-center gap-3">
+                  <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Property Staff Login</p>
+                    <code className="text-sm text-foreground bg-muted px-2 py-1 rounded block truncate">{staffLoginUrl}</code>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => copyUrl(staffLoginUrl, "Property login")}><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

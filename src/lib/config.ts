@@ -26,6 +26,10 @@ export const connectPath = (path: string) =>
 export const getStaffLoginUrl = (propertySlug: string) =>
   `${ADMIN_DOMAIN}/staff-login?property=${propertySlug}`;
 
+// Helper to generate portfolio staff login URL
+export const getPortfolioStaffLoginUrl = (portfolioSlug: string) =>
+  `${ADMIN_DOMAIN}/staff-login?portfolio=${portfolioSlug}`;
+
 // Helper to generate contract signing URL
 export const getContractSigningUrl = (signingToken: string) =>
   `${ADMIN_DOMAIN}/contract/sign/${signingToken}`;
