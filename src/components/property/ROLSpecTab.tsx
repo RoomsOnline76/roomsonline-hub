@@ -558,6 +558,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   onChange={(e) => updateField("who_its_not_for", e.target.value)}
                   placeholder="Guests who might not enjoy this property..."
                   rows={3}
+                  className="text-xs"
                 />
               </div>
 
