@@ -233,13 +233,14 @@ export default function SeasonsCalendar({
     return isWithinInterval(date, { start: selectionStart, end: selectionEnd });
   };
 
-  const rateFields: { key: RateField; label: string; show: boolean }[] = [
-    { key: "roomAmount", label: pricingModel === "per_person" ? "Base" : "Room Rate", show: true },
-    { key: "adultAmount", label: "Adult", show: pricingModel === "per_person" },
-    { key: "teenAmount", label: "Teen", show: pricingModel === "per_person" },
-    { key: "childAmount", label: "Child", show: pricingModel === "per_person" },
-    { key: "infantAmount", label: "Infant", show: pricingModel === "per_person" },
-  ].filter((f) => f.show);
+  const allRateFields: { key: RateField; label: string; show: boolean }[] = [
+    { key: "roomAmount" as RateField, label: pricingModel === "per_person" ? "Base" : "Room Rate", show: true },
+    { key: "adultAmount" as RateField, label: "Adult", show: pricingModel === "per_person" },
+    { key: "teenAmount" as RateField, label: "Teen", show: pricingModel === "per_person" },
+    { key: "childAmount" as RateField, label: "Child", show: pricingModel === "per_person" },
+    { key: "infantAmount" as RateField, label: "Infant", show: pricingModel === "per_person" },
+  ];
+  const rateFields = allRateFields.filter((f) => f.show);
 
   const activeMealTypes = mealTypeSuggestions.length > 0 ? mealTypeSuggestions : [""];
 
