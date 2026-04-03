@@ -633,6 +633,7 @@ const PropertyOverview = () => {
                             {getSortIcon("property_type")}
                           </div>
                         </TableHead>
+                        <TableHead className="py-1 text-xs">OWNER</TableHead>
                         <TableHead 
                           className="cursor-pointer hover:bg-muted/50 select-none py-1 text-xs"
                           onClick={() => handleSort("total_bookings")}
