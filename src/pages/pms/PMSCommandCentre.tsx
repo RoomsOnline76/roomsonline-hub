@@ -203,8 +203,9 @@ export default function PMSCommandCentre() {
 
       const cacheData = cacheResult.data || [];
 
-      // Build name map and active allowlist
+      // Build name map (ALL IDs, active + inactive) and active NAMES set
       const nameMap: Record<string, string> = {};
+      const activeRoomNames = new Set<string>();
       const activeRoomKeys = new Set<string>();
       const propsWithActiveTypes = new Set<string>();
 
@@ -215,17 +216,23 @@ export default function PMSCommandCentre() {
         if (rt.is_active) {
           activeRoomKeys.add(rt.id);
           activeRoomKeys.add(slug);
+          activeRoomNames.add(rt.name.toLowerCase());
           propsWithActiveTypes.add(rt.property_id);
         }
       }
 
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
-        if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
-        if (!nameMap[slug]) nameMap[slug] = rt.name;
+        // Map ALL IDs (active + inactive) so old cache IDs resolve to names
+        nameMap[rt.id] = rt.name;
+        nameMap[slug] = rt.name;
+        if (rt.hostfully_room_id) {
+          nameMap[rt.hostfully_room_id] = rt.name;
+        }
         if (rt.is_active) {
           activeRoomKeys.add(rt.id);
           activeRoomKeys.add(slug);
+          activeRoomNames.add(rt.name.toLowerCase());
           propsWithActiveTypes.add(rt.property_id);
         }
       }
@@ -239,6 +246,7 @@ export default function PMSCommandCentre() {
             if (rt?.name) {
               const slug = slugify(rt.name);
               activeRoomKeys.add(slug);
+              activeRoomNames.add(rt.name.toLowerCase());
               nameMap[slug] = rt.name;
               if (rt.id) {
                 activeRoomKeys.add(String(rt.id));
