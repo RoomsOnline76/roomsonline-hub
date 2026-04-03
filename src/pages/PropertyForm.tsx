@@ -9909,7 +9909,7 @@ export default function PropertyForm() {
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <Label className="text-xs whitespace-nowrap"># {accommodationLabel ? (ACCOMMODATION_LABEL_OPTIONS.find(o => o.value === accommodationLabel)?.plural || "Units") : "Units"}</Label>
+                          <Label className="text-xs whitespace-nowrap"># {ACCOMMODATION_TYPES[accommodationLabel as AccommodationLabelKey]?.plural || "Units"}</Label>
                           <Input
                             type="number"
                             className="h-7 text-xs w-20"
