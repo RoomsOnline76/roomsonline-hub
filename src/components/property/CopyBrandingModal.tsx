@@ -56,6 +56,7 @@ export function CopyBrandingModal({
         .from("properties")
         .select("id, name, city")
         .eq("owner_email", ownerEmail)
+        .eq("is_active", true)
         .neq("id", sourcePropertyId)
         .order("name");
       if (error) throw error;
