@@ -1,27 +1,23 @@
 
 
-# Fix Rate Type Deletion Not Persisting for ROL'OS Properties
+# Redesign Review Badges to Match Premium Reference Style
 
-## Problem
-When deleting rate types from a ROL'OS property and saving, they reappear on re-entry. Two bugs cause this:
+## What changes
+The current `ShowcaseReviewsBadge` renders flat, pastel-colored pills with a single tiny star and plain text. The reference image shows a much more impactful design: a frosted glass pill with the actual Google "G" logo in full color, the numeric rating in bold, a row of 5 filled gold stars, and the review count — all on a semi-transparent dark backdrop.
 
-1. **Auto-regeneration on load**: When all rate types are deleted, `amenities.pms_rate_types` is saved as `[]`. On reload, the empty array fails the `length > 0` check (line 3332), so the fallback at line 3378 auto-generates rate types from `amenities.room_types` — resurrecting deleted rates.
+## Design
 
-2. **Deactivation skipped when empty**: The `rolos_rate_plans` deactivation block is guarded by `pmsRateTypes.length > 0` (line 4100), so deleting all rate types skips the cleanup entirely — stale plans remain active in the database.
+The new badge will be a wider, more prominent pill with:
+- **Frosted glass effect**: `bg-black/40 backdrop-blur-md` for contrast against hero images
+- **Google colored "G"**: An inline SVG of the multi-color Google "G" icon (not a plain letter)
+- **Bold rating number**: Large, white, semibold (e.g. "4.7")
+- **5 gold stars**: Row of filled/unfilled star icons in amber/gold, sized larger than current
+- **Review count**: White text showing "{n} reviews"
+- TripAdvisor and Booking.com badges get similar treatment with their respective brand colors/icons
 
-3. **Overly lenient stale detection**: The deactivation filter uses `!matchId && !matchCode && !matchName` (all three must fail). Name matching means a renamed-then-deleted plan can survive cleanup.
+## File to change
 
-## Solution
-
-### File: `src/pages/PropertyForm.tsx`
-
-**Change 1 — Prevent fallback regeneration when rate types were explicitly saved as empty** (~line 3328-3332):
-- Check if `amenities.pms_rate_types` exists as an array (even if empty). If it's `[]`, treat it as intentional — set `pmsRateTypes` to `[]` and skip the room-based fallback generation.
-- Only fall through to auto-generation when `pms_rate_types` key is completely absent (fresh/legacy properties).
-
-**Change 2 — Move deactivation outside the `pmsRateTypes.length > 0` guard** (~line 4100):
-- Extract the deactivation block (lines 4164-4191) so it runs even when `pmsRateTypes` is empty. When empty, ALL active `rolos_rate_plans` for that property should be deactivated.
-
-**Change 3 — Tighten stale detection** (~line 4177):
-- Change from triple-AND (`!id && !code && !name`) to only match on `id` and `code`. Remove name matching to prevent false retention of renamed plans.
+| File | Change |
+|------|--------|
+| `src/components/showcase/ShowcaseReviewsBadge.tsx` | Replace current design with frosted-glass pill, inline SVG brand icons (Google multicolor G, TripAdvisor owl green, Booking.com blue B), larger gold star row, bolder typography, semi-transparent dark background |
 
