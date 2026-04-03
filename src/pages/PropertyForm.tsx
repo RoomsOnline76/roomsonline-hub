@@ -4371,7 +4371,7 @@ export default function PropertyForm() {
 
   return (
     <AppLayout>
-      <div className="w-full">
+      <div className="property-form-container w-full">
           {/* Breadcrumb Navigation */}
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button

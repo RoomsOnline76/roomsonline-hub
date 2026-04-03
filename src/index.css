@@ -287,6 +287,12 @@ html {
   textarea {
     font-size: 16px !important;
   }
+
+  .property-form-container input,
+  .property-form-container select,
+  .property-form-container textarea {
+    font-size: 12px !important;
+  }
 }
 
 /* Override autofill styling (Safari yellow background fix) */
