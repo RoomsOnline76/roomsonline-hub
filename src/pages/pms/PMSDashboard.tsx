@@ -216,6 +216,10 @@ export default function PMSDashboard() {
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
+  const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
+  const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
+  const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
+  const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
 
   // Compute date range
   const dateRange = useMemo(() => {
