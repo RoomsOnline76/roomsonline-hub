@@ -385,6 +385,20 @@ export default function PMSRatePlans() {
     fetchData();
   };
 
+  const handleDeletePlan = async (plan: RatePlan) => {
+    // Delete linked room types first, then seasons/prices, then the plan itself
+    await supabase.from("rolos_rate_plan_room_types").delete().eq("rate_plan_id", plan.id);
+    const { data: seasons } = await supabase.from("rolos_rate_seasons").select("id").eq("rate_plan_id", plan.id);
+    if (seasons?.length) {
+      await supabase.from("rolos_rate_prices").delete().in("season_id", seasons.map(s => s.id));
+      await supabase.from("rolos_rate_seasons").delete().eq("rate_plan_id", plan.id);
+    }
+    const { error } = await supabase.from("rolos_rate_plans").delete().eq("id", plan.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Rate plan "${plan.name}" deleted`);
+    fetchData();
+  };
+
   const toggleRoomType = (roomTypeId: string) => {
     setForm(prev => ({
       ...prev,
