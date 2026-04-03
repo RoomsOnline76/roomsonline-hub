@@ -8241,7 +8241,7 @@ export default function PropertyForm() {
                                             setIsDirty(true);
                                           }}
                                         >
-                                          <SelectTrigger className="bg-background">
+                                          <SelectTrigger className="bg-background text-xs h-7">
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -10529,7 +10529,7 @@ export default function PropertyForm() {
                                     value={currentRoom?.rateType || "per-unit"}
                                     onValueChange={(value) => updateRoomTypeField(selectedRoomType, "rateType", value)}
                                   >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="text-xs h-7">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -11469,6 +11469,7 @@ export default function PropertyForm() {
             <div>
               <Label htmlFor="package-description">Description</Label>
               <Textarea
+                className="text-xs"
                 id="package-description"
                 value={packageForm.description}
                 onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })}
@@ -11505,7 +11506,7 @@ export default function PropertyForm() {
                 value={packageForm.season}
                 onValueChange={(value) => setPackageForm({ ...packageForm, season: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-xs h-7">
                   <SelectValue placeholder="Select season" />
                 </SelectTrigger>
                 <SelectContent>
