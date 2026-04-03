@@ -727,7 +727,7 @@ export default function PMSDashboard() {
       const plan = ratePlansWithRate.find(p => p.id === planId);
       if (plan?.pricing_model === 'per_person') return '/pp';
       if (plan?.pricing_model === 'per_person_sharing') return '/pps';
-      if (plan?.pricing_model === 'per_unit') return '/unit';
+      if (plan?.pricing_model === 'per_unit') return '';
     }
     return '';
   };
