@@ -472,7 +472,7 @@ export function ReviewActionPanel({ propertyId, onClose, onComplete }: ReviewAct
                   placeholder="Describe what needs to be fixed before this property can be approved..."
                   value={fixesRequested}
                   onChange={(e) => setFixesRequested(e.target.value)}
-                  className="text-sm min-h-[80px]"
+                  className="text-xs min-h-[80px]"
                 />
                 <Button
                   variant="outline"
