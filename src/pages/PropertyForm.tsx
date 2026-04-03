@@ -5768,7 +5768,6 @@ export default function PropertyForm() {
                           Postal Address
                         </Label>
                         <Textarea
-                          className="text-xs"
                           id="postal_address"
                           value={postalAddress}
                           onChange={(e) => {
