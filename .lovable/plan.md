@@ -1,29 +1,35 @@
 
+Fix the real cause, not more individual fields.
 
-# Fix: Remaining Inconsistent Font Sizes in PropertyForm.tsx
+What I found
+- In `src/pages/PropertyForm.tsx`, the fields you pointed out already have the compact classes:
+  - `Name` uses `className="h-7 text-xs"`
+  - `Telephone` uses `className="h-7 text-xs"`
+  - `Type` dropdown uses `className="h-7 text-xs"`
+- The reason the typed values still look bigger is a global CSS override in `src/index.css`:
+  - `@media screen and (-webkit-min-device-pixel-ratio: 0) { input, select, textarea { font-size: 16px !important; } }`
+- That rule forces Safari/iOS form fields to 16px and overrides the property form’s `text-xs`, so your input values do not match the smaller dropdown look.
 
-## Problem
+Plan
+1. Update the Safari/iOS font-size rule in `src/index.css` so it does not override the property management forms.
+2. Keep the iOS zoom protection for normal/public forms, but exempt the admin property form area.
+3. Add a scoped class on the property form wrapper in `src/pages/PropertyForm.tsx` such as a property-form-specific container marker.
+4. Use that marker in CSS so inputs/selects/textareas inside the property form can render at the intended compact size (`text-xs`) while the rest of the app keeps current mobile Safari behavior.
+5. Verify the General tab fields you highlighted specifically:
+   - Name
+   - Telephone
+   - Contact Email
+   - other captured-value inputs
+   - ensure they visually match the small “Type / Self Catering” style across tabs/subtabs
 
-Most fields in `PropertyForm.tsx` already use `text-xs`, but several `SelectTrigger` and `Textarea` elements were missed and still inherit the larger default font.
+Expected result
+- “Fonteinhutte …” and “0862690351” will render in the same small font style as “Self Catering”.
+- The fix will be systemic for the property edit pages, not another piecemeal field-by-field patch.
 
-## Elements to Fix
+Files to change
+- `src/index.css`
+- `src/pages/PropertyForm.tsx`
 
-### SelectTriggers missing `text-xs` (3 elements)
-- **Line 8244**: Rate calculation type selector — has `className="bg-background"`, needs `text-xs h-7` added
-- **Line 10532**: Room rate type selector — no className at all
-- **Line 11508**: Package season selector — no className at all
-
-### Textareas missing `text-xs` (4 elements)
-- **Line 5770**: Postal address — no className
-- **Line 6363**: Property description — no className
-- **Line 7256**: Children policy — no className
-- **Line 11471**: Package description — no className
-
-## Changes
-
-**Single file: `src/pages/PropertyForm.tsx`**
-
-Add `className="text-xs h-7"` to the 3 bare SelectTriggers and `className="text-xs"` to the 4 bare Textareas. For line 8244, append `text-xs h-7` to the existing `bg-background` class.
-
-Total: 7 elements updated, all in the same file. No other files need changes — the subtab components were already fixed in the previous round.
-
+Technical note
+- The current issue is not missing `text-xs` on those specific fields anymore.
+- It is a higher-priority CSS rule with `!important`, so any further per-field class edits alone will keep failing until that global override is scoped properly.
