@@ -11508,7 +11508,7 @@ export default function PropertyForm() {
                 value={packageForm.season}
                 onValueChange={(value) => setPackageForm({ ...packageForm, season: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-xs h-7">
                   <SelectValue placeholder="Select season" />
                 </SelectTrigger>
                 <SelectContent>
