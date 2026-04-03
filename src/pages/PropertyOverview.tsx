@@ -64,6 +64,7 @@ const PropertyOverview = () => {
   const [uploadingCell, setUploadingCell] = useState<string | null>(null);
   const [sendingOnboarding, setSendingOnboarding] = useState<string | null>(null);
 
+  const { loading: authLoading } = useAuth();
   const { data: allProperties, isLoading, refetch } = useQuery({
     queryKey: ["properties", user?.id, isAdmin],
     queryFn: async () => {
@@ -138,6 +139,7 @@ const PropertyOverview = () => {
       
       return propertiesWithExtras;
     },
+    enabled: !authLoading && !!user,
   });
 
   // Fetch PMS tracker status to check if integrations are enabled
