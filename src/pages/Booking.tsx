@@ -132,6 +132,7 @@ const Booking = () => {
   const urlCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
   const urlCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
   const initialGuests = parseInt(searchParams.get("guests") || "2");
+  const urlMaxGuests = parseInt(searchParams.get("max_guests") || "0");
   
   // Pre-selected values from URL (from staging booking flow or embed)
   const preSelectedRoomTypeId = searchParams.get("roomTypeId") || searchParams.get("room_type");
