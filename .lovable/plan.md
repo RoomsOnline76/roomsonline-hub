@@ -1,98 +1,63 @@
 
 
-# Seasons Calendar — Visual Rate & Season Management
+# Fix: Command Centre — No Data for Hostfully Properties (ONE46 ON M)
 
-## Problem
-Currently, seasons and rates are managed across three separate sub-tabs (Seasons, Rate Types, Rate Breakdown) within the Rates tab. Users must jump between tabs to define a season, then set rates for it, then check the breakdown. This is confusing and error-prone.
+## Root Cause (Verified from Database)
 
-## Solution
-Add a new **Seasons Calendar** sub-tab inside the existing Rates tab that provides an annual calendar view where users can:
-1. Visually select date ranges and label them as seasons (drag or click start/end)
-2. Set rates per room type directly within each season block
-3. See the full year at a glance with color-coded season bands
+The cache **has data** for ONE46 ON M — 5 rows per day for the current period. The previous diagnosis ("zero cache data") was wrong.
 
-For external PMS properties, this calendar is **read-only** — seasons and rates are synced from the PMS and displayed for reference.
+The real problem is an **ID mismatch in the allowlist filter**:
 
-## Design
+| What | IDs in cache (`external_room_type_id`) | Active `hostfully_room_types` IDs |
+|------|----------------------------------------|-----------------------------------|
+| 2 Bedroom | `c7166dba...` (inactive) | `906e5b8f...` (active) |
+| Studio | `5861b321...` (inactive) | `4be87a24...` (active) |
+| 1 Bedroom | `97536287...` (inactive) | `f0cde43a...` (active) |
 
-### Calendar Layout
-```text
-┌─────────────────────────────────────────────────────┐
-│  [Room: ▼ 3-Bedroom House]   [Year: ◄ 2026 ►]     │
-├─────────────────────────────────────────────────────┤
-│  JAN  │████ SUMMER (PEAK) ████│                     │
-│  FEB  │████ SUMMER (PEAK) ████│                     │
-│  MAR  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
-│  APR  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
-│  MAY  │▓▓▓ AUTUMN (SHOULDER) ▓▓│                    │
-│  JUN  │░░░ WINTER (LOW) ░░░░░░│                     │
-│  ...  │                        │                     │
-│       │  [+ Add Season]       │                     │
-├─────────────────────────────────────────────────────┤
-│  Click a season band to edit rates & dates          │
-└─────────────────────────────────────────────────────┘
+The property was re-synced from Hostfully, creating **new active** room type records with different UUIDs. The cache still references the **old inactive** UUIDs. The Command Centre's allowlist filter (line 283-286) only permits rows whose `external_room_type_id` is in `activeRoomKeys` — so every cache row gets filtered out.
+
+The Calendar page works because it fetches ALL cache rows without this filter and resolves names separately.
+
+## Fix
+
+**File: `src/pages/pms/PMSCommandCentre.tsx`**
+
+Replace the strict ID-based allowlist with a **name-based matching** approach for PMS cache rows:
+
+1. Build a set of **active room type names** (lowercased) from `hostfully_room_types` and `rolos_room_types`
+2. For each cache row, resolve the `external_room_type_id` to a name using `nameMap` (which already maps both old and new IDs)
+3. Check if that **name** exists in the active names set — not the ID itself
+4. This way, cache row with old ID `c7166dba` → resolves to "2 Bedroom" → matches active room "2 Bedroom" → included
+
+Additionally: include inactive `hostfully_room_types` in the `nameMap` (they already are on line 222-231, but not added to any name-based lookup). The key change is the filter logic.
+
+```typescript
+// Build active NAMES set (lowercased) instead of active IDs set
+const activeRoomNames = new Set<string>();
+
+for (const rt of hostfullyResult.data || []) {
+  nameMap[rt.id] = rt.name;  // map ALL IDs (active + inactive) for name resolution
+  if (rt.is_active) {
+    activeRoomNames.add(rt.name.toLowerCase());
+  }
+}
+
+// Filter cache rows by resolved name, not by raw ID
+const pmsRows = cacheData
+  .filter((r) => {
+    const extId = r.external_room_type_id || "";
+    const resolvedName = nameMap[extId];
+    if (!resolvedName) return false;
+    return activeRoomNames.has(resolvedName.toLowerCase());
+  })
+  .map(/* ... same as before ... */);
 ```
 
-Each month row shows 1-31 day cells. Season bands span across cells with distinct colors. Clicking a band opens an inline editor for that season's dates, name, min/max stay, and per-room rates.
+This also fixes the same class of problem for any other property that was re-synced, creating new room type UUIDs.
 
-### Interaction Flow
-1. **Add Season**: Click "+ Add Season", select date range on the calendar (or type dates), name it, set color
-2. **Set Rates**: Click an existing season band → expands an inline panel below showing rate fields for the selected room (room amount, adult, teen, child, infant — based on pricing model)
-3. **Edit/Delete**: Right-click or use edit/delete buttons on the expanded panel
-4. **Drag to Resize**: Drag season edges to adjust dates (stretch goal)
+## Files to Change
 
-### Bidirectional Sync
-- Creating/editing a season in the calendar updates `seasons[]` and `seasonRates{}` state in PropertyForm
-- Edits in the existing Seasons or Rate Breakdown sub-tabs reflect in the calendar
-- Last edit wins — both write to the same state variables
-
-### External PMS (read-only mode)
-- For non-ROL'OS properties (`external_system !== "roomsonline"` and `!== "none"`), the calendar renders `rolos_rate_seasons` data as read-only color bands
-- No add/edit/delete controls shown
-- Badge: "Synced from [PMS name]"
-
-## Implementation
-
-### New Component: `src/components/property/SeasonsCalendar.tsx`
-- Props: `seasons`, `seasonRates`, `roomTypes`, `selectedRoomType`, `pmsRateTypes`, `pricingModel`, `currency`, `isReadOnly`, `onSeasonsChange`, `onSeasonRatesChange`
-- Renders a 12-month horizontal grid (each month = row of day cells)
-- Season bands rendered as absolutely positioned overlays with color coding
-- Click handler opens inline rate editor panel
-- Add season flow: click two dates to define range, then fill in details
-
-### PropertyForm.tsx Changes
-- Add new sub-tab `"seasons-calendar"` to the Rates tab's inner `<Tabs>` (between "Seasons" and "Rate Breakdown")
-- Pass existing `seasons`, `seasonRates`, `roomTypes`, `selectedRoomType`, `pmsRateTypes` state
-- Wire `onSeasonsChange` to `setSeasons` and `onSeasonRatesChange` to `setSeasonRates`
-- Mark `setIsDirty(true)` on any change
-
-### Season Colors
-- Peak/Summer: red/orange band
-- Shoulder/Autumn/Spring: amber/yellow band  
-- Low/Winter: blue/teal band
-- Custom: user-selectable from preset palette
-- Stored as `color` field on each season object (backward compatible — existing seasons get auto-assigned colors)
-
-### Rate Editor (inline panel)
-When a season band is clicked, show below the calendar:
-- Season name, date range (editable)
-- Min/max stay
-- Rate fields per linked rate type for the selected room
-- Uses same `updateSeasonRate()` function already in PropertyForm
-
-### Booking Engine Check
-No changes needed — the existing `QuickBookDrawer.tsx` already iterates `seasons[]` and checks `seasonRates{}` per date. The calendar just provides a better UI for the same data.
-
-## Files to Create/Modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| `src/components/property/SeasonsCalendar.tsx` | **Create** — new calendar component (~400 lines) |
-| `src/pages/PropertyForm.tsx` | **Modify** — add "Calendar" sub-tab in Rates, wire props |
-
-## What This Does NOT Change
-- Existing Seasons and Rate Breakdown sub-tabs remain functional (users can use either)
-- Data model unchanged (same `amenities.seasons` and `amenities.season_rates`)
-- Booking engine pricing logic unchanged
-- External PMS sync logic unchanged
+| `src/pages/pms/PMSCommandCentre.tsx` | Replace ID-based allowlist filter with name-based matching for PMS cache rows |
 
