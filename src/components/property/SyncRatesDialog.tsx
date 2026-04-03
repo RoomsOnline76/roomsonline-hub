@@ -60,6 +60,7 @@ export function SyncRatesDialog({
           .from("properties")
           .select("id, name")
           .eq("owner_email", current.owner_email)
+          .eq("is_active", true)
           .neq("id", currentPropertyId);
 
         (ownerProps || []).forEach((p) => {
@@ -104,7 +105,8 @@ export function SyncRatesDialog({
               const { data: props } = await supabase
                 .from("properties")
                 .select("id, name")
-                .in("id", propIds);
+                .in("id", propIds)
+                .eq("is_active", true);
 
               (props || []).forEach((p) => {
                 seenIds.add(p.id);
@@ -155,33 +157,49 @@ export function SyncRatesDialog({
 
       if (error) throw error;
 
+      let successCount = 0;
+      const errors: string[] = [];
+
       for (const target of targetProps || []) {
         const amenities = (target.amenities as any) || {};
 
         if (mode === "rate-types") {
           const sourceRateTypes: any[] = currentAmenities?.rate_types || [];
-          const existingRateTypes: any[] = amenities.rate_types || [];
+          if (sourceRateTypes.length === 0) {
+            toast.warning("No rate types to sync from this property");
+            setSyncing(false);
+            return;
+          }
+          // Target may store rate types as pms_rate_types or rate_types
+          const existingRateTypes: any[] = amenities.pms_rate_types || amenities.rate_types || [];
 
-          // Merge: match by name (case-insensitive), skip PMS-synced
           const merged = [...existingRateTypes];
           for (const src of sourceRateTypes) {
             const existingIdx = merged.findIndex(
               (e) => e.name?.toLowerCase() === src.name?.toLowerCase()
             );
             if (existingIdx >= 0) {
-              // Skip if target is PMS-synced
               if (merged[existingIdx].pms_synced) continue;
               merged[existingIdx] = { ...merged[existingIdx], ...src, id: merged[existingIdx].id };
             } else {
-              // Append with new ID
-              merged.push({ ...src, id: `manual-rate-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` });
+              merged.push({ ...src, id: `manual-rate-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, pms_synced: false });
             }
           }
 
-          amenities.rate_types = merged;
+          // Write to the same key the target uses, defaulting to pms_rate_types
+          if (amenities.pms_rate_types) {
+            amenities.pms_rate_types = merged;
+          } else {
+            amenities.pms_rate_types = merged;
+          }
         } else {
           // Seasons sync
           const sourceSeasons: any[] = currentAmenities?.seasons || [];
+          if (sourceSeasons.length === 0) {
+            toast.warning("No seasons to sync from this property");
+            setSyncing(false);
+            return;
+          }
           const existingSeasons: any[] = amenities.seasons || [];
 
           const merged = [...existingSeasons];
@@ -190,7 +208,6 @@ export function SyncRatesDialog({
               (e) => e.name?.toLowerCase() === src.name?.toLowerCase()
             );
             if (existingIdx >= 0) {
-              // Update season metadata but keep the ID
               merged[existingIdx] = {
                 ...merged[existingIdx],
                 periods: src.periods,
@@ -201,7 +218,6 @@ export function SyncRatesDialog({
                 maxStay: src.maxStay,
               };
             } else {
-              // Append with new ID
               merged.push({
                 ...src,
                 id: crypto.randomUUID(),
@@ -210,16 +226,27 @@ export function SyncRatesDialog({
           }
 
           amenities.seasons = merged;
-          // NOTE: season_rates are NOT synced (room-specific)
         }
 
-        await supabase
+        const { error: updateError } = await supabase
           .from("properties")
           .update({ amenities })
           .eq("id", target.id);
+
+        if (updateError) {
+          console.error(`Failed to sync to ${target.id}:`, updateError);
+          errors.push(target.id);
+        } else {
+          successCount++;
+        }
       }
 
-      toast.success(`Synced ${mode === "rate-types" ? "rate types" : "seasons"} to ${selected.size} ${selected.size === 1 ? "property" : "properties"}`);
+      if (errors.length > 0) {
+        toast.error(`Failed to sync to ${errors.length} ${errors.length === 1 ? "property" : "properties"}`);
+      }
+      if (successCount > 0) {
+        toast.success(`Synced ${mode === "rate-types" ? "rate types" : "seasons"} to ${successCount} ${successCount === 1 ? "property" : "properties"}`);
+      }
       onOpenChange(false);
       setSelected(new Set());
     } catch (err: any) {
