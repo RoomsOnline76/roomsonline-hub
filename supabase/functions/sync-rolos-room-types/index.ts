@@ -53,31 +53,40 @@ Deno.serve(async (req) => {
           .select("id, name, linked_rolos_id, max_guests, daily_rate, amenities, images, is_active")
           .eq("property_id", property.id);
 
-        const rolosMap = new Map((rolosTypes || []).map(t => [t.linked_overview_id, t]));
-        const overviewMap = new Map((overviewTypes || []).map(t => [t.id, t]));
+        const rolosNameMap = new Map((rolosTypes || []).map(t => [t.name.trim().toLowerCase(), t]));
 
         let typesCreated = 0;
         let roomsCreated = 0;
 
-        // Sync overview → rolos (create missing)
+        // Sync overview → rolos (create missing — but match by name first to prevent duplicates)
         for (const ovType of (overviewTypes || [])) {
-          if (!ovType.linked_rolos_id && !rolosMap.has(ovType.id)) {
-            // Create missing rolos_room_type
-            const { data: newType } = await supabase.from("rolos_room_types").insert({
-              property_id: property.id,
-              name: ovType.name,
-              max_occupancy: ovType.max_guests || 2,
-              default_rate: ovType.daily_rate,
-              amenities: ovType.amenities,
-              images: ovType.images,
-              is_active: ovType.is_active ?? true,
-              linked_overview_id: ovType.id,
-            }).select("id").single();
+          // Skip if already linked
+          if (ovType.linked_rolos_id) continue;
 
-            if (newType) {
-              await supabase.from("hostfully_room_types").update({ linked_rolos_id: newType.id }).eq("id", ovType.id);
-              typesCreated++;
-            }
+          // Check if a rolos type already exists with the same name
+          const existingByName = rolosNameMap.get(ovType.name.trim().toLowerCase());
+          if (existingByName) {
+            // Link existing rolos type instead of creating a duplicate
+            await supabase.from("hostfully_room_types").update({ linked_rolos_id: existingByName.id }).eq("id", ovType.id);
+            console.log(`[sync-rolos-room-types] Linked existing '${existingByName.name}' to overview ${ovType.id}`);
+            continue;
+          }
+
+          // Only create if truly missing
+          const { data: newType } = await supabase.from("rolos_room_types").insert({
+            property_id: property.id,
+            name: ovType.name,
+            max_occupancy: ovType.max_guests || 2,
+            default_rate: ovType.daily_rate,
+            amenities: ovType.amenities,
+            images: ovType.images,
+            is_active: ovType.is_active ?? true,
+            linked_overview_id: ovType.id,
+          }).select("id").single();
+
+          if (newType) {
+            await supabase.from("hostfully_room_types").update({ linked_rolos_id: newType.id }).eq("id", ovType.id);
+            typesCreated++;
           }
         }
 
