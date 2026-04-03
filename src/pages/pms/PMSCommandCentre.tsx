@@ -203,59 +203,53 @@ export default function PMSCommandCentre() {
       const cacheData = cacheResult.data || [];
 
       // ============================================================
-      // BUILD NAME MAP + INACTIVE SET
-      // Key insight: cache uses BOTH slugs and UUIDs as external_room_type_id
-      // - ROL properties use slugs (e.g. "dungeon", "holiday-house")
-      // - Hostfully properties use UUIDs (matching hostfully_room_types.id)
-      // We index by BOTH uuid AND slugified name for complete coverage.
+      // ALLOWLIST APPROACH: Only show cache rows matching ACTIVE room types
+      // Build per-property sets of valid room type keys (UUID + slug)
       // ============================================================
       const nameMap: Record<string, string> = {};
-      const inactiveKeys = new Set<string>();
+      const activeRoomKeys = new Set<string>();
 
-      // Rolos room types — index by UUID + slug
+      // Track which properties have active types in rolos or hostfully
+      const propsWithActiveTypes = new Set<string>();
+
+      // Rolos room types — only add ACTIVE to allowlist
       for (const rt of rolosResult.data || []) {
         const slug = slugify(rt.name);
-        // Only set name if not already set (active takes priority)
+        nameMap[rt.id] = rt.name;
+        nameMap[slug] = rt.name;
         if (rt.is_active) {
-          nameMap[rt.id] = rt.name;
-          nameMap[slug] = rt.name;
-        } else {
-          // Inactive — add to inactive set, only set name if not already mapped by an active one
-          inactiveKeys.add(rt.id);
-          inactiveKeys.add(slug);
-          if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
-          if (!nameMap[slug]) nameMap[slug] = rt.name;
+          activeRoomKeys.add(rt.id);
+          activeRoomKeys.add(slug);
+          propsWithActiveTypes.add(rt.property_id);
         }
       }
 
-      // Hostfully room types — index by UUID + slug (don't overwrite active rolos entries)
+      // Hostfully room types — only add ACTIVE to allowlist
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
+        if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
+        if (!nameMap[slug]) nameMap[slug] = rt.name;
         if (rt.is_active) {
-          // Active hostfully — set name, REMOVE from inactive if rolos had it inactive
-          if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
-          if (!nameMap[slug]) nameMap[slug] = rt.name;
-          // Don't remove from inactiveKeys here — rolos takes precedence
-        } else {
-          inactiveKeys.add(rt.id);
-          // Only add slug to inactive if no active rolos/hostfully entry has this slug
-          if (!nameMap[slug] || inactiveKeys.has(slug)) {
-            inactiveKeys.add(slug);
-          }
-          if (!nameMap[rt.id]) nameMap[rt.id] = rt.name;
-          if (!nameMap[slug]) nameMap[slug] = rt.name;
+          activeRoomKeys.add(rt.id);
+          activeRoomKeys.add(slug);
+          propsWithActiveTypes.add(rt.property_id);
         }
       }
 
-      // Amenities JSONB fallback
+      // Amenities JSONB fallback — only for properties with NO active types in either table
       for (const prop of propsResult.data || []) {
+        if (propsWithActiveTypes.has(prop.id)) continue;
         const amenities = prop.amenities as { room_types?: Array<{ id?: string; name?: string }> } | null;
         if (Array.isArray(amenities?.room_types)) {
           for (const rt of amenities!.room_types) {
             if (rt?.name) {
               const slug = slugify(rt.name);
-              if (!nameMap[slug]) nameMap[slug] = rt.name;
-              if (rt.id && !nameMap[rt.id]) nameMap[rt.id] = rt.name;
+              activeRoomKeys.add(slug);
+              nameMap[slug] = rt.name;
+              if (rt.id) {
+                activeRoomKeys.add(String(rt.id));
+                nameMap[String(rt.id)] = rt.name;
+              }
             }
           }
         }
@@ -264,18 +258,21 @@ export default function PMSCommandCentre() {
       // Property name map
       const propMap = Object.fromEntries(filteredProperties.map((p) => [p.id, p.name]));
 
-      // Filter out inactive room types and resolve names
+      // Build external_system lookup for live fetch
+      const externalSystemMap: Record<string, string | null> = {};
+      for (const prop of propsResult.data || []) {
+        externalSystemMap[prop.id] = (prop as any).external_system || null;
+      }
+
+      // ALLOWLIST FILTER: only include cache rows matching active room types
       const rows: AvailabilityRow[] = cacheData
         .filter((r: any) => {
           const extId = r.external_room_type_id || "";
-          // Check if this exact key (UUID or slug) is inactive
-          return !inactiveKeys.has(extId);
+          return activeRoomKeys.has(extId);
         })
         .map((r: any) => {
           const extId = r.external_room_type_id || "";
-          const resolvedName = nameMap[extId] || (
-            /^[0-9a-f]{8}-/.test(extId) ? extId.slice(0, 8) + "…" : slugToTitle(extId)
-          );
+          const resolvedName = nameMap[extId] || slugToTitle(extId);
           return {
             property_id: r.property_id,
             property_name: propMap[r.property_id] || "Unknown",
@@ -287,9 +284,15 @@ export default function PMSCommandCentre() {
 
       setAvailability(rows);
 
-      // If no cache data found, trigger live fetch
-      if (cacheData.length === 0 && propIds.length > 0) {
-        triggerLiveFetch(propIds, startDate, endDate, propMap);
+      // If no matching rows after allowlist filter, trigger live fetch for PMS-backed properties
+      if (rows.length === 0 && propIds.length > 0) {
+        const pmsBackedIds = propIds.filter((pid) => {
+          const ext = externalSystemMap[pid];
+          return ext && ext !== "manual" && ext !== "roomsonline";
+        });
+        if (pmsBackedIds.length > 0) {
+          triggerLiveFetch(pmsBackedIds, startDate, endDate, propMap);
+        }
       }
 
       // Calculate occupancy summaries

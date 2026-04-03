@@ -173,11 +173,16 @@ export default function PMSRooms() {
     const types = (typesRes.data || []) as RoomType[];
     setRoomTypes(types);
 
+    // Build set of active room type IDs to filter out rooms linked to inactive types
+    const activeTypeIds = new Set(types.map(t => t.id));
     const typeMap = new Map(types.map(t => [t.id, t.name]));
-    setRooms((roomsRes.data || []).map((r: any) => ({
-      ...r,
-      room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
-    })));
+
+    setRooms((roomsRes.data || [])
+      .filter((r: any) => !r.room_type_id || activeTypeIds.has(r.room_type_id))
+      .map((r: any) => ({
+        ...r,
+        room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
+      })));
     setLoading(false);
   }, [propertyId, syncRoomTypesFromOverview]);
 
