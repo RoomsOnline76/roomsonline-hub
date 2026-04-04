@@ -42,7 +42,19 @@ interface AvailableListing {
 }
 
 // ============================================================================
-// NAME PARSING (mirrors src/lib/hostfullyBuildingParser.ts for Deno)
+// URL NORMALIZATION (dedup helper)
+// ============================================================================
+
+function normalizeImageUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    return u.href.replace(/\/+$/, '');
+  } catch {
+    return url.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 // ============================================================================
 
 function sanitizeName(name: string): string {
@@ -353,7 +365,7 @@ export async function ingestBuildingUnits(
     if (Array.isArray(room.images)) {
       for (const img of room.images as any[]) {
         const imgUrl = typeof img === 'string' ? img : img?.url;
-        if (imgUrl && !group.allImages.some(existing => existing.url === imgUrl)) {
+        if (imgUrl && !group.allImages.some(existing => normalizeImageUrl(existing.url) === normalizeImageUrl(imgUrl))) {
           group.allImages.push(typeof img === 'string' ? { url: img } : img);
         }
       }
@@ -361,6 +373,95 @@ export async function ingestBuildingUnits(
   }
 
   console.log(`[UnitIngestion] ${allRooms.length} units → ${typeGroups.size} room types`);
+
+  // 5b. Building-level photo fallback: if room types have sparse images, fetch from building UID
+  const sparseTypes = [...typeGroups.entries()].filter(([, g]) => g.allImages.length < 2);
+  if (sparseTypes.length > 0 && propData.hostfully_property_uid) {
+    console.log(`[UnitIngestion] ${sparseTypes.length} types have <2 images. Fetching building-level photos from ${propData.hostfully_property_uid}...`);
+    try {
+      const buildingPhotosResult = await fetchPhotos(propData.hostfully_property_uid, creds);
+      if (buildingPhotosResult.success && buildingPhotosResult.data && buildingPhotosResult.data.length > 0) {
+        const buildingPhotos = buildingPhotosResult.data;
+        console.log(`[UnitIngestion] Got ${buildingPhotos.length} building-level photos`);
+
+        // Categorize building photos
+        const roomCategoryPhotos: Array<{ url: string; alt: string; order: number; category: string; caption: string }> = [];
+        const genericInteriorPhotos: Array<{ url: string; alt: string; order: number; category: string; caption: string }> = [];
+        const propertyPhotos: Array<{ url: string; alt: string; order: number; category: string; caption: string }> = [];
+
+        for (const photo of buildingPhotos) {
+          const url = (photo as any).originalImageUrl || (photo as any).url || '';
+          if (!url) continue;
+          const caption = ((photo as any).caption || '').toLowerCase();
+          const category = ((photo as any).category || '').toLowerCase();
+          const photoObj = {
+            url,
+            alt: (photo as any).caption || buildingName,
+            order: (photo as any).order ?? 999,
+            category: category || 'room',
+            caption,
+          };
+
+          // Check if caption matches a specific room type
+          const isExterior = /exterior|facade|building|outside|entrance|pool|garden|patio|terrace|balcony|view|parking/i.test(caption + ' ' + category);
+          const isInterior = /bedroom|bathroom|kitchen|living|lounge|interior|dining|shower|bath|bed\b/i.test(caption + ' ' + category);
+
+          if (isExterior && !isInterior) {
+            propertyPhotos.push(photoObj);
+          } else if (isInterior) {
+            // Try to match to a specific room type by caption
+            let matched = false;
+            for (const [typeKey, group] of typeGroups) {
+              const typeLower = typeKey.toLowerCase();
+              if (caption.includes(typeLower) || caption.includes(typeLower.replace(/\s+/g, ''))) {
+                if (!group.allImages.some(existing => normalizeImageUrl(existing.url) === normalizeImageUrl(url))) {
+                  group.allImages.push(photoObj);
+                }
+                matched = true;
+                break;
+              }
+            }
+            if (!matched) {
+              genericInteriorPhotos.push(photoObj);
+            }
+          } else {
+            // Uncategorized — try caption matching first, then treat as generic
+            let matched = false;
+            for (const [typeKey, group] of typeGroups) {
+              const typeLower = typeKey.toLowerCase();
+              if (caption && (caption.includes(typeLower) || caption.includes(typeLower.replace(/\s+/g, '')))) {
+                if (!group.allImages.some(existing => normalizeImageUrl(existing.url) === normalizeImageUrl(url))) {
+                  group.allImages.push(photoObj);
+                }
+                matched = true;
+                break;
+              }
+            }
+            if (!matched) {
+              genericInteriorPhotos.push(photoObj);
+            }
+          }
+        }
+
+        // Distribute generic interior photos to types that still have < 3 images
+        for (const [, group] of typeGroups) {
+          if (group.allImages.length < 3) {
+            for (const photo of genericInteriorPhotos) {
+              if (!group.allImages.some(existing => normalizeImageUrl(existing.url) === normalizeImageUrl(photo.url))) {
+                group.allImages.push({ url: photo.url, alt: photo.alt, order: photo.order, category: photo.category });
+              }
+              if (group.allImages.length >= 8) break; // cap at 8 per type
+            }
+          }
+        }
+
+        console.log(`[UnitIngestion] Building photo distribution: ${propertyPhotos.length} property, ${genericInteriorPhotos.length} generic interior, ${roomCategoryPhotos.length} room-specific`);
+      }
+    } catch (err) {
+      console.error(`[UnitIngestion] Building photo fallback failed:`, err);
+      result.warnings.push(`Building photo fallback failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   // Write one hostfully_room_types row per type group
   const writtenTypeIds: string[] = [];

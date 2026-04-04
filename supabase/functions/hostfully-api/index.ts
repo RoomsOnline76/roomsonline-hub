@@ -1327,7 +1327,7 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
     // Fetch photos from dedicated endpoint for complete image list
     let photos: any[] = property.photos || property.images || [];
     try {
-      const photosResponse = await hostfullyRequest(`/properties/${propertyUid}/photos`, creds.api_key, baseUrl);
+      const photosResponse = await hostfullyRequest(`/photos?propertyUid=${propertyUid}`, creds.api_key, baseUrl);
       if (photosResponse.ok) {
         const photosData = await photosResponse.json();
         const fetchedPhotos = photosData?.photos || photosData || [];
@@ -1383,7 +1383,7 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
     // Process images to extract URLs
     const imageUrls = photos.map((img: any) => {
       if (typeof img === 'string') return img;
-      return img.url || img.original || img.pictureLink || img.uri || null;
+      return img.originalImageUrl || img.url || img.original || img.pictureLink || img.uri || null;
     }).filter(Boolean);
 
     // Process amenities to extract names

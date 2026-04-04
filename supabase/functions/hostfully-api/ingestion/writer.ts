@@ -11,6 +11,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { TransformedData, TransformedRoomData } from "./types.ts";
 
+// URL normalization for image dedup
+function normalizeImageUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    return u.href.replace(/\/+$/, '');
+  } catch {
+    return url.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 // ============================================================================\\
 // TYPES
 // ============================================================================\\
@@ -195,7 +206,7 @@ export async function writeIngestion(
         if (Array.isArray(room.images)) {
           for (const img of room.images as any[]) {
             const imgUrl = typeof img === 'string' ? img : img?.url;
-            if (imgUrl && !group.allImages.some(existing => (typeof existing === 'string' ? existing : existing.url) === imgUrl)) {
+            if (imgUrl && !group.allImages.some(existing => normalizeImageUrl(typeof existing === 'string' ? existing : existing.url) === normalizeImageUrl(imgUrl))) {
               group.allImages.push(typeof img === 'string' ? { url: img } : img);
             }
           }
