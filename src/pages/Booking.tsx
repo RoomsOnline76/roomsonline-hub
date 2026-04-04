@@ -2277,10 +2277,40 @@ const Booking = () => {
                     </div>
                   )}
 
-                  <div className="border-t border-border/50 pt-3 flex justify-between items-center">
-                    <span className="font-semibold">Total</span>
-                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)} /></span>
-                  </div>
+                  {/* VAT breakdown */}
+                  {(() => {
+                    const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
+                    if (vatConfig.isVat && grandTotal > 0) {
+                      const vatRate = vatConfig.rate / 100;
+                      const exclAmount = grandTotal / (1 + vatRate);
+                      const vatAmount = grandTotal - exclAmount;
+                      return (
+                        <div className="border-t border-border/50 pt-3 space-y-1">
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Subtotal (excl. VAT)</span>
+                            <span><FormattedPrice amount={exclAmount} /></span>
+                          </div>
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>VAT ({vatConfig.rate}%)</span>
+                            <span><FormattedPrice amount={vatAmount} /></span>
+                          </div>
+                          {vatConfig.number && (
+                            <p className="text-[10px] text-muted-foreground">VAT No: {vatConfig.number}</p>
+                          )}
+                          <div className="flex justify-between items-center pt-1">
+                            <span className="font-semibold">Total (incl. VAT)</span>
+                            <span className="text-xl font-bold"><FormattedPrice amount={grandTotal} /></span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="border-t border-border/50 pt-3 flex justify-between items-center">
+                        <span className="font-semibold">Total</span>
+                        <span className="text-xl font-bold"><FormattedPrice amount={grandTotal} /></span>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="flex justify-between items-center">
