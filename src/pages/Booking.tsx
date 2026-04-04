@@ -1945,9 +1945,9 @@ const Booking = () => {
       const chargeLineItems = costBreakdown.filter(i => i.nights === 0 && i.total > 0);
       bookingData.ai_metadata = {
         cost_breakdown: accommodationLineItems.map(item => ({
-          label: item.label,
+          description: item.description,
           nights: item.nights,
-          rate: item.rate,
+          unitPrice: item.unitPrice,
           total: item.total,
         })),
         applied_specials: appliedPromotions.filter(p => p.type === 'special').map(p => ({
@@ -1959,19 +1959,19 @@ const Booking = () => {
           discount: p.discount,
         })),
         selected_addons: selectedAddons.map(a => ({
-          name: a.name,
+          name: a.addon.name,
           quantity: a.quantity,
-          unit_price: a.unitPrice,
+          unit_price: a.addon.price || 0,
           total: a.total,
         })),
         voucher_discount: voucherDiscount > 0 ? voucherDiscount : undefined,
         charge_items: chargeLineItems.map(item => ({
-          label: item.label,
+          description: item.description,
           total: item.total,
         })),
         vat: vatConfig.isVat ? {
           rate: vatConfig.rate,
-          number: vatConfig.vatNumber,
+          number: vatConfig.number,
         } : undefined,
       };
 
