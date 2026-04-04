@@ -2483,6 +2483,24 @@ const Booking = () => {
                     </div>
                   )}
 
+                  {/* Applied promotion banner */}
+                  {appliedPromotion && (
+                    <div className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">✨</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-primary">{appliedPromotion.name}</p>
+                          {appliedPromotion.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{appliedPromotion.description}</p>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold text-primary">
+                          -<FormattedPrice amount={appliedPromotion.discount} />
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* VAT breakdown */}
                   {(() => {
                     const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
