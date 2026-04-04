@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers } from "lucide-react";
 
-import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface SmartBookButtonGeneratorProps {
   property: {
@@ -59,6 +59,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonSize, setButtonSize] = useState<ButtonSize>("medium");
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
   // Sync color when property data loads/changes
   useEffect(() => {
@@ -67,8 +68,17 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
     }
   }, [property.brand_primary_color]);
 
-  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=smart_button&property_id=${property.id}`;
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=smart_widget&property_id=${property.id}&brand_color=${encodeURIComponent(buttonColor)}&mode=embedded`;
+  const bookingUrl = buildEntryUrl(property, entryOpts, {
+    source: "website",
+    integration: "smart_button",
+    property_id: property.id,
+    brand_color: buttonColor,
+  });
+  const embedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
+    integration: "smart_widget",
+    property_id: property.id,
+    brand_color: buttonColor,
+  });
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
   const size = SIZE_MAP[buttonSize];
 
@@ -254,6 +264,11 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        {/* Entry Point Selector — spans full width */}
+        <div className="lg:col-span-2">
+          <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+        </div>
+
         {/* Left: Configuration */}
         <div className="space-y-5">
           {/* Platform (only for button / button_dates) */}

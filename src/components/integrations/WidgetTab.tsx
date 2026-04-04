@@ -6,6 +6,7 @@ import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface WidgetTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -13,9 +14,14 @@ interface WidgetTabProps {
 
 export function WidgetTab({ property }: WidgetTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
-  const encodedColor = encodeURIComponent(brandColor);
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=widget&property_id=${property.id}&brand_color=${encodedColor}&mode=embedded`;
   const [showPreview, setShowPreview] = useState(false);
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+
+  const embedUrl = buildEntryUrl(property, entryOpts, {
+    integration: "widget",
+    property_id: property.id,
+    brand_color: brandColor,
+  });
 
   const rolEmbedSnippet = `<!-- ROL'OS Booking Widget (Recommended) -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
@@ -68,6 +74,9 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+
         {/* Commission info */}
         <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />

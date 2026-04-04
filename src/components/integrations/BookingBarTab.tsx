@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface BookingBarTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -17,9 +18,14 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
   const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e8c");
   const [position, setPosition] = useState<"bottom" | "top">("bottom");
   const [showPreview, setShowPreview] = useState(false);
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
-  const encodedColor = encodeURIComponent(brandColor);
-  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=booking_bar&property_id=${property.id}&brand_color=${encodedColor}`;
+  const bookingUrl = buildEntryUrl(property, entryOpts, {
+    source: "website",
+    integration: "booking_bar",
+    property_id: property.id,
+    brand_color: brandColor,
+  });
 
   const posStyle = position === "top" ? "position:fixed;top:0;left:0;right:0;" : "position:fixed;bottom:0;left:0;right:0;";
   const shadowDir = position === "top" ? "box-shadow:0 4px 20px rgba(0,0,0,0.18);" : "box-shadow:0 -4px 20px rgba(0,0,0,0.18);";
@@ -195,6 +201,9 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
             applies to bookings made through the booking bar.
           </span>
         </div>
+
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
 
         {/* Controls */}
         <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/20">

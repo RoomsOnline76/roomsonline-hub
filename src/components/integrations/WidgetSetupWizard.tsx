@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Wand2, Eye, Globe, Puzzle } from "lucide-react";
+import { EntryPointSelector, type EntryPointOptions } from "./EntryPointSelector";
 
 interface WidgetSetupWizardProps {
   property: {
@@ -28,6 +29,7 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
   const [hidePoweredBy, setHidePoweredBy] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [platform, setPlatform] = useState<PlatformGuide>("html");
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
   const snippet = useMemo(() => {
     const attrs: string[] = [`data-rolos-property="${property.slug}"`];
@@ -75,6 +77,9 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+
         {/* Brand customisation */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
