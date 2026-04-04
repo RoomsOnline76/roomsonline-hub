@@ -67,6 +67,7 @@ export function InvitationMap({
   onBookNow,
   onContact,
   bookingLabel = 'Book Your Escape',
+  siblingProperties = [],
 }: InvitationMapProps) {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.2 });
   const mapRef = useRef<HTMLDivElement>(null);
