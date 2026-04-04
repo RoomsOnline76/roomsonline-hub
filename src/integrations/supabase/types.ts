@@ -3446,6 +3446,7 @@ export type Database = {
           images: Json | null
           is_active: boolean | null
           is_rol_property: boolean | null
+          is_test_property: boolean
           last_pms_sync_at: string | null
           latitude: number | null
           listing_intent: string | null
@@ -3521,6 +3522,7 @@ export type Database = {
           images?: Json | null
           is_active?: boolean | null
           is_rol_property?: boolean | null
+          is_test_property?: boolean
           last_pms_sync_at?: string | null
           latitude?: number | null
           listing_intent?: string | null
@@ -3596,6 +3598,7 @@ export type Database = {
           images?: Json | null
           is_active?: boolean | null
           is_rol_property?: boolean | null
+          is_test_property?: boolean
           last_pms_sync_at?: string | null
           latitude?: number | null
           listing_intent?: string | null
