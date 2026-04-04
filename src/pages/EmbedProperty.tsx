@@ -896,8 +896,8 @@ export default function EmbedProperty() {
                 </div>
               )}
 
-              {/* The Space */}
-              {(property.amenities?.space_description || (property.description && property.description.length > 200) || (property.amenities?.key_highlights?.length > 0)) && (
+              {/* The Space — only when enriched content exists (avoids duplicating the About description) */}
+              {(property.amenities?.space_description || (property.amenities?.key_highlights?.length > 0)) && (
                 <div>
                   <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">The space</h3>
                   {property.amenities?.key_highlights?.length > 0 && (
@@ -907,9 +907,9 @@ export default function EmbedProperty() {
                       ))}
                     </div>
                   )}
-                  {(property.amenities?.space_description || (property.description && property.description.length > 200)) && (
+                  {property.amenities?.space_description && (
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      {property.amenities?.space_description || property.description}
+                      {property.amenities.space_description}
                     </p>
                   )}
                 </div>
