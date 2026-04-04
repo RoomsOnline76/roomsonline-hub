@@ -2064,6 +2064,20 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
+  const toggleRoomActive = async (roomId: string) => {
+    const room = roomTypes.find(r => r.id === roomId);
+    if (!room) return;
+    const newActive = !room.is_active;
+    setRoomTypes(roomTypes.map(r => r.id === roomId ? { ...r, is_active: newActive } : r));
+    const { error } = await supabase.from("hostfully_room_types").update({ is_active: newActive, updated_at: new Date().toISOString() }).eq("id", roomId);
+    if (error) {
+      setRoomTypes(prev => prev.map(r => r.id === roomId ? { ...r, is_active: !newActive } : r));
+      toast({ title: "Error", description: "Failed to update room status", variant: "destructive" });
+    } else {
+      toast({ title: newActive ? "Room Activated" : "Room Deactivated", description: `${room.name} is now ${newActive ? "visible" : "hidden"} on booking pages` });
+    }
+  };
+
   // Helper to ensure a value is an array (handles JSON object vs array edge cases)
   const ensureArray = (value: any): string[] => {
     if (Array.isArray(value)) return value;
