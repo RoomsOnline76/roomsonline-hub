@@ -12056,13 +12056,16 @@ export default function PropertyForm() {
               <Button onClick={() => {
                 if (selectedPackage) {
                   // Update existing package
+                  const normalizedPackage = normalizePackage({
+                    ...selectedPackage,
+                    ...packageForm,
+                    category: packagesCategory,
+                  });
                   const updated = packages.map(p => 
-                    p.id === selectedPackage.id 
-                      ? { ...p, ...packageForm, category: packagesCategory }
-                      : p
+                    p.id === selectedPackage.id ? normalizedPackage : p
                   );
                   setPackages(updated);
-                  setSelectedPackage({ ...selectedPackage, ...packageForm, category: packagesCategory });
+                  setSelectedPackage(normalizedPackage);
                   setIsEditPackageOpen(false);
                   setIsDirty(true);
                   toast({ title: "Package updated", description: "The package has been updated successfully." });
