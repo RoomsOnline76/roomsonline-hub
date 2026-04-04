@@ -89,8 +89,10 @@ export default function AdminPortfolios() {
   const [brandDarkBgColor, setBrandDarkBgColor] = useState("");
   const [brandHeroVideoUrl, setBrandHeroVideoUrl] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const heroVideoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfolios = [], isLoading } = useQuery({
     queryKey: ["admin-portfolios"],
@@ -346,6 +348,28 @@ export default function AdminPortfolios() {
     }
   };
 
+  const handleHeroVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHeroVideoUploading(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const fileName = `portfolio-hero-${Date.now()}-${safeName}`;
+      const { data: uploadData, error } = await supabase.storage
+        .from("property-images")
+        .upload(fileName, file, { cacheControl: "3600", upsert: false });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("property-images").getPublicUrl(uploadData.path);
+      setBrandHeroVideoUrl(urlData.publicUrl);
+      toast({ title: "Hero video uploaded" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setHeroVideoUploading(false);
+      if (heroVideoInputRef.current) heroVideoInputRef.current.value = "";
+    }
+  };
+
   const renderPropertyPicker = () => (
     <div className="space-y-2">
       <Label className="text-xs">Properties</Label>
@@ -477,8 +501,16 @@ export default function AdminPortfolios() {
           </div>
         </div>
         <div className="space-y-1 pt-1">
-          <Label className="text-[10px] text-muted-foreground">Hero Video URL</Label>
-          <Input value={brandHeroVideoUrl} onChange={(e) => setBrandHeroVideoUrl(e.target.value)} placeholder="YouTube or direct video URL" className="text-xs" />
+          <Label className="text-[10px] text-muted-foreground">Hero Video</Label>
+          <div className="flex gap-2 items-center">
+            <Input value={brandHeroVideoUrl} onChange={(e) => setBrandHeroVideoUrl(e.target.value)} placeholder="YouTube or direct video URL" className="text-xs flex-1" />
+            <input ref={heroVideoInputRef} type="file" accept="video/*" className="hidden" onChange={handleHeroVideoUpload} />
+            <Button type="button" variant="outline" size="sm" className="h-9 text-xs shrink-0" disabled={heroVideoUploading} onClick={() => heroVideoInputRef.current?.click()}>
+              {heroVideoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              Upload
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <GoogleFontPicker
