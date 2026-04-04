@@ -195,6 +195,7 @@ const Booking = () => {
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
+  const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
