@@ -34,6 +34,10 @@ interface PortfolioProperty {
   max_guests: number | null;
   brand_primary_color?: string | null;
   external_system?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  key_highlights?: string[] | null;
+  space_description?: string | null;
 }
 
 interface AiGroup {
