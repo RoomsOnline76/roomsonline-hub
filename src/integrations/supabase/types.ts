@@ -4779,6 +4779,8 @@ export type Database = {
       }
       property_specials: {
         Row: {
+          age_label: string | null
+          age_restricted: boolean | null
           applicable_room_ids: string[] | null
           category: string
           created_at: string | null
@@ -4793,7 +4795,9 @@ export type Database = {
           included_items: Json | null
           is_active: boolean | null
           is_public: boolean | null
+          max_age: number | null
           max_stay: number | null
+          min_age: number | null
           min_stay: number | null
           name: string
           property_id: string
@@ -4805,6 +4809,8 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          age_label?: string | null
+          age_restricted?: boolean | null
           applicable_room_ids?: string[] | null
           category?: string
           created_at?: string | null
@@ -4819,7 +4825,9 @@ export type Database = {
           included_items?: Json | null
           is_active?: boolean | null
           is_public?: boolean | null
+          max_age?: number | null
           max_stay?: number | null
+          min_age?: number | null
           min_stay?: number | null
           name: string
           property_id: string
@@ -4831,6 +4839,8 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          age_label?: string | null
+          age_restricted?: boolean | null
           applicable_room_ids?: string[] | null
           category?: string
           created_at?: string | null
@@ -4845,7 +4855,9 @@ export type Database = {
           included_items?: Json | null
           is_active?: boolean | null
           is_public?: boolean | null
+          max_age?: number | null
           max_stay?: number | null
+          min_age?: number | null
           min_stay?: number | null
           name?: string
           property_id?: string
