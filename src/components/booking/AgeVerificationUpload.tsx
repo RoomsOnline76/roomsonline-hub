@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle, XCircle, Upload, Camera } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface AgeVerificationUploadProps {
