@@ -91,18 +91,23 @@ serve(async (req) => {
         ? (typeof images[0] === "string" ? images[0] : images[0]?.url || null)
         : null;
       const rm = roomsByProp[p.id];
+      const amenities = p.amenities || {};
       return {
         id: p.id,
         slug: p.slug,
         name: p.name,
         city: p.city,
-        description: p.description,
+        description: amenities.space_description || p.description,
         hero_image: heroImage,
         starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
         external_system: p.external_system || null,
+        latitude: p.latitude || null,
+        longitude: p.longitude || null,
+        key_highlights: amenities.key_highlights || null,
+        space_description: amenities.space_description || null,
       };
     });
 
