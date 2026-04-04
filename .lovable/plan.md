@@ -1,59 +1,88 @@
 
 
-# Improve Hostfully Sync — Image Import & Data Enrichment
+# Enhance Portfolio Page & ROL Property Showcase
 
-## Problem Summary
+## Current State
 
-The "Sync Hostfully Data" button results in room types having only 0–1 images each (e.g., ONE26 ON M: 8 room types, each with just 1 fallback `pictureLink`). The root causes are:
+**Portfolio Page** (`EmbedPortfolio.tsx`) is a functional but basic card grid with:
+- Property cards with hero image, name, city, rate, review rating pills
+- AI semantic search, groups, bundles, featured picks, specials
+- Missing: map, detailed reviews, enriched property descriptions, neighbourhood context
 
-1. **Wrong photos endpoint in `get_listing_details`**: Uses `/properties/{uid}/photos` (line 1330 of `index.ts`) which likely 404s or returns empty. The correct Hostfully v3 endpoint is `/photos?propertyUid={uid}` (as used in `fetchers.ts`).
+**ROL Property Showcase** (`PropertyShowcase.tsx`) already has rich content sections (SpaceDescription, NeighborhoodGuide, HouseRulesSection, InvitationMap, ReviewCarousel) but the portfolio page and the experience-engine-enabled embed pages don't share these.
 
-2. **Image URL extraction misses `originalImageUrl`**: The `get_listing_details` handler (line 1384-1386) only checks `img.url || img.original || img.pictureLink || img.uri` — but Hostfully's photo API returns `originalImageUrl` as the primary field.
+**Data availability** for Jongensfontein portfolio:
+- All 4 properties have lat/lng coordinates (-34.428, 21.329)
+- 3 of 4 have Google review ratings (4.6-4.8)
+- None have enriched content yet (no space_description, neighbourhood, highlights)
 
-3. **Unit-level photos are sparse**: For building properties, Hostfully stores most photos at the building level (`/photos?propertyUid={buildingUid}`), not at individual unit UIDs. The `fetchUnitDetails` in `unit-ingestion.ts` fetches photos per-unit and gets few/none, then falls back to a single `pictureLink`.
+## Plan
 
-4. **No building-level photo distribution**: When building photos exist but individual units don't have photos, there's no mechanism to distribute building-level photos to room types based on category/caption matching.
+### 1. Portfolio Page: Add Multi-Property Map Section
+**File**: `src/pages/EmbedPortfolio.tsx`
 
-## Solution
+- Add a map section below the property grid showing all portfolio properties as pins
+- Reuse the Google Maps loading pattern from `InvitationMap` (useGoogleMapsApiKey + importLibrary)
+- Each pin shows property name; clicking navigates to that property
+- Only render when 2+ properties have coordinates
+- Use grayscale map styling consistent with showcase pages
 
-### 1. Fix `get_listing_details` photos endpoint and extraction
+### 2. Portfolio Page: Add Review Carousel Section
+**File**: `src/pages/EmbedPortfolio.tsx`
 
-**File**: `supabase/functions/hostfully-api/index.ts` (lines ~1328-1340, ~1384-1387)
+- Fetch reviews from `property_review_cache` (reviews JSON + tobi_blurb) for all member properties
+- Add a "What guests are saying" section below the property grid with horizontally scrollable review cards (reuse ShowcaseReviewCarousel pattern but inline-styled for embed context)
+- Show review source badges (Google/TripAdvisor/Booking.com) with brand SVG icons
+- Aggregate top reviews across all properties, labelling each with the property name
 
-- Change `/properties/${propertyUid}/photos` to `/photos?propertyUid=${propertyUid}`
-- Add `originalImageUrl` to the image URL extraction chain: `img.originalImageUrl || img.url || img.original || img.pictureLink`
+### 3. Portfolio Page: Enrich Property Cards
+**File**: `src/pages/EmbedPortfolio.tsx`
 
-### 2. Add building-level photo fallback to unit ingestion
+- Show enriched descriptions from `amenities.space_description` when available (fallback to current `description`)
+- Add key highlight pills if `amenities.key_highlights` exists
+- Expand the API (`booking-portfolio-api`) to return `latitude`, `longitude`, `amenities.key_highlights`, and `amenities.space_description` for each property
 
-**File**: `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts`
+### 4. Portfolio API: Return Additional Data
+**File**: `supabase/functions/booking-portfolio-api/index.ts`
 
-- After fetching all unit details, check if any room type has < 2 images
-- If so, fetch building-level photos via `fetchPhotos(buildingUid, creds)` using the property's `hostfully_property_uid`
-- Distribute building photos to room types using caption/category matching:
-  - Photos with captions containing room type names (e.g., "Studio", "One bedroom") go to that type
-  - Photos categorized as "bedroom", "bathroom", "interior", "living_room", "kitchen" get distributed to all room types that lack images
-  - Property/exterior photos remain at property level
-- This ensures each room type gets a rich image set even when individual unit photo endpoints return sparse results
+- Add `latitude`, `longitude` to the property select query
+- Add a reviews summary fetch (overall_rating, total_reviews, source, tobi_blurb) from `property_review_cache`
+- Include top 2 reviews per property in the response
+- Return `key_highlights` and `space_description` from property amenities
 
-### 3. Add building photo fetch to the sync flow
+### 5. ROL Property Showcase: Content Alignment
+**File**: `src/pages/PropertyShowcase.tsx`
 
-**File**: `src/pages/PropertyForm.tsx` (lines ~944-1110)
+The showcase already renders SpaceDescription, NeighborhoodGuide, HouseRulesSection, ReviewCarousel, and InvitationMap. The main gap is that non-Hostfully properties skip the BuildingIntro section. Changes:
+- Show BuildingIntro for ALL property types (not just Hostfully) — it provides the rich description + review badges header
+- Move the review badges into the hero area or building intro universally
+- Add key highlights pills section between QuietFacts and rooms (when available from enriched data)
+- Display `things_to_know` content more prominently
 
-- After the per-room `get_listing_details` loop, if room types still have ≤1 image, trigger a building-level photo fetch
-- Use `fetchPhotos` via the orchestrator or a new lightweight action to get building photos and merge them into room types
+### 6. Create Portfolio Map Component
+**File**: `src/components/embed/EmbedPortfolioMap.tsx` (new)
 
-### 4. Improve image deduplication in writer
+- Self-contained map component accepting array of `{ name, slug, lat, lng, heroImage }` and brand color
+- Renders Google Map with AdvancedMarkerElements for each property
+- InfoWindow on click with property name, thumbnail, "View" link
+- Grayscale styling matching InvitationMap
+- Responsive: full-width, 300px height on mobile, 400px on desktop
 
-**File**: `supabase/functions/hostfully-api/ingestion/writer.ts`
+### 7. Create Portfolio Reviews Section
+**File**: `src/components/embed/EmbedPortfolioReviews.tsx` (new)
 
-- When merging images, normalize URLs before dedup (strip query params, trailing slashes)
-- Preserve image order/category metadata
+- Accepts aggregated reviews with property attribution
+- Horizontal scrollable card layout (consistent with ShowcaseReviewCarousel)
+- Inline styles (no Tailwind dependency for embed context)
+- Shows TOBI blurb summaries when available, attributed to property
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `supabase/functions/hostfully-api/index.ts` | Fix photos endpoint URL and add `originalImageUrl` extraction |
-| `supabase/functions/hostfully-api/ingestion/unit-ingestion.ts` | Add building-level photo fallback: fetch parent property photos and distribute to room types by caption/category matching |
-| `src/pages/PropertyForm.tsx` | Remove DEBUG toasts; after per-room sync, check image counts and trigger building photo distribution if needed |
+| `supabase/functions/booking-portfolio-api/index.ts` | Add lat/lng, reviews data, key_highlights, space_description to response |
+| `src/pages/EmbedPortfolio.tsx` | Integrate map, reviews section, enriched cards; fetch review details |
+| `src/components/embed/EmbedPortfolioMap.tsx` | New: multi-property Google Map for portfolio |
+| `src/components/embed/EmbedPortfolioReviews.tsx` | New: aggregated review carousel for portfolio |
+| `src/pages/PropertyShowcase.tsx` | Show BuildingIntro for all property types; surface key_highlights universally |
 
