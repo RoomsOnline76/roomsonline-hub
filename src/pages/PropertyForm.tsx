@@ -11905,11 +11905,22 @@ export default function PropertyForm() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roomTypes.map((room) => (
+                    {roomTypes.map((room) => {
+                      const roomIdStr = String(room.id);
+                      const isRoomChecked = packageForm.applicableRoomIds.includes(roomIdStr);
+                      return (
                       <tr key={room.id} className="border-b">
                         <td className="p-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <Checkbox />
+                            <Checkbox
+                              checked={isRoomChecked}
+                              onCheckedChange={(checked) => {
+                                const updated = checked
+                                  ? [...packageForm.applicableRoomIds, roomIdStr]
+                                  : packageForm.applicableRoomIds.filter(id => id !== roomIdStr);
+                                setPackageForm({ ...packageForm, applicableRoomIds: updated });
+                              }}
+                            />
                             <span>{room.name}</span>
                             <Link className="h-4 w-4 text-primary" />
                           </div>
