@@ -976,25 +976,39 @@ export default function PropertyShowcase() {
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 py-8 sm:py-12">
           {/* Left: Property Content */}
           <div className="flex-1 min-w-0">
-            {/* Building Introduction (Hostfully multi-unit properties) */}
-            {isHostfullyProperty && (
-              <BuildingIntro
-                description={property.description}
-                address={property.address}
-                city={property.city}
-                checkInTime={property.amenities?.check_in_time}
-                checkOutTime={property.amenities?.check_out_time}
-                totalUnits={roomTypes.length}
-                reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
-              />
-            )}
+            {/* Building Introduction — universal for all property types */}
+            <BuildingIntro
+              description={property.description}
+              address={property.address}
+              city={property.city}
+              checkInTime={property.amenities?.check_in_time}
+              checkOutTime={property.amenities?.check_out_time}
+              totalUnits={isHostfullyProperty ? roomTypes.length : undefined}
+              bedrooms={property.bedrooms || undefined}
+              bathrooms={property.bathrooms || undefined}
+              maxGuests={property.max_guests || undefined}
+              reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
+            />
 
-            {/* Quick Facts (non-Hostfully) */}
-            {!isHostfullyProperty && (
+            {/* Quick Facts (non-Hostfully — additional context) */}
+            {!isHostfullyProperty && proseFacts.length > 0 && (
               <QuietFacts
                 facts={proseFacts}
                 editorialBlurb={editorialBlurb?.content}
               />
+            )}
+
+            {/* Key Highlights */}
+            {property.amenities?.key_highlights?.length > 0 && (
+              <div className="px-6 sm:px-10 md:px-16 lg:px-0 py-4">
+                <div className="flex flex-wrap gap-2">
+                  {property.amenities.key_highlights.map((h: string, i: number) => (
+                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/50 text-muted-foreground font-medium">
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* Building Photo Gallery (Hostfully multi-unit) */}
