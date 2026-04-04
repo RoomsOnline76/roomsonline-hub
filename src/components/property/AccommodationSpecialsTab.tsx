@@ -30,6 +30,8 @@ interface Special {
   currency: string | null;
   valid_from: string | null;
   valid_to: string | null;
+  book_from: string | null;
+  book_until: string | null;
   min_stay: number | null;
   max_stay: number | null;
   applicable_room_ids: string[] | null;
