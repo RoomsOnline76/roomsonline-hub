@@ -32,6 +32,7 @@ interface PortfolioBranding {
   light_bg_color?: string;
   dark_bg_color?: string;
   hero_video_url?: string;
+  pinned_featured_ids?: string[];
 }
 
 interface Portfolio {
