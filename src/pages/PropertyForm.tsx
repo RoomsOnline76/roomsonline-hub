@@ -11367,7 +11367,23 @@ export default function PropertyForm() {
                             size="sm"
                             variant="ghost"
                             className="h-5 w-5 p-0"
-                            onClick={() => setIsEditPackageOpen(true)}
+                            onClick={() => {
+                              setSelectedPackage(null);
+                              setPackageForm({
+                                name: "",
+                                description: "",
+                                minimumStay: 1,
+                                maximumStay: 1,
+                                season: "",
+                                periodFrom: undefined,
+                                periodTo: undefined,
+                                pricingType: "discount",
+                                isPublic: false,
+                                images: [],
+                              });
+                              setPackageImages([]);
+                              setIsEditPackageOpen(true);
+                            }}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
