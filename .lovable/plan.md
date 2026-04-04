@@ -1,79 +1,107 @@
 
 
-# Surface Announcements, Specials, Packages, Add-ons & Checkout Enhancements
+# Security Scan Remediation
 
-## Problem Summary
+## Findings Summary & Actions
 
-Currently, several data types configured in PropertyForm (stored in `amenities` JSON) are **never rendered** on the public-facing pages:
+| # | Finding | Action |
+|---|---------|--------|
+| 1 | **Contracts/Signatures storage buckets — anon write** | **Fix**: Tighten policies to `service_role` + admin/dev authenticated |
+| 2 | **html2pdf.js critical/high vulnerabilities** | **Ignore**: No user-supplied content passes through html2pdf — only system-generated invoices/PDFs. Upgrading would require a full library swap with no drop-in replacement. |
+| 3 | **Journal XSS via dangerouslySetInnerHTML** | **Ignore (false positive)**: `PublicJournals.tsx` already uses `DOMPurify.sanitize()` with a strict allowlist (lines 191-194). The finding is outdated. |
+| 4 | **Experience vouchers — public INSERT/UPDATE** | **Fix**: Restrict INSERT and UPDATE to `service_role` only. Edge functions already use service role key. SELECT stays public (needed for code redemption lookup). |
+| 5 | **Extension in public schema** | **Ignore**: `btree_gist` is required in public for GiST indexes. Moving it would break existing indexes and is a Supabase platform limitation. |
+| 6 | **RLS Enabled No Policy** | **Ignore (info-level)**: These are system/internal tables where RLS is enabled as a safeguard but no client access is needed. |
 
-1. **Announcements** — saved to `amenities.announcements` but not shown on EmbedProperty or PropertyShowcase
-2. **Specials** — `property_specials` table is only surfaced on the **portfolio** page, not on individual property embed or showcase pages
-3. **Packages** — saved to `amenities.packages` but not shown anywhere public; also reported as not saving correctly (editing issue was fixed but may need verification)
-4. **Add-ons** — saved to `amenities.addons` but never offered during checkout
-5. **Checkout date adjustment** — the date picker only shows when no dates are selected; users cannot change dates once set. The availability-aware picker exists but is not accessible for modification.
+## Implementation
 
-## Plan
+### Migration 1 — Tighten `experience_vouchers` policies
 
-### 1. Show Announcements on EmbedProperty + PropertyShowcase
+```sql
+-- Drop permissive INSERT/UPDATE policies
+DROP POLICY IF EXISTS "System can create vouchers" ON public.experience_vouchers;
+DROP POLICY IF EXISTS "System can update vouchers" ON public.experience_vouchers;
 
-**Files**: `src/pages/EmbedProperty.tsx`, `src/pages/PropertyShowcase.tsx`
+-- Recreate for service_role only (edge functions use service role key)
+CREATE POLICY "Service role can create vouchers"
+  ON public.experience_vouchers FOR INSERT
+  TO service_role WITH CHECK (true);
 
-- Read `property.amenities.announcements` (already fetched)
-- Filter to `enabled === true` and optionally check date range if announcements have `validFrom`/`validTo`
-- Render a dismissible banner/card at the top of the content area (below hero, above rooms)
-- Style: alert-style card with the announcement title, message, and optional link
+CREATE POLICY "Service role can update vouchers"
+  ON public.experience_vouchers FOR UPDATE
+  TO service_role USING (true);
+```
 
-### 2. Show Specials on EmbedProperty + PropertyShowcase
+### Migration 2 — Tighten storage bucket policies
 
-**Files**: `src/pages/EmbedProperty.tsx`, `src/pages/PropertyShowcase.tsx`
+```sql
+-- Fix contracts bucket: restrict to service_role + authenticated admins/devs
+DROP POLICY IF EXISTS "Service role can manage contracts" ON storage.objects;
+CREATE POLICY "Service role can manage contracts"
+  ON storage.objects FOR ALL
+  TO service_role
+  USING (bucket_id = 'contracts')
+  WITH CHECK (bucket_id = 'contracts');
 
-- Fetch from `property_specials` table for the current property (active, within date range)
-- Render a "Current Specials" section with discount badges — similar pattern already exists in EmbedPortfolio
-- On room cards, show a "Special" badge if a special applies to that room (via `applicable_room_ids`)
-- Optionally apply the discount in the cost calculation on checkout
+CREATE POLICY "Admins can manage contracts"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (
+    bucket_id = 'contracts'
+    AND (
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'dev')
+      OR public.has_role(auth.uid(), 'fearless_leader')
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'contracts'
+    AND (
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'dev')
+      OR public.has_role(auth.uid(), 'fearless_leader')
+    )
+  );
 
-### 3. Show Packages on EmbedProperty + PropertyShowcase
+-- Same pattern for signatures bucket
+DROP POLICY IF EXISTS "Service role can manage signatures" ON storage.objects;
+CREATE POLICY "Service role can manage signatures"
+  ON storage.objects FOR ALL
+  TO service_role
+  USING (bucket_id = 'signatures')
+  WITH CHECK (bucket_id = 'signatures');
 
-**Files**: `src/pages/EmbedProperty.tsx`, `src/pages/PropertyShowcase.tsx`
+CREATE POLICY "Admins can manage signatures"
+  ON storage.objects FOR ALL
+  TO authenticated
+  USING (
+    bucket_id = 'signatures'
+    AND (
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'dev')
+      OR public.has_role(auth.uid(), 'fearless_leader')
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'signatures'
+    AND (
+      public.has_role(auth.uid(), 'admin')
+      OR public.has_role(auth.uid(), 'dev')
+      OR public.has_role(auth.uid(), 'fearless_leader')
+    )
+  );
+```
 
-- Read `property.amenities.packages` (already fetched)
-- Filter to packages within their configured date range
-- Render a "Packages" section with cards showing package name, description, included stays, pricing, and images
-- Add a "Book Package" CTA that navigates to checkout with pre-filled params
+### Security finding updates
 
-### 4. Add-ons in Checkout
+After migrations, mark findings appropriately:
+- **Delete** `contracts_storage_anon_write` (fixed)
+- **Delete** `vouchers_public_write` (fixed)
+- **Ignore** `journal_xss_risk` — already sanitized with DOMPurify
+- **Ignore** `vulnerable_dependencies_critical` + `vulnerable_dependencies_high` — html2pdf only processes system-generated content, no user input passes through; no drop-in upgrade available
+- **Ignore** `SUPA_extension_in_public` — btree_gist required in public schema for GiST indexes
+- **Ignore** `SUPA_rls_enabled_no_policy` — info-level, internal tables with no client access
 
-**File**: `src/pages/Booking.tsx`
-
-- Read `property.amenities.addons` from the already-fetched property data
-- Filter addons by applicable day-of-week (if configured) and offering type
-- Add an "Extras & Add-ons" section between Step 1 (Your Stay) and Step 2 (Your Details)
-- Each addon shows name, description, price, and a quantity stepper (or toggle for flat-fee items)
-- Selected addons are added as line items in the cost breakdown
-- Pass selected addons in the booking creation payload (metadata or dedicated field)
-
-### 5. Date Adjustment in Checkout with Availability
-
-**File**: `src/pages/Booking.tsx`
-
-- When dates ARE already selected, make the date display clickable to open the `BottomSheetDatePicker`
-- The picker already receives `calendarAvailability` (availability map) — it will show rates and blocked dates
-- After date change, trigger cost recalculation (already wired via existing effects)
-- Move the date picker rendering outside the `(!checkIn || !checkOut)` conditional so it's always available
-
-### 6. Verify Package Saving
-
-- The edit flow was recently fixed; verify that packages array correctly round-trips through save/load in `amenities.packages`
-
-## Files to Create/Change
-
-| File | Change |
-|------|--------|
-| `src/pages/EmbedProperty.tsx` | Add announcements banner, specials section, packages section |
-| `src/pages/PropertyShowcase.tsx` | Add announcements banner, specials section, packages section |
-| `src/pages/Booking.tsx` | Add add-ons selector, make dates always editable with availability picker |
-| `src/components/showcase/AnnouncementBanner.tsx` | **Create** — reusable announcement display |
-| `src/components/showcase/SpecialsBanner.tsx` | **Create** — reusable specials display for single-property views |
-| `src/components/showcase/PackageCards.tsx` | **Create** — reusable packages display |
-| `src/components/booking/AddOnSelector.tsx` | **Create** — checkout add-on picker with quantity steppers |
+### No code changes needed
+All fixes are database-level policy changes. No application code is affected.
 
