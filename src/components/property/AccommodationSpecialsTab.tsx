@@ -77,6 +77,10 @@ const emptySpecial = (propertyId: string, category: string): Omit<Special, "id">
   is_active: true,
   is_public: true,
   sort_order: 0,
+  age_restricted: false,
+  min_age: null,
+  max_age: null,
+  age_label: null,
 });
 
 export function AccommodationSpecialsTab({ propertyId, category = "accommodation", roomTypes = [] }: Props) {
