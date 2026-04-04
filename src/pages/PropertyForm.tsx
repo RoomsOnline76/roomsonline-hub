@@ -1903,6 +1903,7 @@ export default function PropertyForm() {
 
   const [starRating, setStarRating] = useState(0);
   const [isRolProperty, setIsRolProperty] = useState(false);
+  const [isTestProperty, setIsTestProperty] = useState(false);
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
@@ -3222,8 +3223,9 @@ export default function PropertyForm() {
             brand_body_font: (data as any).brand_body_font || "",
           });
 
-          // Load is_rol_property
+          // Load is_rol_property and is_test_property
           setIsRolProperty((data as any).is_rol_property ?? false);
+          setIsTestProperty((data as any).is_test_property ?? false);
 
           // Load meal types if available
           if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
@@ -3863,6 +3865,7 @@ export default function PropertyForm() {
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
         is_rol_property: isRolProperty,
+        is_test_property: isTestProperty,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
@@ -5274,6 +5277,19 @@ export default function PropertyForm() {
                             />
                             <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
                               ROL Property
+                            </Label>
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            <Checkbox
+                              id="is_test_property"
+                              checked={isTestProperty}
+                              onCheckedChange={(checked) => {
+                                setIsTestProperty(checked as boolean);
+                                setIsDirty(true);
+                              }}
+                            />
+                            <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
+                              ⚠ Test / Sandbox
                             </Label>
                           </div>
                           <div className="flex flex-col gap-1">
