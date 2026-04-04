@@ -2849,6 +2849,7 @@ export default function PropertyForm() {
   // Announcements state
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isManageAnnouncementOpen, setIsManageAnnouncementOpen] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [announcementForm, setAnnouncementForm] = useState({
     announcement: "",
     order: 0,
@@ -3470,32 +3471,35 @@ export default function PropertyForm() {
     loadProperty();
   }, [id, ownersLoaded]);
 
-  const addAnnouncement = () => {
-    const newAnnouncement = {
-      id: Date.now().toString(),
-      ...announcementForm,
-    };
-    setAnnouncements([...announcements, newAnnouncement]);
+  const saveAnnouncement = () => {
+    if (editingAnnouncementId) {
+      setAnnouncements(announcements.map((a) => a.id === editingAnnouncementId ? { ...a, ...announcementForm } : a));
+      toast({ title: "Announcement updated", description: "The announcement has been updated." });
+    } else {
+      const newAnnouncement = { id: Date.now().toString(), ...announcementForm };
+      setAnnouncements([...announcements, newAnnouncement]);
+      toast({ title: "Announcement created", description: "The announcement has been added successfully." });
+    }
     setIsManageAnnouncementOpen(false);
+    setEditingAnnouncementId(null);
+    setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true });
+  };
+
+  const editAnnouncement = (a: any) => {
+    setEditingAnnouncementId(a.id);
     setAnnouncementForm({
-      announcement: "",
-      order: 0,
-      startDate: undefined,
-      endDate: undefined,
-      enabled: true,
+      announcement: a.announcement || "",
+      order: a.order || 0,
+      startDate: a.startDate ? new Date(a.startDate) : undefined,
+      endDate: a.endDate ? new Date(a.endDate) : undefined,
+      enabled: a.enabled ?? true,
     });
-    toast({
-      title: "Announcement created",
-      description: "The announcement has been added successfully.",
-    });
+    setIsManageAnnouncementOpen(true);
   };
 
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(announcements.filter((a) => a.id !== id));
-    toast({
-      title: "Announcement deleted",
-      description: "The announcement has been removed.",
-    });
+    toast({ title: "Announcement deleted", description: "The announcement has been removed." });
   };
 
   const toggleAnnouncementEnabled = (id: string) => {
@@ -11468,7 +11472,7 @@ export default function PropertyForm() {
               <Card>
                 <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm">Announcements</CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setIsManageAnnouncementOpen(true)}>
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => { setEditingAnnouncementId(null); setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true }); setIsManageAnnouncementOpen(true); }}>
                     <Plus className="h-3 w-3" />
                     Add
                   </Button>
@@ -11507,7 +11511,15 @@ export default function PropertyForm() {
                                 {announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}
                               </td>
                               <td className="py-1 px-2 text-xs">{announcement.order}</td>
-                              <td className="py-1 px-2">
+                              <td className="py-1 px-2 flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => editAnnouncement(announcement)}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -11547,7 +11559,7 @@ export default function PropertyForm() {
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Announcements</DialogTitle>
+            <DialogTitle>{editingAnnouncementId ? "Edit Announcement" : "Add Announcement"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -11637,8 +11649,8 @@ export default function PropertyForm() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={addAnnouncement} className="bg-primary">
-                Create
+              <Button onClick={saveAnnouncement} className="bg-primary">
+                {editingAnnouncementId ? "Update" : "Create"}
               </Button>
             </div>
           </div>
