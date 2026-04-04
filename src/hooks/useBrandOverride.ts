@@ -57,7 +57,7 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
 
         let query = supabase
           .from('properties')
-          .select('id, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font');
+          .select('id, brand_override_enabled, brand_primary_color, brand_secondary_color, brand_font_color, brand_logo_url, brand_heading_font, brand_body_font, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color');
 
         if (isUuid) {
           query = query.eq('id', propertyIdentifier!);
@@ -81,6 +81,11 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
             logoUrl: data.brand_logo_url,
             headingFont: (data as any).brand_heading_font,
             bodyFont: (data as any).brand_body_font,
+            headingTextColor: (data as any).brand_heading_text_color,
+            bodyTextColor: (data as any).brand_body_text_color,
+            mutedTextColor: (data as any).brand_muted_text_color,
+            lightBgColor: (data as any).brand_light_bg_color,
+            darkBgColor: (data as any).brand_dark_bg_color,
             propertyId: data.id,
           };
           saveBrandToSession(brand);

@@ -67,17 +67,22 @@ export function CopyBrandingModal({
 
   const copyMutation = useMutation({
     mutationFn: async (targetIds: string[]) => {
-      const updatePayload = {
+      const updatePayload: Record<string, any> = {
         brand_logo_url: brandingData.brand_logo_url || null,
         brand_primary_color: brandingData.brand_primary_color || null,
         brand_secondary_color: brandingData.brand_secondary_color || null,
         brand_font_color: brandingData.brand_font_color || null,
         brand_override_enabled: brandingData.brand_override_enabled,
+        brand_heading_text_color: (brandingData as any).brand_heading_text_color || null,
+        brand_body_text_color: (brandingData as any).brand_body_text_color || null,
+        brand_muted_text_color: (brandingData as any).brand_muted_text_color || null,
+        brand_light_bg_color: (brandingData as any).brand_light_bg_color || null,
+        brand_dark_bg_color: (brandingData as any).brand_dark_bg_color || null,
       };
 
       const { error } = await supabase
         .from("properties")
-        .update(updatePayload)
+        .update(updatePayload as any)
         .in("id", targetIds);
 
       if (error) throw error;

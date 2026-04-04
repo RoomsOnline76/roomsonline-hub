@@ -71,18 +71,66 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
     if (hsl) {
       vars["--secondary"] = hsl;
       vars["--secondary-foreground"] = autoForeground(brand.secondaryColor);
-      vars["--muted"] = hsl;
-      vars["--muted-foreground"] = autoForeground(brand.secondaryColor);
     }
   }
-  if (brand.fontColor) {
-    const hsl = hexToHsl(brand.fontColor);
+
+  // Heading text color (fallback to legacy fontColor)
+  const headingHex = brand.headingTextColor || brand.fontColor;
+  if (headingHex) {
+    const hsl = hexToHsl(headingHex);
     if (hsl) {
       vars["--foreground"] = hsl;
       vars["--card-foreground"] = hsl;
+    }
+  }
+
+  // Body text color (fallback to legacy fontColor)
+  const bodyHex = brand.bodyTextColor || brand.fontColor;
+  if (bodyHex) {
+    const hsl = hexToHsl(bodyHex);
+    if (hsl) {
       vars["--popover-foreground"] = hsl;
     }
   }
+
+  // Muted text / links
+  if (brand.mutedTextColor) {
+    const hsl = hexToHsl(brand.mutedTextColor);
+    if (hsl) {
+      vars["--muted-foreground"] = hsl;
+    }
+  } else if (brand.secondaryColor) {
+    // Legacy fallback: derive muted-foreground from secondary
+    vars["--muted-foreground"] = autoForeground(brand.secondaryColor);
+  }
+
+  // Light BG / Cards
+  if (brand.lightBgColor) {
+    const hsl = hexToHsl(brand.lightBgColor);
+    if (hsl) {
+      vars["--card"] = hsl;
+      vars["--popover"] = hsl;
+      vars["--background"] = hsl;
+    }
+  }
+
+  // Dark BG Accent
+  if (brand.darkBgColor) {
+    const hsl = hexToHsl(brand.darkBgColor);
+    if (hsl) {
+      vars["--accent"] = hsl;
+      vars["--accent-foreground"] = autoForeground(brand.darkBgColor);
+    }
+  }
+
+  // Muted background from secondary (legacy)
+  if (brand.secondaryColor && !brand.lightBgColor) {
+    const hsl = hexToHsl(brand.secondaryColor);
+    if (hsl) {
+      vars["--muted"] = hsl;
+    }
+  }
+
   if (brand.headingFont) {
     vars["--font-heading"] = `'${brand.headingFont}', serif`;
   }
