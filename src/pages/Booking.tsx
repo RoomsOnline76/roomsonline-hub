@@ -199,6 +199,8 @@ const Booking = () => {
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
   const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
   const [appliedPromotion, setAppliedPromotion] = useState<{ name: string; type: string; discount: number; description?: string } | null>(null);
+  const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
+  const [ageVerified, setAgeVerified] = useState(false);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
