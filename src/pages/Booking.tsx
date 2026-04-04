@@ -2122,6 +2122,23 @@ const Booking = () => {
             </Button>
           </motion.div>
 
+          {/* ── Extras & Add-ons ── */}
+          {property?.amenities?.addons?.length > 0 && checkIn && checkOut && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <AddOnSelector
+                addons={(property.amenities as any).addons}
+                nights={nights}
+                guests={totalGuests}
+                selectedAddons={selectedAddons}
+                onSelectionChange={setSelectedAddons}
+              />
+            </motion.div>
+          )}
+
           {/* ── Step 2: Your Details ── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
