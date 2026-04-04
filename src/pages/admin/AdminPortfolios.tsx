@@ -238,6 +238,12 @@ export default function AdminPortfolios() {
     setBrandLogoUrl("");
     setBrandHeadingFont("");
     setBrandBodyFont("");
+    setBrandHeadingTextColor("");
+    setBrandBodyTextColor("");
+    setBrandMutedTextColor("");
+    setBrandLightBgColor("");
+    setBrandDarkBgColor("");
+    setBrandHeroVideoUrl("");
     setReviewIds({});
   };
 
