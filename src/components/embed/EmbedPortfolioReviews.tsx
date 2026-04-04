@@ -46,7 +46,7 @@ export function EmbedPortfolioReviews({ reviews, tobiBlurbs, brandColor }: Embed
       {/* TOBI blurbs */}
       {uniqueBlurbs.length > 0 && (
         <div className="mb-5 space-y-3">
-          {tobiBlurbs.map((tb, i) => (
+          {uniqueBlurbs.map((tb, i) => (
             <div key={i} className="p-4 rounded-xl border border-gray-100" style={{ backgroundColor: `${brandColor}06` }}>
               <p className="text-sm text-gray-700 italic leading-relaxed">"{tb.blurb}"</p>
               <p className="text-xs text-gray-400 mt-2">— {tb.property_name}</p>
