@@ -221,6 +221,8 @@ export default function PropertyShowcase() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   // Calendar availability for 90-day range
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
+  // Portfolio sibling properties for map
+  const [siblingProperties, setSiblingProperties] = useState<Array<{ name: string; slug: string; lat: number; lng: number; heroImage?: string }>>([]);
   
   // AI Concierge state
   const { enabled: aiConciergeEnabled, isLoading: aiConciergeLoading } = useAIConciergeEnabled();
