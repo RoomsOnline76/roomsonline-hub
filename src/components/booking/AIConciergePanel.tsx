@@ -640,9 +640,9 @@ export function AIConciergePanel({
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Proactive prompt */}
+          {/* Proactive prompt — only show if no messages except welcome */}
           <AnimatePresence>
-            {showProactivePrompt && messages.length === 0 && (
+            {showProactivePrompt && messages.length <= 1 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
