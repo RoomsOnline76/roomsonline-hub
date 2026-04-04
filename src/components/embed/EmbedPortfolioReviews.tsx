@@ -29,7 +29,12 @@ function getInitials(name: string) {
 }
 
 export function EmbedPortfolioReviews({ reviews, tobiBlurbs, brandColor }: EmbedPortfolioReviewsProps) {
-  if (reviews.length === 0 && tobiBlurbs.length === 0) return null;
+  // Deduplicate blurbs by property_name (defensive safeguard)
+  const uniqueBlurbs = tobiBlurbs.filter((tb, i, arr) =>
+    arr.findIndex(x => x.property_name === tb.property_name) === i
+  );
+
+  if (reviews.length === 0 && uniqueBlurbs.length === 0) return null;
 
   return (
     <div className="w-full">

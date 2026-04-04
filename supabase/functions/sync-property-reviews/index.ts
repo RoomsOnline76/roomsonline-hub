@@ -258,7 +258,7 @@ serve(async (req) => {
           });
 
           if (allReviewTexts.length > 0) {
-            const prompt = `Based on these guest reviews for "${property.name}" in ${property.city}, ${property.country}, write a 2-3 sentence summary of why guests love this place. Be specific about what makes it special — mention actual details from the reviews. Keep it warm, genuine, and compelling. Do NOT use generic phrases. Do NOT introduce yourself or refer to yourself. Just write the summary directly.
+            const prompt = `Based on these guest reviews for "${property.name}" in ${property.city}, ${property.country}, write a 2-3 sentence editorial summary of what guests consistently praise. Ground every claim in specific details from the reviews — mention particular features, qualities, or experiences that stand out. Write in third person as a travel editor. STRICT RULES: Do NOT start with "As TOBI" or any self-introduction. Do NOT use first person. Do NOT repeat the property name more than once. Do NOT use generic phrases like "hidden gem", "something for everyone", or "unforgettable". Just write the summary directly.
 
 Reviews:
 ${allReviewTexts.slice(0, 8).join('\n')}
