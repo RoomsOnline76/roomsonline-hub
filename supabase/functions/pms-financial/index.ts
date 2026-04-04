@@ -208,14 +208,27 @@ Deno.serve(async (req) => {
         const charges = (transactions || []).filter((t: any) => (t.amount || 0) > 0);
         const subtotal = charges.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
+        // Identify refundable deposit charges (excluded from VAT)
+        const { data: depositCharges } = await supabase
+          .from("rolos_service_charges")
+          .select("folio_transaction_id, is_refundable")
+          .eq("property_id", invPropId)
+          .eq("is_refundable", true);
+        const refundableTxIds = new Set((depositCharges || []).map((d: any) => d.folio_transaction_id).filter(Boolean));
+        const refundableTotal = charges
+          .filter((t: any) => refundableTxIds.has(t.id) || (t.description && t.description.toLowerCase().includes('deposit') && t.description.toLowerCase().includes('refundable')))
+          .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+
         const { data: taxRules } = await supabase
           .from("rolos_tax_rules")
           .select("*")
           .eq("property_id", invPropId)
           .eq("is_active", true);
 
+        // Apply tax rules only to non-refundable amounts
+        const vatableSubtotal = subtotal - refundableTotal;
         let taxTotal = (taxRules || []).reduce((sum: number, rule: any) => {
-          return sum + (subtotal * Number(rule.rate) / 100);
+          return sum + (vatableSubtotal * Number(rule.rate) / 100);
         }, 0);
 
         // If no explicit tax rules but property has VAT enabled, apply VAT
@@ -234,8 +247,8 @@ Deno.serve(async (req) => {
           const hasVat = brandCfg?.is_vat_registered || !!propAmenities?.vat_number;
           if (hasVat) {
             const vatRate = brandCfg?.vat_rate ?? 15;
-            // VAT is inclusive: total = subtotal, VAT = subtotal - subtotal/(1+rate)
-            taxTotal = subtotal - (subtotal / (1 + vatRate / 100));
+            // VAT is inclusive on vatable amount only
+            taxTotal = vatableSubtotal - (vatableSubtotal / (1 + vatRate / 100));
           }
         }
 
