@@ -253,6 +253,12 @@ export default function AdminPortfolios() {
     setBrandLogoUrl(b?.logo_url || "");
     setBrandHeadingFont(b?.heading_font || "");
     setBrandBodyFont(b?.body_font || "");
+    setBrandHeadingTextColor(b?.heading_text_color || "");
+    setBrandBodyTextColor(b?.body_text_color || "");
+    setBrandMutedTextColor(b?.muted_text_color || "");
+    setBrandLightBgColor(b?.light_bg_color || "");
+    setBrandDarkBgColor(b?.dark_bg_color || "");
+    setBrandHeroVideoUrl(b?.hero_video_url || "");
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
