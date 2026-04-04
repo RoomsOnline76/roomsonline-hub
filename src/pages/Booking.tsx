@@ -1543,6 +1543,9 @@ const Booking = () => {
             .gte("valid_to", bookingCheckIn);
 
           if (specials && specials.length > 0) {
+            let nextPendingAgeSpecial: any | null = null;
+            let hasAppliedStandardSpecial = false;
+
             for (const special of specials as any[]) {
               const minStay = special.min_stay || 0;
               if (minStay > 0 && nights < minStay) continue;
@@ -1595,13 +1598,17 @@ const Booking = () => {
 
               if (discount > 0) {
                 if (special.age_restricted) {
-                  setPendingAgeSpecial({
-                    ...special,
-                    calculatedDiscount: discount,
-                    pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
-                  });
-                  break;
+                  if (!ageVerified && !nextPendingAgeSpecial) {
+                    nextPendingAgeSpecial = {
+                      ...special,
+                      calculatedDiscount: discount,
+                      pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
+                    };
+                  }
+                  continue;
                 }
+
+                if (hasAppliedStandardSpecial) continue;
 
                 const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                 appliedPromos.push({
@@ -1619,9 +1626,11 @@ const Booking = () => {
                   total: -discount,
                 });
                 runningTotal -= discount;
-                break; // Only apply first matching special
+                hasAppliedStandardSpecial = true;
               }
             }
+
+            setPendingAgeSpecial(nextPendingAgeSpecial);
           }
         } catch (err) {
           console.warn('[Booking] Failed to fetch specials:', err);
@@ -2587,7 +2596,7 @@ const Booking = () => {
                   ))}
 
                   {/* Age verification for age-restricted specials */}
-                  {pendingAgeSpecial && !ageVerified && appliedPromotions.every(p => p.type !== 'special') && property && (
+                  {pendingAgeSpecial && !ageVerified && property && (
                     <div className="mt-2">
                       <AgeVerificationUpload
                         special={{
