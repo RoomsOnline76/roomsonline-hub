@@ -92,6 +92,7 @@ interface CostLineItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  isRefundable?: boolean;
 }
 
 const Booking = () => {
