@@ -1806,7 +1806,7 @@ export default function PropertyForm() {
     }
   };
 
-  const handleGoogleMapsLinkChange = (url: string) => {
+  const handleGoogleMapsLinkChange = async (url: string) => {
     setGoogleMapsLink(url);
     setIsDirty(true);
 
@@ -1819,6 +1819,45 @@ export default function PropertyForm() {
           title: "Location extracted",
           description: `Coordinates: ${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`,
         });
+
+        // Reverse geocode to populate address fields
+        const mapsApiKey = featureFlags?.google_maps_api_key;
+        if (mapsApiKey) {
+          try {
+            const res = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&key=${mapsApiKey}`
+            );
+            const geo = await res.json();
+            if (geo.status === "OK" && geo.results?.[0]) {
+              const components = geo.results[0].address_components || [];
+              const get = (type: string) =>
+                components.find((c: any) => c.types.includes(type))?.long_name || "";
+
+              const street = [get("street_number"), get("route")].filter(Boolean).join(" ");
+              const city = get("locality") || get("administrative_area_level_2") || get("postal_town");
+              const suburb = get("sublocality") || get("sublocality_level_1") || get("neighborhood");
+              const province = get("administrative_area_level_1");
+              const country = get("country");
+              const postalCode = get("postal_code");
+
+              setFormData((prev) => ({
+                ...prev,
+                ...(street && !prev.address ? { address: street } : {}),
+                ...(city && !prev.city ? { city } : {}),
+                ...(suburb && !prev.suburb ? { suburb } : {}),
+                ...(country && !prev.country ? { country } : {}),
+                ...(postalCode && !prev.postal_code ? { postal_code: postalCode } : {}),
+              }));
+
+              toast({
+                title: "Address populated",
+                description: geo.results[0].formatted_address,
+              });
+            }
+          } catch (e) {
+            console.warn("Reverse geocode failed:", e);
+          }
+        }
       }
     }
   };
