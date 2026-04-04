@@ -3,17 +3,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Special {
+interface SpecialRaw {
   id: string;
   name: string;
   description: string | null;
-  discount_type: string;
-  discount_value: number;
+  special_type: string;
+  discount_percent: number | null;
+  fixed_amount: number | null;
+  fixed_price: number | null;
   valid_from: string;
   valid_to: string;
   book_from: string | null;
   book_until: string | null;
   applicable_room_ids: string[] | null;
+  age_restricted: boolean;
+  age_label: string | null;
 }
 
 interface SpecialsBannerProps {
@@ -34,7 +38,7 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
         .eq("is_active", true)
         .order("valid_to", { ascending: true });
       // Filter client-side: show if today is within stay window OR booking window
-      return ((data || []) as unknown as Special[]).filter((s) => {
+      return ((data || []) as unknown as SpecialRaw[]).filter((s) => {
         const inStayWindow = s.valid_from <= today && s.valid_to >= today;
         const inBookWindow = s.book_from && s.book_until
           ? s.book_from <= today && s.book_until >= today
@@ -48,11 +52,12 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
 
   if (!specials || specials.length === 0) return null;
 
-  const formatDiscount = (s: Special) => {
-    if (s.discount_type === "percentage") return `${s.discount_value}% off`;
-    if (s.discount_type === "fixed_amount") return `R${s.discount_value} off`;
-    if (s.discount_type === "fixed_price") return `From R${s.discount_value}`;
-    return s.discount_type;
+  const formatDiscount = (s: SpecialRaw) => {
+    const st = s.special_type || '';
+    if ((st === 'discount' || st === 'percentage') && s.discount_percent) return `${s.discount_percent}% off`;
+    if (st === 'fixed_off' || st === 'fixed_amount') return `R${s.fixed_amount || 0} off`;
+    if (st === 'fixed_price') return `From R${s.fixed_price || 0}`;
+    return s.age_label || 'Special';
   };
 
   return (
@@ -73,7 +78,7 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">{s.name}</p>
+              <p className="text-sm font-semibold text-foreground">{s.name}{s.age_restricted && s.age_label ? ` (${s.age_label})` : ''}</p>
               <span
                 className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground"
                 style={brandColor ? { backgroundColor: brandColor, color: "#fff" } : undefined}
@@ -96,7 +101,7 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
 
 /** Helper: check if a room has an active special */
 export function getRoomSpecialBadge(
-  specials: Special[] | undefined,
+  specials: SpecialRaw[] | undefined,
   roomId: string
 ): { label: string; color: string } | null {
   if (!specials) return null;
@@ -104,7 +109,8 @@ export function getRoomSpecialBadge(
     (s) => !s.applicable_room_ids || s.applicable_room_ids.length === 0 || s.applicable_room_ids.includes(roomId)
   );
   if (!match) return null;
-  if (match.discount_type === "percentage") return { label: `${match.discount_value}% off`, color: "#ef4444" };
-  if (match.discount_type === "fixed_amount") return { label: `R${match.discount_value} off`, color: "#ef4444" };
+  const st = match.special_type || '';
+  if ((st === 'discount' || st === 'percentage') && match.discount_percent) return { label: `${match.discount_percent}% off`, color: "#ef4444" };
+  if (st === 'fixed_off' || st === 'fixed_amount') return { label: `R${match.fixed_amount || 0} off`, color: "#ef4444" };
   return { label: "Special", color: "#ef4444" };
 }

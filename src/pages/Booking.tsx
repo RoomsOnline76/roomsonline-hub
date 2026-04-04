@@ -1566,8 +1566,9 @@ const Booking = () => {
                 if (!hasMatchingRoom) continue;
               }
 
-              if (special.book_from && bookingCheckIn < special.book_from) continue;
-              if (special.book_until && bookingCheckIn > special.book_until) continue;
+              const todayStr = new Date().toISOString().split('T')[0];
+              if (special.book_from && todayStr < special.book_from) continue;
+              if (special.book_until && todayStr > special.book_until) continue;
 
               // Calculate discount on current running total (post-package)
               const currentAccommodation = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
