@@ -97,7 +97,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       });
 
       (window as any).__portfolioNav__ = (slug: string) => onPropertyClick(slug);
-      setReady(true);
+      // Map initialized
     };
 
     init().catch(console.error);
