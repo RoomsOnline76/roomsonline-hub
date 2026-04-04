@@ -1562,7 +1562,10 @@ const Booking = () => {
                     (embedLinkedRolosId && String(r.id) === embedLinkedRolosId) ||
                     (embedRoomTypeName && r.name === embedRoomTypeName)
                   );
-                  if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
+                  if (amenityRoom && (
+                    special.applicable_room_ids.includes(String(amenityRoom.id)) ||
+                    special.applicable_room_ids.includes(Number(amenityRoom.id))
+                  )) return true;
                   return false;
                 });
                 if (!hasMatchingRoom) continue;
