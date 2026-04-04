@@ -720,10 +720,38 @@ serve(async (req) => {
     }
 
     // =====================================================================
+    // BUDGET FILTER: Remove suggestions outside budget range
+    // =====================================================================
+    let filteredSuggestions = suggestions;
+    if (intent.budget) {
+      filteredSuggestions = suggestions.filter(s => {
+        if (!s.room) return true;
+        const rate = s.room.price_per_night;
+        if (intent.budget!.max && rate > intent.budget!.max) return false;
+        if (intent.budget!.min && rate < intent.budget!.min) return false;
+        return true;
+      });
+      console.log(`[Concierge] Budget filter: ${suggestions.length} → ${filteredSuggestions.length}`);
+    }
+
+    // =====================================================================
+    // ROOM PREFERENCE FILTER: Boost rooms matching room_preference
+    // =====================================================================
+    if (intent.room_preference && filteredSuggestions.length > 1) {
+      const pref = intent.room_preference.toLowerCase();
+      const matching = filteredSuggestions.filter(s => s.room && s.room.name.toLowerCase().includes(pref));
+      if (matching.length > 0) {
+        // Put matching rooms first
+        const nonMatching = filteredSuggestions.filter(s => !matching.includes(s));
+        filteredSuggestions = [...matching, ...nonMatching];
+      }
+    }
+
+    // =====================================================================
     // CROSS-SELL: If no availability, check owner's other properties
     // =====================================================================
     let crossSellProperties: { name: string; slug: string; city: string; available: boolean }[] = [];
-    if (suggestions.length === 0 && current_dates?.check_in && current_dates?.check_out) {
+    if (filteredSuggestions.length === 0 && current_dates?.check_in && current_dates?.check_out) {
       crossSellProperties = await fetchOwnerAlternatives(
         supabase, context.owner_id, property_id,
         { check_in: current_dates.check_in, check_out: current_dates.check_out }
@@ -734,7 +762,7 @@ serve(async (req) => {
     // AI NARRATIVE: Replace templates with Lovable AI
     // =====================================================================
     const narrativeResponse = await generateAINarrative(
-      user_query, context, suggestions, intent, crossSellProperties, allRoomDetails
+      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history
     );
 
     // Surprise & Delight
