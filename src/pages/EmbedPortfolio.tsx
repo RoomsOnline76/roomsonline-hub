@@ -415,10 +415,10 @@ export default function EmbedPortfolio() {
   // Hero video: randomly pick one property's video, only if ALL properties have a video
   const heroVideo = useMemo(() => {
     if (properties.length === 0) return null;
-    const allHaveVideo = properties.every(p => !!p.hero_video_url);
-    if (!allHaveVideo) return null;
-    const randomIdx = Math.floor(Math.random() * properties.length);
-    const p = properties[randomIdx];
+    const withVideo = properties.filter(p => !!p.hero_video_url);
+    if (withVideo.length === 0) return null;
+    const randomIdx = Math.floor(Math.random() * withVideo.length);
+    const p = withVideo[randomIdx];
     return { url: p.hero_video_url!, name: p.name, slug: p.slug };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [properties.length]);
