@@ -206,7 +206,7 @@ export async function writeIngestion(
         if (Array.isArray(room.images)) {
           for (const img of room.images as any[]) {
             const imgUrl = typeof img === 'string' ? img : img?.url;
-            if (imgUrl && !group.allImages.some(existing => (typeof existing === 'string' ? existing : existing.url) === imgUrl)) {
+            if (imgUrl && !group.allImages.some(existing => normalizeImageUrl(typeof existing === 'string' ? existing : existing.url) === normalizeImageUrl(imgUrl))) {
               group.allImages.push(typeof img === 'string' ? { url: img } : img);
             }
           }
