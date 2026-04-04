@@ -1948,42 +1948,46 @@ const Booking = () => {
               <h3 className="font-medium">Your Stay</h3>
             </div>
 
-            {/* Inline Date Picker when no dates selected */}
-            {(!checkIn || !checkOut) && (
-              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                  <CalendarDays className="h-4 w-4" />
-                  Select your dates
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                  onClick={() => setDatePickerOpen(true)}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {checkIn && checkOut ? (
-                    <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
-                  ) : (
-                    <span className="text-muted-foreground">Pick check-in & check-out dates</span>
-                  )}
-                </Button>
-                <BottomSheetDatePicker
-                  open={datePickerOpen}
-                  onOpenChange={setDatePickerOpen}
-                  checkIn={checkIn ? parseISO(checkIn) : null}
-                  checkOut={checkOut ? parseISO(checkOut) : null}
-                  onDatesChange={(ci, co) => {
-                    setCheckIn(format(ci, "yyyy-MM-dd"));
-                    setCheckOut(format(co, "yyyy-MM-dd"));
-                    setDatePickerOpen(false);
-                  }}
-                  availabilityMap={calendarAvailability}
-                />
-                {checkIn && !checkOut && (
-                  <p className="text-xs text-muted-foreground">Now select your check-out date</p>
-                )}
+            {/* Date Picker — always available for editing */}
+            <div className={cn(
+              "rounded-xl border p-4 space-y-3",
+              checkIn && checkOut ? "border-border/50 bg-card" : "border-primary/30 bg-primary/5"
+            )}>
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <CalendarDays className="h-4 w-4" />
+                {checkIn && checkOut ? "Your dates" : "Select your dates"}
               </div>
-            )}
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal"
+                onClick={() => setDatePickerOpen(true)}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {checkIn && checkOut ? (
+                  <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
+                ) : (
+                  <span className="text-muted-foreground">Pick check-in & check-out dates</span>
+                )}
+                {checkIn && checkOut && (
+                  <span className="ml-auto text-xs text-primary font-medium">Change</span>
+                )}
+              </Button>
+              <BottomSheetDatePicker
+                open={datePickerOpen}
+                onOpenChange={setDatePickerOpen}
+                checkIn={checkIn ? parseISO(checkIn) : null}
+                checkOut={checkOut ? parseISO(checkOut) : null}
+                onDatesChange={(ci, co) => {
+                  setCheckIn(format(ci, "yyyy-MM-dd"));
+                  setCheckOut(format(co, "yyyy-MM-dd"));
+                  setDatePickerOpen(false);
+                }}
+                availabilityMap={calendarAvailability}
+              />
+              {checkIn && !checkOut && (
+                <p className="text-xs text-muted-foreground">Now select your check-out date</p>
+              )}
+            </div>
 
             {/* Rate type is determined by room type — not guest-selectable */}
 
