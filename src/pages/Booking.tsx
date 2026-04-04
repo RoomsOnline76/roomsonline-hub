@@ -199,7 +199,10 @@ const Booking = () => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
   const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
-  const [appliedPromotion, setAppliedPromotion] = useState<{ name: string; type: string; discount: number; description?: string } | null>(null);
+  const [appliedPromotions, setAppliedPromotions] = useState<{ name: string; type: string; discount: number; description?: string; imageUrl?: string }[]>([]);
+  // Compat alias for single-promo consumers
+  const appliedPromotion = appliedPromotions.length > 0 ? appliedPromotions[0] : null;
+  const setAppliedPromotion = (p: { name: string; type: string; discount: number; description?: string; imageUrl?: string } | null) => setAppliedPromotions(p ? [p] : []);
   const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
   const [ageVerified, setAgeVerified] = useState(false);
 
