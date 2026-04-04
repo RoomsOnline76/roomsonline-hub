@@ -1532,7 +1532,7 @@ const Booking = () => {
               .eq("property_id", property.id)
               .eq("is_active", true)
               .lte("valid_from", bookingCheckOut)
-              .gte("valid_until", bookingCheckIn);
+              .gte("valid_to", bookingCheckIn);
 
             if (specials && specials.length > 0) {
               for (const special of specials as any[]) {
