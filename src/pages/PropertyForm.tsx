@@ -3865,6 +3865,7 @@ export default function PropertyForm() {
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
         is_rol_property: isRolProperty,
+        is_test_property: isTestProperty,
         is_active: true,
         images: uploadedImages,
         max_guests: 2, // Default value, can be updated later
