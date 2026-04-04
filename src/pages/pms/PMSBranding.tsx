@@ -305,7 +305,7 @@ export default function PMSBranding() {
     (async () => {
       const [stationeryRes, propertyRes] = await Promise.all([
         supabase.from("rolos_brand_config").select("*").eq("property_id", propertyId).maybeSingle(),
-        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug").eq("id", propertyId).single(),
+        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color").eq("id", propertyId).single(),
       ]);
       if (stationeryRes.data) {
         const d = stationeryRes.data;
