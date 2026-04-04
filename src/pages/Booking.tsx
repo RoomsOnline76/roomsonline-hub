@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { applyBrandToDocument, saveBrandToSession, type PropertyBrand } from "@/lib/brandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1468,14 +1469,14 @@ const Booking = () => {
         // Check packages first (higher priority)
         for (const pkg of packages) {
           if (!pkg.is_active && pkg.is_active !== undefined) continue;
-          const pkgStart = pkg.valid_from || pkg.start_date;
-          const pkgEnd = pkg.valid_until || pkg.end_date;
+          const pkgStart = (pkg.periodFrom || pkg.valid_from || pkg.start_date || '').split('T')[0];
+          const pkgEnd = (pkg.periodTo || pkg.valid_to || pkg.end_date || '').split('T')[0];
           if (!pkgStart || !pkgEnd) continue;
 
           // Check if booking dates overlap with package period
           if (bookingCheckIn >= pkgStart && bookingCheckOut <= pkgEnd) {
             // Check min stay if specified
-            const minStay = pkg.min_nights || pkg.min_stay || 0;
+            const minStay = pkg.minimumStay || pkg.min_nights || pkg.min_stay || 0;
             if (minStay > 0 && nights < minStay) continue;
 
             // Apply package: use package price if set, otherwise percentage discount
@@ -1497,9 +1498,10 @@ const Booking = () => {
                 });
                 runningTotal -= discount;
               }
-            } else if (pkg.discount_percentage && pkg.discount_percentage > 0) {
+            } else if ((pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0)) > 0 && !pkg.package_price) {
+              const pctVal = pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0);
               const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
-              const discount = Math.round(accommodationSubtotal * (pkg.discount_percentage / 100));
+              const discount = Math.round(accommodationSubtotal * (pctVal / 100));
               if (discount > 0) {
                 promoApplied = {
                   name: pkg.name || 'Package Deal',
@@ -1508,7 +1510,7 @@ const Booking = () => {
                   description: pkg.description,
                 };
                 lineItems.push({
-                  description: `📦 ${pkg.name || 'Package Deal'} (-${pkg.discount_percentage}%)`,
+                  description: `📦 ${pkg.name || 'Package Deal'} (-${pctVal}%)`,
                   nights: 0,
                   quantity: 1,
                   unitPrice: -discount,
@@ -1530,7 +1532,7 @@ const Booking = () => {
               .eq("property_id", property.id)
               .eq("is_active", true)
               .lte("valid_from", bookingCheckOut)
-              .gte("valid_until", bookingCheckIn);
+              .gte("valid_to", bookingCheckIn);
 
             if (specials && specials.length > 0) {
               for (const special of specials as any[]) {
@@ -1541,9 +1543,15 @@ const Booking = () => {
                 // Check room applicability
                 if (special.applicable_room_ids?.length > 0) {
                   const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                  const hasMatchingRoom = bookedRoomIds.some(id => 
-                    special.applicable_room_ids.includes(id)
-                  );
+                  // Match against UUID room IDs, linked_rolos_id, or legacy timestamp IDs from amenities
+                  const amenitiesRooms = (property.amenities as any)?.rooms || [];
+                  const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                    if (special.applicable_room_ids.includes(uuid)) return true;
+                    // Find matching amenity room and check its legacy id
+                    const amenityRoom = amenitiesRooms.find((r: any) => r.linked_rolos_id === uuid || r.id === uuid);
+                    if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
+                    return false;
+                  });
                   if (!hasMatchingRoom) continue;
                 }
 
@@ -1553,25 +1561,28 @@ const Booking = () => {
 
                 const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
                 let discount = 0;
+                const sType = special.special_type || special.discount_type || '';
 
-                if (special.discount_type === 'percentage' && special.discount_value > 0) {
-                  discount = Math.round(accommodationSubtotal * (special.discount_value / 100));
-                } else if (special.discount_type === 'fixed_amount' && special.discount_value > 0) {
-                  discount = special.discount_value;
-                } else if (special.discount_type === 'fixed_price' && special.discount_value > 0) {
-                  discount = Math.max(0, accommodationSubtotal - special.discount_value);
+                if (sType === 'discount' || sType === 'percentage') {
+                  const pct = special.discount_percent || special.discount_value || 0;
+                  if (pct > 0) discount = Math.round(accommodationSubtotal * (pct / 100));
+                } else if (sType === 'fixed_amount') {
+                  const amt = special.fixed_amount || special.discount_value || 0;
+                  if (amt > 0) discount = amt;
+                } else if (sType === 'fixed_price') {
+                  const price = special.fixed_price || special.discount_value || 0;
+                  if (price > 0) discount = Math.max(0, accommodationSubtotal - price);
                 }
 
                 if (discount > 0) {
+                  const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                   promoApplied = {
                     name: special.title || special.name || 'Special Offer',
                     type: 'special',
                     discount,
                     description: special.description,
                   };
-                  const discountLabel = special.discount_type === 'percentage' 
-                    ? `(-${special.discount_value}%)` 
-                    : '';
+                  const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
                   lineItems.push({
                     description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
                     nights: 0,
@@ -2164,6 +2175,22 @@ const Booking = () => {
         />
 
         <div className="space-y-6 pb-32 lg:pb-6">
+          {/* Announcements */}
+          {property?.amenities && (property.amenities as any)?.announcements?.length > 0 && (
+            <AnnouncementBanner
+              announcements={((property.amenities as any).announcements || []).map((a: any) => ({
+                id: String(a.id || ''),
+                title: a.announcement || a.title || '',
+                message: a.message || '',
+                enabled: a.enabled !== false,
+                validFrom: a.startDate ? a.startDate.split('T')[0] : undefined,
+                validTo: a.endDate ? a.endDate.split('T')[0] : undefined,
+                link: a.link,
+                linkText: a.linkText,
+              }))}
+              brandColor={urlBrandColor || undefined}
+            />
+          )}
           {/* ── Step 1: Your Stay (Room Summary) ── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
