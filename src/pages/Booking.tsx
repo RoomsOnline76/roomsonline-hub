@@ -2743,7 +2743,7 @@ const Booking = () => {
               ) : (
                 <>
                   <CreditCard className="h-5 w-5" />
-                  Confirm & Pay {totalCost > 0 ? <FormattedPrice amount={Math.max(0, totalCost - voucherDiscount)} /> : (preSelectedTotalCost ? <FormattedPrice amount={preSelectedTotalCost} /> : '')}
+                  Confirm & Pay {totalCost > 0 ? <FormattedPrice amount={Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)} /> : (preSelectedTotalCost ? <FormattedPrice amount={preSelectedTotalCost} /> : '')}
                 </>
               )}
             </Button>
