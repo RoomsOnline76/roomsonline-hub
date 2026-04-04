@@ -11559,7 +11559,7 @@ export default function PropertyForm() {
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Announcements</DialogTitle>
+            <DialogTitle>{editingAnnouncementId ? "Edit Announcement" : "Add Announcement"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
