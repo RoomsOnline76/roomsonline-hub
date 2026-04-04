@@ -98,7 +98,14 @@ export function AIConciergePanel({
   const [isInitiated, setIsInitiated] = useState(false); // Start hidden until user initiates
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<ConciergeMessage[]>([]);
+  const [messages, setMessages] = useState<ConciergeMessage[]>([
+    {
+      id: 'welcome',
+      type: 'assistant',
+      content: "Hi! 👋 I'm **TOBI**, your AI travel concierge. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!",
+      timestamp: new Date(),
+    },
+  ]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [guestPickerOpen, setGuestPickerOpen] = useState(false);
   const [showProactivePrompt, setShowProactivePrompt] = useState(false);
