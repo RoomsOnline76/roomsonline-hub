@@ -242,6 +242,8 @@ serve(async (req) => {
       },
       properties: mapped,
       specials: mappedSpecials,
+      reviews: allReviews,
+      tobi_blurbs: tobiBlurbs,
       ...aiData,
       snippet: `<div data-rolos-portfolio="${portfolio.slug}"></div>\n<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`,
     }), {
