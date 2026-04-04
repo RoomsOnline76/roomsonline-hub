@@ -2175,6 +2175,22 @@ const Booking = () => {
         />
 
         <div className="space-y-6 pb-32 lg:pb-6">
+          {/* Announcements */}
+          {property?.amenities && (property.amenities as any)?.announcements?.length > 0 && (
+            <AnnouncementBanner
+              announcements={((property.amenities as any).announcements || []).map((a: any) => ({
+                id: String(a.id || ''),
+                title: a.announcement || a.title || '',
+                message: a.message || '',
+                enabled: a.enabled !== false,
+                validFrom: a.startDate ? a.startDate.split('T')[0] : undefined,
+                validTo: a.endDate ? a.endDate.split('T')[0] : undefined,
+                link: a.link,
+                linkText: a.linkText,
+              }))}
+              brandColor={brand?.primaryColor}
+            />
+          )}
           {/* ── Step 1: Your Stay (Room Summary) ── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
