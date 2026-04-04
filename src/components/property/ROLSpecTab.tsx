@@ -123,6 +123,45 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   const [activeSubTab, setActiveSubTab] = useState("details");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const handleEnrichFromWebsite = async () => {
+    if (!propertyContext.property_id || !propertyContext.property_url) return;
+
+    setIsEnriching(true);
+    try {
+      const { data: response, error } = await supabase.functions.invoke("enrich-property-content", {
+        body: {
+          property_id: propertyContext.property_id,
+          website_url: propertyContext.property_url,
+        },
+      });
+
+      if (error) throw error;
+
+      if (response?.success) {
+        toast({
+          title: `Enriched ${response.fields_updated?.length || 0} fields`,
+          description: response.fields_updated?.join(", ") || response.message,
+        });
+      } else {
+        toast({
+          title: "Enrichment issue",
+          description: response?.error || response?.message || "No new content found",
+          variant: response?.error ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Enrichment error:", error);
+      toast({
+        title: "Enrichment failed",
+        description: error instanceof Error ? error.message : "Could not enrich content",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnriching(false);
+    }
+  };
 
   const updateField = <K extends keyof ROLSpecData>(field: K, value: ROLSpecData[K]) => {
     onChange({ ...data, [field]: value });
