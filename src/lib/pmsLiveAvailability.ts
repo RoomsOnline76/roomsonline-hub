@@ -82,13 +82,18 @@ export async function fetchLiveRates(
 
       let minRate: number | null = null;
       let hasAvailability = false;
+      const availableByDate: Record<string, number> = {};
+      const ratesByDate: Record<string, number> = {};
 
       // Check availability days
       const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
       for (const day of avail) {
         const units = day.available_units ?? day.numberOfRoomsAvailable ?? 0;
         const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? false;
-        if (units > 0 && !stopSell) hasAvailability = true;
+        const dateStr = day.date || day.night_date || "";
+        const effectiveUnits = (units > 0 && !stopSell) ? units : 0;
+        if (dateStr) availableByDate[dateStr] = effectiveUnits;
+        if (effectiveUnits > 0) hasAvailability = true;
       }
 
       // Extract rates
@@ -96,13 +101,17 @@ export async function fetchLiveRates(
         const rates = rateType.rates || [];
         for (const r of rates) {
           const amt = r.room_amount ?? r.roomAmount ?? 0;
-          if (amt > 0 && (minRate === null || amt < minRate)) {
-            minRate = amt;
+          const dateStr = r.date || r.night_date || "";
+          if (amt > 0) {
+            if (dateStr) ratesByDate[dateStr] = amt;
+            if (minRate === null || amt < minRate) {
+              minRate = amt;
+            }
           }
         }
       }
 
-      rooms.push({ roomTypeId: String(id), roomName: name, minRate, available: hasAvailability });
+      rooms.push({ roomTypeId: String(id), roomName: name, minRate, available: hasAvailability, availableByDate, ratesByDate });
       if (minRate !== null && (lowestRate === null || minRate < lowestRate)) {
         lowestRate = minRate;
       }
