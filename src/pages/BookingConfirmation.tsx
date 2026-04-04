@@ -291,8 +291,9 @@ const BookingConfirmation = () => {
                 // Try closing window (works if opened via JS)
                 try { window.close(); } catch {}
                 // Fallback: navigate to property page
-                const slug = searchParams.get('property') || searchParams.get('slug');
+                const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
                 if (slug) navigate(`/p/${slug}`);
+                else navigate("/");
               } else {
                 navigate("/");
               }
