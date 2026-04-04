@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
+import { EmbedPortfolioMap } from "@/components/embed/EmbedPortfolioMap";
+import { EmbedPortfolioReviews } from "@/components/embed/EmbedPortfolioReviews";
 
 interface ReviewRating {
   source: string;
@@ -34,6 +36,10 @@ interface PortfolioProperty {
   max_guests: number | null;
   brand_primary_color?: string | null;
   external_system?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  key_highlights?: string[] | null;
+  space_description?: string | null;
 }
 
 interface AiGroup {
@@ -97,6 +103,8 @@ export default function EmbedPortfolio() {
   const [aiSearching, setAiSearching] = useState(false);
   const [reviewRatings, setReviewRatings] = useState<Record<string, ReviewRating[]>>({});
   const [specials, setSpecials] = useState<PortfolioSpecial[]>([]);
+  const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
+  const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
 
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
@@ -148,8 +156,16 @@ export default function EmbedPortfolio() {
             max_guests: p.max_guests,
             brand_primary_color: p.brand_primary_color,
             external_system: p.external_system || null,
+            latitude: p.latitude || null,
+            longitude: p.longitude || null,
+            key_highlights: p.key_highlights || null,
+            space_description: p.space_description || null,
           }));
           setProperties(mapped);
+
+          // Reviews & TOBI blurbs from API
+          if (data.reviews) setPortfolioReviews(data.reviews);
+          if (data.tobi_blurbs) setTobiBlurbs(data.tobi_blurbs);
 
           // AI data
           if (data.ai_groups) setAiGroups(data.ai_groups);
@@ -713,6 +729,13 @@ export default function EmbedPortfolio() {
                   {prop.description && !aiReasonMap[prop.slug] && (
                     <p className="text-xs text-gray-500 mt-2 line-clamp-2">{prop.description}</p>
                   )}
+                  {prop.key_highlights && prop.key_highlights.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {prop.key_highlights.slice(0, 3).map((h, hi) => (
+                        <span key={hi} className="text-[10px] px-2 py-0.5 rounded-full border border-gray-200 text-gray-600">{h}</span>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-auto pt-3 flex items-center justify-between">
                     <div className="flex gap-3 text-xs text-gray-400">
                       {prop.room_count > 0 && (
@@ -785,6 +808,30 @@ export default function EmbedPortfolio() {
           </div>
         </div>
       )}
+
+      {/* Portfolio Map */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+        <EmbedPortfolioMap
+          properties={properties.filter(p => p.latitude && p.longitude).map(p => ({
+            name: p.name,
+            slug: p.slug,
+            lat: p.latitude!,
+            lng: p.longitude!,
+            heroImage: p.hero_image,
+          }))}
+          brandColor={brandColor}
+          onPropertyClick={handleViewProperty}
+        />
+      </div>
+
+      {/* Portfolio Reviews */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+        <EmbedPortfolioReviews
+          reviews={portfolioReviews}
+          tobiBlurbs={tobiBlurbs}
+          brandColor={brandColor}
+        />
+      </div>
 
       {/* Footer */}
       <div className="border-t py-3 px-4 flex justify-center">

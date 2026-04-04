@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, external_system")
+      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities")
       .eq("is_active", true)
       .in("id", propertyIds);
 
@@ -91,18 +91,23 @@ serve(async (req) => {
         ? (typeof images[0] === "string" ? images[0] : images[0]?.url || null)
         : null;
       const rm = roomsByProp[p.id];
+      const amenities = p.amenities || {};
       return {
         id: p.id,
         slug: p.slug,
         name: p.name,
         city: p.city,
-        description: p.description,
+        description: amenities.space_description || p.description,
         hero_image: heroImage,
         starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
         external_system: p.external_system || null,
+        latitude: p.latitude || null,
+        longitude: p.longitude || null,
+        key_highlights: amenities.key_highlights || null,
+        space_description: amenities.space_description || null,
       };
     });
 
@@ -144,6 +149,34 @@ serve(async (req) => {
         property_slug: prop?.slug || null,
       };
     });
+
+    // Fetch reviews for all member properties
+    const { data: reviewCaches } = await supabase
+      .from("property_review_cache")
+      .select("property_id, source, overall_rating, total_reviews, reviews, tobi_blurb")
+      .in("property_id", propertyIds);
+
+    const reviewsByProperty: Record<string, any[]> = {};
+    const tobiBlurbs: { property_name: string; blurb: string }[] = [];
+    (reviewCaches || []).forEach((rc: any) => {
+      if (!reviewsByProperty[rc.property_id]) reviewsByProperty[rc.property_id] = [];
+      const propName = (properties || []).find((p: any) => p.id === rc.property_id)?.name || "";
+      // Top 2 reviews per source per property
+      const sourceReviews = (rc.reviews || []).slice(0, 2).map((r: any) => ({
+        ...r,
+        source: rc.source,
+        property_name: propName,
+      }));
+      reviewsByProperty[rc.property_id].push(...sourceReviews);
+      if (rc.tobi_blurb) {
+        tobiBlurbs.push({ property_name: propName, blurb: rc.tobi_blurb });
+      }
+    });
+
+    // Flatten and sort by date, take top 10
+    const allReviews = Object.values(reviewsByProperty).flat()
+      .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+      .slice(0, 10);
 
     // AI enrichment when ?ai=true
     const wantAi = url.searchParams.get("ai") === "true";
@@ -209,6 +242,8 @@ serve(async (req) => {
       },
       properties: mapped,
       specials: mappedSpecials,
+      reviews: allReviews,
+      tobi_blurbs: tobiBlurbs,
       ...aiData,
       snippet: `<div data-rolos-portfolio="${portfolio.slug}"></div>\n<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`,
     }), {
