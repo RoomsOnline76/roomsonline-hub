@@ -10049,16 +10049,27 @@ export default function PropertyForm() {
                         "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                         room.pms_synced && !isRolProperty && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
+                        room.is_active === false && selectedRoomType !== room.id ? "opacity-50" : "",
                       )}
                     >
                       <span
-                        className="font-medium flex-1 cursor-pointer truncate"
+                        className={cn("font-medium flex-1 cursor-pointer truncate", room.is_active === false && "line-through")}
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
                         {room.pms_synced && !isRolProperty && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
-                      <div className="flex gap-0.5">
+                      <div className="flex gap-0.5 items-center">
+                        <Switch
+                          checked={room.is_active !== false}
+                          onCheckedChange={(e) => {
+                            e; // unused but needed for type
+                            toggleRoomActive(room.id);
+                          }}
+                          className="h-3.5 w-7 data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-muted-foreground/30"
+                          title={room.is_active !== false ? "Active — visible on booking pages" : "Inactive — hidden from booking pages"}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         {selectedPMS !== "nightsbridge" && (
                           <>
                             <Button
