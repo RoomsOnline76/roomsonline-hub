@@ -244,7 +244,8 @@ export default function PMSBranding() {
   const [portfolioBranding, setPortfolioBranding] = useState<{
     logo_url: string; primary_color: string; secondary_color: string; font_color: string;
     heading_text_color: string; body_text_color: string; muted_text_color: string; light_bg_color: string; dark_bg_color: string;
-  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "" });
+    hero_video_url: string;
+  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "", hero_video_url: "" });
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
 
@@ -270,6 +271,7 @@ export default function PMSBranding() {
           muted_text_color: b.muted_text_color || "",
           light_bg_color: b.light_bg_color || "",
           dark_bg_color: b.dark_bg_color || "",
+          hero_video_url: b.hero_video_url || "",
         });
       }
       setPortfolioLoaded(true);
@@ -466,6 +468,55 @@ export default function PMSBranding() {
                     />
                   )}
                 </div>
+
+                {/* Portfolio Hero Video */}
+                <Separator />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Hero Video</Label>
+                  <p className="text-xs text-muted-foreground">Default hero video for the portfolio page. Overrides randomly-selected property videos. Supports direct video URLs or YouTube links.</p>
+                  {portfolioBranding.hero_video_url ? (
+                    <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-muted/30">
+                      <span className="text-xs text-muted-foreground truncate flex-1">{portfolioBranding.hero_video_url}</span>
+                      <Button type="button" variant="destructive" size="icon" className="h-6 w-6 shrink-0" onClick={() => setPortfolioBranding(p => ({ ...p, hero_video_url: "" }))}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <label className="block border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer">
+                        <input type="file" accept="video/*" className="hidden" onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          if (f.size > 100 * 1024 * 1024) { toast.error("Max file size is 100MB"); return; }
+                          try {
+                            const folder = `portfolio-${portfolioIds?.[0] || "new"}`;
+                            const fileName = `${folder}/hero-video-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+                            const { data: upData, error: upErr } = await supabase.storage.from("property-images").upload(fileName, f, { cacheControl: "3600", upsert: false });
+                            if (upErr) throw upErr;
+                            const { data: urlData } = supabase.storage.from("property-images").getPublicUrl(upData.path);
+                            setPortfolioBranding(p => ({ ...p, hero_video_url: urlData.publicUrl }));
+                            toast.success("Hero video uploaded");
+                          } catch (err: any) { toast.error(err.message || "Upload failed"); }
+                        }} />
+                        <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-1" />
+                        <p className="text-sm font-medium">Upload video file</p>
+                        <p className="text-xs text-muted-foreground">MP4, MOV up to 100MB</p>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                        <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">or paste URL</span></div>
+                      </div>
+                      <Input
+                        type="url"
+                        placeholder="https://youtube.com/watch?v=... or video file URL"
+                        value={portfolioBranding.hero_video_url}
+                        onChange={(e) => setPortfolioBranding(p => ({ ...p, hero_video_url: e.target.value }))}
+                        className="text-xs"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <Separator />
                 <ColorField
                   label="Primary Color"
