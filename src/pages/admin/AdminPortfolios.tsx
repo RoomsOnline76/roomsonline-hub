@@ -26,6 +26,12 @@ interface PortfolioBranding {
   logo_url?: string;
   heading_font?: string;
   body_font?: string;
+  heading_text_color?: string;
+  body_text_color?: string;
+  muted_text_color?: string;
+  light_bg_color?: string;
+  dark_bg_color?: string;
+  hero_video_url?: string;
 }
 
 interface Portfolio {
