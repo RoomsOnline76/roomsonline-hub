@@ -39,6 +39,7 @@ import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
 import type { VoucherStatus, VoucherResult } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
 import { AddOnSelector, type SelectedAddOn } from "@/components/booking/AddOnSelector";
+import { AgeVerificationUpload } from "@/components/booking/AgeVerificationUpload";
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
