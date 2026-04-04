@@ -63,6 +63,13 @@ interface ConciergeSuggestion {
   is_best_value?: boolean;
 }
 
+const QUICK_CHIPS = [
+  "This weekend for 2",
+  "Show me the best room",
+  "Family-friendly options",
+  "Under R1500/night",
+];
+
 interface AIconciergePanelProps {
   propertyId: string;
   propertyName: string;
