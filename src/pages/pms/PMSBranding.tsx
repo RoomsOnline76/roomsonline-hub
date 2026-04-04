@@ -243,7 +243,8 @@ export default function PMSBranding() {
   // Portfolio branding state
   const [portfolioBranding, setPortfolioBranding] = useState<{
     logo_url: string; primary_color: string; secondary_color: string; font_color: string;
-  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "" });
+    heading_text_color: string; body_text_color: string; muted_text_color: string; light_bg_color: string; dark_bg_color: string;
+  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "" });
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
 
