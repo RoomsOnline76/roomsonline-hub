@@ -3333,7 +3333,7 @@ export default function PropertyForm() {
               .from("hostfully_room_types")
               .select("*")
               .eq("property_id", data.id)
-              .eq("is_active", true);
+              .order("name");
             
             if (hfRooms && hfRooms.length > 0) {
               const convertedRooms = hfRooms.map(hr => ({
