@@ -117,12 +117,12 @@ export function EmbedAvailabilityGrid({
                           background: isSold ? "#fef2f2" : undefined,
                           color: isSold ? "#ef4444" : hasRate ? "#222" : "#ccc",
                         }}
-                        title={hasRate ? `${currency}${rate.toLocaleString()} per night` : isSold ? "Sold out" : "No rate"}
+                        title={hasRate ? `${currency}${rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} per night` : isSold ? "Sold out" : "No rate"}
                       >
                         {isSold ? (
                           <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>SOLD</span>
                         ) : hasRate ? (
-                          <span style={{ fontSize: "12px" }}>{rate.toLocaleString()}</span>
+                          <span style={{ fontSize: "12px" }}>{rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         ) : (
                           <span style={{ fontSize: "11px" }}>–</span>
                         )}
