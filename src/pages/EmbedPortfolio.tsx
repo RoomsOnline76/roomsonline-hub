@@ -40,6 +40,7 @@ interface PortfolioProperty {
   longitude?: number | null;
   key_highlights?: string[] | null;
   space_description?: string | null;
+  hero_video_url?: string | null;
 }
 
 interface AiGroup {
