@@ -328,6 +328,11 @@ export default function PMSBranding() {
           brand_secondary_color: p.brand_secondary_color || "",
           brand_font_color: p.brand_font_color || "",
           brand_accent_color: p.brand_accent_color || "",
+          brand_heading_text_color: (p as any).brand_heading_text_color || "",
+          brand_body_text_color: (p as any).brand_body_text_color || "",
+          brand_muted_text_color: (p as any).brand_muted_text_color || "",
+          brand_light_bg_color: (p as any).brand_light_bg_color || "",
+          brand_dark_bg_color: (p as any).brand_dark_bg_color || "",
           brand_override_enabled: p.brand_override_enabled ?? false,
         });
         setPropertySlugLocal(p.slug || null);
