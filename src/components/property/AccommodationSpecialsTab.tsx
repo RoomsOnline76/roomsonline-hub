@@ -114,11 +114,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
 
   const selected = specials.find((s) => s.id === selectedId);
 
+  const selectedJson = selected ? JSON.stringify(selected) : null;
   useEffect(() => {
     if (selected) {
       setDraft({ ...selected });
+    } else {
+      setDraft({ name: "" });
     }
-  }, [selectedId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, selectedJson]);
 
   const addNew = async () => {
     const newSpecial = emptySpecial(propertyId, category);
