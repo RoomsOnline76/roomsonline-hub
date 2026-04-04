@@ -3,10 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MapPin, Loader2, AlertTriangle, CheckCircle, Building2 } from "lucide-react";
+import { MapPin, Loader2, AlertTriangle, CheckCircle, Building2, ChevronsUpDown, Check } from "lucide-react";
 import { StepProps } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 export function StepLocation({
   propertyData,
@@ -16,6 +20,7 @@ export function StepLocation({
 }: StepProps) {
   const { toast } = useToast();
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
 
   const isPMSAddress = isPMSManaged("address");
   const isPMSCity = isPMSManaged("city");
@@ -141,12 +146,44 @@ export function StepLocation({
               </span>
             )}
           </Label>
-          <Input
-            id="country"
-            value={propertyData.country || ""}
-            onChange={(e) => updateField("country", e.target.value)}
-            placeholder="South Africa"
-          />
+          <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={countryOpen}
+                className="w-full justify-between font-normal"
+              >
+                {propertyData.country
+                  ? COUNTRY_OPTIONS.find((c) => c.label === propertyData.country)?.label || propertyData.country
+                  : "Select country..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+              <Command>
+                <CommandInput placeholder="Search country..." />
+                <CommandList>
+                  <CommandEmpty>No country found.</CommandEmpty>
+                  <CommandGroup>
+                    {COUNTRY_OPTIONS.map((c) => (
+                      <CommandItem
+                        key={c.value}
+                        value={c.label}
+                        onSelect={() => {
+                          updateField("country", c.label);
+                          setCountryOpen(false);
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", propertyData.country === c.label ? "opacity-100" : "opacity-0")} />
+                        {c.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
