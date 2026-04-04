@@ -14,6 +14,11 @@ export interface PropertyBrand {
   logoUrl?: string | null;
   headingFont?: string | null;
   bodyFont?: string | null;
+  headingTextColor?: string | null;
+  bodyTextColor?: string | null;
+  mutedTextColor?: string | null;
+  lightBgColor?: string | null;
+  darkBgColor?: string | null;
   propertyId: string;
 }
 
