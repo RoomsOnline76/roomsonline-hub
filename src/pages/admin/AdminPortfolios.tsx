@@ -26,6 +26,12 @@ interface PortfolioBranding {
   logo_url?: string;
   heading_font?: string;
   body_font?: string;
+  heading_text_color?: string;
+  body_text_color?: string;
+  muted_text_color?: string;
+  light_bg_color?: string;
+  dark_bg_color?: string;
+  hero_video_url?: string;
 }
 
 interface Portfolio {
@@ -76,6 +82,12 @@ export default function AdminPortfolios() {
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [brandHeadingFont, setBrandHeadingFont] = useState("");
   const [brandBodyFont, setBrandBodyFont] = useState("");
+  const [brandHeadingTextColor, setBrandHeadingTextColor] = useState("");
+  const [brandBodyTextColor, setBrandBodyTextColor] = useState("");
+  const [brandMutedTextColor, setBrandMutedTextColor] = useState("");
+  const [brandLightBgColor, setBrandLightBgColor] = useState("");
+  const [brandDarkBgColor, setBrandDarkBgColor] = useState("");
+  const [brandHeroVideoUrl, setBrandHeroVideoUrl] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +154,9 @@ export default function AdminPortfolios() {
       const branding: PortfolioBranding = {
         primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
         logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+        heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
+        muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
+        dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
       };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
@@ -173,6 +188,9 @@ export default function AdminPortfolios() {
       const branding: PortfolioBranding = {
         primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
         logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+        heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
+        muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
+        dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
@@ -220,6 +238,12 @@ export default function AdminPortfolios() {
     setBrandLogoUrl("");
     setBrandHeadingFont("");
     setBrandBodyFont("");
+    setBrandHeadingTextColor("");
+    setBrandBodyTextColor("");
+    setBrandMutedTextColor("");
+    setBrandLightBgColor("");
+    setBrandDarkBgColor("");
+    setBrandHeroVideoUrl("");
     setReviewIds({});
   };
 
@@ -235,6 +259,12 @@ export default function AdminPortfolios() {
     setBrandLogoUrl(b?.logo_url || "");
     setBrandHeadingFont(b?.heading_font || "");
     setBrandBodyFont(b?.body_font || "");
+    setBrandHeadingTextColor(b?.heading_text_color || "");
+    setBrandBodyTextColor(b?.body_text_color || "");
+    setBrandMutedTextColor(b?.muted_text_color || "");
+    setBrandLightBgColor(b?.light_bg_color || "");
+    setBrandDarkBgColor(b?.dark_bg_color || "");
+    setBrandHeroVideoUrl(b?.hero_video_url || "");
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
@@ -404,6 +434,51 @@ export default function AdminPortfolios() {
               <Input value={brandFontColor} onChange={(e) => setBrandFontColor(e.target.value)} className="text-xs font-mono h-7 flex-1" />
             </div>
           </div>
+        </div>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Text Colours</Label>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Heading Text</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandHeadingTextColor || "#000000"} onChange={(e) => setBrandHeadingTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandHeadingTextColor} onChange={(e) => setBrandHeadingTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Body Text</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandBodyTextColor || "#000000"} onChange={(e) => setBrandBodyTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandBodyTextColor} onChange={(e) => setBrandBodyTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Muted / Links</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandMutedTextColor || "#000000"} onChange={(e) => setBrandMutedTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandMutedTextColor} onChange={(e) => setBrandMutedTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Background Colours</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Light BG / Cards</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandLightBgColor || "#ffffff"} onChange={(e) => setBrandLightBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandLightBgColor} onChange={(e) => setBrandLightBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Dark BG Accent</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandDarkBgColor || "#000000"} onChange={(e) => setBrandDarkBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandDarkBgColor} onChange={(e) => setBrandDarkBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-1 pt-1">
+          <Label className="text-[10px] text-muted-foreground">Hero Video URL</Label>
+          <Input value={brandHeroVideoUrl} onChange={(e) => setBrandHeroVideoUrl(e.target.value)} placeholder="YouTube or direct video URL" className="text-xs" />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <GoogleFontPicker
