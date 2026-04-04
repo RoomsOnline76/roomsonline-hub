@@ -265,6 +265,11 @@ export default function PMSBranding() {
           primary_color: b.primary_color || "",
           secondary_color: b.secondary_color || "",
           font_color: b.font_color || "",
+          heading_text_color: b.heading_text_color || "",
+          body_text_color: b.body_text_color || "",
+          muted_text_color: b.muted_text_color || "",
+          light_bg_color: b.light_bg_color || "",
+          dark_bg_color: b.dark_bg_color || "",
         });
       }
       setPortfolioLoaded(true);
