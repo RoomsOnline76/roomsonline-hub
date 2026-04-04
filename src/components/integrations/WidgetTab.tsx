@@ -6,6 +6,7 @@ import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
 import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface WidgetTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
