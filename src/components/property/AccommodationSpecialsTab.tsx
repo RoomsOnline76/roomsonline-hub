@@ -30,6 +30,8 @@ interface Special {
   currency: string | null;
   valid_from: string | null;
   valid_to: string | null;
+  book_from: string | null;
+  book_until: string | null;
   min_stay: number | null;
   max_stay: number | null;
   applicable_room_ids: string[] | null;
@@ -69,6 +71,8 @@ const emptySpecial = (propertyId: string, category: string): Omit<Special, "id">
   currency: "ZAR",
   valid_from: null,
   valid_to: null,
+  book_from: null,
+  book_until: null,
   min_stay: null,
   max_stay: null,
   applicable_room_ids: null,
@@ -147,6 +151,8 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         currency: draft.currency || "ZAR",
         valid_from: draft.valid_from || null,
         valid_to: draft.valid_to || null,
+        book_from: draft.book_from || null,
+        book_until: draft.book_until || null,
         min_stay: draft.min_stay ?? null,
         max_stay: draft.max_stay ?? null,
         applicable_room_ids: draft.applicable_room_ids || null,
@@ -380,7 +386,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
                 </div>
               )}
               <div className="space-y-1">
-                <Label className="text-xs">Valid From</Label>
+                <Label className="text-xs">Stay From</Label>
                 <Input
                   type="date"
                   value={draft.valid_from || ""}
@@ -389,11 +395,29 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Valid To</Label>
+                <Label className="text-xs">Stay Until</Label>
                 <Input
                   type="date"
                   value={draft.valid_to || ""}
                   onChange={(e) => setDraft({ ...draft, valid_to: e.target.value || null })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Book From</Label>
+                <Input
+                  type="date"
+                  value={draft.book_from || ""}
+                  onChange={(e) => setDraft({ ...draft, book_from: e.target.value || null })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Book By</Label>
+                <Input
+                  type="date"
+                  value={draft.book_until || ""}
+                  onChange={(e) => setDraft({ ...draft, book_until: e.target.value || null })}
                   className="h-7 text-xs"
                 />
               </div>

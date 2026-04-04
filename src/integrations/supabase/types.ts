@@ -4782,6 +4782,8 @@ export type Database = {
           age_label: string | null
           age_restricted: boolean | null
           applicable_room_ids: string[] | null
+          book_from: string | null
+          book_until: string | null
           category: string
           created_at: string | null
           created_by: string | null
@@ -4812,6 +4814,8 @@ export type Database = {
           age_label?: string | null
           age_restricted?: boolean | null
           applicable_room_ids?: string[] | null
+          book_from?: string | null
+          book_until?: string | null
           category?: string
           created_at?: string | null
           created_by?: string | null
@@ -4842,6 +4846,8 @@ export type Database = {
           age_label?: string | null
           age_restricted?: boolean | null
           applicable_room_ids?: string[] | null
+          book_from?: string | null
+          book_until?: string | null
           category?: string
           created_at?: string | null
           created_by?: string | null
