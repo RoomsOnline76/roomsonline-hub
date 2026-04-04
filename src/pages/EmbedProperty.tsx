@@ -13,6 +13,7 @@ import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
+import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
@@ -930,6 +931,17 @@ export default function EmbedProperty() {
           <PoweredByRolOS />
         </footer>
       )}
+
+      {/* AI Concierge Chat */}
+      <EmbedConciergeChat
+        propertyId={property.id}
+        propertyName={property.name}
+        roomTypes={roomTypes.map((rt: any) => ({ id: rt.id, name: rt.name, max_guests: rt.max_guests }))}
+        brandColor={brandColor}
+        fontColor={fontColor}
+        checkIn={checkIn}
+        checkOut={checkOut}
+      />
     </div>
   );
 }

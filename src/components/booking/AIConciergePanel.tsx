@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 import { format, addDays, parseISO } from "date-fns";
 import { 
   Sparkles, 
@@ -63,6 +64,13 @@ interface ConciergeSuggestion {
   is_best_value?: boolean;
 }
 
+const QUICK_CHIPS = [
+  "This weekend for 2",
+  "Show me the best room",
+  "Family-friendly options",
+  "Under R1500/night",
+];
+
 interface AIconciergePanelProps {
   propertyId: string;
   propertyName: string;
@@ -98,7 +106,14 @@ export function AIConciergePanel({
   const [isInitiated, setIsInitiated] = useState(false); // Start hidden until user initiates
   const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<ConciergeMessage[]>([]);
+  const [messages, setMessages] = useState<ConciergeMessage[]>([
+    {
+      id: 'welcome',
+      type: 'assistant',
+      content: "Hi! 👋 I'm **TOBI**, your AI travel concierge. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you!",
+      timestamp: new Date(),
+    },
+  ]);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [guestPickerOpen, setGuestPickerOpen] = useState(false);
   const [showProactivePrompt, setShowProactivePrompt] = useState(false);
@@ -196,6 +211,12 @@ export function AIConciergePanel({
         ? parseInt(sessionStorage.getItem('rol_session_delight_count') || '0', 10)
         : 0;
       
+      // Build conversation history from messages (last 10, excluding welcome)
+      const conversationHistory = messages
+        .filter(m => m.id !== 'welcome')
+        .slice(-10)
+        .map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.content }));
+
       // Call AI concierge edge function with value-based delight parameters
       const { data, error } = await supabase.functions.invoke('ai-booking-concierge', {
         body: {
@@ -216,9 +237,9 @@ export function AIConciergePanel({
             max_guests: rt.maxPeople || rt.maxAdults || 2,
           })),
           session_id: sessionIdRef.current,
-          // NEW: Value-based delight parameters - use ItineraryContext totalPrice or fallback to MobileBooking
           current_booking_value: totalPrice || mobileBookingState.totalCost || 0,
           session_delight_count: sessionDelightCount,
+          conversation_history: conversationHistory,
         },
       });
 
@@ -619,9 +640,9 @@ export function AIConciergePanel({
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Proactive prompt */}
+          {/* Proactive prompt — only show if no messages except welcome */}
           <AnimatePresence>
-            {showProactivePrompt && messages.length === 0 && (
+            {showProactivePrompt && messages.length <= 1 && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -650,7 +671,28 @@ export function AIConciergePanel({
                   ? "bg-primary text-primary-foreground" 
                   : "bg-muted"
               )}>
-                <p className="text-sm">{msg.content}</p>
+                {msg.type === 'assistant' ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 text-sm">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
+                
+                {/* Quick suggestion chips after welcome message */}
+                {msg.id === 'welcome' && messages.length <= 1 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {QUICK_CHIPS.map((chip) => (
+                      <button
+                        key={chip}
+                        onClick={() => handleSubmitQuery(chip)}
+                        className="text-xs px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Suggestion cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
@@ -961,7 +1003,7 @@ export function AIConciergePanel({
 
               {/* Messages (scrollable) */}
               <div className="flex-1 overflow-y-auto p-3 space-y-3 max-h-[40vh]">
-                {showProactivePrompt && messages.length === 0 && (
+                {showProactivePrompt && messages.length <= 1 && (
                   <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-sm">
                     <span className="font-medium">Need help?</span> Tell me about your ideal trip.
                   </div>
@@ -978,7 +1020,27 @@ export function AIConciergePanel({
                         ? "bg-primary text-primary-foreground" 
                         : "bg-muted"
                     )}>
-                      <p className="text-sm">{msg.content}</p>
+                      {msg.type === 'assistant' ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 text-sm">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm">{msg.content}</p>
+                      )}
+                      {/* Quick chips after welcome on mobile */}
+                      {msg.id === 'welcome' && messages.length <= 1 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {QUICK_CHIPS.map((chip) => (
+                            <button
+                              key={chip}
+                              onClick={() => handleSubmitQuery(chip)}
+                              className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {msg.suggestions && msg.suggestions.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {msg.suggestions.map(renderSuggestionCard)}

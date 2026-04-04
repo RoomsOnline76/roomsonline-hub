@@ -25,6 +25,7 @@ interface ConciergeRequest {
   session_id?: string;
   current_booking_value?: number;
   session_delight_count?: number;
+  conversation_history?: { role: string; content: string }[];
 }
 
 interface ConciergeSuggestion {
@@ -59,6 +60,8 @@ interface ParsedIntent {
   month?: string;
   date_range?: { start: string; end: string };
   preferences?: string[];
+  budget?: { max?: number; min?: number; currency?: string };
+  room_preference?: string;
 }
 
 function parseUserQuery(query: string): ParsedIntent {
@@ -125,8 +128,30 @@ function parseUserQuery(query: string): ParsedIntent {
     intent.nights = 2;
   }
 
-  const preferenceKeywords = ['quiet','romantic','luxury','budget','family','pet','pool','view','ocean','mountain','spa','breakfast','wifi','parking','gym','kitchen','balcony','garden','beach','sunset'];
+  const preferenceKeywords = ['quiet','romantic','luxury','family','pet','pool','view','ocean','mountain','spa','breakfast','wifi','parking','gym','kitchen','balcony','garden','beach','sunset'];
   intent.preferences = preferenceKeywords.filter(kw => normalizedQuery.includes(kw));
+
+  // Budget parsing: "under R2000", "max R3000/night", "budget R1000-R1500", "less than $150"
+  const budgetUnderMatch = normalizedQuery.match(/(?:under|max|less than|below|up to|maximum)\s*[r$€£]?\s*(\d[\d,]*)/i);
+  const budgetRangeMatch = normalizedQuery.match(/(?:budget|between)\s*[r$€£]?\s*(\d[\d,]*)\s*[-–to]+\s*[r$€£]?\s*(\d[\d,]*)/i);
+  if (budgetRangeMatch) {
+    const currency = normalizedQuery.match(/[$€£]/) ? (normalizedQuery.includes('$') ? 'USD' : normalizedQuery.includes('€') ? 'EUR' : 'GBP') : 'ZAR';
+    intent.budget = { min: parseInt(budgetRangeMatch[1].replace(/,/g, ''), 10), max: parseInt(budgetRangeMatch[2].replace(/,/g, ''), 10), currency };
+  } else if (budgetUnderMatch) {
+    const currency = normalizedQuery.match(/[$€£]/) ? (normalizedQuery.includes('$') ? 'USD' : normalizedQuery.includes('€') ? 'EUR' : 'GBP') : 'ZAR';
+    intent.budget = { max: parseInt(budgetUnderMatch[1].replace(/,/g, ''), 10), currency };
+  }
+
+  // Room type/size parsing: "2 bedroom", "studio", "suite", "penthouse", "family room"
+  const roomTypeMatch = normalizedQuery.match(/(\d+)\s*[-\s]?(?:bed(?:room)?s?|br)\b/);
+  if (roomTypeMatch) {
+    intent.room_preference = `${roomTypeMatch[1]} bedroom`;
+  } else {
+    const roomKeywords = ['studio', 'suite', 'penthouse', 'family room', 'apartment', 'cottage', 'chalet', 'villa', 'loft', 'bungalow'];
+    for (const kw of roomKeywords) {
+      if (normalizedQuery.includes(kw)) { intent.room_preference = kw; break; }
+    }
+  }
 
   return intent;
 }
@@ -363,7 +388,8 @@ async function generateAINarrative(
   suggestions: ConciergeSuggestion[],
   intent: ParsedIntent,
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
-  allRoomDetails: { name: string; rate: number; total: number; description?: string }[]
+  allRoomDetails: { name: string; rate: number; total: number; description?: string }[],
+  conversationHistory?: { role: string; content: string }[]
 ): Promise<string> {
   const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   if (!hasAiKey) {
@@ -409,21 +435,35 @@ RULES:
 4. Always mention 1-2 amazing things about the destination (food, nature, culture) using the local experiences data.
 5. Keep response under 150 words. Use markdown for emphasis. Be conversational, not robotic.
 6. NEVER make up amenities or features not listed above. If unsure, be vague ("this area is known for...").
-7. If only one room type exists, don't compare — just sell it with passion.`;
+7. If only one room type exists, don't compare — just sell it with passion.
+8. If the guest mentioned a budget constraint, acknowledge it and only highlight rooms within their range. If nothing fits, say so honestly and suggest alternatives.
+9. If they asked for a specific room type (e.g. "2 bedroom", "studio"), match it against available room names and highlight the best fit.`;
 
   const userMessage = `Guest asked: "${userQuery}"
 ${intent.preferences?.length ? `They mentioned preferences: ${intent.preferences.join(', ')}` : ''}
+${intent.budget ? `Budget constraint: ${intent.budget.min ? `min ${intent.budget.currency || 'ZAR'} ${intent.budget.min}` : ''}${intent.budget.max ? ` max ${intent.budget.currency || 'ZAR'} ${intent.budget.max}/night` : ''}` : ''}
+${intent.room_preference ? `Room preference: ${intent.room_preference}` : ''}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
 
   // Primary: xAI Grok
   const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
+  // Build messages with conversation history for multi-turn context
+  const aiMessages: { role: string; content: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (conversationHistory && conversationHistory.length > 0) {
+    // Include last 10 messages for context
+    const recentHistory = conversationHistory.slice(-10);
+    for (const msg of recentHistory) {
+      aiMessages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.content });
+    }
+  }
+  aiMessages.push({ role: "user", content: userMessage });
+
   const aiPayload = {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
+    messages: aiMessages,
     max_tokens: 300,
   };
 
@@ -573,7 +613,7 @@ serve(async (req) => {
 
   try {
     const body: ConciergeRequest = await req.json();
-    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count } = body;
+    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count, conversation_history } = body;
 
     if (!property_id || !user_query) {
       return new Response(
@@ -680,10 +720,38 @@ serve(async (req) => {
     }
 
     // =====================================================================
+    // BUDGET FILTER: Remove suggestions outside budget range
+    // =====================================================================
+    let filteredSuggestions = suggestions;
+    if (intent.budget) {
+      filteredSuggestions = suggestions.filter(s => {
+        if (!s.room) return true;
+        const rate = s.room.price_per_night;
+        if (intent.budget!.max && rate > intent.budget!.max) return false;
+        if (intent.budget!.min && rate < intent.budget!.min) return false;
+        return true;
+      });
+      console.log(`[Concierge] Budget filter: ${suggestions.length} → ${filteredSuggestions.length}`);
+    }
+
+    // =====================================================================
+    // ROOM PREFERENCE FILTER: Boost rooms matching room_preference
+    // =====================================================================
+    if (intent.room_preference && filteredSuggestions.length > 1) {
+      const pref = intent.room_preference.toLowerCase();
+      const matching = filteredSuggestions.filter(s => s.room && s.room.name.toLowerCase().includes(pref));
+      if (matching.length > 0) {
+        // Put matching rooms first
+        const nonMatching = filteredSuggestions.filter(s => !matching.includes(s));
+        filteredSuggestions = [...matching, ...nonMatching];
+      }
+    }
+
+    // =====================================================================
     // CROSS-SELL: If no availability, check owner's other properties
     // =====================================================================
     let crossSellProperties: { name: string; slug: string; city: string; available: boolean }[] = [];
-    if (suggestions.length === 0 && current_dates?.check_in && current_dates?.check_out) {
+    if (filteredSuggestions.length === 0 && current_dates?.check_in && current_dates?.check_out) {
       crossSellProperties = await fetchOwnerAlternatives(
         supabase, context.owner_id, property_id,
         { check_in: current_dates.check_in, check_out: current_dates.check_out }
@@ -694,7 +762,7 @@ serve(async (req) => {
     // AI NARRATIVE: Replace templates with Lovable AI
     // =====================================================================
     const narrativeResponse = await generateAINarrative(
-      user_query, context, suggestions, intent, crossSellProperties, allRoomDetails
+      user_query, context, filteredSuggestions, intent, crossSellProperties, allRoomDetails, conversation_history
     );
 
     // Surprise & Delight
@@ -706,7 +774,7 @@ serve(async (req) => {
     }
 
     const response: ConciergeResponse = {
-      suggestions: suggestions.slice(0, 6),
+      suggestions: filteredSuggestions.slice(0, 6),
       narrative_response: narrativeResponse,
       parsed_intent: intent,
     };
