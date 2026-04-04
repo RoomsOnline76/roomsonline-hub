@@ -457,7 +457,8 @@ export default function EmbedProperty() {
     // Resolve rate: DB daily_rate → ROL'OS plan → PMS cache for check-in date
     let effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
     if (!effectiveRate && pmsCacheMap[roomId]) {
-      const ciRate = pmsCacheMap[roomId][checkIn];
+      const ciEntry = pmsCacheMap[roomId][checkIn];
+      const ciRate = typeof ciEntry === 'object' ? ciEntry?.rate : ciEntry;
       if (ciRate && ciRate > 0) effectiveRate = ciRate;
     }
     const pricingModel = rolosPlan?.pricing_model || null;
