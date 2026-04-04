@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { HeroVideo } from "@/components/ui/HeroVideo";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
@@ -501,12 +502,11 @@ export default function EmbedPortfolio() {
           className="relative w-full overflow-hidden"
           style={{ maxHeight: "340px" }}
         >
-          <video
+          <HeroVideo
             src={heroVideo.url}
             autoPlay
             loop
             muted={heroVideoMuted}
-            playsInline
             className="w-full h-[340px] object-cover"
           />
           <div

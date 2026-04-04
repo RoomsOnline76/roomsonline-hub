@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HeroVideo } from "@/components/ui/HeroVideo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -403,7 +404,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   {data.hero_video_url ? (
                     <div className="space-y-2">
                       <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
-                        <video 
+                        <HeroVideo 
                           src={data.hero_video_url} 
                           className="w-full h-32 object-cover"
                           controls
@@ -467,7 +468,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                       
                       <Input
                         type="url"
-                        placeholder="https://example.com/video.mp4"
+                        placeholder="https://youtube.com/watch?v=... or video URL"
                         value={data.hero_video_url || ""}
                         onChange={(e) => updateField("hero_video_url", e.target.value)}
                         className="text-xs"
