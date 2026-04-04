@@ -225,6 +225,26 @@ const Booking = () => {
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
+  // Fetch VAT config from brand config
+  useEffect(() => {
+    if (!property?.id) return;
+    supabase
+      .from("rolos_brand_config" as any)
+      .select("is_vat_registered, vat_rate, vat_number")
+      .eq("property_id", property.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          const d = data as any;
+          setVatConfig({
+            isVat: d.is_vat_registered ?? false,
+            rate: d.vat_rate ?? 15,
+            number: d.vat_number || "",
+          });
+        }
+      });
+  }, [property?.id]);
+
   // Fetch cached room types from database (fallback if not in amenities)
   const { data: cachedRoomTypes } = useQuery({
     queryKey: ["cached-room-types", property?.id],
