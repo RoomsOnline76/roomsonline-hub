@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { HeroVideo } from "@/components/ui/HeroVideo";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { HeroVideo } from "@/components/ui/HeroVideo";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertiesMap } from "@/components/PropertiesMap";
