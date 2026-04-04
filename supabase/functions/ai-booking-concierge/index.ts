@@ -25,6 +25,7 @@ interface ConciergeRequest {
   session_id?: string;
   current_booking_value?: number;
   session_delight_count?: number;
+  conversation_history?: { role: string; content: string }[];
 }
 
 interface ConciergeSuggestion {
