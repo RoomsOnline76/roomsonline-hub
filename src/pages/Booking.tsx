@@ -2542,7 +2542,53 @@ const Booking = () => {
                     </div>
                   )}
 
-                  {/* VAT breakdown */}
+                  {/* Age verification for age-restricted specials */}
+                  {pendingAgeSpecial && !ageVerified && !appliedPromotion && property && (
+                    <div className="mt-2">
+                      <AgeVerificationUpload
+                        special={{
+                          name: pendingAgeSpecial.title || pendingAgeSpecial.name || 'Special Offer',
+                          min_age: pendingAgeSpecial.min_age,
+                          max_age: pendingAgeSpecial.max_age,
+                          age_label: pendingAgeSpecial.age_label,
+                          discount_percent: pendingAgeSpecial.discount_percent,
+                        }}
+                        propertyId={property.id}
+                        onVerified={(eligible) => {
+                          if (eligible) {
+                            setAgeVerified(true);
+                            // Re-trigger cost calculation to apply the discount
+                            const special = pendingAgeSpecial;
+                            const discount = special.calculatedDiscount || 0;
+                            if (discount > 0) {
+                              const pctLabel = special.pctLabel;
+                              setAppliedPromotion({
+                                name: special.title || special.name || 'Special Offer',
+                                type: 'special',
+                                discount,
+                                description: special.description,
+                              });
+                              const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
+                              setCostBreakdown(prev => [
+                                ...prev,
+                                {
+                                  description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                                  nights: 0,
+                                  quantity: 1,
+                                  unitPrice: -discount,
+                                  total: -discount,
+                                },
+                              ]);
+                            }
+                          } else {
+                            setPendingAgeSpecial(null);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+
+
                   {(() => {
                     const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
                     // Refundable deposits are excluded from VAT
