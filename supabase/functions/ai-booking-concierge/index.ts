@@ -435,21 +435,35 @@ RULES:
 4. Always mention 1-2 amazing things about the destination (food, nature, culture) using the local experiences data.
 5. Keep response under 150 words. Use markdown for emphasis. Be conversational, not robotic.
 6. NEVER make up amenities or features not listed above. If unsure, be vague ("this area is known for...").
-7. If only one room type exists, don't compare — just sell it with passion.`;
+7. If only one room type exists, don't compare — just sell it with passion.
+8. If the guest mentioned a budget constraint, acknowledge it and only highlight rooms within their range. If nothing fits, say so honestly and suggest alternatives.
+9. If they asked for a specific room type (e.g. "2 bedroom", "studio"), match it against available room names and highlight the best fit.`;
 
   const userMessage = `Guest asked: "${userQuery}"
 ${intent.preferences?.length ? `They mentioned preferences: ${intent.preferences.join(', ')}` : ''}
+${intent.budget ? `Budget constraint: ${intent.budget.min ? `min ${intent.budget.currency || 'ZAR'} ${intent.budget.min}` : ''}${intent.budget.max ? ` max ${intent.budget.currency || 'ZAR'} ${intent.budget.max}/night` : ''}` : ''}
+${intent.room_preference ? `Room preference: ${intent.room_preference}` : ''}
 ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 'No availability found for the requested dates.'}`;
 
   // Primary: xAI Grok
   const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   
+  // Build messages with conversation history for multi-turn context
+  const aiMessages: { role: string; content: string }[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (conversationHistory && conversationHistory.length > 0) {
+    // Include last 10 messages for context
+    const recentHistory = conversationHistory.slice(-10);
+    for (const msg of recentHistory) {
+      aiMessages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.content });
+    }
+  }
+  aiMessages.push({ role: "user", content: userMessage });
+
   const aiPayload = {
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
+    messages: aiMessages,
     max_tokens: 300,
   };
 
