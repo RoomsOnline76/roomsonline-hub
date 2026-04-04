@@ -39,6 +39,7 @@ import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
 import type { VoucherStatus, VoucherResult } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
 import { AddOnSelector, type SelectedAddOn } from "@/components/booking/AddOnSelector";
+import { AgeVerificationUpload } from "@/components/booking/AgeVerificationUpload";
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
@@ -199,6 +200,8 @@ const Booking = () => {
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
   const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
   const [appliedPromotion, setAppliedPromotion] = useState<{ name: string; type: string; discount: number; description?: string } | null>(null);
+  const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
+  const [ageVerified, setAgeVerified] = useState(false);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -1575,6 +1578,17 @@ const Booking = () => {
                 }
 
                 if (discount > 0) {
+                  // Check if this is an age-restricted special
+                  if (special.age_restricted) {
+                    // Don't auto-apply — store as pending for verification
+                    setPendingAgeSpecial({
+                      ...special,
+                      calculatedDiscount: discount,
+                      pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
+                    });
+                    break;
+                  }
+
                   const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                   promoApplied = {
                     name: special.title || special.name || 'Special Offer',
@@ -2528,7 +2542,53 @@ const Booking = () => {
                     </div>
                   )}
 
-                  {/* VAT breakdown */}
+                  {/* Age verification for age-restricted specials */}
+                  {pendingAgeSpecial && !ageVerified && !appliedPromotion && property && (
+                    <div className="mt-2">
+                      <AgeVerificationUpload
+                        special={{
+                          name: pendingAgeSpecial.title || pendingAgeSpecial.name || 'Special Offer',
+                          min_age: pendingAgeSpecial.min_age,
+                          max_age: pendingAgeSpecial.max_age,
+                          age_label: pendingAgeSpecial.age_label,
+                          discount_percent: pendingAgeSpecial.discount_percent,
+                        }}
+                        propertyId={property.id}
+                        onVerified={(eligible) => {
+                          if (eligible) {
+                            setAgeVerified(true);
+                            // Re-trigger cost calculation to apply the discount
+                            const special = pendingAgeSpecial;
+                            const discount = special.calculatedDiscount || 0;
+                            if (discount > 0) {
+                              const pctLabel = special.pctLabel;
+                              setAppliedPromotion({
+                                name: special.title || special.name || 'Special Offer',
+                                type: 'special',
+                                discount,
+                                description: special.description,
+                              });
+                              const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
+                              setCostBreakdown(prev => [
+                                ...prev,
+                                {
+                                  description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                                  nights: 0,
+                                  quantity: 1,
+                                  unitPrice: -discount,
+                                  total: -discount,
+                                },
+                              ]);
+                            }
+                          } else {
+                            setPendingAgeSpecial(null);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+
+
                   {(() => {
                     const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
                     // Refundable deposits are excluded from VAT

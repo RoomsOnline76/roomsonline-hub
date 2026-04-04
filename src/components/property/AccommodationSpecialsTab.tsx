@@ -38,6 +38,10 @@ interface Special {
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
+  age_restricted: boolean;
+  min_age: number | null;
+  max_age: number | null;
+  age_label: string | null;
 }
 
 interface Props {
@@ -73,6 +77,10 @@ const emptySpecial = (propertyId: string, category: string): Omit<Special, "id">
   is_active: true,
   is_public: true,
   sort_order: 0,
+  age_restricted: false,
+  min_age: null,
+  max_age: null,
+  age_label: null,
 });
 
 export function AccommodationSpecialsTab({ propertyId, category = "accommodation", roomTypes = [] }: Props) {
@@ -146,6 +154,10 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         terms: draft.terms || null,
         is_active: draft.is_active ?? true,
         is_public: draft.is_public ?? true,
+        age_restricted: draft.age_restricted ?? false,
+        min_age: draft.age_restricted ? (draft.min_age ?? null) : null,
+        max_age: draft.age_restricted ? (draft.max_age ?? null) : null,
+        age_label: draft.age_restricted ? (draft.age_label || null) : null,
       } as any)
       .eq("id", selectedId)
       .select();
@@ -284,7 +296,52 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
               </div>
             </div>
 
-            {/* Row 2: Value fields based on type */}
+            {/* Age Restriction */}
+            <div className="flex gap-2 items-end flex-wrap">
+              <div className="flex items-center gap-2 pb-0.5">
+                <Switch
+                  checked={draft.age_restricted ?? false}
+                  onCheckedChange={(c) => setDraft({ ...draft, age_restricted: c })}
+                  className="scale-75"
+                />
+                <Label className="text-[10px]">Age Restricted</Label>
+              </div>
+              {draft.age_restricted && (
+                <>
+                  <div className="w-28 space-y-1">
+                    <Label className="text-xs">Label</Label>
+                    <Input
+                      value={draft.age_label || ""}
+                      onChange={(e) => setDraft({ ...draft, age_label: e.target.value })}
+                      placeholder="e.g. Pensioner"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="w-20 space-y-1">
+                    <Label className="text-xs">Min Age</Label>
+                    <Input
+                      type="number"
+                      value={draft.min_age ?? ""}
+                      onChange={(e) => setDraft({ ...draft, min_age: e.target.value ? Number(e.target.value) : null })}
+                      className="h-7 text-xs"
+                      min={0} max={120}
+                    />
+                  </div>
+                  <div className="w-20 space-y-1">
+                    <Label className="text-xs">Max Age</Label>
+                    <Input
+                      type="number"
+                      value={draft.max_age ?? ""}
+                      onChange={(e) => setDraft({ ...draft, max_age: e.target.value ? Number(e.target.value) : null })}
+                      className="h-7 text-xs"
+                      min={0} max={120}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+
             <div className="grid grid-cols-4 gap-2">
               {(draft.special_type === "discount") && (
                 <div className="space-y-1">
