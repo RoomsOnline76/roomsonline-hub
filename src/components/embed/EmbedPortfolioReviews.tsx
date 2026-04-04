@@ -29,7 +29,12 @@ function getInitials(name: string) {
 }
 
 export function EmbedPortfolioReviews({ reviews, tobiBlurbs, brandColor }: EmbedPortfolioReviewsProps) {
-  if (reviews.length === 0 && tobiBlurbs.length === 0) return null;
+  // Deduplicate blurbs by property_name (defensive safeguard)
+  const uniqueBlurbs = tobiBlurbs.filter((tb, i, arr) =>
+    arr.findIndex(x => x.property_name === tb.property_name) === i
+  );
+
+  if (reviews.length === 0 && uniqueBlurbs.length === 0) return null;
 
   return (
     <div className="w-full">
@@ -39,9 +44,9 @@ export function EmbedPortfolioReviews({ reviews, tobiBlurbs, brandColor }: Embed
       </div>
 
       {/* TOBI blurbs */}
-      {tobiBlurbs.length > 0 && (
+      {uniqueBlurbs.length > 0 && (
         <div className="mb-5 space-y-3">
-          {tobiBlurbs.map((tb, i) => (
+          {uniqueBlurbs.map((tb, i) => (
             <div key={i} className="p-4 rounded-xl border border-gray-100" style={{ backgroundColor: `${brandColor}06` }}>
               <p className="text-sm text-gray-700 italic leading-relaxed">"{tb.blurb}"</p>
               <p className="text-xs text-gray-400 mt-2">— {tb.property_name}</p>

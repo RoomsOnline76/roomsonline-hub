@@ -157,6 +157,7 @@ serve(async (req) => {
       .in("property_id", propertyIds);
 
     const reviewsByProperty: Record<string, any[]> = {};
+    const seenBlurbProperties = new Set<string>();
     const tobiBlurbs: { property_name: string; blurb: string }[] = [];
     (reviewCaches || []).forEach((rc: any) => {
       if (!reviewsByProperty[rc.property_id]) reviewsByProperty[rc.property_id] = [];
@@ -168,7 +169,9 @@ serve(async (req) => {
         property_name: propName,
       }));
       reviewsByProperty[rc.property_id].push(...sourceReviews);
-      if (rc.tobi_blurb) {
+      // Deduplicate: only one TOBI blurb per property
+      if (rc.tobi_blurb && !seenBlurbProperties.has(rc.property_id)) {
+        seenBlurbProperties.add(rc.property_id);
         tobiBlurbs.push({ property_name: propName, blurb: rc.tobi_blurb });
       }
     });
