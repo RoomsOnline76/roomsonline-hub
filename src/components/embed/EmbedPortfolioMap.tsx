@@ -115,7 +115,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
     );
   }
 
-  if (properties.length < 2) return null;
+  if (properties.length < 1) return null;
 
   return (
     <div className="w-full">

@@ -11,6 +11,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // Muted attraction pin colors to complement grayscale map
 const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
 
+interface SiblingProperty {
+  name: string;
+  slug: string;
+  lat: number;
+  lng: number;
+  heroImage?: string;
+}
+
 interface InvitationMapProps {
   propertyName: string;
   city: string;
@@ -20,6 +28,7 @@ interface InvitationMapProps {
   onBookNow: () => void;
   onContact?: () => void;
   bookingLabel?: string;
+  siblingProperties?: SiblingProperty[];
 }
 
 // Grayscale map styling for editorial aesthetic
@@ -58,6 +67,7 @@ export function InvitationMap({
   onBookNow,
   onContact,
   bookingLabel = 'Book Your Escape',
+  siblingProperties = [],
 }: InvitationMapProps) {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.2 });
   const mapRef = useRef<HTMLDivElement>(null);
@@ -262,6 +272,64 @@ export function InvitationMap({
       attractionMarkersRef.current.forEach(m => m.setMap(null));
     };
   }, [attractions, hasCoordinates, latitude, longitude]);
+
+  // Render sibling property markers
+  const siblingMarkersRef = useRef<google.maps.Marker[]>([]);
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapsLoaded || siblingProperties.length === 0 || !hasCoordinates) return;
+
+    siblingMarkersRef.current.forEach(m => m.setMap(null));
+    siblingMarkersRef.current = [];
+
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend({ lat: Number(latitude), lng: Number(longitude) });
+
+    const siblingInfoWindow = new google.maps.InfoWindow();
+
+    siblingProperties.forEach(sibling => {
+      bounds.extend({ lat: sibling.lat, lng: sibling.lng });
+
+      const marker = new google.maps.Marker({
+        position: { lat: sibling.lat, lng: sibling.lng },
+        map: mapInstanceRef.current,
+        title: sibling.name,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#9CA3AF',
+          fillOpacity: 0.8,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+          scale: 9,
+        },
+        zIndex: 50,
+      });
+
+      marker.addListener('click', () => {
+        siblingInfoWindow.setContent(`
+          <div style="font-family:system-ui;min-width:160px;max-width:220px;">
+            ${sibling.heroImage ? `<img src="${sibling.heroImage}" style="width:100%;height:80px;object-fit:cover;border-radius:6px 6px 0 0;"/>` : ''}
+            <div style="padding:8px 10px;">
+              <p style="font-weight:600;font-size:13px;margin:0 0 6px 0;color:#111;">${sibling.name}</p>
+              <a href="/property/${sibling.slug}" style="font-size:12px;color:#0066cc;text-decoration:none;">View Property →</a>
+            </div>
+          </div>
+        `);
+        siblingInfoWindow.open(mapInstanceRef.current, marker);
+      });
+
+      siblingMarkersRef.current.push(marker);
+    });
+
+    attractions.forEach(a => {
+      if (a.geometry?.location) bounds.extend(a.geometry.location);
+    });
+
+    mapInstanceRef.current.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+
+    return () => {
+      siblingMarkersRef.current.forEach(m => m.setMap(null));
+    };
+  }, [siblingProperties, mapsLoaded, hasCoordinates, latitude, longitude, attractions]);
 
   const handleShare = async () => {
     if (navigator.share) {
