@@ -30,8 +30,7 @@ const mapStyles = [
 export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: EmbedPortfolioMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const { data: apiKey, isLoading: keyLoading } = useGoogleMapsApiKey();
-  const [ready, setReady] = useState(false);
+  const { apiKey, isLoading: keyLoading } = useGoogleMapsApiKey();
 
   useEffect(() => {
     if (!apiKey || !mapRef.current || properties.length === 0) return;
