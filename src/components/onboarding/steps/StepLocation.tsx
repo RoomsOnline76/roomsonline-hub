@@ -20,6 +20,7 @@ export function StepLocation({
 }: StepProps) {
   const { toast } = useToast();
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
 
   const isPMSAddress = isPMSManaged("address");
   const isPMSCity = isPMSManaged("city");
