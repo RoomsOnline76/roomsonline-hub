@@ -29,6 +29,23 @@ function getCacheKey(propertyId: string, checkIn: string, checkOut: string) {
   return `${propertyId}:${checkIn}:${checkOut}`;
 }
 
+function getPmsFunctionName(externalSystem: string | null) {
+  switch (externalSystem) {
+    case "hostfully":
+      return "hostfully-api";
+    case "benson":
+      return "benson-api";
+    case "hotelbeds":
+      return "hotelbeds-api";
+    case "hyperguest":
+      return "hyperguest-api";
+    case "little_hotelier":
+      return "little-hotelier-api";
+    default:
+      return "roomsonline-pms-api";
+  }
+}
+
 /**
  * Fetch live ARI for a single property using its PMS adapter via the
  * roomsonline-pms-api edge function.
@@ -57,12 +74,25 @@ export async function fetchLiveRates(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke("roomsonline-pms-api", {
+    const functionName = getPmsFunctionName(externalSystem);
+    const requestBody = functionName === "hotelbeds-api"
+      ? {
+          action: "fetch_availability",
+          property_id: propertyId,
+          start_date: ci,
+          end_date: co,
+        }
+      : {
+          action: "fetch_availability",
+          propertyId,
+          property_id: propertyId,
+          start_date: ci,
+          end_date: co,
+        };
+
+    const { data, error } = await supabase.functions.invoke(functionName, {
       body: {
-        action: "fetch_availability",
-        propertyId,
-        start_date: ci,
-        end_date: co,
+        ...requestBody,
       },
     });
 
