@@ -1544,6 +1544,13 @@ const Booking = () => {
 
           if (specials && specials.length > 0) {
             let nextPendingAgeSpecial: any | null = null;
+            const accommodationSubtotal = lineItems
+              .filter((item) => item.nights > 0 && item.total > 0)
+              .reduce((sum, item) => sum + item.total, 0);
+            const packageDiscountTotal = appliedPromos
+              .filter((promo) => promo.type === 'package')
+              .reduce((sum, promo) => sum + promo.discount, 0);
+            const basisForSpecial = Math.max(0, accommodationSubtotal - packageDiscountTotal);
 
             for (const special of specials as any[]) {
               const minStay = special.min_stay || 0;
@@ -1552,12 +1559,12 @@ const Booking = () => {
               if (special.applicable_room_ids?.length > 0) {
                 const bookedRoomIds = rooms.map(r => r.roomTypeId);
                 const embedLinkedRolosId = searchParams.get('linked_rolos_id');
+                const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
                 const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
                 const hasMatchingRoom = bookedRoomIds.some(uuid => {
                   if (special.applicable_room_ids.includes(uuid)) return true;
                   if (special.applicable_room_ids.includes(String(uuid))) return true;
-                const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
-                const amenityRoom = amenitiesRooms.find((r: any) =>
+                  const amenityRoom = amenitiesRooms.find((r: any) =>
                     String(r.id) === String(uuid) ||
                     r.linked_rolos_id === uuid ||
                     (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
@@ -1577,10 +1584,6 @@ const Booking = () => {
               if (special.book_from && todayStr < special.book_from) continue;
               if (special.book_until && todayStr > special.book_until) continue;
 
-              // Calculate discount on current running total (post-package)
-              const currentAccommodation = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
-              const postPkgSubtotal = currentAccommodation + lineItems.filter(i => i.total < 0).reduce((s, i) => s + i.total, 0);
-              const basisForSpecial = Math.max(postPkgSubtotal, runningTotal);
               let discount = 0;
               const sType = special.special_type || special.discount_type || '';
 
