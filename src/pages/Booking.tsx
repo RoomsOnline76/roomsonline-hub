@@ -1561,25 +1561,28 @@ const Booking = () => {
 
                 const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
                 let discount = 0;
+                const sType = special.special_type || special.discount_type || '';
 
-                if (special.discount_type === 'percentage' && special.discount_value > 0) {
-                  discount = Math.round(accommodationSubtotal * (special.discount_value / 100));
-                } else if (special.discount_type === 'fixed_amount' && special.discount_value > 0) {
-                  discount = special.discount_value;
-                } else if (special.discount_type === 'fixed_price' && special.discount_value > 0) {
-                  discount = Math.max(0, accommodationSubtotal - special.discount_value);
+                if (sType === 'discount' || sType === 'percentage') {
+                  const pct = special.discount_percent || special.discount_value || 0;
+                  if (pct > 0) discount = Math.round(accommodationSubtotal * (pct / 100));
+                } else if (sType === 'fixed_amount') {
+                  const amt = special.fixed_amount || special.discount_value || 0;
+                  if (amt > 0) discount = amt;
+                } else if (sType === 'fixed_price') {
+                  const price = special.fixed_price || special.discount_value || 0;
+                  if (price > 0) discount = Math.max(0, accommodationSubtotal - price);
                 }
 
                 if (discount > 0) {
+                  const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                   promoApplied = {
                     name: special.title || special.name || 'Special Offer',
                     type: 'special',
                     discount,
                     description: special.description,
                   };
-                  const discountLabel = special.discount_type === 'percentage' 
-                    ? `(-${special.discount_value}%)` 
-                    : '';
+                  const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
                   lineItems.push({
                     description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
                     nights: 0,
