@@ -94,7 +94,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         zoom: 12,
         disableDefaultUI: true,
         zoomControl: true,
-        styles: mapStyles as any,
+        mapId: 'portfolio-map',
       });
       map.fitBounds(bounds, 60);
       mapInstanceRef.current = map;
