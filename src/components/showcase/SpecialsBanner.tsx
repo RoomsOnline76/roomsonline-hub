@@ -32,10 +32,15 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
         .select("*")
         .eq("property_id", propertyId)
         .eq("is_active", true)
-        .lte("valid_from", today)
-        .gte("valid_to", today)
         .order("valid_to", { ascending: true });
-      return (data || []) as unknown as Special[];
+      // Filter client-side: show if today is within stay window OR booking window
+      return ((data || []) as unknown as Special[]).filter((s) => {
+        const inStayWindow = s.valid_from <= today && s.valid_to >= today;
+        const inBookWindow = s.book_from && s.book_until
+          ? s.book_from <= today && s.book_until >= today
+          : false;
+        return inStayWindow || inBookWindow;
+      });
     },
     enabled: !!propertyId,
     staleTime: 5 * 60 * 1000,

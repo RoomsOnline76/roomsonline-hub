@@ -386,7 +386,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
                 </div>
               )}
               <div className="space-y-1">
-                <Label className="text-xs">Valid From</Label>
+                <Label className="text-xs">Stay From</Label>
                 <Input
                   type="date"
                   value={draft.valid_from || ""}
@@ -395,11 +395,29 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Valid To</Label>
+                <Label className="text-xs">Stay Until</Label>
                 <Input
                   type="date"
                   value={draft.valid_to || ""}
                   onChange={(e) => setDraft({ ...draft, valid_to: e.target.value || null })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Book From</Label>
+                <Input
+                  type="date"
+                  value={draft.book_from || ""}
+                  onChange={(e) => setDraft({ ...draft, book_from: e.target.value || null })}
+                  className="h-7 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Book By</Label>
+                <Input
+                  type="date"
+                  value={draft.book_until || ""}
+                  onChange={(e) => setDraft({ ...draft, book_until: e.target.value || null })}
                   className="h-7 text-xs"
                 />
               </div>
