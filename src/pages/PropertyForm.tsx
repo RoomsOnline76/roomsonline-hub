@@ -5659,30 +5659,70 @@ export default function PropertyForm() {
                           </div>
                         )}
 
-                        {noStreetAddress && (
-                          <div className="p-2 border rounded-lg border-primary/20 bg-primary/5">
-                            <div className="flex items-center gap-2">
+                        {/* GPS Coordinates & Google Maps Link — always visible */}
+                        <div className={cn("grid gap-3 mt-3", noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4")}>
+                          {/* Latitude */}
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="latitude_input" className="text-xs flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-primary" />
-                              <Label htmlFor="google_maps_link" className="text-xs">
-                                Google Maps Link *
-                              </Label>
+                              Latitude
+                            </Label>
+                            <Input
+                              id="latitude_input"
+                              type="number"
+                              step="any"
+                              value={latitude ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseFloat(e.target.value) : null;
+                                setLatitude(val);
+                                setIsDirty(true);
+                              }}
+                              placeholder="-34.0522"
+                              className="h-7 text-xs font-mono"
+                            />
+                          </div>
+                          {/* Longitude */}
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="longitude_input" className="text-xs flex items-center gap-1">
+                              <MapPin className="h-3 w-3 text-primary" />
+                              Longitude
+                            </Label>
+                            <Input
+                              id="longitude_input"
+                              type="number"
+                              step="any"
+                              value={longitude ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseFloat(e.target.value) : null;
+                                setLongitude(val);
+                                setIsDirty(true);
+                              }}
+                              placeholder="18.4241"
+                              className="h-7 text-xs font-mono"
+                            />
+                          </div>
+                          {/* Google Maps Link */}
+                          <div className="flex flex-col gap-1 col-span-2">
+                            <Label htmlFor="google_maps_link" className="text-xs">
+                              Google Maps Link {noStreetAddress && '*'}
+                            </Label>
+                            <div className="flex items-center gap-2">
                               <Input
                                 id="google_maps_link"
                                 value={googleMapsLink}
                                 onChange={(e) => handleGoogleMapsLinkChange(e.target.value)}
-                                placeholder="Paste Google Maps link"
+                                placeholder="Paste Google Maps link to extract GPS"
                                 className="flex-1 h-7 text-xs font-mono"
-                                required
+                                required={noStreetAddress}
                               />
                               {googleMapsLink && latitude && longitude && (
                                 <span className="text-xs text-green-600 flex items-center gap-1">
                                   <Check className="h-3 w-3" />
-                                  {latitude.toFixed(4)}, {longitude.toFixed(4)}
                                 </span>
                               )}
                             </div>
                           </div>
-                        )}
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
