@@ -128,8 +128,30 @@ function parseUserQuery(query: string): ParsedIntent {
     intent.nights = 2;
   }
 
-  const preferenceKeywords = ['quiet','romantic','luxury','budget','family','pet','pool','view','ocean','mountain','spa','breakfast','wifi','parking','gym','kitchen','balcony','garden','beach','sunset'];
+  const preferenceKeywords = ['quiet','romantic','luxury','family','pet','pool','view','ocean','mountain','spa','breakfast','wifi','parking','gym','kitchen','balcony','garden','beach','sunset'];
   intent.preferences = preferenceKeywords.filter(kw => normalizedQuery.includes(kw));
+
+  // Budget parsing: "under R2000", "max R3000/night", "budget R1000-R1500", "less than $150"
+  const budgetUnderMatch = normalizedQuery.match(/(?:under|max|less than|below|up to|maximum)\s*[r$€£]?\s*(\d[\d,]*)/i);
+  const budgetRangeMatch = normalizedQuery.match(/(?:budget|between)\s*[r$€£]?\s*(\d[\d,]*)\s*[-–to]+\s*[r$€£]?\s*(\d[\d,]*)/i);
+  if (budgetRangeMatch) {
+    const currency = normalizedQuery.match(/[$€£]/) ? (normalizedQuery.includes('$') ? 'USD' : normalizedQuery.includes('€') ? 'EUR' : 'GBP') : 'ZAR';
+    intent.budget = { min: parseInt(budgetRangeMatch[1].replace(/,/g, ''), 10), max: parseInt(budgetRangeMatch[2].replace(/,/g, ''), 10), currency };
+  } else if (budgetUnderMatch) {
+    const currency = normalizedQuery.match(/[$€£]/) ? (normalizedQuery.includes('$') ? 'USD' : normalizedQuery.includes('€') ? 'EUR' : 'GBP') : 'ZAR';
+    intent.budget = { max: parseInt(budgetUnderMatch[1].replace(/,/g, ''), 10), currency };
+  }
+
+  // Room type/size parsing: "2 bedroom", "studio", "suite", "penthouse", "family room"
+  const roomTypeMatch = normalizedQuery.match(/(\d+)\s*[-\s]?(?:bed(?:room)?s?|br)\b/);
+  if (roomTypeMatch) {
+    intent.room_preference = `${roomTypeMatch[1]} bedroom`;
+  } else {
+    const roomKeywords = ['studio', 'suite', 'penthouse', 'family room', 'apartment', 'cottage', 'chalet', 'villa', 'loft', 'bungalow'];
+    for (const kw of roomKeywords) {
+      if (normalizedQuery.includes(kw)) { intent.room_preference = kw; break; }
+    }
+  }
 
   return intent;
 }
