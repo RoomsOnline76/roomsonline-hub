@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
 
         const { data: property } = await supabase
           .from("properties")
-          .select("name, brand_logo_url, brand_primary_color")
+          .select("name, brand_logo_url, brand_primary_color, amenities")
           .eq("id", invPropId)
           .single();
 
