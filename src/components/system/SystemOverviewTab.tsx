@@ -50,7 +50,35 @@ export function SystemOverviewTab() {
 
   useEffect(() => {
     loadSystemStatus();
+    loadDailyReportToggle();
   }, []);
+
+  const loadDailyReportToggle = async () => {
+    const { data } = await supabase
+      .from('api_keys')
+      .select('key_value')
+      .eq('key_name', 'DAILY_HEALTH_REPORT_ENABLED')
+      .maybeSingle();
+    setDailyReportEnabled(data?.key_value === 'true');
+  };
+
+  const handleToggleDailyReport = async (checked: boolean) => {
+    setTogglingReport(true);
+    setDailyReportEnabled(checked);
+    try {
+      const { error } = await supabase
+        .from('api_keys')
+        .update({ key_value: checked ? 'true' : 'false' })
+        .eq('key_name', 'DAILY_HEALTH_REPORT_ENABLED');
+      if (error) throw error;
+      toast.success(checked ? 'Daily health report enabled' : 'Daily health report disabled');
+    } catch (error) {
+      setDailyReportEnabled(!checked);
+      toast.error('Failed to update setting');
+    } finally {
+      setTogglingReport(false);
+    }
+  };
 
   const loadSystemStatus = async () => {
     try {
