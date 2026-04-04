@@ -1464,37 +1464,35 @@ const Booking = () => {
         console.log('[Booking] Applied', calculatedCharges.length, 'property charges, new total:', runningTotal);
       }
 
-      // Auto-apply matching packages or specials
-      let promoApplied: typeof appliedPromotion = null;
+      // Auto-apply matching packages AND specials (they stack)
+      const appliedPromos: typeof appliedPromotions = [];
       if (property && checkIn && checkOut && runningTotal > 0) {
         const amenitiesData = property.amenities as Record<string, any> | null;
         const packages = amenitiesData?.packages || [];
         const bookingCheckIn = checkIn;
         const bookingCheckOut = checkOut;
 
-        // Check packages first (higher priority)
+        // Check packages first
         for (const pkg of packages) {
           if (!pkg.is_active && pkg.is_active !== undefined) continue;
           const pkgStart = (pkg.periodFrom || pkg.valid_from || pkg.start_date || '').split('T')[0];
           const pkgEnd = (pkg.periodTo || pkg.valid_to || pkg.end_date || '').split('T')[0];
           if (!pkgStart || !pkgEnd) continue;
 
-          // Check if booking dates overlap with package period
           if (bookingCheckIn >= pkgStart && bookingCheckOut <= pkgEnd) {
-            // Check min stay if specified
             const minStay = pkg.minimumStay || pkg.min_nights || pkg.min_stay || 0;
             if (minStay > 0 && nights < minStay) continue;
 
-            // Apply package: use package price if set, otherwise percentage discount
             if (pkg.package_price && pkg.package_price > 0) {
               const discount = runningTotal - pkg.package_price;
               if (discount > 0) {
-                promoApplied = {
+                appliedPromos.push({
                   name: pkg.name || 'Package Deal',
                   type: 'package',
                   discount,
                   description: pkg.description,
-                };
+                  imageUrl: pkg.images?.[0]?.url || pkg.images?.[0] || pkg.image_url || undefined,
+                });
                 lineItems.push({
                   description: `📦 ${pkg.name || 'Package Deal'}`,
                   nights: 0,
@@ -1504,128 +1502,124 @@ const Booking = () => {
                 });
                 runningTotal -= discount;
               }
-            } else if ((pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0)) > 0 && !pkg.package_price) {
-              const pctVal = pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0);
-              const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
-              const discount = Math.round(accommodationSubtotal * (pctVal / 100));
-              if (discount > 0) {
-                promoApplied = {
-                  name: pkg.name || 'Package Deal',
-                  type: 'package',
-                  discount,
-                  description: pkg.description,
-                };
-                lineItems.push({
-                  description: `📦 ${pkg.name || 'Package Deal'} (-${pctVal}%)`,
-                  nights: 0,
-                  quantity: 1,
-                  unitPrice: -discount,
-                  total: -discount,
-                });
-                runningTotal -= discount;
-              }
-            }
-            break; // Only apply first matching package
-          }
-        }
-
-        // Check specials from property_specials table if no package applied
-        if (!promoApplied) {
-          try {
-            const { data: specials } = await supabase
-              .from("property_specials" as any)
-              .select("*")
-              .eq("property_id", property.id)
-              .eq("is_active", true)
-              .lte("valid_from", bookingCheckOut)
-              .gte("valid_to", bookingCheckIn);
-
-            if (specials && specials.length > 0) {
-              for (const special of specials as any[]) {
-                // Check min stay
-                const minStay = special.min_stay || 0;
-                if (minStay > 0 && nights < minStay) continue;
-
-                // Check room applicability
-                if (special.applicable_room_ids?.length > 0) {
-                  const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                  const embedLinkedRolosId = searchParams.get('linked_rolos_id');
-                  // Use room_types (correct key) with rooms as fallback
-                  const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
-                  const hasMatchingRoom = bookedRoomIds.some(uuid => {
-                    // 1. Direct match (UUID or legacy ID already in list)
-                    if (special.applicable_room_ids.includes(uuid)) return true;
-                    if (special.applicable_room_ids.includes(String(uuid))) return true;
-                    // 2. Find amenity room by id, linked_rolos_id, or the embed linked_rolos_id
-                    const amenityRoom = amenitiesRooms.find((r: any) =>
-                      String(r.id) === String(uuid) ||
-                      r.linked_rolos_id === uuid ||
-                      (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
-                      (embedLinkedRolosId && String(r.id) === embedLinkedRolosId)
-                    );
-                    if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
-                    return false;
-                  });
-                  if (!hasMatchingRoom) continue;
-                }
-
-                // Check booking dates fall within the special's book range
-                if (special.book_from && bookingCheckIn < special.book_from) continue;
-                if (special.book_until && bookingCheckIn > special.book_until) continue;
-
+            } else {
+              const pctVal = pkg.discount_percentage || pkg.discountPercent || 0;
+              if (pctVal > 0) {
                 const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
-                let discount = 0;
-                const sType = special.special_type || special.discount_type || '';
-
-                if (sType === 'discount' || sType === 'percentage') {
-                  const pct = special.discount_percent || special.discount_value || 0;
-                  if (pct > 0) discount = Math.round(accommodationSubtotal * (pct / 100));
-                } else if (sType === 'fixed_amount') {
-                  const amt = special.fixed_amount || special.discount_value || 0;
-                  if (amt > 0) discount = amt;
-                } else if (sType === 'fixed_price') {
-                  const price = special.fixed_price || special.discount_value || 0;
-                  if (price > 0) discount = Math.max(0, accommodationSubtotal - price);
-                }
-
+                const discount = Math.round(accommodationSubtotal * (pctVal / 100));
                 if (discount > 0) {
-                  // Check if this is an age-restricted special
-                  if (special.age_restricted) {
-                    // Don't auto-apply — store as pending for verification
-                    setPendingAgeSpecial({
-                      ...special,
-                      calculatedDiscount: discount,
-                      pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
-                    });
-                    break;
-                  }
-
-                  const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
-                  promoApplied = {
-                    name: special.title || special.name || 'Special Offer',
-                    type: 'special',
+                  appliedPromos.push({
+                    name: pkg.name || 'Package Deal',
+                    type: 'package',
                     discount,
-                    description: special.description,
-                  };
-                  const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
+                    description: pkg.description,
+                    imageUrl: pkg.images?.[0]?.url || pkg.images?.[0] || pkg.image_url || undefined,
+                  });
                   lineItems.push({
-                    description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                    description: `📦 ${pkg.name || 'Package Deal'} (-${pctVal}%)`,
                     nights: 0,
                     quantity: 1,
                     unitPrice: -discount,
                     total: -discount,
                   });
                   runningTotal -= discount;
-                  break; // Only apply first matching special
                 }
               }
             }
-          } catch (err) {
-            console.warn('[Booking] Failed to fetch specials:', err);
+            break; // Only apply first matching package
           }
         }
+
+        // Always check specials (stack with packages)
+        try {
+          const { data: specials } = await supabase
+            .from("property_specials" as any)
+            .select("*")
+            .eq("property_id", property.id)
+            .eq("is_active", true)
+            .lte("valid_from", bookingCheckOut)
+            .gte("valid_to", bookingCheckIn);
+
+          if (specials && specials.length > 0) {
+            for (const special of specials as any[]) {
+              const minStay = special.min_stay || 0;
+              if (minStay > 0 && nights < minStay) continue;
+
+              if (special.applicable_room_ids?.length > 0) {
+                const bookedRoomIds = rooms.map(r => r.roomTypeId);
+                const embedLinkedRolosId = searchParams.get('linked_rolos_id');
+                const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
+                const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                  if (special.applicable_room_ids.includes(uuid)) return true;
+                  if (special.applicable_room_ids.includes(String(uuid))) return true;
+                  const amenityRoom = amenitiesRooms.find((r: any) =>
+                    String(r.id) === String(uuid) ||
+                    r.linked_rolos_id === uuid ||
+                    (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
+                    (embedLinkedRolosId && String(r.id) === embedLinkedRolosId)
+                  );
+                  if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
+                  return false;
+                });
+                if (!hasMatchingRoom) continue;
+              }
+
+              if (special.book_from && bookingCheckIn < special.book_from) continue;
+              if (special.book_until && bookingCheckIn > special.book_until) continue;
+
+              // Calculate discount on current running total (post-package)
+              const currentAccommodation = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+              const postPkgSubtotal = currentAccommodation + lineItems.filter(i => i.total < 0).reduce((s, i) => s + i.total, 0);
+              const basisForSpecial = Math.max(postPkgSubtotal, runningTotal);
+              let discount = 0;
+              const sType = special.special_type || special.discount_type || '';
+
+              if (sType === 'discount' || sType === 'percentage') {
+                const pct = special.discount_percent || special.discount_value || 0;
+                if (pct > 0) discount = Math.round(basisForSpecial * (pct / 100));
+              } else if (sType === 'fixed_amount') {
+                const amt = special.fixed_amount || special.discount_value || 0;
+                if (amt > 0) discount = amt;
+              } else if (sType === 'fixed_price') {
+                const price = special.fixed_price || special.discount_value || 0;
+                if (price > 0) discount = Math.max(0, basisForSpecial - price);
+              }
+
+              if (discount > 0) {
+                if (special.age_restricted) {
+                  setPendingAgeSpecial({
+                    ...special,
+                    calculatedDiscount: discount,
+                    pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
+                  });
+                  break;
+                }
+
+                const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
+                appliedPromos.push({
+                  name: special.title || special.name || 'Special Offer',
+                  type: 'special',
+                  discount,
+                  description: special.description,
+                });
+                const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
+                lineItems.push({
+                  description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                  nights: 0,
+                  quantity: 1,
+                  unitPrice: -discount,
+                  total: -discount,
+                });
+                runningTotal -= discount;
+                break; // Only apply first matching special
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[Booking] Failed to fetch specials:', err);
+        }
       }
-      setAppliedPromotion(promoApplied);
+      setAppliedPromotions(appliedPromos);
 
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
