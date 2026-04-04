@@ -1845,7 +1845,6 @@ export default function PropertyForm() {
                 ...(street && !prev.address ? { address: street } : {}),
                 ...(city && !prev.city ? { city } : {}),
                 ...(suburb && !prev.suburb ? { suburb } : {}),
-                ...(province && !prev.province ? { province } : {}),
                 ...(country && !prev.country ? { country } : {}),
                 ...(postalCode && !prev.postal_code ? { postal_code: postalCode } : {}),
               }));
