@@ -2740,12 +2740,32 @@ export default function PropertyForm() {
   const [packageImages, setPackageImages] = useState<string[]>([]);
   const [isPackageImageDragging, setIsPackageImageDragging] = useState(false);
 
+  const normalizePackage = (pkg: any) => ({
+    ...pkg,
+    discountPercent: Number(pkg?.discountPercent ?? pkg?.discount_percentage ?? 0),
+    discount_percentage: Number(pkg?.discount_percentage ?? pkg?.discountPercent ?? 0),
+    fixedAmountOff: Number(pkg?.fixedAmountOff ?? pkg?.fixed_amount_off ?? 0),
+    fixedPrice: Number(pkg?.fixedPrice ?? pkg?.package_price ?? 0),
+    package_price: Number(pkg?.package_price ?? pkg?.fixedPrice ?? 0),
+    images: Array.isArray(pkg?.images) ? pkg.images : [],
+    applicableRoomIds: Array.isArray(pkg?.applicableRoomIds)
+      ? pkg.applicableRoomIds.map(String)
+      : Array.isArray(pkg?.applicable_room_ids)
+        ? pkg.applicable_room_ids.map(String)
+        : [],
+    applicable_room_ids: Array.isArray(pkg?.applicable_room_ids)
+      ? pkg.applicable_room_ids.map(String)
+      : Array.isArray(pkg?.applicableRoomIds)
+        ? pkg.applicableRoomIds.map(String)
+        : [],
+  });
+
   const addNewPackage = () => {
-    const newPackage = {
+    const newPackage = normalizePackage({
       id: Date.now().toString(),
       ...packageForm,
       category: packagesCategory,
-    };
+    });
     setPackages([...packages, newPackage]);
     setSelectedPackage(newPackage);
     setIsEditPackageOpen(false);
