@@ -1397,6 +1397,7 @@ const Booking = () => {
             quantity: 1,
             unitPrice: cc.calculatedAmount,
             total: cc.calculatedAmount,
+            isRefundable: cc.charge.is_refundable,
           });
           runningTotal += cc.calculatedAmount;
         }
