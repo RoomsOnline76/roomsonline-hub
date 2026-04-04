@@ -285,8 +285,18 @@ const BookingConfirmation = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => {
-              if (isIntegration) window.close();
-              else navigate("/");
+              if (isIntegration) {
+                // Try postMessage to parent (for embeds/iframes)
+                try { window.parent.postMessage({ type: 'roomsonline:close' }, '*'); } catch {}
+                // Try closing window (works if opened via JS)
+                try { window.close(); } catch {}
+                // Fallback: navigate to property page
+                const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
+                if (slug) navigate(`/p/${slug}`);
+                else navigate("/");
+              } else {
+                navigate("/");
+              }
             }}
             className="flex-1 gap-2"
             size="lg"
