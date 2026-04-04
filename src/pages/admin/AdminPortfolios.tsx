@@ -188,6 +188,9 @@ export default function AdminPortfolios() {
       const branding: PortfolioBranding = {
         primary_color: brandPrimary, secondary_color: brandSecondary, font_color: brandFontColor,
         logo_url: brandLogoUrl || undefined, heading_font: brandHeadingFont || undefined, body_font: brandBodyFont || undefined,
+        heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
+        muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
+        dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
