@@ -82,6 +82,12 @@ export default function AdminPortfolios() {
   const [brandLogoUrl, setBrandLogoUrl] = useState("");
   const [brandHeadingFont, setBrandHeadingFont] = useState("");
   const [brandBodyFont, setBrandBodyFont] = useState("");
+  const [brandHeadingTextColor, setBrandHeadingTextColor] = useState("");
+  const [brandBodyTextColor, setBrandBodyTextColor] = useState("");
+  const [brandMutedTextColor, setBrandMutedTextColor] = useState("");
+  const [brandLightBgColor, setBrandLightBgColor] = useState("");
+  const [brandDarkBgColor, setBrandDarkBgColor] = useState("");
+  const [brandHeroVideoUrl, setBrandHeroVideoUrl] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
