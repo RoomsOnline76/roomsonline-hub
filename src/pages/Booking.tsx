@@ -195,6 +195,7 @@ const Booking = () => {
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
+  const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -223,6 +224,26 @@ const Booking = () => {
 
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
+
+  // Fetch VAT config from brand config
+  useEffect(() => {
+    if (!property?.id) return;
+    supabase
+      .from("rolos_brand_config" as any)
+      .select("is_vat_registered, vat_rate, vat_number")
+      .eq("property_id", property.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          const d = data as any;
+          setVatConfig({
+            isVat: d.is_vat_registered ?? false,
+            rate: d.vat_rate ?? 15,
+            number: d.vat_number || "",
+          });
+        }
+      });
+  }, [property?.id]);
 
   // Fetch cached room types from database (fallback if not in amenities)
   const { data: cachedRoomTypes } = useQuery({
@@ -2256,10 +2277,40 @@ const Booking = () => {
                     </div>
                   )}
 
-                  <div className="border-t border-border/50 pt-3 flex justify-between items-center">
-                    <span className="font-semibold">Total</span>
-                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)} /></span>
-                  </div>
+                  {/* VAT breakdown */}
+                  {(() => {
+                    const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
+                    if (vatConfig.isVat && grandTotal > 0) {
+                      const vatRate = vatConfig.rate / 100;
+                      const exclAmount = grandTotal / (1 + vatRate);
+                      const vatAmount = grandTotal - exclAmount;
+                      return (
+                        <div className="border-t border-border/50 pt-3 space-y-1">
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Subtotal (excl. VAT)</span>
+                            <span><FormattedPrice amount={exclAmount} /></span>
+                          </div>
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>VAT ({vatConfig.rate}%)</span>
+                            <span><FormattedPrice amount={vatAmount} /></span>
+                          </div>
+                          {vatConfig.number && (
+                            <p className="text-[10px] text-muted-foreground">VAT No: {vatConfig.number}</p>
+                          )}
+                          <div className="flex justify-between items-center pt-1">
+                            <span className="font-semibold">Total (incl. VAT)</span>
+                            <span className="text-xl font-bold"><FormattedPrice amount={grandTotal} /></span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="border-t border-border/50 pt-3 flex justify-between items-center">
+                        <span className="font-semibold">Total</span>
+                        <span className="text-xl font-bold"><FormattedPrice amount={grandTotal} /></span>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="flex justify-between items-center">
