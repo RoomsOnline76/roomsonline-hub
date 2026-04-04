@@ -729,6 +729,13 @@ export default function EmbedPortfolio() {
                   {prop.description && !aiReasonMap[prop.slug] && (
                     <p className="text-xs text-gray-500 mt-2 line-clamp-2">{prop.description}</p>
                   )}
+                  {prop.key_highlights && prop.key_highlights.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {prop.key_highlights.slice(0, 3).map((h, hi) => (
+                        <span key={hi} className="text-[10px] px-2 py-0.5 rounded-full border border-gray-200 text-gray-600">{h}</span>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-auto pt-3 flex items-center justify-between">
                     <div className="flex gap-3 text-xs text-gray-400">
                       {prop.room_count > 0 && (
