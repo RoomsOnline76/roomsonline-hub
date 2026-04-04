@@ -1003,7 +1003,7 @@ export function AIConciergePanel({
 
               {/* Messages (scrollable) */}
               <div className="flex-1 overflow-y-auto p-3 space-y-3 max-h-[40vh]">
-                {showProactivePrompt && messages.length === 0 && (
+                {showProactivePrompt && messages.length <= 1 && (
                   <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-sm">
                     <span className="font-medium">Need help?</span> Tell me about your ideal trip.
                   </div>
@@ -1020,7 +1020,27 @@ export function AIConciergePanel({
                         ? "bg-primary text-primary-foreground" 
                         : "bg-muted"
                     )}>
-                      <p className="text-sm">{msg.content}</p>
+                      {msg.type === 'assistant' ? (
+                        <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 text-sm">
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-sm">{msg.content}</p>
+                      )}
+                      {/* Quick chips after welcome on mobile */}
+                      {msg.id === 'welcome' && messages.length <= 1 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {QUICK_CHIPS.map((chip) => (
+                            <button
+                              key={chip}
+                              onClick={() => handleSubmitQuery(chip)}
+                              className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {msg.suggestions && msg.suggestions.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {msg.suggestions.map(renderSuggestionCard)}
