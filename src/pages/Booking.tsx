@@ -1546,12 +1546,20 @@ const Booking = () => {
                 // Check room applicability
                 if (special.applicable_room_ids?.length > 0) {
                   const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                  // Match against UUID room IDs, linked_rolos_id, or legacy timestamp IDs from amenities
-                  const amenitiesRooms = (property.amenities as any)?.rooms || [];
+                  const embedLinkedRolosId = searchParams.get('linked_rolos_id');
+                  // Use room_types (correct key) with rooms as fallback
+                  const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
                   const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                    // 1. Direct match (UUID or legacy ID already in list)
                     if (special.applicable_room_ids.includes(uuid)) return true;
-                    // Find matching amenity room and check its legacy id
-                    const amenityRoom = amenitiesRooms.find((r: any) => r.linked_rolos_id === uuid || r.id === uuid);
+                    if (special.applicable_room_ids.includes(String(uuid))) return true;
+                    // 2. Find amenity room by id, linked_rolos_id, or the embed linked_rolos_id
+                    const amenityRoom = amenitiesRooms.find((r: any) =>
+                      String(r.id) === String(uuid) ||
+                      r.linked_rolos_id === uuid ||
+                      (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
+                      (embedLinkedRolosId && String(r.id) === embedLinkedRolosId)
+                    );
                     if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
                     return false;
                   });
