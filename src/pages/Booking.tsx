@@ -92,6 +92,7 @@ interface CostLineItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  isRefundable?: boolean;
 }
 
 const Booking = () => {
@@ -1396,6 +1397,7 @@ const Booking = () => {
             quantity: 1,
             unitPrice: cc.calculatedAmount,
             total: cc.calculatedAmount,
+            isRefundable: cc.charge.is_refundable,
           });
           runningTotal += cc.calculatedAmount;
         }
@@ -2297,20 +2299,30 @@ const Booking = () => {
                   {/* VAT breakdown */}
                   {(() => {
                     const grandTotal = Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount);
+                    // Refundable deposits are excluded from VAT
+                    const refundableDepositTotal = costBreakdown
+                      .filter(item => item.isRefundable)
+                      .reduce((s, item) => s + item.total, 0);
+                    const vatableAmount = Math.max(0, grandTotal - refundableDepositTotal);
                     if (vatConfig.isVat && grandTotal > 0) {
                       const vatRate = vatConfig.rate / 100;
-                      const exclAmount = grandTotal / (1 + vatRate);
-                      const vatAmount = grandTotal - exclAmount;
+                      const exclAmount = vatableAmount / (1 + vatRate);
+                      const vatAmount = vatableAmount - exclAmount;
                       return (
                         <div className="border-t border-border/50 pt-3 space-y-1">
                           <div className="flex justify-between text-sm text-muted-foreground">
                             <span>Subtotal (excl. VAT)</span>
-                            <span><FormattedPrice amount={exclAmount} /></span>
+                            <span><FormattedPrice amount={exclAmount + refundableDepositTotal} /></span>
                           </div>
                           <div className="flex justify-between text-sm text-muted-foreground">
                             <span>VAT ({vatConfig.rate}%)</span>
                             <span><FormattedPrice amount={vatAmount} /></span>
                           </div>
+                          {refundableDepositTotal > 0 && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Refundable deposits excluded from VAT
+                            </p>
+                          )}
                           {vatConfig.number && (
                             <p className="text-[10px] text-muted-foreground">VAT No: {vatConfig.number}</p>
                           )}

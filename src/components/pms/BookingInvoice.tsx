@@ -84,10 +84,16 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const isVat = vatConfig.isVatRegistered;
   const vatRate = vatConfig.vatRate / 100;
 
-  // If VAT registered, the subtotal is VAT-inclusive, so:
-  // Excl = subtotal / (1 + rate), VAT = subtotal - excl
-  const exclAmount = isVat ? subtotal / (1 + vatRate) : subtotal;
-  const vatAmount = isVat ? subtotal - exclAmount : 0;
+  // Refundable deposits (e.g., damage/security deposits) are excluded from VAT
+  const refundableTotal = charges
+    .filter(t => t.description?.toLowerCase().includes('deposit') && t.description?.toLowerCase().includes('refundable'))
+    .reduce((s, t) => s + t.amount, 0);
+  const vatableAmount = isVat ? subtotal - refundableTotal : subtotal;
+
+  // If VAT registered, the vatable amount is VAT-inclusive, so:
+  // Excl = vatableAmount / (1 + rate), VAT = vatableAmount - excl
+  const exclAmount = isVat ? vatableAmount / (1 + vatRate) + refundableTotal : subtotal;
+  const vatAmount = isVat ? vatableAmount - (vatableAmount / (1 + vatRate)) : 0;
 
   const totalPayments = payments.reduce((s, t) => s + Math.abs(t.amount), 0);
   const balance = subtotal - totalPayments;
