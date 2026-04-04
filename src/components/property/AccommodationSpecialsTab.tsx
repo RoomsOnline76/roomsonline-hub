@@ -71,6 +71,8 @@ const emptySpecial = (propertyId: string, category: string): Omit<Special, "id">
   currency: "ZAR",
   valid_from: null,
   valid_to: null,
+  book_from: null,
+  book_until: null,
   min_stay: null,
   max_stay: null,
   applicable_room_ids: null,
