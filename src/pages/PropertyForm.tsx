@@ -2735,6 +2735,7 @@ export default function PropertyForm() {
     discount_percentage: 0,
     isPublic: false,
     images: [] as string[],
+    applicableRoomIds: [] as string[],
   });
   const [packageImages, setPackageImages] = useState<string[]>([]);
   const [isPackageImageDragging, setIsPackageImageDragging] = useState(false);
@@ -2764,6 +2765,7 @@ export default function PropertyForm() {
       discount_percentage: 0,
       isPublic: false,
       images: [],
+      applicableRoomIds: [],
     });
     setIsDirty(true);
     toast({
@@ -11399,6 +11401,7 @@ export default function PropertyForm() {
                                 discount_percentage: 0,
                                 isPublic: false,
                                 images: [],
+                                applicableRoomIds: [],
                               });
                               setPackageImages([]);
                               setIsEditPackageOpen(true);
@@ -11464,6 +11467,7 @@ export default function PropertyForm() {
                                 discount_percentage: selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
                                 isPublic: selectedPackage.isPublic || false,
                                 images: selectedPackage.images || [],
+                                applicableRoomIds: selectedPackage.applicableRoomIds || selectedPackage.applicable_room_ids || [],
                               });
                               setPackageImages(selectedPackage.images || []);
                               setIsEditPackageOpen(true);
@@ -11901,11 +11905,22 @@ export default function PropertyForm() {
                     </tr>
                   </thead>
                   <tbody>
-                    {roomTypes.map((room) => (
+                    {roomTypes.map((room) => {
+                      const roomIdStr = String(room.id);
+                      const isRoomChecked = packageForm.applicableRoomIds.includes(roomIdStr);
+                      return (
                       <tr key={room.id} className="border-b">
                         <td className="p-2 text-sm">
                           <div className="flex items-center gap-2">
-                            <Checkbox />
+                            <Checkbox
+                              checked={isRoomChecked}
+                              onCheckedChange={(checked) => {
+                                const updated = checked
+                                  ? [...packageForm.applicableRoomIds, roomIdStr]
+                                  : packageForm.applicableRoomIds.filter(id => id !== roomIdStr);
+                                setPackageForm({ ...packageForm, applicableRoomIds: updated });
+                              }}
+                            />
                             <span>{room.name}</span>
                             <Link className="h-4 w-4 text-primary" />
                           </div>
@@ -12007,7 +12022,8 @@ export default function PropertyForm() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
