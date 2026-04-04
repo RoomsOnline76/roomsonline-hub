@@ -210,6 +210,12 @@ export function AIConciergePanel({
         ? parseInt(sessionStorage.getItem('rol_session_delight_count') || '0', 10)
         : 0;
       
+      // Build conversation history from messages (last 10, excluding welcome)
+      const conversationHistory = messages
+        .filter(m => m.id !== 'welcome')
+        .slice(-10)
+        .map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.content }));
+
       // Call AI concierge edge function with value-based delight parameters
       const { data, error } = await supabase.functions.invoke('ai-booking-concierge', {
         body: {
@@ -230,9 +236,9 @@ export function AIConciergePanel({
             max_guests: rt.maxPeople || rt.maxAdults || 2,
           })),
           session_id: sessionIdRef.current,
-          // NEW: Value-based delight parameters - use ItineraryContext totalPrice or fallback to MobileBooking
           current_booking_value: totalPrice || mobileBookingState.totalCost || 0,
           session_delight_count: sessionDelightCount,
+          conversation_history: conversationHistory,
         },
       });
 
