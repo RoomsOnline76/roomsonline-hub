@@ -74,6 +74,9 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+
         {/* Commission info */}
         <div className="flex items-start gap-2.5 rounded-lg border border-muted bg-muted/30 p-3 text-sm">
           <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />

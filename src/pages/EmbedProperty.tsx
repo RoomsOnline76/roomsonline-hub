@@ -104,7 +104,11 @@ export default function EmbedProperty() {
           .eq("property_id", prop.id)
           .eq("is_active", true)
           .order("name");
-        setRoomTypes(rooms || []);
+        const roomFilterId = searchParams.get("room");
+        const filteredRooms = roomFilterId && rooms
+          ? rooms.filter((r: any) => r.id === roomFilterId || r.hostfully_room_id === roomFilterId)
+          : rooms;
+        setRoomTypes(filteredRooms || []);
 
         if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
           const rolosIds = rooms.filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);

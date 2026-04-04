@@ -202,6 +202,9 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           </span>
         </div>
 
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+
         {/* Controls */}
         <div className="grid grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/20">
           <div className="space-y-2">

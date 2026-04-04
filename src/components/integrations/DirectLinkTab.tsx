@@ -7,7 +7,7 @@ import { Link2, ExternalLink, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface DirectLinkTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -35,8 +35,14 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
   const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e8c");
   const [btnStyle, setBtnStyle] = useState<BtnStyle>("solid");
   const [btnSize, setBtnSize] = useState<BtnSize>("md");
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
-  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=direct&property_id=${property.id}&brand_color=${encodeURIComponent(brandColor)}`;
+  const bookingUrl = buildEntryUrl(property, entryOpts, {
+    source: "website",
+    integration: "direct",
+    property_id: property.id,
+    brand_color: brandColor,
+  });
 
   const btnCss = buildBtnCss(brandColor, btnStyle, btnSize);
   const htmlSnippet = `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
@@ -69,6 +75,9 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
             applies to bookings made through this link.
           </div>
         </div>
+
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
 
         {/* Controls */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-lg border border-border bg-muted/20">

@@ -7,7 +7,7 @@ import { Globe, AlertCircle, Eye, EyeOff, ExternalLink } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { PUBLIC_DOMAIN } from "@/lib/config";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface FullEmbedTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -17,9 +17,14 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
   const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e63");
   const [height, setHeight] = useState(800);
   const [showPreview, setShowPreview] = useState(false);
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
   const encodedColor = encodeURIComponent(brandColor);
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=full_embed&property_id=${property.id}&mode=embedded&brand_color=${encodedColor}`;
+  const embedUrl = buildEntryUrl(property, entryOpts, {
+    integration: "full_embed",
+    property_id: property.id,
+    brand_color: brandColor,
+  });
 
   const snippet = `<!-- RoomsOnline Full Booking Engine -->
 <iframe 
@@ -57,6 +62,9 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
             Bookings through this embed use the ROL'OS platform. The platform fee is as per your property agreement — no additional integration costs.
           </span>
         </div>
+
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
 
         {/* Controls */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-lg border border-border bg-muted/20">
