@@ -1578,6 +1578,17 @@ const Booking = () => {
                 }
 
                 if (discount > 0) {
+                  // Check if this is an age-restricted special
+                  if (special.age_restricted) {
+                    // Don't auto-apply — store as pending for verification
+                    setPendingAgeSpecial({
+                      ...special,
+                      calculatedDiscount: discount,
+                      pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
+                    });
+                    break;
+                  }
+
                   const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                   promoApplied = {
                     name: special.title || special.name || 'Special Offer',
