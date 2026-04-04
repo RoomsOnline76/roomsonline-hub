@@ -145,12 +145,44 @@ export function StepLocation({
               </span>
             )}
           </Label>
-          <Input
-            id="country"
-            value={propertyData.country || ""}
-            onChange={(e) => updateField("country", e.target.value)}
-            placeholder="South Africa"
-          />
+          <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={countryOpen}
+                className="w-full justify-between font-normal"
+              >
+                {propertyData.country
+                  ? COUNTRY_OPTIONS.find((c) => c.label === propertyData.country)?.label || propertyData.country
+                  : "Select country..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+              <Command>
+                <CommandInput placeholder="Search country..." />
+                <CommandList>
+                  <CommandEmpty>No country found.</CommandEmpty>
+                  <CommandGroup>
+                    {COUNTRY_OPTIONS.map((c) => (
+                      <CommandItem
+                        key={c.value}
+                        value={c.label}
+                        onSelect={() => {
+                          updateField("country", c.label);
+                          setCountryOpen(false);
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", propertyData.country === c.label ? "opacity-100" : "opacity-0")} />
+                        {c.label}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
