@@ -13,6 +13,7 @@ import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
+import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
