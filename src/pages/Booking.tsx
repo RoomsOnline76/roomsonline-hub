@@ -2570,12 +2570,12 @@ const Booking = () => {
                             const discount = special.calculatedDiscount || 0;
                             if (discount > 0) {
                               const pctLabel = special.pctLabel;
-                              setAppliedPromotion({
+                              setAppliedPromotions(prev => [...prev, {
                                 name: special.title || special.name || 'Special Offer',
                                 type: 'special',
                                 discount,
                                 description: special.description,
-                              });
+                              }]);
                               const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
                               setCostBreakdown(prev => [
                                 ...prev,
