@@ -774,7 +774,7 @@ serve(async (req) => {
     }
 
     const response: ConciergeResponse = {
-      suggestions: suggestions.slice(0, 6),
+      suggestions: filteredSuggestions.slice(0, 6),
       narrative_response: narrativeResponse,
       parsed_intent: intent,
     };
