@@ -3457,7 +3457,7 @@ export default function PropertyForm() {
           if (amenities?.season_rates) setSeasonRates(amenities.season_rates);
           // Note: pms_rate_types is loaded above with transformation
           if (amenities?.addons) setAddons(amenities.addons);
-          if (amenities?.packages) setPackages(amenities.packages);
+          if (amenities?.packages) setPackages((amenities.packages as any[]).map(normalizePackage));
           if (amenities?.announcements) setAnnouncements(amenities.announcements);
 
           // Load house style
