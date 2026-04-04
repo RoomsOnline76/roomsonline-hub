@@ -132,7 +132,7 @@ Return ONLY valid JSON with these 5 keys. No markdown formatting, no code blocks
 WEBSITE CONTENT:
 ${content.substring(0, 8000)}`;
 
-    const aiResponse = await fetch("https://ai.lovable.dev/api/generate", {
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,
