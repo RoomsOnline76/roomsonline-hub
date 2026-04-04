@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Wand2, Eye, Globe, Puzzle } from "lucide-react";
+import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface WidgetSetupWizardProps {
   property: {
