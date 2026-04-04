@@ -11,6 +11,14 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 // Muted attraction pin colors to complement grayscale map
 const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
 
+interface SiblingProperty {
+  name: string;
+  slug: string;
+  lat: number;
+  lng: number;
+  heroImage?: string;
+}
+
 interface InvitationMapProps {
   propertyName: string;
   city: string;
@@ -20,6 +28,7 @@ interface InvitationMapProps {
   onBookNow: () => void;
   onContact?: () => void;
   bookingLabel?: string;
+  siblingProperties?: SiblingProperty[];
 }
 
 // Grayscale map styling for editorial aesthetic
