@@ -151,6 +151,8 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         currency: draft.currency || "ZAR",
         valid_from: draft.valid_from || null,
         valid_to: draft.valid_to || null,
+        book_from: draft.book_from || null,
+        book_until: draft.book_until || null,
         min_stay: draft.min_stay ?? null,
         max_stay: draft.max_stay ?? null,
         applicable_room_ids: draft.applicable_room_ids || null,
