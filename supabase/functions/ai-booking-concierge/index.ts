@@ -388,7 +388,8 @@ async function generateAINarrative(
   suggestions: ConciergeSuggestion[],
   intent: ParsedIntent,
   crossSellProperties: { name: string; slug: string; city: string; available: boolean }[],
-  allRoomDetails: { name: string; rate: number; total: number; description?: string }[]
+  allRoomDetails: { name: string; rate: number; total: number; description?: string }[],
+  conversationHistory?: { role: string; content: string }[]
 ): Promise<string> {
   const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
   if (!hasAiKey) {
