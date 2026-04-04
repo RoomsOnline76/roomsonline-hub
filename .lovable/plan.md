@@ -1,73 +1,102 @@
 
 
-# AI Travel Concierge — Audit & Enhancement Plan
+# Enrich Property Showcase Pages with Dynamic Website Content
 
-## Current State (What Already Exists)
+## The Content Gap
 
-The system already has a robust AI concierge with:
-- **NLP intent parsing**: Dates, guest counts, nights, preferences (romantic, pool, etc.)
-- **Live PMS availability**: Fetches from Hostfully, Benson, HotelBeds, or cache
-- **AI narrative generation**: TOBI personality via xAI (Grok) with Lovable AI fallback
-- **Premium-first upsell**: Recommends most expensive room first, value option second
-- **Cross-sell**: Checks owner's other properties when unavailable
-- **Surprise & Delight**: Tiered gifting based on booking value
-- **Voice input**: Speech-to-text for queries
-- **Date/guest pickers**: Manual selection alongside natural language
-- **Proactive prompts**: 8-second idle trigger
+Comparing our EIGHTY2 ON M embed page to the Fluent Living reference, the reference page has these rich content sections that ours lacks entirely:
 
-## Gaps vs. Reference Capability
+| Section | Fluent Living | Our Page |
+|---------|--------------|----------|
+| About this place (bullet highlights + prose) | Rich multi-paragraph | One-liner description |
+| "The Space" (detailed room description) | Full paragraph | Missing |
+| Amenities grid (49 items with icons) | Comprehensive | 1 facility |
+| "The Neighborhood" | 3 paragraphs | Missing |
+| "Getting Around" (Car, Uber, Public Transport) | Detailed | Missing |
+| "Things to Know" (Digital Nomad info, load shedding) | Detailed | Missing |
+| House Rules (check-in/out, max guests) | Displayed | Data exists but not shown |
+| Cancellation Policy | Linked | Data exists but not shown |
+| Availability Calendar | Interactive month view | Only in embed grid |
+| Similar Apartments | 4 cards | We have PropertyRecommendations |
 
-The reference says: *"Tell me what you're looking for — dates, number of guests, bedroom size, or budget — and I'll find the right apartment for you."*
+The root cause is two-fold:
+1. Our DB has minimal editorial content for most properties (no space_description, neighbourhood, getting_around, things_to_know fields)
+2. Even where data exists (house_rules, check-in/out times), the showcase pages don't render it
 
-| Capability | Status | Gap |
-|---|---|---|
-| Date parsing | Done | -- |
-| Guest count | Done | -- |
-| Bedroom size/type | Partial | NLP doesn't parse "2 bedroom" or "studio" — only picks up preference keywords |
-| Budget filtering | Missing | "budget" is treated as a preference keyword, not a numeric filter. "Under R2000/night" is ignored |
-| Welcome greeting | Missing | No initial message — empty chat until user types or 8s proactive prompt fires |
-| Conversation memory | Missing | No multi-turn context — each query is standalone, previous messages not sent to AI |
-| Embed page integration | Missing | `EmbedProperty.tsx` has no concierge at all — only PropertyShowcase has it |
-| Quick suggestion chips | Missing | No tap-to-ask suggestions like "Show me cheapest" or "Pet-friendly options" |
+## Solution: Two-Part Approach
 
-## Plan
+### Part 1 — New Showcase Content Sections (UI Components)
 
-### 1. Add Welcome Greeting Message (AIConciergePanel.tsx)
-- On mount (when `isInitiated` becomes true or on desktop expand), inject an initial assistant message:
-  *"Hi! I'm TOBI, your AI travel concierge. Tell me your dates, number of guests, room preference, or budget — and I'll find the perfect stay for you."*
-- Add 3-4 quick-reply suggestion chips below the welcome message: "This weekend for 2", "Show me the best room", "Family-friendly options", "Under R1500/night"
-- Clicking a chip auto-submits that query
+Create 3 new showcase components that render content when available, and gracefully hide when absent:
 
-### 2. Add Budget Parsing to NLP (edge function)
-- Parse patterns like "under R2000", "budget R1000-R1500", "max R3000/night", "less than $150"
-- Add `budget?: { max?: number; min?: number; currency?: string }` to `ParsedIntent`
-- In main handler, filter `suggestions` to only include rooms within budget range
-- Pass budget context to AI narrative so TOBI can acknowledge the constraint
+**A. `SpaceDescription` component** — Renders "The Space" section with detailed room/property description. Sources from `amenities.space_description` field.
 
-### 3. Add Bedroom Size/Type Parsing (edge function)
-- Parse "1 bedroom", "2-bed", "studio", "suite", "penthouse", "family room"
-- Add `room_preference?: string` to `ParsedIntent`
-- Match against room type names when filtering suggestions
-- Pass to AI narrative for context-aware responses
+**B. `NeighborhoodGuide` component** — Renders "The Neighborhood" and "Getting Around" sections. Sources from `amenities.neighbourhood_description` and `amenities.getting_around` fields.
 
-### 4. Add Conversation Memory (both files)
-- **Frontend**: Send full `messages` array (last 10) to the edge function as `conversation_history`
-- **Edge function**: Include conversation history in the AI prompt so TOBI remembers what was discussed ("I mentioned the sea-view room earlier — want me to check dates for that one?")
+**C. `HouseRulesSection` component** — Renders "Things to Know" with house rules (check-in/out times, max guests, pets, smoking, cancellation policy). Sources from existing `amenities.house_rules` data that's already in the DB but never displayed.
 
-### 5. Add Quick Suggestion Chips (AIConciergePanel.tsx)
-- Render below assistant messages as tappable pills
-- Dynamic based on context: if no dates yet → date suggestions; if dates set → room/budget suggestions
-- Chips: "This weekend", "Next month", "Show cheapest", "Pet-friendly", "Family room"
+Add all three to `PropertyShowcase.tsx` and `EmbedProperty.tsx` between the amenities/facilities section and reviews.
 
-### 6. Add Concierge to Embed Property Page (EmbedProperty.tsx)
-- Import and render `AIConciergePanel` on embed pages (guarded by `ai_concierge_enabled` flag)
-- Pass the same props as PropertyShowcase: propertyId, roomTypes, availabilityMap
+### Part 2 — Background Website Content Enrichment (Edge Function Enhancement)
 
-## Files to Change
+Enhance the existing `ai-website-sync` edge function to extract these new editorial content fields from property websites:
 
-| File | Changes |
-|---|---|
-| `supabase/functions/ai-booking-concierge/index.ts` | Add budget parsing, bedroom size parsing, conversation history in prompt |
-| `src/components/booking/AIConciergePanel.tsx` | Add welcome greeting, quick-reply chips, send conversation history |
-| `src/pages/EmbedProperty.tsx` | Add AIConciergePanel integration |
+- `space_description` — "The Space" section content
+- `neighbourhood_description` — neighborhood/area description  
+- `getting_around` — transport and getting around info
+- `things_to_know` — special notes, digital nomad info, power backup info, etc.
+- `key_highlights` — bullet-point highlights (e.g., "Uninterrupted Fast WiFi", "Rooftop Pool", "100m to Beach")
+
+Add these to `EXTRACTABLE_FIELDS` and update the AI prompt to specifically look for neighborhood, space, and transport content.
+
+### Part 3 — Auto-Enrich Trigger
+
+Create a new edge function `enrich-property-content` that:
+1. Takes a property_id and its website_url
+2. Scrapes the website using Firecrawl
+3. Uses AI to extract the editorial content fields
+4. Saves directly to `amenities` JSON (merging, not overwriting)
+5. Can be triggered manually from the property edit page or automatically when a property's website URL is first set
+
+Add an "Enrich from Website" button to the property edit page's ROL Spec tab that triggers this on-demand.
+
+## Files to Create/Change
+
+| File | Change |
+|------|--------|
+| `src/components/showcase/SpaceDescription.tsx` | New — renders "The Space" prose section |
+| `src/components/showcase/NeighborhoodGuide.tsx` | New — renders "The Neighborhood" + "Getting Around" |
+| `src/components/showcase/HouseRulesSection.tsx` | New — renders house rules, check-in/out, cancellation |
+| `src/components/showcase/index.ts` | Export new components |
+| `src/pages/PropertyShowcase.tsx` | Add new sections between ProseFacilities and Reviews |
+| `src/pages/EmbedProperty.tsx` | Add new sections in the property info area |
+| `supabase/functions/ai-website-sync/index.ts` | Add new extractable fields + enhanced prompt |
+| `supabase/functions/enrich-property-content/index.ts` | New — dedicated enrichment function using Firecrawl + AI |
+
+## Design Details
+
+### SpaceDescription
+- Section heading: "The space"
+- Renders multi-paragraph text from `amenities.space_description`
+- Falls back to extended `description` if available and > 200 chars
+- Same scroll-reveal animation as other sections
+
+### NeighborhoodGuide  
+- Two subsections: "The neighborhood" and "Getting around"
+- Renders markdown-like content with paragraph breaks
+- Only shows subsections that have data
+
+### HouseRulesSection
+- Three columns on desktop: "House rules", "Cancellation policy", "Things to know"
+- House rules: check-in/out times, max guests, pets, smoking, children
+- Sources from existing `amenities.house_rules` object
+- Cancellation policy: from `amenities.cancellation_policies` or `rolos_policies`
+- Things to know: from `amenities.things_to_know`
+
+### Enrichment Edge Function
+- Uses Firecrawl to scrape property website
+- Sends scraped markdown to AI (Lovable AI / Gemini) with a structured extraction prompt
+- Merges extracted content into property's `amenities` JSON
+- Returns a summary of what was extracted
+- Idempotent: won't overwrite existing non-empty fields unless forced
 
