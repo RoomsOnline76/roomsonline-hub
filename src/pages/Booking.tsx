@@ -2123,7 +2123,7 @@ const Booking = () => {
           </motion.div>
 
           {/* ── Extras & Add-ons ── */}
-          {property?.amenities?.addons?.length > 0 && checkIn && checkOut && (
+          {(property?.amenities as any)?.addons?.length > 0 && checkIn && checkOut && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
