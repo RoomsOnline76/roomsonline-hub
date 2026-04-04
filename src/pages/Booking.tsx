@@ -225,7 +225,7 @@ const Booking = () => {
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
-  // Fetch VAT config from brand config
+  // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
     if (!property?.id) return;
     supabase
@@ -236,14 +236,31 @@ const Booking = () => {
       .then(({ data }) => {
         if (data) {
           const d = data as any;
+          const brandIsVat = d.is_vat_registered ?? false;
+          const brandVatNumber = d.vat_number || "";
+          // Fallback: if brand config doesn't have VAT enabled, check amenities
+          const amenities = property.amenities as any;
+          const amenityVatNumber = amenities?.vat_number || "";
+          const hasVat = brandIsVat || !!amenityVatNumber;
           setVatConfig({
-            isVat: d.is_vat_registered ?? false,
+            isVat: hasVat,
             rate: d.vat_rate ?? 15,
-            number: d.vat_number || "",
+            number: brandVatNumber || amenityVatNumber,
           });
+        } else {
+          // No brand config at all — check amenities directly
+          const amenities = property.amenities as any;
+          const amenityVatNumber = amenities?.vat_number || "";
+          if (amenityVatNumber) {
+            setVatConfig({
+              isVat: true,
+              rate: 15,
+              number: amenityVatNumber,
+            });
+          }
         }
       });
-  }, [property?.id]);
+  }, [property?.id, property?.amenities]);
 
   // Fetch cached room types from database (fallback if not in amenities)
   const { data: cachedRoomTypes } = useQuery({
