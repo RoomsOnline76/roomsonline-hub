@@ -1,33 +1,62 @@
 
 
-# Fix Portfolio Map: Greyscale, Label Alignment & Attraction Details
+# Expand Branding Palette — 7-Color System for Properties & Portfolios
 
-## Issues
+## Summary
 
-1. **Map not greyscale**: The `mapId: 'portfolio-map'` on line 65 overrides the `styles` array — cloud-based map IDs take precedence over JSON styling. Removing `mapId` will let the greyscale `mapStyles` apply.
+Add 4 new color fields to both property-level and portfolio-level branding, expanding from a 3-color system (Primary, Secondary, Font) to a 7-color system. This gives granular control over text hierarchy, backgrounds, and accents across the booking flow.
 
-2. **Property labels centered on pin**: The label `AdvancedMarkerElement` uses `align-items:center` and shares the exact pin position. Fix: use `align-items:flex-start` on the wrapper and add a left offset so the label floats to the right of the pin instead of centered below it.
+## New Fields
 
-3. **Attraction legend is name-only**: The legend and InfoWindows show just the place name. Enhance by showing `vicinity` (location context) in the legend row, and adding the place types/category as a brief descriptor in both the legend and InfoWindow.
+| Label | DB Column (property) | Portfolio metadata key | CSS Variable Target |
+|-------|---------------------|----------------------|-------------------|
+| Primary | `brand_primary_color` (exists) | `primary_color` (exists) | `--primary` |
+| Secondary | `brand_secondary_color` (exists) | `secondary_color` (exists) | `--secondary` |
+| Heading Text | `brand_heading_text_color` (new) | `heading_text_color` (new) | `--foreground`, `--card-foreground` |
+| Body Text | `brand_body_text_color` (new) | `body_text_color` (new) | `--popover-foreground` + body text |
+| Muted Text / Links | `brand_muted_text_color` (new) | `muted_text_color` (new) | `--muted-foreground` |
+| Light BG / Cards | `brand_light_bg_color` (new) | `light_bg_color` (new) | `--card`, `--popover`, `--background` |
+| Dark BG Accent | `brand_dark_bg_color` (new) | `dark_bg_color` (new) | `--accent`, `--sidebar` |
 
-## Changes — `src/components/embed/EmbedPortfolioMap.tsx`
+The existing `brand_font_color` column remains for backward compatibility but the UI will be reorganized to use the new split fields. If the new fields are empty, the system falls back to `brand_font_color` for all text colors (no breaking change).
 
-### 1. Remove `mapId` to enable greyscale styles
-Delete `mapId: 'portfolio-map'` from the Map constructor (line 65). The existing `styles: mapStyles` will then apply the greyscale theme.
+## Changes
 
-### 2. Left-align property labels
-- Change the label wrapper from `align-items:center` to `align-items:flex-start`
-- Add `transform:translate(18px, -16px)` so the label pill sits to the right of the pin, not centered on it
-- Add a small left-pointing arrow/nub on the label pill via a CSS border-triangle pseudo-element (or just offset cleanly)
+### 1. Database Migration
+Add 4 new columns to `properties`:
+- `brand_heading_text_color text`
+- `brand_body_text_color text`
+- `brand_muted_text_color text`
+- `brand_light_bg_color text`
+- `brand_dark_bg_color text`
 
-### 3. Enrich attraction details
-- **InfoWindow**: Add `vicinity` line and a brief type description (from `place.types` — map to human-readable like "Popular attraction", "Local restaurant")
-- **Legend below map**: Show `vicinity` text next to each attraction name, and on tooltip show the full detail including type category
-- Use Google Places `types` array to generate a short "what" blurb (e.g., "Natural feature", "Point of interest", "Restaurant & café")
+### 2. `src/lib/brandOverride.ts`
+- Add new fields to `PropertyBrand` interface: `headingTextColor`, `bodyTextColor`, `mutedTextColor`, `lightBgColor`, `darkBgColor`
+- Update `buildBrandVarsMap` to map new fields to CSS variables, with fallback: if `headingTextColor` is empty but `fontColor` exists, use `fontColor` for headings
+
+### 3. `src/pages/pms/PMSBranding.tsx`
+- Add new fields to `VisualBrand` interface and `defaultVisual`
+- Add 5 new `ColorField` inputs in the Brand Colours card, replacing the single "Font Colour" with the 3 text tiers + 2 background fields
+- Keep "Font Colour" as a legacy fallback label or remove it in favor of the new fields
+- Update save/load to persist/read the new columns
+- Add the same 4 new fields to the portfolio branding state and UI section
+- Update contrast check preview to show heading vs body vs muted text samples
+
+### 4. `src/components/property/CopyBrandingModal.tsx`
+- Include new columns in the copy query and update payload
+
+### 5. Consumers (booking-portfolio-api, embed pages)
+- Pass new color fields through the API response
+- Map them into `PropertyBrand` when building brand override objects
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/components/embed/EmbedPortfolioMap.tsx` | Remove `mapId`; left-align labels with offset; enrich attraction InfoWindows and legend with vicinity/type details |
+| Migration (new) | Add 5 columns to `properties` |
+| `src/lib/brandOverride.ts` | Extend interface + CSS var mapping |
+| `src/pages/pms/PMSBranding.tsx` | Add fields to property + portfolio branding UI |
+| `src/components/property/CopyBrandingModal.tsx` | Include new columns |
+| `supabase/functions/booking-portfolio-api/index.ts` | Pass new fields in API response |
+| `src/pages/EmbedPortfolio.tsx` | Map new fields when applying brand |
 
