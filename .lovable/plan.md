@@ -1,62 +1,81 @@
 
 
-# Expand Branding Palette — 7-Color System for Properties & Portfolios
+# Configurable Booking Flow Entry Point for White-Label Embeds
 
-## Summary
+## Problem
 
-Add 4 new color fields to both property-level and portfolio-level branding, expanding from a 3-color system (Primary, Secondary, Font) to a 7-color system. This gives granular control over text hierarchy, backgrounds, and accents across the booking flow.
+Currently every integration type (Widget, Direct Link, Smart Button, etc.) hardcodes a single starting view — either the full embed (`/embed/property/:slug`) or the checkout page (`/booking/:slug`). White-label clients cannot choose where their guests land. Some want the full property showcase, others want to deep-link to a specific room, and some only need the final checkout step embedded.
 
-## New Fields
+## Existing Flow (for reference)
 
-| Label | DB Column (property) | Portfolio metadata key | CSS Variable Target |
-|-------|---------------------|----------------------|-------------------|
-| Primary | `brand_primary_color` (exists) | `primary_color` (exists) | `--primary` |
-| Secondary | `brand_secondary_color` (exists) | `secondary_color` (exists) | `--secondary` |
-| Heading Text | `brand_heading_text_color` (new) | `heading_text_color` (new) | `--foreground`, `--card-foreground` |
-| Body Text | `brand_body_text_color` (new) | `body_text_color` (new) | `--popover-foreground` + body text |
-| Muted Text / Links | `brand_muted_text_color` (new) | `muted_text_color` (new) | `--muted-foreground` |
-| Light BG / Cards | `brand_light_bg_color` (new) | `light_bg_color` (new) | `--card`, `--popover`, `--background` |
-| Dark BG Accent | `brand_dark_bg_color` (new) | `dark_bg_color` (new) | `--accent`, `--sidebar` |
+```text
+Property Showcase ──► Room Showcase ──► Embed (rooms + calendar) ──► Checkout
+/property/:slug      /property/:slug/    /embed/property/:slug       /booking/:slug
+                      room/:roomSlug
+```
 
-The existing `brand_font_color` column remains for backward compatibility but the UI will be reorganized to use the new split fields. If the new fields are empty, the system falls back to `brand_font_color` for all text colors (no breaking change).
+## Solution — "Entry Point" Selector
+
+Add a **single dropdown/radio** to each integration configurator that controls which step the generated URL points to. Four entry points:
+
+| Entry Point | URL Pattern | What the guest sees |
+|---|---|---|
+| **Full Showcase** | `/property/:slug?integration=...&brand_color=...` | Hero, gallery, all rooms, reviews, map — full experience |
+| **Rooms & Availability** (current default) | `/embed/property/:slug?...` | Compact embedded view with calendar + room cards |
+| **Specific Room** | `/embed/property/:slug?room=:roomId&...` | Single room detail with availability + Book button |
+| **Checkout Only** | `/booking/:slug?roomTypeId=...&checkIn=...&checkOut=...` | Jump straight to guest details & payment (requires room + dates pre-selected) |
+
+### How "Specific Room" works
+
+The embed page (`EmbedProperty.tsx`) will accept a new `room` query param. When present, it filters `roomTypes` to show only that room — effectively a single-room landing page. No new route needed.
+
+### How "Checkout Only" works
+
+The existing `/booking/:slug` page already accepts `roomTypeId`, `checkIn`, `checkOut` as query params. The configurator just needs to let the user pick a room and dates to bake into the URL.
 
 ## Changes
 
-### 1. Database Migration
-Add 4 new columns to `properties`:
-- `brand_heading_text_color text`
-- `brand_body_text_color text`
-- `brand_muted_text_color text`
-- `brand_light_bg_color text`
-- `brand_dark_bg_color text`
+### 1. New shared component: `EntryPointSelector`
+**File**: `src/components/integrations/EntryPointSelector.tsx`
 
-### 2. `src/lib/brandOverride.ts`
-- Add new fields to `PropertyBrand` interface: `headingTextColor`, `bodyTextColor`, `mutedTextColor`, `lightBgColor`, `darkBgColor`
-- Update `buildBrandVarsMap` to map new fields to CSS variables, with fallback: if `headingTextColor` is empty but `fontColor` exists, use `fontColor` for headings
+A reusable component with:
+- Radio group: Full Showcase / Rooms & Availability / Specific Room / Checkout Only
+- Conditional sub-fields:
+  - "Specific Room" → dropdown of property's room types (fetched via query)
+  - "Checkout Only" → room dropdown + default check-in/check-out date pickers
+- Exports a function `buildEntryUrl(property, entryPoint, options)` that returns the correct URL with all params
 
-### 3. `src/pages/pms/PMSBranding.tsx`
-- Add new fields to `VisualBrand` interface and `defaultVisual`
-- Add 5 new `ColorField` inputs in the Brand Colours card, replacing the single "Font Colour" with the 3 text tiers + 2 background fields
-- Keep "Font Colour" as a legacy fallback label or remove it in favor of the new fields
-- Update save/load to persist/read the new columns
-- Add the same 4 new fields to the portfolio branding state and UI section
-- Update contrast check preview to show heading vs body vs muted text samples
+### 2. Update integration configurators to use it
 
-### 4. `src/components/property/CopyBrandingModal.tsx`
-- Include new columns in the copy query and update payload
+Each of these files gets the `EntryPointSelector` added above the existing controls, and uses `buildEntryUrl()` instead of hardcoded URL construction:
 
-### 5. Consumers (booking-portfolio-api, embed pages)
-- Pass new color fields through the API response
-- Map them into `PropertyBrand` when building brand override objects
+| File | Current URL target |
+|---|---|
+| `DirectLinkTab.tsx` | `/booking/:slug` → configurable |
+| `WidgetTab.tsx` | `/embed/property/:slug` → configurable |
+| `SmartBookButtonGenerator.tsx` | `/booking/:slug` or `/embed/property/:slug` → configurable |
+| `WidgetSetupWizard.tsx` | `/embed/property/:slug` → configurable |
+| `BookingBarTab.tsx` | `/embed/property/:slug` → configurable |
+| `FullEmbedTab.tsx` | `/embed/property/:slug` → configurable |
 
-## Files to Change
+### 3. `EmbedProperty.tsx` — support `room` filter param
 
-| File | Change |
-|------|--------|
-| Migration (new) | Add 5 columns to `properties` |
-| `src/lib/brandOverride.ts` | Extend interface + CSS var mapping |
-| `src/pages/pms/PMSBranding.tsx` | Add fields to property + portfolio branding UI |
-| `src/components/property/CopyBrandingModal.tsx` | Include new columns |
-| `supabase/functions/booking-portfolio-api/index.ts` | Pass new fields in API response |
-| `src/pages/EmbedPortfolio.tsx` | Map new fields when applying brand |
+Add logic near line 27-31 to read `searchParams.get("room")` and, if present, filter `roomTypes` to only that room after data loads. Minor change — roughly 5 lines.
+
+### 4. No database changes needed
+
+The entry point is a UI-configurator concern — it only affects the generated snippet/URL. No new columns or tables required.
+
+## Files to Create/Change
+
+| File | Action |
+|---|---|
+| `src/components/integrations/EntryPointSelector.tsx` | **Create** — reusable entry point picker + URL builder |
+| `src/components/integrations/DirectLinkTab.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/components/integrations/WidgetTab.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/components/integrations/SmartBookButtonGenerator.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/components/integrations/WidgetSetupWizard.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/components/integrations/BookingBarTab.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/components/integrations/FullEmbedTab.tsx` | Add `EntryPointSelector`, use `buildEntryUrl()` |
+| `src/pages/EmbedProperty.tsx` | Read `room` param, filter to single room when set |
 
