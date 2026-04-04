@@ -1114,7 +1114,7 @@ export default function PropertyForm() {
         .from("hostfully_room_types")
         .select("*")
         .eq("property_id", propertyId)
-        .eq("is_active", true);
+        .order("name");
 
       if (!refreshError && refreshedRooms && refreshedRooms.length > 0) {
         // Convert DB format to UI state format
@@ -1187,6 +1187,7 @@ export default function PropertyForm() {
             thumbnailUrl: hr.thumbnail_url,
             lastSyncedAt: hr.last_synced_at,
             pms_synced_fields: hr.pms_synced_fields || [],
+            is_active: hr.is_active !== false,
           };
         });
         
@@ -2061,6 +2062,20 @@ export default function PropertyForm() {
   const updateRoomTypeField = (id: string, field: string, value: any) => {
     setRoomTypes(roomTypes.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
     setIsDirty(true);
+  };
+
+  const toggleRoomActive = async (roomId: string) => {
+    const room = roomTypes.find(r => r.id === roomId);
+    if (!room) return;
+    const newActive = !room.is_active;
+    setRoomTypes(roomTypes.map(r => r.id === roomId ? { ...r, is_active: newActive } : r));
+    const { error } = await supabase.from("hostfully_room_types").update({ is_active: newActive, updated_at: new Date().toISOString() }).eq("id", roomId);
+    if (error) {
+      setRoomTypes(prev => prev.map(r => r.id === roomId ? { ...r, is_active: !newActive } : r));
+      toast({ title: "Error", description: "Failed to update room status", variant: "destructive" });
+    } else {
+      toast({ title: newActive ? "Room Activated" : "Room Deactivated", description: `${room.name} is now ${newActive ? "visible" : "hidden"} on booking pages` });
+    }
   };
 
   // Helper to ensure a value is an array (handles JSON object vs array edge cases)
@@ -3319,6 +3334,7 @@ export default function PropertyForm() {
                 linkedRateTypes: existingLinks.length > 0 ? existingLinks : [autoLinkedRateTypeId],
                 // Wizard rooms are NOT PMS-synced until a PMS actually syncs them
                 pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
+                is_active: room.is_active !== false,
               };
             });
             setRoomTypes(transformedRooms);
@@ -3332,7 +3348,7 @@ export default function PropertyForm() {
               .from("hostfully_room_types")
               .select("*")
               .eq("property_id", data.id)
-              .eq("is_active", true);
+              .order("name");
             
             if (hfRooms && hfRooms.length > 0) {
               const convertedRooms = hfRooms.map(hr => ({
@@ -3391,6 +3407,7 @@ export default function PropertyForm() {
                 thumbnailUrl: hr.thumbnail_url,
                 lastSyncedAt: hr.last_synced_at,
                 pms_synced_fields: hr.pms_synced_fields || [],
+                is_active: hr.is_active !== false,
               }));
               setRoomTypes(convertedRooms);
               // Auto-select first room on initial load
@@ -10033,16 +10050,24 @@ export default function PropertyForm() {
                         "flex items-center justify-between p-2 rounded-md transition-colors text-xs",
                         selectedRoomType === room.id ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                         room.pms_synced && !isRolProperty && selectedRoomType !== room.id ? "bg-primary/5 border border-primary/20" : "",
+                        room.is_active === false && selectedRoomType !== room.id ? "opacity-50" : "",
                       )}
                     >
                       <span
-                        className="font-medium flex-1 cursor-pointer truncate"
+                        className={cn("font-medium flex-1 cursor-pointer truncate", room.is_active === false && "line-through")}
                         onClick={() => setSelectedRoomType(room.id)}
                       >
                         {room.name}
                         {room.pms_synced && !isRolProperty && <Cloud className="inline h-2.5 w-2.5 ml-1 opacity-50" />}
                       </span>
-                      <div className="flex gap-0.5">
+                      <div className="flex gap-0.5 items-center">
+                        <Switch
+                          checked={room.is_active !== false}
+                          onCheckedChange={() => toggleRoomActive(room.id)}
+                          className="h-3.5 w-7 data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-muted-foreground/30"
+                          title={room.is_active !== false ? "Active — visible on booking pages" : "Inactive — hidden from booking pages"}
+                          onClick={(e) => e.stopPropagation()}
+                        />
                         {selectedPMS !== "nightsbridge" && (
                           <>
                             <Button
