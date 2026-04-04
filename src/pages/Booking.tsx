@@ -2319,7 +2319,35 @@ const Booking = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
+           )}
+
+          {/* Specials Banner */}
+          {property?.id && (
+            <SpecialsBanner
+              propertyId={property.id}
+              brandColor={urlBrandColor || undefined}
+            />
+          )}
+
+          {/* Package Cards */}
+          {property?.amenities && ((property.amenities as any)?.packages?.length > 0) && (
+            <PackageCards
+              packages={((property.amenities as any).packages || []).map((pkg: any) => ({
+                id: pkg.id,
+                name: pkg.name || 'Package',
+                description: pkg.description,
+                category: pkg.category,
+                inclusions: pkg.inclusions,
+                stays: pkg.stays,
+                price: pkg.package_price || pkg.fixedPrice || 0,
+                validFrom: (pkg.periodFrom || pkg.valid_from || '').split('T')[0] || undefined,
+                validTo: (pkg.periodTo || pkg.valid_to || '').split('T')[0] || undefined,
+                images: pkg.images,
+              }))}
+              brandColor={urlBrandColor || undefined}
+            />
+          )}
+
 
                   {/* Guest Steppers (Fluent style) */}
                   <div className="divide-y divide-border/30">
