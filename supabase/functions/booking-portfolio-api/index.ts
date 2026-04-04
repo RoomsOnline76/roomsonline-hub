@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, external_system")
+      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities")
       .eq("is_active", true)
       .in("id", propertyIds);
 
