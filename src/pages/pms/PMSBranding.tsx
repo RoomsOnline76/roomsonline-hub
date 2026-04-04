@@ -385,6 +385,11 @@ export default function PMSBranding() {
         brand_secondary_color: visual.brand_secondary_color || null,
         brand_font_color: visual.brand_font_color || null,
         brand_accent_color: visual.brand_accent_color || null,
+        brand_heading_text_color: visual.brand_heading_text_color || null,
+        brand_body_text_color: visual.brand_body_text_color || null,
+        brand_muted_text_color: visual.brand_muted_text_color || null,
+        brand_light_bg_color: visual.brand_light_bg_color || null,
+        brand_dark_bg_color: visual.brand_dark_bg_color || null,
         brand_override_enabled: visual.brand_override_enabled,
       } as any).eq("id", propertyId);
       if (prErr) throw prErr;
