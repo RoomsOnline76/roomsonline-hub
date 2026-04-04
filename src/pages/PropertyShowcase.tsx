@@ -43,6 +43,9 @@ import {
   ShowcaseReviewCarousel,
   BookingSidebar,
   EditorialSkeleton,
+  SpaceDescription,
+  NeighborhoodGuide,
+  HouseRulesSection,
 } from "@/components/showcase";
 
 // Editorial Utilities
