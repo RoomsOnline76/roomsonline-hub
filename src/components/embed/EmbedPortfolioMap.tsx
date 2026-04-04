@@ -173,7 +173,8 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
   }, [onPropertyClick]);
 
   useEffect(() => {
-    if (!apiKeyReady || !apiKey || !mapRef.current || properties.length === 0) return;
+    const mapElement = mapRef.current;
+    if (!apiKeyReady || !apiKey || !mapElement || properties.length === 0) return;
 
     let cancelled = false;
     const previousAuthFailure = (window as Window & { gm_authFailure?: () => void }).gm_authFailure;
@@ -189,13 +190,13 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       try {
         setMapError(null);
         await loadGoogleMapsScript(apiKey);
-        if (cancelled || !mapRef.current || !window.google?.maps) return;
+        if (cancelled || !window.google?.maps) return;
 
         const bounds = new google.maps.LatLngBounds();
         properties.forEach((property) => bounds.extend({ lat: property.lat, lng: property.lng }));
 
         const center = bounds.getCenter();
-        const map = new google.maps.Map(mapRef.current, {
+        const map = new google.maps.Map(mapElement, {
           center,
           zoom: properties.length === 1 ? 14 : 12,
           disableDefaultUI: true,
@@ -359,9 +360,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       attractionInfoWindowRef.current = null;
       mapInstanceRef.current = null;
       setAttractions([]);
-      if (mapRef.current) {
-        mapRef.current.innerHTML = '';
-      }
+      mapElement.innerHTML = '';
     };
   }, [apiKey, apiKeyReady, properties, brandColor]);
 
