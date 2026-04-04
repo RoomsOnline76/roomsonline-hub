@@ -11518,7 +11518,7 @@ export default function PropertyForm() {
                                   className="h-5 w-5 p-0"
                                   onClick={() => editAnnouncement(announcement)}
                                 >
-                                  <Pencil className="h-3 w-3" />
+                                  <Edit className="h-3 w-3" />
                                 </Button>
                                 <Button
                                   size="sm"
