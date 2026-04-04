@@ -3471,32 +3471,35 @@ export default function PropertyForm() {
     loadProperty();
   }, [id, ownersLoaded]);
 
-  const addAnnouncement = () => {
-    const newAnnouncement = {
-      id: Date.now().toString(),
-      ...announcementForm,
-    };
-    setAnnouncements([...announcements, newAnnouncement]);
+  const saveAnnouncement = () => {
+    if (editingAnnouncementId) {
+      setAnnouncements(announcements.map((a) => a.id === editingAnnouncementId ? { ...a, ...announcementForm } : a));
+      toast({ title: "Announcement updated", description: "The announcement has been updated." });
+    } else {
+      const newAnnouncement = { id: Date.now().toString(), ...announcementForm };
+      setAnnouncements([...announcements, newAnnouncement]);
+      toast({ title: "Announcement created", description: "The announcement has been added successfully." });
+    }
     setIsManageAnnouncementOpen(false);
+    setEditingAnnouncementId(null);
+    setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true });
+  };
+
+  const editAnnouncement = (a: any) => {
+    setEditingAnnouncementId(a.id);
     setAnnouncementForm({
-      announcement: "",
-      order: 0,
-      startDate: undefined,
-      endDate: undefined,
-      enabled: true,
+      announcement: a.announcement || "",
+      order: a.order || 0,
+      startDate: a.startDate ? new Date(a.startDate) : undefined,
+      endDate: a.endDate ? new Date(a.endDate) : undefined,
+      enabled: a.enabled ?? true,
     });
-    toast({
-      title: "Announcement created",
-      description: "The announcement has been added successfully.",
-    });
+    setIsManageAnnouncementOpen(true);
   };
 
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(announcements.filter((a) => a.id !== id));
-    toast({
-      title: "Announcement deleted",
-      description: "The announcement has been removed.",
-    });
+    toast({ title: "Announcement deleted", description: "The announcement has been removed." });
   };
 
   const toggleAnnouncementEnabled = (id: string) => {
