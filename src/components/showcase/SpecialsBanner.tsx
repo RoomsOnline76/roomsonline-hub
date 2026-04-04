@@ -11,6 +11,8 @@ interface Special {
   discount_value: number;
   valid_from: string;
   valid_to: string;
+  book_from: string | null;
+  book_until: string | null;
   applicable_room_ids: string[] | null;
 }
 
