@@ -403,7 +403,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                   {data.hero_video_url ? (
                     <div className="space-y-2">
                       <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
-                        <video 
+                        <HeroVideo 
                           src={data.hero_video_url} 
                           className="w-full h-32 object-cover"
                           controls
