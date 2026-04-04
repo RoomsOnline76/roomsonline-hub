@@ -558,8 +558,8 @@ export default function EmbedPortfolio() {
         </div>
       )}
 
-      {/* AI Featured Banner */}
-      {featuredProp && aiFeatured && !aiSearchResults && activeGroup === "all" && (
+      {/* Featured Pick Banner */}
+      {featuredProp && !aiSearchResults && activeGroup === "all" && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -587,7 +587,9 @@ export default function EmbedPortfolio() {
                     <MapPin className="h-3 w-3" /> {featuredProp.city}
                   </div>
                 )}
-                <p className="text-sm text-gray-600 mt-2">{aiFeatured.reason}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  {aiFeatured?.reason || featuredProp.description || `Discover ${featuredProp.name} — one of our top picks.`}
+                </p>
                 <Button size="sm" className="mt-3 text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
                   View & Book <ChevronRight className="h-3 w-3" />
                 </Button>
