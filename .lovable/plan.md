@@ -1,54 +1,33 @@
 
-## Fix TOBI Repetition on Portfolio Review Section
 
-### What is happening
-On the portfolio page, the "What guests are saying" section is rendering duplicate TOBI blurbs for the same property. From the current code, this is not primarily a chat-memory issue — it is a review-summary aggregation issue.
+# Fix Portfolio Map: Greyscale, Label Alignment & Attraction Details
 
-### Root cause
-1. `sync-property-reviews` generates one TOBI blurb per property, but then updates `tobi_blurb` on every `property_review_cache` row for that property (`google`, `tripadvisor`, etc.).
-2. `booking-portfolio-api` loops through every cache row and pushes a TOBI blurb each time it sees one.
-3. Result: the same blurb appears multiple times on portfolio pages when a property has multiple review sources.
+## Issues
 
-There is also a secondary quality issue:
-- the blurb prompt is still allowing awkward “As TOBI…” phrasing, which makes the copy feel repetitive and over-branded.
+1. **Map not greyscale**: The `mapId: 'portfolio-map'` on line 65 overrides the `styles` array — cloud-based map IDs take precedence over JSON styling. Removing `mapId` will let the greyscale `mapStyles` apply.
 
-### Implementation plan
-1. **Deduplicate portfolio TOBI blurbs at API level**
-   - Update `booking-portfolio-api` so each property contributes at most one TOBI blurb.
-   - Deduplicate by `property_id` or `property_name`, not by source row.
+2. **Property labels centered on pin**: The label `AdvancedMarkerElement` uses `align-items:center` and shares the exact pin position. Fix: use `align-items:flex-start` on the wrapper and add a left offset so the label floats to the right of the pin instead of centered below it.
 
-2. **Make TOBI blurb storage/source handling cleaner**
-   - In `sync-property-reviews`, stop effectively treating TOBI blurbs as source-specific review payloads.
-   - Only use one blurb per property during aggregation, even if multiple cache rows exist.
+3. **Attraction legend is name-only**: The legend and InfoWindows show just the place name. Enhance by showing `vicinity` (location context) in the legend row, and adding the place types/category as a brief descriptor in both the legend and InfoWindow.
 
-3. **Tighten the AI prompt for review summaries**
-   - Explicitly forbid:
-     - “As TOBI…”
-     - first-person self-introductions
-     - repeating brand/property name more than once
-     - generic sales fluff
-   - Require a short editorial summary grounded in distinct review themes.
+## Changes — `src/components/embed/EmbedPortfolioMap.tsx`
 
-4. **Add a defensive UI safeguard**
-   - In `EmbedPortfolioReviews`, dedupe incoming blurbs before rendering so the page stays clean even if duplicate data slips through again.
+### 1. Remove `mapId` to enable greyscale styles
+Delete `mapId: 'portfolio-map'` from the Map constructor (line 65). The existing `styles: mapStyles` will then apply the greyscale theme.
 
-### Files to update
-- `supabase/functions/booking-portfolio-api/index.ts`
-  - dedupe `tobi_blurbs` before returning portfolio data
-- `supabase/functions/sync-property-reviews/index.ts`
-  - improve TOBI blurb generation prompt and handling
-- `src/components/embed/EmbedPortfolioReviews.tsx`
-  - add client-side dedupe safeguard before render
+### 2. Left-align property labels
+- Change the label wrapper from `align-items:center` to `align-items:flex-start`
+- Add `transform:translate(18px, -16px)` so the label pill sits to the right of the pin, not centered on it
+- Add a small left-pointing arrow/nub on the label pill via a CSS border-triangle pseudo-element (or just offset cleanly)
 
-## Expected result
-- Each property appears only once in the TOBI summary area
-- No more repeated identical blurbs from Google/TripAdvisor rows
-- Review summaries read more like polished guest insight and less like repetitive scripted copy
+### 3. Enrich attraction details
+- **InfoWindow**: Add `vicinity` line and a brief type description (from `place.types` — map to human-readable like "Popular attraction", "Local restaurant")
+- **Legend below map**: Show `vicinity` text next to each attraction name, and on tooltip show the full detail including type category
+- Use Google Places `types` array to generate a short "what" blurb (e.g., "Natural feature", "Point of interest", "Restaurant & café")
 
-## Technical details
-- Current duplication comes from this pattern:
-  - `property_review_cache` contains multiple rows per property (`property_id + source`)
-  - `tobi_blurb` is written onto all rows for the property
-  - portfolio aggregation pushes every non-null `tobi_blurb` into `tobi_blurbs`
-- Best fix is server-side dedupe first, UI dedupe second
-- Prompt should produce neutral editorial copy, not a persona intro
+## Files to Change
+
+| File | Change |
+|------|--------|
+| `src/components/embed/EmbedPortfolioMap.tsx` | Remove `mapId`; left-align labels with offset; enrich attraction InfoWindows and legend with vicinity/type details |
+
