@@ -11649,8 +11649,8 @@ export default function PropertyForm() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={addAnnouncement} className="bg-primary">
-                Create
+              <Button onClick={saveAnnouncement} className="bg-primary">
+                {editingAnnouncementId ? "Update" : "Create"}
               </Button>
             </div>
           </div>
