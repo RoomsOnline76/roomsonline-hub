@@ -47,6 +47,9 @@ import {
   NeighborhoodGuide,
   HouseRulesSection,
 } from "@/components/showcase";
+import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
+import { SpecialsBanner } from "@/components/showcase/SpecialsBanner";
+import { PackageCards } from "@/components/showcase/PackageCards";
 
 // Editorial Utilities
 import {
