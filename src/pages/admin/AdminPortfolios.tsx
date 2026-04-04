@@ -32,6 +32,7 @@ interface PortfolioBranding {
   light_bg_color?: string;
   dark_bg_color?: string;
   hero_video_url?: string;
+  pinned_featured_ids?: string[];
 }
 
 interface Portfolio {
@@ -90,6 +91,7 @@ export default function AdminPortfolios() {
   const [brandHeroVideoUrl, setBrandHeroVideoUrl] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [heroVideoUploading, setHeroVideoUploading] = useState(false);
+  const [pinnedFeaturedIds, setPinnedFeaturedIds] = useState<string[]>([]);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
   const heroVideoInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +161,7 @@ export default function AdminPortfolios() {
         heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
         muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
         dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
+        pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
       };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
@@ -193,6 +196,7 @@ export default function AdminPortfolios() {
         heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
         muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
         dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
+        pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
@@ -246,6 +250,7 @@ export default function AdminPortfolios() {
     setBrandLightBgColor("");
     setBrandDarkBgColor("");
     setBrandHeroVideoUrl("");
+    setPinnedFeaturedIds([]);
     setReviewIds({});
   };
 
@@ -267,6 +272,7 @@ export default function AdminPortfolios() {
     setBrandLightBgColor(b?.light_bg_color || "");
     setBrandDarkBgColor(b?.dark_bg_color || "");
     setBrandHeroVideoUrl(b?.hero_video_url || "");
+    setPinnedFeaturedIds(b?.pinned_featured_ids || []);
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
@@ -512,6 +518,41 @@ export default function AdminPortfolios() {
           </div>
           <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
         </div>
+
+        {/* Featured Pick Pinning */}
+        {selectedProps.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Featured Pick</Label>
+            <p className="text-[10px] text-muted-foreground">Pin one or more properties as "Featured Pick" on the portfolio page. If multiple are pinned, one is randomly shown. Leave empty for AI-selected.</p>
+            <div className="space-y-1 max-h-32 overflow-y-auto rounded-md border border-border p-2 bg-muted/20">
+              {selectedProps.map((pid) => {
+                const prop = properties.find((p) => p.id === pid);
+                if (!prop) return null;
+                const isPinned = pinnedFeaturedIds.includes(pid);
+                return (
+                  <div key={pid} className="flex items-center gap-2 py-0.5">
+                    <Checkbox
+                      checked={isPinned}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setPinnedFeaturedIds((prev) => [...prev, pid]);
+                        } else {
+                          setPinnedFeaturedIds((prev) => prev.filter((id) => id !== pid));
+                        }
+                      }}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span className="text-xs">{prop.name}</span>
+                    {isPinned && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+            {pinnedFeaturedIds.length > 0 && (
+              <p className="text-[10px] text-amber-600">{pinnedFeaturedIds.length} pinned — {pinnedFeaturedIds.length > 1 ? "one will be randomly shown" : "this property will always be featured"}</p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <GoogleFontPicker
             label=""

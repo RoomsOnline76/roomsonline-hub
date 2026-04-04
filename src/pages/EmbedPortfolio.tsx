@@ -409,9 +409,19 @@ export default function EmbedPortfolio() {
   }, [aiSearchResults]);
 
   const featuredProp = useMemo(() => {
+    // Pinned featured takes priority over AI
+    const pinnedIds: string[] = portfolioBranding.pinned_featured_ids || [];
+    if (pinnedIds.length > 0) {
+      const validPinned = pinnedIds.filter(id => properties.find(p => p.id === id));
+      if (validPinned.length > 0) {
+        const pickedId = validPinned[Math.floor(Math.random() * validPinned.length)];
+        const prop = properties.find(p => p.id === pickedId);
+        if (prop) return prop;
+      }
+    }
     if (!aiFeatured) return null;
     return properties.find(p => p.slug === aiFeatured.property_slug) || null;
-  }, [properties, aiFeatured]);
+  }, [properties, aiFeatured, portfolioBranding.pinned_featured_ids]);
 
   // Hero video: portfolio-level hero_video_url takes priority, then randomly pick from properties
   const heroVideo = useMemo(() => {
@@ -548,8 +558,8 @@ export default function EmbedPortfolio() {
         </div>
       )}
 
-      {/* AI Featured Banner */}
-      {featuredProp && aiFeatured && !aiSearchResults && activeGroup === "all" && (
+      {/* Featured Pick Banner */}
+      {featuredProp && !aiSearchResults && activeGroup === "all" && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -577,7 +587,9 @@ export default function EmbedPortfolio() {
                     <MapPin className="h-3 w-3" /> {featuredProp.city}
                   </div>
                 )}
-                <p className="text-sm text-gray-600 mt-2">{aiFeatured.reason}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  {aiFeatured?.reason || featuredProp.description || `Discover ${featuredProp.name} — one of our top picks.`}
+                </p>
                 <Button size="sm" className="mt-3 text-xs h-7 gap-1 text-white" style={{ backgroundColor: brandColor }}>
                   View & Book <ChevronRight className="h-3 w-3" />
                 </Button>
