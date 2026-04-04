@@ -161,6 +161,7 @@ export default function AdminPortfolios() {
         heading_text_color: brandHeadingTextColor || undefined, body_text_color: brandBodyTextColor || undefined,
         muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
         dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
+        pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
       };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
