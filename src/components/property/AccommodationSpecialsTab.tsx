@@ -38,6 +38,10 @@ interface Special {
   is_active: boolean;
   is_public: boolean;
   sort_order: number;
+  age_restricted: boolean;
+  min_age: number | null;
+  max_age: number | null;
+  age_label: string | null;
 }
 
 interface Props {
