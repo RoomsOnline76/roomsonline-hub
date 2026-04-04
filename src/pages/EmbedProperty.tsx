@@ -931,6 +931,17 @@ export default function EmbedProperty() {
           <PoweredByRolOS />
         </footer>
       )}
+
+      {/* AI Concierge Chat */}
+      <EmbedConciergeChat
+        propertyId={property.id}
+        propertyName={property.name}
+        roomTypes={roomTypes.map((rt: any) => ({ id: rt.id, name: rt.name, max_guests: rt.max_guests }))}
+        brandColor={brandColor}
+        fontColor={fontColor}
+        checkIn={checkIn}
+        checkOut={checkOut}
+      />
     </div>
   );
 }
