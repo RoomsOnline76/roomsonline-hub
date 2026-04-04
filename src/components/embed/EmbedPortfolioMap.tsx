@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGoogleMapsApiKey } from '@/hooks/useFeatureFlags';
 import { MapPin, Loader2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MapProperty {
   name: string;
@@ -15,6 +16,8 @@ interface EmbedPortfolioMapProps {
   brandColor: string;
   onPropertyClick: (slug: string) => void;
 }
+
+const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
 
 const mapStyles = [
   { elementType: "geometry", stylers: [{ saturation: -100 }] },
@@ -31,6 +34,9 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const { apiKey, isLoading: keyLoading } = useGoogleMapsApiKey();
+  const [attractions, setAttractions] = useState<google.maps.places.PlaceResult[]>([]);
+  const attractionMarkersRef = useRef<google.maps.Marker[]>([]);
+  const attractionInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
   useEffect(() => {
     if (!apiKey || !mapRef.current || properties.length === 0) return;
@@ -38,7 +44,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
     const init = async () => {
       if (!(window as any).google?.maps) {
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&v=weekly`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,places&v=weekly`;
         script.async = true;
         await new Promise<void>((res, rej) => {
           script.onload = () => res();
@@ -67,6 +73,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       let openInfoWindow: google.maps.InfoWindow | null = null;
 
       properties.forEach(prop => {
+        // Property pin
         const pin = document.createElement('div');
         pin.style.cssText = `width:32px;height:32px;border-radius:50%;background:${brandColor};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;`;
         pin.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
@@ -76,6 +83,29 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
           position: { lat: prop.lat, lng: prop.lng },
           content: pin,
           title: prop.name,
+        });
+
+        // Floating name label below pin
+        const label = document.createElement('div');
+        label.style.cssText = `
+          background: rgba(0,0,0,0.75);
+          color: white;
+          font-size: 11px;
+          font-weight: 600;
+          font-family: system-ui, sans-serif;
+          padding: 3px 8px;
+          border-radius: 10px;
+          white-space: nowrap;
+          pointer-events: none;
+          margin-top: 4px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        `;
+        label.textContent = prop.name;
+
+        new AdvancedMarkerElement({
+          map,
+          position: { lat: prop.lat, lng: prop.lng },
+          content: label,
         });
 
         const infoContent = `
@@ -97,13 +127,107 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       });
 
       (window as any).__portfolioNav__ = (slug: string) => onPropertyClick(slug);
-      // Map initialized
+
+      // Fetch nearby attractions around portfolio center
+      if (window.google?.maps?.places) {
+        const center = bounds.getCenter();
+        const service = new google.maps.places.PlacesService(map);
+
+        const attractionsReq: google.maps.places.PlaceSearchRequest = {
+          location: center,
+          radius: 3000,
+          type: 'tourist_attraction',
+        };
+
+        const eateryReq: google.maps.places.PlaceSearchRequest = {
+          location: center,
+          radius: 2000,
+          type: 'restaurant',
+        };
+
+        let attractionResults: google.maps.places.PlaceResult[] = [];
+
+        service.nearbySearch(attractionsReq, (results, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+            attractionResults = results
+              .filter(r => r.rating && r.user_ratings_total && r.user_ratings_total >= 10)
+              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+              .slice(0, 4);
+          }
+
+          service.nearbySearch(eateryReq, (eateryResults, eateryStatus) => {
+            let eatery: google.maps.places.PlaceResult | null = null;
+            if (eateryStatus === google.maps.places.PlacesServiceStatus.OK && eateryResults) {
+              eatery = eateryResults
+                .filter(r => r.rating && r.rating >= 4.0 && r.user_ratings_total && r.user_ratings_total >= 20)
+                .sort((a, b) => (b.rating || 0) - (a.rating || 0))[0] || null;
+            }
+
+            const combined = [...attractionResults];
+            if (eatery) combined.push(eatery);
+            setAttractions(combined);
+
+            // Render attraction markers
+            if (!attractionInfoWindowRef.current) {
+              attractionInfoWindowRef.current = new google.maps.InfoWindow();
+            }
+
+            const extBounds = new google.maps.LatLngBounds();
+            properties.forEach(p => extBounds.extend({ lat: p.lat, lng: p.lng }));
+
+            combined.forEach((place, index) => {
+              if (!place.geometry?.location) return;
+              extBounds.extend(place.geometry.location);
+
+              const isEatery = index === combined.length - 1 && combined.length === 5;
+
+              const aMarker = new google.maps.Marker({
+                position: place.geometry.location,
+                map,
+                title: place.name,
+                icon: {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: ATTRACTION_COLORS[index],
+                  fillOpacity: 0.9,
+                  strokeColor: '#ffffff',
+                  strokeWeight: 2,
+                  scale: 8,
+                },
+                zIndex: 100 + index,
+              });
+
+              const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
+              const typeLabel = isEatery ? '<span style="font-size:10px;color:#888;">🍽️ Eatery</span>' : '';
+
+              aMarker.addListener('click', () => {
+                attractionInfoWindowRef.current?.setContent(`
+                  <div style="font-family:system-ui,sans-serif;padding:8px 12px;max-width:200px;">
+                    <p style="font-weight:600;font-size:13px;margin:0 0 4px;color:#111;">${place.name}</p>
+                    <p style="font-size:12px;color:${ATTRACTION_COLORS[index]};margin:0 0 4px;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
+                    ${typeLabel}
+                    <a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" target="_blank" style="font-size:11px;color:#0066cc;text-decoration:none;">View on Maps →</a>
+                  </div>
+                `);
+                attractionInfoWindowRef.current?.open(map, aMarker);
+              });
+
+              attractionMarkersRef.current.push(aMarker);
+            });
+
+            if (combined.length > 0) {
+              map.fitBounds(extBounds, 60);
+            }
+          });
+        });
+      }
     };
 
     init().catch(console.error);
 
     return () => {
       delete (window as any).__portfolioNav__;
+      attractionMarkersRef.current.forEach(m => m.setMap(null));
+      attractionMarkersRef.current = [];
     };
   }, [apiKey, properties, brandColor, onPropertyClick]);
 
@@ -127,6 +251,52 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         ref={mapRef}
         className="w-full h-[300px] sm:h-[400px] rounded-xl overflow-hidden border border-gray-200"
       />
+      {/* Attractions Legend */}
+      {attractions.length > 0 && (
+        <div className="mt-3 px-1">
+          <p className="text-xs font-medium text-gray-500 mb-2">Nearby:</p>
+          <TooltipProvider>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500">
+              {attractions.slice(0, 5).map((a, i) => {
+                const isEatery = i === attractions.length - 1 && attractions.length === 5;
+                return (
+                  <Tooltip key={a.place_id || i}>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1.5 cursor-default">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: ATTRACTION_COLORS[i] }}
+                        />
+                        <span className="truncate max-w-[140px]">
+                          {isEatery ? '🍽️ ' : ''}{a.name}
+                        </span>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[220px]">
+                      <p className="font-semibold text-xs">{a.name}</p>
+                      {a.rating && (
+                        <p className="text-xs" style={{ color: ATTRACTION_COLORS[i] }}>
+                          {'★'.repeat(Math.round(a.rating))} {a.rating.toFixed(1)}
+                          {a.user_ratings_total ? ` (${a.user_ratings_total})` : ''}
+                        </p>
+                      )}
+                      {a.vicinity && <p className="text-xs text-gray-400 mt-0.5">{a.vicinity}</p>}
+                      <a
+                        href={`https://www.google.com/maps/place/?q=place_id:${a.place_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 mt-1 inline-block"
+                      >
+                        View on Maps →
+                      </a>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </TooltipProvider>
+        </div>
+      )}
     </div>
   );
 }
