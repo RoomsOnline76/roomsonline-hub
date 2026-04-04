@@ -3392,6 +3392,7 @@ export default function PropertyForm() {
                 thumbnailUrl: hr.thumbnail_url,
                 lastSyncedAt: hr.last_synced_at,
                 pms_synced_fields: hr.pms_synced_fields || [],
+                is_active: hr.is_active !== false,
               }));
               setRoomTypes(convertedRooms);
               // Auto-select first room on initial load
