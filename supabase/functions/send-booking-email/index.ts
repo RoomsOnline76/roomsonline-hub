@@ -394,17 +394,11 @@ function generateSuccessEmail(booking: any, property: any, syncWarning?: string)
             </td>
           </tr>
 
-          <!-- Total -->
+          <!-- Invoice / Pricing Breakdown -->
           <tr>
             <td style="padding: 0 40px 20px;">
-              <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px;">
-                <table role="presentation" style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="color: #333; font-size: 18px; font-weight: 600;">Total Amount</td>
-                    <td style="color: ${accentColor}; font-size: 24px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
-                  </tr>
-                </table>
-              </div>
+              <h2 style="margin: 0 0 15px; font-size: 18px; color: #333; border-bottom: 2px solid ${accentColor}; padding-bottom: 10px;">Invoice</h2>
+              ${generateInvoiceSection(booking, accentColor)}
             </td>
           </tr>
 
