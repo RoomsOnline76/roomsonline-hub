@@ -42,7 +42,19 @@ interface AvailableListing {
 }
 
 // ============================================================================
-// NAME PARSING (mirrors src/lib/hostfullyBuildingParser.ts for Deno)
+// URL NORMALIZATION (dedup helper)
+// ============================================================================
+
+function normalizeImageUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    return u.href.replace(/\/+$/, '');
+  } catch {
+    return url.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 // ============================================================================
 
 function sanitizeName(name: string): string {

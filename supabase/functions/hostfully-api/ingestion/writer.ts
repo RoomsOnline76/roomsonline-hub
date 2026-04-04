@@ -11,6 +11,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { TransformedData, TransformedRoomData } from "./types.ts";
 
+// URL normalization for image dedup
+function normalizeImageUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = '';
+    return u.href.replace(/\/+$/, '');
+  } catch {
+    return url.replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 // ============================================================================\\
 // TYPES
 // ============================================================================\\
