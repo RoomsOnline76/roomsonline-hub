@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
 import { fetchLiveRatesBatch } from "@/lib/pmsLiveAvailability";
+import { EmbedPortfolioMap } from "@/components/embed/EmbedPortfolioMap";
+import { EmbedPortfolioReviews } from "@/components/embed/EmbedPortfolioReviews";
 
 interface ReviewRating {
   source: string;
