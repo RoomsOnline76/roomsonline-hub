@@ -37,6 +37,7 @@ import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
 import { FluentGuestForm } from "@/components/booking/FluentGuestForm";
 import type { VoucherStatus, VoucherResult } from "@/components/booking/FluentGuestForm";
 import { GuestCountStepper } from "@/components/booking/GuestCountStepper";
+import { AddOnSelector, type SelectedAddOn } from "@/components/booking/AddOnSelector";
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
@@ -193,6 +194,7 @@ const Booking = () => {
   // Availability calendar map (rates + blocked dates)
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -1599,7 +1601,7 @@ const Booking = () => {
         children: rooms.reduce((sum, r) => sum + r.numberOfChildren, 0),
         infants: rooms.reduce((sum, r) => sum + r.numberOfInfants, 0),
         pets: rooms.reduce((sum, r) => sum + r.numberOfPets, 0),
-        total_price: Math.max(0, totalPrice - voucherDiscount),
+        total_price: Math.max(0, totalPrice + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount),
         status: 'pending',
       } as any;
 
@@ -1946,42 +1948,46 @@ const Booking = () => {
               <h3 className="font-medium">Your Stay</h3>
             </div>
 
-            {/* Inline Date Picker when no dates selected */}
-            {(!checkIn || !checkOut) && (
-              <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                  <CalendarDays className="h-4 w-4" />
-                  Select your dates
-                </div>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-left font-normal"
-                  onClick={() => setDatePickerOpen(true)}
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {checkIn && checkOut ? (
-                    <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
-                  ) : (
-                    <span className="text-muted-foreground">Pick check-in & check-out dates</span>
-                  )}
-                </Button>
-                <BottomSheetDatePicker
-                  open={datePickerOpen}
-                  onOpenChange={setDatePickerOpen}
-                  checkIn={checkIn ? parseISO(checkIn) : null}
-                  checkOut={checkOut ? parseISO(checkOut) : null}
-                  onDatesChange={(ci, co) => {
-                    setCheckIn(format(ci, "yyyy-MM-dd"));
-                    setCheckOut(format(co, "yyyy-MM-dd"));
-                    setDatePickerOpen(false);
-                  }}
-                  availabilityMap={calendarAvailability}
-                />
-                {checkIn && !checkOut && (
-                  <p className="text-xs text-muted-foreground">Now select your check-out date</p>
-                )}
+            {/* Date Picker — always available for editing */}
+            <div className={cn(
+              "rounded-xl border p-4 space-y-3",
+              checkIn && checkOut ? "border-border/50 bg-card" : "border-primary/30 bg-primary/5"
+            )}>
+              <div className="flex items-center gap-2 text-sm font-medium text-primary">
+                <CalendarDays className="h-4 w-4" />
+                {checkIn && checkOut ? "Your dates" : "Select your dates"}
               </div>
-            )}
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal"
+                onClick={() => setDatePickerOpen(true)}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {checkIn && checkOut ? (
+                  <>{format(parseISO(checkIn), "d MMM yyyy")} – {format(parseISO(checkOut), "d MMM yyyy")}</>
+                ) : (
+                  <span className="text-muted-foreground">Pick check-in & check-out dates</span>
+                )}
+                {checkIn && checkOut && (
+                  <span className="ml-auto text-xs text-primary font-medium">Change</span>
+                )}
+              </Button>
+              <BottomSheetDatePicker
+                open={datePickerOpen}
+                onOpenChange={setDatePickerOpen}
+                checkIn={checkIn ? parseISO(checkIn) : null}
+                checkOut={checkOut ? parseISO(checkOut) : null}
+                onDatesChange={(ci, co) => {
+                  setCheckIn(format(ci, "yyyy-MM-dd"));
+                  setCheckOut(format(co, "yyyy-MM-dd"));
+                  setDatePickerOpen(false);
+                }}
+                availabilityMap={calendarAvailability}
+              />
+              {checkIn && !checkOut && (
+                <p className="text-xs text-muted-foreground">Now select your check-out date</p>
+              )}
+            </div>
 
             {/* Rate type is determined by room type — not guest-selectable */}
 
@@ -2116,6 +2122,23 @@ const Booking = () => {
             </Button>
           </motion.div>
 
+          {/* ── Extras & Add-ons ── */}
+          {(property?.amenities as any)?.addons?.length > 0 && checkIn && checkOut && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <AddOnSelector
+                addons={(property.amenities as any).addons}
+                nights={nights}
+                guests={totalGuests}
+                selectedAddons={selectedAddons}
+                onSelectionChange={setSelectedAddons}
+              />
+            </motion.div>
+          )}
+
           {/* ── Step 2: Your Details ── */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -2221,9 +2244,21 @@ const Booking = () => {
                     </div>
                   )}
 
+                  {/* Add-on line items */}
+                  {selectedAddons.length > 0 && (
+                    <div className="border-t border-dashed border-border/30 pt-2 space-y-1">
+                      {selectedAddons.map((sa, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <p className="text-foreground">{sa.addon.name} × {sa.quantity}</p>
+                          <span className="font-medium"><FormattedPrice amount={sa.total} /></span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="border-t border-border/50 pt-3 flex justify-between items-center">
                     <span className="font-semibold">Total</span>
-                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost - voucherDiscount)} /></span>
+                    <span className="text-xl font-bold"><FormattedPrice amount={Math.max(0, totalCost + selectedAddons.reduce((s, a) => s + a.total, 0) - voucherDiscount)} /></span>
                   </div>
                 </>
               ) : (

@@ -3,6 +3,9 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, differenceInCalendarDays, startOfDay, eachDayOfInterval } from "date-fns";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
+import { SpecialsBanner } from "@/components/showcase/SpecialsBanner";
+import { PackageCards } from "@/components/showcase/PackageCards";
 import { EmbedDatePicker } from "@/components/embed/EmbedDatePicker";
 import { EmbedAvailabilityGrid } from "@/components/embed/EmbedAvailabilityGrid";
 import { EmbedTripAdvisorReviews } from "@/components/embed/EmbedTripAdvisorReviews";
@@ -674,6 +677,44 @@ export default function EmbedProperty() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Announcements ── */}
+      {property.amenities?.announcements?.length > 0 && (
+        <div className="px-4 sm:px-5 pt-3">
+          <AnnouncementBanner
+            announcements={property.amenities.announcements}
+            brandColor={brandColor}
+          />
+        </div>
+      )}
+
+      {/* ── Current Specials ── */}
+      {property.id && (
+        <div className="px-4 sm:px-5 pt-3">
+          <SpecialsBanner propertyId={property.id} brandColor={brandColor} />
+        </div>
+      )}
+
+      {/* ── Packages ── */}
+      {property.amenities?.packages?.length > 0 && (
+        <div className="px-4 sm:px-5 pt-3">
+          <PackageCards
+            packages={property.amenities.packages}
+            brandColor={brandColor}
+            onBookPackage={(pkg) => {
+              // Navigate to checkout with package info
+              const params = new URLSearchParams({
+                checkIn,
+                checkOut: checkOut,
+                integration,
+                property_id: property.id,
+              });
+              if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+              window.location.href = `/booking/${property.slug}?${params.toString()}`;
+            }}
+          />
+        </div>
+      )}
 
       {/* ── Room Cards (Fluent horizontal cards) ── */}
       {roomTypes.length > 0 && (

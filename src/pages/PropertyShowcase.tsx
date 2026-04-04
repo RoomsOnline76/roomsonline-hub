@@ -47,6 +47,9 @@ import {
   NeighborhoodGuide,
   HouseRulesSection,
 } from "@/components/showcase";
+import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
+import { SpecialsBanner } from "@/components/showcase/SpecialsBanner";
+import { PackageCards } from "@/components/showcase/PackageCards";
 
 // Editorial Utilities
 import {
@@ -1025,6 +1028,28 @@ export default function PropertyShowcase() {
               maxGuests={property.max_guests || undefined}
               reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
             />
+
+            {/* Announcements */}
+            {property.amenities?.announcements?.length > 0 && (
+              <AnnouncementBanner
+                announcements={property.amenities.announcements}
+                className="py-4"
+              />
+            )}
+
+            {/* Current Specials */}
+            {property.id && (
+              <SpecialsBanner propertyId={property.id} className="py-4" />
+            )}
+
+            {/* Packages */}
+            {property.amenities?.packages?.length > 0 && (
+              <PackageCards
+                packages={property.amenities.packages}
+                className="py-4"
+                onBookPackage={() => handleBookProperty()}
+              />
+            )}
 
             {/* Quick Facts (non-Hostfully — additional context) */}
             {!isHostfullyProperty && proseFacts.length > 0 && (
