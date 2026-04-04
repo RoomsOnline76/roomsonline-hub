@@ -2529,23 +2529,26 @@ const Booking = () => {
                     </div>
                   )}
 
-                  {/* Applied promotion banner */}
-                  {appliedPromotion && (
-                    <div className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
+                  {/* Applied promotions banners */}
+                  {appliedPromotions.length > 0 && appliedPromotions.map((promo, idx) => (
+                    <div key={idx} className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm">✨</span>
+                        {promo.imageUrl && (
+                          <img src={promo.imageUrl} alt={promo.name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
+                        )}
+                        <span className="text-sm">{promo.type === 'package' ? '📦' : '🏷️'}</span>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-primary">{appliedPromotion.name}</p>
-                          {appliedPromotion.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{appliedPromotion.description}</p>
+                          <p className="text-sm font-medium text-primary">{promo.name}</p>
+                          {promo.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{promo.description}</p>
                           )}
                         </div>
                         <span className="text-sm font-semibold text-primary">
-                          -<FormattedPrice amount={appliedPromotion.discount} />
+                          -<FormattedPrice amount={promo.discount} />
                         </span>
                       </div>
                     </div>
-                  )}
+                  ))}
 
                   {/* Age verification for age-restricted specials */}
                   {pendingAgeSpecial && !ageVerified && !appliedPromotion && property && (
