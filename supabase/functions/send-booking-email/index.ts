@@ -237,7 +237,116 @@ function generateEmailFooter(brand: ReturnType<typeof resolveBranding>, property
   `;
 }
 
-// Generate success email HTML
+// Generate inline invoice breakdown from ai_metadata or fallback to simple total
+function generateInvoiceSection(booking: any, accentColor: string): string {
+  const meta = booking.ai_metadata || {};
+  const charges = booking.charges_breakdown || [];
+  const hasBreakdown = meta.cost_breakdown?.length > 0;
+
+  let rows = "";
+
+  // Accommodation line items
+  if (hasBreakdown) {
+    for (const item of meta.cost_breakdown) {
+      const desc = item.description || "Accommodation";
+      const nightsLabel = item.nights > 0 ? ` (${item.nights} night${item.nights > 1 ? "s" : ""})` : "";
+      rows += `<tr>
+        <td style="padding: 6px 0; color: #333; font-size: 13px;">${desc}${nightsLabel}</td>
+        <td style="padding: 6px 0; color: #333; font-size: 13px; text-align: right;">${formatCurrency(item.total)}</td>
+      </tr>`;
+    }
+  } else {
+    // Fallback: just show total as a single line
+    const accommodationTotal = booking.total_price - charges.reduce((s: number, c: any) => s + (c.amount || 0), 0);
+    rows += `<tr>
+      <td style="padding: 6px 0; color: #333; font-size: 13px;">Accommodation</td>
+      <td style="padding: 6px 0; color: #333; font-size: 13px; text-align: right;">${formatCurrency(Math.max(0, accommodationTotal))}</td>
+    </tr>`;
+  }
+
+  // Applied packages
+  if (meta.applied_packages?.length > 0) {
+    for (const pkg of meta.applied_packages) {
+      rows += `<tr>
+        <td style="padding: 6px 0; color: #22c55e; font-size: 13px;">📦 ${pkg.name}</td>
+        <td style="padding: 6px 0; color: #22c55e; font-size: 13px; text-align: right;">-${formatCurrency(pkg.discount)}</td>
+      </tr>`;
+    }
+  }
+
+  // Applied specials
+  if (meta.applied_specials?.length > 0) {
+    for (const special of meta.applied_specials) {
+      rows += `<tr>
+        <td style="padding: 6px 0; color: #22c55e; font-size: 13px;">⭐ ${special.name}</td>
+        <td style="padding: 6px 0; color: #22c55e; font-size: 13px; text-align: right;">-${formatCurrency(special.discount)}</td>
+      </tr>`;
+    }
+  }
+
+  // Charges (fees & deposits)
+  if (charges.length > 0) {
+    for (const charge of charges) {
+      const refundNote = charge.is_refundable ? " (refundable)" : "";
+      rows += `<tr>
+        <td style="padding: 6px 0; color: #666; font-size: 13px;">${charge.name}${refundNote}</td>
+        <td style="padding: 6px 0; color: #333; font-size: 13px; text-align: right;">${formatCurrency(charge.amount)}</td>
+      </tr>`;
+    }
+  }
+
+  // Add-ons
+  if (meta.selected_addons?.length > 0) {
+    for (const addon of meta.selected_addons) {
+      const qtyLabel = addon.quantity > 1 ? ` x${addon.quantity}` : "";
+      rows += `<tr>
+        <td style="padding: 6px 0; color: #666; font-size: 13px;">🎁 ${addon.name}${qtyLabel}</td>
+        <td style="padding: 6px 0; color: #333; font-size: 13px; text-align: right;">${formatCurrency(addon.total)}</td>
+      </tr>`;
+    }
+  }
+
+  // Voucher discount
+  if (meta.voucher_discount > 0) {
+    rows += `<tr>
+      <td style="padding: 6px 0; color: #22c55e; font-size: 13px;">🎟️ Voucher Discount</td>
+      <td style="padding: 6px 0; color: #22c55e; font-size: 13px; text-align: right;">-${formatCurrency(meta.voucher_discount)}</td>
+    </tr>`;
+  }
+
+  // VAT breakdown (inclusive)
+  let vatRow = "";
+  if (meta.vat?.rate) {
+    const refundableDeposits = charges.filter((c: any) => c.is_refundable).reduce((s: number, c: any) => s + (c.amount || 0), 0);
+    const vatableAmount = Math.max(0, booking.total_price - refundableDeposits);
+    const vatRate = meta.vat.rate / 100;
+    const exclAmount = vatableAmount / (1 + vatRate);
+    const vatAmount = vatableAmount - exclAmount;
+    vatRow = `
+      <tr><td colspan="2" style="border-top: 1px solid #eee;"></td></tr>
+      <tr>
+        <td style="padding: 4px 0; color: #999; font-size: 12px;">Excl. VAT</td>
+        <td style="padding: 4px 0; color: #999; font-size: 12px; text-align: right;">${formatCurrency(exclAmount)}</td>
+      </tr>
+      <tr>
+        <td style="padding: 4px 0; color: #999; font-size: 12px;">VAT (${meta.vat.rate}%)</td>
+        <td style="padding: 4px 0; color: #999; font-size: 12px; text-align: right;">${formatCurrency(vatAmount)}</td>
+      </tr>`;
+  }
+
+  return `
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+      ${rows}
+      <tr><td colspan="2" style="border-top: 2px solid #333; padding-top: 8px;"></td></tr>
+      <tr>
+        <td style="padding: 4px 0; color: #333; font-size: 18px; font-weight: 700;">Total</td>
+        <td style="padding: 4px 0; color: ${accentColor}; font-size: 20px; font-weight: 700; text-align: right;">${formatCurrency(booking.total_price)}</td>
+      </tr>
+      ${vatRow}
+    </table>`;
+}
+
+
 function generateSuccessEmail(booking: any, property: any, syncWarning?: string): string {
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
