@@ -671,7 +671,28 @@ export function AIConciergePanel({
                   ? "bg-primary text-primary-foreground" 
                   : "bg-muted"
               )}>
-                <p className="text-sm">{msg.content}</p>
+                {msg.type === 'assistant' ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5 text-sm">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm">{msg.content}</p>
+                )}
+                
+                {/* Quick suggestion chips after welcome message */}
+                {msg.id === 'welcome' && messages.length <= 1 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {QUICK_CHIPS.map((chip) => (
+                      <button
+                        key={chip}
+                        onClick={() => handleSubmitQuery(chip)}
+                        className="text-xs px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 
                 {/* Suggestion cards */}
                 {msg.suggestions && msg.suggestions.length > 0 && (
