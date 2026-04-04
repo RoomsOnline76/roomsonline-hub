@@ -443,6 +443,40 @@ export default function PropertyShowcase() {
           setAvailability(syntheticAvailMap);
         }
       }
+
+      // Fetch portfolio siblings for the map
+      try {
+        const { data: memberships } = await supabase
+          .from("property_portfolio_members")
+          .select("portfolio_id")
+          .eq("property_id", propertyData.id);
+
+        if (memberships && memberships.length > 0) {
+          const portfolioIds = memberships.map((m: any) => m.portfolio_id);
+          const { data: allMembers } = await supabase
+            .from("property_portfolio_members")
+            .select("property_id, properties:property_id(name, slug, latitude, longitude, images)")
+            .in("portfolio_id", portfolioIds)
+            .neq("property_id", propertyData.id);
+
+          if (allMembers) {
+            const siblings = allMembers
+              .filter((m: any) => m.properties?.latitude && m.properties?.longitude)
+              .map((m: any) => ({
+                name: m.properties.name,
+                slug: m.properties.slug || m.property_id,
+                lat: Number(m.properties.latitude),
+                lng: Number(m.properties.longitude),
+                heroImage: Array.isArray(m.properties.images) ? m.properties.images[0] : undefined,
+              }));
+            // Deduplicate by slug
+            const unique = Array.from(new Map(siblings.map((s: any) => [s.slug, s])).values());
+            setSiblingProperties(unique);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to fetch portfolio siblings:", e);
+      }
     } catch (error) {
       console.error("Error fetching property:", error);
     } finally {
