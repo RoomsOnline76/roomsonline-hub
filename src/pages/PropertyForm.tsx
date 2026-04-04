@@ -4104,8 +4104,9 @@ export default function PropertyForm() {
         }
         }
 
-        // Universal: Deactivate orphan hostfully_room_types for ANY property type
-        if (savedPropertyId) {
+        // Deactivate orphan hostfully_room_types ONLY for ROL'OS native properties
+        // PMS-managed properties (Hostfully, Benson, etc.) use the importer as source of truth
+        if (isRolProperty && savedPropertyId) {
           try {
             const currentRoomNames = roomTypes.map((r: any) => (r.name || '').toLowerCase().trim()).filter(Boolean);
             const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
