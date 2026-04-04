@@ -1544,7 +1544,6 @@ const Booking = () => {
 
           if (specials && specials.length > 0) {
             let nextPendingAgeSpecial: any | null = null;
-            let hasAppliedStandardSpecial = false;
 
             for (const special of specials as any[]) {
               const minStay = special.min_stay || 0;
@@ -1597,36 +1596,39 @@ const Booking = () => {
               }
 
               if (discount > 0) {
-                if (special.age_restricted) {
-                  if (!ageVerified && !nextPendingAgeSpecial) {
+                const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
+                const specialName = special.title || special.name || 'Special Offer';
+
+                if (special.age_restricted && !ageVerified) {
+                  if (!nextPendingAgeSpecial) {
                     nextPendingAgeSpecial = {
                       ...special,
                       calculatedDiscount: discount,
-                      pctLabel: (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null,
+                      pctLabel,
                     };
                   }
                   continue;
                 }
 
-                if (hasAppliedStandardSpecial) continue;
+                if (appliedPromos.some((promo) => promo.type === 'special' && promo.name === specialName)) {
+                  continue;
+                }
 
-                const pctLabel = (sType === 'discount' || sType === 'percentage') ? special.discount_percent || special.discount_value : null;
                 appliedPromos.push({
-                  name: special.title || special.name || 'Special Offer',
+                  name: specialName,
                   type: 'special',
                   discount,
                   description: special.description,
                 });
                 const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
                 lineItems.push({
-                  description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                  description: `🏷️ ${specialName} ${discountLabel}`,
                   nights: 0,
                   quantity: 1,
                   unitPrice: -discount,
                   total: -discount,
                 });
                 runningTotal -= discount;
-                hasAppliedStandardSpecial = true;
               }
             }
 
@@ -1651,7 +1653,7 @@ const Booking = () => {
     if (property && rooms.length > 0 && selectedRateType && checkIn && checkOut) {
       calculateCost();
     }
-  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges]);
+  }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified]);
 
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
@@ -2610,29 +2612,7 @@ const Booking = () => {
                         onVerified={(eligible) => {
                           if (eligible) {
                             setAgeVerified(true);
-                            // Re-trigger cost calculation to apply the discount
-                            const special = pendingAgeSpecial;
-                            const discount = special.calculatedDiscount || 0;
-                            if (discount > 0) {
-                              const pctLabel = special.pctLabel;
-                              setAppliedPromotions(prev => [...prev, {
-                                name: special.title || special.name || 'Special Offer',
-                                type: 'special',
-                                discount,
-                                description: special.description,
-                              }]);
-                              const discountLabel = pctLabel ? `(-${pctLabel}%)` : '';
-                              setCostBreakdown(prev => [
-                                ...prev,
-                                {
-                                  description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
-                                  nights: 0,
-                                  quantity: 1,
-                                  unitPrice: -discount,
-                                  total: -discount,
-                                },
-                              ]);
-                            }
+                            setPendingAgeSpecial(null);
                           } else {
                             setPendingAgeSpecial(null);
                           }
