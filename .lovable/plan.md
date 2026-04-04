@@ -1,107 +1,56 @@
 
 
-# Security Scan Remediation
+# Fix Announcements, Packages & Specials on Checkout Page
 
-## Findings Summary & Actions
+## Root Causes
 
-| # | Finding | Action |
-|---|---------|--------|
-| 1 | **Contracts/Signatures storage buckets — anon write** | **Fix**: Tighten policies to `service_role` + admin/dev authenticated |
-| 2 | **html2pdf.js critical/high vulnerabilities** | **Ignore**: No user-supplied content passes through html2pdf — only system-generated invoices/PDFs. Upgrading would require a full library swap with no drop-in replacement. |
-| 3 | **Journal XSS via dangerouslySetInnerHTML** | **Ignore (false positive)**: `PublicJournals.tsx` already uses `DOMPurify.sanitize()` with a strict allowlist (lines 191-194). The finding is outdated. |
-| 4 | **Experience vouchers — public INSERT/UPDATE** | **Fix**: Restrict INSERT and UPDATE to `service_role` only. Edge functions already use service role key. SELECT stays public (needed for code redemption lookup). |
-| 5 | **Extension in public schema** | **Ignore**: `btree_gist` is required in public for GiST indexes. Moving it would break existing indexes and is a Supabase platform limitation. |
-| 6 | **RLS Enabled No Policy** | **Ignore (info-level)**: These are system/internal tables where RLS is enabled as a safeguard but no client access is needed. |
+### 1. Announcements: Not rendered on Booking.tsx
+The `AnnouncementBanner` component exists and is used on PropertyShowcase and EmbedProperty, but is **never imported or rendered** on the checkout page (`Booking.tsx`).
 
-## Implementation
+### 2. Package "Winter Special": Field name mismatch
+The Latter Days package stores dates as `periodFrom` / `periodTo`, but the checkout code looks for `valid_from` / `start_date` and `valid_until` / `end_date`. It also stores `minimumStay` but the code checks `min_nights` / `min_stay`. The `pricingType: "discount"` is present but no `discount_percentage` field exists — the package type implies a discount but the code never maps `pricingType` to an actual percentage.
 
-### Migration 1 — Tighten `experience_vouchers` policies
+**DB data**: `periodFrom: 2025-12-31`, `periodTo: 2026-12-30`, `minimumStay: 4`, `pricingType: "discount"` — none of these field names match the code.
 
-```sql
--- Drop permissive INSERT/UPDATE policies
-DROP POLICY IF EXISTS "System can create vouchers" ON public.experience_vouchers;
-DROP POLICY IF EXISTS "System can update vouchers" ON public.experience_vouchers;
+### 3. Early Bird Special: Wrong column names in query
+The specials query uses `valid_until` (doesn't exist — actual column is `valid_to`) and checks `discount_type` / `discount_value` (don't exist — actual columns are `special_type`, `discount_percent`, `fixed_amount`, `fixed_price`).
 
--- Recreate for service_role only (edge functions use service role key)
-CREATE POLICY "Service role can create vouchers"
-  ON public.experience_vouchers FOR INSERT
-  TO service_role WITH CHECK (true);
+## Changes
 
-CREATE POLICY "Service role can update vouchers"
-  ON public.experience_vouchers FOR UPDATE
-  TO service_role USING (true);
+### File: `src/pages/Booking.tsx`
+
+**A. Add AnnouncementBanner to checkout page**
+- Import `AnnouncementBanner` from `@/components/showcase/AnnouncementBanner`
+- Render it at the top of the checkout content when `property.amenities?.announcements` has entries
+
+**B. Fix package field name resolution** (lines ~1471-1500)
+- Map all known field names: `periodFrom` / `valid_from` / `start_date` → start; `periodTo` / `valid_to` / `end_date` → end
+- Map `minimumStay` / `min_nights` / `min_stay` → minStay
+- Map `pricingType === "discount"` to a configurable percentage (use a default like 10% or read from a `discountPercent` / `discount_percentage` field)
+- Also check `discount` field from package data
+
+**C. Fix specials query column names** (lines ~1527-1533)
+- Change `.gte("valid_until", ...)` → `.gte("valid_to", ...)`
+- Map `special_type` → discount logic: `"discount"` uses `discount_percent`, `"fixed_amount"` uses `fixed_amount`, `"fixed_price"` uses `fixed_price`
+- Remove references to non-existent `discount_type` / `discount_value`
+
+**D. Fix room ID matching for specials** (lines ~1542-1548)
+- The Early Bird special has `applicable_room_ids: [1, 1772973704081]` — these are legacy timestamp IDs from the frontend. The checkout passes UUID `roomTypeId`. Need to also match against the room's `linked_rolos_id` or amenities-based room identifiers, or match by checking both the UUID and the amenities room ID.
+
+### Summary of field mappings
+
+```text
+PACKAGES (amenities JSON):
+  periodFrom / valid_from / start_date  →  period start
+  periodTo   / valid_to   / end_date    →  period end
+  minimumStay / min_nights / min_stay   →  min nights
+  pricingType:"discount" + discountPercent / discount_percentage  →  % off
+
+SPECIALS (property_specials table):
+  valid_from, valid_to          (NOT valid_until)
+  special_type                  (NOT discount_type)
+  discount_percent              (NOT discount_value, for percentage)
+  fixed_amount                  (for fixed $ off)
+  fixed_price                   (for fixed total price)
 ```
-
-### Migration 2 — Tighten storage bucket policies
-
-```sql
--- Fix contracts bucket: restrict to service_role + authenticated admins/devs
-DROP POLICY IF EXISTS "Service role can manage contracts" ON storage.objects;
-CREATE POLICY "Service role can manage contracts"
-  ON storage.objects FOR ALL
-  TO service_role
-  USING (bucket_id = 'contracts')
-  WITH CHECK (bucket_id = 'contracts');
-
-CREATE POLICY "Admins can manage contracts"
-  ON storage.objects FOR ALL
-  TO authenticated
-  USING (
-    bucket_id = 'contracts'
-    AND (
-      public.has_role(auth.uid(), 'admin')
-      OR public.has_role(auth.uid(), 'dev')
-      OR public.has_role(auth.uid(), 'fearless_leader')
-    )
-  )
-  WITH CHECK (
-    bucket_id = 'contracts'
-    AND (
-      public.has_role(auth.uid(), 'admin')
-      OR public.has_role(auth.uid(), 'dev')
-      OR public.has_role(auth.uid(), 'fearless_leader')
-    )
-  );
-
--- Same pattern for signatures bucket
-DROP POLICY IF EXISTS "Service role can manage signatures" ON storage.objects;
-CREATE POLICY "Service role can manage signatures"
-  ON storage.objects FOR ALL
-  TO service_role
-  USING (bucket_id = 'signatures')
-  WITH CHECK (bucket_id = 'signatures');
-
-CREATE POLICY "Admins can manage signatures"
-  ON storage.objects FOR ALL
-  TO authenticated
-  USING (
-    bucket_id = 'signatures'
-    AND (
-      public.has_role(auth.uid(), 'admin')
-      OR public.has_role(auth.uid(), 'dev')
-      OR public.has_role(auth.uid(), 'fearless_leader')
-    )
-  )
-  WITH CHECK (
-    bucket_id = 'signatures'
-    AND (
-      public.has_role(auth.uid(), 'admin')
-      OR public.has_role(auth.uid(), 'dev')
-      OR public.has_role(auth.uid(), 'fearless_leader')
-    )
-  );
-```
-
-### Security finding updates
-
-After migrations, mark findings appropriately:
-- **Delete** `contracts_storage_anon_write` (fixed)
-- **Delete** `vouchers_public_write` (fixed)
-- **Ignore** `journal_xss_risk` — already sanitized with DOMPurify
-- **Ignore** `vulnerable_dependencies_critical` + `vulnerable_dependencies_high` — html2pdf only processes system-generated content, no user input passes through; no drop-in upgrade available
-- **Ignore** `SUPA_extension_in_public` — btree_gist required in public schema for GiST indexes
-- **Ignore** `SUPA_rls_enabled_no_policy` — info-level, internal tables with no client access
-
-### No code changes needed
-All fixes are database-level policy changes. No application code is affected.
 
