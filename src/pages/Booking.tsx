@@ -1940,6 +1940,41 @@ const Booking = () => {
       });
       bookingData.rooms = roomsWithRateKey;
 
+      // Snapshot pricing metadata for invoice rendering in confirmation email
+      const accommodationLineItems = costBreakdown.filter(i => i.nights > 0 && i.total > 0);
+      const chargeLineItems = costBreakdown.filter(i => i.nights === 0 && i.total > 0);
+      bookingData.ai_metadata = {
+        cost_breakdown: accommodationLineItems.map(item => ({
+          label: item.label,
+          nights: item.nights,
+          rate: item.rate,
+          total: item.total,
+        })),
+        applied_specials: appliedPromotions.filter(p => p.type === 'special').map(p => ({
+          name: p.name,
+          discount: p.discount,
+        })),
+        applied_packages: appliedPromotions.filter(p => p.type === 'package').map(p => ({
+          name: p.name,
+          discount: p.discount,
+        })),
+        selected_addons: selectedAddons.map(a => ({
+          name: a.name,
+          quantity: a.quantity,
+          unit_price: a.unitPrice,
+          total: a.total,
+        })),
+        voucher_discount: voucherDiscount > 0 ? voucherDiscount : undefined,
+        charge_items: chargeLineItems.map(item => ({
+          label: item.label,
+          total: item.total,
+        })),
+        vat: vatConfig.isVat ? {
+          rate: vatConfig.rate,
+          number: vatConfig.vatNumber,
+        } : undefined,
+      };
+
       // DEDUPLICATION: Check for existing pending booking for same property/dates/email
       // to prevent orphaned pending records on retry
       const { data: existingPending } = await supabase
