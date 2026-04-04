@@ -1,56 +1,102 @@
 
 
-# Fix Announcements, Packages & Specials on Checkout Page
+# Age-Based Specials with ID Verification
 
-## Root Causes
+## Overview
 
-### 1. Announcements: Not rendered on Booking.tsx
-The `AnnouncementBanner` component exists and is used on PropertyShowcase and EmbedProperty, but is **never imported or rendered** on the checkout page (`Booking.tsx`).
+Add an optional age-restriction toggle to specials. When enabled, the property owner sets a minimum age (e.g., 60 for pensioners). At checkout, if the booking matches an age-restricted special, the guest must upload a photo of their ID/driver's license. An AI edge function extracts the date of birth and confirms eligibility before the discount is applied.
 
-### 2. Package "Winter Special": Field name mismatch
-The Latter Days package stores dates as `periodFrom` / `periodTo`, but the checkout code looks for `valid_from` / `start_date` and `valid_until` / `end_date`. It also stores `minimumStay` but the code checks `min_nights` / `min_stay`. The `pricingType: "discount"` is present but no `discount_percentage` field exists — the package type implies a discount but the code never maps `pricingType` to an actual percentage.
+## Database Changes
 
-**DB data**: `periodFrom: 2025-12-31`, `periodTo: 2026-12-30`, `minimumStay: 4`, `pricingType: "discount"` — none of these field names match the code.
+**Migration: Add age columns to `property_specials`**
 
-### 3. Early Bird Special: Wrong column names in query
-The specials query uses `valid_until` (doesn't exist — actual column is `valid_to`) and checks `discount_type` / `discount_value` (don't exist — actual columns are `special_type`, `discount_percent`, `fixed_amount`, `fixed_price`).
+```sql
+ALTER TABLE public.property_specials
+  ADD COLUMN age_restricted boolean DEFAULT false,
+  ADD COLUMN min_age integer,
+  ADD COLUMN max_age integer,
+  ADD COLUMN age_label text;  -- e.g. "Pensioner", "Senior", "Youth"
+```
 
-## Changes
+No new tables needed. Verification documents are uploaded to a new storage bucket and the AI result is transient (not persisted beyond the booking record).
 
-### File: `src/pages/Booking.tsx`
+**Storage bucket for ID verification uploads**
 
-**A. Add AnnouncementBanner to checkout page**
-- Import `AnnouncementBanner` from `@/components/showcase/AnnouncementBanner`
-- Render it at the top of the checkout content when `property.amenities?.announcements` has entries
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('id-verifications', 'id-verifications', false);
+```
 
-**B. Fix package field name resolution** (lines ~1471-1500)
-- Map all known field names: `periodFrom` / `valid_from` / `start_date` → start; `periodTo` / `valid_to` / `end_date` → end
-- Map `minimumStay` / `min_nights` / `min_stay` → minStay
-- Map `pricingType === "discount"` to a configurable percentage (use a default like 10% or read from a `discountPercent` / `discount_percentage` field)
-- Also check `discount` field from package data
+With RLS policy allowing anon inserts (checkout is unauthenticated) scoped to a generated path, and service_role reads for the edge function.
 
-**C. Fix specials query column names** (lines ~1527-1533)
-- Change `.gte("valid_until", ...)` → `.gte("valid_to", ...)`
-- Map `special_type` → discount logic: `"discount"` uses `discount_percent`, `"fixed_amount"` uses `fixed_amount`, `"fixed_price"` uses `fixed_price`
-- Remove references to non-existent `discount_type` / `discount_value`
+## Edge Function: `verify-age-document`
 
-**D. Fix room ID matching for specials** (lines ~1542-1548)
-- The Early Bird special has `applicable_room_ids: [1, 1772973704081]` — these are legacy timestamp IDs from the frontend. The checkout passes UUID `roomTypeId`. Need to also match against the room's `linked_rolos_id` or amenities-based room identifiers, or match by checking both the UUID and the amenities room ID.
+New edge function that:
+1. Accepts a storage path to the uploaded ID image
+2. Downloads it via service_role
+3. Sends to Lovable AI gateway (Gemini Flash) with a prompt: "Extract the date of birth from this ID document. Return JSON: `{ dob: 'YYYY-MM-DD', confidence: 0-1 }`"
+4. Calculates age from DOB, compares against `min_age` / `max_age`
+5. Returns `{ eligible: boolean, extractedAge: number, dob: string }`
 
-### Summary of field mappings
+## Admin UI Changes
+
+**File: `src/components/property/AccommodationSpecialsTab.tsx`**
+
+Add after the existing Active/Public switches:
+- **Age Restricted** toggle (Switch)
+- When enabled, show:
+  - **Age Label** text input (e.g. "Pensioner Discount")
+  - **Min Age** number input
+  - **Max Age** number input (optional)
+- Save these fields alongside existing special data
+
+Update the `Special` interface, `emptySpecial`, and `save()` to include the four new fields.
+
+## Checkout Changes
+
+**File: `src/pages/Booking.tsx`**
+
+In the specials auto-apply logic (~line 1538):
+- If a matching special has `age_restricted = true`, do NOT auto-apply it as a line item immediately
+- Instead, store it in a new state `pendingAgeSpecial`
+- Render a conditional UI section (only when `pendingAgeSpecial` is set):
+  - Banner: "🎂 {age_label} discount available — upload your ID to claim"
+  - File upload input (image capture or file picker)
+  - On upload: push file to `id-verifications` bucket, call `verify-age-document` edge function
+  - On success (eligible): apply the discount line item, show confirmation
+  - On failure: show "Sorry, age requirement not met" message, remove pending state
+
+**New component: `src/components/booking/AgeVerificationUpload.tsx`**
+
+Props: `special` (name, min_age, max_age, label), `onVerified(eligible: boolean)`, `propertyId`
+
+- File input with camera/gallery options
+- Upload to storage bucket under path `{propertyId}/{timestamp}.jpg`
+- Call edge function, show loading spinner
+- Display result (checkmark or X)
+
+## Flow Summary
 
 ```text
-PACKAGES (amenities JSON):
-  periodFrom / valid_from / start_date  →  period start
-  periodTo   / valid_to   / end_date    →  period end
-  minimumStay / min_nights / min_stay   →  min nights
-  pricingType:"discount" + discountPercent / discount_percentage  →  % off
+Property Owner (Edit Specials)
+  └─ Creates "Pensioner 20% off", toggles Age Restricted ON, sets min_age=60
 
-SPECIALS (property_specials table):
-  valid_from, valid_to          (NOT valid_until)
-  special_type                  (NOT discount_type)
-  discount_percent              (NOT discount_value, for percentage)
-  fixed_amount                  (for fixed $ off)
-  fixed_price                   (for fixed total price)
+Guest (Checkout)
+  └─ Booking dates match special's validity
+  └─ System detects age_restricted=true
+  └─ Shows upload prompt: "Senior discount available — upload ID"
+  └─ Guest uploads ID photo
+  └─ AI extracts DOB → calculates age → returns eligible=true
+  └─ Discount auto-applied to billing
 ```
+
+## Files to Create/Modify
+
+| File | Change |
+|------|--------|
+| Migration SQL | Add 4 columns to `property_specials` |
+| Migration SQL | Create `id-verifications` bucket + policies |
+| `supabase/functions/verify-age-document/index.ts` | **Create** — AI-powered age extraction |
+| `src/components/property/AccommodationSpecialsTab.tsx` | Add age restriction toggle + fields |
+| `src/components/booking/AgeVerificationUpload.tsx` | **Create** — upload + verify component |
+| `src/pages/Booking.tsx` | Pending age special state, conditional render of upload UI |
 
