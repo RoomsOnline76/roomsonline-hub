@@ -2551,7 +2551,7 @@ const Booking = () => {
                   ))}
 
                   {/* Age verification for age-restricted specials */}
-                  {pendingAgeSpecial && !ageVerified && !appliedPromotion && property && (
+                  {pendingAgeSpecial && !ageVerified && appliedPromotions.every(p => p.type !== 'special') && property && (
                     <div className="mt-2">
                       <AgeVerificationUpload
                         special={{
