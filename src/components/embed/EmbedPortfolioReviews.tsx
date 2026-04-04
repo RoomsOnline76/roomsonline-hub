@@ -44,7 +44,7 @@ export function EmbedPortfolioReviews({ reviews, tobiBlurbs, brandColor }: Embed
       </div>
 
       {/* TOBI blurbs */}
-      {tobiBlurbs.length > 0 && (
+      {uniqueBlurbs.length > 0 && (
         <div className="mb-5 space-y-3">
           {tobiBlurbs.map((tb, i) => (
             <div key={i} className="p-4 rounded-xl border border-gray-100" style={{ backgroundColor: `${brandColor}06` }}>
