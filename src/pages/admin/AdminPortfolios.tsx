@@ -435,6 +435,51 @@ export default function AdminPortfolios() {
             </div>
           </div>
         </div>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Text Colours</Label>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Heading Text</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandHeadingTextColor || "#000000"} onChange={(e) => setBrandHeadingTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandHeadingTextColor} onChange={(e) => setBrandHeadingTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Body Text</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandBodyTextColor || "#000000"} onChange={(e) => setBrandBodyTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandBodyTextColor} onChange={(e) => setBrandBodyTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Muted / Links</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandMutedTextColor || "#000000"} onChange={(e) => setBrandMutedTextColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandMutedTextColor} onChange={(e) => setBrandMutedTextColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <Label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider pt-1">Background Colours</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Light BG / Cards</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandLightBgColor || "#ffffff"} onChange={(e) => setBrandLightBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandLightBgColor} onChange={(e) => setBrandLightBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Dark BG Accent</Label>
+            <div className="flex gap-1.5 items-center">
+              <input type="color" value={brandDarkBgColor || "#000000"} onChange={(e) => setBrandDarkBgColor(e.target.value)} className="h-7 w-7 rounded border border-border cursor-pointer" />
+              <Input value={brandDarkBgColor} onChange={(e) => setBrandDarkBgColor(e.target.value)} placeholder="#" className="text-xs font-mono h-7 flex-1" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-1 pt-1">
+          <Label className="text-[10px] text-muted-foreground">Hero Video URL</Label>
+          <Input value={brandHeroVideoUrl} onChange={(e) => setBrandHeroVideoUrl(e.target.value)} placeholder="YouTube or direct video URL" className="text-xs" />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <GoogleFontPicker
             label=""
