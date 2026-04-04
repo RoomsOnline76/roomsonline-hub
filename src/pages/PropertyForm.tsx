@@ -3223,8 +3223,9 @@ export default function PropertyForm() {
             brand_body_font: (data as any).brand_body_font || "",
           });
 
-          // Load is_rol_property
+          // Load is_rol_property and is_test_property
           setIsRolProperty((data as any).is_rol_property ?? false);
+          setIsTestProperty((data as any).is_test_property ?? false);
 
           // Load meal types if available
           if (amenities?.meal_types && Array.isArray(amenities.meal_types)) {
