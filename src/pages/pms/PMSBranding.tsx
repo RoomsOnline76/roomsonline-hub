@@ -32,6 +32,11 @@ interface VisualBrand {
   brand_secondary_color: string;
   brand_font_color: string;
   brand_accent_color: string;
+  brand_heading_text_color: string;
+  brand_body_text_color: string;
+  brand_muted_text_color: string;
+  brand_light_bg_color: string;
+  brand_dark_bg_color: string;
   brand_override_enabled: boolean;
 }
 
@@ -52,6 +57,11 @@ const defaultVisual: VisualBrand = {
   brand_secondary_color: "",
   brand_font_color: "",
   brand_accent_color: "",
+  brand_heading_text_color: "",
+  brand_body_text_color: "",
+  brand_muted_text_color: "",
+  brand_light_bg_color: "",
+  brand_dark_bg_color: "",
   brand_override_enabled: false,
 };
 
