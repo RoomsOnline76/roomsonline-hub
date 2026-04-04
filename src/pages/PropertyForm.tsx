@@ -11836,6 +11836,54 @@ export default function PropertyForm() {
                   <Label htmlFor="pkg-fixed-price">Fixed Price</Label>
                 </div>
               </RadioGroup>
+
+              {/* Value input based on selected pricing type */}
+              {packageForm.pricingType === "discount" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-discount-val">Discount Percentage (%)</Label>
+                  <Input
+                    id="pkg-discount-val"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={packageForm.discountPercent || ""}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setPackageForm({ ...packageForm, discountPercent: val, discount_percentage: val });
+                    }}
+                    placeholder="e.g. 20"
+                  />
+                </div>
+              )}
+              {packageForm.pricingType === "fixed-off" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-fixed-off-val">Amount Off (currency)</Label>
+                  <Input
+                    id="pkg-fixed-off-val"
+                    type="number"
+                    min={0}
+                    value={packageForm.fixedAmountOff || ""}
+                    onChange={(e) => setPackageForm({ ...packageForm, fixedAmountOff: parseFloat(e.target.value) || 0 })}
+                    placeholder="e.g. 500"
+                  />
+                </div>
+              )}
+              {packageForm.pricingType === "fixed-price" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-fixed-price-val">Fixed Package Price (total)</Label>
+                  <Input
+                    id="pkg-fixed-price-val"
+                    type="number"
+                    min={0}
+                    value={packageForm.fixedPrice || ""}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setPackageForm({ ...packageForm, fixedPrice: val, package_price: val });
+                    }}
+                    placeholder="e.g. 5000"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
