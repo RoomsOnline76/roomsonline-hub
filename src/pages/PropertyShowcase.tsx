@@ -1038,7 +1038,6 @@ export default function PropertyShowcase() {
             {/* The Space */}
             <SpaceDescription
               spaceDescription={property.amenities?.space_description}
-              description={property.description}
               keyHighlights={property.amenities?.key_highlights}
             />
 

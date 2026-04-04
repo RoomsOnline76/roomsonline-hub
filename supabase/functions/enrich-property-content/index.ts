@@ -6,7 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Fields we extract for editorial enrichment
 const EDITORIAL_FIELDS = [
   "space_description",
   "neighbourhood_description",
@@ -34,7 +33,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Rate limit: 3 enrichments per hour per property
+    // Rate limit
     const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
     const { data: recentSyncs } = await supabase
       .from("sync_logs")
@@ -50,19 +49,25 @@ serve(async (req) => {
       );
     }
 
-    // Fetch current property data
-    const { data: property, error: propError } = await supabase
-      .from("properties")
-      .select("amenities")
-      .eq("id", property_id)
-      .single();
+    // Fetch property data + brand voice in parallel
+    const [propertyResult, brandVoiceResult] = await Promise.all([
+      supabase.from("properties").select("amenities").eq("id", property_id).single(),
+      supabase.from("rolos_experience_configs")
+        .select("config")
+        .eq("property_id", property_id)
+        .eq("experience_type", "brand_kit")
+        .maybeSingle(),
+    ]);
 
-    if (propError || !property) {
+    if (propertyResult.error || !propertyResult.data) {
       return new Response(
         JSON.stringify({ success: false, error: "Property not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const property = propertyResult.data;
+    const brandVoice = (brandVoiceResult.data?.config as any)?.brand_voice || null;
 
     // Scrape website
     const firecrawlApiKey = Deno.env.get("FIRECRAWL_API_KEY");
@@ -73,7 +78,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Enriching property:", property_id, "from:", website_url);
+    console.log("Enriching property:", property_id, "from:", website_url, "brand_voice:", brandVoice ? "yes" : "no");
 
     const scrapeResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
       method: "POST",
@@ -81,11 +86,7 @@ serve(async (req) => {
         "Authorization": `Bearer ${firecrawlApiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        url: website_url,
-        formats: ["markdown"],
-        onlyMainContent: false,
-      }),
+      body: JSON.stringify({ url: website_url, formats: ["markdown"], onlyMainContent: false }),
     });
 
     const scrapeData = await scrapeResponse.json();
@@ -104,7 +105,6 @@ serve(async (req) => {
       );
     }
 
-    // Use Lovable AI to extract editorial fields
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
       return new Response(
@@ -113,19 +113,25 @@ serve(async (req) => {
       );
     }
 
-    const extractionPrompt = `You are extracting editorial content from a property website for a luxury accommodation listing.
+    // Build brand voice instruction
+    const brandInstruction = brandVoice
+      ? `\n\nBRAND VOICE & TONE:\n"${brandVoice}"\n\nWrite ALL descriptions in this voice. The space_description should feel like evocative marketing copy — not a dry extraction. Weave highlights naturally into the prose. Make a guest feel the experience before they arrive.`
+      : `\n\nWrite in a warm, inviting, editorial tone — like a luxury travel magazine. The space_description should be evocative marketing prose, not a dry list of features.`;
 
-From the website content below, extract these fields as JSON:
+    const extractionPrompt = `You are a luxury travel copywriter creating editorial content for a premium accommodation listing.
 
-1. "space_description" — A detailed description of the space/apartment/room. Look for sections titled "The Space", "About this place", or detailed property descriptions. 2-4 paragraphs, separated by \\n\\n. If not found, return null.
+From the website content below, produce these fields as JSON:
 
-2. "neighbourhood_description" — Description of the neighborhood/area. Look for "The Neighborhood", "The Area", "Location" sections. 2-3 paragraphs. If not found, return null.
+1. "space_description" — Craft 2-4 evocative paragraphs about the space/apartment/room. Don't just extract — REWRITE with personality and warmth. Paint a picture of the experience. Separate paragraphs with \\n\\n. If insufficient source material, return null.
 
-3. "getting_around" — How to get around (car, uber, public transport, walking). Look for "Getting Around", "Transport", "How to get here". If not found, return null.
+2. "neighbourhood_description" — A vivid 2-3 paragraph guide to the neighbourhood/area. Mention specific places, distances, vibes. Make the reader feel the location. If not found, return null.
 
-4. "things_to_know" — Important info like WiFi details, power backup, load shedding info, digital nomad amenities, safety info. One item per line. If not found, return null.
+3. "getting_around" — Practical but warm transport info (car, uber, walking, public transit). If not found, return null.
 
-5. "key_highlights" — Array of 4-8 short bullet highlights like "Fast WiFi", "Rooftop Pool", "100m to Beach", "Mountain Views", "Self Check-in". Extract the most compelling features. If not found, return empty array.
+4. "things_to_know" — Important practical details: WiFi, power/load shedding, check-in quirks, safety tips, digital nomad amenities. One item per line. If not found, return null.
+
+5. "key_highlights" — Array of 4-8 punchy highlight phrases like "Fibre WiFi", "Rooftop Pool", "100m to Beach", "Mountain Views", "Self Check-in". The most compelling, bookable features. If not found, return empty array.
+${brandInstruction}
 
 Return ONLY valid JSON with these 5 keys. No markdown formatting, no code blocks.
 
@@ -141,7 +147,7 @@ ${content.substring(0, 8000)}`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [{ role: "user", content: extractionPrompt }],
-        temperature: 0.3,
+        temperature: 0.5,
       }),
     });
 
@@ -156,7 +162,6 @@ ${content.substring(0, 8000)}`;
     const aiData = await aiResponse.json();
     const aiText = aiData.choices?.[0]?.message?.content || aiData.content || "";
 
-    // Parse JSON from AI response
     let extracted: Record<string, any>;
     try {
       const jsonMatch = aiText.match(/\{[\s\S]*\}/);
@@ -169,7 +174,7 @@ ${content.substring(0, 8000)}`;
       );
     }
 
-    // Merge into amenities (don't overwrite existing non-empty fields unless forced)
+    // Merge — always overwrite when force_overwrite or when triggered manually (force_overwrite defaults false but UI sends true)
     const currentAmenities = (property.amenities as Record<string, any>) || {};
     const updates: Record<string, any> = {};
     const fieldsUpdated: string[] = [];
@@ -177,10 +182,10 @@ ${content.substring(0, 8000)}`;
     for (const field of EDITORIAL_FIELDS) {
       const value = extracted[field];
       if (!value || (Array.isArray(value) && value.length === 0)) continue;
-      
+
       const existing = currentAmenities[field];
       const hasExisting = existing && (typeof existing === 'string' ? existing.trim().length > 0 : Array.isArray(existing) && existing.length > 0);
-      
+
       if (!hasExisting || force_overwrite) {
         updates[field] = value;
         fieldsUpdated.push(field);
@@ -188,7 +193,6 @@ ${content.substring(0, 8000)}`;
     }
 
     if (fieldsUpdated.length === 0) {
-      // Log the sync attempt
       await supabase.from("sync_logs").insert({
         property_id,
         sync_type: "content_enrichment",
@@ -202,7 +206,6 @@ ${content.substring(0, 8000)}`;
       );
     }
 
-    // Update property amenities
     const mergedAmenities = { ...currentAmenities, ...updates };
     const { error: updateError } = await supabase
       .from("properties")
@@ -217,21 +220,21 @@ ${content.substring(0, 8000)}`;
       );
     }
 
-    // Log sync
     await supabase.from("sync_logs").insert({
       property_id,
       sync_type: "content_enrichment",
       status: "completed",
-      details: { fields_updated: fieldsUpdated, source_url: website_url },
+      details: { fields_updated: fieldsUpdated, source_url: website_url, brand_voice_used: !!brandVoice },
     });
 
-    console.log("Enrichment complete:", fieldsUpdated.join(", "));
+    console.log("Enrichment complete:", fieldsUpdated.join(", "), "brand_voice:", !!brandVoice);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Enriched ${fieldsUpdated.length} fields`,
         fields_updated: fieldsUpdated,
+        brand_voice_used: !!brandVoice,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
