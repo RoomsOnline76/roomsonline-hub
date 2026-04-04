@@ -873,6 +873,46 @@ export default function EmbedProperty() {
                 </div>
               )}
 
+              {/* The Space */}
+              {(property.amenities?.space_description || (property.description && property.description.length > 200) || (property.amenities?.key_highlights?.length > 0)) && (
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">The space</h3>
+                  {property.amenities?.key_highlights?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(property.amenities.key_highlights as string[]).map((h: string, i: number) => (
+                        <span key={i} className="text-[10px] font-medium px-2 py-0.5 rounded-full border" style={{ borderColor: brandColor + '40', color: brandColor, backgroundColor: brandColor + '10' }}>{h}</span>
+                      ))}
+                    </div>
+                  )}
+                  {(property.amenities?.space_description || (property.description && property.description.length > 200)) && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {property.amenities?.space_description || property.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* House Rules */}
+              {(property.amenities?.check_in_time || property.amenities?.check_in_from || property.amenities?.house_rules) && (
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">Things to know</h3>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {(property.amenities?.check_in_time || property.amenities?.check_in_from) && (
+                      <div>Check-in: {property.amenities?.check_in_time || property.amenities?.check_in_from}</div>
+                    )}
+                    {(property.amenities?.check_out_time || property.amenities?.check_out_from) && (
+                      <div>Check-out: {property.amenities?.check_out_time || property.amenities?.check_out_from}</div>
+                    )}
+                    {property.amenities?.house_rules?.pets_allowed !== undefined && (
+                      <div>Pets: {property.amenities.house_rules.pets_allowed ? 'Allowed' : 'Not allowed'}</div>
+                    )}
+                    {property.amenities?.house_rules?.smoking_allowed !== undefined && (
+                      <div>Smoking: {property.amenities.house_rules.smoking_allowed ? 'Allowed' : 'Not allowed'}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Contact */}
               <div>
                 <h3 className="font-semibold text-sm text-foreground tracking-tight mb-2">Contact</h3>

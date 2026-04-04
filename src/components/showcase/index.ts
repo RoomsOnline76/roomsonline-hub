@@ -13,3 +13,6 @@ export { BookingSidebar } from './BookingSidebar';
 export { EditorialSkeleton } from './EditorialSkeleton';
 export { ShowcaseReviewsBadge } from './ShowcaseReviewsBadge';
 export { ShowcaseReviewCarousel } from './ShowcaseReviewCarousel';
+export { SpaceDescription } from './SpaceDescription';
+export { NeighborhoodGuide } from './NeighborhoodGuide';
+export { HouseRulesSection } from './HouseRulesSection';
