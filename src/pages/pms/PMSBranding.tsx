@@ -479,9 +479,44 @@ export default function PMSBranding() {
                   value={portfolioBranding.secondary_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, secondary_color: v }))}
                 />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Text Colours</p>
                 <ColorField
-                  label="Font Color"
-                  description="Text color on light backgrounds"
+                  label="Heading Text"
+                  description="Colour for headings and titles"
+                  value={portfolioBranding.heading_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, heading_text_color: v }))}
+                />
+                <ColorField
+                  label="Body Text"
+                  description="Colour for body paragraphs and descriptions"
+                  value={portfolioBranding.body_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, body_text_color: v }))}
+                />
+                <ColorField
+                  label="Muted Text / Links"
+                  description="Colour for secondary text, captions, and links"
+                  value={portfolioBranding.muted_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, muted_text_color: v }))}
+                />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Background Colours</p>
+                <ColorField
+                  label="Light BG / Cards"
+                  description="Background for cards and page background"
+                  value={portfolioBranding.light_bg_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, light_bg_color: v }))}
+                />
+                <ColorField
+                  label="Dark BG Accent"
+                  description="Accent backgrounds for highlighted sections"
+                  value={portfolioBranding.dark_bg_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, dark_bg_color: v }))}
+                />
+                <Separator />
+                <ColorField
+                  label="Font Color (Legacy)"
+                  description="Fallback text colour — used when heading/body text not set"
                   value={portfolioBranding.font_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, font_color: v }))}
                 />
