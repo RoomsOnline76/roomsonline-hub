@@ -998,18 +998,6 @@ export default function PropertyShowcase() {
               />
             )}
 
-            {/* Key Highlights */}
-            {property.amenities?.key_highlights?.length > 0 && (
-              <div className="px-6 sm:px-10 md:px-16 lg:px-0 py-4">
-                <div className="flex flex-wrap gap-2">
-                  {property.amenities.key_highlights.map((h: string, i: number) => (
-                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/50 text-muted-foreground font-medium">
-                      {h}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Building Photo Gallery (Hostfully multi-unit) */}
             {isHostfullyProperty && property.images && property.images.length > 1 && (
