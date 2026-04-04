@@ -29,6 +29,7 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
   const [hidePoweredBy, setHidePoweredBy] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [platform, setPlatform] = useState<PlatformGuide>("html");
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
   const snippet = useMemo(() => {
     const attrs: string[] = [`data-rolos-property="${property.slug}"`];
