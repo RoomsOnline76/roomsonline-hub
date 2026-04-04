@@ -3420,9 +3420,14 @@ export type Database = {
           benson_property_code: string | null
           brand_accent_color: string | null
           brand_body_font: string | null
+          brand_body_text_color: string | null
+          brand_dark_bg_color: string | null
           brand_font_color: string | null
           brand_heading_font: string | null
+          brand_heading_text_color: string | null
+          brand_light_bg_color: string | null
           brand_logo_url: string | null
+          brand_muted_text_color: string | null
           brand_override_enabled: boolean
           brand_primary_color: string | null
           brand_secondary_color: string | null
@@ -3496,9 +3501,14 @@ export type Database = {
           benson_property_code?: string | null
           brand_accent_color?: string | null
           brand_body_font?: string | null
+          brand_body_text_color?: string | null
+          brand_dark_bg_color?: string | null
           brand_font_color?: string | null
           brand_heading_font?: string | null
+          brand_heading_text_color?: string | null
+          brand_light_bg_color?: string | null
           brand_logo_url?: string | null
+          brand_muted_text_color?: string | null
           brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null
@@ -3572,9 +3582,14 @@ export type Database = {
           benson_property_code?: string | null
           brand_accent_color?: string | null
           brand_body_font?: string | null
+          brand_body_text_color?: string | null
+          brand_dark_bg_color?: string | null
           brand_font_color?: string | null
           brand_heading_font?: string | null
+          brand_heading_text_color?: string | null
+          brand_light_bg_color?: string | null
           brand_logo_url?: string | null
+          brand_muted_text_color?: string | null
           brand_override_enabled?: boolean
           brand_primary_color?: string | null
           brand_secondary_color?: string | null

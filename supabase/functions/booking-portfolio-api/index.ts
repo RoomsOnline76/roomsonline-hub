@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities, hero_video_url")
+      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color")
       .eq("is_active", true)
       .in("id", propertyIds);
 
@@ -109,6 +109,11 @@ serve(async (req) => {
         key_highlights: amenities.key_highlights || null,
         space_description: amenities.space_description || null,
         hero_video_url: p.hero_video_url || null,
+        brand_heading_text_color: p.brand_heading_text_color || null,
+        brand_body_text_color: p.brand_body_text_color || null,
+        brand_muted_text_color: p.brand_muted_text_color || null,
+        brand_light_bg_color: p.brand_light_bg_color || null,
+        brand_dark_bg_color: p.brand_dark_bg_color || null,
       };
     });
 

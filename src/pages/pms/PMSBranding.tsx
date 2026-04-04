@@ -32,6 +32,11 @@ interface VisualBrand {
   brand_secondary_color: string;
   brand_font_color: string;
   brand_accent_color: string;
+  brand_heading_text_color: string;
+  brand_body_text_color: string;
+  brand_muted_text_color: string;
+  brand_light_bg_color: string;
+  brand_dark_bg_color: string;
   brand_override_enabled: boolean;
 }
 
@@ -52,6 +57,11 @@ const defaultVisual: VisualBrand = {
   brand_secondary_color: "",
   brand_font_color: "",
   brand_accent_color: "",
+  brand_heading_text_color: "",
+  brand_body_text_color: "",
+  brand_muted_text_color: "",
+  brand_light_bg_color: "",
+  brand_dark_bg_color: "",
   brand_override_enabled: false,
 };
 
@@ -233,7 +243,8 @@ export default function PMSBranding() {
   // Portfolio branding state
   const [portfolioBranding, setPortfolioBranding] = useState<{
     logo_url: string; primary_color: string; secondary_color: string; font_color: string;
-  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "" });
+    heading_text_color: string; body_text_color: string; muted_text_color: string; light_bg_color: string; dark_bg_color: string;
+  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "" });
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
 
@@ -254,6 +265,11 @@ export default function PMSBranding() {
           primary_color: b.primary_color || "",
           secondary_color: b.secondary_color || "",
           font_color: b.font_color || "",
+          heading_text_color: b.heading_text_color || "",
+          body_text_color: b.body_text_color || "",
+          muted_text_color: b.muted_text_color || "",
+          light_bg_color: b.light_bg_color || "",
+          dark_bg_color: b.dark_bg_color || "",
         });
       }
       setPortfolioLoaded(true);
@@ -289,7 +305,7 @@ export default function PMSBranding() {
     (async () => {
       const [stationeryRes, propertyRes] = await Promise.all([
         supabase.from("rolos_brand_config").select("*").eq("property_id", propertyId).maybeSingle(),
-        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug").eq("id", propertyId).single(),
+        supabase.from("properties").select("brand_logo_url, brand_primary_color, brand_secondary_color, brand_font_color, brand_accent_color, brand_override_enabled, slug, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color").eq("id", propertyId).single(),
       ]);
       if (stationeryRes.data) {
         const d = stationeryRes.data;
@@ -312,6 +328,11 @@ export default function PMSBranding() {
           brand_secondary_color: p.brand_secondary_color || "",
           brand_font_color: p.brand_font_color || "",
           brand_accent_color: p.brand_accent_color || "",
+          brand_heading_text_color: (p as any).brand_heading_text_color || "",
+          brand_body_text_color: (p as any).brand_body_text_color || "",
+          brand_muted_text_color: (p as any).brand_muted_text_color || "",
+          brand_light_bg_color: (p as any).brand_light_bg_color || "",
+          brand_dark_bg_color: (p as any).brand_dark_bg_color || "",
           brand_override_enabled: p.brand_override_enabled ?? false,
         });
         setPropertySlugLocal(p.slug || null);
@@ -364,6 +385,11 @@ export default function PMSBranding() {
         brand_secondary_color: visual.brand_secondary_color || null,
         brand_font_color: visual.brand_font_color || null,
         brand_accent_color: visual.brand_accent_color || null,
+        brand_heading_text_color: visual.brand_heading_text_color || null,
+        brand_body_text_color: visual.brand_body_text_color || null,
+        brand_muted_text_color: visual.brand_muted_text_color || null,
+        brand_light_bg_color: visual.brand_light_bg_color || null,
+        brand_dark_bg_color: visual.brand_dark_bg_color || null,
         brand_override_enabled: visual.brand_override_enabled,
       } as any).eq("id", propertyId);
       if (prErr) throw prErr;
@@ -453,9 +479,44 @@ export default function PMSBranding() {
                   value={portfolioBranding.secondary_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, secondary_color: v }))}
                 />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Text Colours</p>
                 <ColorField
-                  label="Font Color"
-                  description="Text color on light backgrounds"
+                  label="Heading Text"
+                  description="Colour for headings and titles"
+                  value={portfolioBranding.heading_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, heading_text_color: v }))}
+                />
+                <ColorField
+                  label="Body Text"
+                  description="Colour for body paragraphs and descriptions"
+                  value={portfolioBranding.body_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, body_text_color: v }))}
+                />
+                <ColorField
+                  label="Muted Text / Links"
+                  description="Colour for secondary text, captions, and links"
+                  value={portfolioBranding.muted_text_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, muted_text_color: v }))}
+                />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Background Colours</p>
+                <ColorField
+                  label="Light BG / Cards"
+                  description="Background for cards and page background"
+                  value={portfolioBranding.light_bg_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, light_bg_color: v }))}
+                />
+                <ColorField
+                  label="Dark BG Accent"
+                  description="Accent backgrounds for highlighted sections"
+                  value={portfolioBranding.dark_bg_color}
+                  onChange={(v) => setPortfolioBranding(p => ({ ...p, dark_bg_color: v }))}
+                />
+                <Separator />
+                <ColorField
+                  label="Font Color (Legacy)"
+                  description="Fallback text colour — used when heading/body text not set"
                   value={portfolioBranding.font_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, font_color: v }))}
                 />
@@ -526,7 +587,17 @@ export default function PMSBranding() {
               <CardContent className="space-y-5">
                 <ColorField label="Primary Colour" description="Buttons, headers, and accents" value={visual.brand_primary_color} onChange={v => setVisual(p => ({ ...p, brand_primary_color: v }))} />
                 <ColorField label="Secondary Colour" description="Backgrounds, highlights, and secondary elements" value={visual.brand_secondary_color} onChange={v => setVisual(p => ({ ...p, brand_secondary_color: v }))} />
-                <ColorField label="Font Colour" description="Primary text colour for headings and body" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Text Colours</p>
+                <ColorField label="Heading Text" description="Colour for headings and titles" value={visual.brand_heading_text_color} onChange={v => setVisual(p => ({ ...p, brand_heading_text_color: v }))} />
+                <ColorField label="Body Text" description="Colour for body paragraphs and descriptions" value={visual.brand_body_text_color} onChange={v => setVisual(p => ({ ...p, brand_body_text_color: v }))} />
+                <ColorField label="Muted Text / Links" description="Colour for secondary text, captions, and links" value={visual.brand_muted_text_color} onChange={v => setVisual(p => ({ ...p, brand_muted_text_color: v }))} />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Background Colours</p>
+                <ColorField label="Light BG / Cards" description="Background for cards, popovers, and page background" value={visual.brand_light_bg_color} onChange={v => setVisual(p => ({ ...p, brand_light_bg_color: v }))} />
+                <ColorField label="Dark BG Accent" description="Accent backgrounds for highlighted sections" value={visual.brand_dark_bg_color} onChange={v => setVisual(p => ({ ...p, brand_dark_bg_color: v }))} />
+                <Separator />
+                <ColorField label="Font Colour (Legacy)" description="Fallback text colour — used when heading/body text not set" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
                 <Separator />
                 <ColorField label="Menu / Accent Colour" description="Sidebar active menu item highlight and hover background in the PMS interface" value={visual.brand_accent_color} onChange={v => setVisual(p => ({ ...p, brand_accent_color: v }))} />
               </CardContent>
