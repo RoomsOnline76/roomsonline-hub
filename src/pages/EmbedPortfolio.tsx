@@ -106,7 +106,7 @@ export default function EmbedPortfolio() {
   const [specials, setSpecials] = useState<PortfolioSpecial[]>([]);
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
-
+  const [heroVideoMuted, setHeroVideoMuted] = useState(true);
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
