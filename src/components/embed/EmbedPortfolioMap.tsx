@@ -86,9 +86,11 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         });
 
         // Floating name label below pin
+        const labelWrapper = document.createElement('div');
+        labelWrapper.style.cssText = `display:flex;flex-direction:column;align-items:center;transform:translateY(20px);`;
         const label = document.createElement('div');
         label.style.cssText = `
-          background: rgba(0,0,0,0.75);
+          background: ${brandColor};
           color: white;
           font-size: 11px;
           font-weight: 600;
@@ -97,15 +99,16 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
           border-radius: 10px;
           white-space: nowrap;
           pointer-events: none;
-          margin-top: 4px;
+          opacity: 0.9;
           box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         `;
         label.textContent = prop.name;
+        labelWrapper.appendChild(label);
 
         new AdvancedMarkerElement({
           map,
           position: { lat: prop.lat, lng: prop.lng },
-          content: label,
+          content: labelWrapper,
         });
 
         const infoContent = `
