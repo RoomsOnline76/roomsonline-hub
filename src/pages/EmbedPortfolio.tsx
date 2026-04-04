@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag, Volume2, VolumeX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
