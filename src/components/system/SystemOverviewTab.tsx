@@ -38,6 +38,8 @@ export function SystemOverviewTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [dailyReportEnabled, setDailyReportEnabled] = useState<boolean | null>(null);
+  const [togglingReport, setTogglingReport] = useState(false);
   const [status, setStatus] = useState<SystemStatus>({
     pmsAdapters: [],
     edgeFunctions: [],
