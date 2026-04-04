@@ -6359,6 +6359,7 @@ export default function PropertyForm() {
                   name: formData.name,
                   property_type: formData.property_type,
                   property_url: formData.property_url,
+                  property_id: propertyId || undefined,
                   star_rating: starRating,
                   description: formData.description,
                   country: formData.country,

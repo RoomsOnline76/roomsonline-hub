@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Info, Compass, Loader2, Sparkles, Upload, Video, X, Layers } from "lucide-react";
+import { Info, Compass, Loader2, Sparkles, Upload, Video, X, Layers, Globe } from "lucide-react";
 import { CollectionsManager, type Collection } from "./CollectionsManager";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -88,6 +88,7 @@ interface PropertyContext {
   name: string;
   property_type: string;
   property_url?: string;
+  property_id?: string;
   star_rating: number;
   description?: string;
   country: string;
@@ -122,6 +123,45 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   const [activeSubTab, setActiveSubTab] = useState("details");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
+
+  const handleEnrichFromWebsite = async () => {
+    if (!propertyContext.property_id || !propertyContext.property_url) return;
+
+    setIsEnriching(true);
+    try {
+      const { data: response, error } = await supabase.functions.invoke("enrich-property-content", {
+        body: {
+          property_id: propertyContext.property_id,
+          website_url: propertyContext.property_url,
+        },
+      });
+
+      if (error) throw error;
+
+      if (response?.success) {
+        toast({
+          title: `Enriched ${response.fields_updated?.length || 0} fields`,
+          description: response.fields_updated?.join(", ") || response.message,
+        });
+      } else {
+        toast({
+          title: "Enrichment issue",
+          description: response?.error || response?.message || "No new content found",
+          variant: response?.error ? "destructive" : "default",
+        });
+      }
+    } catch (error) {
+      console.error("Enrichment error:", error);
+      toast({
+        title: "Enrichment failed",
+        description: error instanceof Error ? error.message : "Could not enrich content",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnriching(false);
+    }
+  };
 
   const updateField = <K extends keyof ROLSpecData>(field: K, value: ROLSpecData[K]) => {
     onChange({ ...data, [field]: value });
@@ -274,29 +314,56 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   return (
     <div className="space-y-4">
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-        <TabsList className="bg-primary/10 border border-primary/20">
-          <TabsTrigger 
-            value="details" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Info className="h-3.5 w-3.5" />
-            Details
-          </TabsTrigger>
-          <TabsTrigger 
-            value="navigation" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Compass className="h-3.5 w-3.5" />
-            Navigation
-          </TabsTrigger>
-          <TabsTrigger 
-            value="collections" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            Collections
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <TabsList className="bg-primary/10 border border-primary/20">
+            <TabsTrigger 
+              value="details" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Info className="h-3.5 w-3.5" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger 
+              value="navigation" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              Navigation
+            </TabsTrigger>
+            <TabsTrigger 
+              value="collections" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Collections
+            </TabsTrigger>
+          </TabsList>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleEnrichFromWebsite}
+                disabled={isEnriching || !propertyContext.property_url || !propertyContext.property_id}
+                className="gap-1.5"
+              >
+                {isEnriching ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Globe className="h-3.5 w-3.5" />
+                )}
+                {isEnriching ? "Enriching..." : "Enrich from Website"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {propertyContext.property_url
+                ? "Scrape property website to extract editorial content (space description, neighbourhood, highlights)"
+                : "Add a Property Website URL first"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
 
         <TabsContent value="details" className="space-y-4 mt-4">
           {/* Hero Listing & Editorial Rating */}
