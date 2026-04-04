@@ -162,6 +162,7 @@ export default function EmbedPortfolio() {
             longitude: p.longitude || null,
             key_highlights: p.key_highlights || null,
             space_description: p.space_description || null,
+            hero_video_url: p.hero_video_url || null,
           }));
           setProperties(mapped);
 
