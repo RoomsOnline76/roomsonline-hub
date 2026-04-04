@@ -182,6 +182,11 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
     }
     toast.success("Special saved");
     await fetchSpecials();
+    // Refresh draft from saved data so it stays in sync
+    const savedRow = (updated as any[])[0];
+    if (savedRow) {
+      setDraft({ ...savedRow } as any);
+    }
   };
 
   const deleteSpecial = async (id: string) => {
