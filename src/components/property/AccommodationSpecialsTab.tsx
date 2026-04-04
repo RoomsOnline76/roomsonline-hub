@@ -117,8 +117,10 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   useEffect(() => {
     if (selected) {
       setDraft({ ...selected });
+    } else {
+      setDraft({ name: "" });
     }
-  }, [selectedId]);
+  }, [selectedId, selected?.id, selected?.book_from, selected?.book_until, selected?.valid_from, selected?.valid_to]);
 
   const addNew = async () => {
     const newSpecial = emptySpecial(propertyId, category);
