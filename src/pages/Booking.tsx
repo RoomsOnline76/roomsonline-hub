@@ -1543,9 +1543,15 @@ const Booking = () => {
                 // Check room applicability
                 if (special.applicable_room_ids?.length > 0) {
                   const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                  const hasMatchingRoom = bookedRoomIds.some(id => 
-                    special.applicable_room_ids.includes(id)
-                  );
+                  // Match against UUID room IDs, linked_rolos_id, or legacy timestamp IDs from amenities
+                  const amenitiesRooms = (property.amenities as any)?.rooms || [];
+                  const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                    if (special.applicable_room_ids.includes(uuid)) return true;
+                    // Find matching amenity room and check its legacy id
+                    const amenityRoom = amenitiesRooms.find((r: any) => r.linked_rolos_id === uuid || r.id === uuid);
+                    if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
+                    return false;
+                  });
                   if (!hasMatchingRoom) continue;
                 }
 
