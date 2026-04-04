@@ -116,10 +116,10 @@ export async function fetchLiveRates(
       const ratesByDate: Record<string, number> = {};
 
       // Check availability days
-      const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
+      const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || rt.availability_per_night || rt.availabilityPerNight || [];
       for (const day of avail) {
-        const units = day.available_units ?? day.numberOfRoomsAvailable ?? 0;
-        const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? false;
+        const units = day.available_units ?? day.numberOfRoomsAvailable ?? (day.available ? 1 : 0) ?? 0;
+        const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? day.closed ?? false;
         const dateStr = day.date || day.night_date || "";
         const effectiveUnits = (units > 0 && !stopSell) ? units : 0;
         if (dateStr) availableByDate[dateStr] = effectiveUnits;
