@@ -809,6 +809,30 @@ export default function EmbedPortfolio() {
         </div>
       )}
 
+      {/* Portfolio Map */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+        <EmbedPortfolioMap
+          properties={properties.filter(p => p.latitude && p.longitude).map(p => ({
+            name: p.name,
+            slug: p.slug,
+            lat: p.latitude!,
+            lng: p.longitude!,
+            heroImage: p.hero_image,
+          }))}
+          brandColor={brandColor}
+          onPropertyClick={handleViewProperty}
+        />
+      </div>
+
+      {/* Portfolio Reviews */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+        <EmbedPortfolioReviews
+          reviews={portfolioReviews}
+          tobiBlurbs={tobiBlurbs}
+          brandColor={brandColor}
+        />
+      </div>
+
       {/* Footer */}
       <div className="border-t py-3 px-4 flex justify-center">
         <PoweredByRolOS />
