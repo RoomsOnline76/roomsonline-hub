@@ -2719,6 +2719,7 @@ export default function PropertyForm() {
   const [packages, setPackages] = useState<any[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [isPackageImagesOpen, setIsPackageImagesOpen] = useState(false);
   const [packageDialogTab, setPackageDialogTab] = useState("edit");
   const [packageForm, setPackageForm] = useState({
