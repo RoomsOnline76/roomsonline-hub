@@ -1,73 +1,69 @@
-# Fix Specials & Package Application for Latter Days Checkout
 
-## Problems Found
+Goal: restore both the visible promo sections on checkout and the actual auto-application logic for Latter Days, without changing the overall checkout design.
 
-### 1. Package "Winter Special" has no discount value stored
+1. Confirmed current state
+- The checkout page currently renders Announcements only.
+- It does not render `SpecialsBanner` or `PackageCards` at all, so “no special and no package listed” is currently expected from the code.
+- The Early Bird special does exist in the database and should match this booking window.
+- The Latter Days package stored in `amenities.packages` currently contains neither the saved discount value nor the saved applicable room IDs, which explains why it also cannot auto-apply.
 
-The package record has `pricingType: "discount"` but no `discountPercent` or `discount_percentage` field. The code falls back to a hardcoded `10%` instead of the intended 20%. This is a data issue — the package was created before the discount input field was added to the editor. THIS IS NOT TRUE: SINCE THE VAULE HAS BEEN ENTERED AND SAVED. CHECK AGAIN
+2. UI fix on checkout page
+File: `src/pages/Booking.tsx`
+- Re-add the same promo surfacing pattern already used in `EmbedProperty.tsx` / `PropertyShowcase.tsx`:
+  - announcements
+  - current specials
+  - packages
+- Import and render:
+  - `SpecialsBanner`
+  - `PackageCards`
+- Place them near the top of the checkout content, alongside the existing announcement block, so guests can see active offers before billing details.
 
-### 2. Only one promotion applies — package blocks special
+3. Package auto-apply hardening
+File: `src/pages/Booking.tsx`
+- Keep stacked promo logic, but make package matching more defensive:
+  - support both camelCase and snake_case room targeting keys
+  - support package image fallback consistently
+  - skip silent application when package has no persisted pricing value
+- If package room targeting is empty because data failed to persist, the UI should still show the package card, but billing should only auto-apply when valid pricing and targeting data are present.
 
-The code applies packages first (line 1473-1526), then only checks specials `if (!promoApplied)` (line 1530). Since the package matches, the "Early Bird -15%" special is never evaluated. The business intent appears to be: **both** should apply (or the best one, or they stack). THEY STACK
+4. Package persistence fix review
+File: `src/pages/PropertyForm.tsx`
+- Re-check the package edit/save/load cycle around:
+  - `normalizePackage`
+  - edit modal hydration
+  - save payload into `amenities.packages`
+- Tighten normalization so these fields always survive round-trip:
+  - `discountPercent`
+  - `discount_percentage`
+  - `applicableRoomIds`
+  - `applicable_room_ids`
+  - pricing mode/value fields
+- Specifically guard against modal hydration or update paths overwriting saved values with empty defaults.
 
-### 3. Label clarity
+5. Data repair for existing Latter Days package
+- After the persistence fix, re-save the package once so the stored package record actually contains:
+  - the 20% value
+  - the selected room IDs
+- This is needed because the database snapshot currently still shows missing package pricing/room-target data, even though the admin UI has been edited before.
 
-Package line item shows `📦 Winter Special (-10%)` with a wrong percentage. Special would show as `🏷️ Early Bird (-15%)` if it applied.
+6. Expected outcome after implementation
+For the provided Latter Days booking link:
+- “Winter -15%” special is listed visibly on checkout
+- “Book early for winter season -20%” package is listed visibly on checkout
+- both are labeled correctly
+- both are included correctly in billing when conditions match
+- package image appears when one is saved
+- stacked discounts remain separate and readable
 
-## Data State
-
-
-| Promotion      | Type                | Stored Value                          | Expected | Currently Applied            |
-| -------------- | ------------------- | ------------------------------------- | -------- | ---------------------------- |
-| Winter Special | Package (amenities) | `pricingType: "discount"`, no % field | -20%     | -10% (correct default)       |
-| Early Bird     | Special (DB table)  | `discount_percent: 15`                | -15%     | Skipped (blocked by package) |
-
-
-## Fix Plan
-
-### Fix 1: Apply both package (The image uploaded is not shown with package inte admin UI and should be used in the chekcout)  AND special (stacking)
-
-**File: `src/pages/Booking.tsx**` (~line 1529)
-
-Remove the `if (!promoApplied)` guard so specials are always checked. When both apply, show both as separate line items. Update `promoApplied` to reflect the combined discount or store both names.
-
-```
-Before:  if (!promoApplied) { // Check specials... }
-After:   // Always check specials (can stack with packages)
-```
-
-Both line items will appear in the cost breakdown:
-
-- `📦 Winter Special (-20%)` 
-- `🏷️ Early Bird (-15%)`
-
-The special discount will calculate on the **post-package** subtotal (i.e., 15% off the already-discounted amount), preventing over-discounting.
-
-### Fix 2: Fix default discount percentage fallback
-
-**File: `src/pages/Booking.tsx**` (~line 1504-1505)
-
-Remove the hardcoded `10` fallback. If `pricingType === 'discount'` but no percentage is stored, default to `0` (skip) instead of silently applying 10%.
-
-```
-Before:  pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0)
-After:   pkg.discountPercent || 0
-```
-
-### Fix 3: Prompt owner to set missing discount value
-
-The Latter Days "Winter Special" package needs its `discountPercent` set to `20`. This requires the property owner to edit the package and enter 20 in the discount field — or we can patch it via a targeted amenities update. THIS HAS BEEN DONE AND SAVED.
-
-**Recommended**: Patch the data directly by updating the package in amenities to include `discountPercent: 20` and `discount_percentage: 20`.
-
-### Fix 4: Update promoApplied to support multiple promotions
-
-Adjust the `appliedPromotion` state to hold an array or combine names when both a package and special are active, so the checkout summary accurately reflects what was applied.
-
-## Files Changed
-
-
-| File                        | Change                                                                 |
-| --------------------------- | ---------------------------------------------------------------------- |
-| `src/pages/Booking.tsx`     | Remove `!promoApplied` guard; fix 10% fallback; support stacked promos |
-| Property data (Latter Days) | Patch package `discountPercent: 20` via amenities update               |
+Technical details
+- Root issue 1: checkout page missing promo components, not just broken matching.
+- Root issue 2: package record in `properties.amenities.packages` is still stored as:
+  - no `discountPercent` / `discount_percentage`
+  - no `applicableRoomIds` / `applicable_room_ids`
+- Early Bird special currently exists and matches the property/date range:
+  - `special_type = discount`
+  - `discount_percent = 15`
+  - `valid_from = 2026-06-01`
+  - `valid_to = 2026-07-15`
+  - `applicable_room_ids = [1, 1772973704081]`
+- The booking URL room type is Hostfully UUID `c8253bc0-4449-422a-bf7e-b215b7aef83e`, which cross-references to amenity room `id = 1`, so the special should match once surfaced/applied correctly.
