@@ -520,13 +520,21 @@ export default function EmbedPortfolio() {
             />
             <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 flex items-end gap-3">
               <div>
-                <p className="text-white/70 text-[10px] sm:text-xs font-medium tracking-wide uppercase">Now showing</p>
-                <h2
-                  className="text-white text-base sm:text-lg md:text-xl font-semibold cursor-pointer hover:underline"
-                  onClick={() => handleViewProperty(heroVideo.slug)}
-                >
-                  {heroVideo.name}
-                </h2>
+                {heroVideo.slug ? (
+                  <>
+                    <p className="text-white/70 text-[10px] sm:text-xs font-medium tracking-wide uppercase">Now showing</p>
+                    <h2
+                      className="text-white text-base sm:text-lg md:text-xl font-semibold cursor-pointer hover:underline"
+                      onClick={() => handleViewProperty(heroVideo.slug)}
+                    >
+                      {heroVideo.name}
+                    </h2>
+                  </>
+                ) : (
+                  <h2 className="text-white text-base sm:text-lg md:text-xl font-semibold">
+                    {heroVideo.name}
+                  </h2>
+                )}
               </div>
             </div>
             <button
