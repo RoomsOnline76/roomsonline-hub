@@ -1200,11 +1200,17 @@ const Booking = () => {
         // Debug: log available room types and the room we're trying to match
         console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
         
+        // Bridge PMS-native room IDs: strip adapter prefix from hostfully_room_id to get raw PMS code
+        const urlHostfullyRoomId = searchParams.get('hostfully_room_id') || '';
+        const pmsRoomCode = urlHostfullyRoomId.includes(':') ? urlHostfullyRoomId.split(':').slice(1).join(':') : urlHostfullyRoomId;
+
         let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
             // Direct ID match
             if (rtId === room.roomTypeId) return true;
+            // PMS-native code match (e.g. HotelBeds DBT.DX-4, Benson numeric IDs)
+            if (pmsRoomCode && rtId === pmsRoomCode) return true;
             // Check aliases if available (cache-based matching)
             if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
             // Forward match: room definition name slugified matches cache ID
