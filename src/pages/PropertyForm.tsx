@@ -11921,7 +11921,23 @@ export default function PropertyForm() {
               <Button variant="outline" onClick={() => setIsEditPackageOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={addNewPackage}>Create Package</Button>
+              <Button onClick={() => {
+                if (selectedPackage) {
+                  // Update existing package
+                  const updated = packages.map(p => 
+                    p.id === selectedPackage.id 
+                      ? { ...p, ...packageForm, category: packagesCategory }
+                      : p
+                  );
+                  setPackages(updated);
+                  setSelectedPackage({ ...selectedPackage, ...packageForm, category: packagesCategory });
+                  setIsEditPackageOpen(false);
+                  setIsDirty(true);
+                  toast({ title: "Package updated", description: "The package has been updated successfully." });
+                } else {
+                  addNewPackage();
+                }
+              }}>{selectedPackage ? "Update Package" : "Create Package"}</Button>
             </div>
           </div>
         </DialogContent>
