@@ -59,6 +59,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonSize, setButtonSize] = useState<ButtonSize>("medium");
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
+  const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
   // Sync color when property data loads/changes
   useEffect(() => {
