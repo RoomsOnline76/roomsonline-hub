@@ -1033,6 +1033,37 @@ export default function PropertyShowcase() {
             {/* Amenities */}
             <ProseFacilities facilities={facilities} />
 
+            {/* The Space */}
+            <SpaceDescription
+              spaceDescription={property.amenities?.space_description}
+              description={property.description}
+              keyHighlights={property.amenities?.key_highlights}
+            />
+
+            {/* Neighbourhood & Getting Around */}
+            <NeighborhoodGuide
+              neighbourhoodDescription={property.amenities?.neighbourhood_description}
+              gettingAround={property.amenities?.getting_around}
+              poi={{
+                restaurants_cafes: property.amenities?.restaurants_cafes,
+                restaurants_cafes_distance: property.amenities?.restaurants_cafes_distance,
+                public_transport: property.amenities?.public_transport,
+                public_transport_distance: property.amenities?.public_transport_distance,
+                closest_airport: property.amenities?.closest_airport,
+                closest_airport_distance: property.amenities?.closest_airport_distance,
+              }}
+            />
+
+            {/* House Rules & Things to Know */}
+            <HouseRulesSection
+              checkInTime={property.amenities?.check_in_time || property.amenities?.check_in_from}
+              checkOutTime={property.amenities?.check_out_time || property.amenities?.check_out_from}
+              maxGuests={property.max_guests}
+              houseRules={property.amenities?.house_rules}
+              cancellationPolicy={property.amenities?.cancellation_policy || property.amenities?.cancellation_policies?.[0]?.description}
+              thingsToKnow={property.amenities?.things_to_know}
+            />
+
             {/* Reviews — Cached from Google + TripAdvisor */}
             {reviewData && (reviewData.badges.length > 0 || reviewData.reviews.length > 0) ? (
               <>
