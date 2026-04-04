@@ -2728,6 +2728,11 @@ export default function PropertyForm() {
     periodFrom: undefined as Date | undefined,
     periodTo: undefined as Date | undefined,
     pricingType: "discount",
+    discountPercent: 0,
+    fixedAmountOff: 0,
+    fixedPrice: 0,
+    package_price: 0,
+    discount_percentage: 0,
     isPublic: false,
     images: [] as string[],
   });
@@ -2752,6 +2757,11 @@ export default function PropertyForm() {
       periodFrom: undefined,
       periodTo: undefined,
       pricingType: "discount",
+      discountPercent: 0,
+      fixedAmountOff: 0,
+      fixedPrice: 0,
+      package_price: 0,
+      discount_percentage: 0,
       isPublic: false,
       images: [],
     });
@@ -11382,6 +11392,11 @@ export default function PropertyForm() {
                                 periodFrom: undefined,
                                 periodTo: undefined,
                                 pricingType: "discount",
+                                discountPercent: 0,
+                                fixedAmountOff: 0,
+                                fixedPrice: 0,
+                                package_price: 0,
+                                discount_percentage: 0,
                                 isPublic: false,
                                 images: [],
                               });
@@ -11442,6 +11457,11 @@ export default function PropertyForm() {
                                 periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
                                 periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
                                 pricingType: selectedPackage.pricingType || "discount",
+                                discountPercent: selectedPackage.discountPercent || selectedPackage.discount_percentage || 0,
+                                fixedAmountOff: selectedPackage.fixedAmountOff || 0,
+                                fixedPrice: selectedPackage.fixedPrice || selectedPackage.package_price || 0,
+                                package_price: selectedPackage.package_price || selectedPackage.fixedPrice || 0,
+                                discount_percentage: selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
                                 isPublic: selectedPackage.isPublic || false,
                                 images: selectedPackage.images || [],
                               });
@@ -11816,6 +11836,54 @@ export default function PropertyForm() {
                   <Label htmlFor="pkg-fixed-price">Fixed Price</Label>
                 </div>
               </RadioGroup>
+
+              {/* Value input based on selected pricing type */}
+              {packageForm.pricingType === "discount" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-discount-val">Discount Percentage (%)</Label>
+                  <Input
+                    id="pkg-discount-val"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={packageForm.discountPercent || ""}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setPackageForm({ ...packageForm, discountPercent: val, discount_percentage: val });
+                    }}
+                    placeholder="e.g. 20"
+                  />
+                </div>
+              )}
+              {packageForm.pricingType === "fixed-off" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-fixed-off-val">Amount Off (currency)</Label>
+                  <Input
+                    id="pkg-fixed-off-val"
+                    type="number"
+                    min={0}
+                    value={packageForm.fixedAmountOff || ""}
+                    onChange={(e) => setPackageForm({ ...packageForm, fixedAmountOff: parseFloat(e.target.value) || 0 })}
+                    placeholder="e.g. 500"
+                  />
+                </div>
+              )}
+              {packageForm.pricingType === "fixed-price" && (
+                <div className="mt-3 space-y-1">
+                  <Label htmlFor="pkg-fixed-price-val">Fixed Package Price (total)</Label>
+                  <Input
+                    id="pkg-fixed-price-val"
+                    type="number"
+                    min={0}
+                    value={packageForm.fixedPrice || ""}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      setPackageForm({ ...packageForm, fixedPrice: val, package_price: val });
+                    }}
+                    placeholder="e.g. 5000"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
