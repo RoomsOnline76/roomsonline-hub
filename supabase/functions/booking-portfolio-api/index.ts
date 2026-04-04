@@ -109,6 +109,11 @@ serve(async (req) => {
         key_highlights: amenities.key_highlights || null,
         space_description: amenities.space_description || null,
         hero_video_url: p.hero_video_url || null,
+        brand_heading_text_color: p.brand_heading_text_color || null,
+        brand_body_text_color: p.brand_body_text_color || null,
+        brand_muted_text_color: p.brand_muted_text_color || null,
+        brand_light_bg_color: p.brand_light_bg_color || null,
+        brand_dark_bg_color: p.brand_dark_bg_color || null,
       };
     });
 
