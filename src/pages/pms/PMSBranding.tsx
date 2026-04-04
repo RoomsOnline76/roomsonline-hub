@@ -552,7 +552,17 @@ export default function PMSBranding() {
               <CardContent className="space-y-5">
                 <ColorField label="Primary Colour" description="Buttons, headers, and accents" value={visual.brand_primary_color} onChange={v => setVisual(p => ({ ...p, brand_primary_color: v }))} />
                 <ColorField label="Secondary Colour" description="Backgrounds, highlights, and secondary elements" value={visual.brand_secondary_color} onChange={v => setVisual(p => ({ ...p, brand_secondary_color: v }))} />
-                <ColorField label="Font Colour" description="Primary text colour for headings and body" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Text Colours</p>
+                <ColorField label="Heading Text" description="Colour for headings and titles" value={visual.brand_heading_text_color} onChange={v => setVisual(p => ({ ...p, brand_heading_text_color: v }))} />
+                <ColorField label="Body Text" description="Colour for body paragraphs and descriptions" value={visual.brand_body_text_color} onChange={v => setVisual(p => ({ ...p, brand_body_text_color: v }))} />
+                <ColorField label="Muted Text / Links" description="Colour for secondary text, captions, and links" value={visual.brand_muted_text_color} onChange={v => setVisual(p => ({ ...p, brand_muted_text_color: v }))} />
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Background Colours</p>
+                <ColorField label="Light BG / Cards" description="Background for cards, popovers, and page background" value={visual.brand_light_bg_color} onChange={v => setVisual(p => ({ ...p, brand_light_bg_color: v }))} />
+                <ColorField label="Dark BG Accent" description="Accent backgrounds for highlighted sections" value={visual.brand_dark_bg_color} onChange={v => setVisual(p => ({ ...p, brand_dark_bg_color: v }))} />
+                <Separator />
+                <ColorField label="Font Colour (Legacy)" description="Fallback text colour — used when heading/body text not set" value={visual.brand_font_color} onChange={v => setVisual(p => ({ ...p, brand_font_color: v }))} />
                 <Separator />
                 <ColorField label="Menu / Accent Colour" description="Sidebar active menu item highlight and hover background in the PMS interface" value={visual.brand_accent_color} onChange={v => setVisual(p => ({ ...p, brand_accent_color: v }))} />
               </CardContent>
