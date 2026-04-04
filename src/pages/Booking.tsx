@@ -2188,7 +2188,7 @@ const Booking = () => {
                 link: a.link,
                 linkText: a.linkText,
               }))}
-              brandColor={brand?.primaryColor}
+              brandColor={urlBrandColor || undefined}
             />
           )}
           {/* ── Step 1: Your Stay (Room Summary) ── */}
