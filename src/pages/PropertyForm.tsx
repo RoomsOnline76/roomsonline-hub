@@ -3334,6 +3334,7 @@ export default function PropertyForm() {
                 linkedRateTypes: existingLinks.length > 0 ? existingLinks : [autoLinkedRateTypeId],
                 // Wizard rooms are NOT PMS-synced until a PMS actually syncs them
                 pms_synced: room.pms_synced !== undefined ? room.pms_synced : false,
+                is_active: room.is_active !== false,
               };
             });
             setRoomTypes(transformedRooms);
