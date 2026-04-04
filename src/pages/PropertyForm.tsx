@@ -2765,6 +2765,7 @@ export default function PropertyForm() {
       discount_percentage: 0,
       isPublic: false,
       images: [],
+      applicableRoomIds: [],
     });
     setIsDirty(true);
     toast({
