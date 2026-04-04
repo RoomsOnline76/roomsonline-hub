@@ -1,46 +1,43 @@
 
 
-# Fix Specials Not Appearing on Latter Days Checkout
+# Fix HotelBeds Rates Not Reaching Checkout
 
-## Root Causes Found
+## Problem
+When a guest clicks "Book" on a HotelBeds property embed, rates show as zero or "On Request" in checkout. The root cause is a **room ID mismatch** between the database and the HotelBeds API response.
 
-### Bug 1: Early Bird banner not showing — `book_until` is NULL
-The Early Bird special has `book_from: 2026-04-01` but `book_until` is NULL. The SpecialsBanner filter (line 43) requires BOTH `book_from` AND `book_until` to be non-null before considering the booking window. So it falls through to stay-window-only check, which fails because today (April) is before the stay window (June-July).
+- The embed page passes the database UUID (e.g. `69c53acc-bfce-4bf9-...`) as the room identifier
+- The HotelBeds API returns room codes (e.g. `DBT.DX-4`) as identifiers
+- The checkout room-matching logic cannot link these two, so the rate data is never applied
 
-### Bug 2: Room cross-reference fails in auto-apply — neither special applies
-The specials have `applicable_room_ids: [1, 1772973704081]` (numeric amenity IDs). The checkout receives `roomTypeId=c8253bc0-...` (Hostfully UUID) and `linked_rolos_id=def44b86-...` (ROL'OS UUID). The code tries to find the amenity room by checking `r.linked_rolos_id`, but this field doesn't exist in the amenity data. All cross-reference paths fail, so **both specials are skipped** due to room mismatch.
+This same pattern could affect any PMS adapter where the external room code differs from the database UUID.
 
-### Bug 3: Pensioner banner should show but may work — date-wise it's fine
-The Pensioner has a year-long stay window (Jan-Dec 2026), so the banner filter should pass. If it's not showing, it's likely a rendering/mount issue or the query silently fails.
+## Fix
 
-## Fixes
+### Step 1: Pass `hostfully_room_id` to checkout (EmbedProperty.tsx)
+Add the `hostfully_room_id` (which contains `hotelbeds:DBT.DX-4`) as a URL parameter when navigating to checkout, so the checkout page knows the PMS-native room identifier.
 
-### 1. SpecialsBanner: handle open-ended booking window (line 43)
-Change the booking window check to treat `book_from`-only as "from this date onward" and `book_until`-only as "until this date":
-```typescript
-const inBookWindow =
-  (s.book_from || s.book_until)
-    ? (!s.book_from || s.book_from <= today) && (!s.book_until || s.book_until >= today)
-    : false;
-```
+### Step 2: Bridge room matching in checkout (Booking.tsx)
+In the `calculateCost` room-matching logic, add a new matching step that:
+1. Reads the `hostfully_room_id` from the URL parameter
+2. Strips the `hotelbeds:` prefix to get the raw PMS code
+3. Matches against the `room_type_id` in the API response
 
-### 2. Booking.tsx: fix room cross-reference using URL roomTypeName
-Add a name-based fallback to the room matching logic. When the Hostfully UUID and linked_rolos_id don't match any amenity room directly, match the URL's `roomTypeName` parameter against amenity room names:
-```typescript
-// Add after existing checks (line 1561):
-const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
-if (embedRoomTypeName && r.name === embedRoomTypeName) return true;
-```
-This connects `roomTypeName=3 Bedroomed Holiday House` → amenity room `id: 1` → matches `applicable_room_ids: [1, ...]`.
+This is a universal fix — it works for any adapter where `hostfully_room_id` stores the external identifier (Hostfully UIDs, HotelBeds codes, Benson IDs, etc.).
 
-### 3. Database: set Early Bird `book_until`
-The Early Bird `book_until` is NULL. Set it to a sensible date (e.g., `2026-05-31`) so it has a proper cutoff. The code fix in step 1 handles NULL gracefully, but having a real cutoff is better data.
+### Step 3: Also pass per-day rates from PMS cache to checkout (EmbedProperty.tsx)
+Currently `effectiveRate` in `handleBookRoom` only checks `daily_rate` and ROL'OS rate plans. For PMS-backed properties, also check the `pmsCacheMap` for the selected room's rate on the check-in date, ensuring `embed_rate` is populated as a reliable fallback.
+
+## Adapter Audit
+| Adapter | Room ID format in API response | `hostfully_room_id` format | Match with fix? |
+|---|---|---|---|
+| HotelBeds | `DBT.DX-4` | `hotelbeds:DBT.DX-4` | Yes (strip prefix) |
+| Hostfully | UUID | UUID (same) | Already works |
+| Benson | numeric/slug | `benson:{id}` | Yes (strip prefix) |
+| HyperGuest | code | `hyperguest:{id}` | Yes (strip prefix) |
 
 ## Files Changed
-
 | File | Change |
 |---|---|
-| `src/components/showcase/SpecialsBanner.tsx` | Fix booking window filter to handle NULL book_from/book_until |
-| `src/pages/Booking.tsx` | Add roomTypeName-based fallback for room cross-reference |
-| Database | Set Early Bird book_until to 2026-05-31 |
+| `src/pages/EmbedProperty.tsx` | Pass `hostfully_room_id` as URL param; resolve rate from `pmsCacheMap` |
+| `src/pages/Booking.tsx` | Add `hostfully_room_id`-based room matching in cost calculator |
 
