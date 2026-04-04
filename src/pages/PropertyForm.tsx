@@ -11511,7 +11511,15 @@ export default function PropertyForm() {
                                 {announcement.endDate ? format(announcement.endDate, "MM/dd/yy") : "-"}
                               </td>
                               <td className="py-1 px-2 text-xs">{announcement.order}</td>
-                              <td className="py-1 px-2">
+                              <td className="py-1 px-2 flex gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => editAnnouncement(announcement)}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="ghost"
