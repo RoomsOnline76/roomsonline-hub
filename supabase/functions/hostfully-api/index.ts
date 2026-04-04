@@ -1383,7 +1383,7 @@ async function handleGetListingDetails(creds: HostfullyCredentials, propertyUid:
     // Process images to extract URLs
     const imageUrls = photos.map((img: any) => {
       if (typeof img === 'string') return img;
-      return img.url || img.original || img.pictureLink || img.uri || null;
+      return img.originalImageUrl || img.url || img.original || img.pictureLink || img.uri || null;
     }).filter(Boolean);
 
     // Process amenities to extract names
