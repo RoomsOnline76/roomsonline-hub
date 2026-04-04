@@ -14,8 +14,10 @@ const corsHeaders = {
 function generateInvoiceHTML(invoice: any, transactions: any[], property: any, branding: any): string {
   const businessName = branding?.business_name || property?.name || "Property";
   const businessAddress = branding?.business_address || "";
-  const vatNumber = branding?.vat_number || "";
-  const isVatRegistered = branding?.is_vat_registered || false;
+  const amenities = property?.amenities || {};
+  const amenityVatNumber = amenities?.vat_number || "";
+  const vatNumber = branding?.vat_number || amenityVatNumber || "";
+  const isVatRegistered = branding?.is_vat_registered || !!amenityVatNumber;
   const logoUrl = property?.brand_logo_url || "";
   const primaryColor = property?.brand_primary_color || "#1a1a2e";
 
