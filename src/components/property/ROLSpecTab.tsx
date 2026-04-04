@@ -314,29 +314,56 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
   return (
     <div className="space-y-4">
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-        <TabsList className="bg-primary/10 border border-primary/20">
-          <TabsTrigger 
-            value="details" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Info className="h-3.5 w-3.5" />
-            Details
-          </TabsTrigger>
-          <TabsTrigger 
-            value="navigation" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Compass className="h-3.5 w-3.5" />
-            Navigation
-          </TabsTrigger>
-          <TabsTrigger 
-            value="collections" 
-            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            Collections
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <TabsList className="bg-primary/10 border border-primary/20">
+            <TabsTrigger 
+              value="details" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Info className="h-3.5 w-3.5" />
+              Details
+            </TabsTrigger>
+            <TabsTrigger 
+              value="navigation" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              Navigation
+            </TabsTrigger>
+            <TabsTrigger 
+              value="collections" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Collections
+            </TabsTrigger>
+          </TabsList>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleEnrichFromWebsite}
+                disabled={isEnriching || !propertyContext.property_url || !propertyContext.property_id}
+                className="gap-1.5"
+              >
+                {isEnriching ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Globe className="h-3.5 w-3.5" />
+                )}
+                {isEnriching ? "Enriching..." : "Enrich from Website"}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {propertyContext.property_url
+                ? "Scrape property website to extract editorial content (space description, neighbourhood, highlights)"
+                : "Add a Property Website URL first"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
 
         <TabsContent value="details" className="space-y-4 mt-4">
           {/* Hero Listing & Editorial Rating */}
