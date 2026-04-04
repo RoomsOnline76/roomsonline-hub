@@ -44,17 +44,29 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
       setLoading(true);
       const [folioRes, propRes, brandRes] = await Promise.all([
         callPmsApi<{ transactions: Transaction[] }>("get_folio", { booking_id: bookingId }),
-        supabase.from("properties").select("name").eq("id", propertyId).single(),
+        supabase.from("properties").select("name, amenities").eq("id", propertyId).single(),
         supabase.from("rolos_brand_config" as any).select("is_vat_registered, vat_rate, vat_number").eq("property_id", propertyId).maybeSingle(),
       ]);
       if (folioRes.success && folioRes.data) setTransactions(folioRes.data.transactions || []);
       if (propRes.data) setPropertyName(propRes.data.name);
+      
+      const amenities = (propRes.data?.amenities as any) || {};
+      const amenityVatNumber = amenities?.vat_number || "";
+      
       if (brandRes.data) {
         const b = brandRes.data as any;
+        const brandIsVat = b.is_vat_registered ?? false;
+        const brandVatNumber = b.vat_number || "";
         setVatConfig({
-          isVatRegistered: b.is_vat_registered ?? false,
+          isVatRegistered: brandIsVat || !!amenityVatNumber,
           vatRate: b.vat_rate ?? 15,
-          vatNumber: b.vat_number || "",
+          vatNumber: brandVatNumber || amenityVatNumber,
+        });
+      } else if (amenityVatNumber) {
+        setVatConfig({
+          isVatRegistered: true,
+          vatRate: 15,
+          vatNumber: amenityVatNumber,
         });
       }
       setLoading(false);
