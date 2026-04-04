@@ -501,12 +501,11 @@ export default function EmbedPortfolio() {
           className="relative w-full overflow-hidden"
           style={{ maxHeight: "340px" }}
         >
-          <video
+          <HeroVideo
             src={heroVideo.url}
             autoPlay
             loop
             muted={heroVideoMuted}
-            playsInline
             className="w-full h-[340px] object-cover"
           />
           <div

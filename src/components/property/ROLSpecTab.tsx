@@ -467,7 +467,7 @@ export function ROLSpecTab({ data, onChange, propertyContext, onDirty }: ROLSpec
                       
                       <Input
                         type="url"
-                        placeholder="https://example.com/video.mp4"
+                        placeholder="https://youtube.com/watch?v=... or video URL"
                         value={data.hero_video_url || ""}
                         onChange={(e) => updateField("hero_video_url", e.target.value)}
                         className="text-xs"

@@ -447,16 +447,14 @@ function HomeContent() {
           className={`absolute inset-0 transition-opacity duration-700 ${isLoadingHero ? "opacity-0" : "opacity-100"}`}
         >
           {heroVideoUrl ? (
-            <video
+            <HeroVideo
+              src={heroVideoUrl}
               autoPlay
               loop
               muted
-              playsInline
               className="absolute inset-0 w-full h-full object-cover"
               poster={heroImage}
-            >
-              <source src={heroVideoUrl} type="video/mp4" />
-            </video>
+            />
           ) : (
             <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroImage})` }} />
           )}
