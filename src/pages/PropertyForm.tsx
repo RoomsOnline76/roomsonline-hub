@@ -11392,6 +11392,11 @@ export default function PropertyForm() {
                                 periodFrom: undefined,
                                 periodTo: undefined,
                                 pricingType: "discount",
+                                discountPercent: 0,
+                                fixedAmountOff: 0,
+                                fixedPrice: 0,
+                                package_price: 0,
+                                discount_percentage: 0,
                                 isPublic: false,
                                 images: [],
                               });
