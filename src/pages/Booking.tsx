@@ -1501,7 +1501,7 @@ const Booking = () => {
             } else if ((pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0)) > 0 && !pkg.package_price) {
               const pctVal = pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0);
               const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
-              const discount = Math.round(accommodationSubtotal * (pkg.discount_percentage / 100));
+              const discount = Math.round(accommodationSubtotal * (pctVal / 100));
               if (discount > 0) {
                 promoApplied = {
                   name: pkg.name || 'Package Deal',
@@ -1510,7 +1510,7 @@ const Booking = () => {
                   description: pkg.description,
                 };
                 lineItems.push({
-                  description: `📦 ${pkg.name || 'Package Deal'} (-${pkg.discount_percentage}%)`,
+                  description: `📦 ${pkg.name || 'Package Deal'} (-${pctVal}%)`,
                   nights: 0,
                   quantity: 1,
                   unitPrice: -discount,
