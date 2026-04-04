@@ -194,6 +194,7 @@ const Booking = () => {
   // Availability calendar map (rates + blocked dates)
   const [calendarAvailability, setCalendarAvailability] = useState<Map<string, { available: boolean; rate?: number }>>(new Map());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
