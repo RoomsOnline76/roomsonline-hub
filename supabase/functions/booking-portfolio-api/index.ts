@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities")
+      .select("id, name, slug, city, description, images, brand_primary_color, external_system, latitude, longitude, amenities, hero_video_url")
       .eq("is_active", true)
       .in("id", propertyIds);
 
@@ -108,6 +108,7 @@ serve(async (req) => {
         longitude: p.longitude || null,
         key_highlights: amenities.key_highlights || null,
         space_description: amenities.space_description || null,
+        hero_video_url: p.hero_video_url || null,
       };
     });
 

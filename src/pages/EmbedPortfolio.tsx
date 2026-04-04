@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag } from "lucide-react";
+import { Search, MapPin, Users, BedDouble, ChevronRight, Loader2, Building2, Sparkles, Package, Star, Tag, Volume2, VolumeX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,7 @@ interface PortfolioProperty {
   longitude?: number | null;
   key_highlights?: string[] | null;
   space_description?: string | null;
+  hero_video_url?: string | null;
 }
 
 interface AiGroup {
@@ -105,7 +106,7 @@ export default function EmbedPortfolio() {
   const [specials, setSpecials] = useState<PortfolioSpecial[]>([]);
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
-
+  const [heroVideoMuted, setHeroVideoMuted] = useState(true);
   // Resolve branding: URL params override portfolio metadata
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
@@ -410,6 +411,17 @@ export default function EmbedPortfolio() {
     return properties.find(p => p.slug === aiFeatured.property_slug) || null;
   }, [properties, aiFeatured]);
 
+  // Hero video: randomly pick one property's video, only if ALL properties have a video
+  const heroVideo = useMemo(() => {
+    if (properties.length === 0) return null;
+    const allHaveVideo = properties.every(p => !!p.hero_video_url);
+    if (!allHaveVideo) return null;
+    const randomIdx = Math.floor(Math.random() * properties.length);
+    const p = properties[randomIdx];
+    return { url: p.hero_video_url!, name: p.name, slug: p.slug };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [properties.length]);
+
   const handleViewProperty = (slug: string) => {
     const prop = properties.find(p => p.slug === slug);
     const propColor = prop?.brand_primary_color || brandColor;
@@ -480,6 +492,47 @@ export default function EmbedPortfolio() {
           </div>
         </div>
       </motion.header>
+
+      {/* Hero Video — shown only when ALL properties have a video */}
+      {heroVideo && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative w-full overflow-hidden"
+          style={{ maxHeight: "340px" }}
+        >
+          <video
+            src={heroVideo.url}
+            autoPlay
+            loop
+            muted={heroVideoMuted}
+            playsInline
+            className="w-full h-[340px] object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: `linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)` }}
+          />
+          <div className="absolute bottom-4 left-4 sm:left-6 flex items-end gap-3">
+            <div>
+              <p className="text-white/70 text-xs font-medium tracking-wide uppercase">Now showing</p>
+              <h2
+                className="text-white text-lg sm:text-xl font-semibold cursor-pointer hover:underline"
+                onClick={() => handleViewProperty(heroVideo.slug)}
+              >
+                {heroVideo.name}
+              </h2>
+            </div>
+          </div>
+          <button
+            onClick={() => setHeroVideoMuted(!heroVideoMuted)}
+            className="absolute bottom-4 right-4 sm:right-6 h-8 w-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/60 transition-colors"
+            aria-label={heroVideoMuted ? "Unmute" : "Mute"}
+          >
+            {heroVideoMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+        </motion.div>
+      )}
 
       {/* AI Featured Banner */}
       {featuredProp && aiFeatured && !aiSearchResults && activeGroup === "all" && (
