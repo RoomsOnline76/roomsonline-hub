@@ -149,12 +149,22 @@ const BookingConfirmation = () => {
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({ title: `Booking at ${property?.name}`, url: window.location.href });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Booking at ${property?.name}`, url: shareUrl });
+        return;
+      }
+    } catch (e) {
+      // Share API can fail in iframes/embeds — fall through to clipboard
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
       toast.success("Link copied to clipboard!");
+    } catch {
+      // Clipboard API may also fail in iframes — show the URL for manual copy
+      toast.info("Copy this link to share: " + shareUrl);
     }
   };
 
