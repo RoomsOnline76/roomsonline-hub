@@ -2735,6 +2735,7 @@ export default function PropertyForm() {
     discount_percentage: 0,
     isPublic: false,
     images: [] as string[],
+    applicableRoomIds: [] as string[],
   });
   const [packageImages, setPackageImages] = useState<string[]>([]);
   const [isPackageImageDragging, setIsPackageImageDragging] = useState(false);
