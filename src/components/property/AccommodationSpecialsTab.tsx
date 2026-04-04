@@ -114,15 +114,15 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
 
   const selected = specials.find((s) => s.id === selectedId);
 
-  const selectedJson = selected ? JSON.stringify(selected) : null;
   useEffect(() => {
     if (selected) {
       setDraft({ ...selected });
     } else {
       setDraft({ name: "" });
     }
+    // Only reset draft when user switches to a different special
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, selectedJson]);
+  }, [selectedId]);
 
   const addNew = async () => {
     const newSpecial = emptySpecial(propertyId, category);
@@ -182,6 +182,11 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
     }
     toast.success("Special saved");
     await fetchSpecials();
+    // Refresh draft from saved data so it stays in sync
+    const savedRow = (updated as any[])[0];
+    if (savedRow) {
+      setDraft({ ...savedRow } as any);
+    }
   };
 
   const deleteSpecial = async (id: string) => {
