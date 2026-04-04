@@ -108,6 +108,7 @@ serve(async (req) => {
         longitude: p.longitude || null,
         key_highlights: amenities.key_highlights || null,
         space_description: amenities.space_description || null,
+        hero_video_url: p.hero_video_url || null,
       };
     });
 
