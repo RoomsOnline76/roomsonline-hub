@@ -192,10 +192,18 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         await loadGoogleMapsScript(apiKey);
         if (cancelled || !window.google?.maps) return;
 
-        // Ensure core libraries are loaded (required when using loading=async)
-        await google.maps.importLibrary('maps');
-        await google.maps.importLibrary('places');
-        if (cancelled) return;
+        // Ensure core libraries are loaded (importLibrary exists only with async bootstrap)
+        if (typeof google.maps.importLibrary === 'function') {
+          await google.maps.importLibrary('maps');
+          await google.maps.importLibrary('places');
+          if (cancelled) return;
+        }
+
+        // Wait for LatLngBounds to be available (legacy script may still be loading)
+        if (typeof google.maps.LatLngBounds !== 'function') {
+          await new Promise<void>(resolve => { setTimeout(resolve, 500); });
+        }
+        if (cancelled || typeof google.maps.LatLngBounds !== 'function') return;
 
         const bounds = new google.maps.LatLngBounds();
         properties.forEach((property) => bounds.extend({ lat: property.lat, lng: property.lng }));
