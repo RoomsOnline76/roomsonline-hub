@@ -36,6 +36,12 @@ const EXTRACTABLE_FIELDS = [
   "facilities",
   "activities",
   "images",
+  // Editorial enrichment fields
+  "space_description",
+  "neighbourhood_description",
+  "getting_around",
+  "things_to_know",
+  "key_highlights",
 ];
 
 // Fields that should never be extracted (sensitive/system fields)
