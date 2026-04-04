@@ -1469,14 +1469,14 @@ const Booking = () => {
         // Check packages first (higher priority)
         for (const pkg of packages) {
           if (!pkg.is_active && pkg.is_active !== undefined) continue;
-          const pkgStart = pkg.valid_from || pkg.start_date;
-          const pkgEnd = pkg.valid_until || pkg.end_date;
+          const pkgStart = (pkg.periodFrom || pkg.valid_from || pkg.start_date || '').split('T')[0];
+          const pkgEnd = (pkg.periodTo || pkg.valid_to || pkg.end_date || '').split('T')[0];
           if (!pkgStart || !pkgEnd) continue;
 
           // Check if booking dates overlap with package period
           if (bookingCheckIn >= pkgStart && bookingCheckOut <= pkgEnd) {
             // Check min stay if specified
-            const minStay = pkg.min_nights || pkg.min_stay || 0;
+            const minStay = pkg.minimumStay || pkg.min_nights || pkg.min_stay || 0;
             if (minStay > 0 && nights < minStay) continue;
 
             // Apply package: use package price if set, otherwise percentage discount
