@@ -1,43 +1,53 @@
 
 
-# Fix Content Doubling & Add Brand Voice to Enrichment
+# Add GPS Coordinate Editing & Portfolio Map Enhancements
 
-## Problem 1: Description Doubling
+## Problem
 
-`BuildingIntro` renders `property.description` under "About this place". Then `SpaceDescription` falls back to the same `description` when `space_description` is null (any description > 200 chars). Result: identical text appears twice on the page.
-
-**Fix**: Remove the fallback in `SpaceDescription` — it should only render when `space_description` exists. If there's no enriched content, the section simply doesn't show (BuildingIntro already covers the base description).
-
-## Problem 2: Enrichment Lacks Brand Voice
-
-The `enrich-property-content` edge function extracts dry factual content. Each property already has a `brand_voice` in `rolos_experience_configs` (e.g., "Warm, coastal, family-friendly. Dassiesingel is a peaceful self-catering retreat near the sea..."). This should be fed into the AI prompt so the enriched `space_description` is rewritten with the property's personality — not just scraped verbatim.
-
-**Fix**: Fetch the property's `brand_voice` from `rolos_experience_configs` and inject it into the extraction prompt, instructing the AI to rewrite (not just extract) the space description in that voice.
+1. **Property edit form**: GPS coordinates can only be set via drag-on-map or auto-geocode. There are no manual lat/lng input fields visible alongside the street address — the Google Maps link field only appears when "No street address" is toggled on.
+2. **Property showcase page**: The `InvitationMap` only shows the single property. When the property belongs to a portfolio, it should also show sibling properties as secondary pins, zoomed to fit all.
+3. **Portfolio page map**: Already works with `fitBounds` — just needs properties to actually have GPS coordinates (which this plan enables editing for).
 
 ## Changes
 
-### 1. `src/components/showcase/SpaceDescription.tsx`
-- Remove the description fallback: change line 11 from `spaceDescription || (description && description.length > 200 ? description : null)` to just `spaceDescription`
-- Remove the `description` prop entirely — component only renders enriched content
+### 1. Property Edit Form — Add GPS Coordinate Fields
+**File**: `src/pages/PropertyForm.tsx`
 
-### 2. `src/pages/PropertyShowcase.tsx`
-- Remove the `description` prop from `<SpaceDescription>` (line 1053)
-- Also remove the duplicate `keyHighlights` rendering — they already appear at line 1002-1011, and `SpaceDescription` also renders them
+Below the address grid (after the postal code field, around line 5660), add a row with two small input fields for Latitude and Longitude that are **always visible** (not gated by `noStreetAddress`). These fields:
+- Show the current `latitude` / `longitude` values
+- Allow manual editing (typing exact coordinates)
+- Update `setLatitude` / `setLongitude` on change
+- Mark form as dirty
+- Display alongside a small label like "GPS Override" with a MapPin icon
+- Are positioned between the address fields and the map card (or below the address card as a compact row)
+- The existing map drag + geocode still works — manual entry is just an additional option
 
-### 3. `supabase/functions/enrich-property-content/index.ts`
-- After fetching property data, also fetch `brand_voice` from `rolos_experience_configs` where `property_id` matches and `experience_type = 'brand_kit'`
-- Update the AI prompt to include the brand voice and instruct it to:
-  - **Rewrite** (not just extract) the space description in the property's voice/tone
-  - Weave in the key highlights naturally
-  - Produce evocative, marketing-quality prose — not a dry summary
-  - Keep neighbourhood and getting_around factual but warm
-- Change `force_overwrite` to also apply when the user explicitly triggers enrichment (so re-running actually updates stale content)
+Also: always show the Google Maps link field (not just when `noStreetAddress` is true), so users can paste a Google Maps URL to extract coordinates regardless of whether they have a street address.
+
+### 2. Property Showcase — Show Portfolio Siblings on Map
+**File**: `src/pages/PropertyShowcase.tsx`
+
+After fetching the property data, check if it belongs to a portfolio by querying `property_portfolio_members` → `property_portfolios` → sibling properties (with their name, slug, lat, lng, hero image). Pass these siblings as an optional `portfolioProperties` prop to `InvitationMap`.
+
+**File**: `src/components/showcase/InvitationMap.tsx`
+
+Add an optional `siblingProperties` prop (array of `{ name, slug, lat, lng, heroImage }`). When provided:
+- Extend the map bounds to include all siblings
+- Render secondary markers (smaller, muted color) for each sibling
+- Add InfoWindows with property name + "View" link
+- Zoom to fit all properties instead of just the single property
+
+### 3. Portfolio Map — Show for 1+ Properties
+**File**: `src/components/embed/EmbedPortfolioMap.tsx`
+
+Change the `properties.length < 2` guard to `properties.length < 1` — show the map even for a single property.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/components/showcase/SpaceDescription.tsx` | Remove `description` fallback; only render when `spaceDescription` exists |
-| `src/pages/PropertyShowcase.tsx` | Remove `description` prop from SpaceDescription; remove duplicate key_highlights block |
-| `supabase/functions/enrich-property-content/index.ts` | Fetch brand_voice; rewrite AI prompt to produce editorial prose in the property's tone |
+| `src/pages/PropertyForm.tsx` | Add always-visible lat/lng input fields + always-visible Google Maps link field below address |
+| `src/pages/PropertyShowcase.tsx` | Fetch portfolio siblings; pass to InvitationMap |
+| `src/components/showcase/InvitationMap.tsx` | Add `siblingProperties` prop; render secondary markers; extend bounds |
+| `src/components/embed/EmbedPortfolioMap.tsx` | Change minimum property count from 2 to 1 |
 
