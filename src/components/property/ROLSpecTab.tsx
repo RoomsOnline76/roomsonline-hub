@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Info, Compass, Loader2, Sparkles, Upload, Video, X, Layers } from "lucide-react";
+import { Info, Compass, Loader2, Sparkles, Upload, Video, X, Layers, Globe } from "lucide-react";
 import { CollectionsManager, type Collection } from "./CollectionsManager";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
