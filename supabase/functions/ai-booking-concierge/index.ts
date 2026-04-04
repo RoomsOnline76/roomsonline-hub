@@ -60,6 +60,8 @@ interface ParsedIntent {
   month?: string;
   date_range?: { start: string; end: string };
   preferences?: string[];
+  budget?: { max?: number; min?: number; currency?: string };
+  room_preference?: string;
 }
 
 function parseUserQuery(query: string): ParsedIntent {
