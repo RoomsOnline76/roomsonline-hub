@@ -1,53 +1,38 @@
 
 
-# Add GPS Coordinate Editing & Portfolio Map Enhancements
+# Enrich Portfolio Map with Labels & Nearby Attractions
 
-## Problem
+## What Changes
 
-1. **Property edit form**: GPS coordinates can only be set via drag-on-map or auto-geocode. There are no manual lat/lng input fields visible alongside the street address — the Google Maps link field only appears when "No street address" is toggled on.
-2. **Property showcase page**: The `InvitationMap` only shows the single property. When the property belongs to a portfolio, it should also show sibling properties as secondary pins, zoomed to fit all.
-3. **Portfolio page map**: Already works with `fitBounds` — just needs properties to actually have GPS coordinates (which this plan enables editing for).
+The `EmbedPortfolioMap` currently shows plain colored dots for properties with no labels and no nearby points of interest. The `InvitationMap` (property showcase) already has the full pattern: Google Places nearby search for 4 attractions + 1 eatery, colored markers, legend with tooltips, and grayscale styling.
 
-## Changes
+We will port the attractions/eatery discovery pattern from `InvitationMap` into `EmbedPortfolioMap`, and add floating name labels to each property pin.
 
-### 1. Property Edit Form — Add GPS Coordinate Fields
-**File**: `src/pages/PropertyForm.tsx`
+## Implementation
 
-Below the address grid (after the postal code field, around line 5660), add a row with two small input fields for Latitude and Longitude that are **always visible** (not gated by `noStreetAddress`). These fields:
-- Show the current `latitude` / `longitude` values
-- Allow manual editing (typing exact coordinates)
-- Update `setLatitude` / `setLongitude` on change
-- Mark form as dirty
-- Display alongside a small label like "GPS Override" with a MapPin icon
-- Are positioned between the address fields and the map card (or below the address card as a compact row)
-- The existing map drag + geocode still works — manual entry is just an additional option
+### 1. `src/components/embed/EmbedPortfolioMap.tsx`
 
-Also: always show the Google Maps link field (not just when `noStreetAddress` is true), so users can paste a Google Maps URL to extract coordinates regardless of whether they have a street address.
+**Property labels**: After creating each property's `AdvancedMarkerElement`, add a second `AdvancedMarkerElement` below/beside it as a label — a styled `<div>` with the property name in white text on a dark semi-transparent pill. This gives each pin a persistent visible name.
 
-### 2. Property Showcase — Show Portfolio Siblings on Map
-**File**: `src/pages/PropertyShowcase.tsx`
+**Nearby attractions**: After all property markers are placed, compute the geographic center of the portfolio. Use `google.maps.places.PlacesService.nearbySearch` (same pattern as InvitationMap) to fetch:
+- 4 `tourist_attraction` results within 3km of center, filtered by rating >= 4.0 and >= 10 reviews
+- 1 `restaurant` result within 2km, filtered by rating >= 4.0 and >= 20 reviews
 
-After fetching the property data, check if it belongs to a portfolio by querying `property_portfolio_members` → `property_portfolios` → sibling properties (with their name, slug, lat, lng, hero image). Pass these siblings as an optional `portfolioProperties` prop to `InvitationMap`.
+Render each as a colored circle marker (using the existing `ATTRACTION_COLORS` palette). Keep markers in colour against the already-greyscale map.
 
-**File**: `src/components/showcase/InvitationMap.tsx`
+**Legend**: Add a legend row below the map (like InvitationMap does) showing the 5 attraction names with colored dots. Each is wrapped in a tooltip showing rating, vicinity, and a "View on Maps" link.
 
-Add an optional `siblingProperties` prop (array of `{ name, slug, lat, lng, heroImage }`). When provided:
-- Extend the map bounds to include all siblings
-- Render secondary markers (smaller, muted color) for each sibling
-- Add InfoWindows with property name + "View" link
-- Zoom to fit all properties instead of just the single property
+**InfoWindows**: Clicking an attraction marker opens an InfoWindow with name, rating stars, type label (eatery badge), and Google Maps link.
 
-### 3. Portfolio Map — Show for 1+ Properties
-**File**: `src/components/embed/EmbedPortfolioMap.tsx`
+**Libraries**: Change the script `libraries=marker` to `libraries=marker,places` to enable Places API.
 
-Change the `properties.length < 2` guard to `properties.length < 1` — show the map even for a single property.
+### 2. No other files need changes
+
+The portfolio page (`EmbedPortfolio.tsx`) already passes the correct props. The map styles are already greyscale. This is a self-contained enhancement to one component.
 
 ## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/pages/PropertyForm.tsx` | Add always-visible lat/lng input fields + always-visible Google Maps link field below address |
-| `src/pages/PropertyShowcase.tsx` | Fetch portfolio siblings; pass to InvitationMap |
-| `src/components/showcase/InvitationMap.tsx` | Add `siblingProperties` prop; render secondary markers; extend bounds |
-| `src/components/embed/EmbedPortfolioMap.tsx` | Change minimum property count from 2 to 1 |
+| `src/components/embed/EmbedPortfolioMap.tsx` | Add property name labels, nearby attractions search, attraction markers, legend with tooltips, load Places library |
 
