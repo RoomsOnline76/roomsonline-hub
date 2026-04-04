@@ -1029,6 +1029,28 @@ export default function PropertyShowcase() {
               reviewBadges={reviewData?.badges?.length ? <ShowcaseReviewsBadge badges={reviewData.badges} /> : undefined}
             />
 
+            {/* Announcements */}
+            {property.amenities?.announcements?.length > 0 && (
+              <AnnouncementBanner
+                announcements={property.amenities.announcements}
+                className="py-4"
+              />
+            )}
+
+            {/* Current Specials */}
+            {property.id && (
+              <SpecialsBanner propertyId={property.id} className="py-4" />
+            )}
+
+            {/* Packages */}
+            {property.amenities?.packages?.length > 0 && (
+              <PackageCards
+                packages={property.amenities.packages}
+                className="py-4"
+                onBookPackage={() => handleBookProperty()}
+              />
+            )}
+
             {/* Quick Facts (non-Hostfully — additional context) */}
             {!isHostfullyProperty && proseFacts.length > 0 && (
               <QuietFacts
