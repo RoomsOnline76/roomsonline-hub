@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers } from "lucide-react";
-import { PUBLIC_DOMAIN } from "@/lib/config";
+
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 
 interface SmartBookButtonGeneratorProps {
