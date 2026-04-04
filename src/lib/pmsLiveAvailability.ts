@@ -10,6 +10,8 @@ export interface LiveRoomRate {
   roomName: string;
   minRate: number | null;
   available: boolean;
+  availableByDate: Record<string, number>;
+  ratesByDate: Record<string, number>;
 }
 
 export interface LivePropertyRates {
