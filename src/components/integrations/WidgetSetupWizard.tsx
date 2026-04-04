@@ -77,6 +77,9 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Entry Point Selector */}
+        <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+
         {/* Brand customisation */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">

@@ -264,6 +264,11 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        {/* Entry Point Selector — spans full width */}
+        <div className="lg:col-span-2">
+          <EntryPointSelector propertyId={property.id} value={entryOpts} onChange={setEntryOpts} />
+        </div>
+
         {/* Left: Configuration */}
         <div className="space-y-5">
           {/* Platform (only for button / button_dates) */}
