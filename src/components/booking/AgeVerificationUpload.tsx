@@ -106,9 +106,9 @@ export function AgeVerificationUpload({ special, propertyId, onVerified }: AgeVe
   if (status === "ineligible") {
     return (
       <div className="border border-red-300 bg-red-50 rounded-lg p-3">
-        <div className="flex items-center gap-2">
-          <XCircle className="h-5 w-5 text-red-600" />
-          <div>
+        <div className="flex items-start gap-2">
+          <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+          <div className="flex-1">
             <p className="text-sm font-medium text-red-800">
               Age requirement not met
             </p>
@@ -118,6 +118,30 @@ export function AgeVerificationUpload({ special, propertyId, onVerified }: AgeVe
               {special.max_age ? `Maximum age: ${special.max_age}` : ""}
               {extractedAge ? ` · Detected age: ${extractedAge}` : ""}
             </p>
+            <div className="flex gap-2 mt-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setStatus("idle");
+                    handleFile(file);
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-3 w-3" /> Try again with a clearer photo
+              </Button>
+            </div>
           </div>
         </div>
       </div>
