@@ -254,7 +254,7 @@ export default function EmbedProperty() {
       
       // Also update pmsCacheMap from live data if we got rooms
       if (result.rooms.length > 0) {
-        // Build a supplementary cache from live rates for rooms missing from pms_availability_cache
+        // Merge live per-day data over stale cache — always override
         setPmsCacheMap(prev => {
           const updated = { ...prev };
           for (const liveRoom of result.rooms) {
@@ -264,20 +264,39 @@ export default function EmbedProperty() {
               rt.id === liveRoom.roomTypeId ||
               rt.name === liveRoom.roomName
             );
-            if (matchedRoom && !updated[matchedRoom.id]) {
-              // Only fill in if cache is missing for this room
-              if (liveRoom.minRate != null) {
-                const start = new Date(checkIn);
-                const dates = eachDayOfInterval({ start, end: addDays(start, 13) });
-                const dateMap: Record<string, { available_units: number; rate: number | null }> = {};
-                dates.forEach(d => {
-                  dateMap[format(d, "yyyy-MM-dd")] = {
+            if (!matchedRoom) continue;
+
+            const hasPerDayData = Object.keys(liveRoom.availableByDate).length > 0;
+            
+            if (hasPerDayData) {
+              // Merge per-day live data over existing cache
+              const existing = updated[matchedRoom.id] || {};
+              const merged = { ...existing };
+              for (const [dateStr, units] of Object.entries(liveRoom.availableByDate)) {
+                const liveRate = liveRoom.ratesByDate[dateStr] ?? merged[dateStr]?.rate ?? liveRoom.minRate;
+                merged[dateStr] = {
+                  available_units: units,
+                  rate: liveRate,
+                };
+              }
+              updated[matchedRoom.id] = merged;
+            } else if (liveRoom.minRate != null) {
+              // Fallback: no per-day data, use boolean available + rate
+              const start = new Date(checkIn);
+              const dates = eachDayOfInterval({ start, end: addDays(start, 13) });
+              const existing = updated[matchedRoom.id] || {};
+              const merged = { ...existing };
+              dates.forEach(d => {
+                const ds = format(d, "yyyy-MM-dd");
+                // Override stale zeros when live says available
+                if (liveRoom.available || !merged[ds]) {
+                  merged[ds] = {
                     available_units: liveRoom.available ? 1 : 0,
                     rate: liveRoom.minRate,
                   };
-                });
-                updated[matchedRoom.id] = dateMap;
-              }
+                }
+              });
+              updated[matchedRoom.id] = merged;
             }
           }
           return updated;
