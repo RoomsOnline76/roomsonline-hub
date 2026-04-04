@@ -272,6 +272,7 @@ export default function AdminPortfolios() {
     setBrandLightBgColor(b?.light_bg_color || "");
     setBrandDarkBgColor(b?.dark_bg_color || "");
     setBrandHeroVideoUrl(b?.hero_video_url || "");
+    setPinnedFeaturedIds(b?.pinned_featured_ids || []);
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
