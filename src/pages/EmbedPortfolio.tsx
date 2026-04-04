@@ -411,6 +411,17 @@ export default function EmbedPortfolio() {
     return properties.find(p => p.slug === aiFeatured.property_slug) || null;
   }, [properties, aiFeatured]);
 
+  // Hero video: randomly pick one property's video, only if ALL properties have a video
+  const heroVideo = useMemo(() => {
+    if (properties.length === 0) return null;
+    const allHaveVideo = properties.every(p => !!p.hero_video_url);
+    if (!allHaveVideo) return null;
+    const randomIdx = Math.floor(Math.random() * properties.length);
+    const p = properties[randomIdx];
+    return { url: p.hero_video_url!, name: p.name, slug: p.slug };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [properties.length]);
+
   const handleViewProperty = (slug: string) => {
     const prop = properties.find(p => p.slug === slug);
     const propColor = prop?.brand_primary_color || brandColor;
