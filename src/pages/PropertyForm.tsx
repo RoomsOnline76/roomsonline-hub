@@ -11410,7 +11410,25 @@ export default function PropertyForm() {
                           size="sm"
                           variant="destructive"
                           className="h-7 text-xs"
-                          onClick={() => setIsEditPackageOpen(true)}
+                          disabled={!selectedPackage}
+                          onClick={() => {
+                            if (selectedPackage) {
+                              setPackageForm({
+                                name: selectedPackage.name || "",
+                                description: selectedPackage.description || "",
+                                minimumStay: selectedPackage.minimumStay || 1,
+                                maximumStay: selectedPackage.maximumStay || 1,
+                                season: selectedPackage.season || "",
+                                periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
+                                periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
+                                pricingType: selectedPackage.pricingType || "discount",
+                                isPublic: selectedPackage.isPublic || false,
+                                images: selectedPackage.images || [],
+                              });
+                              setPackageImages(selectedPackage.images || []);
+                              setIsEditPackageOpen(true);
+                            }
+                          }}
                         >
                           Edit Package
                         </Button>
