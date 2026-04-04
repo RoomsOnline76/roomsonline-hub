@@ -1457,6 +1457,140 @@ const Booking = () => {
         console.log('[Booking] Applied', calculatedCharges.length, 'property charges, new total:', runningTotal);
       }
 
+      // Auto-apply matching packages or specials
+      let promoApplied: typeof appliedPromotion = null;
+      if (property && checkIn && checkOut && runningTotal > 0) {
+        const amenitiesData = property.amenities as Record<string, any> | null;
+        const packages = amenitiesData?.packages || [];
+        const bookingCheckIn = checkIn;
+        const bookingCheckOut = checkOut;
+
+        // Check packages first (higher priority)
+        for (const pkg of packages) {
+          if (!pkg.is_active && pkg.is_active !== undefined) continue;
+          const pkgStart = pkg.valid_from || pkg.start_date;
+          const pkgEnd = pkg.valid_until || pkg.end_date;
+          if (!pkgStart || !pkgEnd) continue;
+
+          // Check if booking dates overlap with package period
+          if (bookingCheckIn >= pkgStart && bookingCheckOut <= pkgEnd) {
+            // Check min stay if specified
+            const minStay = pkg.min_nights || pkg.min_stay || 0;
+            if (minStay > 0 && nights < minStay) continue;
+
+            // Apply package: use package price if set, otherwise percentage discount
+            if (pkg.package_price && pkg.package_price > 0) {
+              const discount = runningTotal - pkg.package_price;
+              if (discount > 0) {
+                promoApplied = {
+                  name: pkg.name || 'Package Deal',
+                  type: 'package',
+                  discount,
+                  description: pkg.description,
+                };
+                lineItems.push({
+                  description: `📦 ${pkg.name || 'Package Deal'}`,
+                  nights: 0,
+                  quantity: 1,
+                  unitPrice: -discount,
+                  total: -discount,
+                });
+                runningTotal -= discount;
+              }
+            } else if (pkg.discount_percentage && pkg.discount_percentage > 0) {
+              const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+              const discount = Math.round(accommodationSubtotal * (pkg.discount_percentage / 100));
+              if (discount > 0) {
+                promoApplied = {
+                  name: pkg.name || 'Package Deal',
+                  type: 'package',
+                  discount,
+                  description: pkg.description,
+                };
+                lineItems.push({
+                  description: `📦 ${pkg.name || 'Package Deal'} (-${pkg.discount_percentage}%)`,
+                  nights: 0,
+                  quantity: 1,
+                  unitPrice: -discount,
+                  total: -discount,
+                });
+                runningTotal -= discount;
+              }
+            }
+            break; // Only apply first matching package
+          }
+        }
+
+        // Check specials from property_specials table if no package applied
+        if (!promoApplied) {
+          try {
+            const { data: specials } = await supabase
+              .from("property_specials" as any)
+              .select("*")
+              .eq("property_id", property.id)
+              .eq("is_active", true)
+              .lte("valid_from", bookingCheckOut)
+              .gte("valid_until", bookingCheckIn);
+
+            if (specials && specials.length > 0) {
+              for (const special of specials as any[]) {
+                // Check min stay
+                const minStay = special.min_stay || 0;
+                if (minStay > 0 && nights < minStay) continue;
+
+                // Check room applicability
+                if (special.applicable_room_ids?.length > 0) {
+                  const bookedRoomIds = rooms.map(r => r.roomTypeId);
+                  const hasMatchingRoom = bookedRoomIds.some(id => 
+                    special.applicable_room_ids.includes(id)
+                  );
+                  if (!hasMatchingRoom) continue;
+                }
+
+                // Check booking dates fall within the special's book range
+                if (special.book_from && bookingCheckIn < special.book_from) continue;
+                if (special.book_until && bookingCheckIn > special.book_until) continue;
+
+                const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+                let discount = 0;
+
+                if (special.discount_type === 'percentage' && special.discount_value > 0) {
+                  discount = Math.round(accommodationSubtotal * (special.discount_value / 100));
+                } else if (special.discount_type === 'fixed_amount' && special.discount_value > 0) {
+                  discount = special.discount_value;
+                } else if (special.discount_type === 'fixed_price' && special.discount_value > 0) {
+                  discount = Math.max(0, accommodationSubtotal - special.discount_value);
+                }
+
+                if (discount > 0) {
+                  promoApplied = {
+                    name: special.title || special.name || 'Special Offer',
+                    type: 'special',
+                    discount,
+                    description: special.description,
+                  };
+                  const discountLabel = special.discount_type === 'percentage' 
+                    ? `(-${special.discount_value}%)` 
+                    : '';
+                  lineItems.push({
+                    description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                    nights: 0,
+                    quantity: 1,
+                    unitPrice: -discount,
+                    total: -discount,
+                  });
+                  runningTotal -= discount;
+                  break; // Only apply first matching special
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[Booking] Failed to fetch specials:', err);
+          }
+        }
+      }
+      setAppliedPromotion(promoApplied);
+
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
     } catch (error: any) {
