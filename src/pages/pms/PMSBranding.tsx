@@ -271,6 +271,7 @@ export default function PMSBranding() {
           muted_text_color: b.muted_text_color || "",
           light_bg_color: b.light_bg_color || "",
           dark_bg_color: b.dark_bg_color || "",
+          hero_video_url: b.hero_video_url || "",
         });
       }
       setPortfolioLoaded(true);
