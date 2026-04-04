@@ -2728,6 +2728,11 @@ export default function PropertyForm() {
     periodFrom: undefined as Date | undefined,
     periodTo: undefined as Date | undefined,
     pricingType: "discount",
+    discountPercent: 0,
+    fixedAmountOff: 0,
+    fixedPrice: 0,
+    package_price: 0,
+    discount_percentage: 0,
     isPublic: false,
     images: [] as string[],
   });
