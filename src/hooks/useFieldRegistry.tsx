@@ -57,8 +57,8 @@ interface PropertyFieldMap {
 function flattenFieldMap(fieldMap: PropertyFieldMap): Omit<FieldRegistryEntry, "id" | "created_at" | "updated_at">[] {
   const entries: Omit<FieldRegistryEntry, "id" | "created_at" | "updated_at">[] = [];
 
-  for (const [tabKey, tab] of Object.entries(fieldMap.tabs)) {
-    for (const [sectionKey, section] of Object.entries(tab.sections)) {
+  for (const [tabKey, tab] of Object.entries(fieldMap.tabs || {})) {
+    for (const [sectionKey, section] of Object.entries(tab.sections || {})) {
       for (const field of section.fields) {
         // Generate a unique field_key from stateVariable
         const fieldKey = field.stateVariable
