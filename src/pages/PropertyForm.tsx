@@ -11650,7 +11650,7 @@ export default function PropertyForm() {
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Edit Package</DialogTitle>
+              <DialogTitle>{selectedPackage ? "Edit Package" : "New Package"}</DialogTitle>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={packageForm.isPublic}
