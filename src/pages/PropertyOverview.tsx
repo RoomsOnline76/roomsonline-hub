@@ -264,11 +264,11 @@ const PropertyOverview = () => {
     return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
   };
 
-  // Helper to check if property is sandbox
+  // Helper to check if property is sandbox/test
   const isSandboxProperty = (property: any): boolean => {
     const name = property.name || "";
     const metadata = property.external_metadata as any;
-    return name.startsWith("[SANDBOX]") || metadata?.is_sandbox === true;
+    return name.startsWith("[SANDBOX]") || metadata?.is_sandbox === true || property.is_test_property === true;
   };
 
   // Filter and sort active properties
