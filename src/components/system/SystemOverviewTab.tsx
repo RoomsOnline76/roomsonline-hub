@@ -217,7 +217,17 @@ export function SystemOverviewTab() {
   return (
     <div className="space-y-6">
       {/* Action buttons */}
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-4">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={dailyReportEnabled ?? false}
+            onCheckedChange={handleToggleDailyReport}
+            disabled={dailyReportEnabled === null || togglingReport}
+          />
+          <Label className="text-sm text-muted-foreground">
+            Daily Report Email
+          </Label>
+        </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
