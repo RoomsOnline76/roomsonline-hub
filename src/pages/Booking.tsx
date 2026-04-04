@@ -1498,7 +1498,8 @@ const Booking = () => {
                 });
                 runningTotal -= discount;
               }
-            } else if (pkg.discount_percentage && pkg.discount_percentage > 0) {
+            } else if ((pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0)) > 0 && !pkg.package_price) {
+              const pctVal = pkg.discount_percentage || pkg.discountPercent || (pkg.pricingType === 'discount' ? 10 : 0);
               const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
               const discount = Math.round(accommodationSubtotal * (pkg.discount_percentage / 100));
               if (discount > 0) {
