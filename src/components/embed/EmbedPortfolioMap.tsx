@@ -18,16 +18,17 @@ interface EmbedPortfolioMapProps {
 }
 
 const ATTRACTION_COLORS = ['#D4AF37', '#A0A0A0', '#CD7F32', '#4DB6AC', '#7986CB'];
+const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-embed-portfolio-script';
 
 const mapStyles = [
-  { elementType: "geometry", stylers: [{ saturation: -100 }] },
-  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
-  { featureType: "poi", elementType: "geometry", stylers: [{ color: "#eeeeee" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#dadada" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9c9c9" }] },
+  { elementType: 'geometry', stylers: [{ saturation: -100 }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -60,206 +61,309 @@ function getPlaceTypeLabel(types?: string[]): string {
   return 'Point of interest';
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function createPropertyMarkerIcon(name: string, brandColor: string) {
+  const safeName = escapeHtml(name);
+  const labelWidth = Math.max(92, Math.min(240, name.length * 7 + 24));
+  const width = 48 + labelWidth;
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="32" viewBox="0 0 ${width} 32">
+      <circle cx="16" cy="16" r="14" fill="${brandColor}" stroke="#ffffff" stroke-width="3" />
+      <path d="M16 8.5c-2.485 0-4.5 2.015-4.5 4.5c0 3.375 4.5 8 4.5 8s4.5-4.625 4.5-8c0-2.485-2.015-4.5-4.5-4.5zm0 6.2a1.7 1.7 0 1 1 0-3.4a1.7 1.7 0 0 1 0 3.4z" fill="#ffffff"/>
+      <rect x="40" y="4" width="${labelWidth}" height="24" rx="12" fill="${brandColor}" fill-opacity="0.94" />
+      <text x="52" y="20" fill="#ffffff" font-size="11" font-weight="600" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">${safeName}</text>
+    </svg>
+  `;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(width, 32),
+    anchor: new google.maps.Point(16, 16),
+  };
+}
+
+async function loadGoogleMapsScript(apiKey: string) {
+  if (window.google?.maps) return;
+
+  const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
+  if (existingScript) {
+    if (existingScript.dataset.loaded === 'true') return;
+
+    await new Promise<void>((resolve, reject) => {
+      const handleLoad = () => {
+        existingScript.dataset.loaded = 'true';
+        resolve();
+      };
+      const handleError = () => reject(new Error('Failed to load Google Maps script'));
+
+      existingScript.addEventListener('load', handleLoad, { once: true });
+      existingScript.addEventListener('error', handleError, { once: true });
+    });
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.id = GOOGLE_MAPS_SCRIPT_ID;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    };
+    script.onerror = () => reject(new Error('Failed to load Google Maps script'));
+    document.head.appendChild(script);
+  });
+}
+
+function buildPropertyInfoContent(prop: MapProperty, brandColor: string, onNavigate: () => void) {
+  const container = document.createElement('div');
+  container.style.cssText = 'font-family:system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;min-width:180px;max-width:240px;';
+
+  if (prop.heroImage) {
+    const image = document.createElement('img');
+    image.src = prop.heroImage;
+    image.alt = prop.name;
+    image.style.cssText = 'width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0;display:block;';
+    container.appendChild(image);
+  }
+
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:10px;';
+
+  const title = document.createElement('div');
+  title.textContent = prop.name;
+  title.style.cssText = 'font-weight:600;font-size:14px;color:#1a1a1a;';
+  body.appendChild(title);
+
+  const button = document.createElement('button');
+  button.textContent = 'View & Book';
+  button.type = 'button';
+  button.style.cssText = `margin-top:8px;padding:4px 12px;font-size:12px;background:${brandColor};color:white;border:none;border-radius:6px;cursor:pointer;font-weight:500;`;
+  button.addEventListener('click', onNavigate);
+  body.appendChild(button);
+
+  container.appendChild(body);
+  return container;
+}
+
 export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: EmbedPortfolioMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const { apiKey, isLoading: keyLoading } = useGoogleMapsApiKey();
+  const propertyMarkersRef = useRef<google.maps.Marker[]>([]);
+  const { apiKey, isLoading: keyLoading, isReady: apiKeyReady } = useGoogleMapsApiKey();
+  const onPropertyClickRef = useRef(onPropertyClick);
   const [attractions, setAttractions] = useState<google.maps.places.PlaceResult[]>([]);
+  const [mapError, setMapError] = useState<string | null>(null);
   const attractionMarkersRef = useRef<google.maps.Marker[]>([]);
   const attractionInfoWindowRef = useRef<google.maps.InfoWindow | null>(null);
 
   useEffect(() => {
-    if (!apiKey || !mapRef.current || properties.length === 0) return;
+    onPropertyClickRef.current = onPropertyClick;
+  }, [onPropertyClick]);
+
+  useEffect(() => {
+    if (!apiKeyReady || !apiKey || !mapRef.current || properties.length === 0) return;
+
+    let cancelled = false;
+    const previousAuthFailure = (window as Window & { gm_authFailure?: () => void }).gm_authFailure;
+
+    (window as Window & { gm_authFailure?: () => void }).gm_authFailure = () => {
+      if (!cancelled) {
+        setMapError('Google Maps could not be authorized for this site.');
+      }
+      previousAuthFailure?.();
+    };
 
     const init = async () => {
-      if (!(window as any).google?.maps) {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,places&v=weekly`;
-        script.async = true;
-        await new Promise<void>((res, rej) => {
-          script.onload = () => res();
-          script.onerror = rej;
-          document.head.appendChild(script);
-        });
-      }
+      try {
+        setMapError(null);
+        await loadGoogleMapsScript(apiKey);
+        if (cancelled || !mapRef.current || !window.google?.maps) return;
 
-      const { Map } = await google.maps.importLibrary("maps") as google.maps.MapsLibrary;
-      const { AdvancedMarkerElement } = await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+        const bounds = new google.maps.LatLngBounds();
+        properties.forEach((property) => bounds.extend({ lat: property.lat, lng: property.lng }));
 
-      const bounds = new google.maps.LatLngBounds();
-      properties.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
-
-      const map = new Map(mapRef.current!, {
-        center: bounds.getCenter(),
-        zoom: 12,
-        disableDefaultUI: true,
-        zoomControl: true,
-        mapId: 'portfolio-map',
-      });
-      map.fitBounds(bounds, 60);
-      mapInstanceRef.current = map;
-
-      let openInfoWindow: google.maps.InfoWindow | null = null;
-
-      properties.forEach(prop => {
-        const pin = document.createElement('div');
-        pin.style.cssText = `width:32px;height:32px;border-radius:50%;background:${brandColor};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;`;
-        pin.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
-
-        const marker = new AdvancedMarkerElement({
-          map,
-          position: { lat: prop.lat, lng: prop.lng },
-          content: pin,
-          title: prop.name,
-        });
-
-        // Label offset to the right of pin
-        const labelWrapper = document.createElement('div');
-        labelWrapper.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;transform:translate(20px, -14px);pointer-events:none;`;
-        const label = document.createElement('div');
-        label.style.cssText = `
-          background: ${brandColor};
-          color: white;
-          font-size: 11px;
-          font-weight: 600;
-          font-family: system-ui, sans-serif;
-          padding: 3px 8px;
-          border-radius: 10px;
-          white-space: nowrap;
-          pointer-events: none;
-          opacity: 0.92;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-        `;
-        label.textContent = prop.name;
-        labelWrapper.appendChild(label);
-
-        new AdvancedMarkerElement({
-          map,
-          position: { lat: prop.lat, lng: prop.lng },
-          content: labelWrapper,
-        });
-
-        const infoContent = `
-          <div style="font-family:system-ui;min-width:180px;max-width:240px;">
-            ${prop.heroImage ? `<img src="${prop.heroImage}" style="width:100%;height:100px;object-fit:cover;border-radius:6px 6px 0 0;"/>` : ''}
-            <div style="padding:10px;">
-              <div style="font-weight:600;font-size:14px;color:#1a1a1a;">${prop.name}</div>
-              <button onclick="window.__portfolioNav__('${prop.slug}')" style="margin-top:8px;padding:4px 12px;font-size:12px;background:${brandColor};color:white;border:none;border-radius:6px;cursor:pointer;font-weight:500;">View & Book</button>
-            </div>
-          </div>`;
-
-        const infoWindow = new google.maps.InfoWindow({ content: infoContent });
-
-        marker.addListener('click', () => {
-          openInfoWindow?.close();
-          infoWindow.open({ anchor: marker, map });
-          openInfoWindow = infoWindow;
-        });
-      });
-
-      (window as any).__portfolioNav__ = (slug: string) => onPropertyClick(slug);
-
-      // Fetch nearby attractions around portfolio center
-      if (window.google?.maps?.places) {
         const center = bounds.getCenter();
-        const service = new google.maps.places.PlacesService(map);
+        const map = new google.maps.Map(mapRef.current, {
+          center,
+          zoom: properties.length === 1 ? 14 : 12,
+          disableDefaultUI: true,
+          zoomControl: true,
+          streetViewControl: false,
+          fullscreenControl: false,
+          mapTypeControl: false,
+          styles: mapStyles,
+        });
 
-        const attractionsReq: google.maps.places.PlaceSearchRequest = {
-          location: center,
-          radius: 3000,
-          type: 'tourist_attraction',
-        };
+        if (properties.length === 1) {
+          map.setCenter({ lat: properties[0].lat, lng: properties[0].lng });
+          map.setZoom(14);
+        } else {
+          map.fitBounds(bounds, 60);
+        }
 
-        const eateryReq: google.maps.places.PlaceSearchRequest = {
-          location: center,
-          radius: 2000,
-          type: 'restaurant',
-        };
+        mapInstanceRef.current = map;
 
-        let attractionResults: google.maps.places.PlaceResult[] = [];
+        let openInfoWindow: google.maps.InfoWindow | null = null;
 
-        service.nearbySearch(attractionsReq, (results, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-            attractionResults = results
-              .filter(r => r.rating && r.user_ratings_total && r.user_ratings_total >= 10)
-              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-              .slice(0, 4);
-          }
+        properties.forEach((prop) => {
+          const marker = new google.maps.Marker({
+            map,
+            position: { lat: prop.lat, lng: prop.lng },
+            title: prop.name,
+            icon: createPropertyMarkerIcon(prop.name, brandColor),
+            zIndex: 200,
+          });
 
-          service.nearbySearch(eateryReq, (eateryResults, eateryStatus) => {
-            let eatery: google.maps.places.PlaceResult | null = null;
-            if (eateryStatus === google.maps.places.PlacesServiceStatus.OK && eateryResults) {
-              eatery = eateryResults
-                .filter(r => r.rating && r.rating >= 4.0 && r.user_ratings_total && r.user_ratings_total >= 20)
-                .sort((a, b) => (b.rating || 0) - (a.rating || 0))[0] || null;
-            }
+          propertyMarkersRef.current.push(marker);
 
-            const combined = [...attractionResults];
-            if (eatery) combined.push(eatery);
-            setAttractions(combined);
+          const infoWindow = new google.maps.InfoWindow({
+            content: buildPropertyInfoContent(prop, brandColor, () => onPropertyClickRef.current(prop.slug)),
+          });
 
-            if (!attractionInfoWindowRef.current) {
-              attractionInfoWindowRef.current = new google.maps.InfoWindow();
-            }
-
-            const extBounds = new google.maps.LatLngBounds();
-            properties.forEach(p => extBounds.extend({ lat: p.lat, lng: p.lng }));
-
-            combined.forEach((place, index) => {
-              if (!place.geometry?.location) return;
-              extBounds.extend(place.geometry.location);
-
-              const typeLabel = getPlaceTypeLabel(place.types as string[]);
-
-              const aMarker = new google.maps.Marker({
-                position: place.geometry.location,
-                map,
-                title: place.name,
-                icon: {
-                  path: google.maps.SymbolPath.CIRCLE,
-                  fillColor: ATTRACTION_COLORS[index],
-                  fillOpacity: 0.9,
-                  strokeColor: '#ffffff',
-                  strokeWeight: 2,
-                  scale: 8,
-                },
-                zIndex: 100 + index,
-              });
-
-              const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
-
-              aMarker.addListener('click', () => {
-                attractionInfoWindowRef.current?.setContent(`
-                  <div style="font-family:system-ui,sans-serif;padding:8px 12px;max-width:220px;">
-                    <p style="font-weight:600;font-size:13px;margin:0 0 2px;color:#111;">${place.name}</p>
-                    <p style="font-size:11px;color:#666;margin:0 0 4px;">${typeLabel}</p>
-                    <p style="font-size:12px;color:${ATTRACTION_COLORS[index]};margin:0 0 4px;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
-                    ${place.vicinity ? `<p style="font-size:11px;color:#888;margin:0 0 6px;">${place.vicinity}</p>` : ''}
-                    <a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" target="_blank" style="font-size:11px;color:#0066cc;text-decoration:none;">View on Maps →</a>
-                  </div>
-                `);
-                attractionInfoWindowRef.current?.open(map, aMarker);
-              });
-
-              attractionMarkersRef.current.push(aMarker);
-            });
-
-            if (combined.length > 0) {
-              map.fitBounds(extBounds, 60);
-            }
+          marker.addListener('click', () => {
+            openInfoWindow?.close();
+            infoWindow.open({ anchor: marker, map });
+            openInfoWindow = infoWindow;
           });
         });
+
+        if (window.google?.maps?.places) {
+          try {
+            const service = new google.maps.places.PlacesService(map);
+
+            const attractionsReq: google.maps.places.PlaceSearchRequest = {
+              location: center,
+              radius: 3000,
+              type: 'tourist_attraction',
+            };
+
+            const eateryReq: google.maps.places.PlaceSearchRequest = {
+              location: center,
+              radius: 2000,
+              type: 'restaurant',
+            };
+
+            let attractionResults: google.maps.places.PlaceResult[] = [];
+
+            service.nearbySearch(attractionsReq, (results, status) => {
+              if (cancelled) return;
+
+              if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+                attractionResults = results
+                  .filter((result) => result.rating && result.user_ratings_total && result.user_ratings_total >= 10)
+                  .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+                  .slice(0, 4);
+              }
+
+              service.nearbySearch(eateryReq, (eateryResults, eateryStatus) => {
+                if (cancelled) return;
+
+                let eatery: google.maps.places.PlaceResult | null = null;
+                if (eateryStatus === google.maps.places.PlacesServiceStatus.OK && eateryResults) {
+                  eatery =
+                    eateryResults
+                      .filter((result) => result.rating && result.rating >= 4.0 && result.user_ratings_total && result.user_ratings_total >= 20)
+                      .sort((a, b) => (b.rating || 0) - (a.rating || 0))[0] || null;
+                }
+
+                const combined = [...attractionResults];
+                if (eatery) combined.push(eatery);
+                setAttractions(combined);
+
+                if (!attractionInfoWindowRef.current) {
+                  attractionInfoWindowRef.current = new google.maps.InfoWindow();
+                }
+
+                const extendedBounds = new google.maps.LatLngBounds();
+                properties.forEach((property) => extendedBounds.extend({ lat: property.lat, lng: property.lng }));
+
+                combined.forEach((place, index) => {
+                  if (!place.geometry?.location) return;
+                  extendedBounds.extend(place.geometry.location);
+
+                  const typeLabel = getPlaceTypeLabel(place.types as string[]);
+
+                  const attractionMarker = new google.maps.Marker({
+                    position: place.geometry.location,
+                    map,
+                    title: place.name,
+                    icon: {
+                      path: google.maps.SymbolPath.CIRCLE,
+                      fillColor: ATTRACTION_COLORS[index],
+                      fillOpacity: 0.9,
+                      strokeColor: '#ffffff',
+                      strokeWeight: 2,
+                      scale: 8,
+                    },
+                    zIndex: 100 + index,
+                  });
+
+                  const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
+
+                  attractionMarker.addListener('click', () => {
+                    attractionInfoWindowRef.current?.setContent(`
+                      <div style="font-family:system-ui,sans-serif;padding:8px 12px;max-width:220px;">
+                        <p style="font-weight:600;font-size:13px;margin:0 0 2px;color:#111;">${escapeHtml(place.name || 'Nearby spot')}</p>
+                        <p style="font-size:11px;color:#666;margin:0 0 4px;">${escapeHtml(typeLabel)}</p>
+                        <p style="font-size:12px;color:${ATTRACTION_COLORS[index]};margin:0 0 4px;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
+                        ${place.vicinity ? `<p style="font-size:11px;color:#888;margin:0 0 6px;">${escapeHtml(place.vicinity)}</p>` : ''}
+                        ${place.place_id ? `<a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#0066cc;text-decoration:none;">View on Maps →</a>` : ''}
+                      </div>
+                    `);
+                    attractionInfoWindowRef.current?.open(map, attractionMarker);
+                  });
+
+                  attractionMarkersRef.current.push(attractionMarker);
+                });
+
+                if (combined.length > 0 && properties.length > 1) {
+                  map.fitBounds(extendedBounds, 60);
+                }
+              });
+            });
+          } catch (error) {
+            console.warn('Nearby places could not be loaded for the portfolio map.', error);
+            setAttractions([]);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize portfolio map:', error);
+        if (!cancelled) {
+          setMapError('Failed to load the map.');
+        }
       }
     };
 
-    init().catch(console.error);
+    init();
 
     return () => {
-      delete (window as any).__portfolioNav__;
-      attractionMarkersRef.current.forEach(m => m.setMap(null));
+      cancelled = true;
+      (window as Window & { gm_authFailure?: () => void }).gm_authFailure = previousAuthFailure;
+      propertyMarkersRef.current.forEach((marker) => marker.setMap(null));
+      propertyMarkersRef.current = [];
+      attractionMarkersRef.current.forEach((marker) => marker.setMap(null));
       attractionMarkersRef.current = [];
+      attractionInfoWindowRef.current?.close();
+      attractionInfoWindowRef.current = null;
+      mapInstanceRef.current = null;
+      setAttractions([]);
+      if (mapRef.current) {
+        mapRef.current.innerHTML = '';
+      }
     };
-  }, [apiKey, properties, brandColor, onPropertyClick]);
+  }, [apiKey, apiKeyReady, properties, brandColor]);
 
   if (keyLoading || !apiKey) {
     return (
@@ -277,49 +381,63 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         <MapPin className="h-4 w-4" style={{ color: brandColor }} />
         <h2 className="text-sm font-semibold text-gray-900">Our Locations</h2>
       </div>
-      <div
-        ref={mapRef}
-        className="w-full h-[300px] sm:h-[400px] rounded-xl overflow-hidden border border-gray-200"
-      />
-      {attractions.length > 0 && (
+
+      {mapError ? (
+        <div className="w-full h-[300px] sm:h-[400px] rounded-xl border border-border bg-muted/40 flex items-center justify-center px-6 text-center">
+          <div className="space-y-2">
+            <MapPin className="h-6 w-6 mx-auto text-muted-foreground" />
+            <p className="text-sm font-medium text-foreground">Map unavailable</p>
+            <p className="text-xs text-muted-foreground">{mapError}</p>
+          </div>
+        </div>
+      ) : (
+        <div
+          ref={mapRef}
+          className="w-full h-[300px] sm:h-[400px] rounded-xl overflow-hidden border border-gray-200"
+        />
+      )}
+
+      {attractions.length > 0 && !mapError && (
         <div className="mt-3 px-1">
           <p className="text-xs font-medium text-gray-500 mb-2">Nearby:</p>
           <TooltipProvider>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500">
-              {attractions.slice(0, 5).map((a, i) => {
-                const typeLabel = getPlaceTypeLabel(a.types as string[]);
+              {attractions.slice(0, 5).map((attraction, index) => {
+                const typeLabel = getPlaceTypeLabel(attraction.types as string[]);
                 return (
-                  <Tooltip key={a.place_id || i}>
+                  <Tooltip key={attraction.place_id || index}>
                     <TooltipTrigger asChild>
                       <span className="flex items-center gap-1.5 cursor-default">
                         <span
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: ATTRACTION_COLORS[i] }}
+                          style={{ backgroundColor: ATTRACTION_COLORS[index] }}
                         />
-                        <span className="truncate max-w-[160px]">{a.name}</span>
-                        {a.vicinity && (
-                          <span className="text-gray-400 truncate max-w-[120px] hidden sm:inline">· {a.vicinity}</span>
+                        <span className="truncate max-w-[160px]">{attraction.name}</span>
+                        {attraction.vicinity && (
+                          <span className="text-gray-400 truncate max-w-[120px] hidden sm:inline">· {attraction.vicinity}</span>
                         )}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[240px]">
-                      <p className="font-semibold text-xs">{a.name}</p>
+                      <p className="font-semibold text-xs">{attraction.name}</p>
                       <p className="text-xs text-gray-400">{typeLabel}</p>
-                      {a.rating && (
-                        <p className="text-xs" style={{ color: ATTRACTION_COLORS[i] }}>
-                          {'★'.repeat(Math.round(a.rating))} {a.rating.toFixed(1)}
-                          {a.user_ratings_total ? ` (${a.user_ratings_total})` : ''}
+                      {attraction.rating && (
+                        <p className="text-xs" style={{ color: ATTRACTION_COLORS[index] }}>
+                          {'★'.repeat(Math.round(attraction.rating))} {attraction.rating.toFixed(1)}
+                          {attraction.user_ratings_total ? ` (${attraction.user_ratings_total})` : ''}
                         </p>
                       )}
-                      {a.vicinity && <p className="text-xs text-gray-400 mt-0.5">{a.vicinity}</p>}
-                      <a
-                        href={`https://www.google.com/maps/place/?q=place_id:${a.place_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 mt-1 inline-block"
-                      >
-                        View on Maps →
-                      </a>
+                      {attraction.vicinity && <p className="text-xs text-gray-400 mt-0.5">{attraction.vicinity}</p>}
+                      {attraction.place_id && (
+                        <a
+                          href={`https://www.google.com/maps/place/?q=place_id:${attraction.place_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 mt-1 inline-block"
+                        >
+                          View on Maps →
+                        </a>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 );
