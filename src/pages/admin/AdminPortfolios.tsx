@@ -250,6 +250,7 @@ export default function AdminPortfolios() {
     setBrandLightBgColor("");
     setBrandDarkBgColor("");
     setBrandHeroVideoUrl("");
+    setPinnedFeaturedIds([]);
     setReviewIds({});
   };
 
