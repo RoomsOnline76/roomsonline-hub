@@ -1,4 +1,5 @@
 import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { AnnouncementBanner } from "@/components/showcase/AnnouncementBanner";
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { applyBrandToDocument, saveBrandToSession, type PropertyBrand } from "@/lib/brandOverride";
 import { useQuery, useMutation } from "@tanstack/react-query";
