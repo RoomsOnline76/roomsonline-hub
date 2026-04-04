@@ -4003,7 +4003,7 @@ export default function PropertyForm() {
           season_rates: seasonRates,
           pms_rate_types: pmsRateTypes,
           addons: addons,
-          packages: packages,
+          packages: packages.map(normalizePackage),
           announcements: announcements,
           templates: {
             selected_template: selectedTemplate,
