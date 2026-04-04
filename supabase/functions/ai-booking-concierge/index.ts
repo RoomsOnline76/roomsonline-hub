@@ -613,7 +613,7 @@ serve(async (req) => {
 
   try {
     const body: ConciergeRequest = await req.json();
-    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count } = body;
+    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count, conversation_history } = body;
 
     if (!property_id || !user_query) {
       return new Response(
