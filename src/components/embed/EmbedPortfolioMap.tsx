@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useGoogleMapsApiKey } from '@/hooks/useFeatureFlags';
 import { MapPin, Loader2 } from 'lucide-react';
 
