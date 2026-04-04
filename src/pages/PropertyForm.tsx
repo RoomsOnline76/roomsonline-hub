@@ -55,6 +55,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { StarRating } from "@/components/StarRating";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
@@ -2718,6 +2719,7 @@ export default function PropertyForm() {
   const [packages, setPackages] = useState<any[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [isPackageImagesOpen, setIsPackageImagesOpen] = useState(false);
   const [packageDialogTab, setPackageDialogTab] = useState("edit");
   const [packageForm, setPackageForm] = useState({
@@ -5672,24 +5674,43 @@ export default function PropertyForm() {
                               <Label htmlFor="country" className="text-xs">
                                 Country *
                               </Label>
-                              <Select
-                                value={formData.country}
-                                onValueChange={(value) => handleInputChange("country", value)}
-                              >
-                                <SelectTrigger
-                                  id="country"
-                                  className={cn("h-7 text-xs", getPMSFieldClass("country", selectedPMS))}
-                                  disabled={isFieldPopulatedByPMS("country", selectedPMS)}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="South Africa">South Africa</SelectItem>
-                                  <SelectItem value="United States">United States</SelectItem>
-                                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
-                                  <SelectItem value="Australia">Australia</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={countryOpen}
+                                    className={cn("h-7 text-xs w-full justify-between font-normal", getPMSFieldClass("country", selectedPMS))}
+                                    disabled={isFieldPopulatedByPMS("country", selectedPMS)}
+                                  >
+                                    {formData.country || "Select country..."}
+                                    <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Search country..." />
+                                    <CommandList>
+                                      <CommandEmpty>No country found.</CommandEmpty>
+                                      <CommandGroup>
+                                        {COUNTRY_OPTIONS.map((c) => (
+                                          <CommandItem
+                                            key={c.value}
+                                            value={c.label}
+                                            onSelect={() => {
+                                              handleInputChange("country", c.label);
+                                              setCountryOpen(false);
+                                            }}
+                                          >
+                                            <Check className={cn("mr-2 h-3 w-3", formData.country === c.label ? "opacity-100" : "opacity-0")} />
+                                            {c.label}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
                             </div>
                             {/* Postal Code */}
                             <div className="flex flex-col gap-1">
