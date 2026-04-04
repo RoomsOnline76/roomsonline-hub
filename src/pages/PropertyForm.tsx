@@ -1114,7 +1114,7 @@ export default function PropertyForm() {
         .from("hostfully_room_types")
         .select("*")
         .eq("property_id", propertyId)
-        .eq("is_active", true);
+        .order("name");
 
       if (!refreshError && refreshedRooms && refreshedRooms.length > 0) {
         // Convert DB format to UI state format
