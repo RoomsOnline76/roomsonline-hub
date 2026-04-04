@@ -2,18 +2,14 @@ import { motion } from "framer-motion";
 
 interface SpaceDescriptionProps {
   spaceDescription?: string | null;
-  description?: string | null;
   keyHighlights?: string[] | null;
 }
 
-export function SpaceDescription({ spaceDescription, description, keyHighlights }: SpaceDescriptionProps) {
-  // Use space_description first, fall back to long description
-  const content = spaceDescription || (description && description.length > 200 ? description : null);
-  
-  if (!content && (!keyHighlights || keyHighlights.length === 0)) return null;
+export function SpaceDescription({ spaceDescription, keyHighlights }: SpaceDescriptionProps) {
+  if (!spaceDescription && (!keyHighlights || keyHighlights.length === 0)) return null;
 
   // Split content into paragraphs
-  const paragraphs = content ? content.split(/\n\n|\n/).filter((p: string) => p.trim().length > 0) : [];
+  const paragraphs = spaceDescription ? spaceDescription.split(/\n\n|\n/).filter((p: string) => p.trim().length > 0) : [];
 
   return (
     <motion.section
