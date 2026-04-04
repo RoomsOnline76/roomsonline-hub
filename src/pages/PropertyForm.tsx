@@ -11367,7 +11367,23 @@ export default function PropertyForm() {
                             size="sm"
                             variant="ghost"
                             className="h-5 w-5 p-0"
-                            onClick={() => setIsEditPackageOpen(true)}
+                            onClick={() => {
+                              setSelectedPackage(null);
+                              setPackageForm({
+                                name: "",
+                                description: "",
+                                minimumStay: 1,
+                                maximumStay: 1,
+                                season: "",
+                                periodFrom: undefined,
+                                periodTo: undefined,
+                                pricingType: "discount",
+                                isPublic: false,
+                                images: [],
+                              });
+                              setPackageImages([]);
+                              setIsEditPackageOpen(true);
+                            }}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
@@ -11410,7 +11426,25 @@ export default function PropertyForm() {
                           size="sm"
                           variant="destructive"
                           className="h-7 text-xs"
-                          onClick={() => setIsEditPackageOpen(true)}
+                          disabled={!selectedPackage}
+                          onClick={() => {
+                            if (selectedPackage) {
+                              setPackageForm({
+                                name: selectedPackage.name || "",
+                                description: selectedPackage.description || "",
+                                minimumStay: selectedPackage.minimumStay || 1,
+                                maximumStay: selectedPackage.maximumStay || 1,
+                                season: selectedPackage.season || "",
+                                periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
+                                periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
+                                pricingType: selectedPackage.pricingType || "discount",
+                                isPublic: selectedPackage.isPublic || false,
+                                images: selectedPackage.images || [],
+                              });
+                              setPackageImages(selectedPackage.images || []);
+                              setIsEditPackageOpen(true);
+                            }
+                          }}
                         >
                           Edit Package
                         </Button>
@@ -11616,7 +11650,7 @@ export default function PropertyForm() {
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Edit Package</DialogTitle>
+              <DialogTitle>{selectedPackage ? "Edit Package" : "New Package"}</DialogTitle>
               <div className="flex items-center gap-2">
                 <Switch
                   checked={packageForm.isPublic}
@@ -11903,7 +11937,23 @@ export default function PropertyForm() {
               <Button variant="outline" onClick={() => setIsEditPackageOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={addNewPackage}>Create Package</Button>
+              <Button onClick={() => {
+                if (selectedPackage) {
+                  // Update existing package
+                  const updated = packages.map(p => 
+                    p.id === selectedPackage.id 
+                      ? { ...p, ...packageForm, category: packagesCategory }
+                      : p
+                  );
+                  setPackages(updated);
+                  setSelectedPackage({ ...selectedPackage, ...packageForm, category: packagesCategory });
+                  setIsEditPackageOpen(false);
+                  setIsDirty(true);
+                  toast({ title: "Package updated", description: "The package has been updated successfully." });
+                } else {
+                  addNewPackage();
+                }
+              }}>{selectedPackage ? "Update Package" : "Create Package"}</Button>
             </div>
           </div>
         </DialogContent>
