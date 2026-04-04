@@ -68,8 +68,17 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
     }
   }, [property.brand_primary_color]);
 
-  const bookingUrl = `${PUBLIC_DOMAIN}/booking/${property.slug}?source=website&integration=smart_button&property_id=${property.id}`;
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=smart_widget&property_id=${property.id}&brand_color=${encodeURIComponent(buttonColor)}&mode=embedded`;
+  const bookingUrl = buildEntryUrl(property, entryOpts, {
+    source: "website",
+    integration: "smart_button",
+    property_id: property.id,
+    brand_color: buttonColor,
+  });
+  const embedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
+    integration: "smart_widget",
+    property_id: property.id,
+    brand_color: buttonColor,
+  });
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
   const size = SIZE_MAP[buttonSize];
 
