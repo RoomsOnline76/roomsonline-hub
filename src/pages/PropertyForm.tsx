@@ -12022,7 +12022,8 @@ export default function PropertyForm() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
