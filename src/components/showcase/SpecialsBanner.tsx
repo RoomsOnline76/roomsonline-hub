@@ -33,7 +33,7 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
         .lte("valid_from", today)
         .gte("valid_to", today)
         .order("valid_to", { ascending: true });
-      return (data || []) as Special[];
+      return (data || []) as unknown as Special[];
     },
     enabled: !!propertyId,
     staleTime: 5 * 60 * 1000,
