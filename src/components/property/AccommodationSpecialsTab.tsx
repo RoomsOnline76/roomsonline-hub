@@ -154,6 +154,10 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
         terms: draft.terms || null,
         is_active: draft.is_active ?? true,
         is_public: draft.is_public ?? true,
+        age_restricted: draft.age_restricted ?? false,
+        min_age: draft.age_restricted ? (draft.min_age ?? null) : null,
+        max_age: draft.age_restricted ? (draft.max_age ?? null) : null,
+        age_label: draft.age_restricted ? (draft.age_label || null) : null,
       } as any)
       .eq("id", selectedId)
       .select();
