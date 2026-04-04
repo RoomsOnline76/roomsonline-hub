@@ -214,9 +214,30 @@ Deno.serve(async (req) => {
           .eq("property_id", invPropId)
           .eq("is_active", true);
 
-        const taxTotal = (taxRules || []).reduce((sum: number, rule: any) => {
+        let taxTotal = (taxRules || []).reduce((sum: number, rule: any) => {
           return sum + (subtotal * Number(rule.rate) / 100);
         }, 0);
+
+        // If no explicit tax rules but property has VAT enabled, apply VAT
+        if (taxTotal === 0) {
+          const { data: brandCfg } = await supabase
+            .from("rolos_brand_config")
+            .select("is_vat_registered, vat_rate, vat_number")
+            .eq("property_id", invPropId)
+            .maybeSingle();
+          const { data: propData } = await supabase
+            .from("properties")
+            .select("amenities")
+            .eq("id", invPropId)
+            .single();
+          const propAmenities = (propData?.amenities as any) || {};
+          const hasVat = brandCfg?.is_vat_registered || !!propAmenities?.vat_number;
+          if (hasVat) {
+            const vatRate = brandCfg?.vat_rate ?? 15;
+            // VAT is inclusive: total = subtotal, VAT = subtotal - subtotal/(1+rate)
+            taxTotal = subtotal - (subtotal / (1 + vatRate / 100));
+          }
+        }
 
         const total = subtotal + taxTotal;
         const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
