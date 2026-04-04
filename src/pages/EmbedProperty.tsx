@@ -453,7 +453,13 @@ export default function EmbedProperty() {
     const room = roomTypes.find((r) => r.id === roomId);
     const rate = room?.daily_rate ? Number(room.daily_rate) : null;
     const rolosPlan = room?.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
-    const effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
+
+    // Resolve rate: DB daily_rate → ROL'OS plan → PMS cache for check-in date
+    let effectiveRate = rate ?? rolosPlan?.base_rate ?? null;
+    if (!effectiveRate && pmsCacheMap[roomId]) {
+      const ciRate = pmsCacheMap[roomId][checkIn];
+      if (ciRate && ciRate > 0) effectiveRate = ciRate;
+    }
     const pricingModel = rolosPlan?.pricing_model || null;
 
     // Notify parent of step change
@@ -473,6 +479,7 @@ export default function EmbedProperty() {
     if (effectiveRate) params.set("embed_rate", String(effectiveRate));
     if (pricingModel) params.set("embed_pricing_model", pricingModel);
     if (room?.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
+    if (room?.hostfully_room_id) params.set("hostfully_room_id", room.hostfully_room_id);
     if (promoCode) params.set("voucher", promoCode);
     if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
     if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
