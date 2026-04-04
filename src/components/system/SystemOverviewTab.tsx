@@ -3,6 +3,8 @@ import {
   Activity, Server, Database, Zap, AlertTriangle, CheckCircle, 
   Clock, RefreshCw, Mail, Loader2 
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,8 @@ export function SystemOverviewTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [dailyReportEnabled, setDailyReportEnabled] = useState<boolean | null>(null);
+  const [togglingReport, setTogglingReport] = useState(false);
   const [status, setStatus] = useState<SystemStatus>({
     pmsAdapters: [],
     edgeFunctions: [],
@@ -46,7 +50,35 @@ export function SystemOverviewTab() {
 
   useEffect(() => {
     loadSystemStatus();
+    loadDailyReportToggle();
   }, []);
+
+  const loadDailyReportToggle = async () => {
+    const { data } = await supabase
+      .from('api_keys')
+      .select('key_value')
+      .eq('key_name', 'DAILY_HEALTH_REPORT_ENABLED')
+      .maybeSingle();
+    setDailyReportEnabled(data?.key_value === 'true');
+  };
+
+  const handleToggleDailyReport = async (checked: boolean) => {
+    setTogglingReport(true);
+    setDailyReportEnabled(checked);
+    try {
+      const { error } = await supabase
+        .from('api_keys')
+        .update({ key_value: checked ? 'true' : 'false' })
+        .eq('key_name', 'DAILY_HEALTH_REPORT_ENABLED');
+      if (error) throw error;
+      toast.success(checked ? 'Daily health report enabled' : 'Daily health report disabled');
+    } catch (error) {
+      setDailyReportEnabled(!checked);
+      toast.error('Failed to update setting');
+    } finally {
+      setTogglingReport(false);
+    }
+  };
 
   const loadSystemStatus = async () => {
     try {
@@ -185,7 +217,17 @@ export function SystemOverviewTab() {
   return (
     <div className="space-y-6">
       {/* Action buttons */}
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-4">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={dailyReportEnabled ?? false}
+            onCheckedChange={handleToggleDailyReport}
+            disabled={dailyReportEnabled === null || togglingReport}
+          />
+          <Label className="text-sm text-muted-foreground">
+            Daily Report Email
+          </Label>
+        </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
