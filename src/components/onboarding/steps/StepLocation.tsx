@@ -3,10 +3,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MapPin, Loader2, AlertTriangle, CheckCircle, Building2 } from "lucide-react";
+import { MapPin, Loader2, AlertTriangle, CheckCircle, Building2, ChevronsUpDown, Check } from "lucide-react";
 import { StepProps } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { COUNTRY_OPTIONS } from "@/lib/countries";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 export function StepLocation({
   propertyData,
