@@ -11467,6 +11467,7 @@ export default function PropertyForm() {
                                 discount_percentage: selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
                                 isPublic: selectedPackage.isPublic || false,
                                 images: selectedPackage.images || [],
+                                applicableRoomIds: selectedPackage.applicableRoomIds || selectedPackage.applicable_room_ids || [],
                               });
                               setPackageImages(selectedPackage.images || []);
                               setIsEditPackageOpen(true);
