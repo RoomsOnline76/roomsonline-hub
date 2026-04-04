@@ -1554,11 +1554,13 @@ const Booking = () => {
                 const hasMatchingRoom = bookedRoomIds.some(uuid => {
                   if (special.applicable_room_ids.includes(uuid)) return true;
                   if (special.applicable_room_ids.includes(String(uuid))) return true;
-                  const amenityRoom = amenitiesRooms.find((r: any) =>
+                const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
+                const amenityRoom = amenitiesRooms.find((r: any) =>
                     String(r.id) === String(uuid) ||
                     r.linked_rolos_id === uuid ||
                     (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
-                    (embedLinkedRolosId && String(r.id) === embedLinkedRolosId)
+                    (embedLinkedRolosId && String(r.id) === embedLinkedRolosId) ||
+                    (embedRoomTypeName && r.name === embedRoomTypeName)
                   );
                   if (amenityRoom && special.applicable_room_ids.includes(String(amenityRoom.id))) return true;
                   return false;

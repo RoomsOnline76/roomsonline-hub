@@ -40,8 +40,8 @@ export function SpecialsBanner({ propertyId, className, brandColor }: SpecialsBa
       // Filter client-side: show if today is within stay window OR booking window
       return ((data || []) as unknown as SpecialRaw[]).filter((s) => {
         const inStayWindow = s.valid_from <= today && s.valid_to >= today;
-        const inBookWindow = s.book_from && s.book_until
-          ? s.book_from <= today && s.book_until >= today
+      const inBookWindow = (s.book_from || s.book_until)
+          ? (!s.book_from || s.book_from <= today) && (!s.book_until || s.book_until >= today)
           : false;
         return inStayWindow || inBookWindow;
       });
