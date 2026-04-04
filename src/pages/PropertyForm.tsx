@@ -2849,6 +2849,7 @@ export default function PropertyForm() {
   // Announcements state
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isManageAnnouncementOpen, setIsManageAnnouncementOpen] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [announcementForm, setAnnouncementForm] = useState({
     announcement: "",
     order: 0,
