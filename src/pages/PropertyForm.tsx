@@ -11472,7 +11472,7 @@ export default function PropertyForm() {
               <Card>
                 <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm">Announcements</CardTitle>
-                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setIsManageAnnouncementOpen(true)}>
+                  <Button size="sm" className="h-7 text-xs gap-1" onClick={() => { setEditingAnnouncementId(null); setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true }); setIsManageAnnouncementOpen(true); }}>
                     <Plus className="h-3 w-3" />
                     Add
                   </Button>
