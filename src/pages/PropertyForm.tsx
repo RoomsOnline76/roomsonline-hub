@@ -11457,6 +11457,11 @@ export default function PropertyForm() {
                                 periodFrom: selectedPackage.periodFrom ? new Date(selectedPackage.periodFrom) : undefined,
                                 periodTo: selectedPackage.periodTo ? new Date(selectedPackage.periodTo) : undefined,
                                 pricingType: selectedPackage.pricingType || "discount",
+                                discountPercent: selectedPackage.discountPercent || selectedPackage.discount_percentage || 0,
+                                fixedAmountOff: selectedPackage.fixedAmountOff || 0,
+                                fixedPrice: selectedPackage.fixedPrice || selectedPackage.package_price || 0,
+                                package_price: selectedPackage.package_price || selectedPackage.fixedPrice || 0,
+                                discount_percentage: selectedPackage.discount_percentage || selectedPackage.discountPercent || 0,
                                 isPublic: selectedPackage.isPublic || false,
                                 images: selectedPackage.images || [],
                               });
