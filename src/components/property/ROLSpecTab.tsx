@@ -88,6 +88,7 @@ interface PropertyContext {
   name: string;
   property_type: string;
   property_url?: string;
+  property_id?: string;
   star_rating: number;
   description?: string;
   country: string;
