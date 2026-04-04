@@ -152,8 +152,16 @@ export default function EmbedPortfolio() {
             max_guests: p.max_guests,
             brand_primary_color: p.brand_primary_color,
             external_system: p.external_system || null,
+            latitude: p.latitude || null,
+            longitude: p.longitude || null,
+            key_highlights: p.key_highlights || null,
+            space_description: p.space_description || null,
           }));
           setProperties(mapped);
+
+          // Reviews & TOBI blurbs from API
+          if (data.reviews) setPortfolioReviews(data.reviews);
+          if (data.tobi_blurbs) setTobiBlurbs(data.tobi_blurbs);
 
           // AI data
           if (data.ai_groups) setAiGroups(data.ai_groups);
