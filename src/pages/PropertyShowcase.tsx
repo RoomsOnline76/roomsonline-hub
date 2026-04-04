@@ -1108,6 +1108,7 @@ export default function PropertyShowcase() {
         longitude={property.longitude}
         onBookNow={handleBookProperty}
         bookingLabel={isNightsBridgeProperty ? "Book Now" : bookedRooms.length > 0 ? "Checkout" : roomTypes.length === 1 ? "Book Now" : `Select a ${unitLabel.charAt(0).toUpperCase() + unitLabel.slice(1)}`}
+        siblingProperties={siblingProperties}
       />
 
       {/* Recommendations */}
