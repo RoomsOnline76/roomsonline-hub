@@ -29,6 +29,23 @@ function getCacheKey(propertyId: string, checkIn: string, checkOut: string) {
   return `${propertyId}:${checkIn}:${checkOut}`;
 }
 
+function getPmsFunctionName(externalSystem: string | null) {
+  switch (externalSystem) {
+    case "hostfully":
+      return "hostfully-api";
+    case "benson":
+      return "benson-api";
+    case "hotelbeds":
+      return "hotelbeds-api";
+    case "hyperguest":
+      return "hyperguest-api";
+    case "little_hotelier":
+      return "little-hotelier-api";
+    default:
+      return "roomsonline-pms-api";
+  }
+}
+
 /**
  * Fetch live ARI for a single property using its PMS adapter via the
  * roomsonline-pms-api edge function.
@@ -57,12 +74,25 @@ export async function fetchLiveRates(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke("roomsonline-pms-api", {
+    const functionName = getPmsFunctionName(externalSystem);
+    const requestBody = functionName === "hotelbeds-api"
+      ? {
+          action: "fetch_availability",
+          property_id: propertyId,
+          start_date: ci,
+          end_date: co,
+        }
+      : {
+          action: "fetch_availability",
+          propertyId,
+          property_id: propertyId,
+          start_date: ci,
+          end_date: co,
+        };
+
+    const { data, error } = await supabase.functions.invoke(functionName, {
       body: {
-        action: "fetch_availability",
-        propertyId,
-        start_date: ci,
-        end_date: co,
+        ...requestBody,
       },
     });
 
@@ -86,10 +116,10 @@ export async function fetchLiveRates(
       const ratesByDate: Record<string, number> = {};
 
       // Check availability days
-      const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || [];
+      const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || rt.availability_per_night || rt.availabilityPerNight || [];
       for (const day of avail) {
-        const units = day.available_units ?? day.numberOfRoomsAvailable ?? 0;
-        const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? false;
+        const units = day.available_units ?? day.numberOfRoomsAvailable ?? (day.available ? 1 : 0);
+        const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? day.closed ?? false;
         const dateStr = day.date || day.night_date || "";
         const effectiveUnits = (units > 0 && !stopSell) ? units : 0;
         if (dateStr) availableByDate[dateStr] = effectiveUnits;
