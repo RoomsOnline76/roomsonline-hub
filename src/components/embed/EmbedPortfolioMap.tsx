@@ -30,6 +30,36 @@ const mapStyles = [
   { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9c9c9" }] },
 ];
 
+const TYPE_LABELS: Record<string, string> = {
+  tourist_attraction: 'Attraction',
+  natural_feature: 'Natural feature',
+  park: 'Park & nature',
+  museum: 'Museum',
+  art_gallery: 'Art gallery',
+  restaurant: 'Restaurant',
+  cafe: 'Café',
+  bar: 'Bar & nightlife',
+  shopping_mall: 'Shopping',
+  store: 'Shopping',
+  church: 'Historic site',
+  place_of_worship: 'Historic site',
+  zoo: 'Wildlife',
+  aquarium: 'Aquarium',
+  amusement_park: 'Entertainment',
+  spa: 'Spa & wellness',
+  stadium: 'Sports venue',
+  point_of_interest: 'Point of interest',
+  establishment: 'Local spot',
+};
+
+function getPlaceTypeLabel(types?: string[]): string {
+  if (!types?.length) return 'Nearby spot';
+  for (const t of types) {
+    if (TYPE_LABELS[t]) return TYPE_LABELS[t];
+  }
+  return 'Point of interest';
+}
+
 export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: EmbedPortfolioMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -62,7 +92,6 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       const map = new Map(mapRef.current!, {
         center: bounds.getCenter(),
         zoom: 12,
-        mapId: 'portfolio-map',
         disableDefaultUI: true,
         zoomControl: true,
         styles: mapStyles as any,
@@ -73,7 +102,6 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
       let openInfoWindow: google.maps.InfoWindow | null = null;
 
       properties.forEach(prop => {
-        // Property pin
         const pin = document.createElement('div');
         pin.style.cssText = `width:32px;height:32px;border-radius:50%;background:${brandColor};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;`;
         pin.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
@@ -85,9 +113,9 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
           title: prop.name,
         });
 
-        // Floating name label below pin
+        // Label offset to the right of pin
         const labelWrapper = document.createElement('div');
-        labelWrapper.style.cssText = `display:flex;flex-direction:column;align-items:center;transform:translateY(20px);`;
+        labelWrapper.style.cssText = `display:flex;flex-direction:column;align-items:flex-start;transform:translate(20px, -14px);pointer-events:none;`;
         const label = document.createElement('div');
         label.style.cssText = `
           background: ${brandColor};
@@ -99,7 +127,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
           border-radius: 10px;
           white-space: nowrap;
           pointer-events: none;
-          opacity: 0.9;
+          opacity: 0.92;
           box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         `;
         label.textContent = prop.name;
@@ -170,7 +198,6 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
             if (eatery) combined.push(eatery);
             setAttractions(combined);
 
-            // Render attraction markers
             if (!attractionInfoWindowRef.current) {
               attractionInfoWindowRef.current = new google.maps.InfoWindow();
             }
@@ -182,7 +209,7 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
               if (!place.geometry?.location) return;
               extBounds.extend(place.geometry.location);
 
-              const isEatery = index === combined.length - 1 && combined.length === 5;
+              const typeLabel = getPlaceTypeLabel(place.types as string[]);
 
               const aMarker = new google.maps.Marker({
                 position: place.geometry.location,
@@ -200,14 +227,14 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
               });
 
               const ratingStars = place.rating ? '★'.repeat(Math.round(place.rating)) : '';
-              const typeLabel = isEatery ? '<span style="font-size:10px;color:#888;">🍽️ Eatery</span>' : '';
 
               aMarker.addListener('click', () => {
                 attractionInfoWindowRef.current?.setContent(`
-                  <div style="font-family:system-ui,sans-serif;padding:8px 12px;max-width:200px;">
-                    <p style="font-weight:600;font-size:13px;margin:0 0 4px;color:#111;">${place.name}</p>
+                  <div style="font-family:system-ui,sans-serif;padding:8px 12px;max-width:220px;">
+                    <p style="font-weight:600;font-size:13px;margin:0 0 2px;color:#111;">${place.name}</p>
+                    <p style="font-size:11px;color:#666;margin:0 0 4px;">${typeLabel}</p>
                     <p style="font-size:12px;color:${ATTRACTION_COLORS[index]};margin:0 0 4px;">${ratingStars} ${place.rating?.toFixed(1) || ''}</p>
-                    ${typeLabel}
+                    ${place.vicinity ? `<p style="font-size:11px;color:#888;margin:0 0 6px;">${place.vicinity}</p>` : ''}
                     <a href="https://www.google.com/maps/place/?q=place_id:${place.place_id}" target="_blank" style="font-size:11px;color:#0066cc;text-decoration:none;">View on Maps →</a>
                   </div>
                 `);
@@ -254,14 +281,13 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
         ref={mapRef}
         className="w-full h-[300px] sm:h-[400px] rounded-xl overflow-hidden border border-gray-200"
       />
-      {/* Attractions Legend */}
       {attractions.length > 0 && (
         <div className="mt-3 px-1">
           <p className="text-xs font-medium text-gray-500 mb-2">Nearby:</p>
           <TooltipProvider>
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500">
               {attractions.slice(0, 5).map((a, i) => {
-                const isEatery = i === attractions.length - 1 && attractions.length === 5;
+                const typeLabel = getPlaceTypeLabel(a.types as string[]);
                 return (
                   <Tooltip key={a.place_id || i}>
                     <TooltipTrigger asChild>
@@ -270,13 +296,15 @@ export function EmbedPortfolioMap({ properties, brandColor, onPropertyClick }: E
                           className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                           style={{ backgroundColor: ATTRACTION_COLORS[i] }}
                         />
-                        <span className="truncate max-w-[140px]">
-                          {isEatery ? '🍽️ ' : ''}{a.name}
-                        </span>
+                        <span className="truncate max-w-[160px]">{a.name}</span>
+                        {a.vicinity && (
+                          <span className="text-gray-400 truncate max-w-[120px] hidden sm:inline">· {a.vicinity}</span>
+                        )}
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-[220px]">
+                    <TooltipContent side="top" className="max-w-[240px]">
                       <p className="font-semibold text-xs">{a.name}</p>
+                      <p className="text-xs text-gray-400">{typeLabel}</p>
                       {a.rating && (
                         <p className="text-xs" style={{ color: ATTRACTION_COLORS[i] }}>
                           {'★'.repeat(Math.round(a.rating))} {a.rating.toFixed(1)}
