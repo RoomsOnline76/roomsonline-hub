@@ -10062,10 +10062,7 @@ export default function PropertyForm() {
                       <div className="flex gap-0.5 items-center">
                         <Switch
                           checked={room.is_active !== false}
-                          onCheckedChange={(e) => {
-                            e; // unused but needed for type
-                            toggleRoomActive(room.id);
-                          }}
+                          onCheckedChange={() => toggleRoomActive(room.id)}
                           className="h-3.5 w-7 data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-muted-foreground/30"
                           title={room.is_active !== false ? "Active — visible on booking pages" : "Inactive — hidden from booking pages"}
                           onClick={(e) => e.stopPropagation()}
