@@ -413,8 +413,12 @@ export default function EmbedPortfolio() {
     return properties.find(p => p.slug === aiFeatured.property_slug) || null;
   }, [properties, aiFeatured]);
 
-  // Hero video: randomly pick one property's video, only if ALL properties have a video
+  // Hero video: portfolio-level hero_video_url takes priority, then randomly pick from properties
   const heroVideo = useMemo(() => {
+    const portfolioHeroUrl = portfolioBranding.hero_video_url;
+    if (portfolioHeroUrl) {
+      return { url: portfolioHeroUrl, name: portfolio?.name || "Portfolio", slug: "" };
+    }
     if (properties.length === 0) return null;
     const withVideo = properties.filter(p => !!p.hero_video_url);
     if (withVideo.length === 0) return null;
@@ -422,7 +426,7 @@ export default function EmbedPortfolio() {
     const p = withVideo[randomIdx];
     return { url: p.hero_video_url!, name: p.name, slug: p.slug };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [properties.length]);
+  }, [properties.length, portfolioBranding.hero_video_url]);
 
   const handleViewProperty = (slug: string) => {
     const prop = properties.find(p => p.slug === slug);
