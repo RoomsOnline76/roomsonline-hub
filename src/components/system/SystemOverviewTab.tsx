@@ -3,6 +3,8 @@ import {
   Activity, Server, Database, Zap, AlertTriangle, CheckCircle, 
   Clock, RefreshCw, Mail, Loader2 
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
