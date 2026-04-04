@@ -197,6 +197,7 @@ const Booking = () => {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddOn[]>([]);
   const [vatConfig, setVatConfig] = useState<{ isVat: boolean; rate: number; number: string }>({ isVat: false, rate: 15, number: "" });
+  const [appliedPromotion, setAppliedPromotion] = useState<{ name: string; type: string; discount: number; description?: string } | null>(null);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -346,58 +347,110 @@ const Booking = () => {
   useEffect(() => {
     const fetchAvailability = async () => {
       if (!property?.id) return;
-      const isManual = !property.external_system;
       const amenitiesData = property.amenities as Record<string, any> | null;
-      if (!isManual || !amenitiesData) return;
+      const externalSystem = property.external_system?.toLowerCase();
+      const isManual = !externalSystem || externalSystem === 'none' || externalSystem === 'roomsonline';
 
       const today = new Date();
       const endDate = addDays(today, 395);
       const todayStr = format(today, "yyyy-MM-dd");
       const endStr = format(endDate, "yyyy-MM-dd");
 
-      const wizardRooms = amenitiesData.room_types || [];
-      const firstRoom = wizardRooms[0];
-      const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
-      const pmsRateTypes = amenitiesData.pms_rate_types || [];
-      const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
-      const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
-
-      const { data: blockedData } = await supabase
-        .from("property_availability")
-        .select("date, available_units, is_stop_sell")
-        .eq("property_id", property.id)
-        .gte("date", todayStr)
-        .lte("date", endStr);
-
-      const blockedDates = new Set<string>();
-      if (blockedData) {
-        blockedData.forEach((item) => {
-          if (item.is_stop_sell || item.available_units === 0) {
-            blockedDates.add(item.date);
-          }
-        });
-      }
-
       const calendarMap = new Map<string, { available: boolean; rate?: number }>();
-      for (let i = 0; i < 395; i++) {
-        const date = addDays(today, i);
-        const dateStr = format(date, "yyyy-MM-dd");
-        const isBlocked = blockedDates.has(dateStr);
-        let dayRate = baseRate;
-        const seasons = amenitiesData.seasons || [];
-        const seasonRates = amenitiesData.season_rates || {};
-        for (const season of seasons) {
-          if (dateStr >= season.from && dateStr <= season.to) {
-            const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
-            const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
-            if (seasonRateData?.roomAmount) {
-              dayRate = seasonRateData.roomAmount;
+
+      if (isManual && amenitiesData) {
+        // Manual properties: use property_availability + wizard rates
+        const wizardRooms = amenitiesData.room_types || [];
+        const firstRoom = wizardRooms[0];
+        const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
+        const pmsRateTypes = amenitiesData.pms_rate_types || [];
+        const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
+        const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
+
+        const { data: blockedData } = await supabase
+          .from("property_availability")
+          .select("date, available_units, is_stop_sell")
+          .eq("property_id", property.id)
+          .gte("date", todayStr)
+          .lte("date", endStr);
+
+        const blockedDates = new Set<string>();
+        if (blockedData) {
+          blockedData.forEach((item) => {
+            if (item.is_stop_sell || item.available_units === 0) {
+              blockedDates.add(item.date);
             }
-            break;
+          });
+        }
+
+        for (let i = 0; i < 395; i++) {
+          const date = addDays(today, i);
+          const dateStr = format(date, "yyyy-MM-dd");
+          const isBlocked = blockedDates.has(dateStr);
+          let dayRate = baseRate;
+          const seasons = amenitiesData?.seasons || [];
+          const seasonRates = amenitiesData?.season_rates || {};
+          for (const season of seasons) {
+            if (dateStr >= season.from && dateStr <= season.to) {
+              const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
+              const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
+              if (seasonRateData?.roomAmount) {
+                dayRate = seasonRateData.roomAmount;
+              }
+              break;
+            }
+          }
+          calendarMap.set(dateStr, { available: !isBlocked, rate: dayRate });
+        }
+      } else {
+        // PMS-backed properties: fetch from pms_availability_cache
+        const { data: cacheData } = await supabase
+          .from("pms_availability_cache")
+          .select("date, available_units, rates")
+          .eq("property_id", property.id)
+          .gte("date", todayStr)
+          .lte("date", endStr)
+          .order("date");
+
+        // Also check property_availability for manual stop-sells
+        const { data: manualBlocks } = await supabase
+          .from("property_availability")
+          .select("date, available_units, is_stop_sell")
+          .eq("property_id", property.id)
+          .gte("date", todayStr)
+          .lte("date", endStr);
+
+        const manualBlockedDates = new Set<string>();
+        if (manualBlocks) {
+          manualBlocks.forEach((item) => {
+            if (item.is_stop_sell || item.available_units === 0) {
+              manualBlockedDates.add(item.date);
+            }
+          });
+        }
+
+        // Build map from cache data
+        const cachedDates = new Set<string>();
+        if (cacheData) {
+          for (const row of cacheData) {
+            cachedDates.add(row.date);
+            const isBlocked = manualBlockedDates.has(row.date) || (row.available_units != null && row.available_units <= 0);
+            const ratesData = row.rates as any;
+            const rate = ratesData?.room_amount || (Array.isArray(ratesData) ? ratesData[0]?.room_amount : undefined);
+            calendarMap.set(row.date, { available: !isBlocked, rate });
           }
         }
-        calendarMap.set(dateStr, { available: !isBlocked, rate: dayRate });
+
+        // Fill in gaps (dates not in cache) — mark as available by default
+        for (let i = 0; i < 395; i++) {
+          const date = addDays(today, i);
+          const dateStr = format(date, "yyyy-MM-dd");
+          if (!cachedDates.has(dateStr)) {
+            calendarMap.set(dateStr, { available: !manualBlockedDates.has(dateStr) });
+          }
+        }
       }
+
       setCalendarAvailability(calendarMap);
     };
     fetchAvailability();
@@ -1404,6 +1457,140 @@ const Booking = () => {
         console.log('[Booking] Applied', calculatedCharges.length, 'property charges, new total:', runningTotal);
       }
 
+      // Auto-apply matching packages or specials
+      let promoApplied: typeof appliedPromotion = null;
+      if (property && checkIn && checkOut && runningTotal > 0) {
+        const amenitiesData = property.amenities as Record<string, any> | null;
+        const packages = amenitiesData?.packages || [];
+        const bookingCheckIn = checkIn;
+        const bookingCheckOut = checkOut;
+
+        // Check packages first (higher priority)
+        for (const pkg of packages) {
+          if (!pkg.is_active && pkg.is_active !== undefined) continue;
+          const pkgStart = pkg.valid_from || pkg.start_date;
+          const pkgEnd = pkg.valid_until || pkg.end_date;
+          if (!pkgStart || !pkgEnd) continue;
+
+          // Check if booking dates overlap with package period
+          if (bookingCheckIn >= pkgStart && bookingCheckOut <= pkgEnd) {
+            // Check min stay if specified
+            const minStay = pkg.min_nights || pkg.min_stay || 0;
+            if (minStay > 0 && nights < minStay) continue;
+
+            // Apply package: use package price if set, otherwise percentage discount
+            if (pkg.package_price && pkg.package_price > 0) {
+              const discount = runningTotal - pkg.package_price;
+              if (discount > 0) {
+                promoApplied = {
+                  name: pkg.name || 'Package Deal',
+                  type: 'package',
+                  discount,
+                  description: pkg.description,
+                };
+                lineItems.push({
+                  description: `📦 ${pkg.name || 'Package Deal'}`,
+                  nights: 0,
+                  quantity: 1,
+                  unitPrice: -discount,
+                  total: -discount,
+                });
+                runningTotal -= discount;
+              }
+            } else if (pkg.discount_percentage && pkg.discount_percentage > 0) {
+              const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+              const discount = Math.round(accommodationSubtotal * (pkg.discount_percentage / 100));
+              if (discount > 0) {
+                promoApplied = {
+                  name: pkg.name || 'Package Deal',
+                  type: 'package',
+                  discount,
+                  description: pkg.description,
+                };
+                lineItems.push({
+                  description: `📦 ${pkg.name || 'Package Deal'} (-${pkg.discount_percentage}%)`,
+                  nights: 0,
+                  quantity: 1,
+                  unitPrice: -discount,
+                  total: -discount,
+                });
+                runningTotal -= discount;
+              }
+            }
+            break; // Only apply first matching package
+          }
+        }
+
+        // Check specials from property_specials table if no package applied
+        if (!promoApplied) {
+          try {
+            const { data: specials } = await supabase
+              .from("property_specials" as any)
+              .select("*")
+              .eq("property_id", property.id)
+              .eq("is_active", true)
+              .lte("valid_from", bookingCheckOut)
+              .gte("valid_until", bookingCheckIn);
+
+            if (specials && specials.length > 0) {
+              for (const special of specials as any[]) {
+                // Check min stay
+                const minStay = special.min_stay || 0;
+                if (minStay > 0 && nights < minStay) continue;
+
+                // Check room applicability
+                if (special.applicable_room_ids?.length > 0) {
+                  const bookedRoomIds = rooms.map(r => r.roomTypeId);
+                  const hasMatchingRoom = bookedRoomIds.some(id => 
+                    special.applicable_room_ids.includes(id)
+                  );
+                  if (!hasMatchingRoom) continue;
+                }
+
+                // Check booking dates fall within the special's book range
+                if (special.book_from && bookingCheckIn < special.book_from) continue;
+                if (special.book_until && bookingCheckIn > special.book_until) continue;
+
+                const accommodationSubtotal = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+                let discount = 0;
+
+                if (special.discount_type === 'percentage' && special.discount_value > 0) {
+                  discount = Math.round(accommodationSubtotal * (special.discount_value / 100));
+                } else if (special.discount_type === 'fixed_amount' && special.discount_value > 0) {
+                  discount = special.discount_value;
+                } else if (special.discount_type === 'fixed_price' && special.discount_value > 0) {
+                  discount = Math.max(0, accommodationSubtotal - special.discount_value);
+                }
+
+                if (discount > 0) {
+                  promoApplied = {
+                    name: special.title || special.name || 'Special Offer',
+                    type: 'special',
+                    discount,
+                    description: special.description,
+                  };
+                  const discountLabel = special.discount_type === 'percentage' 
+                    ? `(-${special.discount_value}%)` 
+                    : '';
+                  lineItems.push({
+                    description: `🏷️ ${special.title || special.name || 'Special Offer'} ${discountLabel}`,
+                    nights: 0,
+                    quantity: 1,
+                    unitPrice: -discount,
+                    total: -discount,
+                  });
+                  runningTotal -= discount;
+                  break; // Only apply first matching special
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('[Booking] Failed to fetch specials:', err);
+          }
+        }
+      }
+      setAppliedPromotion(promoApplied);
+
       setCostBreakdown(lineItems);
       setTotalCost(runningTotal);
     } catch (error: any) {
@@ -2293,6 +2480,24 @@ const Booking = () => {
                           <span className="font-medium"><FormattedPrice amount={sa.total} /></span>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Applied promotion banner */}
+                  {appliedPromotion && (
+                    <div className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">✨</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-primary">{appliedPromotion.name}</p>
+                          {appliedPromotion.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{appliedPromotion.description}</p>
+                          )}
+                        </div>
+                        <span className="text-sm font-semibold text-primary">
+                          -<FormattedPrice amount={appliedPromotion.discount} />
+                        </span>
+                      </div>
                     </div>
                   )}
 
