@@ -51,6 +51,19 @@ interface ConciergeResponse {
   };
   proactive_tip?: string;
   parsed_intent?: ParsedIntent;
+  journey_suggestions?: JourneySuggestion[];
+}
+
+interface JourneySuggestion {
+  property_id: string;
+  property_name: string;
+  property_slug: string;
+  city: string;
+  check_in: string;
+  check_out: string;
+  starting_rate?: number;
+  currency?: string;
+  hero_image?: string;
 }
 
 // ============================================================================
