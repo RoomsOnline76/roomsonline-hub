@@ -1362,6 +1362,8 @@ export default function PropertyForm() {
 
     setIsSyncingPms(true);
     try {
+      const formatSyncDate = (date: Date) => date.toISOString().split("T")[0];
+
       const { data, error } = await supabase.functions.invoke("benson-api", {
         body: {
           action: "fetch_property_data",
@@ -1378,6 +1380,32 @@ export default function PropertyForm() {
 
       // Unwrap adapter response - data is in data.data per adapter contract
       const responseData = data?.data || data;
+      let canonicalRecordsRebuilt = false;
+
+      try {
+        const availabilityStart = new Date();
+        const availabilityEnd = new Date();
+        availabilityEnd.setDate(availabilityEnd.getDate() + 30);
+
+        const { data: availabilitySyncData, error: availabilitySyncError } = await supabase.functions.invoke("benson-api", {
+          body: {
+            action: "fetch_availability",
+            property_id: propertyId,
+            start_date: formatSyncDate(availabilityStart),
+            end_date: formatSyncDate(availabilityEnd),
+          },
+        });
+
+        if (availabilitySyncError) throw availabilitySyncError;
+        if (availabilitySyncData?.success === false && availabilitySyncData?.error) {
+          throw new Error(availabilitySyncData.error.message || "Failed to rebuild Benson room and rate records");
+        }
+
+        const availabilityPayload = availabilitySyncData?.data || availabilitySyncData;
+        canonicalRecordsRebuilt = Array.isArray(availabilityPayload?.room_types) && availabilityPayload.room_types.length > 0;
+      } catch (availabilityErr) {
+        console.warn("Benson availability rebuild warning:", availabilityErr);
+      }
 
       let hasChanges = false;
 
@@ -1713,8 +1741,15 @@ export default function PropertyForm() {
         setIsDirty(true);
         toast({
           title: "Changes Detected",
-          description: "PMS data has been updated. Save to persist changes.",
+          description: canonicalRecordsRebuilt
+            ? "PMS data updated and live room/rate records rebuilt. Save to persist editor changes."
+            : "PMS data has been updated. Save to persist changes.",
           variant: "default",
+        });
+      } else if (canonicalRecordsRebuilt) {
+        toast({
+          title: "Benson Sync Complete",
+          description: "Live room and rate records were rebuilt from Benson.",
         });
       }
 
