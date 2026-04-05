@@ -2573,7 +2573,7 @@ const Booking = () => {
             })}
 
             <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add another {accommodationLabel.singular.toLowerCase()}
+              <Plus className="h-3 w-3 mr-1" /> Add to your stay
             </Button>
           </motion.div>
 
