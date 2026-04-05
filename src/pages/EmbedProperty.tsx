@@ -25,6 +25,22 @@ function postToParent(data: Record<string, unknown>) {
   }
 }
 
+const normalizeImageUrls = (images: unknown): string[] => {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((img: any) => {
+      if (typeof img === "string") return img;
+      return img?.url || img?.src || img?.image || img?.thumbnail || null;
+    })
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
+};
+
+const normalizeRoomName = (name: unknown) =>
+  String(name || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
 export default function EmbedProperty() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -107,10 +123,33 @@ export default function EmbedProperty() {
           .eq("property_id", prop.id)
           .eq("is_active", true)
           .order("name");
+
+        const wizardRooms = Array.isArray((prop as any)?.amenities?.room_types) ? (prop as any).amenities.room_types : [];
+        const mergedRooms = (rooms || []).map((room: any) => {
+          const wizardRoom = wizardRooms.find((wr: any) =>
+            String(wr?.id) === String(room.id) ||
+            String(wr?.id) === String(room.hostfully_room_id) ||
+            String(wr?.pmsRoomId) === String(room.hostfully_room_id) ||
+            String(wr?.pmsRoomId) === String(room.id) ||
+            normalizeRoomName(wr?.name) === normalizeRoomName(room.name)
+          );
+
+          const dbImages = normalizeImageUrls(room.images);
+          const wizardImages = normalizeImageUrls(wizardRoom?.images);
+          const mergedImages = dbImages.length > 0 ? dbImages : wizardImages;
+          const mergedThumbnail = room.thumbnail_url || wizardImages[0] || null;
+
+          return {
+            ...room,
+            images: mergedImages,
+            thumbnail_url: mergedThumbnail,
+          };
+        });
+
         const roomFilterId = searchParams.get("room");
-        const filteredRooms = roomFilterId && rooms
-          ? rooms.filter((r: any) => r.id === roomFilterId || r.hostfully_room_id === roomFilterId)
-          : rooms;
+        const filteredRooms = roomFilterId && mergedRooms
+          ? mergedRooms.filter((r: any) => r.id === roomFilterId || r.hostfully_room_id === roomFilterId)
+          : mergedRooms;
         setRoomTypes(filteredRooms || []);
 
         if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
