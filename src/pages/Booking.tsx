@@ -2258,7 +2258,7 @@ const Booking = () => {
                       const roomCheckIn = room.checkIn || checkIn;
                       const roomCheckOut = room.checkOut || checkOut;
                       return (
-                        <div key={index} className="pl-3 border-l-2 border-primary/30 ml-1">
+                        <div key={index} className="pl-3 border-l-2 border-border ml-1">
                           <p className="font-medium">Room {index + 1}: {room.roomTypeName}</p>
                           <p className="text-muted-foreground">
                             {roomCheckIn && format(parseISO(roomCheckIn), "MMM d, yyyy")} – {roomCheckOut && format(parseISO(roomCheckOut), "MMM d, yyyy")}
