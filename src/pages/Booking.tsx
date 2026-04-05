@@ -24,7 +24,7 @@ import { format, parseISO, differenceInDays, addDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
@@ -207,6 +207,7 @@ const Booking = () => {
   const setAppliedPromotion = (p: { name: string; type: string; discount: number; description?: string; imageUrl?: string } | null) => setAppliedPromotions(p ? [p] : []);
   const [pendingAgeSpecial, setPendingAgeSpecial] = useState<any | null>(null);
   const [ageVerified, setAgeVerified] = useState(false);
+  const hfRoomsRef = useRef<{ id: string; name: string; linked_rolos_id?: string | null }[]>([]);
 
   // Fetch property by ID or slug using public view for anonymous access
   const { data: property, isLoading } = useQuery({
@@ -946,6 +947,7 @@ const Booking = () => {
                 .select("id, name, linked_rolos_id, daily_rate, max_guests, is_active")
                 .eq("property_id", property.id)
                 .eq("is_active", true);
+              hfRoomsRef.current = (hfRooms || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
               
               // Fetch rate plans via rolos_rate_plan_room_types
               const rolosIds = (hfRooms || []).filter(r => r.linked_rolos_id).map(r => r.linked_rolos_id!);
@@ -1591,6 +1593,15 @@ const Booking = () => {
             .gte("valid_to", bookingCheckIn);
 
           if (specials && specials.length > 0) {
+            // Ensure hfRoomsRef is populated for UUID→legacy bridging
+            if (hfRoomsRef.current.length === 0 && property.id) {
+              const { data: hfRoomsFallback } = await supabase
+                .from("hostfully_room_types")
+                .select("id, name, linked_rolos_id")
+                .eq("property_id", property.id)
+                .eq("is_active", true);
+              hfRoomsRef.current = (hfRoomsFallback || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
+            }
             let nextPendingAgeSpecial: any | null = null;
             const accommodationSubtotal = lineItems
               .filter((item) => item.nights > 0 && item.total > 0)
@@ -1606,23 +1617,41 @@ const Booking = () => {
 
               if (special.applicable_room_ids?.length > 0) {
                 const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                const embedLinkedRolosId = searchParams.get('linked_rolos_id');
                 const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
                 const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
+
+                // Build UUID → legacy amenity ID bridge via hostfully_room_types name matching
+                const uuidToLegacyIds: Record<string, (string | number)[]> = {};
+                for (const hfRoom of hfRoomsRef.current) {
+                  const matchingAmenity = amenitiesRooms.find((ar: any) =>
+                    ar.name && hfRoom.name && ar.name.trim().toLowerCase() === hfRoom.name.trim().toLowerCase()
+                  );
+                  if (matchingAmenity) {
+                    uuidToLegacyIds[hfRoom.id] = [String(matchingAmenity.id), Number(matchingAmenity.id)];
+                  }
+                }
+
                 const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                  // Direct UUID match
                   if (special.applicable_room_ids.includes(uuid)) return true;
                   if (special.applicable_room_ids.includes(String(uuid))) return true;
-                  const amenityRoom = amenitiesRooms.find((r: any) =>
-                    String(r.id) === String(uuid) ||
-                    r.linked_rolos_id === uuid ||
-                    (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
-                    (embedLinkedRolosId && String(r.id) === embedLinkedRolosId) ||
-                    (embedRoomTypeName && r.name === embedRoomTypeName)
-                  );
-                  if (amenityRoom && (
-                    special.applicable_room_ids.includes(String(amenityRoom.id)) ||
-                    special.applicable_room_ids.includes(Number(amenityRoom.id))
-                  )) return true;
+                  // Bridge: UUID → legacy amenity ID
+                  const legacyIds = uuidToLegacyIds[uuid];
+                  if (legacyIds) {
+                    for (const lid of legacyIds) {
+                      if (special.applicable_room_ids.includes(lid)) return true;
+                    }
+                  }
+                  // Fallback: match by room name from URL
+                  if (embedRoomTypeName) {
+                    const amenityByName = amenitiesRooms.find((r: any) =>
+                      r.name && r.name.trim().toLowerCase() === embedRoomTypeName.trim().toLowerCase()
+                    );
+                    if (amenityByName && (
+                      special.applicable_room_ids.includes(String(amenityByName.id)) ||
+                      special.applicable_room_ids.includes(Number(amenityByName.id))
+                    )) return true;
+                  }
                   return false;
                 });
                 if (!hasMatchingRoom) continue;
