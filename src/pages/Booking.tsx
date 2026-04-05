@@ -24,7 +24,7 @@ import { format, parseISO, differenceInDays, addDays } from "date-fns";
 import { getPropertyUrl } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { FormattedPrice } from "@/components/FormattedPrice";
