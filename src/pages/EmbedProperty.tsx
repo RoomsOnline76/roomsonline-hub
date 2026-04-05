@@ -745,7 +745,7 @@ export default function EmbedProperty() {
         >
           <h3 className="text-sm font-semibold tracking-tight text-foreground">Rooms & Suites</h3>
           <div className="space-y-3">
-            {roomTypes.map((room) => {
+            {roomTypes.map((room, roomIdx) => {
                const rate = room.daily_rate ? Number(room.daily_rate) : null;
                const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
                const amenitiesData = property?.amenities as any;
