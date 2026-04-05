@@ -7,6 +7,18 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface JourneySuggestion {
+  property_id: string;
+  property_name: string;
+  property_slug: string;
+  city: string;
+  check_in: string;
+  check_out: string;
+  starting_rate?: number;
+  currency?: string;
+  hero_image?: string;
+}
+
 interface EmbedConciergeChatProps {
   propertyId: string;
   propertyName: string;
@@ -15,6 +27,8 @@ interface EmbedConciergeChatProps {
   fontColor?: string;
   checkIn?: string;
   checkOut?: string;
+  portfolioSlug?: string;
+  onBookJourney?: (suggestions: JourneySuggestion[]) => void;
 }
 
 interface ChatMessage {
