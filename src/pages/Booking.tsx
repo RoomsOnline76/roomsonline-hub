@@ -82,6 +82,9 @@ interface RoomType {
   allowInfants?: boolean;
   allowPets?: boolean;
   minGuests?: number;
+  minStay?: number;   // minimum nights
+  maxStay?: number;   // maximum nights (0 = unlimited)
+  maxAdults?: number; // adult-specific cap if defined
 }
 
 interface RateType {
