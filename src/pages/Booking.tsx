@@ -2706,19 +2706,19 @@ const Booking = () => {
 
                   {/* Applied promotions banners */}
                   {appliedPromotions.length > 0 && appliedPromotions.map((promo, idx) => (
-                    <div key={idx} className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
+                    <div key={idx} className="border border-dashed border-border bg-card rounded-lg p-3 mt-2">
                       <div className="flex items-center gap-2">
                         {promo.imageUrl && (
                           <img src={promo.imageUrl} alt={promo.name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
                         )}
                         <span className="text-sm">{promo.type === 'package' ? '📦' : '🏷️'}</span>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-primary">{promo.name}</p>
+                          <p className="text-sm font-medium text-foreground">{promo.name}</p>
                           {promo.description && (
                             <p className="text-xs text-muted-foreground mt-0.5">{promo.description}</p>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-primary">
+                        <span className="text-sm font-semibold text-[hsl(var(--primary-text-safe,var(--primary)))]">
                           -<FormattedPrice amount={promo.discount} />
                         </span>
                       </div>
