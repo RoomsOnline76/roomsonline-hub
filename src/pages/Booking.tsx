@@ -1800,7 +1800,7 @@ const Booking = () => {
     }
   };
 
-  // Add room - navigate back to property page to select another room
+  // Extend stay - navigate back to property page to select another room
   const addRoom = () => {
     // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
     const roomsWithDates = rooms.map(room => ({
@@ -1826,7 +1826,7 @@ const Booking = () => {
     };
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
     
-    // Navigate to property page with addRoom flag, default dates, and rate type
+    // Navigate back to property page with addRoom flag
     const params = new URLSearchParams({
       addRoom: 'true',
       checkIn: checkIn || '',
@@ -1835,7 +1835,18 @@ const Booking = () => {
     if (selectedRateType) {
       params.set('rateTypeId', selectedRateType);
     }
-    navigate(`/property/${id}?${params.toString()}`);
+
+    // If we're in an integration/embed context, navigate back to the branded embed page
+    if (isIntegration && property) {
+      // Forward brand params so the property page stays branded
+      if (urlBrandColor) params.set('brand_color', urlBrandColor);
+      if (urlBrandSecondary) params.set('brand_secondary_color', urlBrandSecondary);
+      if (urlBrandFont) params.set('brand_font_color', urlBrandFont);
+      params.set('integration', integrationParam || 'portfolio_embed');
+      navigate(`/embed/property/${property.slug || id}?${params.toString()}`);
+    } else {
+      navigate(`/property/${id}?${params.toString()}`);
+    }
   };
 
   // Remove room
@@ -2562,7 +2573,7 @@ const Booking = () => {
             })}
 
             <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add another {accommodationLabel.singular.toLowerCase()}
+              <Plus className="h-3 w-3 mr-1" /> Add to your stay
             </Button>
           </motion.div>
 
