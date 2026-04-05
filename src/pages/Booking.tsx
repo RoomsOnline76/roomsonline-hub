@@ -1608,23 +1608,41 @@ const Booking = () => {
 
               if (special.applicable_room_ids?.length > 0) {
                 const bookedRoomIds = rooms.map(r => r.roomTypeId);
-                const embedLinkedRolosId = searchParams.get('linked_rolos_id');
                 const embedRoomTypeName = searchParams.get('roomTypeName')?.replace(/\+/g, ' ');
                 const amenitiesRooms = (property.amenities as any)?.room_types || (property.amenities as any)?.rooms || [];
+
+                // Build UUID → legacy amenity ID bridge via hostfully_room_types name matching
+                const uuidToLegacyIds: Record<string, (string | number)[]> = {};
+                for (const hfRoom of hfRoomsRef.current) {
+                  const matchingAmenity = amenitiesRooms.find((ar: any) =>
+                    ar.name && hfRoom.name && ar.name.trim().toLowerCase() === hfRoom.name.trim().toLowerCase()
+                  );
+                  if (matchingAmenity) {
+                    uuidToLegacyIds[hfRoom.id] = [String(matchingAmenity.id), Number(matchingAmenity.id)];
+                  }
+                }
+
                 const hasMatchingRoom = bookedRoomIds.some(uuid => {
+                  // Direct UUID match
                   if (special.applicable_room_ids.includes(uuid)) return true;
                   if (special.applicable_room_ids.includes(String(uuid))) return true;
-                  const amenityRoom = amenitiesRooms.find((r: any) =>
-                    String(r.id) === String(uuid) ||
-                    r.linked_rolos_id === uuid ||
-                    (embedLinkedRolosId && r.linked_rolos_id === embedLinkedRolosId) ||
-                    (embedLinkedRolosId && String(r.id) === embedLinkedRolosId) ||
-                    (embedRoomTypeName && r.name === embedRoomTypeName)
-                  );
-                  if (amenityRoom && (
-                    special.applicable_room_ids.includes(String(amenityRoom.id)) ||
-                    special.applicable_room_ids.includes(Number(amenityRoom.id))
-                  )) return true;
+                  // Bridge: UUID → legacy amenity ID
+                  const legacyIds = uuidToLegacyIds[uuid];
+                  if (legacyIds) {
+                    for (const lid of legacyIds) {
+                      if (special.applicable_room_ids.includes(lid)) return true;
+                    }
+                  }
+                  // Fallback: match by room name from URL
+                  if (embedRoomTypeName) {
+                    const amenityByName = amenitiesRooms.find((r: any) =>
+                      r.name && r.name.trim().toLowerCase() === embedRoomTypeName.trim().toLowerCase()
+                    );
+                    if (amenityByName && (
+                      special.applicable_room_ids.includes(String(amenityByName.id)) ||
+                      special.applicable_room_ids.includes(Number(amenityByName.id))
+                    )) return true;
+                  }
                   return false;
                 });
                 if (!hasMatchingRoom) continue;
