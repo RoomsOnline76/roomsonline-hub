@@ -340,6 +340,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     itineraryId,
     isLoading,
     addStay,
+    addMultipleStays,
     updateStay,
     removeStay,
     reorderStays,
