@@ -2688,12 +2688,16 @@ const Booking = () => {
                     </div>
                   )}
 
-                  {/* Add-on line items */}
+                  {/* Add-on / Extras line items */}
                   {selectedAddons.length > 0 && (
                     <div className="border-t border-dashed border-border/30 pt-2 space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Extras</p>
                       {selectedAddons.map((sa, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <p className="text-foreground">{sa.addon.name} × {sa.quantity}</p>
+                        <div key={idx} className="flex justify-between text-sm items-center">
+                          <p className="text-foreground flex items-center gap-1.5">
+                            <span className="text-primary text-xs">＋</span>
+                            {sa.addon.name} × {sa.quantity}
+                          </p>
                           <span className="font-medium"><FormattedPrice amount={sa.total} /></span>
                         </div>
                       ))}
