@@ -630,7 +630,7 @@ serve(async (req) => {
 
   try {
     const body: ConciergeRequest = await req.json();
-    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count, conversation_history } = body;
+    const { property_id, user_query, current_dates, current_guests, room_types, session_id, current_booking_value, session_delight_count, conversation_history, mode, portfolio_slug, current_stay } = body;
 
     if (!property_id || !user_query) {
       return new Response(
@@ -639,11 +639,22 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[Concierge] Query for ${property_id}: "${user_query}"`);
+    console.log(`[Concierge] Query for ${property_id} (mode: ${mode || 'single'}): "${user_query}"`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // =====================================================================
+    // JOURNEY BUILDER MODE
+    // =====================================================================
+    if (mode === 'journey_builder') {
+      const journeyResult = await handleJourneyBuilder(supabase, body);
+      return new Response(
+        JSON.stringify(journeyResult),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Fetch property context (rich data for AI)
     const context = await fetchPropertyContext(supabase, property_id);
