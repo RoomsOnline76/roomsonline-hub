@@ -959,7 +959,7 @@ serve(async (req) => {
         // Cache availability data to pms_availability_cache (like other PMS adapters)
         const roomTypes = transformed.room_types || [];
         for (const roomType of roomTypes) {
-          const roomTypeId = roomType.room_type_id?.toString();
+          const cacheRoomTypeId = (roomType.external_room_type_id || roomType.room_type_id)?.toString();
           const roomTypeName = roomType.room_type_name || roomType.name;
           
           // Cache availability per night
