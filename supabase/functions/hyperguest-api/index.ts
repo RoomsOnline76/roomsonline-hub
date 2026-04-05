@@ -768,7 +768,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const result = await fetchAvailability(
+      const rawResult = await fetchAvailability(
         creds,
         validation.data.start_date,
         validation.data.end_date,
@@ -777,19 +777,48 @@ Deno.serve(async (req) => {
         validation.data.currency
       );
 
+      // Map PMS-native room codes to DB UUIDs (adapter contract enforcement)
+      const { data: dbRooms } = await supabase
+        .from("hostfully_room_types")
+        .select("id, hostfully_room_id")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+      
+      const pmsCodeToDbUuid: Record<string, string> = {};
+      if (dbRooms) {
+        for (const r of dbRooms) {
+          if (r.hostfully_room_id) {
+            const rawCode = r.hostfully_room_id.includes(':') 
+              ? r.hostfully_room_id.split(':').slice(1).join(':') 
+              : r.hostfully_room_id;
+            pmsCodeToDbUuid[rawCode] = r.id;
+          }
+        }
+      }
+
+      // Replace PMS codes with DB UUIDs
+      const result = {
+        ...rawResult,
+        room_types: (rawResult.room_types || []).map((rt: any) => ({
+          ...rt,
+          external_room_type_id: rt.room_type_id,
+          room_type_id: pmsCodeToDbUuid[rt.room_type_id] || rt.room_type_id,
+        })),
+      };
+
       // Cache availability data
-      if (result.rooms?.length) {
-        for (const room of result.rooms) {
-          for (const rate of room.rates || []) {
-            for (const dailyRate of rate.daily_rates || []) {
+      if (result.room_types?.length) {
+        for (const rt of result.room_types) {
+          for (const rateType of rt.rate_types || []) {
+            for (const dailyRate of rateType.rates || []) {
               await supabase.from("pms_availability_cache").upsert({
                 property_id: propertyId,
                 system_type: "hyperguest",
-                external_room_type_id: room.room_code,
+                external_room_type_id: rt.external_room_type_id || rt.room_type_id,
                 date: dailyRate.date,
                 available_units: dailyRate.available ?? 1,
-                rates: { net: rate.net_amount, selling: rate.selling_rate, currency: rate.currency },
-                raw_data: { room_name: room.room_name, rate_key: rate.rate_key, rate_name: rate.rate_name },
+                rates: { net: rateType.net_total, selling: rateType.selling_rate, currency: dailyRate.currency },
+                raw_data: { room_name: rt.room_type_name, rate_key: rateType.rate_key, rate_name: rateType.rate_type_name },
                 last_synced_at: new Date().toISOString(),
               }, { onConflict: "property_id,system_type,external_room_type_id,date" });
             }
