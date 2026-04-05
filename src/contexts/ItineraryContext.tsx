@@ -59,6 +59,7 @@ export interface ItineraryContextValue {
   
   // Actions
   addStay: (stay: Omit<ItineraryStay, 'id'>) => void;
+  addMultipleStays: (stays: Omit<ItineraryStay, 'id'>[]) => void;
   updateStay: (stayId: string, updates: Partial<ItineraryStay>) => void;
   removeStay: (stayId: string) => void;
   reorderStays: (fromIndex: number, toIndex: number) => void;
