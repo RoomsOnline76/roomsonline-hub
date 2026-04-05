@@ -218,12 +218,13 @@ export function BottomSheetDatePicker({
               const isSelected = isCheckIn(date) || isCheckOut(date);
               const status = getDateStatus(date);
               const disabled = isDisabled(date);
+              const outsideRange = isOutsideStayRange(date);
               
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => !disabled && handleDateClick(date)}
-                  disabled={disabled}
+                  onClick={() => !disabled && !outsideRange && handleDateClick(date)}
+                  disabled={disabled || outsideRange}
                   className={cn(
                     "flex flex-col items-center min-w-[3.5rem] py-2 px-3 rounded-xl transition-all duration-200",
                     "border border-transparent",
