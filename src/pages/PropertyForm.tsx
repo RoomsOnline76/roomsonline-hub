@@ -2069,8 +2069,53 @@ export default function PropertyForm() {
     if (!room) return;
     const newActive = !room.is_active;
     setRoomTypes(roomTypes.map(r => r.id === roomId ? { ...r, is_active: newActive } : r));
-    const { error } = await supabase.from("hostfully_room_types").update({ is_active: newActive, updated_at: new Date().toISOString() }).eq("id", roomId);
-    if (error) {
+
+    // Determine which table to update based on the room's origin
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
+    let updateError: any = null;
+
+    if (isUuid) {
+      // Try hostfully_room_types first (most common for PMS rooms)
+      const { error: hfError } = await supabase
+        .from("hostfully_room_types")
+        .update({ is_active: newActive, updated_at: new Date().toISOString() })
+        .eq("id", roomId);
+
+      if (hfError) {
+        // Fallback to rolos_room_types
+        const { error: rolosError } = await supabase
+          .from("rolos_room_types")
+          .update({ is_active: newActive, updated_at: new Date().toISOString() })
+          .eq("id", roomId);
+        updateError = rolosError;
+      }
+    }
+
+    // For wizard-sourced rooms (non-UUID IDs) or as a final fallback,
+    // update the is_active flag in amenities.room_types JSON
+    if (!isUuid || updateError) {
+      if (propertyId) {
+        const { data: propData } = await supabase
+          .from("properties")
+          .select("amenities")
+          .eq("id", propertyId)
+          .single();
+        if (propData?.amenities) {
+          const amenities = propData.amenities as any;
+          const updatedRoomTypes = (amenities.room_types || []).map((rt: any) =>
+            String(rt?.id) === String(roomId) ? { ...rt, is_active: newActive } : rt
+          );
+          const { error: amenityError } = await supabase
+            .from("properties")
+            .update({ amenities: { ...amenities, room_types: updatedRoomTypes } })
+            .eq("id", propertyId);
+          updateError = amenityError;
+        }
+      }
+    }
+
+    if (updateError) {
+      console.error("[toggleRoomActive] Error:", updateError);
       setRoomTypes(prev => prev.map(r => r.id === roomId ? { ...r, is_active: !newActive } : r));
       toast({ title: "Error", description: "Failed to update room status", variant: "destructive" });
     } else {
