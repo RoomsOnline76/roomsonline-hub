@@ -331,31 +331,57 @@ async function fetchAvailability(
 
   const data = JSON.parse(responseText);
 
-  // Normalize to standard adapter format
-  const rooms = (data.hotels?.[0]?.rooms || []).map((room: any) => ({
-    room_code: room.code,
-    room_name: room.name,
-    room_type: room.type,
-    max_occupancy: room.maxPax,
-    rates: (room.rates || []).map((rate: any) => ({
+  // Normalize to standard adapter format (room_types[] with rooms_available_per_night and rate_types)
+  const hotel = data.hotels?.[0];
+  const room_types = (hotel?.rooms || []).map((room: any) => {
+    // Build rooms_available_per_night from daily rates
+    const allDailyRates = (room.rates || []).flatMap((rate: any) => rate.dailyRates || []);
+    const dateSet = new Set<string>();
+    const roomsAvailPerNight: any[] = [];
+    for (const dr of allDailyRates) {
+      if (dr.date && !dateSet.has(dr.date)) {
+        dateSet.add(dr.date);
+        roomsAvailPerNight.push({
+          date: dr.date,
+          available_units: dr.available ?? 1,
+          stop_sell: false,
+        });
+      }
+    }
+
+    // Build rate_types from rates
+    const rate_types = (room.rates || []).map((rate: any) => ({
+      rate_type_id: rate.rateCode || rate.rateKey,
+      rate_type_name: rate.rateName || rate.boardName || "Standard",
+      price_type: "UnitRate",
       rate_key: rate.rateKey,
-      rate_code: rate.rateCode,
-      rate_name: rate.rateName,
-      rate_type: rate.rateType, // BAR, NET, etc.
       board_code: rate.boardCode,
       board_name: rate.boardName,
-      currency: rate.currency,
-      net_amount: rate.net,
+      rate_type: rate.rateType, // BAR, NET
+      net_total: rate.net,
       selling_rate: rate.sellingRate,
       commission: rate.commission,
-      commission_pct: rate.commissionPCT,
       cancellation_policies: rate.cancellationPolicies,
-      daily_rates: rate.dailyRates,
-      packaging: rate.packaging || false,
-    })),
-    images: room.images || [],
-    facilities: room.facilities || [],
-  }));
+      rates: (rate.dailyRates || []).map((dr: any) => ({
+        date: dr.date,
+        room_amount: dr.amount || dr.net || 0,
+        adult_amounts: { adult_amount_1: dr.amount || dr.net || 0, adult_amount_2: dr.amount || dr.net || 0 },
+        teen_amount: 0,
+        child_amount: 0,
+        infant_amount: 0,
+        currency: rate.currency || currency || "EUR",
+      })),
+    }));
+
+    return {
+      room_type_id: room.code,
+      room_type_name: room.name,
+      name: room.name,
+      max_guests: room.maxPax,
+      rooms_available_per_night: roomsAvailPerNight,
+      rate_types,
+    };
+  });
 
   return {
     hotel_code: creds.hotel_code,
@@ -363,8 +389,8 @@ async function fetchAvailability(
     check_out: endDate,
     nationality: nationality || null,
     currency: currency || data.currency,
-    rooms,
-    total_rooms_found: rooms.length,
+    room_types,
+    total_rooms_found: room_types.length,
   };
 }
 
@@ -742,7 +768,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const result = await fetchAvailability(
+      const rawResult = await fetchAvailability(
         creds,
         validation.data.start_date,
         validation.data.end_date,
@@ -751,19 +777,48 @@ Deno.serve(async (req) => {
         validation.data.currency
       );
 
+      // Map PMS-native room codes to DB UUIDs (adapter contract enforcement)
+      const { data: dbRooms } = await supabase
+        .from("hostfully_room_types")
+        .select("id, hostfully_room_id")
+        .eq("property_id", propertyId)
+        .eq("is_active", true);
+      
+      const pmsCodeToDbUuid: Record<string, string> = {};
+      if (dbRooms) {
+        for (const r of dbRooms) {
+          if (r.hostfully_room_id) {
+            const rawCode = r.hostfully_room_id.includes(':') 
+              ? r.hostfully_room_id.split(':').slice(1).join(':') 
+              : r.hostfully_room_id;
+            pmsCodeToDbUuid[rawCode] = r.id;
+          }
+        }
+      }
+
+      // Replace PMS codes with DB UUIDs
+      const result = {
+        ...rawResult,
+        room_types: (rawResult.room_types || []).map((rt: any) => ({
+          ...rt,
+          external_room_type_id: rt.room_type_id,
+          room_type_id: pmsCodeToDbUuid[rt.room_type_id] || rt.room_type_id,
+        })),
+      };
+
       // Cache availability data
-      if (result.rooms?.length) {
-        for (const room of result.rooms) {
-          for (const rate of room.rates || []) {
-            for (const dailyRate of rate.daily_rates || []) {
+      if (result.room_types?.length) {
+        for (const rt of result.room_types) {
+          for (const rateType of rt.rate_types || []) {
+            for (const dailyRate of rateType.rates || []) {
               await supabase.from("pms_availability_cache").upsert({
                 property_id: propertyId,
                 system_type: "hyperguest",
-                external_room_type_id: room.room_code,
+                external_room_type_id: rt.external_room_type_id || rt.room_type_id,
                 date: dailyRate.date,
                 available_units: dailyRate.available ?? 1,
-                rates: { net: rate.net_amount, selling: rate.selling_rate, currency: rate.currency },
-                raw_data: { room_name: room.room_name, rate_key: rate.rate_key, rate_name: rate.rate_name },
+                rates: { net: rateType.net_total, selling: rateType.selling_rate, currency: dailyRate.currency },
+                raw_data: { room_name: rt.room_type_name, rate_key: rateType.rate_key, rate_name: rateType.rate_type_name },
                 last_synced_at: new Date().toISOString(),
               }, { onConflict: "property_id,system_type,external_room_type_id,date" });
             }

@@ -1028,8 +1028,9 @@ async function handleFetchAvailability(
             }));
 
           allRoomTypes.push({
-            room_type_id: roomType.hostfully_room_id || roomType.id,
-            room_type_aliases: [roomType.id],
+            room_type_id: roomType.id,
+            external_room_type_id: roomType.hostfully_room_id || roomType.id,
+            room_type_aliases: [roomType.hostfully_room_id, roomType.id].filter(Boolean),
             name: roomType.name,
             total_units: roomType.total_units || unitEntries.length,
             availability_per_night: aggregatedPerNight,

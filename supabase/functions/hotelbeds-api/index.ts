@@ -924,12 +924,42 @@ serve(async (req) => {
           occ
         );
 
-        const transformed = transformAvailability(availabilityData, validStartDate, validEndDate);
+        const rawTransformed = transformAvailability(availabilityData, validStartDate, validEndDate);
+        
+        // Map PMS-native room codes to DB UUIDs (adapter contract enforcement)
+        const { data: dbRooms } = await supabaseClient
+          .from("hostfully_room_types")
+          .select("id, hostfully_room_id")
+          .eq("property_id", propertyId)
+          .eq("is_active", true);
+        
+        const pmsCodeToDbUuid: Record<string, string> = {};
+        if (dbRooms) {
+          for (const r of dbRooms) {
+            if (r.hostfully_room_id) {
+              // Strip adapter prefix: "hotelbeds:DBT.DX-4" → "DBT.DX-4"
+              const rawCode = r.hostfully_room_id.includes(':') 
+                ? r.hostfully_room_id.split(':').slice(1).join(':') 
+                : r.hostfully_room_id;
+              pmsCodeToDbUuid[rawCode] = r.id;
+            }
+          }
+        }
+        
+        // Replace PMS codes with DB UUIDs in response
+        const transformed = {
+          ...rawTransformed,
+          room_types: (rawTransformed.room_types || []).map((rt: any) => ({
+            ...rt,
+            external_room_type_id: rt.room_type_id, // Preserve PMS code for caching
+            room_type_id: pmsCodeToDbUuid[rt.room_type_id] || rt.room_type_id, // Map to DB UUID
+          })),
+        };
         
         // Cache availability data to pms_availability_cache (like other PMS adapters)
         const roomTypes = transformed.room_types || [];
         for (const roomType of roomTypes) {
-          const roomTypeId = roomType.room_type_id?.toString();
+          const cacheRoomTypeId = (roomType.external_room_type_id || roomType.room_type_id)?.toString();
           const roomTypeName = roomType.room_type_name || roomType.name;
           
           // Cache availability per night
@@ -971,14 +1001,14 @@ serve(async (req) => {
             const { error: cacheError } = await supabaseClient.from("pms_availability_cache").upsert({
               property_id: propertyId,
               system_type: "hotelbeds",
-              external_room_type_id: roomTypeId,
+              external_room_type_id: cacheRoomTypeId,
               date: dateStr,
               available_units: availability.available_units ?? 0,
               restrictions: restrictions,
               rates: ratesForDate.length > 0 ? ratesForDate : null,
               raw_data: {
                 roomTypeName: roomTypeName,
-                roomTypeId: roomTypeId,
+                roomTypeId: cacheRoomTypeId,
               },
               source_timestamp: new Date().toISOString(),
               fetched_at: new Date().toISOString(),

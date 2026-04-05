@@ -1212,21 +1212,6 @@ const Booking = () => {
           rooms_available_per_night: availArr,
         }];
       }
-      // Fetch hostfully_room_id for all rooms to bridge PMS-native IDs (HotelBeds, Benson, etc.)
-      const roomDbIds = rooms.map(r => r.roomTypeId).filter(Boolean);
-      let hfRoomIdMap: Record<string, string> = {};
-      if (roomDbIds.length > 0 && property?.id) {
-        const { data: hfLookup } = await supabase
-          .from("hostfully_room_types")
-          .select("id, hostfully_room_id")
-          .eq("property_id", property.id)
-          .in("id", roomDbIds);
-        if (hfLookup) {
-          for (const h of hfLookup) {
-            if (h.hostfully_room_id) hfRoomIdMap[h.id] = h.hostfully_room_id;
-          }
-        }
-      }
 
       // Calculate cost for each room
       for (const room of rooms) {
@@ -1237,27 +1222,15 @@ const Booking = () => {
           ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : nights;
 
-        // Find room type - handle both snake_case and camelCase field names
+        // Find room type - adapters now return DB UUIDs as room_type_id (adapter contract)
         console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
-        
-        // Bridge PMS-native room IDs: strip adapter prefix from hostfully_room_id to get raw PMS code
-        const urlHostfullyRoomId = searchParams.get('hostfully_room_id') || '';
-        const pmsRoomCode = urlHostfullyRoomId.includes(':') ? urlHostfullyRoomId.split(':').slice(1).join(':') : urlHostfullyRoomId;
-        
-        // Also look up the DB room's hostfully_room_id to extract PMS code for matching
-        const dbHostfullyRoomId = hfRoomIdMap[room.roomTypeId] || '';
-        const dbPmsCode = dbHostfullyRoomId.includes(':') ? dbHostfullyRoomId.split(':').slice(1).join(':') : dbHostfullyRoomId;
 
         let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
-            // Direct ID match
+            // Direct DB UUID match (primary path — adapters return DB UUIDs)
             if (rtId === room.roomTypeId) return true;
-            // PMS-native code match from URL param (e.g. HotelBeds DBT.DX-4)
-            if (pmsRoomCode && rtId === pmsRoomCode) return true;
-            // PMS-native code match from DB hostfully_room_id (e.g. hotelbeds:DBL.VM-2 → DBL.VM-2)
-            if (dbPmsCode && rtId === dbPmsCode) return true;
-            // Check aliases if available (cache-based matching)
+            // Check aliases if available
             if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
             // Forward match: room definition name slugified matches cache ID
             const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);

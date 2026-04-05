@@ -852,11 +852,39 @@ serve(async (req) => {
           room_type_ids
         );
 
-        const availability = transformAvailability(
+        const rawAvailability = transformAvailability(
           Array.isArray(availabilityRaw) ? availabilityRaw : [availabilityRaw],
           start_date,
           end_date
         );
+
+        // Map PMS-native room IDs to DB UUIDs (adapter contract enforcement)
+        const { data: dbRooms } = await supabaseClient
+          .from("hostfully_room_types")
+          .select("id, hostfully_room_id")
+          .eq("property_id", propertyId)
+          .eq("is_active", true);
+        
+        const pmsCodeToDbUuid: Record<string, string> = {};
+        if (dbRooms) {
+          for (const r of dbRooms) {
+            if (r.hostfully_room_id) {
+              const rawCode = r.hostfully_room_id.includes(':') 
+                ? r.hostfully_room_id.split(':').slice(1).join(':') 
+                : r.hostfully_room_id;
+              pmsCodeToDbUuid[rawCode] = r.id;
+            }
+          }
+        }
+
+        const availability = {
+          ...rawAvailability,
+          room_types: (rawAvailability.room_types || []).map((rt: any) => ({
+            ...rt,
+            external_room_type_id: rt.room_type_id,
+            room_type_id: pmsCodeToDbUuid[rt.room_type_id] || rt.room_type_id,
+          })),
+        };
 
         // Cache availability
         for (const rt of availability.room_types) {
@@ -866,7 +894,7 @@ serve(async (req) => {
               .upsert({
                 property_id: propertyId,
                 system_type: "cloudbeds",
-                external_room_type_id: rt.room_type_id,
+                external_room_type_id: rt.external_room_type_id || rt.room_type_id,
                 date: day.date,
                 available_units: day.available_units,
                 restrictions: day.restrictions,

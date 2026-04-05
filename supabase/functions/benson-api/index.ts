@@ -849,7 +849,33 @@ serve(async (req) => {
           })),
         }));
         
-        result = { room_types: transformedRoomTypes };
+        // Map PMS-native room IDs to DB UUIDs (adapter contract enforcement)
+        const { data: dbRooms } = await supabase
+          .from("hostfully_room_types")
+          .select("id, hostfully_room_id")
+          .eq("property_id", property_id)
+          .eq("is_active", true);
+        
+        const pmsCodeToDbUuid: Record<string, string> = {};
+        if (dbRooms) {
+          for (const r of dbRooms) {
+            if (r.hostfully_room_id) {
+              const rawCode = r.hostfully_room_id.includes(':') 
+                ? r.hostfully_room_id.split(':').slice(1).join(':') 
+                : r.hostfully_room_id;
+              pmsCodeToDbUuid[rawCode] = r.id;
+            }
+          }
+        }
+        
+        // Replace PMS codes with DB UUIDs
+        const mappedRoomTypes = transformedRoomTypes.map((rt: any) => ({
+          ...rt,
+          external_room_type_id: rt.room_type_id,
+          room_type_id: pmsCodeToDbUuid[rt.room_type_id] || rt.room_type_id,
+        }));
+        
+        result = { room_types: mappedRoomTypes };
         
         console.log(`Benson availability response structure:`, JSON.stringify({
           hasRoomTypes: !!result.room_types,
