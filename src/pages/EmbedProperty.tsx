@@ -760,8 +760,8 @@ export default function EmbedProperty() {
                 ? room.images.map((img: any) => img?.url || img).filter(Boolean)
                 : [];
               // Deterministic fallback: use room index to pick a varied property image
-              const propertyFallback = allImages.length > 0
-                ? allImages[idx % allImages.length]
+              const propertyFallback = galleryImages.length > 0
+                ? galleryImages[roomIdx % galleryImages.length]
                 : heroImage;
               const thumb = roomImages[0] || room.thumbnail_url || propertyFallback;
 
