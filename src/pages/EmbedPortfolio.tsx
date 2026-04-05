@@ -158,6 +158,7 @@ export default function EmbedPortfolio() {
             room_count: p.room_count || 0,
             max_guests: p.max_guests,
             brand_primary_color: p.brand_primary_color,
+            brand_secondary_color: p.brand_secondary_color || null,
             external_system: p.external_system || null,
             latitude: p.latitude || null,
             longitude: p.longitude || null,
