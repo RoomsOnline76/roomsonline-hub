@@ -572,6 +572,13 @@ export default function PMSBranding() {
                   value={portfolioBranding.font_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, font_color: v }))}
                 />
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Allow property branding override</Label>
+                    <p className="text-xs text-muted-foreground leading-snug">When enabled, each property's own brand colours replace the portfolio brand once a guest selects it. When off (default), portfolio branding carries through to checkout.</p>
+                  </div>
+                  <Switch checked={portfolioBranding.allow_property_brand_override} onCheckedChange={(v) => setPortfolioBranding(p => ({ ...p, allow_property_brand_override: v }))} />
+                </div>
                 <Button onClick={handleSavePortfolioBranding} disabled={portfolioSaving} className="w-full">
                   <Save className="h-4 w-4 mr-2" />
                   {portfolioSaving ? "Saving…" : "Save Portfolio Branding"}
