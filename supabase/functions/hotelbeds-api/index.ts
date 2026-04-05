@@ -1008,7 +1008,7 @@ serve(async (req) => {
               rates: ratesForDate.length > 0 ? ratesForDate : null,
               raw_data: {
                 roomTypeName: roomTypeName,
-                roomTypeId: roomTypeId,
+                roomTypeId: cacheRoomTypeId,
               },
               source_timestamp: new Date().toISOString(),
               fetched_at: new Date().toISOString(),
