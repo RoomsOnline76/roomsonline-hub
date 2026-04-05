@@ -352,9 +352,9 @@ const Booking = () => {
         allowChildren: rt.allow_children ?? true,
         allowInfants: rt.allow_infants ?? true,
         minGuests: rt.min_guests,
-        minStay: rt.min_stay || undefined,
-        maxStay: rt.max_stay || undefined,
-        maxAdults: rt.max_adults || undefined,
+        minStay: (rt as any).min_stay || undefined,
+        maxStay: (rt as any).max_stay || undefined,
+        maxAdults: (rt as any).max_adults || undefined,
       }))
   ) || [];
   
