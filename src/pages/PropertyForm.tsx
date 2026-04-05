@@ -2065,62 +2065,118 @@ export default function PropertyForm() {
   };
 
   const toggleRoomActive = async (roomId: string) => {
-    const room = roomTypes.find(r => r.id === roomId);
+    const room = roomTypes.find((r) => r.id === roomId);
     if (!room) return;
+
     const newActive = !room.is_active;
-    setRoomTypes(roomTypes.map(r => r.id === roomId ? { ...r, is_active: newActive } : r));
-
-    // Determine which table to update based on the room's origin
+    const timestamp = new Date().toISOString();
+    const roomName = String(room.name || "").trim();
+    const normalizedRoomName = roomName.toLowerCase();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
-    let updateError: any = null;
 
-    if (isUuid) {
-      // Try hostfully_room_types first (most common for PMS rooms)
-      const { error: hfError } = await supabase
-        .from("hostfully_room_types")
-        .update({ is_active: newActive, updated_at: new Date().toISOString() })
-        .eq("id", roomId);
+    setRoomTypes((prev) => prev.map((r) => (r.id === roomId ? { ...r, is_active: newActive } : r)));
 
-      if (hfError) {
-        // Fallback to rolos_room_types
-        const { error: rolosError } = await supabase
-          .from("rolos_room_types")
-          .update({ is_active: newActive, updated_at: new Date().toISOString() })
-          .eq("id", roomId);
-        updateError = rolosError;
+    const syncErrors: Array<{ source: string; error: unknown }> = [];
+    let canonicalUpdates = 0;
+    let amenitiesSynced = false;
+
+    const updateCanonicalByName = async (table: "hostfully_room_types" | "rolos_room_types") => {
+      if (!propertyId || !roomName) return 0;
+      const { data, error } = await supabase
+        .from(table as any)
+        .update({ is_active: newActive, updated_at: timestamp } as any)
+        .eq("property_id", propertyId)
+        .ilike("name", roomName)
+        .select("id");
+
+      if (error) {
+        syncErrors.push({ source: table, error });
+        return 0;
+      }
+
+      return data?.length || 0;
+    };
+
+    const updateCanonicalById = async (table: "hostfully_room_types" | "rolos_room_types") => {
+      const { data, error } = await supabase
+        .from(table as any)
+        .update({ is_active: newActive, updated_at: timestamp } as any)
+        .eq("id", roomId)
+        .select("id");
+
+      if (error) {
+        syncErrors.push({ source: table, error });
+        return 0;
+      }
+
+      return data?.length || 0;
+    };
+
+    if (propertyId && roomName) {
+      const [hostfullyCount, rolosCount] = await Promise.all([
+        updateCanonicalByName("hostfully_room_types"),
+        updateCanonicalByName("rolos_room_types"),
+      ]);
+      canonicalUpdates += hostfullyCount + rolosCount;
+    }
+
+    if (canonicalUpdates === 0 && isUuid) {
+      canonicalUpdates += await updateCanonicalById("hostfully_room_types");
+      if (canonicalUpdates === 0) {
+        canonicalUpdates += await updateCanonicalById("rolos_room_types");
       }
     }
 
-    // For wizard-sourced rooms (non-UUID IDs) or as a final fallback,
-    // update the is_active flag in amenities.room_types JSON
-    if (!isUuid || updateError) {
-      if (propertyId) {
-        const { data: propData } = await supabase
+    if (propertyId) {
+      const { data: propData, error: propError } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .single();
+
+      if (propError) {
+        syncErrors.push({ source: "properties", error: propError });
+      } else {
+        const amenities = (propData?.amenities as any) || {};
+        const currentRoomTypes = Array.isArray(amenities.room_types) ? amenities.room_types : [];
+        const updatedRoomTypes = currentRoomTypes.map((rt: any) => {
+          const sameId = String(rt?.id) === String(roomId);
+          const sameName = String(rt?.name || "").trim().toLowerCase() === normalizedRoomName;
+          return sameId || sameName ? { ...rt, is_active: newActive } : rt;
+        });
+
+        const { error: amenityError } = await supabase
           .from("properties")
-          .select("amenities")
-          .eq("id", propertyId)
-          .single();
-        if (propData?.amenities) {
-          const amenities = propData.amenities as any;
-          const updatedRoomTypes = (amenities.room_types || []).map((rt: any) =>
-            String(rt?.id) === String(roomId) ? { ...rt, is_active: newActive } : rt
-          );
-          const { error: amenityError } = await supabase
-            .from("properties")
-            .update({ amenities: { ...amenities, room_types: updatedRoomTypes } })
-            .eq("id", propertyId);
-          updateError = amenityError;
+          .update({ amenities: { ...amenities, room_types: updatedRoomTypes } })
+          .eq("id", propertyId);
+
+        if (amenityError) {
+          syncErrors.push({ source: "properties", error: amenityError });
+        } else {
+          amenitiesSynced = true;
         }
       }
     }
 
-    if (updateError) {
-      console.error("[toggleRoomActive] Error:", updateError);
-      setRoomTypes(prev => prev.map(r => r.id === roomId ? { ...r, is_active: !newActive } : r));
+    if (!amenitiesSynced && canonicalUpdates === 0) {
+      console.error("[toggleRoomActive] Sync failed:", syncErrors);
+      setRoomTypes((prev) => prev.map((r) => (r.id === roomId ? { ...r, is_active: !newActive } : r)));
       toast({ title: "Error", description: "Failed to update room status", variant: "destructive" });
-    } else {
-      toast({ title: newActive ? "Room Activated" : "Room Deactivated", description: `${room.name} is now ${newActive ? "visible" : "hidden"} on booking pages` });
+      return;
     }
+
+    if (canonicalUpdates === 0) {
+      console.warn("[toggleRoomActive] No canonical room rows matched; editor metadata was updated only", {
+        propertyId,
+        roomId,
+        roomName,
+      });
+    }
+
+    toast({
+      title: newActive ? "Room Activated" : "Room Deactivated",
+      description: `${room.name} is now ${newActive ? "visible" : "hidden"} on booking pages`,
+    });
   };
 
   // Helper to ensure a value is an array (handles JSON object vs array edge cases)
