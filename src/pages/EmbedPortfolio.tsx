@@ -460,6 +460,7 @@ export default function EmbedPortfolio() {
     if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
+    if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
     if (!allowOverride) params.set("portfolio_brand", "1");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
