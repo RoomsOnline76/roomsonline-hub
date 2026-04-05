@@ -1234,7 +1234,8 @@ const Booking = () => {
             // Check aliases if available (cache-based matching)
             if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
             // Forward match: room definition name slugified matches cache ID
-            if (dbRoom && slugifyRoomName(dbRoom.name) === rtId) return true;
+            const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
+            if (roomDef && slugifyRoomName(roomDef.name) === rtId) return true;
             // Reverse match: cache ID (slugified) matches any room definition
             const reverseMatch = roomTypes.find(r => slugifyRoomName(r.name) === rtId);
             if (reverseMatch && String(reverseMatch.id) === room.roomTypeId) return true;
