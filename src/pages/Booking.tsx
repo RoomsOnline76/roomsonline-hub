@@ -1584,13 +1584,18 @@ const Booking = () => {
 
         // Always check specials (stack with packages)
         try {
+          // Fetch specials where stay dates overlap valid period
+          // OR today is within the booking window (book now, stay later deals)
+          const todayForBookWindow = new Date().toISOString().split('T')[0];
           const { data: specials } = await supabase
             .from("property_specials" as any)
             .select("*")
             .eq("property_id", property.id)
             .eq("is_active", true)
-            .lte("valid_from", bookingCheckOut)
-            .gte("valid_to", bookingCheckIn);
+            .or(
+              `and(valid_from.lte.${bookingCheckOut},valid_to.gte.${bookingCheckIn}),` +
+              `and(book_from.lte.${todayForBookWindow},book_until.gte.${todayForBookWindow})`
+            );
 
           if (specials && specials.length > 0) {
             // Ensure hfRoomsRef is populated for UUID→legacy bridging
