@@ -33,6 +33,7 @@ interface PortfolioBranding {
   dark_bg_color?: string;
   hero_video_url?: string;
   pinned_featured_ids?: string[];
+  allow_property_brand_override?: boolean;
 }
 
 interface Portfolio {
