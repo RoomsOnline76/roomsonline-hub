@@ -2687,9 +2687,38 @@ const Booking = () => {
               );
             })}
 
-            <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add to your stay
-            </Button>
+            {isPortfolioEmbed && portfolioSlug ? (
+              <div className="space-y-2 w-full">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowJourneyAssistant(!showJourneyAssistant)} className="text-xs flex-1">
+                    <Sparkles className="h-3 w-3 mr-1" /> {showJourneyAssistant ? "Hide journey builder" : "Extend your journey"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+                    <Plus className="h-3 w-3 mr-1" /> Browse properties
+                  </Button>
+                </div>
+                <AnimatePresence>
+                  {showJourneyAssistant && property && checkIn && checkOut && (
+                    <TobiJourneyAssistant
+                      currentPropertyId={property.id}
+                      currentPropertyName={property.name}
+                      currentCheckIn={checkIn}
+                      currentCheckOut={checkOut}
+                      portfolioSlug={portfolioSlug}
+                      brandColor={urlBrandColor || undefined}
+                      brandFontColor={urlBrandFont || undefined}
+                      onSelectProperty={(s) => handleJourneyPropertySelect(s)}
+                      onBrowsePortfolio={addRoom}
+                      onClose={() => setShowJourneyAssistant(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add another room
+              </Button>
+            )}
           </motion.div>
 
           {/* ── Extras & Add-ons ── */}
