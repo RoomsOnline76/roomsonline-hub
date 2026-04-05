@@ -21,6 +21,8 @@ interface BottomSheetDatePickerProps {
   onDatesChange: (checkIn: Date, checkOut: Date) => void;
   minDate?: Date;
   availabilityMap?: Map<string, { available: boolean; rate?: number }>;
+  minNights?: number;  // minimum nights for stay
+  maxNights?: number;  // maximum nights for stay (undefined = unlimited)
 }
 
 // Format rate for display (compact format for calendar cells)

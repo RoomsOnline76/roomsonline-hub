@@ -2474,6 +2474,26 @@ const Booking = () => {
                           )}
                         </span>
                       )}
+                      {/* Rule summary - show constraints that differ from defaults */}
+                      {roomType && (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {(roomType.minStay && roomType.minStay > 1) && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Min {roomType.minStay} nights
+                            </span>
+                          )}
+                          {(roomType.maxStay && roomType.maxStay > 0) && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Max {roomType.maxStay} nights
+                            </span>
+                          )}
+                          {maxGuestsForRoom < 99 && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Max {maxGuestsForRoom} guests
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {rooms.length > 1 && (
                       <Button variant="ghost" size="sm" onClick={() => removeRoom(index)} className="text-destructive hover:text-destructive text-xs h-7">
