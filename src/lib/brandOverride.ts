@@ -194,23 +194,19 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   }
 
   // ── Dynamic contrast safety ──
-  // When brand colors are set but no explicit text colors, auto-derive
-  // foreground/text colors to guarantee readability against the effective background.
-  const effectiveBgHex = brand.lightBgColor || null;
+  // The engine must guarantee readable text on the actual branded surfaces.
+  // effectiveBgHex is the surface text sits on; default to white if not set.
+  const effectiveBgHex = brand.lightBgColor || "#ffffff";
   const hasExplicitForeground = !!(brand.headingTextColor || brand.fontColor);
 
   if (!hasExplicitForeground) {
-    // Detect current theme: check if the page background is dark or light
-    // If a light background is explicitly set, ensure dark text
-    if (effectiveBgHex && isLightColor(effectiveBgHex)) {
+    if (isLightColor(effectiveBgHex)) {
       const darkText = "220 20% 12%";
       vars["--foreground"] = darkText;
       vars["--card-foreground"] = darkText;
       vars["--popover-foreground"] = darkText;
       if (!brand.mutedTextColor) vars["--muted-foreground"] = "220 10% 40%";
-    }
-    // If a dark background is explicitly set, ensure light text
-    else if (effectiveBgHex && !isLightColor(effectiveBgHex)) {
+    } else {
       const lightText = "0 0% 95%";
       vars["--foreground"] = lightText;
       vars["--card-foreground"] = lightText;
@@ -220,13 +216,22 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   }
 
   // Ensure border/input tokens have adequate contrast with backgrounds
-  if (effectiveBgHex) {
-    if (isLightColor(effectiveBgHex)) {
-      vars["--border"] = "220 13% 82%";
-      vars["--input"] = "220 13% 82%";
-    } else {
-      vars["--border"] = "220 10% 25%";
-      vars["--input"] = "220 10% 25%";
+  if (isLightColor(effectiveBgHex)) {
+    vars["--border"] = "220 13% 82%";
+    vars["--input"] = "220 13% 82%";
+  } else {
+    vars["--border"] = "220 10% 25%";
+    vars["--input"] = "220 10% 25%";
+  }
+
+  // ── Primary-on-surface safety ──
+  // When primary color is used as text on the page background (e.g. promo labels),
+  // generate a safe variant. This is exposed as --primary-text-safe.
+  if (brand.primaryColor) {
+    const safeHex = ensureReadable(brand.primaryColor, effectiveBgHex, 4.5);
+    const safeHsl = hexToHsl(safeHex);
+    if (safeHsl) {
+      vars["--primary-text-safe"] = safeHsl;
     }
   }
 

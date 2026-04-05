@@ -2695,7 +2695,7 @@ const Booking = () => {
                       {selectedAddons.map((sa, idx) => (
                         <div key={idx} className="flex justify-between text-sm items-center">
                           <p className="text-foreground flex items-center gap-1.5">
-                            <span className="text-primary text-xs">＋</span>
+                            <span className="text-[hsl(var(--primary-text-safe,var(--primary)))] text-xs">＋</span>
                             {sa.addon.name} × {sa.quantity}
                           </p>
                           <span className="font-medium"><FormattedPrice amount={sa.total} /></span>
