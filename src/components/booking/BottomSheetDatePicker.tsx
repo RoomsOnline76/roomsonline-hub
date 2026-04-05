@@ -321,14 +321,15 @@ export function BottomSheetDatePicker({
               const status = getDateStatus(date);
               const disabled = isDisabled(date);
               const unavailable = status && !status.available;
+              const outsideStayRange = isOutsideStayRange(date);
               const selected = isCheckIn(date) || isCheckOut(date);
               const inRange = isInRange(date);
 
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => !disabled && !unavailable && handleDateClick(date)}
-                  disabled={disabled || unavailable}
+                  onClick={() => !disabled && !unavailable && !outsideStayRange && handleDateClick(date)}
+                  disabled={disabled || !!unavailable || outsideStayRange}
                   className={cn(
                     "h-11 rounded-xl text-sm font-medium transition-all duration-200",
                     "flex flex-col items-center justify-center gap-0.5",
@@ -339,6 +340,8 @@ export function BottomSheetDatePicker({
                       ? "bg-primary/10"
                       : unavailable
                       ? "bg-muted/60 text-muted-foreground/50 line-through cursor-not-allowed"
+                      : outsideStayRange
+                      ? "bg-muted/30 text-muted-foreground/30 cursor-not-allowed"
                       : "hover:bg-muted",
                     disabled && "bg-muted/40 text-muted-foreground/30 cursor-not-allowed",
                     isCheckIn(date) && "rounded-r-none",
