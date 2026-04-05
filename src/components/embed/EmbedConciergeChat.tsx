@@ -104,14 +104,14 @@ export function EmbedConciergeChat({
 
       if (error) throw error;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data?.narrative_response || "I found some options for you!",
-        },
-      ]);
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data?.narrative_response || "I found some options for you!",
+        journey_suggestions: data?.journey_suggestions || [],
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
       console.error("Concierge error:", err);
       setMessages((prev) => [
