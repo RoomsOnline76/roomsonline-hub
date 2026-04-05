@@ -1,43 +1,58 @@
+# Specials Not Applying: Root Cause Is Date/Stay Constraints, Not UUID Bridging
+
+## Finding
+
+The UUID→legacy ID bridging code from the last fix IS correctly in place, but it is **never reached** because both specials are filtered out earlier:
 
 
-# Fix Specials/Packages Not Applied After Adapter Contract Fix
+| Special              | Why it's excluded                                                    | Stage                  |
+| -------------------- | -------------------------------------------------------------------- | ---------------------- |
+| Early Bird (15% off) | Stay window is June 1 – July 15; booking is April 22–24 — no overlap | DB query (line 1592)   |
+| Pensioner (40% off)  | Requires min 4-night stay; booking is 2 nights                       | Code check (line 1616) |
 
-## Root Cause
 
-The specials' `applicable_room_ids` store **legacy wizard numeric IDs** (e.g. `1`, `1772973704081`) from `amenities.room_types[].id`. After the adapter contract fix, `rooms[].roomTypeId` is now the **DB UUID** (e.g. `c8253bc0-4449-422a-bf7e-b215b7aef83e`). The room matching logic on lines 1612-1627 tries to bridge these but fails because:
+The `SpecialsBanner` (the UI cards the user sees) uses a **different, more permissive query** — it shows specials where **today** falls in either the booking window or stay window. So both specials appear in the banner as advertising, but correctly don't apply to this particular booking.
 
-- `String(amenityRoom.id)` is `"1"` — doesn't match DB UUID `c8253bc0-...`
-- `amenityRoom.linked_rolos_id` doesn't exist in the amenities JSONB — that field lives on `hostfully_room_types`
+## The Real Problem
 
-The specials are fetched and displayed (via `SpecialsBanner` which does its own matching), but the **calculation** skips them because `hasMatchingRoom` is always `false`.
+The calculation query (line 1590-1593) only checks if the **stay dates** overlap with `valid_from`/`valid_to`. It does **not** consider `book_from`/`book_until` at all. This means:
 
-## Fix
+- A special with a booking window matching today but a future stay window will show in the banner but never apply to a current-dates booking.
 
-In `src/pages/Booking.tsx`, enhance the room matching inside the specials/packages calculation (lines 1607-1628) to bridge the DB UUID through `hostfully_room_types` → amenity room by name:
+## Proposed Fix [This fix I do not think address all the issues: the early bird is show as avilible but not applied. it is like the stacking is again ignored and showing some specails/packages are excluding others] Before applying this fix first check that this is not the real issue again]
 
-1. **Before the specials loop** (around line 1593): Build a lookup map from DB UUID → legacy amenity room IDs. Query `hostfully_room_types` (already available as `hfRooms` in scope from the rate resolution block) to get `{id: DB_UUID, name: "3 Bedroomed Holiday House"}`, then find the matching amenity room by name to get its legacy numeric ID.
+Align the calculation query with the banner logic: a special should apply if the stay dates overlap the valid period **OR** if today is within the booking window and the stay dates overlap.
 
-2. **In the `hasMatchingRoom` check** (line 1612): Add a new branch that checks if the DB UUID maps to a legacy amenity ID via the bridge map, and if that legacy ID is in `applicable_room_ids`.
+More practically, the fix is to also fetch specials where today is within `book_from`–`book_until`, then let the downstream code decide applicability:
 
-3. **Same fix for packages** (line 1525 block): Packages also use `applicable_room_ids` — apply the same bridging logic there if room filtering exists.
+### In `src/pages/Booking.tsx` (line 1587-1593)
 
-## Technical Detail
+Replace the single DB query with one that also fetches specials in the booking window:
 
+```typescript
+// Fetch specials where stay dates overlap valid period
+// OR today is within the booking window
+const todayStr = new Date().toISOString().split('T')[0];
+const { data: specials } = await supabase
+  .from("property_specials")
+  .select("*")
+  .eq("property_id", property.id)
+  .eq("is_active", true)
+  .or(
+    `and(valid_from.lte.${bookingCheckOut},valid_to.gte.${bookingCheckIn}),` +
+    `and(book_from.lte.${todayStr},book_until.gte.${todayStr})`
+  );
 ```
-DB UUID (c8253bc0-...)  →  hostfully_room_types.name ("3 Bedroomed Holiday House")
-                        →  amenities.room_types.find(r => r.name === name).id (1)
-                        →  applicable_room_ids.includes(1) ✓
-```
 
-The `hfRooms` query already exists in the `calculateCost` scope (line 944). We need to either:
-- Hoist it to component state so it's accessible in the specials section, OR
-- Query it once more inside the specials block (less ideal but contained)
+Then add a downstream check: if the special was fetched via booking window only (stay doesn't overlap), still apply the discount — the intent is "book now, get the deal."
 
-Best approach: store `hfRooms` in a `useRef` or state variable when first fetched (line 944-948), then reference it in the specials matching.
+### To properly test the UUID bridging
+
+Change the "Early Bird" special's `valid_from` to a date before April 22 (e.g., `2026-04-01`) so it passes the date filter, then verify the 15% discount appears in the calculation. This will confirm the bridge map works.
 
 ## Files Changed
 
-| File | Change |
-|---|---|
-| `src/pages/Booking.tsx` | Store `hfRooms` in state; build UUID→legacy-ID bridge map; use it in specials and packages `applicable_room_ids` matching |
 
+| File                    | Change                                                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `src/pages/Booking.tsx` | Update specials query to also fetch specials within booking window (book_from/book_until); keep all downstream matching logic |
