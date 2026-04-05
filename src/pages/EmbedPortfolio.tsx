@@ -90,6 +90,11 @@ export default function EmbedPortfolio() {
   const urlBrandColor = searchParams.get("brand_color");
   const urlBrandLogo = searchParams.get("brand_logo");
   const layout = searchParams.get("layout") || "grid";
+  
+  // Journey mode: guest is extending their trip from checkout
+  const journeyMode = searchParams.get("journey_mode") === "true";
+  const journeyCurrentPropertyId = searchParams.get("current_property_id");
+  const journeyCheckIn = searchParams.get("checkIn");
 
   const [portfolio, setPortfolio] = useState<any>(null);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
