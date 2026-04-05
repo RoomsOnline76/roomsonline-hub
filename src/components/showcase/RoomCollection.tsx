@@ -95,8 +95,11 @@ export function RoomCollection({
             const rate = getLowestRate(room);
             const availability = getAvailability(room);
             const nextAvail = getNextAvailableDay?.(room);
-            const roomImages = room.images && room.images.length > 0 ? room.images : propertyImages;
-            const heroImage = roomImages[0];
+            const hasOwnImages = room.images && room.images.length > 0;
+            const roomImages = hasOwnImages ? room.images : propertyImages;
+            // Deterministic fallback: hash room id to pick a varied property image
+            const fallbackIdx = Math.abs(room.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+            const heroImage = hasOwnImages ? roomImages[0] : (propertyImages.length > 0 ? propertyImages[fallbackIdx % propertyImages.length] : undefined);
             const isUnavailable = availability !== undefined && availability <= 0 && !nextAvail;
             const capacityText = formatRoomCapacity(room.maxPeople, room.maxAdults);
 

@@ -745,7 +745,7 @@ export default function EmbedProperty() {
         >
           <h3 className="text-sm font-semibold tracking-tight text-foreground">Rooms & Suites</h3>
           <div className="space-y-3">
-            {roomTypes.map((room) => {
+            {roomTypes.map((room, roomIdx) => {
                const rate = room.daily_rate ? Number(room.daily_rate) : null;
                const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
                const amenitiesData = property?.amenities as any;
@@ -759,7 +759,11 @@ export default function EmbedProperty() {
               const roomImages = Array.isArray(room.images)
                 ? room.images.map((img: any) => img?.url || img).filter(Boolean)
                 : [];
-              const thumb = roomImages[0] || room.thumbnail_url || heroImage;
+              // Deterministic fallback: use room index to pick a varied property image
+              const propertyFallback = galleryImages.length > 0
+                ? galleryImages[roomIdx % galleryImages.length]
+                : heroImage;
+              const thumb = roomImages[0] || room.thumbnail_url || propertyFallback;
 
               // ── Availability badge logic ──
               const roomCache = pmsCacheMap[room.id] || {};
