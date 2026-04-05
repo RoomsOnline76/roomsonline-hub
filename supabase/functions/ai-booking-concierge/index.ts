@@ -620,6 +620,173 @@ function generateSurpriseGift(sessionId?: string): ConciergeResponse['surprise_g
 }
 
 // ============================================================================
+// JOURNEY BUILDER HANDLER
+// ============================================================================
+
+async function handleJourneyBuilder(
+  supabase: any,
+  body: ConciergeRequest
+): Promise<ConciergeResponse> {
+  const { property_id, user_query, current_stay, portfolio_slug, conversation_history } = body;
+  
+  // Get current property context
+  const context = await fetchPropertyContext(supabase, property_id);
+  
+  // Fetch portfolio siblings
+  let portfolioProperties: { id: string; name: string; slug: string; city: string; hero_image: string | null; starting_rate: number | null; currency: string }[] = [];
+  
+  if (portfolio_slug) {
+    const { data: portfolio } = await supabase
+      .from("property_portfolios")
+      .select("id")
+      .eq("slug", portfolio_slug)
+      .maybeSingle();
+    
+    if (portfolio) {
+      const { data: members } = await supabase
+        .from("property_portfolio_members")
+        .select("property_id")
+        .eq("portfolio_id", portfolio.id);
+      
+      if (members && members.length > 0) {
+        const memberIds = members.map((m: any) => m.property_id).filter((pid: string) => pid !== property_id);
+        if (memberIds.length > 0) {
+          const { data: props } = await supabase
+            .from("properties")
+            .select("id, name, slug, city, hero_image, starting_rate, currency, is_published")
+            .in("id", memberIds)
+            .eq("is_published", true);
+          
+          if (props) {
+            portfolioProperties = props.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              slug: p.slug,
+              city: p.city || "",
+              hero_image: p.hero_image,
+              starting_rate: p.starting_rate,
+              currency: p.currency || "ZAR",
+            }));
+          }
+        }
+      }
+    }
+  }
+  
+  // If no portfolio, fall back to owner's other properties
+  if (portfolioProperties.length === 0) {
+    const alternatives = await fetchOwnerAlternatives(
+      supabase, context.owner_id, property_id,
+      { check_in: current_stay?.check_out || "", check_out: "" }
+    );
+    portfolioProperties = alternatives.map(a => ({
+      id: "",
+      name: a.name,
+      slug: a.slug,
+      city: a.city,
+      hero_image: null,
+      starting_rate: null,
+      currency: context.currency,
+    }));
+  }
+  
+  // Build journey suggestions with dates
+  const checkOutDate = current_stay?.check_out || "";
+  const journeySuggestions: JourneySuggestion[] = portfolioProperties.slice(0, 5).map(p => {
+    // Default: suggest 3 nights after current checkout
+    const startDate = checkOutDate ? new Date(checkOutDate) : new Date();
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 3);
+    
+    return {
+      property_id: p.id,
+      property_name: p.name,
+      property_slug: p.slug,
+      city: p.city,
+      check_in: startDate.toISOString().split('T')[0],
+      check_out: endDate.toISOString().split('T')[0],
+      starting_rate: p.starting_rate || undefined,
+      currency: p.currency,
+      hero_image: p.hero_image || undefined,
+    };
+  });
+  
+  // Generate AI narrative for journey mode
+  const propertiesList = portfolioProperties.map(p => 
+    `- ${p.name} in ${p.city} (from ${p.currency} ${p.starting_rate || '?'}/night)`
+  ).join('\n');
+  
+  const journeyPrompt = `You are TOBI 🐱, a passionate travel concierge helping plan a multi-destination journey.
+
+The guest is currently staying at **${current_stay?.property_name || context.name}** (${current_stay?.check_in || '?'} to ${current_stay?.check_out || '?'}).
+
+AVAILABLE PROPERTIES IN THIS PORTFOLIO:
+${propertiesList || 'No other properties available.'}
+
+RULES:
+1. Help the guest extend their trip enthusiastically
+2. Suggest 1-2 specific properties that complement their current stay
+3. Mention what makes each destination unique
+4. Keep under 120 words, use markdown, be warm and excited
+5. If the guest mentions "before" — suggest pre-dates; "after" — suggest post-dates
+6. Never repeat properties already mentioned in conversation history`;
+
+  const hasAiKey = Deno.env.get("XAI_API_KEY") || Deno.env.get("LOVABLE_API_KEY");
+  let narrativeResponse = journeySuggestions.length > 0
+    ? `Here are some amazing options to extend your journey from ${current_stay?.property_name || 'your current stay'}! 🗺️`
+    : "I couldn't find other properties in this portfolio right now.";
+  
+  if (hasAiKey) {
+    const aiMessages: { role: string; content: string }[] = [
+      { role: "system", content: journeyPrompt },
+    ];
+    if (conversation_history && conversation_history.length > 0) {
+      for (const msg of conversation_history.slice(-8)) {
+        aiMessages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.content });
+      }
+    }
+    aiMessages.push({ role: "user", content: `Guest asked: "${user_query}"` });
+
+    const XAI_API_KEY = Deno.env.get("XAI_API_KEY");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    
+    try {
+      if (XAI_API_KEY) {
+        const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${XAI_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "grok-3-mini-fast", messages: aiMessages, max_tokens: 250 }),
+        });
+        if (resp.ok) {
+          const result = await resp.json();
+          const content = result.choices?.[0]?.message?.content;
+          if (content) narrativeResponse = content;
+        }
+      } else if (LOVABLE_API_KEY) {
+        const resp = await fetch(AI_GATEWAY, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: aiMessages, max_tokens: 250 }),
+        });
+        if (resp.ok) {
+          const result = await resp.json();
+          const content = result.choices?.[0]?.message?.content;
+          if (content) narrativeResponse = content;
+        }
+      }
+    } catch (e) {
+      console.error("[Concierge] Journey AI error:", e);
+    }
+  }
+
+  return {
+    suggestions: [],
+    narrative_response: narrativeResponse,
+    journey_suggestions: journeySuggestions,
+  };
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
