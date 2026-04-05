@@ -93,6 +93,7 @@ export default function AdminPortfolios() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [pinnedFeaturedIds, setPinnedFeaturedIds] = useState<string[]>([]);
+  const [allowPropertyBrandOverride, setAllowPropertyBrandOverride] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
   const heroVideoInputRef = useRef<HTMLInputElement>(null);
