@@ -33,7 +33,8 @@ import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter"
 import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { TobiJourneyAssistant } from "@/components/booking/TobiJourneyAssistant";
 import { BottomSheetDatePicker } from "@/components/booking/BottomSheetDatePicker";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
