@@ -1,37 +1,43 @@
 
 
-# Portfolio Brand Continuity to Checkout
+# Fix Specials/Packages Not Applied After Adapter Contract Fix
 
-## Problem
-When a guest navigates from a portfolio page → property showcase → checkout, the brand colors change at each step. Currently `EmbedPortfolio.tsx` always passes the **property's own** `brand_primary_color` when navigating to a property (line 443). Then `EmbedProperty.tsx` passes the property's colors to checkout (line 485). The portfolio brand is lost.
+## Root Cause
 
-## Solution
+The specials' `applicable_room_ids` store **legacy wizard numeric IDs** (e.g. `1`, `1772973704081`) from `amenities.room_types[].id`. After the adapter contract fix, `rooms[].roomTypeId` is now the **DB UUID** (e.g. `c8253bc0-4449-422a-bf7e-b215b7aef83e`). The room matching logic on lines 1612-1627 tries to bridge these but fails because:
 
-**Default behaviour**: Portfolio brand colors carry through the entire flow (portfolio → property → checkout).
+- `String(amenityRoom.id)` is `"1"` — doesn't match DB UUID `c8253bc0-...`
+- `amenityRoom.linked_rolos_id` doesn't exist in the amenities JSONB — that field lives on `hostfully_room_types`
 
-**Optional override**: A new toggle in portfolio settings — `"Allow property branding override"` — when enabled, switches to the property's own brand as soon as a guest selects a specific property.
+The specials are fetched and displayed (via `SpecialsBanner` which does its own matching), but the **calculation** skips them because `hasMatchingRoom` is always `false`.
 
-## Technical approach
+## Fix
 
-### 1. Add toggle to portfolio metadata
-Add `allow_property_brand_override?: boolean` to the `PortfolioBranding` interface and expose it as a Switch in `AdminPortfolios.tsx` (and `PMSBranding.tsx` portfolio view).
+In `src/pages/Booking.tsx`, enhance the room matching inside the specials/packages calculation (lines 1607-1628) to bridge the DB UUID through `hostfully_room_types` → amenity room by name:
 
-### 2. Pass portfolio brand through the flow
+1. **Before the specials loop** (around line 1593): Build a lookup map from DB UUID → legacy amenity room IDs. Query `hostfully_room_types` (already available as `hfRooms` in scope from the rate resolution block) to get `{id: DB_UUID, name: "3 Bedroomed Holiday House"}`, then find the matching amenity room by name to get its legacy numeric ID.
 
-**`EmbedPortfolio.tsx` — `handleViewProperty` (line 441-464)**:
-- When override is OFF (default): always pass portfolio's `brandColor` / `brandSecondaryColor` / font colors as URL params, ignoring the property's own colors.
-- When override is ON: use current logic (`prop?.brand_primary_color || brandColor`).
-- Add a new URL param `portfolio_brand=1` so downstream pages know to preserve portfolio branding.
+2. **In the `hasMatchingRoom` check** (line 1612): Add a new branch that checks if the DB UUID maps to a legacy amenity ID via the bridge map, and if that legacy ID is in `applicable_room_ids`.
 
-**`EmbedProperty.tsx` (line 483-487)**:
-- When `portfolio_brand=1` is set and brand params are already in the URL, forward those same portfolio brand params to checkout instead of overwriting with property's DB colors.
+3. **Same fix for packages** (line 1525 block): Packages also use `applicable_room_ids` — apply the same bridging logic there if room filtering exists.
 
-### 3. Files changed
+## Technical Detail
+
+```
+DB UUID (c8253bc0-...)  →  hostfully_room_types.name ("3 Bedroomed Holiday House")
+                        →  amenities.room_types.find(r => r.name === name).id (1)
+                        →  applicable_room_ids.includes(1) ✓
+```
+
+The `hfRooms` query already exists in the `calculateCost` scope (line 944). We need to either:
+- Hoist it to component state so it's accessible in the specials section, OR
+- Query it once more inside the specials block (less ideal but contained)
+
+Best approach: store `hfRooms` in a `useRef` or state variable when first fetched (line 944-948), then reference it in the specials matching.
+
+## Files Changed
 
 | File | Change |
 |---|---|
-| `src/pages/admin/AdminPortfolios.tsx` | Add `allow_property_brand_override` toggle to portfolio form; add to `PortfolioBranding` interface |
-| `src/pages/pms/PMSBranding.tsx` | Add same toggle in portfolio branding view |
-| `src/pages/EmbedPortfolio.tsx` | Read toggle from portfolio metadata; conditionally pass portfolio vs property brand colors; add `portfolio_brand` URL param |
-| `src/pages/EmbedProperty.tsx` | Detect `portfolio_brand` param; forward incoming brand params to checkout instead of property DB colors |
+| `src/pages/Booking.tsx` | Store `hfRooms` in state; build UUID→legacy-ID bridge map; use it in specials and packages `applicable_room_ids` matching |
 
