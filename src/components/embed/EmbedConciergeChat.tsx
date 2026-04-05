@@ -7,6 +7,18 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 
+interface JourneySuggestion {
+  property_id: string;
+  property_name: string;
+  property_slug: string;
+  city: string;
+  check_in: string;
+  check_out: string;
+  starting_rate?: number;
+  currency?: string;
+  hero_image?: string;
+}
+
 interface EmbedConciergeChatProps {
   propertyId: string;
   propertyName: string;
@@ -15,12 +27,15 @@ interface EmbedConciergeChatProps {
   fontColor?: string;
   checkIn?: string;
   checkOut?: string;
+  portfolioSlug?: string;
+  onBookJourney?: (suggestions: JourneySuggestion[]) => void;
 }
 
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  journey_suggestions?: JourneySuggestion[];
 }
 
 const QUICK_CHIPS = [
@@ -38,6 +53,8 @@ export function EmbedConciergeChat({
   fontColor = "#ffffff",
   checkIn,
   checkOut,
+  portfolioSlug,
+  onBookJourney,
 }: EmbedConciergeChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -87,14 +104,14 @@ export function EmbedConciergeChat({
 
       if (error) throw error;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data?.narrative_response || "I found some options for you!",
-        },
-      ]);
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data?.narrative_response || "I found some options for you!",
+        journey_suggestions: data?.journey_suggestions || [],
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
       console.error("Concierge error:", err);
       setMessages((prev) => [
@@ -179,6 +196,31 @@ export function EmbedConciergeChat({
                             {chip}
                           </button>
                         ))}
+                      </div>
+                    )}
+                    {/* Journey suggestions */}
+                    {msg.journey_suggestions && msg.journey_suggestions.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {msg.journey_suggestions.slice(0, 3).map((s) => (
+                          <div
+                            key={s.property_id}
+                            className="flex items-center gap-2 p-1.5 rounded-lg bg-background border border-border text-left text-[11px]"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{s.property_name}</p>
+                              <p className="text-muted-foreground">{s.city} · {s.check_in} → {s.check_out}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {onBookJourney && (
+                          <button
+                            onClick={() => onBookJourney(msg.journey_suggestions!)}
+                            className="w-full text-[11px] font-medium py-1.5 rounded-lg transition-colors"
+                            style={{ background: `${brandColor}15`, color: brandColor }}
+                          >
+                            ✨ Book this itinerary
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

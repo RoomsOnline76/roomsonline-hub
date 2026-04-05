@@ -90,6 +90,11 @@ export default function EmbedPortfolio() {
   const urlBrandColor = searchParams.get("brand_color");
   const urlBrandLogo = searchParams.get("brand_logo");
   const layout = searchParams.get("layout") || "grid";
+  
+  // Journey mode: guest is extending their trip from checkout
+  const journeyMode = searchParams.get("journey_mode") === "true";
+  const journeyCurrentPropertyId = searchParams.get("current_property_id");
+  const journeyCheckIn = searchParams.get("checkIn");
 
   const [portfolio, setPortfolio] = useState<any>(null);
   const [properties, setProperties] = useState<PortfolioProperty[]>([]);
@@ -455,6 +460,7 @@ export default function EmbedPortfolio() {
     if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
+    if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
     if (!allowOverride) params.set("portfolio_brand", "1");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
@@ -567,6 +573,32 @@ export default function EmbedPortfolio() {
             </button>
           </motion.div>
         </div>
+      )}
+
+      {/* Journey Mode Banner */}
+      {journeyMode && journeyCurrentPropertyId && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 pt-4"
+        >
+          <div
+            className="rounded-xl p-4 flex items-center gap-3"
+            style={{ background: `linear-gradient(135deg, ${brandColor}15, ${brandColor}08)`, border: `1px solid ${brandColor}30` }}
+          >
+            <Sparkles className="h-5 w-5 flex-shrink-0" style={{ color: brandColor }} />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Extend your journey! 🗺️
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                {journeyCheckIn
+                  ? `Pick your next destination starting from ${journeyCheckIn}`
+                  : "Choose another property to add to your trip"}
+              </p>
+            </div>
+          </div>
+        </motion.div>
       )}
 
       {/* Featured Pick Banner */}

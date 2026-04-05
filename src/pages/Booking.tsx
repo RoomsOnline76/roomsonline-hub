@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint, CreditCard, Lock, ChevronRight, BedDouble } from "lucide-react";
+import { Calendar, Users, ArrowLeft, Minus, Plus, Loader2, CheckCircle, AlertCircle, Info, CalendarDays, PawPrint, CreditCard, Lock, ChevronRight, BedDouble, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -33,7 +33,8 @@ import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter"
 import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { TobiJourneyAssistant } from "@/components/booking/TobiJourneyAssistant";
 import { BottomSheetDatePicker } from "@/components/booking/BottomSheetDatePicker";
 import { FluentStepIndicator } from "@/components/booking/FluentStepIndicator";
 import { FluentBookingHeader } from "@/components/booking/FluentBookingHeader";
@@ -1809,7 +1810,37 @@ const Booking = () => {
     }
   };
 
-  // Extend stay - navigate back to property page to select another room
+  // Portfolio slug for journey routing — resolved from URL or DB
+  const [portfolioSlug, setPortfolioSlug] = useState<string | null>(searchParams.get("portfolio_slug") || null);
+  const [showJourneyAssistant, setShowJourneyAssistant] = useState(false);
+  const isPortfolioEmbed = integrationParam === "portfolio_embed";
+
+  // Resolve portfolio slug from DB if not in URL
+  useEffect(() => {
+    if (portfolioSlug || !property?.id || !isPortfolioEmbed) return;
+    (async () => {
+      try {
+        const { data: memberships } = await supabase
+          .from("property_portfolio_members" as any)
+          .select("portfolio_id")
+          .eq("property_id", property.id);
+        if (memberships && memberships.length > 0) {
+          const { data: portfolio } = await supabase
+            .from("property_portfolios" as any)
+            .select("slug")
+            .eq("id", (memberships as any)[0].portfolio_id)
+            .maybeSingle();
+          if (portfolio && (portfolio as any).slug) {
+            setPortfolioSlug((portfolio as any).slug);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to resolve portfolio slug:", e);
+      }
+    })();
+  }, [property?.id, isPortfolioEmbed, portfolioSlug]);
+
+  // Extend stay - navigate to portfolio overview (journey) or property page (standalone)
   const addRoom = () => {
     // Ensure all existing rooms have their dates saved (use their custom dates or fall back to default)
     const roomsWithDates = rooms.map(room => ({
@@ -1834,8 +1865,28 @@ const Booking = () => {
       totalCost,
     };
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
+
+    // Portfolio embed: route to portfolio overview for journey building
+    if (isPortfolioEmbed && portfolioSlug) {
+      const params = new URLSearchParams({
+        journey_mode: 'true',
+        current_property_id: property?.id || '',
+        checkIn: checkOut || '', // Next stay starts after current checkout
+        checkOut: '',
+      });
+      if (urlBrandColor) params.set('brand_color', urlBrandColor);
+      if (urlBrandSecondary) params.set('brand_secondary_color', urlBrandSecondary);
+      if (urlBrandFont) params.set('brand_font_color', urlBrandFont);
+      
+      if (window.parent !== window) {
+        window.location.href = `/embed/portfolio/${portfolioSlug}?${params.toString()}`;
+      } else {
+        navigate(`/embed/portfolio/${portfolioSlug}?${params.toString()}`);
+      }
+      return;
+    }
     
-    // Navigate back to property page with addRoom flag
+    // Standalone or same-property: navigate back to property page with addRoom flag
     const params = new URLSearchParams({
       addRoom: 'true',
       checkIn: checkIn || '',
@@ -1855,6 +1906,26 @@ const Booking = () => {
       navigate(`/embed/property/${property.slug || id}?${params.toString()}`);
     } else {
       navigate(`/property/${id}?${params.toString()}`);
+    }
+  };
+
+  // Journey assistant: handle property selection from TOBI suggestions
+  const handleJourneyPropertySelect = (suggestion: { property_slug: string; check_in: string; check_out: string }) => {
+    // Save booking state first
+    addRoom(); // This saves state
+    // Then navigate to the suggested property
+    const params = new URLSearchParams({
+      checkIn: suggestion.check_in,
+      checkOut: suggestion.check_out,
+      integration: 'portfolio_embed',
+    });
+    if (urlBrandColor) params.set('brand_color', urlBrandColor);
+    if (urlBrandSecondary) params.set('brand_secondary_color', urlBrandSecondary);
+    if (urlBrandFont) params.set('brand_font_color', urlBrandFont);
+    if (window.parent !== window) {
+      window.location.href = `/embed/property/${suggestion.property_slug}?${params.toString()}`;
+    } else {
+      navigate(`/embed/property/${suggestion.property_slug}?${params.toString()}`);
     }
   };
 
@@ -2617,9 +2688,38 @@ const Booking = () => {
               );
             })}
 
-            <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
-              <Plus className="h-3 w-3 mr-1" /> Add to your stay
-            </Button>
+            {isPortfolioEmbed && portfolioSlug ? (
+              <div className="space-y-2 w-full">
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowJourneyAssistant(!showJourneyAssistant)} className="text-xs flex-1">
+                    <Sparkles className="h-3 w-3 mr-1" /> {showJourneyAssistant ? "Hide journey builder" : "Extend your journey"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+                    <Plus className="h-3 w-3 mr-1" /> Browse properties
+                  </Button>
+                </div>
+                <AnimatePresence>
+                  {showJourneyAssistant && property && checkIn && checkOut && (
+                    <TobiJourneyAssistant
+                      currentPropertyId={property.id}
+                      currentPropertyName={property.name}
+                      currentCheckIn={checkIn}
+                      currentCheckOut={checkOut}
+                      portfolioSlug={portfolioSlug}
+                      brandColor={urlBrandColor || undefined}
+                      brandFontColor={urlBrandFont || undefined}
+                      onSelectProperty={(s) => handleJourneyPropertySelect(s)}
+                      onBrowsePortfolio={addRoom}
+                      onClose={() => setShowJourneyAssistant(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={addRoom} className="text-xs">
+                <Plus className="h-3 w-3 mr-1" /> Add another room
+              </Button>
+            )}
           </motion.div>
 
           {/* ── Extras & Add-ons ── */}

@@ -493,6 +493,9 @@ export default function EmbedProperty() {
       if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
       if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
     }
+    // Forward portfolio_slug so checkout can route back to portfolio
+    const portfolioSlugParam = searchParams.get("portfolio_slug");
+    if (portfolioSlugParam) params.set("portfolio_slug", portfolioSlugParam);
     window.location.href = `/booking/${property.slug}?${params.toString()}`;
   };
 

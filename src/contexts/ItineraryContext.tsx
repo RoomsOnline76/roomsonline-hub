@@ -59,6 +59,7 @@ export interface ItineraryContextValue {
   
   // Actions
   addStay: (stay: Omit<ItineraryStay, 'id'>) => void;
+  addMultipleStays: (stays: Omit<ItineraryStay, 'id'>[]) => void;
   updateStay: (stayId: string, updates: Partial<ItineraryStay>) => void;
   removeStay: (stayId: string) => void;
   reorderStays: (fromIndex: number, toIndex: number) => void;
@@ -193,6 +194,15 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
       nights: calculateNights(stay.dates.check_in, stay.dates.check_out)
     };
     setStays(prev => [...prev, newStay]);
+  }, []);
+
+  const addMultipleStays = useCallback((newStays: Omit<ItineraryStay, 'id'>[]) => {
+    const staysWithIds: ItineraryStay[] = newStays.map(stay => ({
+      ...stay,
+      id: generateId(),
+      nights: calculateNights(stay.dates.check_in, stay.dates.check_out)
+    }));
+    setStays(prev => [...prev, ...staysWithIds]);
   }, []);
 
   const updateStay = useCallback((stayId: string, updates: Partial<ItineraryStay>) => {
@@ -330,6 +340,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     itineraryId,
     isLoading,
     addStay,
+    addMultipleStays,
     updateStay,
     removeStay,
     reorderStays,
