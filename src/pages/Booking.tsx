@@ -2434,7 +2434,7 @@ const Booking = () => {
                         <span className="text-xs text-muted-foreground">
                           {format(parseISO(roomCheckIn), "d MMM")} – {format(parseISO(roomCheckOut), "d MMM yyyy")}
                           {room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut) && (
-                            <span className="text-primary ml-1">(custom dates)</span>
+                            <span className="text-[hsl(var(--primary-text-safe,var(--primary)))] ml-1">(custom dates)</span>
                           )}
                         </span>
                       )}
