@@ -35,6 +35,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  journey_suggestions?: JourneySuggestion[];
 }
 
 const QUICK_CHIPS = [
