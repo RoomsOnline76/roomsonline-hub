@@ -1184,8 +1184,34 @@ const Booking = () => {
       let runningTotal = 0;
 
       // Get room types array - handle both snake_case (contract) and camelCase (legacy)
-      const roomTypesArray = availability?.room_types || availability?.roomTypes || [];
+      let roomTypesArray = availability?.room_types || availability?.roomTypes || [];
       
+      // If PMS returned empty room_types but we have embed_rate, build synthetic availability
+      if (roomTypesArray.length === 0 && embedRate && embedRate > 0 && checkIn && checkOut) {
+        console.log('[Booking] PMS returned empty availability — using embed_rate fallback:', embedRate);
+        const dailyRates: any[] = [];
+        const availArr: any[] = [];
+        const cur = new Date(checkIn);
+        const end = new Date(checkOut);
+        while (cur < end) {
+          const dateStr = cur.toISOString().split('T')[0];
+          dailyRates.push({ date: dateStr, room_amount: embedRate });
+          availArr.push({ date: dateStr, available_units: 1 });
+          cur.setDate(cur.getDate() + 1);
+        }
+        const fallbackRoom = rooms[0];
+        roomTypesArray = [{
+          room_type_id: fallbackRoom?.roomTypeId || 'embed-room',
+          room_type_name: fallbackRoom?.roomTypeName || 'Room',
+          rate_types: [{
+            rate_type_id: 'embed-fallback',
+            rate_type_name: 'Standard Rate',
+            price_type: 'PER_NIGHT',
+            rates: dailyRates,
+          }],
+          rooms_available_per_night: availArr,
+        }];
+      }
       // Fetch hostfully_room_id for all rooms to bridge PMS-native IDs (HotelBeds, Benson, etc.)
       const roomDbIds = rooms.map(r => r.roomTypeId).filter(Boolean);
       let hfRoomIdMap: Record<string, string> = {};
