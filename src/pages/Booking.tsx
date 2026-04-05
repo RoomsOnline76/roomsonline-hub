@@ -1593,6 +1593,15 @@ const Booking = () => {
             .gte("valid_to", bookingCheckIn);
 
           if (specials && specials.length > 0) {
+            // Ensure hfRoomsRef is populated for UUID→legacy bridging
+            if (hfRoomsRef.current.length === 0 && property.id) {
+              const { data: hfRoomsFallback } = await supabase
+                .from("hostfully_room_types")
+                .select("id, name, linked_rolos_id")
+                .eq("property_id", property.id)
+                .eq("is_active", true);
+              hfRoomsRef.current = (hfRoomsFallback || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
+            }
             let nextPendingAgeSpecial: any | null = null;
             const accommodationSubtotal = lineItems
               .filter((item) => item.nights > 0 && item.total > 0)
