@@ -574,6 +574,32 @@ export default function EmbedPortfolio() {
         </div>
       )}
 
+      {/* Journey Mode Banner */}
+      {journeyMode && journeyCurrentPropertyId && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-6xl mx-auto px-4 sm:px-6 pt-4"
+        >
+          <div
+            className="rounded-xl p-4 flex items-center gap-3"
+            style={{ background: `linear-gradient(135deg, ${brandColor}15, ${brandColor}08)`, border: `1px solid ${brandColor}30` }}
+          >
+            <Sparkles className="h-5 w-5 flex-shrink-0" style={{ color: brandColor }} />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Extend your journey! 🗺️
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                {journeyCheckIn
+                  ? `Pick your next destination starting from ${journeyCheckIn}`
+                  : "Choose another property to add to your trip"}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Featured Pick Banner */}
       {featuredProp && !aiSearchResults && activeGroup === "all" && (
         <motion.div
