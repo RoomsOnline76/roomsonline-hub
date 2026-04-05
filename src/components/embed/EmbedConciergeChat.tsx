@@ -53,6 +53,8 @@ export function EmbedConciergeChat({
   fontColor = "#ffffff",
   checkIn,
   checkOut,
+  portfolioSlug,
+  onBookJourney,
 }: EmbedConciergeChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
