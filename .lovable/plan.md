@@ -1,43 +1,85 @@
 
 
-# Fix HotelBeds Rates Not Reaching Checkout
+# Audit: PMS Adapter Availability Response — room_type_id Contract
 
-## Problem
-When a guest clicks "Book" on a HotelBeds property embed, rates show as zero or "On Request" in checkout. The root cause is a **room ID mismatch** between the database and the HotelBeds API response.
+## The Problem
 
-- The embed page passes the database UUID (e.g. `69c53acc-bfce-4bf9-...`) as the room identifier
-- The HotelBeds API returns room codes (e.g. `DBT.DX-4`) as identifiers
-- The checkout room-matching logic cannot link these two, so the rate data is never applied
+The adapter contract requires that `room_type_id` in the `fetch_availability` response be **the database UUID** from `hostfully_room_types.id`, so the frontend can match rooms without any prefix-stripping or secondary lookups. Currently, the frontend (`Booking.tsx`) contains ~20 lines of workaround code doing DB lookups and prefix-stripping to bridge the gap. This is fragile and wrong.
 
-This same pattern could affect any PMS adapter where the external room code differs from the database UUID.
+## Current State per Adapter
 
-## Fix
-
-### Step 1: Pass `hostfully_room_id` to checkout (EmbedProperty.tsx)
-Add the `hostfully_room_id` (which contains `hotelbeds:DBT.DX-4`) as a URL parameter when navigating to checkout, so the checkout page knows the PMS-native room identifier.
-
-### Step 2: Bridge room matching in checkout (Booking.tsx)
-In the `calculateCost` room-matching logic, add a new matching step that:
-1. Reads the `hostfully_room_id` from the URL parameter
-2. Strips the `hotelbeds:` prefix to get the raw PMS code
-3. Matches against the `room_type_id` in the API response
-
-This is a universal fix — it works for any adapter where `hostfully_room_id` stores the external identifier (Hostfully UIDs, HotelBeds codes, Benson IDs, etc.).
-
-### Step 3: Also pass per-day rates from PMS cache to checkout (EmbedProperty.tsx)
-Currently `effectiveRate` in `handleBookRoom` only checks `daily_rate` and ROL'OS rate plans. For PMS-backed properties, also check the `pmsCacheMap` for the selected room's rate on the check-in date, ensuring `embed_rate` is populated as a reliable fallback.
-
-## Adapter Audit
-| Adapter | Room ID format in API response | `hostfully_room_id` format | Match with fix? |
+| Adapter | `room_type_id` returned | Expected (DB UUID) | Broken? |
 |---|---|---|---|
-| HotelBeds | `DBT.DX-4` | `hotelbeds:DBT.DX-4` | Yes (strip prefix) |
-| Hostfully | UUID | UUID (same) | Already works |
-| Benson | numeric/slug | `benson:{id}` | Yes (strip prefix) |
-| HyperGuest | code | `hyperguest:{id}` | Yes (strip prefix) |
+| **HotelBeds** | PMS native code (`DBT.DX-4`) | `69c53acc-bfce-4bf9-...` | **YES** |
+| **Benson** | PMS native code (`1431`) | `2260403f-0404-4884-...` | **YES** |
+| **Hostfully** | `hostfully_room_id` (Hostfully UID) | Already matches DB `hostfully_room_id` field, plus passes `room_type_aliases: [db_uuid]` | **Partial** — returns the UID not the DB UUID |
+| **HyperGuest** | PMS native `room.code` | DB UUID needed | **YES** |
+| **Cloudbeds** | PMS native `roomTypeID` | DB UUID needed | **YES** |
+| **Little Hotelier** | PMS native `room-id` | DB UUID needed | **YES** |
+
+## The Fix — Per Adapter
+
+Each adapter already receives `property_id` (the DB UUID of the property). On `fetch_availability`, each adapter must:
+
+1. Query `hostfully_room_types` for the given `property_id` to build a **PMS code → DB UUID** lookup map
+2. Replace `room_type_id` in the response with the DB UUID
+3. Include the original PMS code as `external_room_type_id` (for caching purposes, which already uses this field correctly)
+
+### Step 1: Create a shared utility function
+Add a helper in each adapter (or inline) that queries the DB:
+```sql
+SELECT id, hostfully_room_id FROM hostfully_room_types 
+WHERE property_id = $1 AND is_active = true
+```
+Then builds a map: `{ "DBT.DX-4": "69c53acc-...", "1431": "2260403f-..." }` by stripping the adapter prefix from `hostfully_room_id`.
+
+### Step 2: Fix each adapter's transform function
+
+**hotelbeds-api** (`transformAvailability`):
+- Line 531: Change `room_type_id: room.code` → look up the DB UUID from the map, falling back to `room.code` if not found.
+
+**benson-api** (line 800):
+- Change `room_type_id: roomType.roomTypeId` → look up DB UUID from map.
+
+**hyperguest-api** (line 336):
+- Change `room_code: room.code` in the response → add `room_type_id` mapped to DB UUID. Also restructure the response to use the standard `room_types[]` format with `rooms_available_per_night` and `rate_types` (currently uses a non-standard `rooms[]` with `rates[]` shape).
+
+**cloudbeds-api** (line 429):
+- Change `room_type_id: rt.roomTypeID` → look up DB UUID from map.
+
+**little-hotelier-api** (line 222):
+- Change `room_type_id: roomId` → look up DB UUID from map.
+
+**hostfully-api** (line 1031):
+- Already uses `roomType.hostfully_room_id || roomType.id` — should prefer `roomType.id` (the DB UUID) as `room_type_id` and keep `hostfully_room_id` as `external_room_type_id`.
+
+### Step 3: Clean up frontend workarounds in Booking.tsx
+Remove the `hfRoomIdMap` DB lookup, the `pmsRoomCode`/`dbPmsCode` prefix-stripping logic, and the `hostfully_room_id` URL parameter handling. The room matching should simply be:
+```typescript
+roomTypesArray.find(rt => rt.room_type_id === room.roomTypeId)
+```
+
+### Step 4: Update pmsLiveAvailability.ts
+The `fetchLiveRates` consumer in `pmsLiveAvailability.ts` already reads `room_type_id` generically (line 109). Once adapters return DB UUIDs, the portfolio page and embed page can match by DB UUID directly — no changes needed here.
+
+### Step 5: Fix HyperGuest response shape
+HyperGuest currently returns a completely different shape (`rooms[]` with nested `rates[]` and `daily_rates[]`) instead of the standard `room_types[]` with `rooms_available_per_night[]` and `rate_types[].rates[]`. This must be normalized to match the adapter contract so `pmsLiveAvailability.ts` can parse it consistently.
 
 ## Files Changed
+
 | File | Change |
 |---|---|
-| `src/pages/EmbedProperty.tsx` | Pass `hostfully_room_id` as URL param; resolve rate from `pmsCacheMap` |
-| `src/pages/Booking.tsx` | Add `hostfully_room_id`-based room matching in cost calculator |
+| `supabase/functions/hotelbeds-api/index.ts` | Add DB UUID lookup; replace `room.code` with UUID in `transformAvailability` |
+| `supabase/functions/benson-api/index.ts` | Add DB UUID lookup; replace `roomType.roomTypeId` with UUID |
+| `supabase/functions/hyperguest-api/index.ts` | Add DB UUID lookup; normalize response to standard `room_types[]` shape |
+| `supabase/functions/cloudbeds-api/index.ts` | Add DB UUID lookup; replace `rt.roomTypeID` with UUID |
+| `supabase/functions/little-hotelier-api/index.ts` | Add DB UUID lookup; replace `roomId` with UUID |
+| `supabase/functions/hostfully-api/index.ts` | Swap to prefer `roomType.id` as `room_type_id` |
+| `src/pages/Booking.tsx` | Remove `hfRoomIdMap`, `pmsRoomCode`, `dbPmsCode` workarounds; simplify to direct UUID match |
+| `src/pages/EmbedProperty.tsx` | Remove `hostfully_room_id` URL param passing (no longer needed) |
+
+## Risk Mitigation
+- Each adapter falls back to the PMS-native code if no DB UUID mapping is found (graceful degradation for unmapped rooms)
+- The `external_room_type_id` field in `pms_availability_cache` continues to use the PMS-native code (no cache schema change needed)
+- Deploy and test one adapter at a time, starting with HotelBeds (the reported broken one)
 
