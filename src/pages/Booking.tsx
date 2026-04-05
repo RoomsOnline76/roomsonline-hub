@@ -82,6 +82,9 @@ interface RoomType {
   allowInfants?: boolean;
   allowPets?: boolean;
   minGuests?: number;
+  minStay?: number;   // minimum nights
+  maxStay?: number;   // maximum nights (0 = unlimited)
+  maxAdults?: number; // adult-specific cap if defined
 }
 
 interface RateType {
@@ -336,6 +339,9 @@ const Booking = () => {
         allowChildren: r.allowChildren ?? r.allow_children ?? true,
         allowInfants: r.allowInfants ?? r.allow_infants ?? true,
         minGuests: r.minGuests || r.min_guests,
+        minStay: r.minStayDays || r.min_stay || undefined,
+        maxStay: r.maxStayDays || r.max_stay || undefined,
+        maxAdults: r.maxAdults || r.max_adults || undefined,
       }))
     : cachedRoomTypes?.map(rt => ({
         id: rt.external_room_type_id,
@@ -346,6 +352,9 @@ const Booking = () => {
         allowChildren: rt.allow_children ?? true,
         allowInfants: rt.allow_infants ?? true,
         minGuests: rt.min_guests,
+        minStay: (rt as any).min_stay || undefined,
+        maxStay: (rt as any).max_stay || undefined,
+        maxAdults: (rt as any).max_adults || undefined,
       }))
   ) || [];
   
@@ -2410,6 +2419,22 @@ const Booking = () => {
                   setDatePickerOpen(false);
                 }}
                 availabilityMap={calendarAvailability}
+                minNights={(() => {
+                  // Resolve strictest min stay across all selected rooms
+                  const mins = rooms.map(r => {
+                    const rt = roomTypes.find(t => String(t.id) === r.roomTypeId);
+                    return rt?.minStay || 1;
+                  });
+                  return Math.max(...mins, 1);
+                })()}
+                maxNights={(() => {
+                  // Resolve strictest max stay across all selected rooms (0 = unlimited)
+                  const maxes = rooms.map(r => {
+                    const rt = roomTypes.find(t => String(t.id) === r.roomTypeId);
+                    return rt?.maxStay || 0;
+                  }).filter(m => m > 0);
+                  return maxes.length > 0 ? Math.min(...maxes) : undefined;
+                })()}
               />
               {checkIn && !checkOut && (
                 <p className="text-xs text-muted-foreground">Now select your check-out date</p>
@@ -2448,6 +2473,26 @@ const Booking = () => {
                             <span className="text-[hsl(var(--primary-text-safe,var(--primary)))] ml-1">(custom dates)</span>
                           )}
                         </span>
+                      )}
+                      {/* Rule summary - show constraints that differ from defaults */}
+                      {roomType && (
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {(roomType.minStay && roomType.minStay > 1) && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Min {roomType.minStay} nights
+                            </span>
+                          )}
+                          {(roomType.maxStay && roomType.maxStay > 0) && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Max {roomType.maxStay} nights
+                            </span>
+                          )}
+                          {maxGuestsForRoom < 99 && (
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                              Max {maxGuestsForRoom} guests
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                     {rooms.length > 1 && (

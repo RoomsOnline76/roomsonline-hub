@@ -21,6 +21,8 @@ interface BottomSheetDatePickerProps {
   onDatesChange: (checkIn: Date, checkOut: Date) => void;
   minDate?: Date;
   availabilityMap?: Map<string, { available: boolean; rate?: number }>;
+  minNights?: number;  // minimum nights for stay
+  maxNights?: number;  // maximum nights for stay (undefined = unlimited)
 }
 
 // Format rate for display (compact format for calendar cells)
@@ -40,6 +42,8 @@ export function BottomSheetDatePicker({
   onDatesChange,
   minDate = new Date(),
   availabilityMap,
+  minNights = 1,
+  maxNights,
 }: BottomSheetDatePickerProps) {
   const isMobile = useIsMobile();
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(checkIn);
@@ -125,14 +129,28 @@ export function BottomSheetDatePicker({
         setTempCheckIn(date);
         setTempCheckOut(null);
       } else if (isSameDay(date, tempCheckIn)) {
-        // If same day, set checkout to next day
-        setTempCheckOut(addDays(date, 1));
+        // If same day, set checkout to minNights ahead
+        setTempCheckOut(addDays(date, minNights));
         setSelectingCheckOut(false);
       } else {
+        // Enforce min/max nights
+        const nightsSelected = Math.ceil((date.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+        if (nightsSelected < minNights) return; // Too few nights
+        if (maxNights && nightsSelected > maxNights) return; // Too many nights
         setTempCheckOut(date);
         setSelectingCheckOut(false);
       }
     }
+  };
+
+  // Check if a date is outside the valid checkout range when selecting checkout
+  const isOutsideStayRange = (date: Date) => {
+    if (!selectingCheckOut || !tempCheckIn) return false;
+    if (isBefore(date, tempCheckIn) || isSameDay(date, tempCheckIn)) return false;
+    const nightsFromCheckIn = Math.ceil((date.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+    if (nightsFromCheckIn < minNights) return true;
+    if (maxNights && nightsFromCheckIn > maxNights) return true;
+    return false;
   };
 
   const isInRange = (date: Date) => {
@@ -183,6 +201,11 @@ export function BottomSheetDatePicker({
             </DrawerTitle>
             <p className="text-sm text-muted-foreground">
               {selectingCheckOut ? "Select check-out date" : "Select check-in date"}
+              {selectingCheckOut && (minNights > 1 || maxNights) && (
+                <span className="ml-1 text-xs">
+                  ({minNights > 1 ? `min ${minNights} nights` : ''}{minNights > 1 && maxNights ? ' · ' : ''}{maxNights ? `max ${maxNights} nights` : ''})
+                </span>
+              )}
             </p>
           </DrawerHeader>
 
@@ -195,12 +218,13 @@ export function BottomSheetDatePicker({
               const isSelected = isCheckIn(date) || isCheckOut(date);
               const status = getDateStatus(date);
               const disabled = isDisabled(date);
+              const outsideRange = isOutsideStayRange(date);
               
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => !disabled && handleDateClick(date)}
-                  disabled={disabled}
+                  onClick={() => !disabled && !outsideRange && handleDateClick(date)}
+                  disabled={disabled || outsideRange}
                   className={cn(
                     "flex flex-col items-center min-w-[3.5rem] py-2 px-3 rounded-xl transition-all duration-200",
                     "border border-transparent",
@@ -298,14 +322,15 @@ export function BottomSheetDatePicker({
               const status = getDateStatus(date);
               const disabled = isDisabled(date);
               const unavailable = status && !status.available;
+              const outsideStayRange = isOutsideStayRange(date);
               const selected = isCheckIn(date) || isCheckOut(date);
               const inRange = isInRange(date);
 
               return (
                 <button
                   key={date.toISOString()}
-                  onClick={() => !disabled && !unavailable && handleDateClick(date)}
-                  disabled={disabled || unavailable}
+                  onClick={() => !disabled && !unavailable && !outsideStayRange && handleDateClick(date)}
+                  disabled={disabled || !!unavailable || outsideStayRange}
                   className={cn(
                     "h-11 rounded-xl text-sm font-medium transition-all duration-200",
                     "flex flex-col items-center justify-center gap-0.5",
@@ -316,6 +341,8 @@ export function BottomSheetDatePicker({
                       ? "bg-primary/10"
                       : unavailable
                       ? "bg-muted/60 text-muted-foreground/50 line-through cursor-not-allowed"
+                      : outsideStayRange
+                      ? "bg-muted/30 text-muted-foreground/30 cursor-not-allowed"
                       : "hover:bg-muted",
                     disabled && "bg-muted/40 text-muted-foreground/30 cursor-not-allowed",
                     isCheckIn(date) && "rounded-r-none",
