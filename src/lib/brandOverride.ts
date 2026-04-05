@@ -54,7 +54,7 @@ export function autoForeground(bgHex: string): string {
 }
 
 /** Extract relative luminance from a hex color */
-function hexLuminance(hex: string): number {
+export function hexLuminance(hex: string): number {
   const clean = hex.replace("#", "");
   if (clean.length < 6) return 0;
   const r = parseInt(clean.substring(0, 2), 16) / 255;
@@ -64,9 +64,48 @@ function hexLuminance(hex: string): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
+/** WCAG contrast ratio between two hex colors */
+export function contrastRatio(hex1: string, hex2: string): number {
+  const l1 = Math.max(hexLuminance(hex1), hexLuminance(hex2));
+  const l2 = Math.min(hexLuminance(hex1), hexLuminance(hex2));
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
 /** Check if a hex color is "light" (luminance > 0.4) */
 function isLightColor(hex: string): boolean {
   return hexLuminance(hex) > 0.4;
+}
+
+/** Darken a hex color by a factor (0-1, where 0 = black) */
+function darkenHex(hex: string, factor: number): string {
+  const clean = hex.replace("#", "");
+  const r = Math.round(parseInt(clean.substring(0, 2), 16) * factor);
+  const g = Math.round(parseInt(clean.substring(2, 4), 16) * factor);
+  const b = Math.round(parseInt(clean.substring(4, 6), 16) * factor);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
+/** Get a safe readable version of a color against a given background */
+function ensureReadable(fgHex: string, bgHex: string, minRatio = 4.5): string {
+  if (contrastRatio(fgHex, bgHex) >= minRatio) return fgHex;
+  // Try progressively darker/lighter versions
+  const bgLight = isLightColor(bgHex);
+  for (let i = 1; i <= 10; i++) {
+    const adjusted = bgLight
+      ? darkenHex(fgHex, Math.max(0, 1 - i * 0.1))
+      : lightenHex(fgHex, i * 0.1);
+    if (contrastRatio(adjusted, bgHex) >= minRatio) return adjusted;
+  }
+  return bgLight ? "#1a1a2e" : "#f0f0f5";
+}
+
+/** Lighten a hex color by mixing with white */
+function lightenHex(hex: string, factor: number): string {
+  const clean = hex.replace("#", "");
+  const r = Math.round(parseInt(clean.substring(0, 2), 16) + (255 - parseInt(clean.substring(0, 2), 16)) * factor);
+  const g = Math.round(parseInt(clean.substring(2, 4), 16) + (255 - parseInt(clean.substring(2, 4), 16)) * factor);
+  const b = Math.round(parseInt(clean.substring(4, 6), 16) + (255 - parseInt(clean.substring(4, 6), 16)) * factor);
+  return `#${Math.min(255, r).toString(16).padStart(2, "0")}${Math.min(255, g).toString(16).padStart(2, "0")}${Math.min(255, b).toString(16).padStart(2, "0")}`;
 }
 
 /** Compute CSS variable map from brand config */
