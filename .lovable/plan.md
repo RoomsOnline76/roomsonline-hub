@@ -1,58 +1,124 @@
-# Specials Not Applying: Root Cause Is Date/Stay Constraints, Not UUID Bridging
 
-## Finding
+## Fix the branding contrast system so it works in real UI, not only in theory
 
-The UUID→legacy ID bridging code from the last fix IS correctly in place, but it is **never reached** because both specials are filtered out earlier:
+### What is actually wrong
+The issue is real: the current “dynamic contrast” logic only adjusts a few global tokens, but the checkout page still contains UI patterns that rely on:
+- `text-primary`
+- `bg-primary/5`
+- `border-primary/30`
+- `text-muted-foreground`
 
+Those combinations are not being recalculated against the actual branded surface. So when a portfolio/property brand is light or low-contrast, the promo cards and helper text can become unreadable even though the brand override technically “applied”.
 
-| Special              | Why it's excluded                                                    | Stage                  |
-| -------------------- | -------------------------------------------------------------------- | ---------------------- |
-| Early Bird (15% off) | Stay window is June 1 – July 15; booking is April 22–24 — no overlap | DB query (line 1592)   |
-| Pensioner (40% off)  | Requires min 4-night stay; booking is 2 nights                       | Code check (line 1616) |
+Your screenshot confirms this: the selected text is visible, but the normal rendered text is too faint/low-contrast. That means the theme tokens are being set, but the token relationships are wrong.
 
+### Files to update
+- `src/lib/brandOverride.ts`
+- `src/pages/Booking.tsx`
+- `src/pages/pms/PMSBranding.tsx`
+- `src/pages/admin/AdminPortfolios.tsx`
+- optionally `src/components/showcase/SpecialsBanner.tsx` for consistency
 
-The `SpecialsBanner` (the UI cards the user sees) uses a **different, more permissive query** — it shows specials where **today** falls in either the booking window or stay window. So both specials appear in the banner as advertising, but correctly don't apply to this particular booking.
+### Implementation plan
 
-## The Real Problem
+#### 1) Make the branding engine surface-aware
+In `src/lib/brandOverride.ts`, replace the current simplistic light/dark fallback with proper token derivation based on:
+- page/card background
+- primary brand color
+- contrast ratio between foreground and background
 
-The calculation query (line 1590-1593) only checks if the **stay dates** overlap with `valid_from`/`valid_to`. It does **not** consider `book_from`/`book_until` at all. This means:
+Build safer derived tokens for:
+- `--foreground`
+- `--card-foreground`
+- `--popover-foreground`
+- `--muted-foreground`
+- `--primary-foreground`
+- `--secondary-foreground`
+- `--accent-foreground`
+- `--border`
+- `--input`
 
-- A special with a booking window matching today but a future stay window will show in the banner but never apply to a current-dates booking.
+Key rule:
+- muted/help text must be derived from the actual surface background, not from `secondaryColor`
+- foreground tokens must meet readable contrast on `background/card/popover`
+- if the chosen brand color is too light for “primary text”, auto-fallback to a darker readable value for text usages
 
-## Proposed Fix [This fix I do not think address all the issues: the early bird is show as avilible but not applied. it is like the stacking is again ignored and showing some specails/packages are excluding others] Before applying this fix first check that this is not the real issue again]
+#### 2) Stop using fragile primary-tinted promo styling in checkout
+In `src/pages/Booking.tsx`, the applied promotions block currently uses:
+- `bg-primary/5`
+- `border-primary/30`
+- `text-primary`
+- `text-muted-foreground`
 
-Align the calculation query with the banner logic: a special should apply if the stay dates overlap the valid period **OR** if today is within the booking window and the stay dates overlap.
+That is exactly where the failure is visible.
 
-More practically, the fix is to also fetch specials where today is within `book_from`–`book_until`, then let the downstream code decide applicability:
+Refactor that block to use a safer semantic style, for example:
+- base surface: `bg-card`
+- readable border: `border-border`
+- use a small primary accent chip/icon instead of making the whole card depend on translucent primary color
+- force promo title/description/amount to use surface-safe tokens
 
-### In `src/pages/Booking.tsx` (line 1587-1593)
+This keeps branding visible, but removes the unreadable washed-out state.
 
-Replace the single DB query with one that also fetches specials in the booking window:
+#### 3) Audit other checkout blocks that depend on `text-primary` as body text
+Also review the same page for sections where `text-primary` is used as normal copy instead of accent only, especially:
+- date-selection hint card
+- step highlights
+- promo discount labels
+- helper labels inside branded cards
 
-```typescript
-// Fetch specials where stay dates overlap valid period
-// OR today is within the booking window
-const todayStr = new Date().toISOString().split('T')[0];
-const { data: specials } = await supabase
-  .from("property_specials")
-  .select("*")
-  .eq("property_id", property.id)
-  .eq("is_active", true)
-  .or(
-    `and(valid_from.lte.${bookingCheckOut},valid_to.gte.${bookingCheckIn}),` +
-    `and(book_from.lte.${todayStr},book_until.gte.${todayStr})`
-  );
+Keep `text-primary` for badges/icons/CTAs, not for low-emphasis explanatory text on tinted backgrounds.
+
+#### 4) Add real contrast guardrails to branding setup
+In:
+- `src/pages/pms/PMSBranding.tsx`
+- `src/pages/admin/AdminPortfolios.tsx`
+
+extend the current branding setup so users get warnings when combinations are unsafe in actual usage patterns, not just in isolated swatches.
+
+Add checks for:
+- primary text on light background
+- muted text on light background
+- white text on primary button
+- primary-colored text on pale primary-tinted surface
+
+If a combination fails, show:
+- warning badge
+- recommended fallback color
+- note that the system will auto-correct runtime tokens for readability
+
+#### 5) Keep portfolio/property continuity, but make runtime correction authoritative
+Do not change the portfolio/property override behavior itself. Keep the current brand propagation logic.
+But once the brand reaches checkout, the runtime contrast engine should be the final authority for readable text tokens.
+
+That means:
+- portfolio branding can still flow through
+- property override can still replace it when enabled
+- but neither should be able to create unreadable text on checkout
+
+### Technical detail
+Current root issue:
+```text
+brand colors are passed through correctly
+but semantic tokens are not derived from the real rendered surfaces
+
+Result:
+primary-tinted card + primary text + muted text
+can collapse into low contrast
 ```
 
-Then add a downstream check: if the special was fetched via booking window only (stay doesn't overlap), still apply the discount — the intent is "book now, get the deal."
+Desired model:
+```text
+brand inputs
+  -> derive safe semantic tokens
+  -> use semantic tokens in checkout UI
+  -> reserve raw primary color for accents/buttons only
+```
 
-### To properly test the UUID bridging
-
-Change the "Early Bird" special's `valid_from` to a date before April 22 (e.g., `2026-04-01`) so it passes the date filter, then verify the 15% discount appears in the calculation. This will confirm the bridge map works.
-
-## Files Changed
-
-
-| File                    | Change                                                                                                                        |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `src/pages/Booking.tsx` | Update specials query to also fetch specials within booking window (book_from/book_until); keep all downstream matching logic |
+### Expected result
+After this change:
+- checkout text remains readable under light, dark, or saturated property/portfolio brands
+- promo/special/package cards remain branded without washing out text
+- muted/help text stays legible
+- branding setup screens warn about dangerous combinations before they go live
+- the system behaves dynamically in the actual UI, not only in a color-picker preview
