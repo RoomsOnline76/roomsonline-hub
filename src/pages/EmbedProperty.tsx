@@ -125,6 +125,8 @@ export default function EmbedProperty() {
           .order("name");
 
         const wizardRooms = Array.isArray((prop as any)?.amenities?.room_types) ? (prop as any).amenities.room_types : [];
+        const canonicalRoomNames = new Set((rooms || []).map((room: any) => normalizeRoomName(room.name)));
+
         const mergedRooms = (rooms || []).map((room: any) => {
           const wizardRoom = wizardRooms.find((wr: any) =>
             String(wr?.id) === String(room.id) ||
@@ -146,10 +148,32 @@ export default function EmbedProperty() {
           };
         });
 
+        const fallbackWizardRooms = wizardRooms
+          .filter((wr: any) => wr?.is_active !== false)
+          .filter((wr: any) => !canonicalRoomNames.has(normalizeRoomName(wr?.name)))
+          .map((wr: any) => ({
+            id: String(wr?.id || wr?.pmsRoomId || wr?.name),
+            name: wr?.name || "Unnamed Room",
+            description: wr?.description || "",
+            daily_rate: wr?.baseRate || wr?.base_rate || null,
+            max_guests: wr?.maxPeople || wr?.max_guests || 0,
+            beds: Array.isArray(wr?.bedConfiguration) ? wr.bedConfiguration.length : null,
+            bedrooms: null,
+            bathrooms: wr?.bathrooms || null,
+            images: normalizeImageUrls(wr?.images),
+            thumbnail_url: normalizeImageUrls(wr?.images)[0] || null,
+            is_active: true,
+            amenities: wr?.amenities || [],
+            linked_rolos_id: null,
+            hostfully_room_id: wr?.pmsRoomId || null,
+          }));
+
+        const allVisibleRooms = [...mergedRooms, ...fallbackWizardRooms];
+
         const roomFilterId = searchParams.get("room");
-        const filteredRooms = roomFilterId && mergedRooms
-          ? mergedRooms.filter((r: any) => r.id === roomFilterId || r.hostfully_room_id === roomFilterId)
-          : mergedRooms;
+        const filteredRooms = roomFilterId && allVisibleRooms
+          ? allVisibleRooms.filter((r: any) => r.id === roomFilterId || r.hostfully_room_id === roomFilterId)
+          : allVisibleRooms;
         setRoomTypes(filteredRooms || []);
 
         if (rooms && rooms.some((r: any) => !r.daily_rate && r.linked_rolos_id)) {
