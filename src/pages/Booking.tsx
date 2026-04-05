@@ -109,7 +109,7 @@ const Booking = () => {
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";
-  const [searchParams] = useSearchParams();
+  
   const navigate = useNavigate();
 
   // Integration detection — when present, use white-label layout
