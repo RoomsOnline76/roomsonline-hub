@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,6 +34,7 @@ interface PortfolioBranding {
   dark_bg_color?: string;
   hero_video_url?: string;
   pinned_featured_ids?: string[];
+  allow_property_brand_override?: boolean;
 }
 
 interface Portfolio {
@@ -92,6 +94,7 @@ export default function AdminPortfolios() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [pinnedFeaturedIds, setPinnedFeaturedIds] = useState<string[]>([]);
+  const [allowPropertyBrandOverride, setAllowPropertyBrandOverride] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
   const logoInputRef = useRef<HTMLInputElement>(null);
   const heroVideoInputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +165,7 @@ export default function AdminPortfolios() {
         muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
         dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
         pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
+        allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const { data: user } = await supabase.auth.getUser();
       const { data: portfolio, error } = await supabase
@@ -197,6 +201,7 @@ export default function AdminPortfolios() {
         muted_text_color: brandMutedTextColor || undefined, light_bg_color: brandLightBgColor || undefined,
         dark_bg_color: brandDarkBgColor || undefined, hero_video_url: brandHeroVideoUrl || undefined,
         pinned_featured_ids: pinnedFeaturedIds.length > 0 ? pinnedFeaturedIds : undefined,
+        allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
       const { error } = await supabase
@@ -251,6 +256,7 @@ export default function AdminPortfolios() {
     setBrandDarkBgColor("");
     setBrandHeroVideoUrl("");
     setPinnedFeaturedIds([]);
+    setAllowPropertyBrandOverride(false);
     setReviewIds({});
   };
 
@@ -273,6 +279,7 @@ export default function AdminPortfolios() {
     setBrandDarkBgColor(b?.dark_bg_color || "");
     setBrandHeroVideoUrl(b?.hero_video_url || "");
     setPinnedFeaturedIds(b?.pinned_featured_ids || []);
+    setAllowPropertyBrandOverride(b?.allow_property_brand_override || false);
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
@@ -517,6 +524,15 @@ export default function AdminPortfolios() {
             </Button>
           </div>
           <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
+        </div>
+
+        {/* Property Brand Override Toggle */}
+        <div className="flex items-center justify-between gap-3 pt-2 pb-1 px-1 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="space-y-0.5">
+            <Label className="text-xs font-medium">Allow property branding override</Label>
+            <p className="text-[10px] text-muted-foreground leading-snug">When enabled, each property's own brand colours replace the portfolio brand once selected. When off (default), portfolio branding carries through to checkout.</p>
+          </div>
+          <Switch checked={allowPropertyBrandOverride} onCheckedChange={setAllowPropertyBrandOverride} />
         </div>
 
         {/* Featured Pick Pinning */}

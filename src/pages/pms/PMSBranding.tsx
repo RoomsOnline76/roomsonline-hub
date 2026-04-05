@@ -244,8 +244,8 @@ export default function PMSBranding() {
   const [portfolioBranding, setPortfolioBranding] = useState<{
     logo_url: string; primary_color: string; secondary_color: string; font_color: string;
     heading_text_color: string; body_text_color: string; muted_text_color: string; light_bg_color: string; dark_bg_color: string;
-    hero_video_url: string;
-  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "", hero_video_url: "" });
+    hero_video_url: string; allow_property_brand_override: boolean;
+  }>({ logo_url: "", primary_color: "", secondary_color: "", font_color: "", heading_text_color: "", body_text_color: "", muted_text_color: "", light_bg_color: "", dark_bg_color: "", hero_video_url: "", allow_property_brand_override: false });
   const [portfolioLoaded, setPortfolioLoaded] = useState(false);
   const [portfolioSaving, setPortfolioSaving] = useState(false);
 
@@ -272,6 +272,7 @@ export default function PMSBranding() {
           light_bg_color: b.light_bg_color || "",
           dark_bg_color: b.dark_bg_color || "",
           hero_video_url: b.hero_video_url || "",
+          allow_property_brand_override: !!b.allow_property_brand_override,
         });
       }
       setPortfolioLoaded(true);
@@ -571,6 +572,13 @@ export default function PMSBranding() {
                   value={portfolioBranding.font_color}
                   onChange={(v) => setPortfolioBranding(p => ({ ...p, font_color: v }))}
                 />
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Allow property branding override</Label>
+                    <p className="text-xs text-muted-foreground leading-snug">When enabled, each property's own brand colours replace the portfolio brand once a guest selects it. When off (default), portfolio branding carries through to checkout.</p>
+                  </div>
+                  <Switch checked={portfolioBranding.allow_property_brand_override} onCheckedChange={(v) => setPortfolioBranding(p => ({ ...p, allow_property_brand_override: v }))} />
+                </div>
                 <Button onClick={handleSavePortfolioBranding} disabled={portfolioSaving} className="w-full">
                   <Save className="h-4 w-4 mr-2" />
                   {portfolioSaving ? "Saving…" : "Save Portfolio Branding"}

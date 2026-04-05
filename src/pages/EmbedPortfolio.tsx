@@ -36,6 +36,7 @@ interface PortfolioProperty {
   room_count: number;
   max_guests: number | null;
   brand_primary_color?: string | null;
+  brand_secondary_color?: string | null;
   external_system?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -157,6 +158,7 @@ export default function EmbedPortfolio() {
             room_count: p.room_count || 0,
             max_guests: p.max_guests,
             brand_primary_color: p.brand_primary_color,
+            brand_secondary_color: p.brand_secondary_color || null,
             external_system: p.external_system || null,
             latitude: p.latitude || null,
             longitude: p.longitude || null,
@@ -440,11 +442,20 @@ export default function EmbedPortfolio() {
 
   const handleViewProperty = (slug: string) => {
     const prop = properties.find(p => p.slug === slug);
-    const propColor = prop?.brand_primary_color || brandColor;
+    const allowOverride = portfolioBranding.allow_property_brand_override === true;
+    // Default: portfolio brand carries through. Override: use property's own brand.
+    const propColor = allowOverride
+      ? (prop?.brand_primary_color || brandColor)
+      : brandColor;
+    const propSecondary = allowOverride
+      ? (prop?.brand_secondary_color || brandSecondaryColor)
+      : brandSecondaryColor;
     const params = new URLSearchParams();
     if (propColor) params.set("brand_color", propColor);
+    if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
+    if (!allowOverride) params.set("portfolio_brand", "1");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
     const forwardedAdults = searchParams.get("adults");
