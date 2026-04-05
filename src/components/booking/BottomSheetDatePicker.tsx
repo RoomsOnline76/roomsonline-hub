@@ -42,6 +42,8 @@ export function BottomSheetDatePicker({
   onDatesChange,
   minDate = new Date(),
   availabilityMap,
+  minNights = 1,
+  maxNights,
 }: BottomSheetDatePickerProps) {
   const isMobile = useIsMobile();
   const [tempCheckIn, setTempCheckIn] = useState<Date | null>(checkIn);
