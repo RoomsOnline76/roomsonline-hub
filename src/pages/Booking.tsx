@@ -2367,10 +2367,10 @@ const Booking = () => {
             {/* Date Picker — always available for editing */}
             <div className={cn(
               "rounded-xl border p-4 space-y-3",
-              checkIn && checkOut ? "border-border/50 bg-card" : "border-primary/30 bg-primary/5"
+              checkIn && checkOut ? "border-border/50 bg-card" : "border-border bg-card"
             )}>
-              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                <CalendarDays className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <CalendarDays className="h-4 w-4 text-primary" />
                 {checkIn && checkOut ? "Your dates" : "Select your dates"}
               </div>
               <Button
