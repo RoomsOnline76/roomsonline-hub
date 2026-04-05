@@ -53,6 +53,22 @@ export function autoForeground(bgHex: string): string {
   return lum > 0.4 ? "220 20% 12%" : "0 0% 100%";
 }
 
+/** Extract relative luminance from a hex color */
+function hexLuminance(hex: string): number {
+  const clean = hex.replace("#", "");
+  if (clean.length < 6) return 0;
+  const r = parseInt(clean.substring(0, 2), 16) / 255;
+  const g = parseInt(clean.substring(2, 4), 16) / 255;
+  const b = parseInt(clean.substring(4, 6), 16) / 255;
+  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+/** Check if a hex color is "light" (luminance > 0.4) */
+function isLightColor(hex: string): boolean {
+  return hexLuminance(hex) > 0.4;
+}
+
 /** Compute CSS variable map from brand config */
 export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> {
   if (!brand.enabled) return {};
@@ -137,6 +153,44 @@ export function buildBrandVarsMap(brand: PropertyBrand): Record<string, string> 
   if (brand.bodyFont) {
     vars["--font-body"] = `'${brand.bodyFont}', sans-serif`;
   }
+
+  // ── Dynamic contrast safety ──
+  // When brand colors are set but no explicit text colors, auto-derive
+  // foreground/text colors to guarantee readability against the effective background.
+  const effectiveBgHex = brand.lightBgColor || null;
+  const hasExplicitForeground = !!(brand.headingTextColor || brand.fontColor);
+
+  if (!hasExplicitForeground) {
+    // Detect current theme: check if the page background is dark or light
+    // If a light background is explicitly set, ensure dark text
+    if (effectiveBgHex && isLightColor(effectiveBgHex)) {
+      const darkText = "220 20% 12%";
+      vars["--foreground"] = darkText;
+      vars["--card-foreground"] = darkText;
+      vars["--popover-foreground"] = darkText;
+      if (!brand.mutedTextColor) vars["--muted-foreground"] = "220 10% 40%";
+    }
+    // If a dark background is explicitly set, ensure light text
+    else if (effectiveBgHex && !isLightColor(effectiveBgHex)) {
+      const lightText = "0 0% 95%";
+      vars["--foreground"] = lightText;
+      vars["--card-foreground"] = lightText;
+      vars["--popover-foreground"] = lightText;
+      if (!brand.mutedTextColor) vars["--muted-foreground"] = "0 0% 65%";
+    }
+  }
+
+  // Ensure border/input tokens have adequate contrast with backgrounds
+  if (effectiveBgHex) {
+    if (isLightColor(effectiveBgHex)) {
+      vars["--border"] = "220 13% 82%";
+      vars["--input"] = "220 13% 82%";
+    } else {
+      vars["--border"] = "220 10% 25%";
+      vars["--input"] = "220 10% 25%";
+    }
+  }
+
   return vars;
 }
 
