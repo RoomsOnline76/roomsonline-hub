@@ -1185,6 +1185,22 @@ const Booking = () => {
 
       // Get room types array - handle both snake_case (contract) and camelCase (legacy)
       const roomTypesArray = availability?.room_types || availability?.roomTypes || [];
+      
+      // Fetch hostfully_room_id for all rooms to bridge PMS-native IDs (HotelBeds, Benson, etc.)
+      const roomDbIds = rooms.map(r => r.roomTypeId).filter(Boolean);
+      let hfRoomIdMap: Record<string, string> = {};
+      if (roomDbIds.length > 0 && property?.id) {
+        const { data: hfLookup } = await supabase
+          .from("hostfully_room_types")
+          .select("id, hostfully_room_id")
+          .eq("property_id", property.id)
+          .in("id", roomDbIds);
+        if (hfLookup) {
+          for (const h of hfLookup) {
+            if (h.hostfully_room_id) hfRoomIdMap[h.id] = h.hostfully_room_id;
+          }
+        }
+      }
 
       // Calculate cost for each room
       for (const room of rooms) {
@@ -1203,8 +1219,7 @@ const Booking = () => {
         const pmsRoomCode = urlHostfullyRoomId.includes(':') ? urlHostfullyRoomId.split(':').slice(1).join(':') : urlHostfullyRoomId;
         
         // Also look up the DB room's hostfully_room_id to extract PMS code for matching
-        const dbRoom = roomTypes.find(r => String(r.id) === room.roomTypeId);
-        const dbHostfullyRoomId = (dbRoom as any)?.hostfully_room_id || '';
+        const dbHostfullyRoomId = hfRoomIdMap[room.roomTypeId] || '';
         const dbPmsCode = dbHostfullyRoomId.includes(':') ? dbHostfullyRoomId.split(':').slice(1).join(':') : dbHostfullyRoomId;
 
         let roomType = roomTypesArray.find(
