@@ -255,6 +255,7 @@ export default function AdminPortfolios() {
     setBrandDarkBgColor("");
     setBrandHeroVideoUrl("");
     setPinnedFeaturedIds([]);
+    setAllowPropertyBrandOverride(false);
     setReviewIds({});
   };
 
