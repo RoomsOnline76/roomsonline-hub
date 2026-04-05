@@ -36,6 +36,7 @@ interface PortfolioProperty {
   room_count: number;
   max_guests: number | null;
   brand_primary_color?: string | null;
+  brand_secondary_color?: string | null;
   external_system?: string | null;
   latitude?: number | null;
   longitude?: number | null;
