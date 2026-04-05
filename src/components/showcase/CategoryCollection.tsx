@@ -77,7 +77,11 @@ function groupRoomsByCategory(
         allImages.push(...room.images);
       }
     }
-    if (!representativeImage && propertyImages.length > 0) representativeImage = propertyImages[0];
+    // Deterministic fallback: hash category name to pick a varied property image
+    if (!representativeImage && propertyImages.length > 0) {
+      const hash = Math.abs(name.split('').reduce((a, c) => a + c.charCodeAt(0), 0));
+      representativeImage = propertyImages[hash % propertyImages.length];
+    }
 
     categories.push({
       name, displayName: name, rooms: categoryRooms, count: categoryRooms.length,

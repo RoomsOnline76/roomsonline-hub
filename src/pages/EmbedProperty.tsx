@@ -759,7 +759,11 @@ export default function EmbedProperty() {
               const roomImages = Array.isArray(room.images)
                 ? room.images.map((img: any) => img?.url || img).filter(Boolean)
                 : [];
-              const thumb = roomImages[0] || room.thumbnail_url || heroImage;
+              // Deterministic fallback: use room index to pick a varied property image
+              const propertyFallback = allImages.length > 0
+                ? allImages[idx % allImages.length]
+                : heroImage;
+              const thumb = roomImages[0] || room.thumbnail_url || propertyFallback;
 
               // ── Availability badge logic ──
               const roomCache = pmsCacheMap[room.id] || {};
