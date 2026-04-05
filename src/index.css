@@ -38,6 +38,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink */
     --primary: 326 82% 51%;
     --primary-foreground: 0 0% 100%;
+    --primary-text-safe: 326 82% 51%;
 
     /* Secondary */
     --secondary: 40 6% 94%;
