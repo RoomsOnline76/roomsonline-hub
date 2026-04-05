@@ -2419,6 +2419,22 @@ const Booking = () => {
                   setDatePickerOpen(false);
                 }}
                 availabilityMap={calendarAvailability}
+                minNights={(() => {
+                  // Resolve strictest min stay across all selected rooms
+                  const mins = rooms.map(r => {
+                    const rt = roomTypes.find(t => String(t.id) === r.roomTypeId);
+                    return rt?.minStay || 1;
+                  });
+                  return Math.max(...mins, 1);
+                })()}
+                maxNights={(() => {
+                  // Resolve strictest max stay across all selected rooms (0 = unlimited)
+                  const maxes = rooms.map(r => {
+                    const rt = roomTypes.find(t => String(t.id) === r.roomTypeId);
+                    return rt?.maxStay || 0;
+                  }).filter(m => m > 0);
+                  return maxes.length > 0 ? Math.min(...maxes) : undefined;
+                })()}
               />
               {checkIn && !checkOut && (
                 <p className="text-xs text-muted-foreground">Now select your check-out date</p>
