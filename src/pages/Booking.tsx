@@ -339,6 +339,9 @@ const Booking = () => {
         allowChildren: r.allowChildren ?? r.allow_children ?? true,
         allowInfants: r.allowInfants ?? r.allow_infants ?? true,
         minGuests: r.minGuests || r.min_guests,
+        minStay: r.minStayDays || r.min_stay || undefined,
+        maxStay: r.maxStayDays || r.max_stay || undefined,
+        maxAdults: r.maxAdults || r.max_adults || undefined,
       }))
     : cachedRoomTypes?.map(rt => ({
         id: rt.external_room_type_id,
@@ -349,6 +352,9 @@ const Booking = () => {
         allowChildren: rt.allow_children ?? true,
         allowInfants: rt.allow_infants ?? true,
         minGuests: rt.min_guests,
+        minStay: rt.min_stay || undefined,
+        maxStay: rt.max_stay || undefined,
+        maxAdults: rt.max_adults || undefined,
       }))
   ) || [];
   
