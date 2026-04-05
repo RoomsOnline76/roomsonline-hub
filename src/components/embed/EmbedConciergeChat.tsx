@@ -223,7 +223,7 @@ export function EmbedConciergeChat({
                         )}
                       </div>
                     )}
-                </div>
+                  </div>
               ))}
               {isLoading && (
                 <div className="flex justify-start">
