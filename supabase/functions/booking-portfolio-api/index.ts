@@ -103,6 +103,7 @@ serve(async (req) => {
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
+        brand_secondary_color: (p as any).brand_secondary_color || null,
         external_system: p.external_system || null,
         latitude: p.latitude || null,
         longitude: p.longitude || null,
