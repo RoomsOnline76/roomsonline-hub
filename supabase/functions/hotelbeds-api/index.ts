@@ -1001,7 +1001,7 @@ serve(async (req) => {
             const { error: cacheError } = await supabaseClient.from("pms_availability_cache").upsert({
               property_id: propertyId,
               system_type: "hotelbeds",
-              external_room_type_id: roomTypeId,
+              external_room_type_id: cacheRoomTypeId,
               date: dateStr,
               available_units: availability.available_units ?? 0,
               restrictions: restrictions,
