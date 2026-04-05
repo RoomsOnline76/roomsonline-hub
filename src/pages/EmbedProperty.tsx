@@ -25,6 +25,22 @@ function postToParent(data: Record<string, unknown>) {
   }
 }
 
+const normalizeImageUrls = (images: unknown): string[] => {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map((img: any) => {
+      if (typeof img === "string") return img;
+      return img?.url || img?.src || img?.image || img?.thumbnail || null;
+    })
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
+};
+
+const normalizeRoomName = (name: unknown) =>
+  String(name || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
 export default function EmbedProperty() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
