@@ -19,6 +19,7 @@ const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 interface ConciergeRequest {
   property_id: string;
   user_query: string;
+  mode?: 'single' | 'journey_builder';
   current_dates?: { check_in: string; check_out: string };
   current_guests?: { adults: number; children: number; infants: number };
   room_types?: { id: string; name: string; max_guests: number }[];
@@ -26,6 +27,8 @@ interface ConciergeRequest {
   current_booking_value?: number;
   session_delight_count?: number;
   conversation_history?: { role: string; content: string }[];
+  portfolio_slug?: string;
+  current_stay?: { property_name: string; check_in: string; check_out: string };
 }
 
 interface ConciergeSuggestion {
