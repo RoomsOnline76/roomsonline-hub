@@ -272,6 +272,7 @@ export default function PMSBranding() {
           light_bg_color: b.light_bg_color || "",
           dark_bg_color: b.dark_bg_color || "",
           hero_video_url: b.hero_video_url || "",
+          allow_property_brand_override: !!b.allow_property_brand_override,
         });
       }
       setPortfolioLoaded(true);
