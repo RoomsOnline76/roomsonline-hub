@@ -201,6 +201,11 @@ export function BottomSheetDatePicker({
             </DrawerTitle>
             <p className="text-sm text-muted-foreground">
               {selectingCheckOut ? "Select check-out date" : "Select check-in date"}
+              {selectingCheckOut && (minNights > 1 || maxNights) && (
+                <span className="ml-1 text-xs">
+                  ({minNights > 1 ? `min ${minNights} nights` : ''}{minNights > 1 && maxNights ? ' · ' : ''}{maxNights ? `max ${maxNights} nights` : ''})
+                </span>
+              )}
             </p>
           </DrawerHeader>
 
