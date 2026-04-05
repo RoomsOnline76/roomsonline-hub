@@ -480,7 +480,7 @@ export default function EmbedProperty() {
     if (effectiveRate) params.set("embed_rate", String(effectiveRate));
     if (pricingModel) params.set("embed_pricing_model", pricingModel);
     if (room?.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
-    if (room?.hostfully_room_id) params.set("hostfully_room_id", room.hostfully_room_id);
+    // hostfully_room_id no longer needed — adapters return DB UUIDs directly
     if (promoCode) params.set("voucher", promoCode);
     if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
     if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
