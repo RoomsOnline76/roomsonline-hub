@@ -129,14 +129,28 @@ export function BottomSheetDatePicker({
         setTempCheckIn(date);
         setTempCheckOut(null);
       } else if (isSameDay(date, tempCheckIn)) {
-        // If same day, set checkout to next day
-        setTempCheckOut(addDays(date, 1));
+        // If same day, set checkout to minNights ahead
+        setTempCheckOut(addDays(date, minNights));
         setSelectingCheckOut(false);
       } else {
+        // Enforce min/max nights
+        const nightsSelected = Math.ceil((date.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+        if (nightsSelected < minNights) return; // Too few nights
+        if (maxNights && nightsSelected > maxNights) return; // Too many nights
         setTempCheckOut(date);
         setSelectingCheckOut(false);
       }
     }
+  };
+
+  // Check if a date is outside the valid checkout range when selecting checkout
+  const isOutsideStayRange = (date: Date) => {
+    if (!selectingCheckOut || !tempCheckIn) return false;
+    if (isBefore(date, tempCheckIn) || isSameDay(date, tempCheckIn)) return false;
+    const nightsFromCheckIn = Math.ceil((date.getTime() - tempCheckIn.getTime()) / (1000 * 60 * 60 * 24));
+    if (nightsFromCheckIn < minNights) return true;
+    if (maxNights && nightsFromCheckIn > maxNights) return true;
+    return false;
   };
 
   const isInRange = (date: Date) => {
