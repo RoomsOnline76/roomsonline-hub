@@ -947,6 +947,7 @@ const Booking = () => {
                 .select("id, name, linked_rolos_id, daily_rate, max_guests, is_active")
                 .eq("property_id", property.id)
                 .eq("is_active", true);
+              hfRoomsRef.current = (hfRooms || []).map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
               
               // Fetch rate plans via rolos_rate_plan_room_types
               const rolosIds = (hfRooms || []).filter(r => r.linked_rolos_id).map(r => r.linked_rolos_id!);
