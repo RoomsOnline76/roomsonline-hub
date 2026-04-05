@@ -526,6 +526,15 @@ export default function AdminPortfolios() {
           <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
         </div>
 
+        {/* Property Brand Override Toggle */}
+        <div className="flex items-center justify-between gap-3 pt-2 pb-1 px-1 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="space-y-0.5">
+            <Label className="text-xs font-medium">Allow property branding override</Label>
+            <p className="text-[10px] text-muted-foreground leading-snug">When enabled, each property's own brand colours replace the portfolio brand once selected. When off (default), portfolio branding carries through to checkout.</p>
+          </div>
+          <Switch checked={allowPropertyBrandOverride} onCheckedChange={setAllowPropertyBrandOverride} />
+        </div>
+
         {/* Featured Pick Pinning */}
         {selectedProps.length > 0 && (
           <div className="space-y-1.5 pt-1">

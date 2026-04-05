@@ -482,9 +482,17 @@ export default function EmbedProperty() {
     if (room?.linked_rolos_id) params.set("linked_rolos_id", room.linked_rolos_id);
     // hostfully_room_id no longer needed — adapters return DB UUIDs directly
     if (promoCode) params.set("voucher", promoCode);
-    if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
-    if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
-    if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
+    // When portfolio_brand=1, forward the URL brand params (portfolio's brand) instead of property DB values
+    const portfolioBrandLock = searchParams.get("portfolio_brand") === "1";
+    if (portfolioBrandLock && brandColorParam) {
+      params.set("brand_color", decodeURIComponent(brandColorParam));
+      if (brandSecondaryParam) params.set("brand_secondary_color", decodeURIComponent(brandSecondaryParam));
+      if (brandFontParam) params.set("brand_font_color", decodeURIComponent(brandFontParam));
+    } else {
+      if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+      if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
+      if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
+    }
     window.location.href = `/booking/${property.slug}?${params.toString()}`;
   };
 

@@ -440,11 +440,20 @@ export default function EmbedPortfolio() {
 
   const handleViewProperty = (slug: string) => {
     const prop = properties.find(p => p.slug === slug);
-    const propColor = prop?.brand_primary_color || brandColor;
+    const allowOverride = portfolioBranding.allow_property_brand_override === true;
+    // Default: portfolio brand carries through. Override: use property's own brand.
+    const propColor = allowOverride
+      ? (prop?.brand_primary_color || brandColor)
+      : brandColor;
+    const propSecondary = allowOverride
+      ? (prop?.brand_secondary_color || brandSecondaryColor)
+      : brandSecondaryColor;
     const params = new URLSearchParams();
     if (propColor) params.set("brand_color", propColor);
+    if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
+    if (!allowOverride) params.set("portfolio_brand", "1");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
     const forwardedCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
     const forwardedAdults = searchParams.get("adults");
