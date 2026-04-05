@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle } from "lucide-react";
+import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
@@ -525,6 +526,34 @@ export default function AdminPortfolios() {
           </div>
           <p className="text-[10px] text-muted-foreground">Upload a video file or paste a YouTube/direct video URL.</p>
         </div>
+
+        {/* Contrast Warnings */}
+        {brandPrimary && (() => {
+          const bg = brandLightBgColor || "#ffffff";
+          const checks = [
+            { label: "Primary on background", ratio: contrastRatio(brandPrimary, bg) },
+            ...(brandFontColor ? [{ label: "Font on background", ratio: contrastRatio(brandFontColor, bg) }] : []),
+            ...(brandMutedTextColor ? [{ label: "Muted text on background", ratio: contrastRatio(brandMutedTextColor, bg) }] : []),
+            { label: "White on primary (buttons)", ratio: contrastRatio("#ffffff", brandPrimary) },
+          ];
+          const failures = checks.filter(c => c.ratio < 3);
+          const warnings = checks.filter(c => c.ratio >= 3 && c.ratio < 4.5);
+          if (failures.length === 0 && warnings.length === 0) return null;
+          return (
+            <div className="rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-700 p-2.5 space-y-1">
+              <p className="text-[10px] font-semibold flex items-center gap-1 text-yellow-800 dark:text-yellow-300">
+                <AlertTriangle className="h-3 w-3" /> Contrast Issues Detected
+              </p>
+              {failures.map((c, i) => (
+                <p key={i} className="text-[10px] text-red-700 dark:text-red-400">✕ {c.label}: {c.ratio.toFixed(1)} (needs ≥4.5)</p>
+              ))}
+              {warnings.map((c, i) => (
+                <p key={i} className="text-[10px] text-yellow-700 dark:text-yellow-400">⚠ {c.label}: {c.ratio.toFixed(1)} (large text only)</p>
+              ))}
+              <p className="text-[10px] text-muted-foreground">The system will auto-correct unreadable text at runtime, but adjusting colours is recommended.</p>
+            </div>
+          );
+        })()}
 
         {/* Property Brand Override Toggle */}
         <div className="flex items-center justify-between gap-3 pt-2 pb-1 px-1 rounded-lg border border-border bg-muted/20 p-3">

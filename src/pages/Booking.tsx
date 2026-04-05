@@ -2258,7 +2258,7 @@ const Booking = () => {
                       const roomCheckIn = room.checkIn || checkIn;
                       const roomCheckOut = room.checkOut || checkOut;
                       return (
-                        <div key={index} className="pl-3 border-l-2 border-primary/30 ml-1">
+                        <div key={index} className="pl-3 border-l-2 border-border ml-1">
                           <p className="font-medium">Room {index + 1}: {room.roomTypeName}</p>
                           <p className="text-muted-foreground">
                             {roomCheckIn && format(parseISO(roomCheckIn), "MMM d, yyyy")} – {roomCheckOut && format(parseISO(roomCheckOut), "MMM d, yyyy")}
@@ -2367,10 +2367,10 @@ const Booking = () => {
             {/* Date Picker — always available for editing */}
             <div className={cn(
               "rounded-xl border p-4 space-y-3",
-              checkIn && checkOut ? "border-border/50 bg-card" : "border-primary/30 bg-primary/5"
+              checkIn && checkOut ? "border-border/50 bg-card" : "border-border bg-card"
             )}>
-              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                <CalendarDays className="h-4 w-4" />
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <CalendarDays className="h-4 w-4 text-primary" />
                 {checkIn && checkOut ? "Your dates" : "Select your dates"}
               </div>
               <Button
@@ -2385,7 +2385,7 @@ const Booking = () => {
                   <span className="text-muted-foreground">Pick check-in & check-out dates</span>
                 )}
                 {checkIn && checkOut && (
-                  <span className="ml-auto text-xs text-primary font-medium">Change</span>
+                  <span className="ml-auto text-xs text-[hsl(var(--primary-text-safe,var(--primary)))] font-medium">Change</span>
                 )}
               </Button>
               <BottomSheetDatePicker
@@ -2434,7 +2434,7 @@ const Booking = () => {
                         <span className="text-xs text-muted-foreground">
                           {format(parseISO(roomCheckIn), "d MMM")} – {format(parseISO(roomCheckOut), "d MMM yyyy")}
                           {room.checkIn && room.checkOut && (room.checkIn !== checkIn || room.checkOut !== checkOut) && (
-                            <span className="text-primary ml-1">(custom dates)</span>
+                            <span className="text-[hsl(var(--primary-text-safe,var(--primary)))] ml-1">(custom dates)</span>
                           )}
                         </span>
                       )}
@@ -2695,7 +2695,7 @@ const Booking = () => {
                       {selectedAddons.map((sa, idx) => (
                         <div key={idx} className="flex justify-between text-sm items-center">
                           <p className="text-foreground flex items-center gap-1.5">
-                            <span className="text-primary text-xs">＋</span>
+                            <span className="text-[hsl(var(--primary-text-safe,var(--primary)))] text-xs">＋</span>
                             {sa.addon.name} × {sa.quantity}
                           </p>
                           <span className="font-medium"><FormattedPrice amount={sa.total} /></span>
@@ -2706,19 +2706,19 @@ const Booking = () => {
 
                   {/* Applied promotions banners */}
                   {appliedPromotions.length > 0 && appliedPromotions.map((promo, idx) => (
-                    <div key={idx} className="border border-dashed border-primary/30 bg-primary/5 rounded-lg p-3 mt-2">
+                    <div key={idx} className="border border-dashed border-border bg-card rounded-lg p-3 mt-2">
                       <div className="flex items-center gap-2">
                         {promo.imageUrl && (
                           <img src={promo.imageUrl} alt={promo.name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
                         )}
                         <span className="text-sm">{promo.type === 'package' ? '📦' : '🏷️'}</span>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-primary">{promo.name}</p>
+                          <p className="text-sm font-medium text-foreground">{promo.name}</p>
                           {promo.description && (
                             <p className="text-xs text-muted-foreground mt-0.5">{promo.description}</p>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-primary">
+                        <span className="text-sm font-semibold text-[hsl(var(--primary-text-safe,var(--primary)))]">
                           -<FormattedPrice amount={promo.discount} />
                         </span>
                       </div>

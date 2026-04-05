@@ -38,6 +38,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink */
     --primary: 326 82% 51%;
     --primary-foreground: 0 0% 100%;
+    --primary-text-safe: 326 82% 51%;
 
     /* Secondary */
     --secondary: 40 6% 94%;
@@ -111,6 +112,7 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     /* Primary - ROL Pink (lighter for dark mode) */
     --primary: 326 85% 60%;
     --primary-foreground: 0 0% 100%;
+    --primary-text-safe: 326 85% 60%;
 
     --secondary: 220 15% 18%;
     --secondary-foreground: 40 6% 95%;
