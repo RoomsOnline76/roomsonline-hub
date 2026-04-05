@@ -1185,6 +1185,22 @@ const Booking = () => {
 
       // Get room types array - handle both snake_case (contract) and camelCase (legacy)
       const roomTypesArray = availability?.room_types || availability?.roomTypes || [];
+      
+      // Fetch hostfully_room_id for all rooms to bridge PMS-native IDs (HotelBeds, Benson, etc.)
+      const roomDbIds = rooms.map(r => r.roomTypeId).filter(Boolean);
+      let hfRoomIdMap: Record<string, string> = {};
+      if (roomDbIds.length > 0 && property?.id) {
+        const { data: hfLookup } = await supabase
+          .from("hostfully_room_types")
+          .select("id, hostfully_room_id")
+          .eq("property_id", property.id)
+          .in("id", roomDbIds);
+        if (hfLookup) {
+          for (const h of hfLookup) {
+            if (h.hostfully_room_id) hfRoomIdMap[h.id] = h.hostfully_room_id;
+          }
+        }
+      }
 
       // Calculate cost for each room
       for (const room of rooms) {
@@ -1196,21 +1212,25 @@ const Booking = () => {
           : nights;
 
         // Find room type - handle both snake_case and camelCase field names
-        // Also check room_type_aliases for slugified name matching (e.g., "4" matches "two-bedroom-suite")
-        // Debug: log available room types and the room we're trying to match
         console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
         
         // Bridge PMS-native room IDs: strip adapter prefix from hostfully_room_id to get raw PMS code
         const urlHostfullyRoomId = searchParams.get('hostfully_room_id') || '';
         const pmsRoomCode = urlHostfullyRoomId.includes(':') ? urlHostfullyRoomId.split(':').slice(1).join(':') : urlHostfullyRoomId;
+        
+        // Also look up the DB room's hostfully_room_id to extract PMS code for matching
+        const dbHostfullyRoomId = hfRoomIdMap[room.roomTypeId] || '';
+        const dbPmsCode = dbHostfullyRoomId.includes(':') ? dbHostfullyRoomId.split(':').slice(1).join(':') : dbHostfullyRoomId;
 
         let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
             // Direct ID match
             if (rtId === room.roomTypeId) return true;
-            // PMS-native code match (e.g. HotelBeds DBT.DX-4, Benson numeric IDs)
+            // PMS-native code match from URL param (e.g. HotelBeds DBT.DX-4)
             if (pmsRoomCode && rtId === pmsRoomCode) return true;
+            // PMS-native code match from DB hostfully_room_id (e.g. hotelbeds:DBL.VM-2 → DBL.VM-2)
+            if (dbPmsCode && rtId === dbPmsCode) return true;
             // Check aliases if available (cache-based matching)
             if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
             // Forward match: room definition name slugified matches cache ID
@@ -1232,6 +1252,29 @@ const Booking = () => {
           if (roomType) {
             console.log('[Booking] Room matched by name fallback:', room.roomTypeName);
           }
+        }
+        
+        // Last resort: if embed_rate is available and no room matched, create synthetic room type
+        if (!roomType && embedRate && embedRate > 0) {
+          console.log('[Booking] No room match — using embed_rate fallback:', embedRate);
+          const dailyRates: any[] = [];
+          const currentDate = new Date(roomCheckIn!);
+          const endDate = new Date(roomCheckOut!);
+          while (currentDate < endDate) {
+            dailyRates.push({ date: currentDate.toISOString().split('T')[0], room_amount: embedRate });
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+          roomType = {
+            room_type_id: room.roomTypeId,
+            room_type_name: room.roomTypeName,
+            rate_types: [{
+              rate_type_id: 'embed-fallback',
+              rate_type_name: 'Standard Rate',
+              price_type: 'PER_NIGHT',
+              rates: dailyRates,
+            }],
+            rooms_available_per_night: dailyRates.map(r => ({ date: r.date, available_units: 1 })),
+          };
         }
         
         console.log('[Booking] Room match result:', roomType ? 'found' : 'NOT FOUND');
