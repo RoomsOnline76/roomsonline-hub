@@ -196,6 +196,15 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     setStays(prev => [...prev, newStay]);
   }, []);
 
+  const addMultipleStays = useCallback((newStays: Omit<ItineraryStay, 'id'>[]) => {
+    const staysWithIds: ItineraryStay[] = newStays.map(stay => ({
+      ...stay,
+      id: generateId(),
+      nights: calculateNights(stay.dates.check_in, stay.dates.check_out)
+    }));
+    setStays(prev => [...prev, ...staysWithIds]);
+  }, []);
+
   const updateStay = useCallback((stayId: string, updates: Partial<ItineraryStay>) => {
     setStays(prev => prev.map(stay => {
       if (stay.id !== stayId) return stay;
