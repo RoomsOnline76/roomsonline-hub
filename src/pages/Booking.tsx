@@ -2385,7 +2385,7 @@ const Booking = () => {
                   <span className="text-muted-foreground">Pick check-in & check-out dates</span>
                 )}
                 {checkIn && checkOut && (
-                  <span className="ml-auto text-xs text-primary font-medium">Change</span>
+                  <span className="ml-auto text-xs text-[hsl(var(--primary-text-safe,var(--primary)))] font-medium">Change</span>
                 )}
               </Button>
               <BottomSheetDatePicker
