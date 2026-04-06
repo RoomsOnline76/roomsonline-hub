@@ -154,8 +154,14 @@ export function EditStayDatesDialog({
         }
       });
 
-      if (error || !data?.is_available) {
-        toast.error(data?.message || 'These dates are not available');
+      if (error) {
+        throw error;
+      }
+
+      const isAvailable = data?.is_available ?? data?.all_available ?? data?.results?.[0]?.is_available;
+
+      if (!isAvailable) {
+        toast.error(data?.message || data?.results?.[0]?.error || 'These dates are not available');
         return;
       }
 
