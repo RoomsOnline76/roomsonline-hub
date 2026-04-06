@@ -1916,6 +1916,7 @@ const Booking = () => {
         },
         availability_status: 'available',
         nights: checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0,
+        portfolio_slug: portfolioSlug || undefined,
       });
     }
 
