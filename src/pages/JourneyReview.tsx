@@ -286,7 +286,7 @@ export default function JourneyReview() {
                 <Card className="bg-muted/30">
                   <CardContent className="pt-6">
                     <div className="space-y-3">
-                      {stays.map((stay) => (
+                      {sortedStays.map((stay) => (
                         <div key={stay.id} className="flex justify-between text-sm">
                           <span className="text-muted-foreground truncate max-w-[60%]">
                             {stay.property_name}
