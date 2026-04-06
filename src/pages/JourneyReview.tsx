@@ -12,6 +12,7 @@ import { StayCard, TimelineVisualizer, EditStayDatesDialog, EditStayRoomsDialog 
 import { PropertyRecommendations } from '@/components/booking/PropertyRecommendations';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { sortStaysChronologically } from '@/lib/journeyUtils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { PublicLayout } from '@/components/layout/PublicLayout';
 import { WhiteLabelLayout } from '@/components/layout/WhiteLabelLayout';
