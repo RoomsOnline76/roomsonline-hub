@@ -4091,6 +4091,7 @@ export default function PropertyForm() {
             venues: isVenues,
             event_wedding: isEvent,
             conference: isConference,
+            ...(lekkeslaapUuid ? { lekkeslaap_uuid: lekkeslaapUuid } : {}),
           },
           contact: {
             email: formData.contact_email,
