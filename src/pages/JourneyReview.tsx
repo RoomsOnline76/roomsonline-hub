@@ -187,7 +187,7 @@ export default function JourneyReview() {
 
         <main className="container max-w-5xl py-8 lg:py-12">
           {/* Timeline */}
-          <TimelineVisualizer stays={stays} className="mb-12" />
+          <TimelineVisualizer stays={sortedStays} className="mb-12" />
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Stays column */}
