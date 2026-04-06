@@ -1,43 +1,48 @@
 
 
-# Add "View Cart" with Calendar Timeline View
+# Add HyperGuest PMS Card with Tracking Metrics
 
-## What
-Add a calendar/timeline visualization to the JourneyBuilder widget so users can see all booked stays laid out across dates. Also add a dedicated "View Cart" action accessible from portfolio/property pages.
+## Problem
+HyperGuest has a fully built edge function adapter (`hyperguest-api`) with capabilities for availability, prebook, reservations, and static data — but it's completely missing from the `ALL_PMS_SYSTEMS` config in `pmsSystemsConfig.ts`. This means it doesn't appear in the PMS Control page (`DevPMS.tsx`), has no tracking card, and is invisible to the admin UI.
 
-## How
+Additionally, it needs the same `pms-implementation-master.json` entry as other PMS systems.
 
-### 1. New component: `JourneyCalendarView`
-- A horizontal timeline or month-grid calendar showing each stay as a colored bar spanning check-in to check-out
-- Each bar shows property name, room type, and night count
-- Color-coded per property (use a small palette, assign by index)
-- Gaps between stays are visually obvious (empty days shown)
-- Tapping a stay bar highlights it and shows details (property image, price, rooms)
-- Remove button on each bar
+## What will be done
 
-### 2. Update `JourneyBuilder.tsx`
-- Add a "View Journey" / calendar icon toggle button in the header alongside the existing expand/collapse
-- When toggled, show the `JourneyCalendarView` instead of the list view
-- Add a tab-style toggle: "List | Calendar" at the top of the expanded content
-- Keep existing list view as default; calendar is the alternate view
+### 1. Register HyperGuest in `pmsSystemsConfig.ts`
+Add a HyperGuest entry to `ALL_PMS_SYSTEMS` between Hostfully and HotelBeds (alphabetical):
+- Key: `hyperguest`
+- Name: `HyperGuest`
+- Description: `Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs`
+- `hasCustomCard: true`
+- `deploymentStatus: 'in_development'` (BYOS / adapter testing phase)
 
-### 3. Add "View Cart" floating action
-- When `hasStays` is true, the JourneyBuilder pill already shows — enhance it with a small calendar icon badge
-- In the expanded state, add a "View Journey Map" button that opens a dialog/sheet with the full calendar view (more space than the small widget)
-- Use a Sheet (bottom on mobile, side on desktop) for the full calendar view
+This immediately makes it visible on the PMS Control page with connection tracking, sync status, and enable/disable controls.
 
-### 4. Calendar rendering approach
-- Determine date range: earliest check-in to latest check-out across all stays
-- Render a simple row-per-stay horizontal bar chart aligned to a shared date axis
-- Each row: property thumbnail + name on left, colored bar spanning the dates on right
-- Date headers across the top (day numbers with month labels)
-- Total nights and total price summary at the bottom
+### 2. Add HyperGuest to `pms-implementation-master.json`
+Add a PMS rules entry:
+- Property fields: name authoritative, description/location/images not_available (HyperGuest is a distribution channel, not a content PMS)
+- Room types cache: full, amenities_seed: false
+- Notes: Distribution channel adapter (PULL model). Routes bookings via HG to OTAs like Booking.com.
+
+### 3. Add tracking metrics card component
+Create `src/components/pms/HyperGuestDetails.tsx` — a dedicated details card (similar pattern to `HostfullyRoomDetails`) that shows:
+- **Connection health**: Last health check result, API environment (sandbox/production)
+- **Capability matrix**: Visual grid of the 12 capabilities from the adapter (live availability, prebook, create booking, etc.)
+- **Sync metrics**: Counts from `pms_room_types_cache` and `pms_rate_types_cache` for HyperGuest-connected properties
+- **Distribution channel info**: "ROLOS → HyperGuest → Booking.com" flow diagram badge
+- Quick actions: Health check, Fetch static data, Test availability
+
+### 4. Wire HyperGuest card into DevPMS page
+When a HyperGuest connection exists, show the `HyperGuestDetails` component below the connections table (same pattern as other systems with `hasCustomCard`).
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/components/journey/JourneyCalendarView.tsx` | New component — horizontal timeline of all stays with date bars, property labels, gap indicators |
-| `src/components/journey/JourneyBuilder.tsx` | Add List/Calendar view toggle in expanded content; add "View full journey" button that opens Sheet with calendar |
-| `src/components/journey/index.ts` | Export new component |
+| `src/lib/pmsSystemsConfig.ts` | Add HyperGuest entry to `ALL_PMS_SYSTEMS` |
+| `src/config/pms-implementation-master.json` | Add HyperGuest PMS rules block |
+| `src/components/pms/HyperGuestDetails.tsx` | New — tracking metrics card with capability matrix, health check, sync stats |
+| `src/components/pms/index.ts` | Export `HyperGuestDetails` |
+| `src/pages/DevPMS.tsx` | Import and render `HyperGuestDetails` for HyperGuest system cards |
 
