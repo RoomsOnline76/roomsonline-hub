@@ -144,7 +144,17 @@ export default function JourneyReview() {
               {/* Add another stay */}
               <Button
                 variant="outline"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  // Derive portfolio slug from stays' property_slug or metadata
+                  const portfolioSlug = stays[0]?.portfolio_slug;
+                  const lastCheckOut = stays[stays.length - 1]?.dates?.check_out || '';
+                  if (portfolioSlug) {
+                    navigate(`/embed/portfolio/${portfolioSlug}?journey_mode=true&checkIn=${lastCheckOut}`);
+                  } else {
+                    // Fallback: try to find portfolio from the first stay's property
+                    navigate(`/book?journey_mode=true&checkIn=${lastCheckOut}`);
+                  }
+                }}
                 className="w-full"
               >
                 Add Another Destination
