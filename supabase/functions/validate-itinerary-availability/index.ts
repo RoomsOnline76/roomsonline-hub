@@ -25,6 +25,18 @@ interface ValidationResult {
   error?: string;
 }
 
+function normalizeStay(stay: Partial<ItineraryStay>): ItineraryStay {
+  return {
+    id: stay.id || crypto.randomUUID(),
+    property_id: stay.property_id || "",
+    property_name: stay.property_name || "",
+    external_system: stay.external_system || "native",
+    dates: stay.dates || { check_in: "", check_out: "" },
+    rooms: stay.rooms || [],
+    guests: stay.guests || { adults: 2, children: 0, infants: 0 },
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -35,12 +47,16 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { action, stays, itinerary_id } = await req.json();
+    const { action, stay, stays, itinerary_id } = await req.json();
 
-    let staysToValidate: ItineraryStay[] = stays || [];
+    let staysToValidate: ItineraryStay[] = Array.isArray(stays)
+      ? stays.map((item: Partial<ItineraryStay>) => normalizeStay(item))
+      : stay
+        ? [normalizeStay(stay)]
+        : [];
 
     // If itinerary_id provided, load stays from database
-    if (itinerary_id && !stays) {
+    if (itinerary_id && !stays && !stay) {
       const { data: itinerary, error } = await supabase
         .from("itineraries")
         .select("stays")
@@ -54,7 +70,7 @@ serve(async (req) => {
         );
       }
 
-      staysToValidate = itinerary.stays as ItineraryStay[];
+      staysToValidate = ((itinerary.stays as Partial<ItineraryStay>[]) || []).map(normalizeStay);
     }
 
     if (!staysToValidate || staysToValidate.length === 0) {
@@ -129,13 +145,20 @@ serve(async (req) => {
     const allAvailable = results.every(r => r.is_available);
     const anyPriceChanged = results.some(r => r.price_changed);
 
+    const responseBody = {
+      success: true,
+      all_available: allAvailable,
+      any_price_changed: anyPriceChanged,
+      is_available: action === "validate_single" ? (results[0]?.is_available ?? false) : allAvailable,
+      price_changed: action === "validate_single" ? (results[0]?.price_changed ?? false) : anyPriceChanged,
+      new_price: action === "validate_single" ? results[0]?.new_price : undefined,
+      message: action === "validate_single" && !results[0]?.is_available ? (results[0]?.error || "These dates are not available") : undefined,
+      results,
+      validations: results,
+    };
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        all_available: allAvailable,
-        any_price_changed: anyPriceChanged,
-        results,
-      }),
+      JSON.stringify(responseBody),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
