@@ -500,6 +500,11 @@ export default function DevPMS() {
                   </div>
                 </CardContent>
               )}
+              {config.key === 'hyperguest' && (
+                <CardContent className="pt-0">
+                  <HyperGuestDetails />
+                </CardContent>
+              )}
             </Card>
           );
         })}
