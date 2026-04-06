@@ -72,6 +72,21 @@
       }
     },
     {
+      "pms": "hyperguest",
+      "safe_as_is": true,
+      "property_fields": {
+        "name": "not_available",
+        "description": "not_available",
+        "location": "not_available",
+        "images": "not_available"
+      },
+      "room_types": {
+        "cache": "full",
+        "amenities_seed": false
+      },
+      "notes": "Distribution channel adapter (PULL model). Routes bookings via HG to OTAs like Booking.com. No editorial content sourced."
+    },
+    {
       "pms": "little-hotelier",
       "safe_as_is": true,
       "property_fields": {

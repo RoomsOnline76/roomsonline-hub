@@ -77,6 +77,13 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     deploymentStatus: 'deployed',
   },
   {
+    key: 'hyperguest',
+    name: 'HyperGuest',
+    description: 'Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs',
+    hasCustomCard: true,
+    deploymentStatus: 'in_development',
+  },
+  {
     key: 'hotelbeds',
     name: 'HotelBeds',
     description: 'Global bedbank and travel distribution platform for hotels',

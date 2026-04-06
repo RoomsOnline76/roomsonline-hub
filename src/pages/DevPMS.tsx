@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { VISIBLE_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
+import { HyperGuestDetails } from "@/components/pms";
 
 interface PMSAdapter {
   id: string;
@@ -497,6 +498,11 @@ export default function DevPMS() {
                       ? 'Widget-based integration (no API connections)' 
                       : 'No connections configured'}
                   </div>
+                </CardContent>
+              )}
+              {config.key === 'hyperguest' && (
+                <CardContent className="pt-0">
+                  <HyperGuestDetails />
                 </CardContent>
               )}
             </Card>
