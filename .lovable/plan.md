@@ -1,43 +1,64 @@
 
+## Fix "Add Another Destination" still falling back to `/book`
 
-# Fix "Add Another Destination" Routing and Benson R 0 Pricing
+### What I found
+- `JourneyReview.tsx` already tries to send users back to `/embed/portfolio/:slug`, but only when `stays[0]?.portfolio_slug` exists.
+- If that field is missing, it falls back to `/book`.
+- `Booking.tsx` does save `portfolio_slug` when the first stay is added from checkout.
+- `EmbedProperty.tsx` journey-mode add-to-itinerary flow does not consistently persist `portfolio_slug`, so portfolio context can be lost once the user adds/returns through the experience-engine flow.
+- The current button logic is also too fragile because it depends only on the first stay.
 
-## Two bugs
+## Implementation plan
 
-### Bug 1: "Add Another Destination" goes to `/` instead of portfolio
-In `JourneyReview.tsx` line 147, the button navigates to `'/'` — the homepage. It should route to the portfolio showcase page so the user can browse and add another property from the same portfolio.
+### 1. Persist portfolio context reliably
+Update the journey add-stay flow so every stay created from the portfolio experience carries the active `portfolio_slug`.
 
-**Fix**: Derive the portfolio slug from the first stay's context (or from itinerary metadata) and route to `/embed/portfolio/:slug?journey_mode=true`. Fall back to `/` only if no portfolio context exists.
+Files:
+- `src/pages/EmbedProperty.tsx`
+- `src/pages/Booking.tsx` (only if needed to normalize all stay creation paths)
+- `src/contexts/ItineraryContext.tsx` (if we store a top-level journey portfolio slug as backup metadata)
 
-### Bug 2: Benson stay saved with R 0 price
-When the user clicks "+" (extend stay) in `Booking.tsx`, `addRoom()` saves the current booking to the itinerary using `totalCost`. But for Benson properties, the ARI/pricing calculation may not have completed yet (or the cost wasn't passed through URL params), so `totalCost` is `0` at the time `addStay()` is called. The stay gets persisted with R 0.
+### 2. Make JourneyReview resolve the portfolio more robustly
+Change the button logic in `JourneyReview.tsx` so it resolves the portfolio slug in this order:
+1. any stay in the itinerary with `portfolio_slug`
+2. stored journey-level portfolio metadata
+3. lookup from the first stay’s `property_id` via portfolio membership
+4. only then fall back to `/book`
 
-**Fix**: Before calling `addStay`, check if `totalCost` is 0 but rooms exist. If so, attempt to use the `preSelectedTotalCost` from URL params, or the `embed_rate` multiplied by nights as a fallback. Also, when returning to the journey review, re-validate and update stay prices from cached ARI data.
+This removes the current “first stay only” weakness.
 
-## Files to change
+File:
+- `src/pages/JourneyReview.tsx`
 
-| File | Change |
-|---|---|
-| `src/pages/JourneyReview.tsx` | Change "Add Another Destination" button to route to portfolio showcase page with `journey_mode=true`, deriving portfolio slug from stays' metadata |
-| `src/pages/Booking.tsx` | In `addRoom()`, use `preSelectedTotalCost` or `embed_rate * nights` as fallback when `totalCost` is 0, so the stay is never saved with a zero price when pricing data exists |
-| `src/contexts/ItineraryContext.tsx` | Store portfolio slug in itinerary context so JourneyReview can route back to the correct portfolio |
+### 3. Preserve journey-mode routing end-to-end
+Ensure the portfolio slug and `journey_mode=true` continue to be forwarded whenever the user moves:
+- checkout -> portfolio
+- portfolio -> property
+- property -> journey review
 
-## Detail
+Files:
+- `src/pages/EmbedPortfolio.tsx`
+- `src/pages/EmbedProperty.tsx`
+- `src/pages/Booking.tsx` if any gap remains
 
-### JourneyReview routing fix
-- Extract `portfolio_slug` from the stays (add it to the stay metadata) or resolve it from `property_portfolio_members` table
-- Button onClick: navigate to `/embed/portfolio/${slug}?journey_mode=true&checkIn=${lastCheckOut}` 
-- If no portfolio found, fall back to `/` with a toast explaining no portfolio is linked
+### 4. Add a safe fallback message
+If no portfolio can be resolved at all, keep the fallback route but show a clear toast explaining that the journey is no longer linked to a portfolio showcase.
 
-### Benson price fix
-In `addRoom()` around line 1890, change:
-```
-const perRoomTotal = (totalCost || 0) / (roomsWithDates.length || 1);
-```
-to:
-```
-const effectiveTotal = totalCost || preSelectedTotalCost || 0;
-const perRoomTotal = effectiveTotal / (roomsWithDates.length || 1);
-```
-And use `effectiveTotal` for the `price_breakdown` fields too. This ensures URL-passed pricing (which Benson/embed flows use) is captured even when local calculation hasn't run.
+File:
+- `src/pages/JourneyReview.tsx`
 
+## Expected result
+After this fix:
+- “Add Another Destination” on `/journey/review` will return to the active portfolio showcase page, not `/book`
+- the journey will remain attached to the correct portfolio even after adding/editing later stays
+- the fallback to `/book` will only happen for genuinely non-portfolio journeys
+
+## Files likely to change
+- `src/pages/JourneyReview.tsx`
+- `src/pages/EmbedProperty.tsx`
+- `src/pages/EmbedPortfolio.tsx`
+- `src/pages/Booking.tsx` (if normalization is needed)
+- `src/contexts/ItineraryContext.tsx` (if backup journey metadata is added)
+
+## Technical note
+The issue is not that the button route is missing — it is already there. The real bug is that portfolio context is not being preserved robustly enough, so `JourneyReview` thinks it has no portfolio and drops into the `/book` fallback.
