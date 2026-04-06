@@ -42,6 +42,15 @@ export interface ItineraryStay {
   portfolio_slug?: string;
 }
 
+export interface AppliedVoucher {
+  code: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  discount_amount: number;
+  promo_id: string;
+  description?: string;
+}
+
 export interface GuestDetails {
   name: string;
   email: string;
