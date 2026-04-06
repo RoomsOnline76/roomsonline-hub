@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { ChannelLogo, getChannelLabel } from "@/components/pms/channels/ChannelLogo";
 
 interface ChannelApiConfig {
@@ -73,6 +74,7 @@ const CHANNEL_API_FIELDS: Record<string, { key: string; label: string; type?: st
 };
 
 const ALL_CHANNELS = Object.keys(CHANNEL_API_FIELDS);
+const DISTRIBUTION_CHANNELS = ["hyperguest", "hotelbeds", "rentalsunited", "profitroom"];
 
 export function RolosChannelApiCards() {
   const [configs, setConfigs] = useState<Record<string, ChannelApiConfig>>({});
@@ -180,6 +182,15 @@ export function RolosChannelApiCards() {
                   <div className="flex items-center gap-3">
                     <ChannelLogo channelName={channelName} size="sm" />
                     <span className="font-medium text-sm">{getChannelLabel(channelName)}</span>
+                    {DISTRIBUTION_CHANNELS.includes(channelName) && (
+                      <Link
+                        to="/dev/pms-control"
+                        className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 ml-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Tracker <ExternalLink className="h-2.5 w-2.5" />
+                      </Link>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <div onClick={(e) => e.stopPropagation()}>

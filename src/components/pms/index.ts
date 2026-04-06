@@ -6,5 +6,6 @@ export { DisconnectPMSDialog, type DisconnectAction } from './DisconnectPMSDialo
 export { OwnerPMSConnectionCard } from './OwnerPMSConnectionCard';
 export { HostfullyRoomDetails } from './HostfullyRoomDetails';
 export { HyperGuestDetails } from './HyperGuestDetails';
+export { ChannelCredentialEditor } from './ChannelCredentialEditor';
 export { IntegrationStatusDropdown, type PmsIntegrationStatus, INTEGRATION_STATUS_CONFIG } from './IntegrationStatusDropdown';
 export { EnvironmentToggle } from './EnvironmentToggle';

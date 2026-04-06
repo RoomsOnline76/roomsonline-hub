@@ -43,6 +43,9 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { VISIBLE_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
 import { HyperGuestDetails } from "@/components/pms";
+import { ChannelCredentialEditor } from "@/components/pms/ChannelCredentialEditor";
+
+const DISTRIBUTION_CHANNELS = ["hyperguest", "hotelbeds", "rentalsunited", "profitroom"];
 
 interface PMSAdapter {
   id: string;
@@ -503,6 +506,11 @@ export default function DevPMS() {
               {config.key === 'hyperguest' && (
                 <CardContent className="pt-0">
                   <HyperGuestDetails />
+                </CardContent>
+              )}
+              {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
+                <CardContent className="pt-0">
+                  <ChannelCredentialEditor channelName={config.key} />
                 </CardContent>
               )}
             </Card>
