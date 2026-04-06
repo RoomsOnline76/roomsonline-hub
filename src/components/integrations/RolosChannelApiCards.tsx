@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { ChannelLogo, getChannelLabel } from "@/components/pms/channels/ChannelLogo";
 
 interface ChannelApiConfig {
