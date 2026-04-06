@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PoweredByRolOS } from "@/components/pms/PoweredByRolOS";
+import { JourneyBuilder } from "@/components/journey";
 
 interface WhiteLabelLayoutProps {
   children: ReactNode;
@@ -49,6 +50,9 @@ export function WhiteLabelLayout({
       <footer className="border-t border-border/30 py-4">
         <PoweredByRolOS />
       </footer>
+
+      {/* Floating Journey Builder for multi-stay visibility in embed flows */}
+      <JourneyBuilder />
     </div>
   );
 }
