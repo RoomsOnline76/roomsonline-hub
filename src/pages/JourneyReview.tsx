@@ -118,6 +118,8 @@ export default function JourneyReview() {
   const [editingStay, setEditingStay] = useState<ItineraryStay | null>(null);
   const [editingRoomsStay, setEditingRoomsStay] = useState<ItineraryStay | null>(null);
 
+  const sortedStays = useMemo(() => sortStaysChronologically(stays), [stays]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
