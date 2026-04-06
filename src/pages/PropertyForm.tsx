@@ -5038,6 +5038,24 @@ export default function PropertyForm() {
                           </div>
                         </div>
 
+                        {selectedPMS === "roomsonline" && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <Label htmlFor="lekkeslaap_uuid" className="text-xs whitespace-nowrap">
+                              Lekkeslaap UUID
+                            </Label>
+                            <Input
+                              id="lekkeslaap_uuid"
+                              value={lekkeslaapUuid}
+                              onChange={(e) => {
+                                setLekkeslaapUuid(e.target.value);
+                                setIsDirty(true);
+                              }}
+                              placeholder="e.g. 12345-abcde-..."
+                              className="h-7 text-xs max-w-[280px]"
+                            />
+                          </div>
+                        )}
+
                         <Separator className="my-3" />
                       </>
                     )}
