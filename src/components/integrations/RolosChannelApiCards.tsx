@@ -74,6 +74,7 @@ const CHANNEL_API_FIELDS: Record<string, { key: string; label: string; type?: st
 };
 
 const ALL_CHANNELS = Object.keys(CHANNEL_API_FIELDS);
+const DISTRIBUTION_CHANNELS = ["hyperguest", "hotelbeds", "rentalsunited", "profitroom"];
 
 export function RolosChannelApiCards() {
   const [configs, setConfigs] = useState<Record<string, ChannelApiConfig>>({});
