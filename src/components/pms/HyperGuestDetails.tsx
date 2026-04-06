@@ -156,8 +156,11 @@ export function HyperGuestDetails({ propertyId }: HyperGuestDetailsProps) {
           </div>
         </div>
 
+        {/* Credentials */}
+        <ChannelCredentialEditor channelName="hyperguest" />
+
         {/* Actions */}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -177,6 +180,9 @@ export function HyperGuestDetails({ propertyId }: HyperGuestDetailsProps) {
             <RefreshCw className="h-3 w-3 mr-1" />
             Refresh
           </Button>
+          <Link to="/admin-keys" className="ml-auto text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+            View in API Keys <ExternalLink className="h-3 w-3" />
+          </Link>
         </div>
       </CardContent>
     </Card>

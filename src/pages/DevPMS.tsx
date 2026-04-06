@@ -508,6 +508,11 @@ export default function DevPMS() {
                   <HyperGuestDetails />
                 </CardContent>
               )}
+              {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
+                <CardContent className="pt-0">
+                  <ChannelCredentialEditor channelName={config.key} />
+                </CardContent>
+              )}
             </Card>
           );
         })}
