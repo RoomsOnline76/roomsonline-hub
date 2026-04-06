@@ -5,5 +5,6 @@ export { PMSListingSelector, type PMSListing } from './PMSListingSelector';
 export { DisconnectPMSDialog, type DisconnectAction } from './DisconnectPMSDialog';
 export { OwnerPMSConnectionCard } from './OwnerPMSConnectionCard';
 export { HostfullyRoomDetails } from './HostfullyRoomDetails';
+export { HyperGuestDetails } from './HyperGuestDetails';
 export { IntegrationStatusDropdown, type PmsIntegrationStatus, INTEGRATION_STATUS_CONFIG } from './IntegrationStatusDropdown';
 export { EnvironmentToggle } from './EnvironmentToggle';
