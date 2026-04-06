@@ -202,7 +202,7 @@ export default function JourneyReview() {
               </div>
 
               <div className="space-y-6">
-                {stays.map((stay, index) => (
+                {sortedStays.map((stay, index) => (
                   <StayCard
                     key={stay.id}
                     stay={stay}
