@@ -182,7 +182,15 @@ export function RolosChannelApiCards() {
                   <div className="flex items-center gap-3">
                     <ChannelLogo channelName={channelName} size="sm" />
                     <span className="font-medium text-sm">{getChannelLabel(channelName)}</span>
-                  </div>
+                    {DISTRIBUTION_CHANNELS.includes(channelName) && (
+                      <Link
+                        to="/dev/pms-control"
+                        className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 ml-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Tracker <ExternalLink className="h-2.5 w-2.5" />
+                      </Link>
+                    )}
                   <div className="flex items-center gap-2">
                     <div onClick={(e) => e.stopPropagation()}>
                       <Switch
