@@ -1866,6 +1866,40 @@ const Booking = () => {
     };
     sessionStorage.setItem(`booking_state_${property?.id}`, JSON.stringify(bookingState));
 
+    // Persist current booking as a stay in the itinerary context (prevents loss on navigation)
+    const alreadyInItinerary = stays.some(
+      s => s.property_id === property?.id && s.dates.check_in === checkIn && s.dates.check_out === checkOut
+    );
+    if (!alreadyInItinerary && property) {
+      const roomSelections = roomsWithDates.map(r => ({
+        room_type_id: r.roomTypeId || '',
+        room_type_name: r.roomTypeName || '',
+        quantity: 1,
+        rate_per_night: r.rate || 0,
+        total_price: r.rate ? r.rate * (differenceInDays(parseISO(r.checkOut || checkOut || ''), parseISO(r.checkIn || checkIn || '')) || 1) : 0,
+      }));
+      addStay({
+        property_id: property.id,
+        property_name: property.name || '',
+        property_slug: property.slug || id || '',
+        property_image: property.images?.[0] || '',
+        external_system: property.external_system || integrationParam || '',
+        dates: { check_in: checkIn || '', check_out: checkOut || '' },
+        rooms: roomSelections,
+        guests: { adults: rooms[0]?.numberOfAdults || 2, children: rooms[0]?.numberOfChildren || 0, infants: rooms[0]?.numberOfInfants || 0 },
+        rate_type_id: selectedRateType || undefined,
+        rate_type_name: preSelectedRateTypeName || undefined,
+        price_breakdown: {
+          subtotal: totalCost || 0,
+          fees: [],
+          taxes: [],
+          total: totalCost || 0,
+        },
+        availability_status: 'available',
+        nights: checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0,
+      });
+    }
+
     // Portfolio embed: route to portfolio overview for journey building
     if (isPortfolioEmbed && portfolioSlug) {
       const params = new URLSearchParams({
