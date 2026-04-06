@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { StayCard, TimelineVisualizer, EditStayDatesDialog, EditStayRoomsDialog 
 import { PropertyRecommendations } from '@/components/booking/PropertyRecommendations';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { sortStaysChronologically } from '@/lib/journeyUtils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { PublicLayout } from '@/components/layout/PublicLayout';
 import { WhiteLabelLayout } from '@/components/layout/WhiteLabelLayout';
@@ -117,6 +118,8 @@ export default function JourneyReview() {
   const [editingStay, setEditingStay] = useState<ItineraryStay | null>(null);
   const [editingRoomsStay, setEditingRoomsStay] = useState<ItineraryStay | null>(null);
 
+  const sortedStays = useMemo(() => sortStaysChronologically(stays), [stays]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -184,7 +187,7 @@ export default function JourneyReview() {
 
         <main className="container max-w-5xl py-8 lg:py-12">
           {/* Timeline */}
-          <TimelineVisualizer stays={stays} className="mb-12" />
+          <TimelineVisualizer stays={sortedStays} className="mb-12" />
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Stays column */}
@@ -199,7 +202,7 @@ export default function JourneyReview() {
               </div>
 
               <div className="space-y-6">
-                {stays.map((stay, index) => (
+                {sortedStays.map((stay, index) => (
                   <StayCard
                     key={stay.id}
                     stay={stay}
@@ -283,7 +286,7 @@ export default function JourneyReview() {
                 <Card className="bg-muted/30">
                   <CardContent className="pt-6">
                     <div className="space-y-3">
-                      {stays.map((stay) => (
+                      {sortedStays.map((stay) => (
                         <div key={stay.id} className="flex justify-between text-sm">
                           <span className="text-muted-foreground truncate max-w-[60%]">
                             {stay.property_name}

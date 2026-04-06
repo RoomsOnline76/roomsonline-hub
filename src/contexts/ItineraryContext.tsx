@@ -42,6 +42,15 @@ export interface ItineraryStay {
   portfolio_slug?: string;
 }
 
+export interface AppliedVoucher {
+  code: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  discount_amount: number;
+  promo_id: string;
+  description?: string;
+}
+
 export interface GuestDetails {
   name: string;
   email: string;
@@ -57,6 +66,7 @@ export interface ItineraryContextValue {
   totalNights: number;
   itineraryId: string | null;
   isLoading: boolean;
+  appliedVoucher: AppliedVoucher | null;
   
   // Actions
   addStay: (stay: Omit<ItineraryStay, 'id'>) => void;
@@ -66,6 +76,7 @@ export interface ItineraryContextValue {
   reorderStays: (fromIndex: number, toIndex: number) => void;
   setGuestDetails: (details: Partial<GuestDetails>) => void;
   setSpecialRequests: (text: string) => void;
+  setAppliedVoucher: (voucher: AppliedVoucher | null) => void;
   clearItinerary: () => void;
   
   // Persistence
@@ -134,6 +145,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
   const [specialRequests, setSpecialRequestsState] = useState('');
   const [itineraryId, setItineraryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [appliedVoucher, setAppliedVoucherState] = useState<AppliedVoucher | null>(null);
 
   // Load from sessionStorage (itinerary) and localStorage (sticky guest details) on mount
   useEffect(() => {
@@ -248,10 +260,15 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     setSpecialRequestsState(text);
   }, []);
 
+  const setAppliedVoucher = useCallback((voucher: AppliedVoucher | null) => {
+    setAppliedVoucherState(voucher);
+  }, []);
+
   const clearItinerary = useCallback(() => {
     setStays([]);
     setGuestDetailsState({ name: '', email: '', phone: '' });
     setSpecialRequestsState('');
+    setAppliedVoucherState(null);
     setItineraryId(null);
     sessionStorage.removeItem(STORAGE_KEY);
   }, []);
@@ -340,6 +357,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     totalNights,
     itineraryId,
     isLoading,
+    appliedVoucher,
     addStay,
     addMultipleStays,
     updateStay,
@@ -347,6 +365,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     reorderStays,
     setGuestDetails,
     setSpecialRequests,
+    setAppliedVoucher,
     clearItinerary,
     saveToDatabase,
     loadFromDatabase,

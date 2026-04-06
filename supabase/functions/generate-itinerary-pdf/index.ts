@@ -1898,7 +1898,8 @@ Deno.serve(async (req) => {
       country: s.country,
     });
 
-    const stays: Stay[] = rawStays.map(normalizeStay);
+    const stays: Stay[] = rawStays.map(normalizeStay)
+      .sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''));
 
     // Get unique property IDs (filter out undefined)
     const propertyIds = [...new Set(stays.map(s => s.propertyId).filter(Boolean))];
