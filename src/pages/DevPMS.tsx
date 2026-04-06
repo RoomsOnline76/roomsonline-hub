@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { VISIBLE_PMS_SYSTEMS, PMSSystemConfig, getIntegrationStatusInfo, IntegrationStatus } from "@/lib/pmsSystemsConfig";
+import { HyperGuestDetails } from "@/components/pms";
 
 interface PMSAdapter {
   id: string;
