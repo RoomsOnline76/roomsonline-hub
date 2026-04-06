@@ -1,64 +1,74 @@
 
-## Fix "Add Another Destination" still falling back to `/book`
 
-### What I found
-- `JourneyReview.tsx` already tries to send users back to `/embed/portfolio/:slug`, but only when `stays[0]?.portfolio_slug` exists.
-- If that field is missing, it falls back to `/book`.
-- `Booking.tsx` does save `portfolio_slug` when the first stay is added from checkout.
-- `EmbedProperty.tsx` journey-mode add-to-itinerary flow does not consistently persist `portfolio_slug`, so portfolio context can be lost once the user adds/returns through the experience-engine flow.
-- The current button logic is also too fragile because it depends only on the first stay.
+# Chronological Stay Ordering, Collapsible Billing, and Voucher Input for Journey Checkout
 
-## Implementation plan
+## Problem
+1. **No chronological ordering** — stays display in the order they were added, not by check-in date. This affects the checkout page, confirmation email, and journey brochure.
+2. **No collapsible billing per property** — the checkout summary shows each property as a flat one-liner with just the total. No way to expand and see the breakdown (room charges, extras, specials, discounts).
+3. **No voucher input** — the single-property checkout (`Booking.tsx`) has full voucher/promo-code support via `FluentGuestForm`, but the multi-stay `JourneyCheckout.tsx` has zero voucher functionality.
 
-### 1. Persist portfolio context reliably
-Update the journey add-stay flow so every stay created from the portfolio experience carries the active `portfolio_slug`.
+## What will be done
 
-Files:
-- `src/pages/EmbedProperty.tsx`
-- `src/pages/Booking.tsx` (only if needed to normalize all stay creation paths)
-- `src/contexts/ItineraryContext.tsx` (if we store a top-level journey portfolio slug as backup metadata)
+### 1. Sort stays chronologically everywhere
+Add a utility sort `stays.sort((a, b) => a.dates.check_in.localeCompare(b.dates.check_in))` in:
+- **`JourneyCheckout.tsx`** — sort before rendering the summary and timeline
+- **`JourneyReview.tsx`** — sort before rendering stay cards
+- **`generate-itinerary-pdf/index.ts`** — sort stays before building the brochure HTML
+- **`send-itinerary-email/index.ts`** — sort stays before building the email body (if it renders stays independently of the brochure)
 
-### 2. Make JourneyReview resolve the portfolio more robustly
-Change the button logic in `JourneyReview.tsx` so it resolves the portfolio slug in this order:
-1. any stay in the itinerary with `portfolio_slug`
-2. stored journey-level portfolio metadata
-3. lookup from the first stay’s `property_id` via portfolio membership
-4. only then fall back to `/book`
+A shared `sortStaysChronologically` helper keeps it DRY on the frontend.
 
-This removes the current “first stay only” weakness.
+### 2. Collapsible property billing in checkout summary
+Replace the flat stay list in `JourneyCheckout.tsx`'s right-column summary card with a collapsible accordion per property:
+- **Collapsed (default)**: property name, dates, total price, expand chevron
+- **Expanded**: shows `price_breakdown` detail — subtotal (rooms × nights), each fee line, each tax line, specials/discounts if any, stay total
+- Uses the existing `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` from `@/components/ui/collapsible`
 
-File:
-- `src/pages/JourneyReview.tsx`
+### 3. Voucher code input in checkout
+Add a voucher input field in the checkout form area (left column, below Special Requests):
+- Text input + "Apply" button, same UX pattern as `FluentGuestForm`
+- On apply: call the existing `validate-promo-code` edge function with the code and the property IDs from the itinerary
+- Show valid/invalid state with green/red border
+- If valid: display discount amount, subtract from grand total
+- Store applied voucher in itinerary context so it persists and gets saved to DB
+- The voucher field sits in the left form column, clearly visible — not hidden inside a collapsible
 
-### 3. Preserve journey-mode routing end-to-end
-Ensure the portfolio slug and `journey_mode=true` continue to be forwarded whenever the user moves:
-- checkout -> portfolio
-- portfolio -> property
-- property -> journey review
+### Answer to "how would the user capture a voucher code?"
+With this change, a dedicated "Voucher / Promo Code" input with an "Apply" button will appear below the Special Requests card on the checkout page. The user types the code, clicks Apply, and sees immediate validation feedback. The discount is reflected in the grand total.
 
-Files:
-- `src/pages/EmbedPortfolio.tsx`
-- `src/pages/EmbedProperty.tsx`
-- `src/pages/Booking.tsx` if any gap remains
+## Files to change
 
-### 4. Add a safe fallback message
-If no portfolio can be resolved at all, keep the fallback route but show a clear toast explaining that the journey is no longer linked to a portfolio showcase.
+| File | Change |
+|---|---|
+| `src/lib/journeyUtils.ts` | New — export `sortStaysChronologically()` helper |
+| `src/pages/JourneyCheckout.tsx` | Sort stays; replace flat summary with collapsible per-property billing; add voucher input card with apply logic |
+| `src/pages/JourneyReview.tsx` | Sort stays before rendering |
+| `src/contexts/ItineraryContext.tsx` | Add `appliedVoucher` state + setter to context so discount persists |
+| `supabase/functions/generate-itinerary-pdf/index.ts` | Sort stays by check_in before building brochure |
+| `supabase/functions/send-itinerary-email/index.ts` | Sort stays by check_in before building email (if applicable) |
 
-File:
-- `src/pages/JourneyReview.tsx`
+## Technical detail
 
-## Expected result
-After this fix:
-- “Add Another Destination” on `/journey/review` will return to the active portfolio showcase page, not `/book`
-- the journey will remain attached to the correct portfolio even after adding/editing later stays
-- the fallback to `/book` will only happen for genuinely non-portfolio journeys
+**Sorting** — simple string compare on ISO date `check_in`:
+```typescript
+export const sortStaysChronologically = (stays: ItineraryStay[]) =>
+  [...stays].sort((a, b) => a.dates.check_in.localeCompare(b.dates.check_in));
+```
 
-## Files likely to change
-- `src/pages/JourneyReview.tsx`
-- `src/pages/EmbedProperty.tsx`
-- `src/pages/EmbedPortfolio.tsx`
-- `src/pages/Booking.tsx` (if normalization is needed)
-- `src/contexts/ItineraryContext.tsx` (if backup journey metadata is added)
+**Collapsible billing** — uses existing Radix `Collapsible` primitive:
+```text
+┌─────────────────────────────────────────┐
+│ ① Property Name           R 4,500  ▼   │  ← collapsed
+├─────────────────────────────────────────┤
+│   11 Apr – 14 Apr · 3 nights           │
+│   ─────────────────────────────         │
+│   Dungeon Room × 3 nights    R 3,600   │  ← expanded
+│   Cleaning Fee               R   350   │
+│   Tourism Levy               R   150   │
+│   Special: -10% early bird  -R   400   │
+│   Stay Total                 R 3,700   │
+└─────────────────────────────────────────┘
+```
 
-## Technical note
-The issue is not that the button route is missing — it is already there. The real bug is that portfolio context is not being preserved robustly enough, so `JourneyReview` thinks it has no portfolio and drops into the `/book` fallback.
+**Voucher** — reuses existing `validate-promo-code` edge function. Applied discount stored in context and deducted from `totalPrice` in the grand total display and payment amount.
+
