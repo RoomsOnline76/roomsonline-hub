@@ -10,10 +10,13 @@ import {
   ArrowRight, 
   CheckCircle2, 
   CircleDot, 
+  ExternalLink, 
   HeartPulse, 
   RefreshCw, 
   XCircle 
 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChannelCredentialEditor } from "./ChannelCredentialEditor";
 
 const CAPABILITIES = [
   { key: "live_availability", label: "Live Availability" },
