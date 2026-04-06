@@ -306,6 +306,7 @@ export default function PropertyForm() {
   const [isVenues, setIsVenues] = useState(false);
   const [isEvent, setIsEvent] = useState(false);
   const [isConference, setIsConference] = useState(false);
+  const [lekkeslaapUuid, setLekkeslaapUuid] = useState("");
 
   // Handle venues checkbox - if checked, check event and conference too; if unchecked, clear both
   const handleVenuesChange = (checked: boolean) => {
@@ -3276,6 +3277,7 @@ export default function PropertyForm() {
           setIsVenues(amenities?.offerings?.venues ?? false);
           setIsEvent(amenities?.offerings?.event_wedding ?? false);
           setIsConference(amenities?.offerings?.conference ?? false);
+          setLekkeslaapUuid(amenities?.offerings?.lekkeslaap_uuid ?? "");
 
           // Set property source (PMS)
           const externalSystem = data.external_system || "";
@@ -4089,6 +4091,7 @@ export default function PropertyForm() {
             venues: isVenues,
             event_wedding: isEvent,
             conference: isConference,
+            ...(lekkeslaapUuid ? { lekkeslaap_uuid: lekkeslaapUuid } : {}),
           },
           contact: {
             email: formData.contact_email,
@@ -5034,6 +5037,24 @@ export default function PropertyForm() {
                             </Label>
                           </div>
                         </div>
+
+                        {selectedPMS === "roomsonline" && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <Label htmlFor="lekkeslaap_uuid" className="text-xs whitespace-nowrap">
+                              Lekkeslaap UUID
+                            </Label>
+                            <Input
+                              id="lekkeslaap_uuid"
+                              value={lekkeslaapUuid}
+                              onChange={(e) => {
+                                setLekkeslaapUuid(e.target.value);
+                                setIsDirty(true);
+                              }}
+                              placeholder="e.g. 12345-abcde-..."
+                              className="h-7 text-xs max-w-[280px]"
+                            />
+                          </div>
+                        )}
 
                         <Separator className="my-3" />
                       </>
