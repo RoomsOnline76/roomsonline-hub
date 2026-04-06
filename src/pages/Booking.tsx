@@ -2304,7 +2304,6 @@ const Booking = () => {
       <PublicLayout
         backLabel="Back to Property"
         backTo={property ? `/property/${property.slug || property.id}` : "/"}
-        hideJourneyBuilder
       >
         {children}
       </PublicLayout>
