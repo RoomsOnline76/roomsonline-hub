@@ -574,6 +574,7 @@ export default function EmbedProperty() {
         s => s.property_id === property.id && s.dates.check_in === checkIn && s.dates.check_out === finalCheckOutDate
       );
       if (!alreadyInItinerary) {
+        const portfolioSlugParam = searchParams.get("portfolio_slug");
         addStay({
           property_id: property.id,
           property_name: property.name || '',
@@ -597,6 +598,7 @@ export default function EmbedProperty() {
           },
           availability_status: 'available',
           nights: Math.max(numNights, 1),
+          portfolio_slug: portfolioSlugParam || undefined,
         });
       }
       // Route to journey review with all accumulated stays
