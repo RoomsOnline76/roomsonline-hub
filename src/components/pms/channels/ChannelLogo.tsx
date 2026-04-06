@@ -10,6 +10,8 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
   rentalsunited: { label: "Rentals United", color: "bg-indigo-600", initials: "RU" },
   profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
+  hyperguest: { label: "HyperGuest", color: "bg-cyan-600", initials: "HG" },
+  hotelbeds: { label: "HotelBeds", color: "bg-amber-600", initials: "HB" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
 };
 

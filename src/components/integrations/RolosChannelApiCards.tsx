@@ -59,6 +59,17 @@ const CHANNEL_API_FIELDS: Record<string, { key: string; label: string; type?: st
     { key: "hotel_id", label: "Hotel ID", placeholder: "Your Profitroom hotel ID" },
     { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.profitroom.com" },
   ],
+  hyperguest: [
+    { key: "api_key", label: "API Key", type: "password", placeholder: "HyperGuest API key" },
+    { key: "api_secret", label: "API Secret", type: "password", placeholder: "HyperGuest API secret" },
+    { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.hyperguest.com" },
+    { key: "environment", label: "Environment", placeholder: "sandbox or production" },
+  ],
+  hotelbeds: [
+    { key: "api_key", label: "API Key", type: "password", placeholder: "HotelBeds API key" },
+    { key: "api_secret", label: "API Secret", type: "password", placeholder: "HotelBeds API secret" },
+    { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.hotelbeds.com" },
+  ],
 };
 
 const ALL_CHANNELS = Object.keys(CHANNEL_API_FIELDS);
