@@ -1887,7 +1887,9 @@ const Booking = () => {
     );
     if (!alreadyInItinerary && property) {
       const numNights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) || 1 : 1;
-      const perRoomTotal = (totalCost || 0) / (roomsWithDates.length || 1);
+      // Use preSelectedTotalCost or embed_rate as fallback when totalCost is 0 (Benson/ARI flows)
+      const effectiveTotal = totalCost || preSelectedTotalCost || (embedRate && numNights ? embedRate * numNights : 0) || 0;
+      const perRoomTotal = effectiveTotal / (roomsWithDates.length || 1);
       const roomSelections = roomsWithDates.map(r => ({
         room_type_id: r.roomTypeId || '',
         room_type_name: r.roomTypeName || '',
@@ -1907,13 +1909,14 @@ const Booking = () => {
         rate_type_id: selectedRateType || undefined,
         rate_type_name: preSelectedRateTypeName || undefined,
         price_breakdown: {
-          subtotal: totalCost || 0,
+          subtotal: effectiveTotal,
           fees: [],
           taxes: [],
-          total: totalCost || 0,
+          total: effectiveTotal,
         },
         availability_status: 'available',
         nights: checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) : 0,
+        portfolio_slug: portfolioSlug || undefined,
       });
     }
 

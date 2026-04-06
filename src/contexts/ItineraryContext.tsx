@@ -39,6 +39,7 @@ export interface ItineraryStay {
   price_breakdown: PriceBreakdown;
   availability_status: 'available' | 'checking' | 'unavailable' | 'unknown';
   nights: number;
+  portfolio_slug?: string;
 }
 
 export interface GuestDetails {
