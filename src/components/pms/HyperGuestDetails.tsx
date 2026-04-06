@@ -51,12 +51,12 @@ export function HyperGuestDetails({ propertyId }: HyperGuestDetailsProps) {
     try {
       // Count cached room types for hyperguest-connected properties
       const { count: rooms } = await supabase
-        .from("pms_room_types_cache")
+        .from("pms_room_types_cache" as any)
         .select("*", { count: "exact", head: true })
         .eq("pms_system", "hyperguest");
 
       const { count: rates } = await supabase
-        .from("pms_rate_types_cache")
+        .from("pms_rate_types_cache" as any)
         .select("*", { count: "exact", head: true })
         .eq("pms_system", "hyperguest");
 
