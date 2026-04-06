@@ -3277,6 +3277,7 @@ export default function PropertyForm() {
           setIsVenues(amenities?.offerings?.venues ?? false);
           setIsEvent(amenities?.offerings?.event_wedding ?? false);
           setIsConference(amenities?.offerings?.conference ?? false);
+          setLekkeslaapUuid(amenities?.offerings?.lekkeslaap_uuid ?? "");
 
           // Set property source (PMS)
           const externalSystem = data.external_system || "";
