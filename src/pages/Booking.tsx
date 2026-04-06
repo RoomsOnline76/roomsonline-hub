@@ -1871,12 +1871,14 @@ const Booking = () => {
       s => s.property_id === property?.id && s.dates.check_in === checkIn && s.dates.check_out === checkOut
     );
     if (!alreadyInItinerary && property) {
+      const numNights = checkIn && checkOut ? differenceInDays(parseISO(checkOut), parseISO(checkIn)) || 1 : 1;
+      const perRoomTotal = (totalCost || 0) / (roomsWithDates.length || 1);
       const roomSelections = roomsWithDates.map(r => ({
         room_type_id: r.roomTypeId || '',
         room_type_name: r.roomTypeName || '',
         quantity: 1,
-        rate_per_night: r.rate || 0,
-        total_price: r.rate ? r.rate * (differenceInDays(parseISO(r.checkOut || checkOut || ''), parseISO(r.checkIn || checkIn || '')) || 1) : 0,
+        rate_per_night: perRoomTotal / numNights,
+        total_price: perRoomTotal,
       }));
       addStay({
         property_id: property.id,
