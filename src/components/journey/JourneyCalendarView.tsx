@@ -95,22 +95,6 @@ export function JourneyCalendarView({ compact = false }: JourneyCalendarViewProp
     };
   };
 
-  // Find gaps between stays
-  const gaps = useMemo(() => {
-    const result: { startDay: number; days: number }[] = [];
-    for (let i = 0; i < sortedStays.length - 1; i++) {
-      const currentEnd = parseISO(sortedStays[i].dates.check_out);
-      const nextStart = parseISO(sortedStays[i + 1].dates.check_in);
-      const gapDays = differenceInDays(nextStart, currentEnd);
-      if (gapDays > 0 && dateRange) {
-        result.push({
-          startDay: differenceInDays(currentEnd, dateRange.start),
-          days: gapDays,
-        });
-      }
-    }
-    return result;
-  }, [sortedStays, dateRange]);
 
   return (
     <div className="space-y-3">
