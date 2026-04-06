@@ -141,7 +141,7 @@ const Booking = () => {
   }, [urlBrandColor, urlBrandSecondary, urlBrandFont, id]);
   
   // Get sticky guest details from context
-  const { guestDetails, setGuestDetails, stays, totalPrice: itineraryTotalPrice } = useItinerary();
+  const { guestDetails, setGuestDetails, stays, addStay, totalPrice: itineraryTotalPrice } = useItinerary();
   
   const urlCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
   const urlCheckOut = searchParams.get("checkOut") || searchParams.get("checkout");
