@@ -34,7 +34,7 @@ export function JourneyCalendarView({ compact = false }: JourneyCalendarViewProp
     new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
 
   const { days, dateRange, sortedStays } = useMemo(() => {
-    if (stays.length === 0) return { days: [], dateRange: null, sortedStays: [] };
+    if (stays.length === 0) return { days: [] as Date[], dateRange: null as { start: Date; end: Date } | null, sortedStays: [] as ItineraryStay[] };
 
     const sorted = [...stays].sort((a, b) =>
       new Date(a.dates.check_in).getTime() - new Date(b.dates.check_in).getTime()
@@ -54,6 +54,23 @@ export function JourneyCalendarView({ compact = false }: JourneyCalendarViewProp
       sortedStays: sorted,
     };
   }, [stays]);
+
+  // Find gaps between stays
+  const gaps = useMemo(() => {
+    const result: { startDay: number; days: number }[] = [];
+    for (let i = 0; i < sortedStays.length - 1; i++) {
+      const currentEnd = parseISO(sortedStays[i].dates.check_out);
+      const nextStart = parseISO(sortedStays[i + 1].dates.check_in);
+      const gapDays = differenceInDays(nextStart, currentEnd);
+      if (gapDays > 0 && dateRange) {
+        result.push({
+          startDay: differenceInDays(currentEnd, dateRange.start),
+          days: gapDays,
+        });
+      }
+    }
+    return result;
+  }, [sortedStays, dateRange]);
 
   if (stays.length === 0) {
     return (
