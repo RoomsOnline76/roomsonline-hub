@@ -10,10 +10,8 @@ import {
   ArrowRight, 
   CheckCircle2, 
   CircleDot, 
-  Globe, 
   HeartPulse, 
   RefreshCw, 
-  Server, 
   XCircle 
 } from "lucide-react";
 
