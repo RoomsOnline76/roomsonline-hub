@@ -1,42 +1,43 @@
 
 
-# Fix "Add to Stay" — Current Booking Must Be Saved to Itinerary Before Navigating
+# Add "View Cart" with Calendar Timeline View
 
-## Problem
-When a user clicks "Extend your journey" or "Add another stay" from checkout, the current booking is only saved to `sessionStorage` — it is **never added to the ItineraryContext**. So when the user picks a second property on the portfolio page, the first booking is effectively lost. Each property starts a completely new booking cycle instead of accumulating stays.
+## What
+Add a calendar/timeline visualization to the JourneyBuilder widget so users can see all booked stays laid out across dates. Also add a dedicated "View Cart" action accessible from portfolio/property pages.
 
-## Root Cause
-`addRoom()` in `Booking.tsx` (line 1844) saves form state to `sessionStorage` but never calls `addStay()` from `useItinerary()`. The ItineraryContext is imported (line 31) but unused in this function.
+## How
 
-## Fix
+### 1. New component: `JourneyCalendarView`
+- A horizontal timeline or month-grid calendar showing each stay as a colored bar spanning check-in to check-out
+- Each bar shows property name, room type, and night count
+- Color-coded per property (use a small palette, assign by index)
+- Gaps between stays are visually obvious (empty days shown)
+- Tapping a stay bar highlights it and shows details (property image, price, rooms)
+- Remove button on each bar
 
-### `src/pages/Booking.tsx` — Add current stay to ItineraryContext before navigating
+### 2. Update `JourneyBuilder.tsx`
+- Add a "View Journey" / calendar icon toggle button in the header alongside the existing expand/collapse
+- When toggled, show the `JourneyCalendarView` instead of the list view
+- Add a tab-style toggle: "List | Calendar" at the top of the expanded content
+- Keep existing list view as default; calendar is the alternate view
 
-Inside the `addRoom` function (around line 1844), before navigating away:
+### 3. Add "View Cart" floating action
+- When `hasStays` is true, the JourneyBuilder pill already shows — enhance it with a small calendar icon badge
+- In the expanded state, add a "View Journey Map" button that opens a dialog/sheet with the full calendar view (more space than the small widget)
+- Use a Sheet (bottom on mobile, side on desktop) for the full calendar view
 
-1. **Call `addStay()`** with the current booking's details (property info, selected rooms, dates, guests, pricing) so the stay is persisted in the itinerary
-2. **Prevent duplicates** — check if a stay for this property+dates already exists in the itinerary before adding
-3. Build the stay object from existing state variables: `property`, `rooms`, `checkIn`, `checkOut`, `adults`, `children`, `totalCost`, `costBreakdown`, `selectedRateType`
-
-```text
-addRoom() flow:
-  BEFORE:  save to sessionStorage → navigate away (stay lost)
-  AFTER:   save to sessionStorage → addStay() to itinerary → navigate away (stay preserved)
-```
-
-### Key details
-- The property image can come from `property.images?.[0]` or the hero image
-- `property_slug` from `property.slug || id`
-- `external_system` from the integration param or property's `external_system`
-- Room selections mapped from the `rooms` state array
-- Price breakdown from `costBreakdown` / `totalCost`
-- Availability status set to `'available'` (user is already on checkout, availability was confirmed)
-
-### Also fix: returning from portfolio to checkout
-When the user returns from the portfolio with a second property booking, the new booking page should also `addStay()` its property into the itinerary, and the JourneyBuilder widget should reflect all accumulated stays.
+### 4. Calendar rendering approach
+- Determine date range: earliest check-in to latest check-out across all stays
+- Render a simple row-per-stay horizontal bar chart aligned to a shared date axis
+- Each row: property thumbnail + name on left, colored bar spanning the dates on right
+- Date headers across the top (day numbers with month labels)
+- Total nights and total price summary at the bottom
 
 ## Files Changed
+
 | File | Change |
 |---|---|
-| `src/pages/Booking.tsx` | In `addRoom()`: construct stay object from current booking state and call `addStay()` before navigating; add duplicate check |
+| `src/components/journey/JourneyCalendarView.tsx` | New component — horizontal timeline of all stays with date bars, property labels, gap indicators |
+| `src/components/journey/JourneyBuilder.tsx` | Add List/Calendar view toggle in expanded content; add "View full journey" button that opens Sheet with calendar |
+| `src/components/journey/index.ts` | Export new component |
 
