@@ -37,6 +37,33 @@ const INTEGRATIONS = [
   },
 ];
 
+const DISTRIBUTION_CHANNELS = [
+  {
+    name: "HyperGuest",
+    flow: "ROL'OS → HyperGuest → OTAs",
+    desc: "PULL-model distribution channel connecting your inventory to Booking.com, Expedia, and other major OTAs via HyperGuest's connectivity hub.",
+    features: ["Live availability", "Prebook validation", "Reservation sync", "Static data push", "Multi-OTA reach"],
+  },
+  {
+    name: "HotelBeds",
+    flow: "ROL'OS → HotelBeds → Bedbank Network",
+    desc: "Global bedbank distribution. Push rates and inventory to HotelBeds' network of 60,000+ travel buyers worldwide.",
+    features: ["Rate distribution", "Inventory push", "Multi-currency", "Global reach", "B2B network"],
+  },
+  {
+    name: "Rentals United",
+    flow: "ROL'OS → Rentals United → 60+ Channels",
+    desc: "XML-based adapter for vacation rental distribution. Connect to Airbnb, Vrbo, and 60+ rental channels through a single integration.",
+    features: ["XML adapter", "Property sync", "Availability", "Dynamic pricing", "Reservations"],
+  },
+  {
+    name: "ProfitRoom",
+    flow: "ROL'OS → ProfitRoom → CRS & Engine",
+    desc: "Central reservation system and booking engine integration. Sync rate plans and availability with ProfitRoom's hotel commerce platform.",
+    features: ["Booking engine", "Channel manager", "Rate plans", "Availability sync", "Revenue tools"],
+  },
+];
+
 const ADAPTER_STEPS = [
   { step: "1", title: "Connect", desc: "Authenticate your PMS credentials through our secure integration config." },
   { step: "2", title: "Map", desc: "ROL'OS automatically maps room types, rates, and inventory from your PMS." },
