@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,76 @@ import { PublicLayout } from '@/components/layout/PublicLayout';
 import { WhiteLabelLayout } from '@/components/layout/WhiteLabelLayout';
 import { loadBrandFromSession } from '@/lib/brandOverride';
 import { useBrandOverride } from '@/hooks/useBrandOverride';
+import { supabase } from '@/integrations/supabase/client';
+
+/** Resolves portfolio slug from stays or DB, then navigates to portfolio showcase */
+function AddAnotherDestinationButton({ stays }: { stays: ItineraryStay[] }) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [resolvedSlug, setResolvedSlug] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+
+  // 1) Check all stays for portfolio_slug
+  useEffect(() => {
+    const slug = stays.find(s => s.portfolio_slug)?.portfolio_slug || null;
+    if (slug) {
+      setResolvedSlug(slug);
+      return;
+    }
+    // 2) No slug on any stay — look up from first stay's property_id
+    const propertyId = stays[0]?.property_id;
+    if (!propertyId) return;
+    setIsResolving(true);
+    (async () => {
+      try {
+        const { data: memberships } = await supabase
+          .from("property_portfolio_members" as any)
+          .select("portfolio_id")
+          .eq("property_id", propertyId);
+        if (memberships && memberships.length > 0) {
+          const { data: portfolio } = await supabase
+            .from("property_portfolios" as any)
+            .select("slug")
+            .eq("id", (memberships as any)[0].portfolio_id)
+            .maybeSingle();
+          if (portfolio && (portfolio as any).slug) {
+            setResolvedSlug((portfolio as any).slug);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to resolve portfolio slug for journey:", e);
+      } finally {
+        setIsResolving(false);
+      }
+    })();
+  }, [stays]);
+
+  const handleClick = useCallback(() => {
+    const lastCheckOut = stays[stays.length - 1]?.dates?.check_out || '';
+    if (resolvedSlug) {
+      navigate(`/embed/portfolio/${resolvedSlug}?journey_mode=true&checkIn=${lastCheckOut}`);
+    } else {
+      toast({
+        title: "No portfolio linked",
+        description: "This journey isn't linked to a portfolio showcase. Redirecting to general booking.",
+        variant: "default",
+      });
+      navigate(`/book?journey_mode=true&checkIn=${lastCheckOut}`);
+    }
+  }, [resolvedSlug, stays, navigate, toast]);
+
+  return (
+    <Button
+      variant="outline"
+      onClick={handleClick}
+      disabled={isResolving}
+      className="w-full"
+    >
+      {isResolving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+      Add Another Destination
+    </Button>
+  );
+}
 
 export default function JourneyReview() {
   const navigate = useNavigate();
