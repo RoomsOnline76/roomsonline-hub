@@ -1,30 +1,19 @@
 
 
-# Link HyperGuest Credentials & Metrics Across Admin Pages
+# Show Cart/JourneyBuilder on Booking (Checkout) Page
 
 ## Problem
-1. **DevPMS** (`/dev/pms-control`): Shows HyperGuest card with metrics but no way to edit credentials — you have to navigate separately to `/admin-keys` to find the Channel API Credentials section
-2. **AdminKeys** (`/admin-keys`): Has the `RolosChannelApiCards` component where HyperGuest credentials CAN be edited, but it's buried among all other API keys with no link back to tracker/metrics
-3. No cross-linking between the HyperGuest tracker status and its credential configuration
+The `Booking.tsx` page passes `hideJourneyBuilder` to `PublicLayout`, which completely suppresses the floating JourneyBuilder widget. When a user has added stays to their itinerary and is on the checkout page, they cannot view their cart or see the calendar timeline of their journey.
 
 ## What will be done
 
-### 1. Add inline credential editor to DevPMS HyperGuest card
-Extend the `HyperGuestDetails` component to include an embedded credential form (API Key, Secret, Endpoint, Environment) that reads/writes directly to `rolos_channel_api_config`. This way credentials can be managed right where the metrics and health checks live — no need to navigate away.
+Remove `hideJourneyBuilder` from the `PublicLayout` usage in `Booking.tsx` so the floating JourneyBuilder widget appears when the user has stays in their itinerary. The JourneyBuilder already self-hides when there are no stays, so there's no risk of it appearing for single-booking flows with an empty itinerary.
 
-### 2. Add credential quick-edit to all distribution channel cards in DevPMS
-For HotelBeds, Rentals United, and ProfitRoom cards in DevPMS, add the same inline credential section. Extract a reusable `ChannelCredentialEditor` component from the existing `RolosChannelApiCards` field definitions so both pages share the same logic.
-
-### 3. Add quick-nav links between pages
-- In the HyperGuest card on DevPMS, add a "View in API Keys" link to `/admin-keys`
-- In `RolosChannelApiCards` on AdminKeys, add a "View Tracker" link to `/dev/pms-control` for each distribution channel
+For the `WhiteLabelLayout` path (integration/embed flows), the JourneyBuilder won't appear since that layout doesn't render it — which is correct for embedded contexts.
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/components/pms/ChannelCredentialEditor.tsx` | New — reusable credential form extracted from RolosChannelApiCards field definitions; reads/writes `rolos_channel_api_config` |
-| `src/components/pms/HyperGuestDetails.tsx` | Add `ChannelCredentialEditor` for hyperguest; add nav link to `/admin-keys` |
-| `src/pages/DevPMS.tsx` | For distribution channel cards (hyperguest, hotelbeds, rentalsunited, profitroom), render `ChannelCredentialEditor` inline |
-| `src/components/integrations/RolosChannelApiCards.tsx` | Add "View Tracker →" link next to each distribution channel heading |
+| `src/pages/Booking.tsx` | Remove `hideJourneyBuilder` prop from the `PublicLayout` wrapper (line 2307) |
 
