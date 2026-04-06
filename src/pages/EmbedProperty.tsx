@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
 import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
+import { useItinerary } from "@/contexts/ItineraryContext";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
