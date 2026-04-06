@@ -191,6 +191,7 @@ export function RolosChannelApiCards() {
                         Tracker <ExternalLink className="h-2.5 w-2.5" />
                       </Link>
                     )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <div onClick={(e) => e.stopPropagation()}>
                       <Switch
