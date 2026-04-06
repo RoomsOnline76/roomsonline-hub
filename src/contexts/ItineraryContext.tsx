@@ -145,6 +145,7 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
   const [specialRequests, setSpecialRequestsState] = useState('');
   const [itineraryId, setItineraryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [appliedVoucher, setAppliedVoucherState] = useState<AppliedVoucher | null>(null);
 
   // Load from sessionStorage (itinerary) and localStorage (sticky guest details) on mount
   useEffect(() => {
