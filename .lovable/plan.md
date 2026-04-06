@@ -1,34 +1,30 @@
 
 
-# Add Distribution Channel Partners to ConnectIntegrations Page
+# Link HyperGuest Credentials & Metrics Across Admin Pages
 
 ## Problem
-The integrations page only shows direct PMS adapters (ROL'OS Native, Hostfully, NightsBridge, Custom). It's missing the intermediary distribution channels — HyperGuest, HotelBeds, Rentals United, and ProfitRoom — which act as the bridge from ROL'OS to OTAs like Booking.com, Expedia, etc.
+1. **DevPMS** (`/dev/pms-control`): Shows HyperGuest card with metrics but no way to edit credentials — you have to navigate separately to `/admin-keys` to find the Channel API Credentials section
+2. **AdminKeys** (`/admin-keys`): Has the `RolosChannelApiCards` component where HyperGuest credentials CAN be edited, but it's buried among all other API keys with no link back to tracker/metrics
+3. No cross-linking between the HyperGuest tracker status and its credential configuration
 
 ## What will be done
 
-### Add a new "Distribution Channels" section to `ConnectIntegrations.tsx`
+### 1. Add inline credential editor to DevPMS HyperGuest card
+Extend the `HyperGuestDetails` component to include an embedded credential form (API Key, Secret, Endpoint, Environment) that reads/writes directly to `rolos_channel_api_config`. This way credentials can be managed right where the metrics and health checks live — no need to navigate away.
 
-Between the existing "Integration cards" section and the CTA, add a new section titled **"Distribution & Channel Partners"** with a subtitle explaining these are intermediary links that connect ROL'OS to OTAs and global distribution networks.
+### 2. Add credential quick-edit to all distribution channel cards in DevPMS
+For HotelBeds, Rentals United, and ProfitRoom cards in DevPMS, add the same inline credential section. Extract a reusable `ChannelCredentialEditor` component from the existing `RolosChannelApiCards` field definitions so both pages share the same logic.
 
-Four new cards:
-
-| System | Role | Features |
-|---|---|---|
-| **HyperGuest** | ROL'OS → HG → Booking.com, Expedia, etc. | PULL model, Live availability, Prebook, Reservations, Static data sync |
-| **HotelBeds** | ROL'OS → HotelBeds → Global bedbank network | Rate distribution, Inventory push, Multi-currency, Global reach |
-| **Rentals United** | ROL'OS → RU → 60+ vacation rental channels | XML adapter, Property sync, Availability, Pricing, Reservations |
-| **ProfitRoom** | ROL'OS → ProfitRoom → CRS & booking engine | Booking engine, Channel manager, Rate plans, Availability sync |
-
-Each card will show a small flow diagram badge (e.g. "ROL'OS → HyperGuest → OTAs") to visually communicate the intermediary role, plus feature bullet points.
-
-### Visual distinction
-- Use a different background tint or a subtle "Distribution" tag to distinguish these from direct PMS adapters
-- Add a small intro paragraph: "These partners extend your reach to global OTAs and distribution networks. ROL'OS connects to them — they connect you to the world."
+### 3. Add quick-nav links between pages
+- In the HyperGuest card on DevPMS, add a "View in API Keys" link to `/admin-keys`
+- In `RolosChannelApiCards` on AdminKeys, add a "View Tracker" link to `/dev/pms-control` for each distribution channel
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/pages/connect/ConnectIntegrations.tsx` | Add `DISTRIBUTION_CHANNELS` array and new section with cards between integrations and CTA |
+| `src/components/pms/ChannelCredentialEditor.tsx` | New — reusable credential form extracted from RolosChannelApiCards field definitions; reads/writes `rolos_channel_api_config` |
+| `src/components/pms/HyperGuestDetails.tsx` | Add `ChannelCredentialEditor` for hyperguest; add nav link to `/admin-keys` |
+| `src/pages/DevPMS.tsx` | For distribution channel cards (hyperguest, hotelbeds, rentalsunited, profitroom), render `ChannelCredentialEditor` inline |
+| `src/components/integrations/RolosChannelApiCards.tsx` | Add "View Tracker →" link next to each distribution channel heading |
 
