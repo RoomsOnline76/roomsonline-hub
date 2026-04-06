@@ -66,6 +66,7 @@ export interface ItineraryContextValue {
   totalNights: number;
   itineraryId: string | null;
   isLoading: boolean;
+  appliedVoucher: AppliedVoucher | null;
   
   // Actions
   addStay: (stay: Omit<ItineraryStay, 'id'>) => void;
@@ -75,6 +76,7 @@ export interface ItineraryContextValue {
   reorderStays: (fromIndex: number, toIndex: number) => void;
   setGuestDetails: (details: Partial<GuestDetails>) => void;
   setSpecialRequests: (text: string) => void;
+  setAppliedVoucher: (voucher: AppliedVoucher | null) => void;
   clearItinerary: () => void;
   
   // Persistence
