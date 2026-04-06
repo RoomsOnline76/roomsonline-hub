@@ -663,6 +663,21 @@ const Booking = () => {
     }
   }, [property, stays, rooms.length, totalCost, costBreakdown.length]);
 
+  // GUARDRAIL: If itinerary has multiple stays, redirect to journey review
+  // This prevents the legacy single-property checkout from silently ignoring other stays
+  useEffect(() => {
+    if (stays.length >= 2 && property) {
+      // Current property is already in the itinerary — redirect to journey review
+      const currentStayExists = stays.some(
+        s => s.property_id === property.id || s.property_slug === property.slug
+      );
+      if (currentStayExists) {
+        console.log('[Booking] Multi-stay itinerary detected with', stays.length, 'stays — redirecting to journey review');
+        navigate('/journey/review', { replace: true });
+      }
+    }
+  }, [stays.length, property, navigate]);
+
   // Calculate totals
   const totalGuests = rooms.reduce((sum, room) => 
     sum + room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants, 0

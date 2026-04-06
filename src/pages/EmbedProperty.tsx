@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
 import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
+import { useItinerary } from "@/contexts/ItineraryContext";
 
 // postMessage helper for iframe ↔ parent communication
 function postToParent(data: Record<string, unknown>) {
@@ -48,6 +49,8 @@ export default function EmbedProperty() {
   const mode = searchParams.get("mode") || "widget";
   const brandColorParam = searchParams.get("brand_color");
   const propertyId = searchParams.get("property_id");
+  const journeyMode = searchParams.get("journey_mode") === "true";
+  const { addStay, stays } = useItinerary();
 
   // Enhanced white-label params from rol-embed.js
   const brandLogoParam = searchParams.get("brand_logo");
@@ -559,6 +562,48 @@ export default function EmbedProperty() {
     // Forward portfolio_slug so checkout can route back to portfolio
     const portfolioSlugParam = searchParams.get("portfolio_slug");
     if (portfolioSlugParam) params.set("portfolio_slug", portfolioSlugParam);
+
+    // Journey mode: add this stay to the itinerary and go to journey review
+    if (journeyMode && property) {
+      const finalCheckOutDate = overrideCheckOut || checkOut;
+      const numNights = differenceInCalendarDays(new Date(finalCheckOutDate), new Date(checkIn));
+      const stayRate = effectiveRate || 0;
+      const stayTotal = stayRate * Math.max(numNights, 1);
+
+      const alreadyInItinerary = stays.some(
+        s => s.property_id === property.id && s.dates.check_in === checkIn && s.dates.check_out === finalCheckOutDate
+      );
+      if (!alreadyInItinerary) {
+        addStay({
+          property_id: property.id,
+          property_name: property.name || '',
+          property_slug: property.slug || slug || '',
+          property_image: property.hero_image || '',
+          external_system: property.external_system || integration || '',
+          dates: { check_in: checkIn, check_out: finalCheckOutDate },
+          rooms: [{
+            room_type_id: roomId,
+            room_type_name: roomName,
+            quantity: 1,
+            rate_per_night: stayRate,
+            total_price: stayTotal,
+          }],
+          guests: { adults: Math.min(room?.max_guests || 2, 2), children: 0, infants: 0 },
+          price_breakdown: {
+            subtotal: stayTotal,
+            fees: [],
+            taxes: [],
+            total: stayTotal,
+          },
+          availability_status: 'available',
+          nights: Math.max(numNights, 1),
+        });
+      }
+      // Route to journey review with all accumulated stays
+      window.location.href = `/journey/review`;
+      return;
+    }
+
     window.location.href = `/booking/${property.slug}?${params.toString()}`;
   };
 
