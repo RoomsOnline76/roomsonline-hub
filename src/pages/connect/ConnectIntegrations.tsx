@@ -37,6 +37,33 @@ const INTEGRATIONS = [
   },
 ];
 
+const DISTRIBUTION_CHANNELS = [
+  {
+    name: "HyperGuest",
+    flow: "ROL'OS → HyperGuest → OTAs",
+    desc: "PULL-model distribution channel connecting your inventory to Booking.com, Expedia, and other major OTAs via HyperGuest's connectivity hub.",
+    features: ["Live availability", "Prebook validation", "Reservation sync", "Static data push", "Multi-OTA reach"],
+  },
+  {
+    name: "HotelBeds",
+    flow: "ROL'OS → HotelBeds → Bedbank Network",
+    desc: "Global bedbank distribution. Push rates and inventory to HotelBeds' network of 60,000+ travel buyers worldwide.",
+    features: ["Rate distribution", "Inventory push", "Multi-currency", "Global reach", "B2B network"],
+  },
+  {
+    name: "Rentals United",
+    flow: "ROL'OS → Rentals United → 60+ Channels",
+    desc: "XML-based adapter for vacation rental distribution. Connect to Airbnb, Vrbo, and 60+ rental channels through a single integration.",
+    features: ["XML adapter", "Property sync", "Availability", "Dynamic pricing", "Reservations"],
+  },
+  {
+    name: "ProfitRoom",
+    flow: "ROL'OS → ProfitRoom → CRS & Engine",
+    desc: "Central reservation system and booking engine integration. Sync rate plans and availability with ProfitRoom's hotel commerce platform.",
+    features: ["Booking engine", "Channel manager", "Rate plans", "Availability sync", "Revenue tools"],
+  },
+];
+
 const ADAPTER_STEPS = [
   { step: "1", title: "Connect", desc: "Authenticate your PMS credentials through our secure integration config." },
   { step: "2", title: "Map", desc: "ROL'OS automatically maps room types, rates, and inventory from your PMS." },
@@ -88,6 +115,47 @@ export default function ConnectIntegrations() {
                 </div>
                 <h3 className="font-semibold mb-1">{s.title}</h3>
                 <p className="text-sm text-muted-foreground">{s.desc}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Distribution Channels */}
+      <section className="py-20 border-b">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-bold">Distribution &amp; Channel Partners</h2>
+            <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+              These partners extend your reach to global OTAs and distribution networks. ROL'OS connects to them — they connect you to the world.
+            </p>
+          </div>
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+            className="grid sm:grid-cols-2 gap-6"
+          >
+            {DISTRIBUTION_CHANNELS.map((channel) => (
+              <motion.div
+                key={channel.name}
+                variants={fadeUp}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-xl border bg-accent/30 p-6 relative"
+              >
+                <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
+                  Distribution
+                </span>
+                <h3 className="text-lg font-semibold">{channel.name}</h3>
+                <p className="text-xs text-primary font-medium mt-1 tracking-wide">{channel.flow}</p>
+                <p className="text-sm text-muted-foreground mt-3 mb-4">{channel.desc}</p>
+                <ul className="space-y-1.5">
+                  {channel.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm">
+                      <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
               </motion.div>
             ))}
           </motion.div>
