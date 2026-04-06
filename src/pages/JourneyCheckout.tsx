@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,11 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FormattedPrice } from "@/components/FormattedPrice";
 import { PaymentGatewayRouter } from "@/components/booking/PaymentGatewayRouter";
 import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelector";
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
+import { sortStaysChronologically } from "@/lib/journeyUtils";
 import { toast } from "sonner";
 import { 
   ArrowLeft, 
@@ -27,7 +29,10 @@ import {
   CreditCard,
   Shield,
   CheckCircle2,
-  X
+  X,
+  ChevronDown,
+  Tag,
+  Check
 } from "lucide-react";
 
 export default function JourneyCheckout() {
@@ -45,11 +50,15 @@ export default function JourneyCheckout() {
     setGuestDetails, 
     specialRequests, 
     setSpecialRequests,
+    appliedVoucher,
+    setAppliedVoucher,
     saveToDatabase,
     clearItinerary,
     removeStay,
     hasStays
   } = useItinerary();
+
+  const sortedStays = useMemo(() => sortStaysChronologically(stays), [stays]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -65,6 +74,16 @@ export default function JourneyCheckout() {
   const [guestName, setGuestName] = useState(guestDetails.name || "");
   const [guestEmail, setGuestEmail] = useState(guestDetails.email || "");
   const [guestPhone, setGuestPhone] = useState(guestDetails.phone || "");
+
+  // Voucher state
+  const [voucherCode, setVoucherCode] = useState(appliedVoucher?.code || "");
+  const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
+
+  // Effective total after voucher
+  const effectiveTotal = appliedVoucher 
+    ? Math.max(0, totalPrice - appliedVoucher.discount_amount) 
+    : totalPrice;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-ZA", {
@@ -103,6 +122,52 @@ export default function JourneyCheckout() {
     
     setValidationErrors(errors);
     return errors.length === 0;
+  };
+
+  const handleApplyVoucher = async () => {
+    const code = voucherCode.trim();
+    if (!code) return;
+
+    setIsApplyingVoucher(true);
+    setVoucherError(null);
+
+    try {
+      // Try validation against each property, use first valid result
+      for (const stay of sortedStays) {
+        const { data, error } = await supabase.functions.invoke('validate-voucher', {
+          body: { code, property_id: stay.property_id, subtotal: totalPrice }
+        });
+
+        if (error) continue;
+        if (data?.valid) {
+          setAppliedVoucher({
+            code: code.toUpperCase(),
+            discount_type: data.discount_type,
+            discount_value: data.discount_value,
+            discount_amount: data.discount_amount,
+            promo_id: data.promo_id,
+            description: data.description,
+          });
+          toast.success(`Voucher applied! ${data.discount_type === 'percentage' ? `${data.discount_value}% off` : formatCurrency(data.discount_amount) + ' off'}`);
+          return;
+        } else if (data?.reason) {
+          setVoucherError(data.reason);
+          return;
+        }
+      }
+      setVoucherError("Invalid voucher code");
+    } catch {
+      setVoucherError("Could not validate voucher. Please try again.");
+    } finally {
+      setIsApplyingVoucher(false);
+    }
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCode("");
+    setVoucherError(null);
+    toast.info("Voucher removed");
   };
 
   const handleValidateAvailability = async () => {
@@ -200,15 +265,14 @@ export default function JourneyCheckout() {
       if (updateError) throw updateError;
 
       // Step 4: Create a placeholder booking for PayFast
-      // We need a booking_id for PayFast to work
-      const firstStay = stays[0];
+      const firstStay = sortedStays[0];
       
-      // Build ai_metadata as proper JSON (stringify to ensure DB accepts it)
       const aiMetadata = {
         itinerary_id: itineraryId,
         is_itinerary_booking: true,
         stays_count: stays.length,
-        total_nights: totalNights
+        total_nights: totalNights,
+        ...(appliedVoucher ? { voucher_code: appliedVoucher.code, voucher_discount: appliedVoucher.discount_amount } : {})
       };
       
       console.log('[JourneyCheckout] Creating booking with metadata:', aiMetadata);
@@ -222,14 +286,15 @@ export default function JourneyCheckout() {
           guest_email: guestEmail,
           guest_phone: guestPhone,
           check_in_date: firstStay.dates.check_in,
-          check_out_date: stays[stays.length - 1].dates.check_out,
+          check_out_date: sortedStays[sortedStays.length - 1].dates.check_out,
           adults: firstStay.guests.adults,
           children: firstStay.guests.children || 0,
-          total_price: totalPrice,
+          total_price: effectiveTotal,
           status: 'pending_payment',
           booking_channel: 'rol_itinerary',
           special_requests: specialRequests ? `Itinerary ${itineraryId}: ${specialRequests}` : `Itinerary: ${itineraryId}`,
-          ai_metadata: aiMetadata
+          ai_metadata: aiMetadata,
+          voucher: appliedVoucher?.code || null,
         })
         .select('id')
         .single();
@@ -241,7 +306,7 @@ export default function JourneyCheckout() {
       
       console.log('[JourneyCheckout] Booking created:', tempBooking.id);
 
-      // Step 5: Initiate payment — store booking info, the PaymentGatewayRouter handles all gateway logic
+      // Step 5: Initiate payment
       console.log('[JourneyCheckout] Opening payment modal for booking:', tempBooking.id, 'gateway:', effectiveGateway);
       setPendingItineraryId(itineraryId);
       setPaymentBookingId(tempBooking.id);
@@ -268,7 +333,7 @@ export default function JourneyCheckout() {
     // Clear the itinerary/cart after successful payment
     clearItinerary();
     
-    // Navigate to confirmation - the ITN callback will handle the rest
+    // Navigate to confirmation
     navigate(`/journey/confirmation/${pendingItineraryId}`);
   };
 
@@ -296,7 +361,7 @@ export default function JourneyCheckout() {
               Complete Your Journey
             </h1>
             <p className="text-muted-foreground mt-2">
-              {stays.length} destination{stays.length > 1 ? 's' : ''} · {totalNights} nights
+              {sortedStays.length} destination{sortedStays.length > 1 ? 's' : ''} · {totalNights} nights
             </p>
           </div>
         </div>
@@ -314,7 +379,7 @@ export default function JourneyCheckout() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TimelineVisualizer stays={stays} compact />
+                  <TimelineVisualizer stays={sortedStays} compact />
                 </CardContent>
               </Card>
 
@@ -394,6 +459,57 @@ export default function JourneyCheckout() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Voucher / Promo Code */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Tag className="h-5 w-5 text-primary" />
+                    Voucher / Promo Code
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {appliedVoucher ? (
+                    <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-primary" />
+                        <div>
+                          <p className="text-sm font-medium">{appliedVoucher.code}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {appliedVoucher.discount_type === 'percentage' 
+                              ? `${appliedVoucher.discount_value}% off` 
+                              : `${formatCurrency(appliedVoucher.discount_amount)} off`}
+                            {appliedVoucher.description ? ` — ${appliedVoucher.description}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={handleRemoveVoucher}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        value={voucherCode}
+                        onChange={(e) => { setVoucherCode(e.target.value); setVoucherError(null); }}
+                        placeholder="Enter voucher code"
+                        className={`h-12 uppercase ${voucherError ? 'border-destructive' : ''}`}
+                        onKeyDown={(e) => e.key === 'Enter' && handleApplyVoucher()}
+                      />
+                      <Button 
+                        onClick={handleApplyVoucher} 
+                        disabled={isApplyingVoucher || !voucherCode.trim()}
+                        className="h-12 px-6"
+                      >
+                        {isApplyingVoucher ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+                      </Button>
+                    </div>
+                  )}
+                  {voucherError && (
+                    <p className="text-sm text-destructive mt-2">{voucherError}</p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Right: Summary */}
@@ -406,44 +522,92 @@ export default function JourneyCheckout() {
                       Booking Summary
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {stays.map((stay, index) => (
-                      <div key={stay.id} className="flex items-start gap-3 group">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
-                          {index + 1}
+                  <CardContent className="space-y-3">
+                    {sortedStays.map((stay, index) => (
+                      <Collapsible key={stay.id}>
+                        <div className="group">
+                          <CollapsibleTrigger className="w-full">
+                            <div className="flex items-start gap-3 text-left hover:bg-muted/50 rounded-md p-2 -mx-2 transition-colors">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary shrink-0 mt-0.5">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{stay.property_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(stay.dates.check_in).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} – {new Date(stay.dates.check_out).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} · {stay.nights} night{stay.nights !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <FormattedPrice amount={stay.price_breakdown.total} className="text-sm font-medium" />
+                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-180" />
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+
+                          <CollapsibleContent>
+                            <div className="ml-10 mr-2 mb-3 space-y-1 text-xs border-l-2 border-muted pl-3">
+                              {/* Room lines */}
+                              {stay.rooms?.map((room, ri) => (
+                                <div key={ri} className="flex justify-between">
+                                  <span className="text-muted-foreground">{room.room_type_name} × {stay.nights}n</span>
+                                  <span>{formatCurrency(room.total_price)}</span>
+                                </div>
+                              ))}
+                              {/* Fees */}
+                              {stay.price_breakdown.fees?.map((fee, fi) => (
+                                <div key={`fee-${fi}`} className="flex justify-between">
+                                  <span className="text-muted-foreground">{fee.name}</span>
+                                  <span>{formatCurrency(fee.amount)}</span>
+                                </div>
+                              ))}
+                              {/* Taxes */}
+                              {stay.price_breakdown.taxes?.map((tax, ti) => (
+                                <div key={`tax-${ti}`} className="flex justify-between">
+                                  <span className="text-muted-foreground">{tax.name}</span>
+                                  <span>{formatCurrency(tax.amount)}</span>
+                                </div>
+                              ))}
+                              <Separator className="my-1" />
+                              <div className="flex justify-between font-medium">
+                                <span>Stay Total</span>
+                                <span>{formatCurrency(stay.price_breakdown.total)}</span>
+                              </div>
+                            </div>
+                          </CollapsibleContent>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{stay.property_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(stay.dates.check_in).toLocaleDateString()} - {new Date(stay.dates.check_out).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FormattedPrice amount={stay.price_breakdown.total} className="text-sm font-medium" />
-                          {stays.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                removeStay(stay.id);
-                                toast.success(`${stay.property_name} removed`);
-                                if (stays.length <= 1) navigate('/journey/review');
-                              }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                              title="Remove stay"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
+
+                        {/* Remove button on hover */}
+                        {sortedStays.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeStay(stay.id);
+                              toast.success(`${stay.property_name} removed`);
+                              if (stays.length <= 1) navigate('/journey/review');
+                            }}
+                            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            title="Remove stay"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </Collapsible>
                     ))}
 
                     <Separator />
 
+                    {/* Voucher discount line */}
+                    {appliedVoucher && (
+                      <div className="flex justify-between text-sm text-primary">
+                        <span>Voucher ({appliedVoucher.code})</span>
+                        <span>-{formatCurrency(appliedVoucher.discount_amount)}</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between items-center">
                       <span className="font-semibold">Grand Total</span>
                       <span className="text-2xl font-bold text-primary">
-                        <FormattedPrice amount={totalPrice} />
+                        <FormattedPrice amount={effectiveTotal} />
                       </span>
                     </div>
 
@@ -489,8 +653,8 @@ export default function JourneyCheckout() {
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
                         <MapPin className="h-5 w-5 mx-auto text-primary mb-1" />
-                        <p className="text-2xl font-bold">{stays.length}</p>
-                        <p className="text-xs text-muted-foreground">Destination{stays.length > 1 ? 's' : ''}</p>
+                        <p className="text-2xl font-bold">{sortedStays.length}</p>
+                        <p className="text-xs text-muted-foreground">Destination{sortedStays.length > 1 ? 's' : ''}</p>
                       </div>
                       <div>
                         <Calendar className="h-5 w-5 mx-auto text-primary mb-1" />
@@ -516,8 +680,8 @@ export default function JourneyCheckout() {
           onPaymentCancelled={handlePaymentCancelled}
           onPaymentInitiated={() => setShowPayFastModal(false)}
           bookingId={paymentBookingId}
-          amount={totalPrice}
-          propertyName={`Journey: ${stays.length} destinations`}
+          amount={effectiveTotal}
+          propertyName={`Journey: ${sortedStays.length} destinations`}
           isSandbox={true}
           uuid={paymentUuid || undefined}
         />
