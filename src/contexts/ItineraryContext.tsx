@@ -260,10 +260,15 @@ export function ItineraryProvider({ children }: ItineraryProviderProps) {
     setSpecialRequestsState(text);
   }, []);
 
+  const setAppliedVoucher = useCallback((voucher: AppliedVoucher | null) => {
+    setAppliedVoucherState(voucher);
+  }, []);
+
   const clearItinerary = useCallback(() => {
     setStays([]);
     setGuestDetailsState({ name: '', email: '', phone: '' });
     setSpecialRequestsState('');
+    setAppliedVoucherState(null);
     setItineraryId(null);
     sessionStorage.removeItem(STORAGE_KEY);
   }, []);
