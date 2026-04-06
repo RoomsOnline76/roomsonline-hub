@@ -23,6 +23,20 @@ import { ItineraryStay } from '@/contexts/ItineraryContext';
 import { DateRange } from 'react-day-picker';
 import { fetchLiveRates } from '@/lib/pmsLiveAvailability';
 
+const LIVE_ARI_HORIZON_DAYS = 395;
+const LIVE_ARI_CHUNK_DAYS = 90;
+const LIVE_ARI_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      const timer = window.setTimeout(() => reject(new Error('Availability request timed out')), timeoutMs);
+      return () => window.clearTimeout(timer);
+    }) as Promise<T>,
+  ]);
+}
+
 interface EditStayDatesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,71 +70,87 @@ export function EditStayDatesDialog({
   useEffect(() => {
     if (!open || !stay.property_id) return;
 
+    let cancelled = false;
+
     const fetchAvailability = async () => {
       setIsLoadingAvailability(true);
       const today = new Date();
-      const endDate = addDays(today, 395);
+      const endDate = addDays(today, LIVE_ARI_HORIZON_DAYS);
       const isPmsBacked = stay.external_system && stay.external_system !== 'manual' && stay.external_system !== 'roomsonline';
 
-      if (isPmsBacked) {
-        // Use live ARI — fetch in chunks (3 months at a time) for better coverage
-        try {
-          const allBlocked: Date[] = [];
-          const chunkSize = 90;
-          const chunks = Math.ceil(395 / chunkSize);
-
-          for (let i = 0; i < chunks; i++) {
-            const chunkStart = addDays(today, i * chunkSize);
-            const chunkEnd = addDays(today, Math.min((i + 1) * chunkSize, 395));
+      try {
+        if (isPmsBacked) {
+          const chunks = Math.ceil(LIVE_ARI_HORIZON_DAYS / LIVE_ARI_CHUNK_DAYS);
+          const requests = Array.from({ length: chunks }, (_, i) => {
+            const chunkStart = addDays(today, i * LIVE_ARI_CHUNK_DAYS);
+            const chunkEnd = addDays(today, Math.min((i + 1) * LIVE_ARI_CHUNK_DAYS, LIVE_ARI_HORIZON_DAYS));
             const ci = format(chunkStart, 'yyyy-MM-dd');
             const co = format(chunkEnd, 'yyyy-MM-dd');
 
-            const liveData = await fetchLiveRates(stay.property_id, stay.external_system, ci, co);
+            return withTimeout(
+              fetchLiveRates(stay.property_id, stay.external_system, ci, co),
+              LIVE_ARI_TIMEOUT_MS,
+            ).then((liveData) => ({ chunkStart, chunkEnd, liveData }));
+          });
 
-            if (liveData.rooms.length > 0) {
-              // Find the matching room type or use first available
-              const matchingRoom = liveData.rooms.find(r => 
-                stay.rooms.some(sr => sr.room_type_id === r.roomTypeId)
-              ) || liveData.rooms[0];
+          const settled = await Promise.allSettled(requests);
+          const blockedDates = new Set<string>();
 
-              // Mark dates with 0 availability as blocked
-              const daysInChunk = eachDayOfInterval({ start: chunkStart, end: addDays(chunkEnd, -1) });
-              for (const day of daysInChunk) {
-                const dateStr = format(day, 'yyyy-MM-dd');
-                const avail = matchingRoom.availableByDate[dateStr];
-                if (avail !== undefined && avail === 0) {
-                  allBlocked.push(day);
-                }
+          for (const result of settled) {
+            if (result.status !== 'fulfilled') continue;
+
+            const { chunkStart, chunkEnd, liveData } = result.value;
+            if (!liveData.rooms.length) continue;
+
+            const matchingRoom = liveData.rooms.find((room) =>
+              stay.rooms.some((selectedRoom) => String(selectedRoom.room_type_id) === String(room.roomTypeId))
+            ) || liveData.rooms[0];
+
+            const daysInChunk = eachDayOfInterval({ start: chunkStart, end: addDays(chunkEnd, -1) });
+            for (const day of daysInChunk) {
+              const dateStr = format(day, 'yyyy-MM-dd');
+              const avail = matchingRoom.availableByDate[dateStr];
+              if (avail !== undefined && avail <= 0) {
+                blockedDates.add(dateStr);
               }
             }
           }
 
-          setUnavailableDates(allBlocked);
-        } catch (err) {
-          console.error('Failed to fetch live ARI for date editing:', err);
+          if (!cancelled) {
+            setUnavailableDates(Array.from(blockedDates, (date) => new Date(date)));
+          }
+        } else {
+          const { data } = await supabase
+            .from('property_availability')
+            .select('date, is_stop_sell, available_units')
+            .eq('property_id', stay.property_id)
+            .gte('date', format(today, 'yyyy-MM-dd'))
+            .lte('date', format(endDate, 'yyyy-MM-dd'));
+
+          if (!cancelled) {
+            const blocked = (data || [])
+              .filter((day) => day.is_stop_sell || day.available_units === 0)
+              .map((day) => new Date(day.date));
+            setUnavailableDates(blocked);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch availability for date editing:', err);
+        if (!cancelled) {
           setUnavailableDates([]);
         }
-      } else {
-        // Fallback: use property_availability table for manual/roomsonline properties
-        const { data } = await supabase
-          .from('property_availability')
-          .select('date, is_stop_sell, available_units')
-          .eq('property_id', stay.property_id)
-          .gte('date', format(today, 'yyyy-MM-dd'))
-          .lte('date', format(endDate, 'yyyy-MM-dd'));
-
-        if (data) {
-          const blocked = data
-            .filter(d => d.is_stop_sell || d.available_units === 0)
-            .map(d => new Date(d.date));
-          setUnavailableDates(blocked);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAvailability(false);
         }
       }
-
-      setIsLoadingAvailability(false);
     };
 
     fetchAvailability();
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, stay.property_id, stay.external_system, stay.rooms]);
 
   const handleConfirm = async () => {
@@ -219,12 +249,13 @@ export function EditStayDatesDialog({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              {isLoadingAvailability ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading availability…</span>
-                </div>
-              ) : (
+              <div className="p-3">
+                {isLoadingAvailability && (
+                  <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Loading blocked dates…</span>
+                  </div>
+                )}
                 <Calendar
                   initialFocus
                   mode="range"
@@ -240,7 +271,7 @@ export function EditStayDatesDialog({
                   }
                   className={cn("p-3 pointer-events-auto")}
                 />
-              )}
+              </div>
             </PopoverContent>
           </Popover>
 
