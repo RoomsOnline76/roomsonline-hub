@@ -49,6 +49,8 @@ export default function EmbedProperty() {
   const mode = searchParams.get("mode") || "widget";
   const brandColorParam = searchParams.get("brand_color");
   const propertyId = searchParams.get("property_id");
+  const journeyMode = searchParams.get("journey_mode") === "true";
+  const { addStay, stays } = useItinerary();
 
   // Enhanced white-label params from rol-embed.js
   const brandLogoParam = searchParams.get("brand_logo");
