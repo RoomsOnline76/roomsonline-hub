@@ -217,7 +217,7 @@ export function GeneralTab(props: GeneralTabProps) {
               <CardContent className="py-2 px-4">
                 <RatesOverviewPanel
                   roomTypes={roomTypes}
-                  pmsRateTypes={pmsRateTypes}
+                  rateTypes={pmsRateTypes}
                   seasons={seasons}
                   seasonRates={seasonRates}
                   currency={formData.currency || "ZAR"}
@@ -563,7 +563,7 @@ export function GeneralTab(props: GeneralTabProps) {
                         if (!formData.property_url) return;
                         setWebsiteSyncing(true);
                         try {
-                          const result = await syncFromWebsite(formData.property_url, formData, selectedPMS);
+                          const result = await syncFromWebsite(propertyId || "new-property", formData.property_url, formData as unknown as Record<string, unknown>);
                           if (result.suggestions && result.suggestions.length > 0) {
                             setWebsiteSyncSuggestions(result.suggestions);
                             setWebsiteSyncUrl(formData.property_url);
@@ -772,15 +772,14 @@ export function GeneralTab(props: GeneralTabProps) {
 
       {/* Website Sync Modal */}
       <WebsiteSyncModal
-        isOpen={websiteSyncModalOpen}
-        onClose={() => setWebsiteSyncModalOpen(false)}
+        open={websiteSyncModalOpen}
+        onOpenChange={setWebsiteSyncModalOpen}
         suggestions={websiteSyncSuggestions}
-        websiteUrl={websiteSyncUrl}
+        scrapedUrl={websiteSyncUrl}
         onApply={(appliedSuggestions) => {
           for (const s of appliedSuggestions) {
-            if (s.field && s.value) handleInputChange(s.field, s.value);
+            if (s.stateVariable && s.suggested !== undefined) handleInputChange(s.stateVariable.replace("formData.", ""), s.suggested);
           }
-          setWebsiteSyncModalOpen(false);
           setIsDirty(true);
           toast({ title: "Fields updated", description: `${appliedSuggestions.length} field(s) applied from website scan` });
         }}
