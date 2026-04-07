@@ -268,7 +268,7 @@ export default function AdminContracts() {
     }
 
     return result;
-  }, [contracts, statusFilter, searchQuery]);
+  }, [contracts, statusFilter, searchQuery, propertiesByOwner]);
 
   const stats = useMemo(() => {
     // Use the same logic as filteredContracts for accurate stats
@@ -303,6 +303,7 @@ export default function AdminContracts() {
       signed: latest.filter((c) => c.status === "signed").length,
       pending: latest.filter((c) => ["pending", "sent", "viewed"].includes(c.status)).length,
       overridden: latest.filter((c) => c.status === "overridden").length,
+      revoked: latest.filter((c) => c.status === "revoked").length,
     };
   }, [contracts]);
 
