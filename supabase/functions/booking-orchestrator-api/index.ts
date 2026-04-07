@@ -461,7 +461,36 @@ Deno.serve(async (req) => {
       const liveAdapters = ["benson", "hostfully", "hotelbeds", "hyperguest"];
 
       if (liveAdapters.includes(ext)) {
-        // Live PMS adapter call
+        // For short date ranges (checkout flow), try cache first to avoid slow live calls
+        const requestedDays = Math.ceil(
+          (new Date(end_date).getTime() - new Date(start_date).getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (requestedDays <= 31) {
+          const cached = await resolveFromCache(supabase, property_id, start_date, end_date, roomTypes);
+          if (cached && cached.room_types?.length > 0) {
+            // Verify cache freshness (< 30 min)
+            const { data: freshCheck } = await supabase
+              .from("pms_availability_cache")
+              .select("fetched_at")
+              .eq("property_id", property_id)
+              .gte("date", start_date)
+              .lt("date", end_date)
+              .order("fetched_at", { ascending: false })
+              .limit(1);
+
+            const cacheAge = freshCheck?.[0]?.fetched_at
+              ? (Date.now() - new Date(freshCheck[0].fetched_at).getTime()) / 60000
+              : 999;
+
+            if (cacheAge < 30) {
+              console.log(`[orchestrator] Cache hit for ${ext} (${requestedDays}d, ${Math.round(cacheAge)}min old)`);
+              return ok(cached);
+            }
+          }
+        }
+
+        // Live PMS adapter call (cache miss or stale)
         const availability = await callPmsAdapter(supabaseUrl, serviceKey, ext, property_id, start_date, end_date);
         return ok(availability);
       }
