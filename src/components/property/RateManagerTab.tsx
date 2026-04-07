@@ -13,10 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon, Plus, Minus, Trash2, Copy, Edit, DollarSign, Calendar, Info, Cloud } from "lucide-react";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { AdditionalChargesManager } from "@/components/charges";
-import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { SyncRatesDialog } from "@/components/property/SyncRatesDialog";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
