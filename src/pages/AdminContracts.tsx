@@ -344,6 +344,8 @@ export default function AdminContracts() {
             address: "",
             city: "",
             country: "",
+            property_type: "guesthouse",
+            price_per_night: 0,
             owner_email: sendEmail.toLowerCase().trim(),
             owner_name: sendName || null,
             is_active: true,
