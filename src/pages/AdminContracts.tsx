@@ -53,6 +53,8 @@ import {
   Handshake,
   XCircle,
   LinkIcon,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
@@ -169,6 +171,8 @@ export default function AdminContracts() {
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
+  const [allActiveProperties, setAllActiveProperties] = useState<{ id: string; name: string; slug: string; owner_email: string | null }[]>([]);
+  const [uncontractedExpanded, setUncontractedExpanded] = useState(false);
 
   // Secondary-only owners: emails that appear ONLY as secondary owners (not primary on any property)
   // Maps secondary_email → primary_emails whose signed contract covers them
@@ -279,6 +283,15 @@ export default function AdminContracts() {
           }
         }
       }
+
+      // Fetch ALL active properties for "uncontracted" section
+      const { data: allProps } = await supabase
+        .from("properties")
+        .select("id, name, slug, owner_email")
+        .is("permanently_deleted_at", null)
+        .eq("is_active", true)
+        .order("name");
+      setAllActiveProperties(allProps || []);
     } catch (error: any) {
       toast.error(error.message || "Failed to load contracts");
     } finally {
@@ -370,6 +383,18 @@ export default function AdminContracts() {
       overridden: latest.filter((c) => c.status === "overridden").length,
     };
   }, [contracts]);
+
+  // Properties that have no contract for their owner
+  const uncontractedProperties = useMemo(() => {
+    if (allActiveProperties.length === 0) return [];
+    const allContractEmails = new Set(
+      contracts.map(c => c.owner_email.toLowerCase())
+    );
+    return allActiveProperties.filter(p => {
+      if (!p.owner_email) return true;
+      return !allContractEmails.has(p.owner_email.toLowerCase());
+    });
+  }, [allActiveProperties, contracts]);
 
   const handleSendContract = async () => {
     if (!sendEmail) {
@@ -960,21 +985,32 @@ export default function AdminContracts() {
                       const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
                         <div className="space-y-1">
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 text-sm text-primary hover:underline"
-                            onClick={() => {
-                              setExpandedOwners(prev => {
-                                const next = new Set(prev);
-                                if (next.has(contract.owner_email)) next.delete(contract.owner_email);
-                                else next.add(contract.owner_email);
-                                return next;
-                              });
-                            }}
-                          >
-                            {props[0].name}
-                            <Badge variant="secondary" className="text-xs ml-1">+{props.length - 1}</Badge>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <a
+                              href={`/admin/properties/${props[0].slug}`}
+                              className="text-sm text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {props[0].name}
+                            </a>
+                            <button
+                              type="button"
+                              className="flex items-center"
+                              onClick={() => {
+                                setExpandedOwners(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(contract.owner_email)) next.delete(contract.owner_email);
+                                  else next.add(contract.owner_email);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <Badge variant="secondary" className="text-xs ml-1 cursor-pointer hover:bg-muted">
+                                {isExpanded ? <ChevronDown className="h-3 w-3 mr-0.5" /> : <ChevronRight className="h-3 w-3 mr-0.5" />}
+                                +{props.length - 1}
+                              </Badge>
+                            </button>
+                          </div>
                           {isExpanded && (
                             <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-border">
                               {props.slice(1).map((p) => (
@@ -1100,7 +1136,68 @@ export default function AdminContracts() {
         </Table>
       </div>
 
-      {/* Send Contract Modal - Simplified for contract-first workflow */}
+      {/* Uncontracted Properties Section */}
+      {uncontractedProperties.length > 0 && (
+        <div className="mt-6 border border-border rounded-lg">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
+            onClick={() => setUncontractedExpanded(prev => !prev)}
+          >
+            <div className="flex items-center gap-2">
+              {uncontractedExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              <span className="font-medium text-sm">Properties Without Contracts</span>
+              <Badge variant="secondary">{uncontractedProperties.length}</Badge>
+            </div>
+            <span className="text-xs text-muted-foreground">Click to {uncontractedExpanded ? "collapse" : "expand"}</span>
+          </button>
+          {uncontractedExpanded && (
+            <div className="border-t border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Owner Email</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {uncontractedProperties.map((prop) => (
+                    <TableRow key={prop.id}>
+                      <TableCell>
+                        <a href={`/admin/properties/${prop.slug}`} className="text-sm text-primary hover:underline font-medium">
+                          {prop.name}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">{prop.owner_email || "No owner"}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {prop.owner_email && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSendModalOpen(true);
+                              setSendEmail(prop.owner_email || "");
+                              setPropertySearch(prop.name);
+                              setSelectedProperty({ id: prop.id, name: prop.name, is_archived: false });
+                            }}
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            Send Contract
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+
       <Dialog open={sendModalOpen} onOpenChange={(open) => {
         setSendModalOpen(open);
         if (!open) resetSendModal();
