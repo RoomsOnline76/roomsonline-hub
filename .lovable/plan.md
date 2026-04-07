@@ -1,74 +1,61 @@
 
 
-# Chronological Stay Ordering, Collapsible Billing, and Voucher Input for Journey Checkout
+# Phase 1: Refactor PropertyForm.tsx into Isolated Components
 
-## Problem
-1. **No chronological ordering** — stays display in the order they were added, not by check-in date. This affects the checkout page, confirmation email, and journey brochure.
-2. **No collapsible billing per property** — the checkout summary shows each property as a flat one-liner with just the total. No way to expand and see the breakdown (room charges, extras, specials, discounts).
-3. **No voucher input** — the single-property checkout (`Booking.tsx`) has full voucher/promo-code support via `FluentGuestForm`, but the multi-stay `JourneyCheckout.tsx` has zero voucher functionality.
+## Current State
+`PropertyForm.tsx` is **12,536 lines** — a monolithic file containing ~20 tabs, ~30 state variables, PMS adapter logic, room CRUD, rate management, seasons, specials, packages, addons, integrations, and more. It has 31 direct `supabase.*` calls embedded throughout.
 
-## What will be done
+## Approach
+Extract tab content into dedicated component files, keeping `PropertyForm.tsx` as a thin orchestrator that manages shared state, loads/saves the property, and renders the tab shell. Each extracted component receives props for the data it needs.
 
-### 1. Sort stays chronologically everywhere
-Add a utility sort `stays.sort((a, b) => a.dates.check_in.localeCompare(b.dates.check_in))` in:
-- **`JourneyCheckout.tsx`** — sort before rendering the summary and timeline
-- **`JourneyReview.tsx`** — sort before rendering stay cards
-- **`generate-itinerary-pdf/index.ts`** — sort stays before building the brochure HTML
-- **`send-itinerary-email/index.ts`** — sort stays before building the email body (if it renders stays independently of the brochure)
+This is a large refactor — to keep each implementation step reviewable and safe, I propose splitting Phase 1 into **4 sub-phases**:
 
-A shared `sortStaysChronologically` helper keeps it DRY on the frontend.
+---
 
-### 2. Collapsible property billing in checkout summary
-Replace the flat stay list in `JourneyCheckout.tsx`'s right-column summary card with a collapsible accordion per property:
-- **Collapsed (default)**: property name, dates, total price, expand chevron
-- **Expanded**: shows `price_breakdown` detail — subtotal (rooms × nights), each fee line, each tax line, specials/discounts if any, stay total
-- Uses the existing `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` from `@/components/ui/collapsible`
+### Sub-phase 1A: Extract Room Management (~lines 10179–11113)
+**New file**: `src/components/property/RoomManager.tsx`
+- Room type list, add/edit/delete room dialogs, bed configuration, room images, facilities/amenities sub-tabs
+- Receives: `propertyId`, `selectedPMS`, `roomTypes` state + setters, `isPMSManaged()`, save callbacks
+- All room-related state moves into this component
+- ~930 lines extracted
 
-### 3. Voucher code input in checkout
-Add a voucher input field in the checkout form area (left column, below Special Requests):
-- Text input + "Apply" button, same UX pattern as `FluentGuestForm`
-- On apply: call the existing `validate-promo-code` edge function with the code and the property IDs from the itinerary
-- Show valid/invalid state with green/red border
-- If valid: display discount amount, subtract from grand total
-- Store applied voucher in itinerary context so it persists and gets saved to DB
-- The voucher field sits in the left form column, clearly visible — not hidden inside a collapsible
+### Sub-phase 1B: Extract Rate & Season Management (~lines 8484–10150)
+**New file**: `src/components/property/RateManager.tsx`
+- Rate types CRUD, season calendar, rate breakdown grid, charges/fees, billing config, policies, overview
+- Receives: `propertyId`, `roomTypes` (read-only), `seasons`, `rateTypes` state + setters
+- ~1,660 lines extracted
 
-### Answer to "how would the user capture a voucher code?"
-With this change, a dedicated "Voucher / Promo Code" input with an "Apply" button will appear below the Special Requests card on the checkout page. The user types the code, clicks Apply, and sees immediate validation feedback. The discount is reflected in the grand total.
+### Sub-phase 1C: Extract PMS Adapter Selection & Sync Logic (~lines 135–155, 4603–4615, sync functions)
+**New file**: `src/components/property/PMSAdapterPanel.tsx`
+- PMS dropdown, sync-from-Benson/Hostfully/NightsBridge buttons, credential display
+- Moves the `fetchLiveRates()` and PMS sync logic out of PropertyForm
+- Receives: `propertyId`, `selectedPMS` + setter, `onSyncComplete` callback
+- ~200 lines of switch/adapter logic + sync functions consolidated
 
-## Files to change
+### Sub-phase 1D: Slim down PropertyForm.tsx to orchestrator
+- PropertyForm becomes the shell: loads property data, manages `activeTab`, holds shared state (name, address, etc.), renders `<Tabs>` with each `<TabsContent>` delegating to the extracted component
+- Target: under 2,000 lines (General tab + smaller tabs remain inline until later phases)
+- No functional changes — just wiring props to child components
 
-| File | Change |
+---
+
+## Files changed per sub-phase
+
+| Sub-phase | New/Modified Files |
 |---|---|
-| `src/lib/journeyUtils.ts` | New — export `sortStaysChronologically()` helper |
-| `src/pages/JourneyCheckout.tsx` | Sort stays; replace flat summary with collapsible per-property billing; add voucher input card with apply logic |
-| `src/pages/JourneyReview.tsx` | Sort stays before rendering |
-| `src/contexts/ItineraryContext.tsx` | Add `appliedVoucher` state + setter to context so discount persists |
-| `supabase/functions/generate-itinerary-pdf/index.ts` | Sort stays by check_in before building brochure |
-| `supabase/functions/send-itinerary-email/index.ts` | Sort stays by check_in before building email (if applicable) |
+| 1A | Create `src/components/property/RoomManager.tsx`, trim `PropertyForm.tsx` |
+| 1B | Create `src/components/property/RateManager.tsx`, trim `PropertyForm.tsx` |
+| 1C | Create `src/components/property/PMSAdapterPanel.tsx`, trim `PropertyForm.tsx` |
+| 1D | Final cleanup of `PropertyForm.tsx`, verify all tabs still render correctly |
 
-## Technical detail
+## What does NOT change
+- No database migrations
+- No edge function changes (PMS API calls still go to existing edge functions via `supabase.functions.invoke`)
+- No routing changes
+- No user-facing behavior changes — purely internal restructuring
 
-**Sorting** — simple string compare on ISO date `check_in`:
-```typescript
-export const sortStaysChronologically = (stays: ItineraryStay[]) =>
-  [...stays].sort((a, b) => a.dates.check_in.localeCompare(b.dates.check_in));
-```
-
-**Collapsible billing** — uses existing Radix `Collapsible` primitive:
-```text
-┌─────────────────────────────────────────┐
-│ ① Property Name           R 4,500  ▼   │  ← collapsed
-├─────────────────────────────────────────┤
-│   11 Apr – 14 Apr · 3 nights           │
-│   ─────────────────────────────         │
-│   Dungeon Room × 3 nights    R 3,600   │  ← expanded
-│   Cleaning Fee               R   350   │
-│   Tourism Levy               R   150   │
-│   Special: -10% early bird  -R   400   │
-│   Stay Total                 R 3,700   │
-└─────────────────────────────────────────┘
-```
-
-**Voucher** — reuses existing `validate-promo-code` edge function. Applied discount stored in context and deducted from `totalPrice` in the grand total display and payment amount.
+## Risk mitigation
+- Each sub-phase is independently testable — the property edit form must still load, display all tabs, and save correctly after each extraction
+- Shared state (property data, dirty flag, save function) stays in PropertyForm and is passed as props
+- Existing child components (`BillingConfigTab`, `PoliciesTab`, `BrandingTab`, etc.) are already extracted and remain untouched
 
