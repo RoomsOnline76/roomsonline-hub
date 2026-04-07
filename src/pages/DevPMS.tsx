@@ -74,11 +74,13 @@ interface SystemWithConnections {
   config: PMSSystemConfig;
   connections: PMSAdapter[];
   trackerStatus: TrackerStatus | null;
+  cacheLastSync: string | null;
 }
 
 export default function DevPMS() {
   const [adapters, setAdapters] = useState<PMSAdapter[]>([]);
   const [trackerStatuses, setTrackerStatuses] = useState<TrackerStatus[]>([]);
+  const [cacheActivity, setCacheActivity] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
