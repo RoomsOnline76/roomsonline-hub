@@ -887,122 +887,139 @@ serve(async (req) => {
             rateTypesCount: result.room_types[0].rate_types?.length || 0,
           } : null,
         }));
-        
-        // Cache the availability data (still using raw Benson data for caching)
-        if (availabilityRoomTypes && availabilityRoomTypes.length > 0) {
-          console.log(`Processing ${availabilityRoomTypes.length} room types for caching`);
-          for (const roomType of availabilityRoomTypes) {
-            console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
-            if (roomType.roomsAvailablePerNight) {
-              for (const availability of roomType.roomsAvailablePerNight) {
-                // Build restrictions object from availability data
-                const restrictions = {
-                  stop_sell: availability.stopSell ?? availability.isClosed ?? availability.closed ?? false,
-                  min_stay: availability.minStay ?? availability.minimumStay ?? availability.minStayNights ?? null,
-                  max_stay: availability.maxStay ?? availability.maximumStay ?? availability.maxStayNights ?? null,
-                  lead_days_advance: availability.leadDaysAdvance ?? availability.minAdvanceDays ?? null,
-                  lead_days_post: availability.leadDaysPost ?? availability.maxAdvanceDays ?? null,
-                  closed_to_arrival: availability.closedToArrival ?? availability.cta ?? false,
-                  closed_to_departure: availability.closedToDeparture ?? availability.ctd ?? false,
-                  blocked_rooms: availability.blockedRooms || [],
-                };
-                
-                // source_timestamp: use the date from PMS as source authority marker
-                // fetched_at: when we pulled this data (last_synced_at)
-                const { error: availError } = await supabase.from("pms_availability_cache").upsert({
-                  property_id: property_id,
-                  system_type: "benson",
-                  external_room_type_id: roomType.roomTypeId.toString(),
-                  date: availability.date,
-                  available_units: availability.numberOfRoomsAvailable,
-                  restrictions: restrictions,
-                  raw_data: {
-                    ...availability,
-                    roomTypeName: roomType.name,
-                    roomTypeId: roomType.roomTypeId,
-                  },
-                  source_timestamp: availability.lastModified || availability.updatedAt || new Date().toISOString(),
-                  fetched_at: new Date().toISOString(),
-                }, {
-                  onConflict: "property_id,system_type,external_room_type_id,date"
-                });
-                if (availError) {
-                  console.error(`Error caching availability for ${roomType.roomTypeId} on ${availability.date}:`, availError);
-                }
-              }
-            }
-            
-            // Cache rate data - aggregate all rate types per date into an array
-            if (roomType.rateTypes) {
-              // Group rates by date first
-              const ratesByDate = new Map<string, any[]>();
-              
-              for (const rateType of roomType.rateTypes) {
-                if (rateType.rates) {
-                  for (const rate of rateType.rates) {
-                    const dateStr = rate.date;
-                    if (!ratesByDate.has(dateStr)) {
-                      ratesByDate.set(dateStr, []);
-                    }
-                    ratesByDate.get(dateStr)!.push({
-                      rate_type_id: rateType.rateTypeId,
-                      rate_type_name: rateType.name,
-                      price_type: rateType.priceType,
-                      room_amount: rate.roomAmount,
-                      adult_amounts: Object.entries(rate)
-                        .filter(([k]) => k.startsWith("adultAmount"))
-                        .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
-                      teen_amount: rate.teenAmount,
-                      child_amount: rate.childAmount,
-                      infant_amount: rate.infantAmount,
+
+        // ── Return response immediately, cache in background ──
+        // Build the response first, then fire-and-forget caching
+        const responsePayload = JSON.stringify(
+          createSuccessResponse(result, "fetch_availability")
+        );
+
+        // Use EdgeRuntime.waitUntil if available, otherwise just don't await
+        const cacheAndHydrate = async () => {
+          try {
+            if (availabilityRoomTypes && availabilityRoomTypes.length > 0) {
+              console.log(`Processing ${availabilityRoomTypes.length} room types for caching`);
+              for (const roomType of availabilityRoomTypes) {
+                console.log(`Room type: ${roomType.roomTypeId} - ${roomType.name}, availPerNight: ${roomType.roomsAvailablePerNight?.length || 0}`);
+                if (roomType.roomsAvailablePerNight) {
+                  for (const availability of roomType.roomsAvailablePerNight) {
+                    const restrictions = {
+                      stop_sell: availability.stopSell ?? availability.isClosed ?? availability.closed ?? false,
+                      min_stay: availability.minStay ?? availability.minimumStay ?? availability.minStayNights ?? null,
+                      max_stay: availability.maxStay ?? availability.maximumStay ?? availability.maxStayNights ?? null,
+                      lead_days_advance: availability.leadDaysAdvance ?? availability.minAdvanceDays ?? null,
+                      lead_days_post: availability.leadDaysPost ?? availability.maxAdvanceDays ?? null,
+                      closed_to_arrival: availability.closedToArrival ?? availability.cta ?? false,
+                      closed_to_departure: availability.closedToDeparture ?? availability.ctd ?? false,
+                      blocked_rooms: availability.blockedRooms || [],
+                    };
+                    
+                    const { error: availError } = await supabase.from("pms_availability_cache").upsert({
+                      property_id: property_id,
+                      system_type: "benson",
+                      external_room_type_id: roomType.roomTypeId.toString(),
+                      date: availability.date,
+                      available_units: availability.numberOfRoomsAvailable,
+                      restrictions: restrictions,
+                      raw_data: {
+                        ...availability,
+                        roomTypeName: roomType.name,
+                        roomTypeId: roomType.roomTypeId,
+                      },
+                      source_timestamp: availability.lastModified || availability.updatedAt || new Date().toISOString(),
+                      fetched_at: new Date().toISOString(),
+                    }, {
+                      onConflict: "property_id,system_type,external_room_type_id,date"
                     });
+                    if (availError) {
+                      console.error(`Error caching availability for ${roomType.roomTypeId} on ${availability.date}:`, availError);
+                    }
+                  }
+                }
+                
+                if (roomType.rateTypes) {
+                  const ratesByDate = new Map<string, any[]>();
+                  
+                  for (const rateType of roomType.rateTypes) {
+                    if (rateType.rates) {
+                      for (const rate of rateType.rates) {
+                        const dateStr = rate.date;
+                        if (!ratesByDate.has(dateStr)) {
+                          ratesByDate.set(dateStr, []);
+                        }
+                        ratesByDate.get(dateStr)!.push({
+                          rate_type_id: rateType.rateTypeId,
+                          rate_type_name: rateType.name,
+                          price_type: rateType.priceType,
+                          room_amount: rate.roomAmount,
+                          adult_amounts: Object.entries(rate)
+                            .filter(([k]) => k.startsWith("adultAmount"))
+                            .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
+                          teen_amount: rate.teenAmount,
+                          child_amount: rate.childAmount,
+                          infant_amount: rate.infantAmount,
+                        });
+                      }
+                    }
+                  }
+                  
+                  for (const [dateStr, ratesArray] of ratesByDate.entries()) {
+                    const { error: rateError } = await supabase.from("pms_availability_cache").upsert({
+                      property_id: property_id,
+                      system_type: "benson",
+                      external_room_type_id: roomType.roomTypeId.toString(),
+                      date: dateStr,
+                      rates: ratesArray,
+                      raw_data: {
+                        roomTypeName: roomType.name,
+                        roomTypeId: roomType.roomTypeId,
+                      },
+                      source_timestamp: new Date().toISOString(),
+                      fetched_at: new Date().toISOString(),
+                    }, {
+                      onConflict: "property_id,system_type,external_room_type_id,date"
+                    });
+                    if (rateError) {
+                      console.error(`Error caching rate for ${roomType.roomTypeId} on ${dateStr}:`, rateError);
+                    }
                   }
                 }
               }
-              
-              // Now upsert with all rate types per date as an array
-              for (const [dateStr, ratesArray] of ratesByDate.entries()) {
-                const { error: rateError } = await supabase.from("pms_availability_cache").upsert({
-                  property_id: property_id,
-                  system_type: "benson",
-                  external_room_type_id: roomType.roomTypeId.toString(),
-                  date: dateStr,
-                  rates: ratesArray, // Store as array instead of single object
-                  raw_data: {
-                    roomTypeName: roomType.name,
-                    roomTypeId: roomType.roomTypeId,
-                  },
-                  source_timestamp: new Date().toISOString(), // PMS timestamp when data was valid
-                  fetched_at: new Date().toISOString(),
-                }, {
-                  onConflict: "property_id,system_type,external_room_type_id,date"
-                });
-                if (rateError) {
-                  console.error(`Error caching rate for ${roomType.roomTypeId} on ${dateStr}:`, rateError);
-                }
-              }
-            }
-          }
 
-          // ── Hydrate cache → ROL'OS pipeline ──
-          try {
-            const hydrateUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/hydrate-pms-cache-to-rolos`;
-            await fetch(hydrateUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-              },
-              body: JSON.stringify({ property_id, system_type: "benson" }),
-            });
-            console.log(`[Benson] Hydration triggered for property ${property_id}`);
-          } catch (hydrateErr) {
-            console.error("[Benson] Hydration call failed (non-blocking):", hydrateErr);
+              // Hydrate cache → ROL'OS pipeline
+              try {
+                const hydrateUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/hydrate-pms-cache-to-rolos`;
+                await fetch(hydrateUrl, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({ property_id, system_type: "benson" }),
+                });
+                console.log(`[Benson] Hydration triggered for property ${property_id}`);
+              } catch (hydrateErr) {
+                console.error("[Benson] Hydration call failed (non-blocking):", hydrateErr);
+              }
+            } else {
+              console.warn(`No room types found in Benson response.`);
+            }
+          } catch (cacheErr) {
+            console.error("[Benson] Background caching failed:", cacheErr);
           }
-        } else {
-          console.warn(`No room types found in Benson response. Full response:`, JSON.stringify(result).substring(0, 500));
+        };
+
+        // Fire-and-forget: use EdgeRuntime.waitUntil if available, otherwise just start
+        try {
+          (globalThis as any).EdgeRuntime?.waitUntil?.(cacheAndHydrate());
+        } catch {
+          cacheAndHydrate(); // fire-and-forget fallback
         }
-        break;
+
+        // Return immediately with the availability data
+        return new Response(responsePayload, {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
 
       case "create_reservation":
         result = await createReservation(creds, propertyCode, params.reservation_data);
