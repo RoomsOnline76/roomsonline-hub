@@ -1197,67 +1197,6 @@ export default function AdminContracts() {
         </Table>
       </div>
 
-      {/* Uncontracted Properties Section */}
-      {uncontractedProperties.length > 0 && (
-        <div className="mt-6 border border-border rounded-lg">
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
-            onClick={() => setUncontractedExpanded(prev => !prev)}
-          >
-            <div className="flex items-center gap-2">
-              {uncontractedExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-              <span className="font-medium text-sm">Properties Without Contracts</span>
-              <Badge variant="secondary">{uncontractedProperties.length}</Badge>
-            </div>
-            <span className="text-xs text-muted-foreground">Click to {uncontractedExpanded ? "collapse" : "expand"}</span>
-          </button>
-          {uncontractedExpanded && (
-            <div className="border-t border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Property</TableHead>
-                    <TableHead>Owner Email</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {uncontractedProperties.map((prop) => (
-                    <TableRow key={prop.id}>
-                      <TableCell>
-                        <a href={`/admin/properties/${prop.slug}`} className="text-sm text-primary hover:underline font-medium">
-                          {prop.name}
-                        </a>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">{prop.owner_email || "No owner"}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {prop.owner_email && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSendModalOpen(true);
-                              setSendEmail(prop.owner_email || "");
-                              setPropertySearch(prop.name);
-                              setSelectedProperty({ id: prop.id, name: prop.name, is_archived: false });
-                            }}
-                          >
-                            <Send className="h-3 w-3 mr-1" />
-                            Send Contract
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-      )}
 
       <Dialog open={sendModalOpen} onOpenChange={(open) => {
         setSendModalOpen(open);
