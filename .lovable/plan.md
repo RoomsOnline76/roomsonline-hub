@@ -1,41 +1,58 @@
 
 
-# Exclude Revoked Contracts from Admin Contracts Page
-
-## Intent
-
-Revoked contracts exist to "clear the way" for re-issuing to a new owner. Once revoked, they should disappear from the main contracts list — they are historical artifacts, not actionable items.
+# Add Property Mandatory + Resend with Property Linking
 
 ## Changes to `src/pages/AdminContracts.tsx`
 
-### 1. Filter out revoked contracts from the main list
+### 1. Make Property Name mandatory on Send
 
-In the `filteredContracts` memo (~line 210), after building `latestByOwner`, filter out any contract with `status === 'revoked'` before applying status/search filters. This removes them from the table entirely.
+- Add validation: disable "Send Contract" button when no `selectedProperty` is set (change `disabled={sending || !sendEmail}` → `disabled={sending || !sendEmail || !selectedProperty}`)
+- The search already works — it lists existing DB properties (excluding deleted), and allows typing a new name that creates on send
+- If `selectedProperty.id` is empty (new property), create the property in `handleSendContract` before invoking `send-owner-contract`:
+  ```sql
+  INSERT INTO properties (name, owner_email, owner_name, is_active) 
+  VALUES (selectedProperty.name, sendEmail, sendName, true)
+  ```
+  Then pass the new property's ID to the edge function
 
-### 2. Remove "Revoked" from filter buttons and stats
+### 2. Resend Contract — Property selection modal
 
-- Remove `"revoked"` from the `StatusFilter` type and the filter button array (line 648)
-- Remove the "Revoked" stats card (lines 626–633)
-- Remove `revoked` count from the `stats` memo
-- Keep `revoked` in `STATUS_CONFIG` so any historical references still render correctly if encountered
+Replace the direct `handleResendContract` call with a modal flow:
 
-### 3. Keep the Revoke action
+**New state:**
+- `resendModalOpen`, `resendContract` (the contract being resent)
+- `resendPropertySelections` — `Map<string, boolean>` of property IDs to checked state
+- `resendAvailableProperties` — loaded from DB for the owner's email
 
-The "Revoke Contract" menu item and confirmation dialog stay — revoking still works, the contract just won't appear in the list afterward. A toast already confirms the action.
+**Flow:**
+1. Click "Resend" on a contract → open resend modal
+2. Modal loads all properties where `owner_email = contract.owner_email` (excluding deleted)
+3. Shows checkboxes for each property, all pre-checked
+4. Admin can uncheck/check properties
+5. On confirm:
+   - Call `send-owner-contract` with `owner_email` and `resend: true`
+   - For each **checked** property, update `owner_name` and `owner_email` on the `properties` table to match the contract's values (ensuring property records stay in sync)
+   - Toast success
 
-### 4. Adjust total count
+**Modal UI:**
+- Title: "Resend Contract"
+- Description: "Select properties to link to this contract for {owner_email}"
+- Scrollable list of properties with checkboxes
+- Each row shows property name
+- Footer: Cancel + "Resend & Link Properties" button
 
-The `stats.total` count will naturally exclude revoked contracts since they're filtered out before counting.
+### 3. Property search — also show unfiltered list on focus
+
+Currently dropdown only appears after 2+ chars. Change: when the input is focused and empty, show the first 15 properties (ordered by name, excluding deleted) so admins can browse without typing. Trigger search on focus with empty query showing recent/all.
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `src/pages/AdminContracts.tsx` | Filter revoked from list, remove revoked filter button and stats card |
+| `src/pages/AdminContracts.tsx` | Make property mandatory, add property creation on send, add resend modal with property linking |
 
 ## What does NOT change
-- Revoke action and dialog remain functional
-- No database changes
-- `useOwnerContract.tsx` unchanged
-- `ContractStatusBadge.tsx` unchanged (still supports rendering `revoked` if needed elsewhere)
+- Edge functions unchanged
+- Database schema unchanged
+- Contract signing flow unchanged
 
