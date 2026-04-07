@@ -797,17 +797,10 @@ export default function AdminContracts() {
                             Resend Contract
                           </DropdownMenuItem>
                         )}
-                        {(contract.pdf_url || contract.unsigned_pdf_url) && (
-                          <DropdownMenuItem onClick={() => {
-                            const url = contract.pdf_url || contract.unsigned_pdf_url;
-                            setContractPreviewUrl(url);
-                            setContractPreviewTitle(`Contract — ${contract.owner_name || contract.owner_email}`);
-                            setContractPreviewOpen(true);
-                          }}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Contract
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onClick={() => handleViewContract(contract)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Contract
+                        </DropdownMenuItem>
                         {(contract.signature_data?.dataUrl || contract.signature_image_url) && (
                           <DropdownMenuItem onClick={() => handleViewSignature(contract)}>
                             <FileSignature className="h-4 w-4 mr-2" />
