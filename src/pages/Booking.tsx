@@ -1288,15 +1288,20 @@ const Booking = () => {
                       if (special.applicable_room_ids.includes(lid)) return true;
                     }
                   }
-                  // Fallback: match by room name from URL
-                  if (embedRoomTypeName) {
+                  // Direct name match — find the room name for this UUID
+                  const bookedRoom = rooms.find(r => r.roomTypeId === uuid);
+                  const bookedName = bookedRoom?.roomTypeName || embedRoomTypeName;
+                  if (bookedName) {
                     const amenityByName = amenitiesRooms.find((r: any) =>
-                      r.name && r.name.trim().toLowerCase() === embedRoomTypeName.trim().toLowerCase()
+                      r.name && r.name.trim().toLowerCase() === bookedName.trim().toLowerCase()
                     );
                     if (amenityByName && (
                       special.applicable_room_ids.includes(String(amenityByName.id)) ||
                       special.applicable_room_ids.includes(Number(amenityByName.id))
-                    )) return true;
+                    )) {
+                      console.log(`[Specials] Name match: "${bookedName}" → amenity ${amenityByName.id} for special "${special.name}"`);
+                      return true;
+                    }
                   }
                   return false;
                 });
