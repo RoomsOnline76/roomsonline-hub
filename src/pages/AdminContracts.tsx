@@ -177,6 +177,26 @@ export default function AdminContracts() {
 
       if (error) throw error;
       setContracts(data || []);
+
+      // Load properties for all owner emails
+      const ownerEmails = [...new Set((data || []).map(c => c.owner_email))];
+      if (ownerEmails.length > 0) {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("owner_email, name")
+          .in("owner_email", ownerEmails)
+          .is("permanently_deleted_at", null);
+
+        const grouped: Record<string, string[]> = {};
+        (props || []).forEach(p => {
+          if (!grouped[p.owner_email!]) grouped[p.owner_email!] = [];
+          const name = p.name?.toLowerCase();
+          if (!grouped[p.owner_email!].some(n => n.toLowerCase() === name)) {
+            grouped[p.owner_email!].push(p.name);
+          }
+        });
+        setPropertiesByOwner(grouped);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load contracts");
     } finally {
