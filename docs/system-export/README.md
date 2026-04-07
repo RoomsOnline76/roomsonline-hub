@@ -58,6 +58,7 @@ These rules must NEVER be violated:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2026-04-07 | Phase 1-6 refactor: booking-orchestrator-api, data-access-api, PMS Zod schemas, PropertyForm decomposition, route optimization, performance tuning, security hardening (itineraries RLS, storage policies) |
 | 1.0.0 | 2025-01-07 | Initial comprehensive export |
 
 ## Ownership
