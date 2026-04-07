@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { MapPin } from "lucide-react";
 import { useGoogleMapsApiKey } from "@/hooks/useFeatureFlags";
@@ -9,7 +9,46 @@ declare global {
       maps: typeof google.maps;
     };
     initMap?: () => void;
+    gm_authFailure?: () => void;
   }
+}
+
+const GOOGLE_MAPS_SCRIPT_SELECTOR = 'script[src*="maps.googleapis.com/maps/api/js"]';
+
+async function waitForGoogleMaps(timeoutMs = 8000) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    if (window.google?.maps && typeof window.google.maps.Map === "function") {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  throw new Error("Timed out waiting for Google Maps to initialize");
+}
+
+async function loadGoogleMapsScript(apiKey: string) {
+  if (window.google?.maps && typeof window.google.maps.Map === "function") return;
+
+  const existingScript = document.querySelector<HTMLScriptElement>(GOOGLE_MAPS_SCRIPT_SELECTOR);
+  if (existingScript) {
+    await waitForGoogleMaps();
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Google Maps script"));
+    document.head.appendChild(script);
+  });
+
+  await waitForGoogleMaps();
 }
 
 interface PropertyMapProps {
@@ -33,7 +72,7 @@ export function PropertyMap({
 }: PropertyMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markerInstanceRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const markerInstanceRef = useRef<google.maps.Marker | null>(null);
   const onLocationUpdateRef = useRef(onLocationUpdate);
   const { apiKey, isReady: apiKeyReady } = useGoogleMapsApiKey();
   const [mapsLoaded, setMapsLoaded] = useState(false);
@@ -61,96 +100,111 @@ export function PropertyMap({
     if (!apiKeyReady || !apiKey || apiKey.startsWith("placeholder_key_") || !mapRef.current || isInitialized) return;
 
     let cancelled = false;
+    const previousAuthFailure = window.gm_authFailure;
+
+    window.gm_authFailure = () => {
+      if (!cancelled) {
+        setMapsLoaded(false);
+        setMapError("Google Maps could not be authorized for this site.");
+      }
+      previousAuthFailure?.();
+    };
+
+    const initializeMap = async () => {
+      setMapError(null);
+      setMapsLoaded(false);
+
+      await loadGoogleMapsScript(apiKey);
+      if (cancelled || !mapRef.current || !window.google?.maps) return;
+
+      if (typeof google.maps.importLibrary === "function") {
+        await google.maps.importLibrary("maps");
+        if (cancelled) return;
+      }
+
+      const initialPosition = latitude != null && longitude != null
+        ? { lat: Number(latitude), lng: Number(longitude) }
+        : { lat: -33.9249, lng: 18.4241 };
+
+      const newMap = new google.maps.Map(mapRef.current, {
+        center: initialPosition,
+        zoom: 15,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+      });
+
+      const newMarker = new google.maps.Marker({
+        position: initialPosition,
+        map: newMap,
+        draggable: true,
+        title: "Property Location",
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: "#e91e8c",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 3,
+        },
+      });
+
+      newMarker.addListener("dragend", () => {
+        const position = newMarker.getPosition();
+        if (position && onLocationUpdateRef.current) {
+          onLocationUpdateRef.current(position.lat(), position.lng());
+        }
+      });
+
+      mapInstanceRef.current = newMap;
+      markerInstanceRef.current = newMarker;
+      setMapsLoaded(true);
+      setIsInitialized(true);
+      setMapError(null);
+    };
 
     const loadAndInit = async () => {
       try {
-        // Load script if not present
-        if (!window.google?.maps) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
-            script.async = true;
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load Google Maps script"));
-            document.head.appendChild(script);
-          });
-        }
-
+        await initializeMap();
+      } catch (error) {
         if (cancelled) return;
 
-        // Import required libraries explicitly - this ensures they're fully loaded
-        const [mapsLib, markerLib] = await Promise.all([
-          google.maps.importLibrary("maps") as Promise<google.maps.MapsLibrary>,
-          google.maps.importLibrary("marker") as Promise<google.maps.MarkerLibrary>,
-        ]);
-
-        if (cancelled || !mapRef.current) return;
-
-        const initialPosition = latitude && longitude
-          ? { lat: Number(latitude), lng: Number(longitude) }
-          : { lat: -33.9249, lng: 18.4241 };
-
-        const newMap = new mapsLib.Map(mapRef.current, {
-          center: initialPosition,
-          zoom: 15,
-          mapTypeControl: true,
-          streetViewControl: true,
-          fullscreenControl: true,
-          mapId: "PROPERTY_EDIT_MAP",
-        });
-
-        const pinElement = document.createElement("div");
-        pinElement.style.cssText = `
-          width: 32px; height: 32px;
-          background-color: #e91e8c;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          cursor: grab;
-        `;
-
-        const newMarker = new markerLib.AdvancedMarkerElement({
-          position: initialPosition,
-          map: newMap,
-          gmpDraggable: true,
-          title: "Property Location",
-          content: pinElement,
-        });
-
-        newMarker.addListener("dragend", () => {
-          const position = newMarker.position;
-          if (position && onLocationUpdateRef.current) {
-            const lat = typeof position.lat === 'function' ? (position as any).lat() : (position as any).lat;
-            const lng = typeof position.lng === 'function' ? (position as any).lng() : (position as any).lng;
-            onLocationUpdateRef.current(lat, lng);
-          }
-        });
-
-        mapInstanceRef.current = newMap;
-        markerInstanceRef.current = newMarker;
-        setMapsLoaded(true);
-        setIsInitialized(true);
-      } catch (error) {
         console.error("Failed to initialize Google Maps:", error);
-        if (!cancelled) {
-          setMapError("Failed to initialize map. The API key may not be authorized for this domain.");
+
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          if (cancelled) return;
+          await initializeMap();
+        } catch (retryError) {
+          console.error("Retry failed while initializing Google Maps:", retryError);
+          if (!cancelled) {
+            const message = retryError instanceof Error ? retryError.message.toLowerCase() : "";
+            setMapsLoaded(false);
+            setMapError(
+              message.includes("authorize") || message.includes("referer")
+                ? "Google Maps could not be authorized for this site."
+                : "Failed to load the map. Please try again."
+            );
+          }
         }
       }
     };
 
     loadAndInit();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.gm_authFailure = previousAuthFailure;
+    };
   }, [apiKey, apiKeyReady, isInitialized]);
 
   // Update marker position when lat/lng props change (without reinitializing map)
   useEffect(() => {
     if (!isInitialized || !mapInstanceRef.current || !markerInstanceRef.current) return;
-    if (!latitude || !longitude) return;
+    if (latitude == null || longitude == null) return;
 
     const newPosition = { lat: Number(latitude), lng: Number(longitude) };
     mapInstanceRef.current.setCenter(newPosition);
-    markerInstanceRef.current.position = newPosition;
+    markerInstanceRef.current.setPosition(newPosition);
   }, [latitude, longitude, isInitialized]);
 
   // Geocode address when it changes
@@ -171,7 +225,7 @@ export function PropertyMap({
       if (status === "OK" && results && results[0]) {
         const location = results[0].geometry.location;
         map.setCenter(location);
-        marker.position = { lat: location.lat(), lng: location.lng() };
+        marker.setPosition({ lat: location.lat(), lng: location.lng() });
         
         if (onLocationUpdateRef.current) {
           onLocationUpdateRef.current(location.lat(), location.lng());
@@ -195,27 +249,23 @@ export function PropertyMap({
     );
   }
 
-  if (mapError) {
-    return (
-      <div className="w-full h-full min-h-[200px] rounded-lg border border-destructive/30 bg-destructive/5 flex items-center justify-center">
-        <div className="text-center space-y-2 p-4">
-          <MapPin className="h-6 w-6 mx-auto text-destructive" />
-          <p className="text-xs text-destructive font-medium">Map Error</p>
-          <p className="text-xs text-muted-foreground max-w-[200px]">
-            {mapError}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative w-full h-full min-h-[200px]">
       <div
         ref={mapRef}
         className="w-full h-full min-h-[200px] rounded-lg border border-border"
       />
-      {(!apiKeyReady || !mapsLoaded) && (
+      {mapError ? (
+        <div className="absolute inset-0 rounded-lg border border-destructive/30 bg-destructive/5 flex items-center justify-center">
+          <div className="text-center space-y-2 p-4">
+            <MapPin className="h-6 w-6 mx-auto text-destructive" />
+            <p className="text-xs text-destructive font-medium">Map Error</p>
+            <p className="text-xs text-muted-foreground max-w-[220px]">
+              {mapError}
+            </p>
+          </div>
+        </div>
+      ) : (!apiKeyReady || !mapsLoaded) && (
         <div className="absolute inset-0 rounded-lg bg-muted/80 flex items-center justify-center pointer-events-none">
           <p className="text-muted-foreground text-xs">Loading map...</p>
         </div>
