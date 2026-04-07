@@ -71,6 +71,7 @@ export interface RateManagerTabProps {
   accommodationLabel: string;
   selectedMealTypes: string[];
   formData: { currency?: string; owner_email?: string };
+  amenities: any;
   isAdmin?: boolean;
   isDev?: boolean;
   isFearlessLeader?: boolean;
@@ -93,6 +94,7 @@ export function RateManagerTab({
   accommodationLabel,
   selectedMealTypes,
   formData,
+  amenities,
   isAdmin,
   isDev,
   isFearlessLeader,
