@@ -978,7 +978,7 @@ export default function AdminContracts() {
           <div className="space-y-4 py-4">
             {/* Property Name Search */}
             <div className="space-y-2">
-              <Label htmlFor="propertyName">Property Name</Label>
+              <Label htmlFor="propertyName">Property Name *</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -992,13 +992,14 @@ export default function AdminContracts() {
                       setShowUnarchivePrompt(false);
                     }
                   }}
+                  onFocus={handlePropertyFocus}
                   className="pl-9"
                 />
                 {searchingProperties && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                 )}
                 {/* Search results dropdown */}
-                {propertyDropdownOpen && propertySearch.length >= 2 && (
+                {propertyDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
                     {propertyResults.map((p) => (
                       <button
@@ -1205,7 +1206,7 @@ export default function AdminContracts() {
             </Button>
             <Button 
               onClick={handleSendContract} 
-              disabled={sending || !sendEmail}
+              disabled={sending || !sendEmail || (!selectedProperty && !propertySearch.trim())}
             >
               {sending ? "Sending..." : noPropertiesWarning ? "Send & Create Owner" : "Send Contract"}
             </Button>
