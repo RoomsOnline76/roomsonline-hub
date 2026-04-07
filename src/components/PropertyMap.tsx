@@ -182,14 +182,6 @@ export function PropertyMap({
     });
   }, [address, suburb, city, country, isInitialized]);
 
-  if (!apiKeyReady || (apiKey && !apiKey.startsWith("placeholder_key_") && !mapsLoaded && !mapError)) {
-    return (
-      <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
-        <p className="text-muted-foreground text-xs">Loading map...</p>
-      </div>
-    );
-  }
-
   if (!apiKey) {
     return (
       <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
@@ -218,9 +210,16 @@ export function PropertyMap({
   }
 
   return (
-    <div 
-      ref={mapRef} 
-      className="w-full h-full min-h-[200px] rounded-lg border border-border"
-    />
+    <div className="relative w-full h-full min-h-[200px]">
+      <div
+        ref={mapRef}
+        className="w-full h-full min-h-[200px] rounded-lg border border-border"
+      />
+      {(!apiKeyReady || !mapsLoaded) && (
+        <div className="absolute inset-0 rounded-lg bg-muted/80 flex items-center justify-center pointer-events-none">
+          <p className="text-muted-foreground text-xs">Loading map...</p>
+        </div>
+      )}
+    </div>
   );
 }
