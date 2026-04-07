@@ -339,7 +339,7 @@ export default function AdminContracts() {
       if (selectedProperty && !selectedProperty.id) {
         const { data: newProp, error: createErr } = await supabase
           .from("properties")
-          .insert({
+          .insert([{
             name: selectedProperty.name,
             address: "",
             city: "",
@@ -347,7 +347,7 @@ export default function AdminContracts() {
             owner_email: sendEmail.toLowerCase().trim(),
             owner_name: sendName || null,
             is_active: true,
-          })
+          }])
           .select("id")
           .single();
 
