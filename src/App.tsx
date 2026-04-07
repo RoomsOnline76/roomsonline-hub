@@ -15,29 +15,31 @@ import { DevRouteLayout } from "./components/layout/DevRouteLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
-// ─── Eager — public-facing critical path ─────────────────────────
+// ─── Eager — critical path only (FCP) ────────────────────────────
 import Home from "./pages/Home";
-import PropertyShowcase from "./pages/PropertyShowcase";
-import RoomShowcase from "./pages/RoomShowcase";
-import RoomAvailability from "./pages/RoomAvailability";
-import Booking from "./pages/Booking";
-import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import AboutUs from "./pages/AboutUs";
-import ContactUs from "./pages/ContactUs";
-import PublicJournals from "./pages/PublicJournals";
-import PMSComparison from "./pages/PMSComparison";
-import AffiliateDisclosure from "./pages/AffiliateDisclosure";
-import PropertyListing from "./pages/PropertyListing";
-import EmbedProperty from "./pages/EmbedProperty";
-import EmbedPortfolio from "./pages/EmbedPortfolio";
-import StaffLogin from "./pages/StaffLogin";
-import ContractSign from "./pages/ContractSign";
-import PropertyOnboarding from "./pages/PropertyOnboarding";
-import GuestPortal from "./pages/GuestPortal";
+
+// ─── Lazy — public pages ─────────────────────────────────────────
+const PropertyShowcase = lazy(() => import("./pages/PropertyShowcase"));
+const RoomShowcase = lazy(() => import("./pages/RoomShowcase"));
+const RoomAvailability = lazy(() => import("./pages/RoomAvailability"));
+const Booking = lazy(() => import("./pages/Booking"));
+const BookingConfirmation = lazy(() => import("./pages/BookingConfirmation"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
+const PublicJournals = lazy(() => import("./pages/PublicJournals"));
+const PMSComparison = lazy(() => import("./pages/PMSComparison"));
+const AffiliateDisclosure = lazy(() => import("./pages/AffiliateDisclosure"));
+const PropertyListing = lazy(() => import("./pages/PropertyListing"));
+const EmbedProperty = lazy(() => import("./pages/EmbedProperty"));
+const EmbedPortfolio = lazy(() => import("./pages/EmbedPortfolio"));
+const StaffLogin = lazy(() => import("./pages/StaffLogin"));
+const ContractSign = lazy(() => import("./pages/ContractSign"));
+const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
+const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 
 // ─── Lazy — admin pages ──────────────────────────────────────────
 const PropertyOverview = lazy(() => import("./pages/PropertyOverview"));
@@ -155,7 +157,16 @@ function connectChildRoutes(): ReactElement[] {
   ];
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 const isSurveyDomain = window.location.hostname === "survey.roomsonline.co.za";
 
 const BookRedirect = () => {
