@@ -1,59 +1,90 @@
 
 
-# Phase 6: Isolate AI Concierge from PMS Logic
+# Performance Optimization — FCP < 2s, Smooth Booking Engine
 
-## Problem
+## 1. Code-Splitting via `vite.config.ts`
 
-`ai-booking-concierge/index.ts` (1,012 lines) contains **direct PMS adapter switching** in `fetchLiveAvailability()` (lines 244–277) — a `switch` on `externalSystem` calling `hostfully-api`, `benson-api`, `hotelbeds-api`, and falling back to cache. This duplicates the same adapter logic that Phase 2 centralized into `booking-orchestrator-api`.
-
-The `help-assistant` edge function is a separate concern (internal docs chatbot) and is already isolated — no changes needed.
-
-## Plan
-
-### Step 1: Replace PMS adapter switch with orchestrator call
-
-Rewrite `fetchLiveAvailability()` to call `booking-orchestrator-api` instead of branching per PMS. This removes ~35 lines of adapter switching and replaces with a single invocation:
+Add `build.rollupOptions.output.manualChunks` to split heavy vendor and page bundles:
 
 ```typescript
-const pmsResponse = await supabase.functions.invoke('booking-orchestrator-api', {
-  body: {
-    property_id: propertyId,
-    start_date: dates.check_in,
-    end_date: dates.check_out,
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: {
+        'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+        'vendor-query': ['@tanstack/react-query'],
+        'vendor-motion': ['framer-motion'],
+        'booking': ['./src/pages/Booking.tsx'],
+      }
+    }
   }
+}
+```
+
+This isolates the largest dependencies into cacheable chunks and separates the heavy Booking page.
+
+## 2. Lazy-Load Remaining Eager Public Pages
+
+Currently **20 public pages are eagerly imported** (lines 19–40 of App.tsx), including `Booking`, `PropertyListing`, `EmbedProperty`, `EmbedPortfolio`, `ContractSign`, `PropertyOnboarding`, `GuestPortal`, etc. Only `Home`, `Auth`, and `NotFound` need to stay eager for FCP.
+
+**Change**: Convert all non-critical public pages to `lazy()` imports. Keep `Home`, `Auth`, `NotFound` eager. Wrap all lazy routes in the existing `<Suspense>` with the skeleton fallback already defined in App.tsx.
+
+## 3. QueryClient Global Defaults
+
+The `QueryClient` at line 158 has **no default options**. Add sensible global defaults to reduce refetching across all hooks:
+
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,      // 5 min
+      gcTime: 10 * 60 * 1000,         // 10 min
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
 });
 ```
 
-The response parsing (extracting room types, rates, availability) stays the same since the orchestrator returns the identical `room_types[]` shape.
+This means individual hooks no longer need to repeat these settings (many already set `staleTime: 5 * 60 * 1000` individually). Hooks that need fresh data (like Dashboard with `staleTime: 0`) already override locally.
 
-### Step 2: Remove direct `properties.external_system` lookup
+## 4. Memoize PropertyCard
 
-The function currently queries `properties` for `external_system` and `external_id` just to decide which PMS to call. Since the orchestrator handles that internally, this query can be simplified to only fetch `currency` (still needed for formatting).
+`PropertyCard` is rendered in lists (segments, search results) and re-renders on every parent state change. Wrap with `React.memo` and stabilize:
 
-### Step 3: Verify no other PMS leakage
+- Wrap export: `export const PropertyCard = memo(PropertyCardInner)`
+- Add custom comparator checking `property.id`, `variant`, `showCautionBadge`
+- Image URL computation is already in `useMemo` — good
 
-Audit remaining code paths:
-- `fetchPropertyContext()` — queries `properties` and `local_experiences` for context data (not PMS) — **clean**
-- `fetchOwnerAlternatives()` — calls `fetchLiveAvailability()` recursively for cross-sell — **fixed by Step 1**
-- `generateValueBasedDelight()` — queries `properties` and `local_experiences` — **clean**
-- AI gateway calls (xAI/Lovable) — **clean, no PMS**
+## 5. Image Lazy Loading
 
-No other PMS cross-contamination exists.
+`PropertyCard` already has `loading="lazy"` — confirmed. The `BuildingGallery` also has `loading="lazy"`. Check and add `loading="lazy"` to any remaining `<img>` tags across showcase components. Add `decoding="async"` to all property images for non-blocking decode.
 
-## Files changed
+No `next/image` equivalent needed — Vite projects use native `loading="lazy"` + `decoding="async"` which achieves the same result without a framework dependency.
+
+## 6. Bundle Analysis
+
+Add a script to `package.json` for on-demand analysis:
+```json
+"analyze": "vite build && npx rollup-plugin-visualizer"
+```
+
+Actually, use `rollup-plugin-visualizer` as a Vite plugin in analyze mode — simpler and more accurate for Vite projects.
+
+---
+
+## Files Changed
 
 | File | Change |
 |---|---|
-| `supabase/functions/ai-booking-concierge/index.ts` | Replace `fetchLiveAvailability` PMS switch with orchestrator call; simplify property query |
+| `vite.config.ts` | Add `build.rollupOptions.output.manualChunks` + visualizer plugin (dev only) |
+| `src/App.tsx` | Convert ~15 eager public imports to `lazy()`. Add `defaultOptions` to `QueryClient`. |
+| `src/components/PropertyCard.tsx` | Wrap with `React.memo` + custom comparator, add `decoding="async"` to img |
+| `src/components/showcase/BuildingGallery.tsx` | Add `decoding="async"` to images |
 
 ## What does NOT change
-- `help-assistant` edge function — already isolated
-- `booking-orchestrator-api` — no modifications needed
-- All three frontend consumers (`AIConciergePanel`, `EmbedConciergeChat`, `TobiJourneyAssistant`) — unchanged
-- AI narrative generation, delight engine, NLP parsing — untouched
-- No database migrations
-- No user-facing behavior changes
-
-## Outcome
-AI concierge becomes PMS-agnostic. All availability resolution flows through a single orchestrator, eliminating duplicate adapter logic and preventing future PMS changes from requiring concierge updates.
+- No database or edge function changes
+- No routing behavior changes — all routes resolve identically
+- Hooks that already set `staleTime` locally continue to work (local overrides global)
+- No new dependencies (visualizer is dev-only, optional)
 
