@@ -127,6 +127,9 @@ export default function AdminContracts() {
   
   const [signaturePreviewOpen, setSignaturePreviewOpen] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
+  const [contractPreviewUrl, setContractPreviewUrl] = useState<string | null>(null);
+  const [contractPreviewTitle, setContractPreviewTitle] = useState("");
   
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyEmail, setHistoryEmail] = useState<string | null>(null);
