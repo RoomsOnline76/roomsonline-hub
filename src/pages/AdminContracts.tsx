@@ -325,9 +325,32 @@ export default function AdminContracts() {
       toast.error("Email is required");
       return;
     }
+    if (!selectedProperty && !propertySearch.trim()) {
+      toast.error("Property name is required");
+      return;
+    }
 
     try {
       setSending(true);
+
+      let propertyId = selectedProperty?.id || undefined;
+
+      // If new property (no id), create it first
+      if (selectedProperty && !selectedProperty.id) {
+        const { data: newProp, error: createErr } = await supabase
+          .from("properties")
+          .insert({
+            name: selectedProperty.name,
+            owner_email: sendEmail.toLowerCase().trim(),
+            owner_name: sendName || null,
+            is_active: true,
+          })
+          .select("id")
+          .single();
+
+        if (createErr) throw createErr;
+        propertyId = newProp.id;
+      }
       
       // Determine which template to use based on contract type
       const templateId = selectedContractType === "rolos" 
@@ -340,7 +363,7 @@ export default function AdminContracts() {
         body: { 
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
-          property_id: selectedProperty?.id || undefined,
+          property_id: propertyId,
           template_id: templateId,
           contract_type: selectedContractType,
         },
@@ -350,9 +373,7 @@ export default function AdminContracts() {
 
       toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully`);
       setSendModalOpen(false);
-      setSendEmail("");
-      setSendName("");
-      setSelectedContractType("standard");
+      resetSendModal();
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to send contract");
@@ -361,17 +382,69 @@ export default function AdminContracts() {
     }
   };
 
-  const handleResendContract = async (contract: OwnerContract) => {
+  const handleOpenResendModal = async (contract: OwnerContract) => {
+    setResendContract(contract);
+    setResendAvailableProperties([]);
+    setResendPropertySelections({});
+    setResendModalOpen(true);
+
+    // Load properties for this owner
     try {
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("owner_email", contract.owner_email)
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      const available = props || [];
+      setResendAvailableProperties(available);
+      // Pre-check all
+      const selections: Record<string, boolean> = {};
+      available.forEach(p => { selections[p.id] = true; });
+      setResendPropertySelections(selections);
+    } catch (err) {
+      console.error("Failed to load properties for resend:", err);
+    }
+  };
+
+  const handleResendContract = async () => {
+    if (!resendContract) return;
+
+    try {
+      setResending(true);
+
       const { error } = await supabase.functions.invoke("send-owner-contract", {
-        body: { owner_email: contract.owner_email, owner_name: contract.owner_name || undefined },
+        body: { owner_email: resendContract.owner_email, owner_name: resendContract.owner_name || undefined, resend: true },
       });
 
       if (error) throw error;
+
+      // Update selected properties with owner info
+      const selectedIds = Object.entries(resendPropertySelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+
+      if (selectedIds.length > 0) {
+        const { error: updateErr } = await supabase
+          .from("properties")
+          .update({
+            owner_name: resendContract.owner_name,
+            owner_email: resendContract.owner_email,
+          })
+          .in("id", selectedIds);
+
+        if (updateErr) console.error("Failed to update properties:", updateErr);
+      }
+
       toast.success("Contract resent successfully");
+      setResendModalOpen(false);
+      setResendContract(null);
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to resend contract");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -488,29 +561,28 @@ export default function AdminContracts() {
   };
 
   const searchProperties = async (query: string) => {
-    if (!query || query.length < 2) {
-      setPropertyResults([]);
-      setPropertyDropdownOpen(false);
-      return;
-    }
     setSearchingProperties(true);
     try {
-      // Use ilike with wildcards for fuzzy matching
-      const pattern = `%${query.replace(/\s+/g, '%')}%`;
-      const { data, error } = await supabase
+      let qb = supabase
         .from("properties")
         .select("id, name, slug, owner_email, permanently_deleted_at")
-        .ilike("name", pattern)
+        .is("permanently_deleted_at", null)
         .order("name")
         .limit(15);
 
+      if (query && query.length >= 1) {
+        const pattern = `%${query.replace(/\s+/g, '%')}%`;
+        qb = qb.ilike("name", pattern);
+      }
+
+      const { data, error } = await qb;
       if (error) throw error;
 
       const results = (data || []).map(p => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
-        is_archived: !!p.permanently_deleted_at,
+        is_archived: false,
         owner_email: p.owner_email,
       }));
       setPropertyResults(results);
@@ -523,13 +595,17 @@ export default function AdminContracts() {
     }
   };
 
+  const handlePropertyFocus = () => {
+    if (!selectedProperty && propertyResults.length === 0) {
+      searchProperties("");
+    } else if (propertyResults.length > 0) {
+      setPropertyDropdownOpen(true);
+    }
+  };
+
   // Debounced property search
   useEffect(() => {
-    if (!propertySearch || propertySearch.length < 2) {
-      setPropertyResults([]);
-      setPropertyDropdownOpen(false);
-      return;
-    }
+    if (selectedProperty) return;
     const timer = setTimeout(() => searchProperties(propertySearch), 300);
     return () => clearTimeout(timer);
   }, [propertySearch]);
