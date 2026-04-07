@@ -28,14 +28,6 @@ export function PropertySegmentSection({
   const { data: properties, isLoading } = useQuery({
     queryKey: ["properties-segment", segmentId],
     queryFn: async () => {
-      // First, get PMS systems that are in production
-      const { data: activePmsSystems } = await supabase
-        .from("pms_tracker_status")
-        .select("system_type")
-        .eq("is_production", true);
-      
-      const activeSystemTypes = activePmsSystems?.map(s => s.system_type) || [];
-      
       const { data, error } = await supabase
         .from("properties")
         .select(`
@@ -50,10 +42,7 @@ export function PropertySegmentSection({
 
       if (error) throw error;
       
-      // Filter to only properties with active PMS systems
-      return (data || []).filter(p => 
-        p.external_system && activeSystemTypes.includes(p.external_system)
-      );
+      return data || [];
     },
   });
 
