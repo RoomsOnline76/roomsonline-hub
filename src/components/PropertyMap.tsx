@@ -182,7 +182,7 @@ export function PropertyMap({
     });
   }, [address, suburb, city, country, isInitialized]);
 
-  if (!apiKeyReady || (apiKey && !mapsLoaded)) {
+  if (!apiKeyReady || (apiKey && !mapsLoaded && !mapError)) {
     return (
       <div className="w-full h-full min-h-[200px] rounded-lg border border-border bg-muted flex items-center justify-center">
         <p className="text-muted-foreground text-xs">Loading map...</p>
