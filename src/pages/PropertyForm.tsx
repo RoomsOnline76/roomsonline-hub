@@ -104,51 +104,7 @@ import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpe
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
-
-// Check if a PMS is fully integrated (all milestones complete)
-const isPMSFullyIntegrated = (systemType: string): boolean => {
-  const status = pmsIntegrationStatus[systemType];
-  if (!status) return false;
-  return Object.values(status).every((v) => v === true);
-};
-
-// Check if a PMS has any integration progress
-const getPMSIntegrationLevel = (systemType: string): "none" | "partial" | "full" => {
-  const status = pmsIntegrationStatus[systemType];
-  if (!status) return "none";
-  const values = Object.values(status);
-  const completeCount = values.filter((v) => v === true).length;
-  const pendingCount = values.filter((v) => v === "pending").length;
-  if (completeCount === values.length) return "full";
-  if (completeCount > 0 || pendingCount > 0) return "partial";
-  return "none";
-};
-
-// Map PMS system types to icons
-const getPMSIcon = (systemType: string): LucideIcon => {
-  switch (systemType) {
-    case "roomsonline":
-      return Key;
-    case "nightsbridge":
-      return BedDouble;
-    case "semper":
-      return RefreshCw;
-    case "checkfront":
-      return CheckCircle;
-    case "benson":
-      return Briefcase;
-    case "siteminder":
-      return Layers;
-    case "littlehotelier":
-    case "cloudbeds":
-    case "hostfully":
-    case "mews":
-    case "opera":
-      return BedDouble;
-    default:
-      return Building2;
-  }
-};
+import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 
 // Schema factory to handle conditional address validation
 const createPropertySchema = (noStreetAddress: boolean) =>
