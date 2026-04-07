@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,10 +51,11 @@ import {
   Loader2,
   Building2,
   Handshake,
+  XCircle,
+  Ban,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
-import { Link } from "react-router-dom";
 
 interface OwnerContract {
   id: string;
@@ -86,7 +86,7 @@ interface LinkedProperty {
   name: string;
 }
 
-type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden";
+type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden" | "revoked";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pending", icon: Clock, variant: "secondary" },
@@ -94,6 +94,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; va
   viewed: { label: "Viewed", icon: Eye, variant: "outline" },
   signed: { label: "Signed", icon: Check, variant: "default" },
   overridden: { label: "Overridden", icon: Shield, variant: "destructive" },
+  revoked: { label: "Revoked", icon: XCircle, variant: "destructive" },
 };
 
 export default function AdminContracts() {
