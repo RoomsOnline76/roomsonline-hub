@@ -144,7 +144,8 @@ export default function AdminContracts() {
   const [revoking, setRevoking] = useState(false);
 
   // Properties lookup for table column
-  const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, string[]>>({});
+  const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
+  const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadContracts();
