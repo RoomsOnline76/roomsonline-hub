@@ -1119,6 +1119,32 @@ export default function AdminContracts() {
         </DialogContent>
       </Dialog>
 
+      {/* Contract Preview Modal */}
+      <Dialog open={contractPreviewOpen} onOpenChange={setContractPreviewOpen}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{contractPreviewTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {contractPreviewUrl && (
+              <iframe
+                src={contractPreviewUrl}
+                title="Contract Preview"
+                className="w-full h-full rounded-lg border border-border"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" asChild>
+              <a href={contractPreviewUrl || "#"} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </a>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* History Drawer */}
       <Dialog open={historyDrawerOpen} onOpenChange={setHistoryDrawerOpen}>
         <DialogContent className="max-w-2xl">
