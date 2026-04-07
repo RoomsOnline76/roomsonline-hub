@@ -565,11 +565,32 @@ const Booking = () => {
     }
 
     if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
+      // If linked_rolos_id is present (Benson embed), resolve canonical room UUID
+      // so that the orchestrator room match succeeds later
+      let resolvedRoomTypeId = preSelectedRoomTypeId;
+      let resolvedRoomTypeName = preSelectedRoomTypeName;
+      if (embedLinkedRolosId && property) {
+        // Eagerly fetch hfRooms to resolve the canonical UUID
+        const { data: hfRoomsEarly } = await supabase
+          .from("hostfully_room_types")
+          .select("id, name, linked_rolos_id")
+          .eq("property_id", property.id)
+          .eq("is_active", true);
+        if (hfRoomsEarly && hfRoomsEarly.length > 0) {
+          hfRoomsRef.current = hfRoomsEarly.map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
+          const linkedRoom = hfRoomsEarly.find(r => r.linked_rolos_id === embedLinkedRolosId);
+          if (linkedRoom) {
+            console.log('[Booking] Resolved Benson room via linked_rolos_id:', preSelectedRoomTypeId, '→', linkedRoom.id, linkedRoom.name);
+            resolvedRoomTypeId = linkedRoom.id;
+            resolvedRoomTypeName = linkedRoom.name;
+          }
+        }
+      }
       const hasPreSelectedGuests = searchParams.has("adults");
       const fallbackAdults = urlMaxGuests > 0 ? Math.max(1, Math.min(2, urlMaxGuests)) : 2;
       setRooms([{
-        roomTypeId: preSelectedRoomTypeId,
-        roomTypeName: preSelectedRoomTypeName,
+        roomTypeId: resolvedRoomTypeId,
+        roomTypeName: resolvedRoomTypeName,
         numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : fallbackAdults,
         numberOfTeens: preSelectedTeens,
         numberOfChildren: preSelectedChildren,
@@ -895,17 +916,34 @@ const Booking = () => {
           : nights;
 
         // Find room type using multi-strategy matching
-        // Build alias set: DB UUID + external PMS ID + normalized name
+        // Build alias set: DB UUID + external PMS ID + normalized name + linked_rolos_id resolution
         const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
         const targetAliases = new Set<string>([room.roomTypeId]);
         if (roomDef) {
           targetAliases.add(slugifyRoomName(roomDef.name));
-          // hfRoomsRef may contain external_room_type_id mappings
           const hfRoom = (hfRoomsRef.current as any[])?.find((hr: any) => 
             String(hr.id) === room.roomTypeId || hr.name === roomDef.name
           );
           if (hfRoom?.hostfully_room_id) targetAliases.add(hfRoom.hostfully_room_id);
           if (hfRoom?.external_room_type_id) targetAliases.add(hfRoom.external_room_type_id);
+        }
+
+        // Expand aliases via linked_rolos_id (Benson embeds pass native IDs but orchestrator returns ROL'OS UUIDs)
+        if (embedLinkedRolosId) {
+          const linkedHfRoom = (hfRoomsRef.current as any[])?.find((hr: any) => hr.linked_rolos_id === embedLinkedRolosId);
+          if (linkedHfRoom) {
+            targetAliases.add(linkedHfRoom.id);
+            targetAliases.add(slugifyRoomName(linkedHfRoom.name));
+            if (linkedHfRoom.hostfully_room_id) targetAliases.add(linkedHfRoom.hostfully_room_id);
+            console.log('[Booking] Expanded aliases via linked_rolos_id:', embedLinkedRolosId, '→', linkedHfRoom.id, linkedHfRoom.name);
+          }
+        }
+        // Also expand: if preSelectedRoomTypeId (original Benson ID) differs from room.roomTypeId, add it
+        if (preSelectedRoomTypeId && preSelectedRoomTypeId !== room.roomTypeId) {
+          targetAliases.add(preSelectedRoomTypeId);
+        }
+        if (preSelectedRoomTypeName) {
+          targetAliases.add(slugifyRoomName(preSelectedRoomTypeName));
         }
         
         console.log('[Booking] Looking for room:', room.roomTypeId, 'aliases:', [...targetAliases], 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
@@ -913,14 +951,10 @@ const Booking = () => {
         let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
-            // Direct match against any alias
             if (targetAliases.has(rtId)) return true;
-            // Check candidate's own aliases
             if (rt.room_type_aliases?.some((a: string) => targetAliases.has(a))) return true;
-            // Reverse: candidate name normalized matches any alias
             const rtName = String(rt.room_type_name || rt.roomTypeName || rt.name || '');
             if (rtName && targetAliases.has(slugifyRoomName(rtName))) return true;
-            // Forward: any alias matches candidate ID
             for (const alias of targetAliases) {
               if (alias === rtId) return true;
             }
@@ -928,6 +962,20 @@ const Booking = () => {
           }
         );
         
+        // Fallback: try matching by linked_rolos_id directly against orchestrator room IDs
+        if (!roomType && embedLinkedRolosId) {
+          const linkedHfRoom = (hfRoomsRef.current as any[])?.find((hr: any) => hr.linked_rolos_id === embedLinkedRolosId);
+          if (linkedHfRoom) {
+            roomType = roomTypesArray.find((rt: any) => {
+              const rtId = String(rt.room_type_id || rt.roomTypeId);
+              return rtId === linkedHfRoom.id;
+            });
+            if (roomType) {
+              console.log('[Booking] Room matched via linked_rolos_id fallback:', embedLinkedRolosId, '→', linkedHfRoom.id);
+            }
+          }
+        }
+
         // Fallback: try matching by exact room name
         if (!roomType) {
           roomType = roomTypesArray.find((rt: any) => {
