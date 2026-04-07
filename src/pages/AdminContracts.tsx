@@ -991,6 +991,10 @@ export default function AdminContracts() {
                             </a>
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => handleOpenManageProps(contract)}>
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                          Manage Properties
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewHistory(contract.owner_email)}>
                           <History className="h-4 w-4 mr-2" />
                           View History
@@ -1504,6 +1508,86 @@ export default function AdminContracts() {
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Resend & Link Properties
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Properties Modal */}
+      <Dialog open={managePropsModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setManagePropsModalOpen(false);
+          setManagePropsContract(null);
+          setManagePropsAvailable([]);
+          setManagePropsSelections({});
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Manage Properties</DialogTitle>
+            <DialogDescription>
+              Add or remove properties linked to <strong>{managePropsContract?.owner_name || managePropsContract?.owner_email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {managePropsAvailable.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-muted-foreground">
+                  {Object.values(managePropsSelections).filter(Boolean).length} of {managePropsAvailable.length} properties selected
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {managePropsAvailable
+                    .sort((a, b) => {
+                      // Linked first, then alphabetical
+                      if (a.linked !== b.linked) return a.linked ? -1 : 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((prop) => (
+                    <label
+                      key={prop.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={managePropsSelections[prop.id] ?? false}
+                        onCheckedChange={(checked) => {
+                          setManagePropsSelections(prev => ({ ...prev, [prop.id]: !!checked }));
+                        }}
+                      />
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">{prop.name}</span>
+                        {prop.linked && (
+                          <Badge variant="secondary" className="text-xs flex-shrink-0">Currently linked</Badge>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManagePropsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveManagedProps}
+              disabled={savingManagedProps}
+            >
+              {savingManagedProps ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save Changes
                 </>
               )}
             </Button>
