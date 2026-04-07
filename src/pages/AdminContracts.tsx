@@ -791,6 +791,22 @@ export default function AdminContracts() {
                             </DropdownMenuItem>
                           </>
                         )}
+                        {(contract.status === "signed" || contract.status === "overridden") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                setRevokeContract(contract);
+                                setRevokeReason("");
+                                setRevokeModalOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Revoke Contract
+                            </DropdownMenuItem>
+                          </>
+                        )
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -1093,9 +1109,9 @@ export default function AdminContracts() {
                     {contract.created_at && format(new Date(contract.created_at), "MMM d, yyyy HH:mm")}
                   </span>
                 </div>
-                {contract.status === "overridden" && contract.override_reason && (
-                  <div className="text-sm bg-destructive/10 p-2 rounded">
-                    <p className="font-medium text-destructive">Override Reason:</p>
+                {(contract.status === "overridden" || contract.status === "revoked") && contract.override_reason && (
+                  <div className={`text-sm p-2 rounded ${contract.status === "revoked" ? "bg-destructive/10" : "bg-destructive/10"}`}>
+                    <p className="font-medium text-destructive">{contract.status === "revoked" ? "Revoke Reason:" : "Override Reason:"}</p>
                     <p>{contract.override_reason}</p>
                     <p className="text-xs text-muted-foreground mt-1">By: {contract.override_by}</p>
                   </div>
