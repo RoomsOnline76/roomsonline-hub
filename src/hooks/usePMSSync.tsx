@@ -52,7 +52,7 @@ export const getPMSIcon = (systemType: string): LucideIcon => {
 
 interface UsePMSSyncProps {
   propertyId: string;
-  formData: { name: string; [key: string]: any };
+  formData: any;
   roomTypes: any[];
   setRoomTypes: React.Dispatch<React.SetStateAction<any[]>>;
   selectedRoomType: string;
