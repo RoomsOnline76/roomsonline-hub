@@ -1098,10 +1098,10 @@ const Booking = () => {
 
           rates.forEach((rate: any) => {
             // Handle both snake_case (contract) and camelCase (legacy)
-            // Also handle nested adult_amounts object (HotelBeds) or flat structure (Benson)
-            const adultAmounts = rate.adult_amounts || {};
-            const adultAmount1 = adultAmounts.adult_amount_1 || rate.adult_amount_1 || rate.adultAmount1 || rate.adult_amount || rate.adultAmount || 0;
-            const adultAmount2 = adultAmounts.adult_amount_2 || rate.adult_amount_2 || rate.adultAmount2 || rate.adult_amount || rate.adultAmount || 0;
+            // Also handle nested adult_amounts object (HotelBeds/Benson cache) or flat structure
+            const adultAmounts = rate.adult_amounts || rate.adultAmounts || {};
+            const adultAmount1 = adultAmounts.adult_amount_1 || adultAmounts.adultAmount1 || rate.adult_amount_1 || rate.adultAmount1 || rate.adult_amount || rate.adultAmount || 0;
+            const adultAmount2 = adultAmounts.adult_amount_2 || adultAmounts.adultAmount2 || rate.adult_amount_2 || rate.adultAmount2 || rate.adult_amount || rate.adultAmount || 0;
             const teenAmount = rate.teen_amount || rate.teenAmount || 0;
             const childAmount = rate.child_amount || rate.childAmount || 0;
             const infantAmount = rate.infant_amount || rate.infantAmount || 0;

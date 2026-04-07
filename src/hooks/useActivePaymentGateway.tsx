@@ -53,19 +53,22 @@ function isValidGateway(v: string): v is PaymentGateway {
  * 4. Default: ["payfast"]
  */
 export function useActivePaymentGateways(propertyId?: string): ActiveGatewaysResult {
+  const isUuid = !!propertyId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
+
   // Per-property providers (array + legacy single)
   const { data: propertyData, isLoading: propLoading } = useQuery({
     queryKey: ["property-payment-providers-hook", propertyId],
     queryFn: async () => {
+      if (!propertyId || !isUuid) return null;
       const { data, error } = await supabase
         .from("properties")
         .select("payment_provider, payment_providers")
-        .eq("id", propertyId!)
+        .eq("id", propertyId)
         .single();
       if (error) return null;
       return data;
     },
-    enabled: !!propertyId,
+    enabled: !!propertyId && isUuid,
   });
 
   // Global fallback
