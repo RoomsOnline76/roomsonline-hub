@@ -305,6 +305,8 @@ export default function PropertyForm() {
   const [websiteSyncing, setWebsiteSyncing] = useState(false);
   const [websiteSyncModalOpen, setWebsiteSyncModalOpen] = useState(false);
   const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
+  const [sourceUrl2, setSourceUrl2] = useState("");
+  const [sourceUrl3, setSourceUrl3] = useState("");
   const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
 
   // Accommodation label + self catering
