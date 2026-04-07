@@ -105,8 +105,8 @@ export default function DevPMS() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        // Get latest cache fetch per external_system from properties join
-        supabase.rpc('get_latest_cache_activity'),
+        // Get latest cache fetch per external_system
+        supabase.rpc('get_latest_cache_activity' as any),
       ]);
       
       if (credentialsResult.error) throw credentialsResult.error;
