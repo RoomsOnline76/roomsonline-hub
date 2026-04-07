@@ -1,70 +1,72 @@
 
 
-# Phase 3: Standardize Data Model Naming + PMS Zod Schemas
+# Phase 4: Route `useAuth` Database Calls Through Edge Function
 
-## Scope Assessment
+## Current State
 
-**Important clarification**: `src/integrations/supabase/types.ts` is auto-generated and already uses snake_case (matching the database). It must NOT be edited manually. The real inconsistency is at **API boundaries** — edge function request/response payloads mix camelCase and snake_case, and PMS adapter responses have no runtime validation.
+- **`SearchContext.tsx`** — contains **no database calls at all**. It is pure React state (useState/useCallback). No changes needed.
+- **`useAuth.tsx`** — contains **3 direct Supabase queries**:
+  1. `user_roles` table — fetch roles for current user
+  2. `profiles` table — fetch profile for current user
+  3. `sales_reps` table — fetch sales rep ID if user has that role
 
-Local JavaScript variables using camelCase (`propertyId`, `roomTypeId`) is standard JS convention and should NOT be changed — forcing snake_case on local vars would violate JS/TS style guides. The fix targets **API contracts** (what crosses the wire).
+There is no existing `data-access-api` edge function. One needs to be created.
 
-**8,316 matches** of `propertyId` across 199 files — bulk-renaming local vars is high-risk with no benefit. Instead, we enforce snake_case at the API boundary and validate with Zod.
+## Plan
 
-## Sub-phase breakdown
+### Step 1: Create `supabase/functions/data-access-api/index.ts`
 
-### Sub-phase 3A: Create PMS Zod schemas (`src/lib/schemas/pms.ts`)
-**New file** with runtime validation schemas for all PMS response shapes:
+A new edge function that handles authenticated data-access requests. Initial action:
 
-- `AvailabilityResponseSchema` — the unified `room_types[]` contract returned by `booking-orchestrator-api`
-- `RoomTypeSchema`, `DailyAvailabilitySchema`, `RateTypeSchema`, `DailyRateSchema`
-- `ReservationSchema` — common booking/reservation shape
-- `FolioSchema`, `FolioTransactionSchema`, `PaymentSchema`, `InvoiceSchema`
-- `GuestProfileSchema`
-- `HousekeepingTaskSchema`
-- `AdapterResponseSchema` — the wrapper `{ success, data, error, source, fetched_at, action }`
+- **`get_user_context`** — accepts the user's JWT (via Authorization header), extracts `user_id` from claims, then queries `user_roles`, `profiles`, and conditionally `sales_reps` server-side. Returns a single JSON payload:
 
-Each schema uses snake_case field names (matching the adapter contract). Exported both as Zod schemas and inferred TypeScript types.
+```json
+{
+  "success": true,
+  "data": {
+    "profile": { "id": "...", "email": "...", "full_name": "...", "avatar_url": "...", "role": "..." },
+    "roles": ["admin", "dev"],
+    "sales_rep_id": "uuid-or-null"
+  }
+}
+```
 
-### Sub-phase 3B: Wire Zod validation into edge function responses
-Update the key orchestrator/adapter edge functions to validate outbound responses:
+This replaces three round-trips with one. JWT validation via `getClaims()` ensures only the authenticated user's own data is returned — no user_id is accepted from the client.
 
-1. **`booking-orchestrator-api`** — parse the unified ARI response through `AvailabilityResponseSchema` before returning
-2. **`benson-api`** — validate transformed response
-3. **`hostfully-api`** — validate transformed response
-4. **Shared helper**: Create `supabase/functions/_shared/validate.ts` with a `safeParseResponse()` utility that logs validation errors but still returns data (soft validation to avoid breaking production)
+### Step 2: Update `src/hooks/useAuth.tsx`
 
-### Sub-phase 3C: Standardize edge function request payloads
-Audit and fix edge functions that still accept camelCase request fields:
+Replace `checkRolesAndProfile()` (lines 29–74) — remove the three `supabase.from(...)` calls and replace with:
 
-- `hotelbeds-api`: `startDate`/`endDate` → accept both, normalize internally to `start_date`/`end_date`
-- `send-itinerary-email`: `propertyId`/`propertyName` → normalize with existing `normalizeStay()` pattern
-- `booking-orchestrator-api`: already uses snake_case in request — verify and add Zod input validation
+```typescript
+const { data, error } = await supabase.functions.invoke("data-access-api", {
+  body: { action: "get_user_context" },
+});
+```
 
-### Sub-phase 3D: Update `pmsUtils.ts` to use Zod types
-Replace the `any`-typed helper functions with Zod-inferred types:
-- `extractRoomTypes()` → typed with `z.infer<typeof RoomTypeSchema>[]`
-- `getDailyRateValues()` → typed return
-- `getDailyAvailabilityValues()` → typed return
-- Keep the dual-format fallback logic (camelCase → snake_case) but type the outputs
+Then unpack `data.data.roles`, `data.data.profile`, and `data.data.sales_rep_id` into the existing state setters. The rest of the hook (auth listener, signOut) stays unchanged.
 
-## Files changed per sub-phase
+### Step 3: Add config entry
 
-| Sub-phase | Files | Type |
-|---|---|---|
-| 3A | `src/lib/schemas/pms.ts` | New |
-| 3B | `booking-orchestrator-api/index.ts`, `supabase/functions/_shared/validate.ts` | New + Modified |
-| 3C | `hotelbeds-api/index.ts`, `send-itinerary-email/index.ts` | Modified |
-| 3D | `src/lib/pmsUtils.ts` | Modified |
+Add `[functions.data-access-api]` to `supabase/config.toml`. This function **requires** JWT — it will validate via `getClaims()` in code.
+
+## Files changed
+
+| File | Change |
+|---|---|
+| `supabase/functions/data-access-api/index.ts` | **New** — `get_user_context` action |
+| `src/hooks/useAuth.tsx` | Replace 3 direct DB calls with single edge function invoke |
+| `supabase/config.toml` | Add function entry |
 
 ## What does NOT change
-- `src/integrations/supabase/types.ts` — auto-generated, untouched
-- `src/types/pmsTypes.ts` — already snake_case, untouched
-- Local variable naming in components — stays camelCase per JS convention
+- `SearchContext.tsx` — no DB calls to remove
+- Auth listener / `onAuthStateChange` / `getSession` — stays client-side (Supabase Auth SDK)
+- `signOut()` — stays client-side
 - No database migrations
 - No user-facing behavior changes
 
-## Recommended implementation order
-Start with **3A** (schemas) since everything else depends on it, then **3D** (pmsUtils types), then **3B** (edge function validation), then **3C** (request normalization).
-
-Shall I proceed with Sub-phase 3A first?
+## Benefits
+- Removes all direct table queries from `useAuth` (3 → 0)
+- Reduces client-server round-trips from 3 sequential calls to 1
+- Role resolution logic moves server-side, reducing attack surface
+- Establishes `data-access-api` as the centralized data layer for future hook migrations
 
