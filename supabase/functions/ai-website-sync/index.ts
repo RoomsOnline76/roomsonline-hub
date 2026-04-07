@@ -97,7 +97,7 @@ serve(async (req) => {
   }
 
   try {
-    const { property_id, property_url, existing_data, tripadvisor_id } = await req.json();
+    const { property_id, property_url, existing_data, tripadvisor_id, additional_urls, google_place_id } = await req.json();
 
     if (!property_url) {
       return new Response(
