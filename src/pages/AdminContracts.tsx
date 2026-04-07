@@ -1534,6 +1534,7 @@ export default function AdminContracts() {
           setManagePropsContract(null);
           setManagePropsAvailable([]);
           setManagePropsSelections({});
+          setManagePropsSearch("");
         }
       }}>
         <DialogContent className="max-w-lg">
@@ -1550,11 +1551,21 @@ export default function AdminContracts() {
               </div>
             ) : (
               <>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search properties..."
+                    value={managePropsSearch}
+                    onChange={(e) => setManagePropsSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {Object.values(managePropsSelections).filter(Boolean).length} of {managePropsAvailable.length} properties selected
                 </div>
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {managePropsAvailable
+                    .filter(p => !managePropsSearch || p.name.toLowerCase().includes(managePropsSearch.toLowerCase()))
                     .sort((a, b) => {
                       // Linked first, then alphabetical
                       if (a.linked !== b.linked) return a.linked ? -1 : 1;
