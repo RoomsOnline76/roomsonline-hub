@@ -437,7 +437,7 @@ export default function DevPMS() {
                         <TableRow key={adapter.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
+                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
                               {adapter.property_name || 'Unnamed'}
                             </div>
                           </TableCell>
@@ -447,14 +447,17 @@ export default function DevPMS() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
+                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {config.isWidgetOnly 
                               ? getWidgetLastActivity()
-                              : (adapter.last_sync_at 
-                                  ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
-                                  : 'Never')
+                              : (() => {
+                                  const effectiveSync = adapter.last_sync_at || cacheLastSync;
+                                  return effectiveSync 
+                                    ? formatDistanceToNow(new Date(effectiveSync), { addSuffix: true })
+                                    : 'Never';
+                                })()
                             }
                           </TableCell>
                           <TableCell className="text-right">
