@@ -646,7 +646,7 @@ export default function AdminContracts() {
           />
         </div>
         <div className="flex gap-2">
-          {(["all", "signed", "sent", "viewed", "pending", "overridden"] as StatusFilter[]).map((status) => (
+          {(["all", "signed", "sent", "viewed", "pending", "overridden", "revoked"] as StatusFilter[]).map((status) => (
             <Button
               key={status}
               variant={statusFilter === status ? "default" : "outline"}
@@ -665,10 +665,10 @@ export default function AdminContracts() {
           <TableHeader>
             <TableRow>
               <TableHead>Owner</TableHead>
+              <TableHead>Properties</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Sent</TableHead>
-              <TableHead>Viewed</TableHead>
               <TableHead>Signed</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -696,14 +696,29 @@ export default function AdminContracts() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const props = propertiesByOwner[contract.owner_email];
+                      if (!props || props.length === 0) return <span className="text-muted-foreground">—</span>;
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {props.slice(0, 2).map((name) => (
+                            <Badge key={name} variant="outline" className="text-xs font-normal">
+                              {name}
+                            </Badge>
+                          ))}
+                          {props.length > 2 && (
+                            <Badge variant="secondary" className="text-xs">+{props.length - 2}</Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
                     <StatusBadge status={contract.status} />
                   </TableCell>
                   <TableCell>v{contract.version}</TableCell>
                   <TableCell>
                     {contract.sent_at ? format(new Date(contract.sent_at), "MMM d, yyyy") : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {contract.viewed_at ? format(new Date(contract.viewed_at), "MMM d, yyyy") : "—"}
                   </TableCell>
                   <TableCell>
                     {contract.signed_at ? (
