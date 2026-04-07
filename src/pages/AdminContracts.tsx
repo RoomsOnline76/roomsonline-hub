@@ -170,8 +170,9 @@ export default function AdminContracts() {
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
-  // Secondary owners: map secondary_email → Set of primary_emails that share a property
-  const [secondaryToPrimary, setSecondaryToPrimary] = useState<Record<string, string[]>>({});
+  // Secondary-only owners: emails that appear ONLY as secondary owners (not primary on any property)
+  // Maps secondary_email → primary_emails whose signed contract covers them
+  const [secondaryOnlyToPrimary, setSecondaryOnlyToPrimary] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     loadContracts();
@@ -238,12 +239,21 @@ export default function AdminContracts() {
               if (p.owner_email) propToPrimary[p.id] = p.owner_email;
             });
 
-            // Build secondary_email → [primary_emails] map
+            // Identify emails that are primary owners on at least one property
+            const primaryOwnerEmails = new Set(
+              (props || []).map(p => p.owner_email?.toLowerCase()).filter(Boolean) as string[]
+            );
+
+            // Build secondary_email → [primary_emails] map, but ONLY for emails
+            // that are NOT themselves a primary owner on any property
             const secMap: Record<string, Set<string>> = {};
             poRows.forEach(po => {
               if (!po.owner_email) return;
+              const secEmail = po.owner_email.toLowerCase();
+              // Skip if this email is also a primary owner on any property
+              if (primaryOwnerEmails.has(secEmail)) return;
               const primaryEmail = propToPrimary[po.property_id];
-              if (!primaryEmail || po.owner_email.toLowerCase() === primaryEmail.toLowerCase()) return;
+              if (!primaryEmail || secEmail === primaryEmail.toLowerCase()) return;
               if (!secMap[po.owner_email]) secMap[po.owner_email] = new Set();
               secMap[po.owner_email].add(primaryEmail);
             });
@@ -252,7 +262,7 @@ export default function AdminContracts() {
             Object.entries(secMap).forEach(([email, primaries]) => {
               secResult[email] = Array.from(primaries);
             });
-            setSecondaryToPrimary(secResult);
+            setSecondaryOnlyToPrimary(secResult);
 
             // Also add secondary owners' properties to propertiesByOwner for display
             poRows.forEach(po => {
@@ -298,7 +308,7 @@ export default function AdminContracts() {
     // Filter out secondary owners whose shared property already has a signed/overridden contract
     // from the primary owner — they inherit that status
     result = result.filter((c) => {
-      const primaryEmails = secondaryToPrimary[c.owner_email];
+      const primaryEmails = secondaryOnlyToPrimary[c.owner_email];
       if (!primaryEmails || primaryEmails.length === 0) return true; // not a secondary owner
       // Check if any primary owner has a signed/overridden contract
       const primaryHasContract = primaryEmails.some(pe => {
@@ -336,7 +346,7 @@ export default function AdminContracts() {
     }
 
     return result;
-  }, [contracts, statusFilter, searchQuery, propertiesByOwner, secondaryToPrimary]);
+  }, [contracts, statusFilter, searchQuery, propertiesByOwner, secondaryOnlyToPrimary]);
 
   const stats = useMemo(() => {
     const latestByOwner = new Map<string, OwnerContract>();
