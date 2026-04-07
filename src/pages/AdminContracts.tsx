@@ -341,6 +341,9 @@ export default function AdminContracts() {
           .from("properties")
           .insert({
             name: selectedProperty.name,
+            address: "",
+            city: "",
+            country: "",
             owner_email: sendEmail.toLowerCase().trim(),
             owner_name: sendName || null,
             is_active: true,
@@ -876,7 +879,7 @@ export default function AdminContracts() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {contract.status !== "signed" && contract.status !== "overridden" && (
-                          <DropdownMenuItem onClick={() => handleResendContract(contract)}>
+                          <DropdownMenuItem onClick={() => handleOpenResendModal(contract)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Resend Contract
                           </DropdownMenuItem>
