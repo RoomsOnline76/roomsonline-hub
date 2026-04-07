@@ -609,6 +609,7 @@ Extract: contact details, location, description, check-in/out times, star rating
       // Calculate confidence based on whether it's filling empty or overwriting
       const isEmpty = !currentValue || (typeof currentValue === "string" && currentValue.trim() === "");
       const isTripAdvisorField = key.startsWith("tripadvisor_");
+      const isGoogleField = key.startsWith("google_");
       const confidence = isEmpty ? 0.95 : 0.75;
 
       suggestions.push({
@@ -617,7 +618,7 @@ Extract: contact details, location, description, check-in/out times, star rating
         current: currentValue,
         suggested: value,
         confidence,
-        source: isTripAdvisorField ? "tripadvisor" : "website",
+        source: isTripAdvisorField ? "tripadvisor" : isGoogleField ? "google" : "website",
       });
     }
 
