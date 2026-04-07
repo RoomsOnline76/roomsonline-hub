@@ -7,8 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function ok(data: unknown) {
-  return new Response(JSON.stringify({ success: true, data }), {
+function ok(data: unknown, validate = false) {
+  const out = validate
+    ? safeParseResponse(AvailabilityResponseSchema, data, "booking-orchestrator")
+    : data;
+  return new Response(JSON.stringify({ success: true, data: out }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
