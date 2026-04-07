@@ -225,6 +225,85 @@ serve(async (req) => {
       }
     }
 
+    // Step 1c: Scrape additional URLs if provided
+    let additionalContent = "";
+    if (additional_urls && Array.isArray(additional_urls)) {
+      for (const extraUrl of additional_urls) {
+        if (!extraUrl || typeof extraUrl !== "string" || !extraUrl.startsWith("http")) continue;
+        console.log("Scraping additional URL:", extraUrl);
+        try {
+          const extraResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${firecrawlApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: extraUrl,
+              formats: ["markdown"],
+              onlyMainContent: true,
+            }),
+          });
+          const extraData = await extraResponse.json();
+          if (extraResponse.ok && extraData.success) {
+            const content = extraData.data?.markdown || extraData.markdown || "";
+            if (content.length > 50) {
+              additionalContent += `\n\n=== CONTENT FROM ${extraUrl} ===\n${content.substring(0, 8000)}`;
+              console.log("Additional URL content length:", content.length);
+            }
+          } else {
+            console.warn("Additional URL scrape failed:", extraUrl, extraData.error);
+          }
+        } catch (err) {
+          console.warn("Additional URL scrape error:", extraUrl, err);
+        }
+      }
+    }
+
+    // Step 1d: Fetch Google Places details if google_place_id is provided
+    let googlePlacesContent = "";
+    if (google_place_id && typeof google_place_id === "string" && google_place_id.trim()) {
+      const googleApiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+      if (googleApiKey) {
+        console.log("Fetching Google Places details for:", google_place_id);
+        try {
+          const fields = "displayName,formattedAddress,rating,userRatingCount,types,websiteUri,nationalPhoneNumber,editorialSummary,reviews";
+          const gpResponse = await fetch(
+            `https://places.googleapis.com/v1/places/${google_place_id.trim()}?fields=${fields}&languageCode=en`,
+            {
+              headers: {
+                "X-Goog-Api-Key": googleApiKey,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (gpResponse.ok) {
+            const gpData = await gpResponse.json();
+            const parts: string[] = [];
+            if (gpData.displayName?.text) parts.push(`Name: ${gpData.displayName.text}`);
+            if (gpData.formattedAddress) parts.push(`Address: ${gpData.formattedAddress}`);
+            if (gpData.rating) parts.push(`Google Rating: ${gpData.rating}/5`);
+            if (gpData.userRatingCount) parts.push(`Google Review Count: ${gpData.userRatingCount}`);
+            if (gpData.nationalPhoneNumber) parts.push(`Phone: ${gpData.nationalPhoneNumber}`);
+            if (gpData.editorialSummary?.text) parts.push(`Summary: ${gpData.editorialSummary.text}`);
+            if (gpData.types) parts.push(`Types: ${gpData.types.join(", ")}`);
+            if (gpData.reviews && Array.isArray(gpData.reviews)) {
+              const reviewTexts = gpData.reviews.slice(0, 5).map((r: any) => r.text?.text).filter(Boolean);
+              if (reviewTexts.length > 0) parts.push(`Top Reviews:\n${reviewTexts.join("\n---\n")}`);
+            }
+            googlePlacesContent = parts.join("\n");
+            console.log("Google Places content length:", googlePlacesContent.length);
+          } else {
+            console.warn("Google Places API error:", gpResponse.status);
+          }
+        } catch (gpErr) {
+          console.warn("Google Places fetch error:", gpErr);
+        }
+      } else {
+        console.warn("GOOGLE_PLACES_API_KEY not configured, skipping Google Places lookup");
+      }
+    }
+
     // Step 2: Use AI to extract structured data
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!lovableApiKey) {
