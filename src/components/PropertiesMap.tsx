@@ -465,12 +465,12 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
   const showNoKey = !apiKey && apiKeyReady && !mapError;
 
   return (
-    <div className="w-full h-full rounded-xl border border-border bg-muted relative overflow-hidden">
+    <div className="w-full h-full rounded-xl border border-border bg-muted relative overflow-hidden" style={{ minHeight: '280px' }}>
       {/* Always-mounted map container so ref is stable */}
       <div
         ref={mapRef}
         className="w-full h-full"
-        style={{ visibility: mapReady ? 'visible' : 'hidden' }}
+        style={{ visibility: mapReady ? 'visible' : 'hidden', minHeight: '280px' }}
       />
 
       {/* Loading overlay */}
@@ -507,25 +507,17 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
             <p className="text-xs sm:text-sm text-muted-foreground">Map unavailable</p>
           </div>
         </div>
-    );
-  }
+      )}
 
-  if (properties.length === 0) {
-    return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
-          <p className="text-xs sm:text-sm text-muted-foreground px-4">No properties with locations available</p>
+      {/* No properties overlay */}
+      {!showLoading && !showError && !showNoKey && properties.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-muted">
+          <div className="text-center space-y-2">
+            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+            <p className="text-xs sm:text-sm text-muted-foreground px-4">No properties with locations available</p>
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div 
-      ref={mapRef} 
-      className="map-container w-full rounded-xl border border-border shadow-lg"
-      style={{ height: '100%', minHeight: '280px' }}
-    />
+      )}
+    </div>
   );
 }
