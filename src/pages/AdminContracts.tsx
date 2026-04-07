@@ -183,16 +183,16 @@ export default function AdminContracts() {
       if (ownerEmails.length > 0) {
         const { data: props } = await supabase
           .from("properties")
-          .select("owner_email, name")
+          .select("owner_email, name, slug")
           .in("owner_email", ownerEmails)
           .is("permanently_deleted_at", null);
 
-        const grouped: Record<string, string[]> = {};
+        const grouped: Record<string, { name: string; slug: string }[]> = {};
         (props || []).forEach(p => {
           if (!grouped[p.owner_email!]) grouped[p.owner_email!] = [];
-          const name = p.name?.toLowerCase();
-          if (!grouped[p.owner_email!].some(n => n.toLowerCase() === name)) {
-            grouped[p.owner_email!].push(p.name);
+          const nameLower = p.name?.toLowerCase();
+          if (!grouped[p.owner_email!].some(n => n.name.toLowerCase() === nameLower)) {
+            grouped[p.owner_email!].push({ name: p.name, slug: p.slug || p.name });
           }
         });
         setPropertiesByOwner(grouped);
@@ -690,15 +690,39 @@ export default function AdminContracts() {
                     {(() => {
                       const props = propertiesByOwner[contract.owner_email];
                       if (!props || props.length === 0) return <span className="text-muted-foreground">—</span>;
+                      if (props.length === 1) {
+                        return (
+                          <a href={`/admin/properties/${props[0].slug}`} className="text-sm text-primary hover:underline">
+                            {props[0].name}
+                          </a>
+                        );
+                      }
+                      const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
-                        <div className="flex flex-wrap gap-1">
-                          {props.slice(0, 2).map((name) => (
-                            <Badge key={name} variant="outline" className="text-xs font-normal">
-                              {name}
-                            </Badge>
-                          ))}
-                          {props.length > 2 && (
-                            <Badge variant="secondary" className="text-xs">+{props.length - 2}</Badge>
+                        <div className="space-y-1">
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 text-sm text-primary hover:underline"
+                            onClick={() => {
+                              setExpandedOwners(prev => {
+                                const next = new Set(prev);
+                                if (next.has(contract.owner_email)) next.delete(contract.owner_email);
+                                else next.add(contract.owner_email);
+                                return next;
+                              });
+                            }}
+                          >
+                            {props[0].name}
+                            <Badge variant="secondary" className="text-xs ml-1">+{props.length - 1}</Badge>
+                          </button>
+                          {isExpanded && (
+                            <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-border">
+                              {props.slice(1).map((p) => (
+                                <a key={p.slug} href={`/admin/properties/${p.slug}`} className="text-xs text-primary hover:underline">
+                                  {p.name}
+                                </a>
+                              ))}
+                            </div>
                           )}
                         </div>
                       );
