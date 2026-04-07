@@ -54,6 +54,7 @@
     "@types/dompurify": "^3.2.0",
     "@types/google.maps": "^3.58.1",
     "@types/react-signature-canvas": "^1.0.7",
+    "@vercel/analytics": "^2.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
