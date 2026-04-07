@@ -1125,6 +1125,64 @@ export default function AdminContracts() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Revoke Contract Modal */}
+      <Dialog open={revokeModalOpen} onOpenChange={(open) => {
+        setRevokeModalOpen(open);
+        if (!open) {
+          setRevokeContract(null);
+          setRevokeReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revoke Contract</DialogTitle>
+            <DialogDescription>
+              Revoking this contract will allow a new one to be sent to <strong>{revokeContract?.owner_email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Alert className="border-destructive/50 bg-destructive/5">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-destructive">
+                This action cannot be undone. The contract will be marked as revoked and a new contract must be sent.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="revokeReason">Reason for revocation *</Label>
+              <textarea
+                id="revokeReason"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="e.g. Terms need to be renegotiated, owner requested changes..."
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRevokeContract}
+              disabled={revoking || !revokeReason.trim()}
+            >
+              {revoking ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Revoking...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Revoke Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
