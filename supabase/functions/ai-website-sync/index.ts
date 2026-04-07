@@ -467,12 +467,17 @@ Guidelines:
 - Images: only extract absolute HTTPS URLs ending in .jpg, .jpeg, .png, .webp
 - Activities: match against common hospitality activities
 - TripAdvisor fields: only extract from the TripAdvisor section if provided
+- Google fields: only extract from the Google Places section if provided
 
 DO NOT make up information. Return null for any field you cannot find.`;
 
     let userPrompt = `Extract property information from this website content:
 
 ${websiteContent.substring(0, 15000)}`;
+
+    if (additionalContent) {
+      userPrompt += `\n${additionalContent}`;
+    }
 
     if (tripadvisorContent) {
       userPrompt += `
