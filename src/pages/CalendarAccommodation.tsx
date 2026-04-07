@@ -34,7 +34,279 @@ import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialo
 import { BulkLeadDaysPostDialog } from "@/components/BulkLeadDaysPostDialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, subDays } from "date-fns";
-...
+
+interface Property {
+  id: string;
+  name: string;
+  amenities: any;
+  owner_email: string | null;
+  external_system: string | null;
+  external_id: string | null;
+  benson_property_code: string | null;
+  checkfront_property_code: string | null;
+  siteminder_property_code: string | null;
+  hotelbeds_hotel_code: string | null;
+  hostfully_property_uid: string | null;
+  is_rol_property?: boolean | null;
+  property_type?: string | null;
+}
+
+interface PMSRoomTypeData {
+  roomTypeId: string;
+  roomTypeName: string;
+  availabilityByDate: { [date: string]: number };
+  ratesByDate: {
+    [date: string]: {
+      rateTypeId: string;
+      rateTypeName: string;
+      priceType: string;
+      roomAmount: number;
+      adultAmounts?: { [key: string]: number };
+      teenAmount?: number;
+      childAmount?: number;
+      infantAmount?: number;
+    }[];
+  };
+  restrictionsByDate: {
+    [date: string]: {
+      minStay?: number;
+      maxStay?: number;
+      closedToArrival?: boolean;
+      closedToDeparture?: boolean;
+      stopSell?: boolean;
+      leadDaysAdvance?: number;
+      leadDaysPost?: number;
+    };
+  };
+}
+
+interface PMSData {
+  roomTypes: PMSRoomTypeData[];
+  lastSynced: Date | null;
+  systemType: string;
+}
+
+type PMSSyncStatus = "idle" | "loading" | "success" | "error" | "not_configured" | "no_property_code";
+
+const restrictionOptions = [
+  { id: "stop_sell", label: "Stop Sell", color: "bg-red-500" },
+  { id: "min_stay", label: "Min Stay", color: "bg-blue-500" },
+  { id: "max_stay", label: "Max Stay", color: "bg-pink-500" },
+  { id: "lead_days_advance", label: "Lead Days Advance", color: "bg-yellow-500" },
+  { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
+];
+
+const getSouthAfricanHolidays = (year: number): { [key: string]: string } => {
+  const holidays: { [key: string]: string } = {
+    [`${year}-01-01`]: "New Year's Day",
+    [`${year}-03-21`]: "Human Rights Day",
+    [`${year}-04-27`]: "Freedom Day",
+    [`${year}-05-01`]: "Workers' Day",
+    [`${year}-06-16`]: "Youth Day",
+    [`${year}-08-09`]: "National Women's Day",
+    [`${year}-09-24`]: "Heritage Day",
+    [`${year}-12-16`]: "Day of Reconciliation",
+    [`${year}-12-25`]: "Christmas Day",
+    [`${year}-12-26`]: "Day of Goodwill",
+  };
+
+  const easterDates: { [key: number]: { goodFriday: string; familyDay: string } } = {
+    2024: { goodFriday: "2024-03-29", familyDay: "2024-04-01" },
+    2025: { goodFriday: "2025-04-18", familyDay: "2025-04-21" },
+    2026: { goodFriday: "2026-04-03", familyDay: "2026-04-06" },
+    2027: { goodFriday: "2027-03-26", familyDay: "2027-03-29" },
+  };
+
+  if (easterDates[year]) {
+    holidays[easterDates[year].goodFriday] = "Good Friday";
+    holidays[easterDates[year].familyDay] = "Family Day";
+  }
+
+  return holidays;
+};
+
+const getHolidayName = (date: Date): string | null => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const dateStr = `${year}-${month}-${day}`;
+  const holidays = getSouthAfricanHolidays(year);
+  return holidays[dateStr] || null;
+};
+
+interface AvailabilityData {
+  available: number;
+  stopSell?: boolean;
+  minStay?: number;
+  maxStay?: number;
+  leadDaysAdvance?: number;
+  leadDaysPost?: number;
+}
+
+interface RoomData {
+  name: string;
+  rates: {
+    rateType: string;
+    mealType: string;
+    values: { [date: string]: number };
+  }[];
+  availability: { [date: string]: number | AvailabilityData };
+}
+
+const CalendarAccommodation = () => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
+  const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
+  const [viewMode, setViewMode] = useState<"week" | "month">("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [bulkRateOpen, setBulkRateOpen] = useState(false);
+  const [bulkAvailabilityOpen, setBulkAvailabilityOpen] = useState(false);
+  const [stopSellOpen, setStopSellOpen] = useState(false);
+  const [minStayOpen, setMinStayOpen] = useState(false);
+  const [maxStayOpen, setMaxStayOpen] = useState(false);
+  const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
+  const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
+  const [selectedDisplayOptions, setSelectedDisplayOptions] = useState<string[]>([
+    "rates",
+    "stop_sell",
+    "min_stay",
+    "max_stay",
+    "lead_days_advance",
+    "lead_days_post",
+  ]);
+  const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
+  const [selectedRateTypes, setSelectedRateTypes] = useState<string[]>([]);
+  const [checkedOccupancyRows, setCheckedOccupancyRows] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
+
+  const toggleOccupancyRow = (roomName: string, rateTypeId: string, occKey: string) => {
+    const key = `${roomName}-${rateTypeId}-${occKey}`;
+    setCheckedOccupancyRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const isOccupancyRowChecked = (roomName: string, rateTypeId: string, occKey: string) => {
+    return checkedOccupancyRows.has(`${roomName}-${rateTypeId}-${occKey}`);
+  };
+
+  const [pmsData, setPmsData] = useState<PMSData>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          return {
+            ...parsed,
+            lastSynced: parsed.lastSynced ? new Date(parsed.lastSynced) : null,
+          };
+        } catch (e) {
+          console.error("Failed to parse cached PMS data:", e);
+        }
+      }
+    }
+    return { roomTypes: [], lastSynced: null, systemType: "" };
+  });
+
+  const [pmsSyncStatus, setPmsSyncStatus] = useState<PMSSyncStatus>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) return "success";
+    }
+    return "idle";
+  });
+  const [pmsSyncError, setPmsSyncError] = useState<string>("");
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => {
+    const propertyId = searchParams.get("property");
+    if (propertyId) {
+      const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          return parsed.lastSynced ? new Date(parsed.lastSynced) : null;
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
+
+  const selectedPropertyData = properties.find((p) => p.id === selectedProperty);
+  const hasAccommodation = selectedPropertyData?.amenities?.offerings?.accommodation === true;
+  const hasEventWedding = selectedPropertyData?.amenities?.offerings?.event_wedding === true;
+  const hasConference = selectedPropertyData?.amenities?.offerings?.conference === true;
+
+  useEffect(() => {
+    checkUserRoleAndFetchProperties();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProperty) {
+      fetchRoomTypes(selectedProperty);
+      const newUrl = `${window.location.pathname}?property=${selectedProperty}`;
+      window.history.replaceState(null, "", newUrl);
+
+      const prop = properties.find((p) => p.id === selectedProperty);
+      if (prop?.external_system === "hostfully") {
+        fetchRoomCategories(selectedProperty);
+      } else {
+        setRoomCategoryMap(new Map());
+      }
+    }
+  }, [selectedProperty, properties]);
+
+  useEffect(() => {
+    if (roomTypes.length > 0) {
+      setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
+    }
+  }, [roomTypes]);
+
+  const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
+    if (!property?.external_system) return null;
+    switch (property.external_system) {
+      case "roomsonline":
+        return property.id;
+      case "benson":
+        return property.benson_property_code;
+      case "checkfront":
+        return property.checkfront_property_code;
+      case "siteminder":
+        return property.siteminder_property_code;
+      case "hotelbeds":
+        return property.hotelbeds_hotel_code;
+      case "hostfully":
+        return property.hostfully_property_uid || property.external_id;
+      case "nightsbridge":
+      case "semper":
+      case "mews":
+      case "opera":
+        return property.external_id;
+      default:
+        return property.external_id;
+    }
+  }, []);
+
+  const isPmsProperty = !!selectedPropertyData?.external_system;
+  const isNativeRolosProperty = selectedPropertyData?.external_system === "roomsonline" && !!selectedPropertyData?.is_rol_property;
+  const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
+  const hasPmsPropertyCode = !!pmsPropertyCode;
+
   const loadCachedAvailability = useCallback(async (
     propertyId: string,
     startDateStr: string,
@@ -49,33 +321,28 @@ import { format, subDays } from "date-fns";
         .gte("date", startDateStr)
         .lte("date", endDateStr)
         .order("date");
-      
+
       if (error || !cachedData || cachedData.length === 0) {
         return null;
       }
 
-      // Check if cache is fresh (within last 30 minutes)
       const latestFetch = cachedData.reduce((latest, row) => {
         const fetchedAt = new Date(row.fetched_at || row.created_at);
         return fetchedAt > latest ? fetchedAt : latest;
       }, new Date(0));
-      
+
       const cacheAgeMinutes = (Date.now() - latestFetch.getTime()) / (1000 * 60);
       if (cacheAgeMinutes > 30 && !options?.allowStale) {
         console.log(`Cache is ${Math.round(cacheAgeMinutes)} minutes old, fetching fresh data`);
         return null;
       }
 
-      // Benson cache is end-exclusive, so accept coverage up to the day before requested end.
       const earliestCachedDate = cachedData[0]?.date;
       const latestCachedDate = cachedData[cachedData.length - 1]?.date;
       const requiredEndDate = format(subDays(new Date(endDateStr), 1), "yyyy-MM-dd");
 
       if (!earliestCachedDate || earliestCachedDate > startDateStr) {
-        console.log("Cache starts too late, fetching fresh data", {
-          earliestCachedDate,
-          startDateStr,
-        });
+        console.log("Cache starts too late, fetching fresh data", { earliestCachedDate, startDateStr });
         return null;
       }
 
@@ -88,12 +355,11 @@ import { format, subDays } from "date-fns";
         return null;
       }
 
-      // Group cached data by room type
       const roomTypeMap = new Map<string, PMSRoomTypeData>();
-      
+
       for (const row of cachedData) {
         const roomTypeId = row.external_room_type_id;
-        
+
         if (!roomTypeMap.has(roomTypeId)) {
           const rawData = row.raw_data as Record<string, any> | null;
           roomTypeMap.set(roomTypeId, {
@@ -104,25 +370,21 @@ import { format, subDays } from "date-fns";
             restrictionsByDate: {},
           });
         }
-        
+
         const roomData = roomTypeMap.get(roomTypeId)!;
         const dateStr = row.date;
-        
-        // Map availability
         roomData.availabilityByDate[dateStr] = row.available_units ?? 0;
-        
-        // Map rates if present - handle both array and single object formats
+
         if (row.rates) {
           if (!roomData.ratesByDate[dateStr]) {
             roomData.ratesByDate[dateStr] = [];
           }
-          
-          // Handle array format (new) or single object format (legacy)
+
           const rawRates = row.rates as any;
           const ratesArray = Array.isArray(rawRates) ? rawRates : [rawRates];
-          
+
           for (const rates of ratesArray) {
-            if (rates && typeof rates === 'object') {
+            if (rates && typeof rates === "object") {
               roomData.ratesByDate[dateStr].push({
                 rateTypeId: rates.rate_type_id?.toString() || "per-unit",
                 rateTypeName: rates.rate_type_name || "Per Unit Rate",
@@ -136,12 +398,11 @@ import { format, subDays } from "date-fns";
             }
           }
         }
-        
-        // Map restrictions if present - extract from restrictions JSON
+
         if (row.restrictions) {
           const restrictionsData = row.restrictions as any;
           const r = Array.isArray(restrictionsData) ? restrictionsData[0] : restrictionsData;
-          if (r && typeof r === 'object') {
+          if (r && typeof r === "object") {
             roomData.restrictionsByDate[dateStr] = {
               stopSell: r.stop_sell ?? r.stopSell ?? false,
               minStay: r.min_stay ?? r.minStay ?? null,
