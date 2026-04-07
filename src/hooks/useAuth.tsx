@@ -26,51 +26,39 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    const checkRolesAndProfile = async (userId: string) => {
-      // Fetch roles
-      const { data: rolesData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
+    const checkRolesAndProfile = async (_userId: string) => {
+      try {
+        const { data: response, error } = await supabase.functions.invoke(
+          "data-access-api",
+          { body: { action: "get_user_context" } }
+        );
 
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (mounted) {
-        const roles = rolesData?.map(r => r.role) || [];
-        const hasDev = roles.includes("dev");
-        const hasFearlessLeader = roles.includes("fearless_leader");
-        const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
-        const hasSalesRep = roles.includes("sales_rep");
-        
-        setIsAdmin(hasAdmin);
-        setIsDev(hasDev);
-        setIsFearlessLeader(hasFearlessLeader);
-        setIsSalesRep(hasSalesRep);
-        setProfile(profileData || null);
-        
-        // Compute the single userRole for role-aware navigation
-        setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin, hasSalesRep));
-
-        // If sales rep, look up their rep record
-        if (hasSalesRep) {
-          const { data: repData } = await supabase
-            .from("sales_reps")
-            .select("id")
-            .eq("user_id", userId)
-            .maybeSingle();
-          if (mounted) {
-            setSalesRepId(repData?.id || null);
-          }
-        } else {
-          setSalesRepId(null);
+        if (error || !response?.success) {
+          console.error("Failed to fetch user context:", error ?? response?.error);
+          if (mounted) setLoading(false);
+          return;
         }
-        
-        setLoading(false);
+
+        if (mounted) {
+          const { profile: profileData, roles, sales_rep_id } = response.data;
+
+          const hasDev = roles.includes("dev");
+          const hasFearlessLeader = roles.includes("fearless_leader");
+          const hasAdmin = roles.includes("admin") || hasDev || hasFearlessLeader;
+          const hasSalesRep = roles.includes("sales_rep");
+
+          setIsAdmin(hasAdmin);
+          setIsDev(hasDev);
+          setIsFearlessLeader(hasFearlessLeader);
+          setIsSalesRep(hasSalesRep);
+          setProfile(profileData || null);
+          setUserRole(computeUserRole(hasDev, hasFearlessLeader, hasAdmin, hasSalesRep));
+          setSalesRepId(sales_rep_id || null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("User context fetch error:", err);
+        if (mounted) setLoading(false);
       }
     };
 
