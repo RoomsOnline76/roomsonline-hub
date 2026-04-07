@@ -1,46 +1,75 @@
 
 
-# Auto-Fill: Multiple Source URLs + Google/TripAdvisor Import
+# Fix: Pensioners Special Not Showing + Age Verification
 
-## What changes
+## Root cause analysis
 
-### 1. Add two additional URL fields in PropertyForm General tab
+Two issues found:
 
-Below the existing "Property Website" field, add two more URL inputs labeled "Additional Source URL 1" and "Additional Source URL 2". These are stored in `formData` state as `source_url_2` and `source_url_3` (not persisted to DB — ephemeral scraping sources only used during auto-fill).
+1. **Special not appearing in cart**: The `applicable_room_ids` on the special contains legacy amenity IDs (`['1775154602014', ...]` as text). The room matching bridge relies on `hfRoomsRef` being populated correctly, but when the orchestrator pre-populates it (line 818-820), the bridge may not contain the exact booked UUID, causing the name-based fallback path to silently fail. Adding a more direct name-based match that doesn't depend on the bridge will fix this.
 
-### 2. Update Auto-Fill button logic to pass all sources
+2. **Cannot upload ID**: The special has `age_restricted = false` in the database, but the terms clearly state "All persons must be 55 years of age or older." With the flag off, no `AgeVerificationUpload` component is rendered. Need to set `age_restricted = true` and `min_age = 55` via a migration.
 
-When the Auto-Fill button is clicked, collect:
-- `property_url` (primary website)
-- `source_url_2`, `source_url_3` (additional URLs if populated)
-- `googlePlaceId` (if captured in the General tab)
-- `tripadvisorId` (already passed)
+## Changes
 
-Pass all of these to `syncFromWebsite()`.
+### 1. Database migration — set age restriction on the special
 
-### 3. Update `src/lib/api/websiteSync.ts`
+```sql
+UPDATE property_specials
+SET age_restricted = true, min_age = 55
+WHERE id = '26400dbf-e245-4896-be67-3197bad5f2e7';
+```
 
-Add `additional_urls` (string array) and `google_place_id` to the edge function invocation body.
+### 2. Fix room matching in `src/pages/Booking.tsx` (lines ~1264-1303)
 
-### 4. Update `supabase/functions/ai-website-sync/index.ts`
+Add a **direct name-based fallback** before the existing bridge logic. If the booked room's `roomTypeName` matches an amenity room name, and that amenity's ID is in `applicable_room_ids`, consider it a match — bypassing the UUID→legacy bridge entirely:
 
-- Accept `additional_urls: string[]` and `google_place_id: string` from the request body
-- Scrape each additional URL via Firecrawl (same as primary, appended to content)
-- If `google_place_id` is provided, fetch place details from Google Places API (New) using `GOOGLE_PLACES_API_KEY` env var — extract description, address, rating, phone, website
-- Append Google Places data to the AI extraction prompt alongside TripAdvisor content
-- Add `google_` prefixed extraction fields (rating, review count, address) to the tool schema
+```
+// After building uuidToLegacyIds bridge (line 1278), before hasMatchingRoom:
+// Add direct room-name matching: match roomTypeName against amenitiesRooms
+const hasMatchingRoom = bookedRoomIds.some(uuid => {
+  // Direct UUID match
+  if (special.applicable_room_ids.includes(uuid)) return true;
+  if (special.applicable_room_ids.includes(String(uuid))) return true;
+  
+  // Bridge: UUID → legacy amenity ID
+  const legacyIds = uuidToLegacyIds[uuid];
+  if (legacyIds) {
+    for (const lid of legacyIds) {
+      if (special.applicable_room_ids.includes(lid)) return true;
+    }
+  }
+  
+  // NEW: Direct name match — find the room name for this UUID
+  const bookedRoom = rooms.find(r => r.roomTypeId === uuid);
+  const bookedName = bookedRoom?.roomTypeName || embedRoomTypeName;
+  if (bookedName) {
+    const amenityByName = amenitiesRooms.find((r: any) =>
+      r.name?.trim().toLowerCase() === bookedName.trim().toLowerCase()
+    );
+    if (amenityByName && (
+      special.applicable_room_ids.includes(String(amenityByName.id)) ||
+      special.applicable_room_ids.includes(Number(amenityByName.id))
+    )) return true;
+  }
+  
+  return false;
+});
+```
+
+This replaces the existing `embedRoomTypeName`-only fallback with one that also checks the room's own `roomTypeName` property.
+
+### 3. Add debug logging for specials
+
+Add `console.log` statements around the specials evaluation to trace matching in production:
+- Log fetched specials count
+- Log room matching result per special
+- Log final applied/pending specials
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `src/pages/PropertyForm.tsx` | Add `sourceUrl2`/`sourceUrl3` state + input fields below property URL; update Auto-Fill onClick to pass additional URLs and `googlePlaceId` |
-| `src/lib/api/websiteSync.ts` | Add `additional_urls` and `google_place_id` params to `syncFromWebsite()` and edge function body |
-| `supabase/functions/ai-website-sync/index.ts` | Accept + scrape additional URLs; fetch Google Places details if ID provided; merge all content into AI prompt |
-
-## What does NOT change
-- No database migrations (additional URLs are ephemeral, not stored)
-- TripAdvisor scraping logic unchanged (already works)
-- WebsiteSyncModal unchanged
-- No routing changes
+| `src/pages/Booking.tsx` | Improve room matching fallback, add debug logging |
+| Migration | Set `age_restricted = true, min_age = 55` on the pensioners special |
 
