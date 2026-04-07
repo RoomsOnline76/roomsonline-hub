@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RoomTypeDataViewer, ExpandableDataViewer, RateTypeItem } from "@/components/ExpandableDataViewer";
+import { RoomTypeDataViewer } from "@/components/ExpandableDataViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,6 +109,7 @@ import { PoliciesTab } from "@/components/property/PoliciesTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
 import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
+import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
