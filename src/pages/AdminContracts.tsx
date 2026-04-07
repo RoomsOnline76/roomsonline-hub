@@ -992,21 +992,32 @@ export default function AdminContracts() {
                       const isExpanded = expandedOwners.has(contract.owner_email);
                       return (
                         <div className="space-y-1">
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 text-sm text-primary hover:underline"
-                            onClick={() => {
-                              setExpandedOwners(prev => {
-                                const next = new Set(prev);
-                                if (next.has(contract.owner_email)) next.delete(contract.owner_email);
-                                else next.add(contract.owner_email);
-                                return next;
-                              });
-                            }}
-                          >
-                            {props[0].name}
-                            <Badge variant="secondary" className="text-xs ml-1">+{props.length - 1}</Badge>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <a
+                              href={`/admin/properties/${props[0].slug}`}
+                              className="text-sm text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {props[0].name}
+                            </a>
+                            <button
+                              type="button"
+                              className="flex items-center"
+                              onClick={() => {
+                                setExpandedOwners(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(contract.owner_email)) next.delete(contract.owner_email);
+                                  else next.add(contract.owner_email);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <Badge variant="secondary" className="text-xs ml-1 cursor-pointer hover:bg-muted">
+                                {isExpanded ? <ChevronDown className="h-3 w-3 mr-0.5" /> : <ChevronRight className="h-3 w-3 mr-0.5" />}
+                                +{props.length - 1}
+                              </Badge>
+                            </button>
+                          </div>
                           {isExpanded && (
                             <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-border">
                               {props.slice(1).map((p) => (
