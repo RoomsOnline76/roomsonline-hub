@@ -300,58 +300,6 @@ export default function PropertyForm() {
     setIsDirty(true);
   };
 
-  // PMS sync hook — all PMS state, sync functions, and adapter logic
-  const pmsSync = usePMSSync({
-    propertyId,
-    formData,
-    roomTypes,
-    setRoomTypes,
-    selectedRoomType,
-    setSelectedRoomType,
-    pmsRateTypes,
-    setPmsRateTypes,
-    setIsDirty,
-    setLatitude,
-    setLongitude,
-    setFormData,
-    roomsonlineActive,
-  });
-
-  // Destructure for convenience in JSX
-  const {
-    selectedPMS, setSelectedPMS,
-    availablePMSSystems,
-    bensonPropertyCode, setBensonPropertyCode,
-    bensonEnvironment, setBensonEnvironment,
-    cloudbedsPropertyId, setCloudbedsPropertyId,
-    littlehotelierChannelCode, setLittlehotelierChannelCode,
-    littlehotelierRegion, setLittlehotelierRegion,
-    hotelbedsHotelCode, setHotelbedsHotelCode,
-    hostfullyPropertyUid, setHostfullyPropertyUid,
-    isSyncingPms, lastPmsSync,
-    isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
-    existingExternalIds, setExistingExternalIds,
-    tripadvisorId, setTripadvisorId,
-    googlePlaceId, setGooglePlaceId,
-    existingBensonPropertyCode, setExistingBensonPropertyCode,
-    existingCloudbedsPropertyId, setExistingCloudbedsPropertyId,
-    existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode,
-    existingLittlehotelierRegion, setExistingLittlehotelierRegion,
-    existingHotelbedsHotelCode, setExistingHotelbedsHotelCode,
-    existingHostfullyPropertyUid, setExistingHostfullyPropertyUid,
-    ownerPmsCredentialId, setOwnerPmsCredentialId,
-    hostfullyRoomCount, setHostfullyRoomCount,
-    importingHostfullyRooms,
-    showHostfullyWarning, setShowHostfullyWarning,
-    previousPMS, setPreviousPMS,
-    syncingRoomId,
-    fullSyncingHostfully,
-    syncProgress,
-    handleImportHostfullyRooms,
-    syncRoomFromHostfully,
-    handleFullHostfullySync,
-    syncFromBenson,
-  } = pmsSync;
 
   // Website sync state
   const [websiteSyncing, setWebsiteSyncing] = useState(false);
