@@ -406,6 +406,38 @@ export default function AdminContracts() {
     setSignaturePreviewOpen(true);
   };
 
+  const handleViewContract = async (contract: OwnerContract) => {
+    setContractPreviewTitle(`Contract — ${contract.owner_name || contract.owner_email}`);
+    
+    if (contract.pdf_url || contract.unsigned_pdf_url) {
+      setContractPreviewUrl(contract.pdf_url || contract.unsigned_pdf_url);
+      setContractPreviewMarkdown(null);
+      setContractPreviewOpen(true);
+      return;
+    }
+
+    // Fall back to template markdown
+    setLoadingContractPreview(true);
+    setContractPreviewUrl(null);
+    setContractPreviewMarkdown(null);
+    setContractPreviewOpen(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("contract_template_versions")
+        .select("content_markdown")
+        .eq("id", contract.template_version_id ?? "")
+        .maybeSingle();
+
+      if (error) throw error;
+      setContractPreviewMarkdown(data?.content_markdown || "*No contract content available.*");
+    } catch {
+      setContractPreviewMarkdown("*Failed to load contract content.*");
+    } finally {
+      setLoadingContractPreview(false);
+    }
+  };
+
   const validateOwnerEmail = async (email: string) => {
     if (!email || !email.includes("@")) {
       setLinkedProperties([]);
