@@ -591,6 +591,9 @@ Extract: contact details, location, description, check-in/out times, star rating
       tripadvisor_rating: { stateVariable: "tripadvisor_rating", label: "TripAdvisor Rating" },
       tripadvisor_review_count: { stateVariable: "tripadvisor_review_count", label: "TripAdvisor Review Count" },
       tripadvisor_ranking: { stateVariable: "tripadvisor_ranking", label: "TripAdvisor Ranking" },
+      // Google Places fields
+      google_rating: { stateVariable: "google_rating", label: "Google Rating" },
+      google_review_count: { stateVariable: "google_review_count", label: "Google Review Count" },
     };
 
     for (const [key, value] of Object.entries(extractedData)) {
