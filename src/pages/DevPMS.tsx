@@ -372,10 +372,14 @@ export default function DevPMS() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {systemsWithConnections.map(({ config, connections, trackerStatus }) => {
+          {systemsWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
             const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
             const statusInfo = getIntegrationStatusInfo(integrationStatus);
-            const latestSync = getLatestSync(connections);
+            const latestCredentialSync = getLatestSync(connections);
+            // Use the most recent timestamp between credential sync and cache activity
+            const latestSync = [latestCredentialSync, cacheLastSync]
+              .filter((s): s is string => s !== null)
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
             const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
             
             return (
@@ -411,7 +415,7 @@ export default function DevPMS() {
                     )}
                     {latestSync && (
                       <span className="ml-2 text-muted-foreground">
-                        • Last sync: {format(new Date(latestSync), 'MMM d, HH:mm')}
+                        • Last ARI: {formatDistanceToNow(new Date(latestSync), { addSuffix: true })} ({format(new Date(latestSync), 'MMM d, HH:mm')})
                       </span>
                     )}
                   </CardDescription>
