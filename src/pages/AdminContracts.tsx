@@ -1153,7 +1153,12 @@ export default function AdminContracts() {
           <DialogHeader>
             <DialogTitle>{contractPreviewTitle}</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            {loadingContractPreview && (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
             {contractPreviewUrl && (
               <iframe
                 src={contractPreviewUrl}
@@ -1161,14 +1166,21 @@ export default function AdminContracts() {
                 className="w-full h-full rounded-lg border border-border"
               />
             )}
+            {!contractPreviewUrl && contractPreviewMarkdown && !loadingContractPreview && (
+              <div className="prose prose-sm max-w-none p-6 bg-background rounded-lg border border-border whitespace-pre-wrap">
+                {contractPreviewMarkdown}
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" asChild>
-              <a href={contractPreviewUrl || "#"} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in New Tab
-              </a>
-            </Button>
+            {contractPreviewUrl && (
+              <Button variant="outline" asChild>
+                <a href={contractPreviewUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </a>
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
