@@ -131,10 +131,6 @@ export function RoomManagerTab({
     setIsDirty(true);
   };
 
-  const updateRoomTypeUrl = (id: string, url: string) => {
-    setRoomTypes(prev => prev.map((r) => (r.id === id ? { ...r, url } : r)));
-    setIsDirty(true);
-  };
 
   const updateRoomTypeField = (id: string, field: string, value: any) => {
     setRoomTypes(prev => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
