@@ -488,9 +488,23 @@ ${tripadvisorContent.substring(0, 8000)}
 Also extract TripAdvisor-specific data: rating, review count, ranking, and review highlights/themes.`;
     }
 
+    if (googlePlacesContent) {
+      userPrompt += `
+
+=== GOOGLE PLACES DATA ===
+${googlePlacesContent}
+
+Extract Google rating and review count from the above.`;
+    }
+
+    const extraSources = [
+      tripadvisorContent ? 'TripAdvisor rating, review count, ranking, and review highlights' : '',
+      googlePlacesContent ? 'Google rating and review count' : '',
+    ].filter(Boolean).join('. Also extract ');
+
     userPrompt += `
 
-Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${tripadvisorContent ? ' Also extract TripAdvisor rating, review count, ranking, and review highlights.' : ''}`;
+Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${extraSources ? ` Also extract ${extraSources}.` : ''}`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
