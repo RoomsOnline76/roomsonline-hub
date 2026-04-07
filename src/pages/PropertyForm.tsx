@@ -352,49 +352,6 @@ export default function PropertyForm() {
     handleFullHostfullySync,
     syncFromBenson,
   } = pmsSync;
-  >([]);
-  const [bensonPropertyCode, setBensonPropertyCode] = useState<string>("");
-  const [bensonEnvironment, setBensonEnvironment] = useState<"staging" | "production">("production");
-  const [cloudbedsPropertyId, setCloudbedsPropertyId] = useState<string>("");
-  const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
-  const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
-  const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
-  const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
-  const [isSyncingPms, setIsSyncingPms] = useState(false);
-  const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
-  const [isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen] = useState(false);
-
-  // Store existing external IDs to preserve when PMS changes
-  const [existingExternalIds, setExistingExternalIds] = useState<{
-    nightsbridge_bb_id?: string | null;
-    semper_venue_id?: string | null;
-    semper_channel_id?: string | null;
-    semper_account_id?: string | null;
-    semper_agent_id?: string | null;
-    siteminder_id?: string | null;
-    checkfront_id?: string | null;
-    benson_id?: string | null;
-    tripadvisor_id?: string | null;
-    google_place_id?: string | null;
-  }>({});
-  const [tripadvisorId, setTripadvisorId] = useState<string>("");
-  const [googlePlaceId, setGooglePlaceId] = useState<string>("");
-  const [existingBensonPropertyCode, setExistingBensonPropertyCode] = useState<string | null>(null);
-  const [existingCloudbedsPropertyId, setExistingCloudbedsPropertyId] = useState<string | null>(null);
-  const [existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode] = useState<string | null>(null);
-  const [existingLittlehotelierRegion, setExistingLittlehotelierRegion] = useState<string | null>(null);
-  const [existingHotelbedsHotelCode, setExistingHotelbedsHotelCode] = useState<string | null>(null);
-  const [existingHostfullyPropertyUid, setExistingHostfullyPropertyUid] = useState<string | null>(null);
-  
-  // Hostfully import and warning states
-  const [ownerPmsCredentialId, setOwnerPmsCredentialId] = useState<string | null>(null);
-  const [hostfullyRoomCount, setHostfullyRoomCount] = useState(0);
-  const [importingHostfullyRooms, setImportingHostfullyRooms] = useState(false);
-  const [showHostfullyWarning, setShowHostfullyWarning] = useState(false);
-  const [previousPMS, setPreviousPMS] = useState<string>("");
-  const [syncingRoomId, setSyncingRoomId] = useState<string | null>(null);
-  const [fullSyncingHostfully, setFullSyncingHostfully] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<{ phase: string; current: number; total: number } | null>(null);
 
   // Website sync state
   const [websiteSyncing, setWebsiteSyncing] = useState(false);
