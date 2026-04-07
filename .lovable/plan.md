@@ -1,51 +1,41 @@
 
 
-# Add Property Column + Revoke Contract Feature
+# Exclude Revoked Contracts from Admin Contracts Page
+
+## Intent
+
+Revoked contracts exist to "clear the way" for re-issuing to a new owner. Once revoked, they should disappear from the main contracts list — they are historical artifacts, not actionable items.
 
 ## Changes to `src/pages/AdminContracts.tsx`
 
-### 1. Add "Property" column to the contracts table
+### 1. Filter out revoked contracts from the main list
 
-After loading contracts, fetch linked properties for all owner emails in a single query:
-```sql
-SELECT owner_email, array_agg(DISTINCT name) as property_names 
-FROM properties 
-WHERE owner_email IN (...) AND permanently_deleted_at IS NULL 
-GROUP BY owner_email
-```
+In the `filteredContracts` memo (~line 210), after building `latestByOwner`, filter out any contract with `status === 'revoked'` before applying status/search filters. This removes them from the table entirely.
 
-Store as a `Map<string, string[]>` and display in a new "Properties" column between "Owner" and "Status", showing property names as comma-separated text (or badges if multiple).
+### 2. Remove "Revoked" from filter buttons and stats
 
-### 2. Add "Revoke" action for signed/overridden contracts
+- Remove `"revoked"` from the `StatusFilter` type and the filter button array (line 648)
+- Remove the "Revoked" stats card (lines 626–633)
+- Remove `revoked` count from the `stats` memo
+- Keep `revoked` in `STATUS_CONFIG` so any historical references still render correctly if encountered
 
-Currently, the dropdown menu hides "Override" for signed/overridden contracts and has no way to revoke them. Add a **"Revoke Contract"** menu item for `signed` and `overridden` contracts that:
-- Opens a confirmation dialog asking for a reason
-- Inserts a new `owner_contracts` row with `status: 'revoked'` and the next version number, storing the revoke reason in `override_reason` and the admin user ID in `override_by`
-- This effectively "un-signs" the contract so a new one can be sent
+### 3. Keep the Revoke action
 
-### 3. Database migration
+The "Revoke Contract" menu item and confirmation dialog stay — revoking still works, the contract just won't appear in the list afterward. A toast already confirms the action.
 
-Add `'revoked'` as a valid contract status. Currently `status` is a plain `text` column with no CHECK constraint, so no migration is needed — just add UI support.
+### 4. Adjust total count
 
-Add `"revoked"` to:
-- `StatusFilter` type
-- `STATUS_CONFIG` map (icon: `XCircle`, variant: `destructive`, label: "Revoked")
-- Filter buttons
-- Stats cards (new "Revoked" card)
-
-### 4. Update search to include property names
-
-Extend the `filteredContracts` search to also match against property names.
+The `stats.total` count will naturally exclude revoked contracts since they're filtered out before counting.
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `src/pages/AdminContracts.tsx` | Add properties lookup, "Properties" column, "Revoke" action with confirmation dialog, revoked status support |
+| `src/pages/AdminContracts.tsx` | Filter revoked from list, remove revoked filter button and stats card |
 
 ## What does NOT change
-- No database migrations needed (`status` is text, not enum)
-- No edge function changes
-- `useOwnerContract.tsx` hook unchanged
-- Contract signing flow unchanged
+- Revoke action and dialog remain functional
+- No database changes
+- `useOwnerContract.tsx` unchanged
+- `ContractStatusBadge.tsx` unchanged (still supports rendering `revoked` if needed elsewhere)
 
