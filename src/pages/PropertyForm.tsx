@@ -1133,7 +1133,59 @@ export default function PropertyForm() {
     }[]
   >([]);
 
-  // Season CRUD functions
+  // PMS sync hook — all PMS state, sync functions, and adapter logic
+  const pmsSync = usePMSSync({
+    propertyId,
+    formData,
+    roomTypes,
+    setRoomTypes,
+    selectedRoomType,
+    setSelectedRoomType,
+    pmsRateTypes,
+    setPmsRateTypes,
+    setIsDirty,
+    setLatitude,
+    setLongitude,
+    setFormData,
+    roomsonlineActive,
+  });
+
+  const {
+    selectedPMS, setSelectedPMS,
+    availablePMSSystems,
+    bensonPropertyCode, setBensonPropertyCode,
+    bensonEnvironment, setBensonEnvironment,
+    cloudbedsPropertyId, setCloudbedsPropertyId,
+    littlehotelierChannelCode, setLittlehotelierChannelCode,
+    littlehotelierRegion, setLittlehotelierRegion,
+    hotelbedsHotelCode, setHotelbedsHotelCode,
+    hostfullyPropertyUid, setHostfullyPropertyUid,
+    isSyncingPms, lastPmsSync,
+    isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
+    existingExternalIds, setExistingExternalIds,
+    tripadvisorId, setTripadvisorId,
+    googlePlaceId, setGooglePlaceId,
+    existingBensonPropertyCode, setExistingBensonPropertyCode,
+    existingCloudbedsPropertyId, setExistingCloudbedsPropertyId,
+    existingLittlehotelierChannelCode, setExistingLittlehotelierChannelCode,
+    existingLittlehotelierRegion, setExistingLittlehotelierRegion,
+    existingHotelbedsHotelCode, setExistingHotelbedsHotelCode,
+    existingHostfullyPropertyUid, setExistingHostfullyPropertyUid,
+    ownerPmsCredentialId, setOwnerPmsCredentialId,
+    hostfullyRoomCount, setHostfullyRoomCount,
+    importingHostfullyRooms,
+    showHostfullyWarning, setShowHostfullyWarning,
+    previousPMS, setPreviousPMS,
+    syncingRoomId,
+    fullSyncingHostfully,
+    syncProgress,
+    handleImportHostfullyRooms,
+    syncRoomFromHostfully,
+    handleFullHostfullySync,
+    syncFromBenson,
+  } = pmsSync;
+
+
   const openAddSeasonDialog = () => {
     setEditingSeason(null);
     setSeasonForm({ name: "", from: "", to: "", minStay: 1, maxStay: 0 });
