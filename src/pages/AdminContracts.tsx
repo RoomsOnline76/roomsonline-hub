@@ -138,6 +138,15 @@ export default function AdminContracts() {
   const [linkedProperties, setLinkedProperties] = useState<LinkedProperty[]>([]);
   const [noPropertiesWarning, setNoPropertiesWarning] = useState(false);
 
+  // Revoke modal states
+  const [revokeModalOpen, setRevokeModalOpen] = useState(false);
+  const [revokeContract, setRevokeContract] = useState<OwnerContract | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revoking, setRevoking] = useState(false);
+
+  // Properties lookup for table column
+  const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, string[]>>({});
+
   useEffect(() => {
     loadContracts();
     loadContractTemplates();
