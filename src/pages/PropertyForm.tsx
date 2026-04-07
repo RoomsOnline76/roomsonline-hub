@@ -98,6 +98,7 @@ import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { ContractManagementPanel } from "@/components/contract";
 import { PropertyOnboardingWizard } from "@/components/onboarding";
+import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
