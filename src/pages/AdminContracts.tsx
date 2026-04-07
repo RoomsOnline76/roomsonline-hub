@@ -52,6 +52,7 @@ import {
   Building2,
   Handshake,
   XCircle,
+  LinkIcon,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
