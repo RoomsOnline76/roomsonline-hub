@@ -1038,7 +1038,7 @@ export default function AdminContracts() {
                   </div>
                 )}
                 {/* Show "new property" option when search has no results */}
-                {!propertyDropdownOpen && !searchingProperties && propertySearch.length >= 2 && propertyResults.length === 0 && !selectedProperty && (
+                {!propertyDropdownOpen && !searchingProperties && propertySearch.length >= 1 && propertyResults.length === 0 && !selectedProperty && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-[100]">
                     <button
                       type="button"
