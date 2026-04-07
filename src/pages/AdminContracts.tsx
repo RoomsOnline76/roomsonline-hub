@@ -230,39 +230,21 @@ export default function AdminContracts() {
   const filteredContracts = useMemo(() => {
     let result = contracts;
 
-    // Get relevant contract per owner - prioritize signed/overridden contracts
+    // Get the latest contract version per owner, regardless of status.
+    // This ensures a revoked contract hides any older signed/sent versions.
     const latestByOwner = new Map<string, OwnerContract>();
     for (const contract of contracts) {
       const existing = latestByOwner.get(contract.owner_email);
-      
-      if (!existing) {
-        // No contract yet for this owner
+
+      if (
+        !existing ||
+        contract.version > existing.version ||
+        (contract.version === existing.version && new Date(contract.created_at) > new Date(existing.created_at))
+      ) {
         latestByOwner.set(contract.owner_email, contract);
-      } else if (contract.status === 'signed' || contract.status === 'overridden') {
-        // Prioritize signed/overridden contracts
-        if (existing.status !== 'signed' && existing.status !== 'overridden') {
-          // Current is signed/overridden, existing is not - use current
-          latestByOwner.set(contract.owner_email, contract);
-        } else if (contract.status === 'signed' && existing.status === 'signed') {
-          // Both signed - use most recently signed
-          if (contract.signed_at && existing.signed_at && new Date(contract.signed_at) > new Date(existing.signed_at)) {
-            latestByOwner.set(contract.owner_email, contract);
-          }
-        } else if (contract.status === 'overridden' && existing.status === 'overridden') {
-          // Both overridden - use most recent version
-          if (contract.version > existing.version) {
-            latestByOwner.set(contract.owner_email, contract);
-          }
-        }
-      } else if (existing.status !== 'signed' && existing.status !== 'overridden') {
-        // Neither is signed/overridden - use higher version
-        if (contract.version > existing.version) {
-          latestByOwner.set(contract.owner_email, contract);
-        }
       }
-      // If existing is signed/overridden and current is not, keep existing
     }
-    result = Array.from(latestByOwner.values()).filter(c => c.status !== 'revoked');
+    result = Array.from(latestByOwner.values()).filter((c) => c.status !== 'revoked');
 
     if (statusFilter !== "all") {
       result = result.filter((c) => c.status === statusFilter);
@@ -294,32 +276,19 @@ export default function AdminContracts() {
   }, [contracts, statusFilter, searchQuery, propertiesByOwner]);
 
   const stats = useMemo(() => {
-    // Use the same logic as filteredContracts for accurate stats
     const latestByOwner = new Map<string, OwnerContract>();
     for (const contract of contracts) {
       const existing = latestByOwner.get(contract.owner_email);
-      
-      if (!existing) {
+
+      if (
+        !existing ||
+        contract.version > existing.version ||
+        (contract.version === existing.version && new Date(contract.created_at) > new Date(existing.created_at))
+      ) {
         latestByOwner.set(contract.owner_email, contract);
-      } else if (contract.status === 'signed' || contract.status === 'overridden') {
-        if (existing.status !== 'signed' && existing.status !== 'overridden') {
-          latestByOwner.set(contract.owner_email, contract);
-        } else if (contract.status === 'signed' && existing.status === 'signed') {
-          if (contract.signed_at && existing.signed_at && new Date(contract.signed_at) > new Date(existing.signed_at)) {
-            latestByOwner.set(contract.owner_email, contract);
-          }
-        } else if (contract.status === 'overridden' && existing.status === 'overridden') {
-          if (contract.version > existing.version) {
-            latestByOwner.set(contract.owner_email, contract);
-          }
-        }
-      } else if (existing.status !== 'signed' && existing.status !== 'overridden') {
-        if (contract.version > existing.version) {
-          latestByOwner.set(contract.owner_email, contract);
-        }
       }
     }
-    const latest = Array.from(latestByOwner.values()).filter(c => c.status !== 'revoked');
+    const latest = Array.from(latestByOwner.values()).filter((c) => c.status !== 'revoked');
     
     return {
       total: latest.length,
