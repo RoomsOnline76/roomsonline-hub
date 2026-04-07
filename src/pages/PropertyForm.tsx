@@ -100,7 +100,6 @@ import { ContractManagementPanel } from "@/components/contract";
 import { PropertyOnboardingWizard } from "@/components/onboarding";
 import { PropertyFormIntegrationsTab } from "@/components/property/PropertyFormIntegrationsTab";
 import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
-import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
 import { RateManagerTab } from "@/components/property/RateManagerTab";
