@@ -438,19 +438,28 @@ const CalendarAccommodation = () => {
       return;
     }
 
-    // Calculate date range based on current view
-    const startDate = new Date(currentDate);
-    if (viewMode === "month") {
-      startDate.setDate(1);
-    } else {
-      const day = startDate.getDay();
-      const diff = day === 6 ? 0 : -(day + 1);
-      startDate.setDate(startDate.getDate() + diff);
-    }
+    const isBenson = selectedPropertyData.external_system === "benson";
 
-    // Fetch 13 months (395 days) ahead to match Fluent Living availability window
+    // Benson calendar sync should only fetch the visible window (+ small buffer)
+    // to avoid orchestrator timeouts on large 13-month requests.
+    const startDate = new Date(currentDate);
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 395);
+
+    if (isBenson) {
+      const visibleDays = viewMode === "month" ? 31 : 9;
+      const bufferDays = viewMode === "month" ? 7 : 3;
+      endDate.setDate(endDate.getDate() + visibleDays + bufferDays);
+    } else {
+      if (viewMode === "month") {
+        startDate.setDate(1);
+      } else {
+        const day = startDate.getDay();
+        const diff = day === 6 ? 0 : -(day + 1);
+        startDate.setDate(startDate.getDate() + diff);
+      }
+
+      endDate.setDate(endDate.getDate() + 395);
+    }
 
     const startDateStr = format(startDate, "yyyy-MM-dd");
     const endDateStr = format(endDate, "yyyy-MM-dd");
@@ -459,7 +468,7 @@ const CalendarAccommodation = () => {
     if (!forceRefresh) {
       setPmsSyncStatus("loading");
       const cachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr);
-      
+
       if (cachedData && cachedData.length > 0) {
         setPmsData({
           roomTypes: cachedData,
@@ -473,83 +482,61 @@ const CalendarAccommodation = () => {
       }
     }
 
+    // Keep Benson calendar usable while a live refresh runs.
+    if (forceRefresh && isBenson) {
+      const staleCachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr, { allowStale: true });
+      if (staleCachedData && staleCachedData.length > 0) {
+        setPmsData({
+          roomTypes: staleCachedData,
+          lastSynced: new Date(),
+          systemType: selectedPropertyData.external_system,
+        });
+      }
+    }
+
     setPmsSyncStatus("loading");
     setPmsSyncError("");
 
-    try {
-      // Unified orchestrator call for all PMS adapters (Benson, Hostfully, HotelBeds, HyperGuest)
-      const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
-        body: {
-          action: "fetch_availability",
-          property_id: selectedPropertyData.id,
-          start_date: startDateStr,
-          end_date: endDateStr,
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message || "Failed to fetch availability");
-      }
-
-      if (data?.error) {
-        // Handle both string errors (legacy) and object errors (adapter contract)
-        const errorMessage = typeof data.error === 'string' 
-          ? data.error 
-          : (data.error.message || data.error.code || JSON.stringify(data.error));
-        
-        if (errorMessage.includes("credentials") || 
-            errorMessage.includes("not configured") ||
-            errorMessage.includes("invalid") ||
-            errorMessage.includes("expired") ||
-            (typeof data.error === 'object' && data.error.code === 'AUTH_FAILED')) {
-          setPmsSyncStatus("not_configured");
-          setPmsSyncError(`${selectedPropertyData.external_system} API credentials not configured or expired. Please configure them in Admin > API Keys.`);
-        } else {
-          setPmsSyncStatus("error");
-          setPmsSyncError(errorMessage);
-        }
-        return;
-      }
-
-      // Transform PMS data into unified format
+    const applyCalendarData = (roomTypesPayload: any[]) => {
       const transformedData: PMSRoomTypeData[] = [];
-      
-      // Unwrap adapter contract response format (data is nested in data.data)
-      const responseData = data?.data || data;
-      const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
-      
-      // Debug logging for rate types
-      console.log('[Calendar] Raw PMS response:', {
-        hasData: !!data,
-        hasDataData: !!data?.data,
-        roomTypeCount: roomTypes.length,
-        firstRoomSample: roomTypes[0] ? {
-          id: roomTypes[0].room_type_id,
-          name: roomTypes[0].room_type_name,
-          rateTypesCount: roomTypes[0].rate_types?.length || 0,
-          firstRateType: roomTypes[0].rate_types?.[0],
-        } : null,
+
+      console.log("[Calendar] Raw PMS response:", {
+        hasData: true,
+        roomTypeCount: roomTypesPayload.length,
+        firstRoomSample: roomTypesPayload[0]
+          ? {
+              id: roomTypesPayload[0].room_type_id,
+              name: roomTypesPayload[0].room_type_name,
+              rateTypesCount: roomTypesPayload[0].rate_types?.length || 0,
+              firstRateType: roomTypesPayload[0].rate_types?.[0],
+            }
+          : null,
       });
-      
-      if (Array.isArray(roomTypes)) {
-        for (const roomType of roomTypes) {
+
+      if (Array.isArray(roomTypesPayload)) {
+        for (const roomType of roomTypesPayload) {
           const roomData: PMSRoomTypeData = {
-            // Handle both snake_case (contract) and camelCase (legacy) formats
             roomTypeId: (roomType.room_type_id ?? roomType.roomTypeId)?.toString() || "",
-            roomTypeName: roomType.room_type_name ?? roomType.roomTypeName ?? roomType.name ?? `Room ${roomType.room_type_id ?? roomType.roomTypeId}`,
+            roomTypeName:
+              roomType.room_type_name ??
+              roomType.roomTypeName ??
+              roomType.name ??
+              `Room ${roomType.room_type_id ?? roomType.roomTypeId}`,
             availabilityByDate: {},
             ratesByDate: {},
             restrictionsByDate: {},
           };
 
-          // Map availability per night - handle both formats (Benson legacy + adapter contract)
-          const availPerNight = roomType.rooms_available_per_night ?? roomType.roomsAvailablePerNight ?? roomType.availability_per_night ?? [];
+          const availPerNight =
+            roomType.rooms_available_per_night ??
+            roomType.roomsAvailablePerNight ??
+            roomType.availability_per_night ??
+            [];
+
           if (Array.isArray(availPerNight)) {
             for (const avail of availPerNight) {
               const dateStr = avail.date;
               roomData.availabilityByDate[dateStr] = avail.available_units ?? avail.numberOfRoomsAvailable ?? 0;
-              
-              // Map restrictions if present
               roomData.restrictionsByDate[dateStr] = {
                 stopSell: avail.stop_sell ?? avail.stopSell ?? false,
                 minStay: avail.min_stay ?? avail.minimumStay ?? avail.minStay,
@@ -562,7 +549,6 @@ const CalendarAccommodation = () => {
             }
           }
 
-          // Map rates - handle both formats
           const rateTypesArray = roomType.rate_types ?? roomType.rateTypes ?? [];
           if (Array.isArray(rateTypesArray)) {
             for (const rateType of rateTypesArray) {
@@ -573,12 +559,10 @@ const CalendarAccommodation = () => {
                   if (!roomData.ratesByDate[dateStr]) {
                     roomData.ratesByDate[dateStr] = [];
                   }
-                  
-                  // Build adult amounts from either format
+
                   const adultAmounts: { [key: string]: number } = {};
                   const rawAdultAmounts = rate.adult_amounts ?? {};
-                  
-                  // Handle snake_case (adult_amount_1, adult_amount_2, etc.)
+
                   for (let i = 1; i <= 10; i++) {
                     const snakeKey = `adult_amount_${i}`;
                     const camelKey = `adultAmount${i}`;
@@ -587,10 +571,13 @@ const CalendarAccommodation = () => {
                       adultAmounts[camelKey] = value;
                     }
                   }
-                  
+
                   roomData.ratesByDate[dateStr].push({
                     rateTypeId: (rateType.rate_type_id ?? rateType.rateTypeId)?.toString() || "",
-                    rateTypeName: rateType.rate_type_name ?? rateType.name ?? `Rate ${rateType.rate_type_id ?? rateType.rateTypeId}`,
+                    rateTypeName:
+                      rateType.rate_type_name ??
+                      rateType.name ??
+                      `Rate ${rateType.rate_type_id ?? rateType.rateTypeId}`,
                     priceType: rateType.price_type ?? rateType.priceType ?? "UnitRate",
                     roomAmount: rate.room_amount ?? rate.roomAmount ?? 0,
                     adultAmounts: Object.keys(adultAmounts).length > 0 ? adultAmounts : undefined,
@@ -606,16 +593,17 @@ const CalendarAccommodation = () => {
           transformedData.push(roomData);
         }
       }
-      
-      // Debug logging for transformed data
-      console.log('[Calendar] Transformed PMS data:', {
+
+      console.log("[Calendar] Transformed PMS data:", {
         roomCount: transformedData.length,
-        firstRoom: transformedData[0] ? {
-          id: transformedData[0].roomTypeId,
-          name: transformedData[0].roomTypeName,
-          ratesCount: Object.keys(transformedData[0].ratesByDate).length,
-          sampleRates: transformedData[0].ratesByDate[Object.keys(transformedData[0].ratesByDate)[0]],
-        } : null,
+        firstRoom: transformedData[0]
+          ? {
+              id: transformedData[0].roomTypeId,
+              name: transformedData[0].roomTypeName,
+              ratesCount: Object.keys(transformedData[0].ratesByDate).length,
+              sampleRates: transformedData[0].ratesByDate[Object.keys(transformedData[0].ratesByDate)[0]],
+            }
+          : null,
       });
 
       setPmsData({
@@ -625,6 +613,49 @@ const CalendarAccommodation = () => {
       });
       setPmsSyncStatus("success");
       setLastSyncTime(new Date());
+    };
+
+    try {
+      const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
+        body: {
+          action: "fetch_availability",
+          property_id: selectedPropertyData.id,
+          start_date: startDateStr,
+          end_date: endDateStr,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to fetch availability");
+      }
+
+      if (data?.error) {
+        const errorMessage =
+          typeof data.error === "string"
+            ? data.error
+            : data.error.message || data.error.code || JSON.stringify(data.error);
+
+        if (
+          errorMessage.includes("credentials") ||
+          errorMessage.includes("not configured") ||
+          errorMessage.includes("invalid") ||
+          errorMessage.includes("expired") ||
+          (typeof data.error === "object" && data.error.code === "AUTH_FAILED")
+        ) {
+          setPmsSyncStatus("not_configured");
+          setPmsSyncError(
+            `${selectedPropertyData.external_system} API credentials not configured or expired. Please configure them in Admin > API Keys.`
+          );
+        } else {
+          setPmsSyncStatus("error");
+          setPmsSyncError(errorMessage);
+        }
+        return;
+      }
+
+      const responseData = data?.data || data;
+      const roomTypesPayload = responseData?.room_types || responseData?.roomTypes || [];
+      applyCalendarData(roomTypesPayload);
 
       toast({
         title: "Availability Synced",
@@ -632,6 +663,38 @@ const CalendarAccommodation = () => {
       });
     } catch (err: any) {
       console.error(`Error fetching ${selectedPropertyData?.external_system} availability:`, err);
+
+      if (isBenson) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const recoveredCache = await loadCachedAvailability(
+            selectedPropertyData.id,
+            startDateStr,
+            endDateStr,
+            { allowStale: true }
+          );
+
+          if (recoveredCache && recoveredCache.length > 0) {
+            setPmsData({
+              roomTypes: recoveredCache,
+              lastSynced: new Date(),
+              systemType: selectedPropertyData.external_system,
+            });
+            setPmsSyncStatus("success");
+            setLastSyncTime(new Date());
+            setPmsSyncError("");
+            toast({
+              title: "Availability Synced",
+              description: "Loaded Benson calendar data from refreshed cache.",
+            });
+            return;
+          }
+
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+        }
+      }
+
       setPmsSyncStatus("error");
       setPmsSyncError(err.message || "Failed to fetch availability");
       toast({
