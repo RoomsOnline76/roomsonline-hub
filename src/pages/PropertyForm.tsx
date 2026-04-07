@@ -346,7 +346,7 @@ export default function PropertyForm() {
     const stateData = {
       owner_id: user.id,
       property_id: propertyId,
-      credential_id: ownerPmsCredentialId || ownerHostfullyCredential?.id,
+      credential_id: ownerHostfullyCredential?.id,
       environment,
       origin_url: window.location.origin, // Track origin for redirect back to correct domain
     };
@@ -439,7 +439,7 @@ export default function PropertyForm() {
     };
     
     loadOwnerHostfullyCredential();
-  }, [isOwnerUser, user?.id, isAdmin, isDev, pmsSync?.ownerPmsCredentialId]);
+  }, [isOwnerUser, user?.id, isAdmin, isDev]);
 
   const handleOwnerCredentialChange = async () => {
     // Reload the credential after changes
