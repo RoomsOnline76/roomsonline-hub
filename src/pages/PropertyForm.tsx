@@ -4470,11 +4470,14 @@ export default function PropertyForm() {
                                         closest_airport: formData.closest_airport,
                                         facilities: selectedFacilities,
                                       };
+                                      const additionalUrls = [sourceUrl2, sourceUrl3].filter(Boolean);
                                       const result = await syncFromWebsite(
                                         propertyId || "",
                                         formData.property_url || "",
                                         existingData,
-                                        tripadvisorId || undefined
+                                        tripadvisorId || undefined,
+                                        additionalUrls.length > 0 ? additionalUrls : undefined,
+                                        googlePlaceId || undefined
                                       );
                                       if (result.success && result.suggestions && result.suggestions.length > 0) {
                                         setWebsiteSyncSuggestions(result.suggestions);
