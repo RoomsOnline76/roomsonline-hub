@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface OwnerContract {
   id: string;
@@ -148,6 +149,13 @@ export default function AdminContracts() {
   const [revokeContract, setRevokeContract] = useState<OwnerContract | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
   const [revoking, setRevoking] = useState(false);
+
+  // Resend modal states
+  const [resendModalOpen, setResendModalOpen] = useState(false);
+  const [resendContract, setResendContract] = useState<OwnerContract | null>(null);
+  const [resendAvailableProperties, setResendAvailableProperties] = useState<{ id: string; name: string }[]>([]);
+  const [resendPropertySelections, setResendPropertySelections] = useState<Record<string, boolean>>({});
+  const [resending, setResending] = useState(false);
 
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
@@ -317,9 +325,37 @@ export default function AdminContracts() {
       toast.error("Email is required");
       return;
     }
+    if (!selectedProperty && !propertySearch.trim()) {
+      toast.error("Property name is required");
+      return;
+    }
 
     try {
       setSending(true);
+
+      let propertyId = selectedProperty?.id || undefined;
+
+      // If new property (no id), create it first
+      if (selectedProperty && !selectedProperty.id) {
+        const { data: newProp, error: createErr } = await supabase
+          .from("properties")
+          .insert([{
+            name: selectedProperty.name,
+            address: "",
+            city: "",
+            country: "",
+            property_type: "guesthouse",
+            price_per_night: 0,
+            owner_email: sendEmail.toLowerCase().trim(),
+            owner_name: sendName || null,
+            is_active: true,
+          }])
+          .select("id")
+          .single();
+
+        if (createErr) throw createErr;
+        propertyId = newProp.id;
+      }
       
       // Determine which template to use based on contract type
       const templateId = selectedContractType === "rolos" 
@@ -332,7 +368,7 @@ export default function AdminContracts() {
         body: { 
           owner_email: sendEmail, 
           owner_name: sendName || undefined,
-          property_id: selectedProperty?.id || undefined,
+          property_id: propertyId,
           template_id: templateId,
           contract_type: selectedContractType,
         },
@@ -342,9 +378,7 @@ export default function AdminContracts() {
 
       toast.success(`${selectedContractType === "rolos" ? "ROL'OS PMS" : selectedContractType === "referral" ? "Referral Partner" : "Standard"} contract sent successfully`);
       setSendModalOpen(false);
-      setSendEmail("");
-      setSendName("");
-      setSelectedContractType("standard");
+      resetSendModal();
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to send contract");
@@ -353,17 +387,69 @@ export default function AdminContracts() {
     }
   };
 
-  const handleResendContract = async (contract: OwnerContract) => {
+  const handleOpenResendModal = async (contract: OwnerContract) => {
+    setResendContract(contract);
+    setResendAvailableProperties([]);
+    setResendPropertySelections({});
+    setResendModalOpen(true);
+
+    // Load properties for this owner
     try {
+      const { data: props } = await supabase
+        .from("properties")
+        .select("id, name")
+        .eq("owner_email", contract.owner_email)
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      const available = props || [];
+      setResendAvailableProperties(available);
+      // Pre-check all
+      const selections: Record<string, boolean> = {};
+      available.forEach(p => { selections[p.id] = true; });
+      setResendPropertySelections(selections);
+    } catch (err) {
+      console.error("Failed to load properties for resend:", err);
+    }
+  };
+
+  const handleResendContract = async () => {
+    if (!resendContract) return;
+
+    try {
+      setResending(true);
+
       const { error } = await supabase.functions.invoke("send-owner-contract", {
-        body: { owner_email: contract.owner_email, owner_name: contract.owner_name || undefined },
+        body: { owner_email: resendContract.owner_email, owner_name: resendContract.owner_name || undefined, resend: true },
       });
 
       if (error) throw error;
+
+      // Update selected properties with owner info
+      const selectedIds = Object.entries(resendPropertySelections)
+        .filter(([, checked]) => checked)
+        .map(([id]) => id);
+
+      if (selectedIds.length > 0) {
+        const { error: updateErr } = await supabase
+          .from("properties")
+          .update({
+            owner_name: resendContract.owner_name,
+            owner_email: resendContract.owner_email,
+          })
+          .in("id", selectedIds);
+
+        if (updateErr) console.error("Failed to update properties:", updateErr);
+      }
+
       toast.success("Contract resent successfully");
+      setResendModalOpen(false);
+      setResendContract(null);
       loadContracts();
     } catch (error: any) {
       toast.error(error.message || "Failed to resend contract");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -480,29 +566,28 @@ export default function AdminContracts() {
   };
 
   const searchProperties = async (query: string) => {
-    if (!query || query.length < 2) {
-      setPropertyResults([]);
-      setPropertyDropdownOpen(false);
-      return;
-    }
     setSearchingProperties(true);
     try {
-      // Use ilike with wildcards for fuzzy matching
-      const pattern = `%${query.replace(/\s+/g, '%')}%`;
-      const { data, error } = await supabase
+      let qb = supabase
         .from("properties")
         .select("id, name, slug, owner_email, permanently_deleted_at")
-        .ilike("name", pattern)
+        .is("permanently_deleted_at", null)
         .order("name")
         .limit(15);
 
+      if (query && query.length >= 1) {
+        const pattern = `%${query.replace(/\s+/g, '%')}%`;
+        qb = qb.ilike("name", pattern);
+      }
+
+      const { data, error } = await qb;
       if (error) throw error;
 
       const results = (data || []).map(p => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
-        is_archived: !!p.permanently_deleted_at,
+        is_archived: false,
         owner_email: p.owner_email,
       }));
       setPropertyResults(results);
@@ -515,13 +600,17 @@ export default function AdminContracts() {
     }
   };
 
+  const handlePropertyFocus = () => {
+    if (!selectedProperty && propertyResults.length === 0) {
+      searchProperties("");
+    } else if (propertyResults.length > 0) {
+      setPropertyDropdownOpen(true);
+    }
+  };
+
   // Debounced property search
   useEffect(() => {
-    if (!propertySearch || propertySearch.length < 2) {
-      setPropertyResults([]);
-      setPropertyDropdownOpen(false);
-      return;
-    }
+    if (selectedProperty) return;
     const timer = setTimeout(() => searchProperties(propertySearch), 300);
     return () => clearTimeout(timer);
   }, [propertySearch]);
@@ -792,7 +881,7 @@ export default function AdminContracts() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {contract.status !== "signed" && contract.status !== "overridden" && (
-                          <DropdownMenuItem onClick={() => handleResendContract(contract)}>
+                          <DropdownMenuItem onClick={() => handleOpenResendModal(contract)}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Resend Contract
                           </DropdownMenuItem>
@@ -889,7 +978,7 @@ export default function AdminContracts() {
           <div className="space-y-4 py-4">
             {/* Property Name Search */}
             <div className="space-y-2">
-              <Label htmlFor="propertyName">Property Name</Label>
+              <Label htmlFor="propertyName">Property Name *</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -903,13 +992,14 @@ export default function AdminContracts() {
                       setShowUnarchivePrompt(false);
                     }
                   }}
+                  onFocus={handlePropertyFocus}
                   className="pl-9"
                 />
                 {searchingProperties && (
                   <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                 )}
                 {/* Search results dropdown */}
-                {propertyDropdownOpen && propertySearch.length >= 2 && (
+                {propertyDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
                     {propertyResults.map((p) => (
                       <button
@@ -948,7 +1038,7 @@ export default function AdminContracts() {
                   </div>
                 )}
                 {/* Show "new property" option when search has no results */}
-                {!propertyDropdownOpen && !searchingProperties && propertySearch.length >= 2 && propertyResults.length === 0 && !selectedProperty && (
+                {!propertyDropdownOpen && !searchingProperties && propertySearch.length >= 1 && propertyResults.length === 0 && !selectedProperty && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-[100]">
                     <button
                       type="button"
@@ -1116,7 +1206,7 @@ export default function AdminContracts() {
             </Button>
             <Button 
               onClick={handleSendContract} 
-              disabled={sending || !sendEmail}
+              disabled={sending || !sendEmail || (!selectedProperty && !propertySearch.trim())}
             >
               {sending ? "Sending..." : noPropertiesWarning ? "Send & Create Owner" : "Send Contract"}
             </Button>
@@ -1273,6 +1363,68 @@ export default function AdminContracts() {
                 <>
                   <XCircle className="h-4 w-4 mr-2" />
                   Revoke Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resend Contract Modal */}
+      <Dialog open={resendModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setResendModalOpen(false);
+          setResendContract(null);
+          setResendAvailableProperties([]);
+          setResendPropertySelections({});
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resend Contract</DialogTitle>
+            <DialogDescription>
+              Select properties to link to this contract for <strong>{resendContract?.owner_email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {resendAvailableProperties.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No properties found for this owner.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {resendAvailableProperties.map((prop) => (
+                  <label
+                    key={prop.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <Checkbox
+                      checked={resendPropertySelections[prop.id] ?? false}
+                      onCheckedChange={(checked) => {
+                        setResendPropertySelections(prev => ({ ...prev, [prop.id]: !!checked }));
+                      }}
+                    />
+                    <span className="text-sm font-medium">{prop.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResendModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResendContract}
+              disabled={resending}
+            >
+              {resending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Resending...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Resend & Link Properties
                 </>
               )}
             </Button>
