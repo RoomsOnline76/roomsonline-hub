@@ -127,6 +127,9 @@ export default function AdminContracts() {
   
   const [signaturePreviewOpen, setSignaturePreviewOpen] = useState(false);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
+  const [contractPreviewUrl, setContractPreviewUrl] = useState<string | null>(null);
+  const [contractPreviewTitle, setContractPreviewTitle] = useState("");
   
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyEmail, setHistoryEmail] = useState<string | null>(null);
@@ -759,6 +762,17 @@ export default function AdminContracts() {
                             Resend Contract
                           </DropdownMenuItem>
                         )}
+                        {(contract.pdf_url || contract.unsigned_pdf_url) && (
+                          <DropdownMenuItem onClick={() => {
+                            const url = contract.pdf_url || contract.unsigned_pdf_url;
+                            setContractPreviewUrl(url);
+                            setContractPreviewTitle(`Contract — ${contract.owner_name || contract.owner_email}`);
+                            setContractPreviewOpen(true);
+                          }}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Contract
+                          </DropdownMenuItem>
+                        )}
                         {(contract.signature_data?.dataUrl || contract.signature_image_url) && (
                           <DropdownMenuItem onClick={() => handleViewSignature(contract)}>
                             <FileSignature className="h-4 w-4 mr-2" />
@@ -1102,6 +1116,32 @@ export default function AdminContracts() {
               <img src={signatureUrl} alt="Signature" className="max-h-48 object-contain" />
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contract Preview Modal */}
+      <Dialog open={contractPreviewOpen} onOpenChange={setContractPreviewOpen}>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{contractPreviewTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            {contractPreviewUrl && (
+              <iframe
+                src={contractPreviewUrl}
+                title="Contract Preview"
+                className="w-full h-full rounded-lg border border-border"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" asChild>
+              <a href={contractPreviewUrl || "#"} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </a>
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
