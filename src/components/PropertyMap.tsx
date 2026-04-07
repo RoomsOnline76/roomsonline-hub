@@ -58,7 +58,7 @@ export function PropertyMap({
 
   // Load Google Maps script and initialize map
   useEffect(() => {
-    if (!apiKeyReady || !apiKey || !mapRef.current || isInitialized) return;
+    if (!apiKeyReady || !apiKey || apiKey.startsWith("placeholder_key_") || !mapRef.current || isInitialized) return;
 
     let cancelled = false;
 
