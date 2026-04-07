@@ -901,7 +901,7 @@ const Booking = () => {
         if (roomDef) {
           targetAliases.add(slugifyRoomName(roomDef.name));
           // hfRoomsRef may contain external_room_type_id mappings
-          const hfRoom = hfRoomsRef.current?.find((hr: any) => 
+          const hfRoom = (hfRoomsRef.current as any[])?.find((hr: any) => 
             String(hr.id) === room.roomTypeId || hr.name === roomDef.name
           );
           if (hfRoom?.hostfully_room_id) targetAliases.add(hfRoom.hostfully_room_id);
