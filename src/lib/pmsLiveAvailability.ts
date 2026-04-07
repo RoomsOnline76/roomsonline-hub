@@ -1,6 +1,6 @@
 /**
  * System-wide live ARI (Availability, Rates, Inventory) resolver
- * Works for any PMS-backed property in a portfolio context.
+ * Delegates to booking-orchestrator-api edge function for unified PMS routing.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
@@ -29,26 +29,8 @@ function getCacheKey(propertyId: string, checkIn: string, checkOut: string) {
   return `${propertyId}:${checkIn}:${checkOut}`;
 }
 
-function getPmsFunctionName(externalSystem: string | null) {
-  switch (externalSystem) {
-    case "hostfully":
-      return "hostfully-api";
-    case "benson":
-      return "benson-api";
-    case "hotelbeds":
-      return "hotelbeds-api";
-    case "hyperguest":
-      return "hyperguest-api";
-    case "little_hotelier":
-      return "little-hotelier-api";
-    default:
-      return "roomsonline-pms-api";
-  }
-}
-
 /**
- * Fetch live ARI for a single property using its PMS adapter via the
- * roomsonline-pms-api edge function.
+ * Fetch live ARI for a single property via the booking-orchestrator-api.
  */
 export async function fetchLiveRates(
   propertyId: string,
@@ -74,25 +56,12 @@ export async function fetchLiveRates(
   }
 
   try {
-    const functionName = getPmsFunctionName(externalSystem);
-    const requestBody = functionName === "hotelbeds-api"
-      ? {
-          action: "fetch_availability",
-          property_id: propertyId,
-          start_date: ci,
-          end_date: co,
-        }
-      : {
-          action: "fetch_availability",
-          propertyId,
-          property_id: propertyId,
-          start_date: ci,
-          end_date: co,
-        };
-
-    const { data, error } = await supabase.functions.invoke(functionName, {
+    const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
       body: {
-        ...requestBody,
+        action: "fetch_availability",
+        property_id: propertyId,
+        start_date: ci,
+        end_date: co,
       },
     });
 
@@ -101,7 +70,8 @@ export async function fetchLiveRates(
       return empty;
     }
 
-    const roomTypes = data.data?.room_types || data.data?.roomTypes || [];
+    const responseData = data.data || data;
+    const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
     const rooms: LiveRoomRate[] = [];
     let lowestRate: number | null = null;
 
@@ -115,7 +85,6 @@ export async function fetchLiveRates(
       const availableByDate: Record<string, number> = {};
       const ratesByDate: Record<string, number> = {};
 
-      // Check availability days
       const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || rt.availability_per_night || rt.availabilityPerNight || [];
       for (const day of avail) {
         const units = day.available_units ?? day.numberOfRoomsAvailable ?? (day.available ? 1 : 0);
@@ -126,7 +95,6 @@ export async function fetchLiveRates(
         if (effectiveUnits > 0) hasAvailability = true;
       }
 
-      // Extract rates
       for (const rateType of rateTypes) {
         const rates = rateType.rates || [];
         for (const r of rates) {
@@ -158,7 +126,6 @@ export async function fetchLiveRates(
 
 /**
  * Fetch live rates for multiple properties in parallel (non-blocking per property).
- * Returns a map of propertyId → LivePropertyRates.
  */
 export async function fetchLiveRatesBatch(
   properties: Array<{ id: string; external_system: string | null }>,
