@@ -566,39 +566,40 @@ const Booking = () => {
 
     if (preSelectedRoomTypeId && preSelectedRoomTypeName) {
       // If linked_rolos_id is present (Benson embed), resolve canonical room UUID
-      // so that the orchestrator room match succeeds later
-      let resolvedRoomTypeId = preSelectedRoomTypeId;
-      let resolvedRoomTypeName = preSelectedRoomTypeName;
-      if (embedLinkedRolosId && property) {
-        // Eagerly fetch hfRooms to resolve the canonical UUID
-        const { data: hfRoomsEarly } = await supabase
-          .from("hostfully_room_types")
-          .select("id, name, linked_rolos_id")
-          .eq("property_id", property.id)
-          .eq("is_active", true);
-        if (hfRoomsEarly && hfRoomsEarly.length > 0) {
-          hfRoomsRef.current = hfRoomsEarly.map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
-          const linkedRoom = hfRoomsEarly.find(r => r.linked_rolos_id === embedLinkedRolosId);
-          if (linkedRoom) {
-            console.log('[Booking] Resolved Benson room via linked_rolos_id:', preSelectedRoomTypeId, '→', linkedRoom.id, linkedRoom.name);
-            resolvedRoomTypeId = linkedRoom.id;
-            resolvedRoomTypeName = linkedRoom.name;
+      const initPreSelectedRoom = async () => {
+        let resolvedRoomTypeId = preSelectedRoomTypeId;
+        let resolvedRoomTypeName = preSelectedRoomTypeName;
+        if (embedLinkedRolosId && property) {
+          const { data: hfRoomsEarly } = await supabase
+            .from("hostfully_room_types")
+            .select("id, name, linked_rolos_id")
+            .eq("property_id", property.id)
+            .eq("is_active", true);
+          if (hfRoomsEarly && hfRoomsEarly.length > 0) {
+            hfRoomsRef.current = hfRoomsEarly.map(r => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id }));
+            const linkedRoom = hfRoomsEarly.find(r => r.linked_rolos_id === embedLinkedRolosId);
+            if (linkedRoom) {
+              console.log('[Booking] Resolved Benson room via linked_rolos_id:', preSelectedRoomTypeId, '→', linkedRoom.id, linkedRoom.name);
+              resolvedRoomTypeId = linkedRoom.id;
+              resolvedRoomTypeName = linkedRoom.name;
+            }
           }
         }
-      }
-      const hasPreSelectedGuests = searchParams.has("adults");
-      const fallbackAdults = urlMaxGuests > 0 ? Math.max(1, Math.min(2, urlMaxGuests)) : 2;
-      setRooms([{
-        roomTypeId: resolvedRoomTypeId,
-        roomTypeName: resolvedRoomTypeName,
-        numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : fallbackAdults,
-        numberOfTeens: preSelectedTeens,
-        numberOfChildren: preSelectedChildren,
-        numberOfInfants: preSelectedInfants,
-        numberOfPets: preSelectedPets,
-        checkIn: urlCheckIn || undefined,
-        checkOut: urlCheckOut || undefined,
-      }]);
+        const hasPreSelectedGuests = searchParams.has("adults");
+        const fallbackAdults = urlMaxGuests > 0 ? Math.max(1, Math.min(2, urlMaxGuests)) : 2;
+        setRooms([{
+          roomTypeId: resolvedRoomTypeId,
+          roomTypeName: resolvedRoomTypeName,
+          numberOfAdults: hasPreSelectedGuests ? Math.max(1, preSelectedAdults) : fallbackAdults,
+          numberOfTeens: preSelectedTeens,
+          numberOfChildren: preSelectedChildren,
+          numberOfInfants: preSelectedInfants,
+          numberOfPets: preSelectedPets,
+          checkIn: urlCheckIn || undefined,
+          checkOut: urlCheckOut || undefined,
+        }]);
+      };
+      initPreSelectedRoom();
     } else if (roomTypes.length > 0) {
       // For ROL'OS properties without a pre-selected room, try to use hfRoom IDs
       // which match the synthetic availability builder (avoids ID mismatch)
