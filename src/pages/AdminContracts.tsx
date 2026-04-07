@@ -173,6 +173,8 @@ export default function AdminContracts() {
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
+  const [allActiveProperties, setAllActiveProperties] = useState<{ id: string; name: string; slug: string; owner_email: string | null }[]>([]);
+  const [uncontractedExpanded, setUncontractedExpanded] = useState(false);
 
   // Secondary-only owners: emails that appear ONLY as secondary owners (not primary on any property)
   // Maps secondary_email → primary_emails whose signed contract covers them
