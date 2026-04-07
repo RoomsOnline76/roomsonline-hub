@@ -532,6 +532,7 @@ export default function AdminContracts() {
     }
   };
 
+  const handleOverrideConfirm = async (reason: string) => {
     if (!overrideContract) return;
 
     try {
