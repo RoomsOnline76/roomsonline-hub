@@ -188,3 +188,6 @@ verify_jwt = false
 
 [functions.rolos-webhook-receiver]
 verify_jwt = false
+
+[functions.booking-orchestrator-api]
+verify_jwt = false

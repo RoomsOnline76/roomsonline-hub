@@ -1,0 +1,514 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+function ok(data: unknown) {
+  return new Response(JSON.stringify({ success: true, data }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function fail(msg: string, status = 400) {
+  return new Response(JSON.stringify({ success: false, error: msg }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// ─── helpers ───────────────────────────────────────────────────────────
+
+function slugify(name: string) {
+  return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
+function generateDailyRates(
+  startDate: string,
+  endDate: string,
+  baseRate: number,
+  seasons: any[],
+  seasonRates: any[],
+  roomId: string,
+) {
+  const rates: any[] = [];
+  const cur = new Date(startDate);
+  const end = new Date(endDate);
+  while (cur < end) {
+    const dateStr = cur.toISOString().split("T")[0];
+    let dayRate = baseRate;
+    if (seasons.length > 0) {
+      for (const s of seasons) {
+        const sStart = s.start_date || s.startDate;
+        const sEnd = s.end_date || s.endDate;
+        if (sStart && sEnd && dateStr >= sStart && dateStr <= sEnd) {
+          const sr = seasonRates?.find(
+            (r: any) =>
+              (r.room_id === roomId || r.room_type_id === roomId) &&
+              r.season_id === s.id,
+          );
+          if (sr?.rate || sr?.daily_rate) {
+            dayRate = sr.rate || sr.daily_rate;
+          } else if (s.rate_multiplier) {
+            dayRate = baseRate * (s.rate_multiplier || 1);
+          }
+          break;
+        }
+      }
+    }
+    rates.push({ date: dateStr, room_amount: dayRate });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return rates;
+}
+
+function transformCacheToAvailability(
+  cacheData: any[],
+  roomAliases: Map<string, string[]>,
+) {
+  const roomTypeMap = new Map<string, any>();
+  for (const row of cacheData) {
+    const rtId = row.external_room_type_id;
+    if (!roomTypeMap.has(rtId)) {
+      const aliases: string[] = [rtId];
+      for (const [origId, slugArr] of roomAliases) {
+        if (slugArr.includes(rtId)) aliases.push(origId);
+      }
+      roomTypeMap.set(rtId, {
+        room_type_id: rtId,
+        room_type_aliases: aliases,
+        room_type_name: row.raw_data?.roomTypeName || rtId,
+        rooms_available_per_night: [],
+        rate_types: [],
+      });
+    }
+    const rt = roomTypeMap.get(rtId)!;
+    rt.rooms_available_per_night.push({
+      date: row.date,
+      available_units: row.available_units,
+      ...(row.restrictions || {}),
+    });
+    const ratesData = row.rates;
+    if (ratesData) {
+      const ratesArray = Array.isArray(ratesData) ? ratesData : [ratesData];
+      for (const rate of ratesArray) {
+        const rateTypeId = rate.rate_type_id || "default";
+        let rateType = rt.rate_types.find((r: any) => r.rate_type_id === rateTypeId);
+        if (!rateType) {
+          rateType = {
+            rate_type_id: rateTypeId,
+            rate_type_name: rate.rate_type_name || "Standard",
+            price_type: rate.price_type || "PER_ROOM",
+            rate_key: rate.rate_key,
+            rates: [],
+          };
+          rt.rate_types.push(rateType);
+        }
+        rateType.rates.push({
+          date: row.date,
+          room_amount: rate.room_amount,
+          adult_amounts: rate.adult_amounts,
+          teen_amount: rate.teen_amount,
+          child_amount: rate.child_amount,
+          infant_amount: rate.infant_amount,
+          currency: rate.currency,
+        });
+      }
+    }
+  }
+  return { room_types: Array.from(roomTypeMap.values()) };
+}
+
+// ─── PMS adapter dispatch ──────────────────────────────────────────────
+
+function getPmsFunctionName(ext: string) {
+  switch (ext) {
+    case "benson": return "benson-api";
+    case "hostfully": return "hostfully-api";
+    case "hotelbeds": return "hotelbeds-api";
+    case "hyperguest": return "hyperguest-api";
+    case "little_hotelier": return "little-hotelier-api";
+    default: return "roomsonline-pms-api";
+  }
+}
+
+async function callPmsAdapter(
+  supabaseUrl: string,
+  serviceKey: string,
+  externalSystem: string,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+) {
+  const fnName = getPmsFunctionName(externalSystem);
+  const body: Record<string, unknown> = {
+    action: "fetch_availability",
+    property_id: propertyId,
+    start_date: startDate,
+    end_date: endDate,
+  };
+  if (externalSystem === "hotelbeds") {
+    body.startDate = startDate;
+    body.endDate = endDate;
+  }
+  const res = await fetch(`${supabaseUrl}/functions/v1/${fnName}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PMS adapter ${fnName} returned ${res.status}`);
+  const json = await res.json();
+  return json?.data || json;
+}
+
+// ─── availability resolvers ────────────────────────────────────────────
+
+async function resolveFromCache(
+  supabase: any,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  roomTypes: any[],
+) {
+  const { data: cacheData, error } = await supabase
+    .from("pms_availability_cache")
+    .select("*")
+    .eq("property_id", propertyId)
+    .gte("date", startDate)
+    .lt("date", endDate)
+    .order("date");
+  if (error) throw error;
+  if (!cacheData || cacheData.length === 0) return null;
+
+  const roomAliases = new Map<string, string[]>();
+  for (const rt of roomTypes) {
+    roomAliases.set(String(rt.id), [slugify(rt.name)]);
+  }
+  return transformCacheToAvailability(cacheData, roomAliases);
+}
+
+async function resolveRolosRates(
+  supabase: any,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  embedRate?: number,
+  embedRoomTypeId?: string,
+  embedPricingModel?: string,
+  embedLinkedRolosId?: string,
+) {
+  const { data: hfRooms } = await supabase
+    .from("hostfully_room_types")
+    .select("id, name, linked_rolos_id, daily_rate, max_guests, is_active")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+
+  const rolosIds = (hfRooms || []).filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
+  const ratePlanMap: Record<string, any> = {};
+
+  if (rolosIds.length > 0) {
+    const { data: rpRoomTypes } = await supabase
+      .from("rolos_rate_plan_room_types")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active)")
+      .in("room_type_id", rolosIds)
+      .eq("rolos_rate_plans.is_active", true);
+
+    if (rpRoomTypes) {
+      for (const entry of rpRoomTypes) {
+        const plan = (entry as any).rolos_rate_plans;
+        if (plan?.base_rate != null) {
+          ratePlanMap[entry.room_type_id] = {
+            base_rate: Number(plan.base_rate),
+            pricing_model: plan.pricing_model || "per_unit",
+            adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
+            adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+          };
+        }
+      }
+    }
+  }
+
+  // Embed rate override
+  if (embedRate && embedRoomTypeId) {
+    const matched = (hfRooms || []).find((r: any) => r.id === embedRoomTypeId);
+    if (matched?.linked_rolos_id) {
+      ratePlanMap[matched.linked_rolos_id] = {
+        base_rate: embedRate,
+        pricing_model: embedPricingModel || "per_unit",
+      };
+    } else if (embedLinkedRolosId) {
+      ratePlanMap[embedLinkedRolosId] = {
+        base_rate: embedRate,
+        pricing_model: embedPricingModel || "per_unit",
+      };
+    }
+  }
+
+  const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
+    const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+    const effectiveRate = room.daily_rate ? Number(room.daily_rate) : (rolosPlan?.base_rate ?? 0);
+    const pricingModel = rolosPlan?.pricing_model || "per_unit";
+    const isPerPerson = pricingModel === "per_person";
+
+    const dailyRates: any[] = [];
+    const availArr: any[] = [];
+    const cur = new Date(startDate);
+    const end = new Date(endDate);
+    while (cur < end) {
+      const ds = cur.toISOString().split("T")[0];
+      dailyRates.push({ date: ds, room_amount: effectiveRate });
+      availArr.push({ date: ds, available_units: 99 });
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    return {
+      room_type_id: room.id,
+      room_type_name: room.name,
+      rate_types: [{
+        rate_type_id: "rolos-rate",
+        rate_type_name: "Standard Rate",
+        price_type: isPerPerson ? "PER_PERSON" : "PER_NIGHT",
+        rates: dailyRates,
+      }],
+      rooms_available_per_night: availArr,
+    };
+  });
+
+  if (syntheticRoomTypes.length > 0 && syntheticRoomTypes.some((rt: any) => rt.rate_types[0]?.rates[0]?.room_amount > 0)) {
+    return { room_types: syntheticRoomTypes, hf_rooms: (hfRooms || []).map((r: any) => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id })) };
+  }
+  return null;
+}
+
+async function resolveWizardRates(
+  supabase: any,
+  propertyId: string,
+  startDate: string,
+  endDate: string,
+  amenities: any,
+) {
+  const wizardRooms = amenities?.room_types || [];
+  const seasons = amenities?.seasons || [];
+  const seasonRates = amenities?.season_rates || [];
+  const pmsRateTypes = amenities?.pms_rate_types || [];
+
+  if (wizardRooms.length === 0) return null;
+
+  // Fetch manual availability overrides
+  const { data: manualOverrides } = await supabase
+    .from("property_availability")
+    .select("*")
+    .eq("property_id", propertyId)
+    .gte("date", startDate)
+    .lt("date", endDate);
+
+  const blockedDatesMap = new Map<string, Set<string>>();
+  if (manualOverrides?.length) {
+    for (const ov of manualOverrides) {
+      if (ov.is_stop_sell || ov.available_units === 0) {
+        const key = ov.room_type;
+        if (!blockedDatesMap.has(key)) blockedDatesMap.set(key, new Set());
+        blockedDatesMap.get(key)!.add(ov.date);
+      }
+    }
+  }
+
+  const syntheticRoomTypes = wizardRooms.map((room: any) => {
+    const roomId = room.id || room.room_type_id || `wizard-room-${room.name}`;
+    let baseRate = 0;
+    let rateUnit = room.rate_unit || room.rateUnit || "per_night";
+    let pricingModel = "";
+    let adult1Rate = 0, adult2Rate = 0, childRate = 0, teenRate = 0, infantRate = 0;
+
+    if (room.linkedRateTypes?.length > 0 && pmsRateTypes.length > 0) {
+      const linked = pmsRateTypes.find((rt: any) => rt.id === room.linkedRateTypes[0]);
+      if (linked) {
+        baseRate = linked.baseRate || 0;
+        pricingModel = linked.pricingModel || linked.priceType || "";
+        adult1Rate = linked.adult1Rate || 0;
+        adult2Rate = linked.adult2Rate || 0;
+        childRate = linked.childRate || 0;
+        teenRate = linked.teenRate || 0;
+        infantRate = linked.infantRate || 0;
+        if (pricingModel.toLowerCase().includes("person")) rateUnit = "per_person";
+      }
+    }
+    if (!baseRate) baseRate = room.base_rate || room.baseRate || room.daily_rate || 0;
+
+    const isPerPerson = rateUnit === "per_person";
+    let dailyRates: any[];
+
+    if (isPerPerson && (adult1Rate > 0 || adult2Rate > 0)) {
+      dailyRates = [];
+      const cur = new Date(startDate);
+      const end = new Date(endDate);
+      while (cur < end) {
+        const ds = cur.toISOString().split("T")[0];
+        dailyRates.push({
+          date: ds,
+          room_amount: baseRate,
+          adult_amount_1: adult1Rate || baseRate,
+          adult_amount_2: adult2Rate || baseRate * 2,
+          teen_amount: teenRate,
+          child_amount: childRate,
+          infant_amount: infantRate,
+        });
+        cur.setDate(cur.getDate() + 1);
+      }
+    } else {
+      dailyRates = generateDailyRates(startDate, endDate, baseRate, seasons, seasonRates, roomId);
+    }
+
+    const blockedDates = blockedDatesMap.get(room.name) || new Set();
+    const availArr: any[] = [];
+    const cur2 = new Date(startDate);
+    const end2 = new Date(endDate);
+    while (cur2 < end2) {
+      const ds = cur2.toISOString().split("T")[0];
+      availArr.push({ date: ds, available_units: blockedDates.has(ds) ? 0 : 99 });
+      cur2.setDate(cur2.getDate() + 1);
+    }
+
+    return {
+      room_type_id: roomId,
+      room_type_name: room.name,
+      rate_types: [{
+        rate_type_id: "wizard-rate",
+        rate_type_name: "Standard Rate",
+        price_type: isPerPerson ? "PER_PERSON" : rateUnit === "per_stay" ? "PerStay" : "PER_NIGHT",
+        rates: dailyRates,
+      }],
+      rooms_available_per_night: availArr,
+    };
+  });
+
+  return { room_types: syntheticRoomTypes };
+}
+
+// ─── main handler ──────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const body = await req.json();
+    const { action } = body;
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // ── validate_voucher ─────────────────────────────────────────────
+    if (action === "validate_voucher") {
+      const res = await fetch(`${supabaseUrl}/functions/v1/validate-voucher`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceKey}`,
+        },
+        body: JSON.stringify({
+          code: body.code,
+          property_id: body.property_id,
+          subtotal: body.subtotal,
+        }),
+      });
+      const data = await res.json();
+      return new Response(JSON.stringify(data), {
+        status: res.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── fetch_availability ───────────────────────────────────────────
+    if (action === "fetch_availability") {
+      const {
+        property_id,
+        start_date,
+        end_date,
+        embed_rate,
+        embed_room_type_id,
+        embed_pricing_model,
+        embed_linked_rolos_id,
+        room_types: clientRoomTypes,
+      } = body;
+
+      if (!property_id || !start_date || !end_date) {
+        return fail("Missing property_id, start_date, or end_date");
+      }
+
+      // 1. Look up property
+      const { data: prop, error: propErr } = await supabase
+        .from("properties")
+        .select("id, external_system, is_rol_property, amenities")
+        .eq("id", property_id)
+        .single();
+      if (propErr || !prop) return fail("Property not found", 404);
+
+      const ext = (prop.external_system || "").toLowerCase();
+      const amenities = prop.amenities as any;
+      const roomTypes = clientRoomTypes || amenities?.room_types || [];
+
+      // 2. Route to correct adapter
+      const liveAdapters = ["benson", "hostfully", "hotelbeds", "hyperguest"];
+
+      if (liveAdapters.includes(ext)) {
+        // Live PMS adapter call
+        const availability = await callPmsAdapter(supabaseUrl, serviceKey, ext, property_id, start_date, end_date);
+        return ok(availability);
+      }
+
+      // 3. Try PMS availability cache (for synced PMS systems)
+      if (ext && ext !== "none" && ext !== "roomsonline" && ext !== "manual") {
+        const cached = await resolveFromCache(supabase, property_id, start_date, end_date, roomTypes);
+        if (cached) return ok(cached);
+      }
+
+      // 4. No PMS / manual / roomsonline → ROL'OS rate plans or wizard
+      if (!ext || ext === "none" || ext === "roomsonline" || ext === "manual") {
+        const isRolProperty = !!prop.is_rol_property;
+
+        // Check for linked ROL'OS rooms
+        let hasLinkedRolos = false;
+        if (!isRolProperty && !embed_rate) {
+          const { data: linked } = await supabase
+            .from("hostfully_room_types")
+            .select("id")
+            .eq("property_id", property_id)
+            .eq("is_active", true)
+            .not("linked_rolos_id", "is", null)
+            .limit(1);
+          hasLinkedRolos = !!(linked && linked.length > 0);
+        }
+
+        if (isRolProperty || embed_rate || hasLinkedRolos) {
+          const rolosResult = await resolveRolosRates(
+            supabase, property_id, start_date, end_date,
+            embed_rate, embed_room_type_id, embed_pricing_model, embed_linked_rolos_id,
+          );
+          if (rolosResult) return ok(rolosResult);
+        }
+
+        // Wizard fallback
+        const wizardResult = await resolveWizardRates(supabase, property_id, start_date, end_date, amenities);
+        if (wizardResult) return ok(wizardResult);
+      }
+
+      // 5. Try cache as last resort
+      const cached = await resolveFromCache(supabase, property_id, start_date, end_date, roomTypes);
+      if (cached) return ok(cached);
+
+      // Nothing found
+      return ok({ room_types: [] });
+    }
+
+    return fail("Unknown action: " + action);
+  } catch (err) {
+    console.error("booking-orchestrator-api error:", err);
+    return fail(String(err), 500);
+  }
+});
