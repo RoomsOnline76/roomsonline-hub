@@ -252,6 +252,7 @@ export default function AdminContracts() {
         const versionStr = `v${c.version}`;
         const sentDate = c.sent_at ? format(new Date(c.sent_at), "MMM d, yyyy").toLowerCase() : "";
         const signedDate = c.signed_at ? format(new Date(c.signed_at), "MMM d, yyyy").toLowerCase() : "";
+        const ownerProps = (propertiesByOwner[c.owner_email] || []).join(", ").toLowerCase();
         
         return (
           c.owner_email.toLowerCase().includes(query) ||
@@ -260,7 +261,8 @@ export default function AdminContracts() {
           versionStr.includes(query) ||
           c.template_version.toLowerCase().includes(query) ||
           sentDate.includes(query) ||
-          signedDate.includes(query)
+          signedDate.includes(query) ||
+          ownerProps.includes(query)
         );
       });
     }
