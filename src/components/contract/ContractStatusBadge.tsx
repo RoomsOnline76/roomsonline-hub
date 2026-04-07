@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Check, Clock, AlertTriangle, XCircle, Shield } from "lucide-react";
 import { format } from "date-fns";
 
-export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'overridden' | null;
+export type ContractStatus = 'draft' | 'sent' | 'viewed' | 'signed' | 'declined' | 'overridden' | 'revoked' | null;
 
 interface ContractStatusBadgeProps {
   status: ContractStatus;
@@ -101,6 +101,21 @@ export function ContractStatusBadge({
           </TooltipTrigger>
           <TooltipContent>
             <p>Contract was declined</p>
+          </TooltipContent>
+        </Tooltip>
+      );
+
+    case "revoked":
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="destructive" className="gap-1">
+              <XCircle className="h-3 w-3" />
+              {!compact && "Revoked"}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Contract was revoked — a new contract can be sent</p>
           </TooltipContent>
         </Tooltip>
       );
