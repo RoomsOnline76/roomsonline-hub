@@ -285,6 +285,15 @@ export default function AdminContracts() {
           }
         }
       }
+
+      // Fetch ALL active properties for "uncontracted" section
+      const { data: allProps } = await supabase
+        .from("properties")
+        .select("id, name, slug, owner_email")
+        .is("permanently_deleted_at", null)
+        .eq("is_active", true)
+        .order("name");
+      setAllActiveProperties(allProps || []);
     } catch (error: any) {
       toast.error(error.message || "Failed to load contracts");
     } finally {
