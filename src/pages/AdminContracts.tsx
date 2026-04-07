@@ -461,7 +461,77 @@ export default function AdminContracts() {
     }
   };
 
-  const handleOverrideConfirm = async (reason: string) => {
+  const handleOpenManageProps = async (contract: OwnerContract) => {
+    setManagePropsContract(contract);
+    setManagePropsAvailable([]);
+    setManagePropsSelections({});
+    setManagePropsModalOpen(true);
+
+    try {
+      // Get all active properties
+      const { data: allProps } = await supabase
+        .from("properties")
+        .select("id, name, owner_email")
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      const available = (allProps || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        linked: p.owner_email?.toLowerCase() === contract.owner_email.toLowerCase(),
+      }));
+      setManagePropsAvailable(available);
+      const selections: Record<string, boolean> = {};
+      available.forEach(p => { selections[p.id] = p.linked; });
+      setManagePropsSelections(selections);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+    }
+  };
+
+  const handleSaveManagedProps = async () => {
+    if (!managePropsContract) return;
+
+    try {
+      setSavingManagedProps(true);
+
+      const toLink = Object.entries(managePropsSelections).filter(([, v]) => v).map(([id]) => id);
+      const toUnlink = Object.entries(managePropsSelections).filter(([, v]) => !v).map(([id]) => id);
+
+      // Link: set owner_email and owner_name on checked properties
+      if (toLink.length > 0) {
+        const { error } = await supabase
+          .from("properties")
+          .update({
+            owner_email: managePropsContract.owner_email,
+            owner_name: managePropsContract.owner_name,
+          })
+          .in("id", toLink);
+        if (error) console.error("Link error:", error);
+      }
+
+      // Unlink: clear owner_email on unchecked properties that were previously linked
+      const previouslyLinked = managePropsAvailable.filter(p => p.linked).map(p => p.id);
+      const toActuallyUnlink = toUnlink.filter(id => previouslyLinked.includes(id));
+      if (toActuallyUnlink.length > 0) {
+        const { error } = await supabase
+          .from("properties")
+          .update({ owner_email: null, owner_name: null })
+          .in("id", toActuallyUnlink);
+        if (error) console.error("Unlink error:", error);
+      }
+
+      toast.success("Properties updated successfully");
+      setManagePropsModalOpen(false);
+      setManagePropsContract(null);
+      loadContracts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update properties");
+    } finally {
+      setSavingManagedProps(false);
+    }
+  };
+
     if (!overrideContract) return;
 
     try {
