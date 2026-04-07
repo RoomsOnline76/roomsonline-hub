@@ -899,7 +899,10 @@ serve(async (req) => {
         );
       }
 
-      const { startDate: start_date, endDate: end_date, occupancy } = validation.data;
+      // Normalize: accept both camelCase and snake_case
+      const start_date = validation.data.startDate || validation.data.start_date!;
+      const end_date = validation.data.endDate || validation.data.end_date!;
+      const occupancy = validation.data.occupancy;
       const occ = occupancy || { rooms: 1, adults: 2, children: 0 };
 
       // Ensure dates are in the future (HotelBeds requirement)
