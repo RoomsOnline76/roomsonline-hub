@@ -52,6 +52,7 @@ import {
   Building2,
   Handshake,
   XCircle,
+  LinkIcon,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
@@ -156,6 +157,13 @@ export default function AdminContracts() {
   const [resendAvailableProperties, setResendAvailableProperties] = useState<{ id: string; name: string }[]>([]);
   const [resendPropertySelections, setResendPropertySelections] = useState<Record<string, boolean>>({});
   const [resending, setResending] = useState(false);
+
+  // Manage properties modal states
+  const [managePropsModalOpen, setManagePropsModalOpen] = useState(false);
+  const [managePropsContract, setManagePropsContract] = useState<OwnerContract | null>(null);
+  const [managePropsAvailable, setManagePropsAvailable] = useState<{ id: string; name: string; linked: boolean }[]>([]);
+  const [managePropsSelections, setManagePropsSelections] = useState<Record<string, boolean>>({});
+  const [savingManagedProps, setSavingManagedProps] = useState(false);
 
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
@@ -450,6 +458,77 @@ export default function AdminContracts() {
       toast.error(error.message || "Failed to resend contract");
     } finally {
       setResending(false);
+    }
+  };
+
+  const handleOpenManageProps = async (contract: OwnerContract) => {
+    setManagePropsContract(contract);
+    setManagePropsAvailable([]);
+    setManagePropsSelections({});
+    setManagePropsModalOpen(true);
+
+    try {
+      // Get all active properties
+      const { data: allProps } = await supabase
+        .from("properties")
+        .select("id, name, owner_email")
+        .is("permanently_deleted_at", null)
+        .order("name");
+
+      const available = (allProps || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        linked: p.owner_email?.toLowerCase() === contract.owner_email.toLowerCase(),
+      }));
+      setManagePropsAvailable(available);
+      const selections: Record<string, boolean> = {};
+      available.forEach(p => { selections[p.id] = p.linked; });
+      setManagePropsSelections(selections);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+    }
+  };
+
+  const handleSaveManagedProps = async () => {
+    if (!managePropsContract) return;
+
+    try {
+      setSavingManagedProps(true);
+
+      const toLink = Object.entries(managePropsSelections).filter(([, v]) => v).map(([id]) => id);
+      const toUnlink = Object.entries(managePropsSelections).filter(([, v]) => !v).map(([id]) => id);
+
+      // Link: set owner_email and owner_name on checked properties
+      if (toLink.length > 0) {
+        const { error } = await supabase
+          .from("properties")
+          .update({
+            owner_email: managePropsContract.owner_email,
+            owner_name: managePropsContract.owner_name,
+          })
+          .in("id", toLink);
+        if (error) console.error("Link error:", error);
+      }
+
+      // Unlink: clear owner_email on unchecked properties that were previously linked
+      const previouslyLinked = managePropsAvailable.filter(p => p.linked).map(p => p.id);
+      const toActuallyUnlink = toUnlink.filter(id => previouslyLinked.includes(id));
+      if (toActuallyUnlink.length > 0) {
+        const { error } = await supabase
+          .from("properties")
+          .update({ owner_email: null, owner_name: null })
+          .in("id", toActuallyUnlink);
+        if (error) console.error("Unlink error:", error);
+      }
+
+      toast.success("Properties updated successfully");
+      setManagePropsModalOpen(false);
+      setManagePropsContract(null);
+      loadContracts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update properties");
+    } finally {
+      setSavingManagedProps(false);
     }
   };
 
@@ -912,6 +991,10 @@ export default function AdminContracts() {
                             </a>
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => handleOpenManageProps(contract)}>
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                          Manage Properties
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewHistory(contract.owner_email)}>
                           <History className="h-4 w-4 mr-2" />
                           View History
@@ -1425,6 +1508,86 @@ export default function AdminContracts() {
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Resend & Link Properties
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Properties Modal */}
+      <Dialog open={managePropsModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setManagePropsModalOpen(false);
+          setManagePropsContract(null);
+          setManagePropsAvailable([]);
+          setManagePropsSelections({});
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Manage Properties</DialogTitle>
+            <DialogDescription>
+              Add or remove properties linked to <strong>{managePropsContract?.owner_name || managePropsContract?.owner_email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {managePropsAvailable.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-muted-foreground">
+                  {Object.values(managePropsSelections).filter(Boolean).length} of {managePropsAvailable.length} properties selected
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {managePropsAvailable
+                    .sort((a, b) => {
+                      // Linked first, then alphabetical
+                      if (a.linked !== b.linked) return a.linked ? -1 : 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((prop) => (
+                    <label
+                      key={prop.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                    >
+                      <Checkbox
+                        checked={managePropsSelections[prop.id] ?? false}
+                        onCheckedChange={(checked) => {
+                          setManagePropsSelections(prev => ({ ...prev, [prop.id]: !!checked }));
+                        }}
+                      />
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">{prop.name}</span>
+                        {prop.linked && (
+                          <Badge variant="secondary" className="text-xs flex-shrink-0">Currently linked</Badge>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManagePropsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveManagedProps}
+              disabled={savingManagedProps}
+            >
+              {savingManagedProps ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Save Changes
                 </>
               )}
             </Button>
