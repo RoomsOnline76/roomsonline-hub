@@ -47,6 +47,12 @@ import { ChannelCredentialEditor } from "@/components/pms/ChannelCredentialEdito
 
 const DISTRIBUTION_CHANNELS = ["hyperguest", "hotelbeds", "rentalsunited", "profitroom"];
 
+// Latest cache activity per external_system (from pms_availability_cache)
+interface CacheActivity {
+  system_type: string;
+  latest_fetched_at: string;
+}
+
 interface PMSAdapter {
   id: string;
   system_type: string;
