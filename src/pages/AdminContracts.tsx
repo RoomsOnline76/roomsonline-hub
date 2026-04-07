@@ -158,6 +158,13 @@ export default function AdminContracts() {
   const [resendPropertySelections, setResendPropertySelections] = useState<Record<string, boolean>>({});
   const [resending, setResending] = useState(false);
 
+  // Manage properties modal states
+  const [managePropsModalOpen, setManagePropsModalOpen] = useState(false);
+  const [managePropsContract, setManagePropsContract] = useState<OwnerContract | null>(null);
+  const [managePropsAvailable, setManagePropsAvailable] = useState<{ id: string; name: string; linked: boolean }[]>([]);
+  const [managePropsSelections, setManagePropsSelections] = useState<Record<string, boolean>>({});
+  const [savingManagedProps, setSavingManagedProps] = useState(false);
+
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
