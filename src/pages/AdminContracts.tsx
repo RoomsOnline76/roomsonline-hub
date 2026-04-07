@@ -527,6 +527,38 @@ export default function AdminContracts() {
     }
   };
 
+  const handleRevokeContract = async () => {
+    if (!revokeContract || !revokeReason.trim()) return;
+
+    try {
+      setRevoking(true);
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase.from("owner_contracts").insert({
+        owner_email: revokeContract.owner_email,
+        owner_name: revokeContract.owner_name,
+        status: "revoked",
+        version: revokeContract.version + 1,
+        template_version: revokeContract.template_version,
+        override_at: new Date().toISOString(),
+        override_by: user?.id || null,
+        override_reason: revokeReason.trim(),
+      });
+
+      if (error) throw error;
+
+      toast.success("Contract revoked — a new contract can now be sent");
+      setRevokeModalOpen(false);
+      setRevokeContract(null);
+      setRevokeReason("");
+      loadContracts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to revoke contract");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   const handleViewHistory = async (email: string) => {
     const history = contracts.filter((c) => c.owner_email === email).sort((a, b) => b.version - a.version);
     setHistoryEmail(email);
@@ -559,7 +591,7 @@ export default function AdminContracts() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Owners</CardTitle>
@@ -590,6 +622,14 @@ export default function AdminContracts() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-red-600">{stats.overridden}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Revoked</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-destructive">{stats.revoked}</p>
           </CardContent>
         </Card>
       </div>
