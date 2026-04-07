@@ -589,7 +589,7 @@ export default function AdminContracts() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 xl:gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Owners</CardTitle>
