@@ -894,27 +894,41 @@ const Booking = () => {
           ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : nights;
 
-        // Find room type - adapters now return DB UUIDs as room_type_id (adapter contract)
-        console.log('[Booking] Looking for room:', room.roomTypeId, 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
+        // Find room type using multi-strategy matching
+        // Build alias set: DB UUID + external PMS ID + normalized name
+        const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
+        const targetAliases = new Set<string>([room.roomTypeId]);
+        if (roomDef) {
+          targetAliases.add(slugifyRoomName(roomDef.name));
+          // hfRoomsRef may contain external_room_type_id mappings
+          const hfRoom = hfRoomsRef.current?.find((hr: any) => 
+            String(hr.id) === room.roomTypeId || hr.name === roomDef.name
+          );
+          if (hfRoom?.hostfully_room_id) targetAliases.add(hfRoom.hostfully_room_id);
+          if (hfRoom?.external_room_type_id) targetAliases.add(hfRoom.external_room_type_id);
+        }
+        
+        console.log('[Booking] Looking for room:', room.roomTypeId, 'aliases:', [...targetAliases], 'in', roomTypesArray.map((rt: any) => rt.room_type_id || rt.roomTypeId));
 
         let roomType = roomTypesArray.find(
           (rt: any) => {
             const rtId = String(rt.room_type_id || rt.roomTypeId);
-            // Direct DB UUID match (primary path — adapters return DB UUIDs)
-            if (rtId === room.roomTypeId) return true;
-            // Check aliases if available
-            if (rt.room_type_aliases?.includes(room.roomTypeId)) return true;
-            // Forward match: room definition name slugified matches cache ID
-            const roomDef = roomTypes.find(r => String(r.id) === room.roomTypeId);
-            if (roomDef && slugifyRoomName(roomDef.name) === rtId) return true;
-            // Reverse match: cache ID (slugified) matches any room definition
-            const reverseMatch = roomTypes.find(r => slugifyRoomName(r.name) === rtId);
-            if (reverseMatch && String(reverseMatch.id) === room.roomTypeId) return true;
+            // Direct match against any alias
+            if (targetAliases.has(rtId)) return true;
+            // Check candidate's own aliases
+            if (rt.room_type_aliases?.some((a: string) => targetAliases.has(a))) return true;
+            // Reverse: candidate name normalized matches any alias
+            const rtName = String(rt.room_type_name || rt.roomTypeName || rt.name || '');
+            if (rtName && targetAliases.has(slugifyRoomName(rtName))) return true;
+            // Forward: any alias matches candidate ID
+            for (const alias of targetAliases) {
+              if (alias === rtId) return true;
+            }
             return false;
           }
         );
         
-        // Fallback: try matching by room name (wizard rooms use wizard-room-{name} IDs)
+        // Fallback: try matching by exact room name
         if (!roomType) {
           roomType = roomTypesArray.find((rt: any) => {
             const rtName = rt.room_type_name || rt.roomTypeName || '';
