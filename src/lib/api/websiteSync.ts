@@ -20,7 +20,9 @@ export async function syncFromWebsite(
   propertyId: string,
   propertyUrl: string,
   existingData: Record<string, unknown>,
-  tripadvisorId?: string
+  tripadvisorId?: string,
+  additionalUrls?: string[],
+  googlePlaceId?: string
 ): Promise<WebsiteSyncResponse> {
   const { data, error } = await supabase.functions.invoke("ai-website-sync", {
     body: {
@@ -28,6 +30,8 @@ export async function syncFromWebsite(
       property_url: propertyUrl,
       existing_data: existingData,
       tripadvisor_id: tripadvisorId,
+      additional_urls: additionalUrls?.filter(u => u?.startsWith("http")) || [],
+      google_place_id: googlePlaceId || undefined,
     },
   });
 

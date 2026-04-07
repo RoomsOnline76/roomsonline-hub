@@ -97,7 +97,7 @@ serve(async (req) => {
   }
 
   try {
-    const { property_id, property_url, existing_data, tripadvisor_id } = await req.json();
+    const { property_id, property_url, existing_data, tripadvisor_id, additional_urls, google_place_id } = await req.json();
 
     if (!property_url) {
       return new Response(
@@ -222,6 +222,85 @@ serve(async (req) => {
         }
       } catch (taErr) {
         console.warn("TripAdvisor scrape error, continuing without it:", taErr);
+      }
+    }
+
+    // Step 1c: Scrape additional URLs if provided
+    let additionalContent = "";
+    if (additional_urls && Array.isArray(additional_urls)) {
+      for (const extraUrl of additional_urls) {
+        if (!extraUrl || typeof extraUrl !== "string" || !extraUrl.startsWith("http")) continue;
+        console.log("Scraping additional URL:", extraUrl);
+        try {
+          const extraResponse = await fetch("https://api.firecrawl.dev/v1/scrape", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${firecrawlApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              url: extraUrl,
+              formats: ["markdown"],
+              onlyMainContent: true,
+            }),
+          });
+          const extraData = await extraResponse.json();
+          if (extraResponse.ok && extraData.success) {
+            const content = extraData.data?.markdown || extraData.markdown || "";
+            if (content.length > 50) {
+              additionalContent += `\n\n=== CONTENT FROM ${extraUrl} ===\n${content.substring(0, 8000)}`;
+              console.log("Additional URL content length:", content.length);
+            }
+          } else {
+            console.warn("Additional URL scrape failed:", extraUrl, extraData.error);
+          }
+        } catch (err) {
+          console.warn("Additional URL scrape error:", extraUrl, err);
+        }
+      }
+    }
+
+    // Step 1d: Fetch Google Places details if google_place_id is provided
+    let googlePlacesContent = "";
+    if (google_place_id && typeof google_place_id === "string" && google_place_id.trim()) {
+      const googleApiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
+      if (googleApiKey) {
+        console.log("Fetching Google Places details for:", google_place_id);
+        try {
+          const fields = "displayName,formattedAddress,rating,userRatingCount,types,websiteUri,nationalPhoneNumber,editorialSummary,reviews";
+          const gpResponse = await fetch(
+            `https://places.googleapis.com/v1/places/${google_place_id.trim()}?fields=${fields}&languageCode=en`,
+            {
+              headers: {
+                "X-Goog-Api-Key": googleApiKey,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (gpResponse.ok) {
+            const gpData = await gpResponse.json();
+            const parts: string[] = [];
+            if (gpData.displayName?.text) parts.push(`Name: ${gpData.displayName.text}`);
+            if (gpData.formattedAddress) parts.push(`Address: ${gpData.formattedAddress}`);
+            if (gpData.rating) parts.push(`Google Rating: ${gpData.rating}/5`);
+            if (gpData.userRatingCount) parts.push(`Google Review Count: ${gpData.userRatingCount}`);
+            if (gpData.nationalPhoneNumber) parts.push(`Phone: ${gpData.nationalPhoneNumber}`);
+            if (gpData.editorialSummary?.text) parts.push(`Summary: ${gpData.editorialSummary.text}`);
+            if (gpData.types) parts.push(`Types: ${gpData.types.join(", ")}`);
+            if (gpData.reviews && Array.isArray(gpData.reviews)) {
+              const reviewTexts = gpData.reviews.slice(0, 5).map((r: any) => r.text?.text).filter(Boolean);
+              if (reviewTexts.length > 0) parts.push(`Top Reviews:\n${reviewTexts.join("\n---\n")}`);
+            }
+            googlePlacesContent = parts.join("\n");
+            console.log("Google Places content length:", googlePlacesContent.length);
+          } else {
+            console.warn("Google Places API error:", gpResponse.status);
+          }
+        } catch (gpErr) {
+          console.warn("Google Places fetch error:", gpErr);
+        }
+      } else {
+        console.warn("GOOGLE_PLACES_API_KEY not configured, skipping Google Places lookup");
       }
     }
 
@@ -361,6 +440,15 @@ serve(async (req) => {
               items: { type: "string" },
               description: "Key themes/highlights from TripAdvisor reviews (e.g. 'Excellent breakfast', 'Stunning views', 'Friendly staff'). Max 6 items. Only extract from TripAdvisor content."
             },
+            // Google Places fields
+            google_rating: {
+              type: "number",
+              description: "Google Places rating (1-5 scale). Only extract from Google Places content."
+            },
+            google_review_count: {
+              type: "integer",
+              description: "Total number of Google reviews. Only extract from Google Places content."
+            },
           },
           additionalProperties: false,
         },
@@ -379,12 +467,17 @@ Guidelines:
 - Images: only extract absolute HTTPS URLs ending in .jpg, .jpeg, .png, .webp
 - Activities: match against common hospitality activities
 - TripAdvisor fields: only extract from the TripAdvisor section if provided
+- Google fields: only extract from the Google Places section if provided
 
 DO NOT make up information. Return null for any field you cannot find.`;
 
     let userPrompt = `Extract property information from this website content:
 
 ${websiteContent.substring(0, 15000)}`;
+
+    if (additionalContent) {
+      userPrompt += `\n${additionalContent}`;
+    }
 
     if (tripadvisorContent) {
       userPrompt += `
@@ -395,9 +488,23 @@ ${tripadvisorContent.substring(0, 8000)}
 Also extract TripAdvisor-specific data: rating, review count, ranking, and review highlights/themes.`;
     }
 
+    if (googlePlacesContent) {
+      userPrompt += `
+
+=== GOOGLE PLACES DATA ===
+${googlePlacesContent}
+
+Extract Google rating and review count from the above.`;
+    }
+
+    const extraSources = [
+      tripadvisorContent ? 'TripAdvisor rating, review count, ranking, and review highlights' : '',
+      googlePlacesContent ? 'Google rating and review count' : '',
+    ].filter(Boolean).join('. Also extract ');
+
     userPrompt += `
 
-Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${tripadvisorContent ? ' Also extract TripAdvisor rating, review count, ranking, and review highlights.' : ''}`;
+Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${extraSources ? ` Also extract ${extraSources}.` : ''}`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -484,6 +591,9 @@ Extract: contact details, location, description, check-in/out times, star rating
       tripadvisor_rating: { stateVariable: "tripadvisor_rating", label: "TripAdvisor Rating" },
       tripadvisor_review_count: { stateVariable: "tripadvisor_review_count", label: "TripAdvisor Review Count" },
       tripadvisor_ranking: { stateVariable: "tripadvisor_ranking", label: "TripAdvisor Ranking" },
+      // Google Places fields
+      google_rating: { stateVariable: "google_rating", label: "Google Rating" },
+      google_review_count: { stateVariable: "google_review_count", label: "Google Review Count" },
     };
 
     for (const [key, value] of Object.entries(extractedData)) {
@@ -499,6 +609,7 @@ Extract: contact details, location, description, check-in/out times, star rating
       // Calculate confidence based on whether it's filling empty or overwriting
       const isEmpty = !currentValue || (typeof currentValue === "string" && currentValue.trim() === "");
       const isTripAdvisorField = key.startsWith("tripadvisor_");
+      const isGoogleField = key.startsWith("google_");
       const confidence = isEmpty ? 0.95 : 0.75;
 
       suggestions.push({
@@ -507,7 +618,7 @@ Extract: contact details, location, description, check-in/out times, star rating
         current: currentValue,
         suggested: value,
         confidence,
-        source: isTripAdvisorField ? "tripadvisor" : "website",
+        source: isTripAdvisorField ? "tripadvisor" : isGoogleField ? "google" : "website",
       });
     }
 

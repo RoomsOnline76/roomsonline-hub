@@ -305,6 +305,8 @@ export default function PropertyForm() {
   const [websiteSyncing, setWebsiteSyncing] = useState(false);
   const [websiteSyncModalOpen, setWebsiteSyncModalOpen] = useState(false);
   const [websiteSyncSuggestions, setWebsiteSyncSuggestions] = useState<WebsiteSyncSuggestion[]>([]);
+  const [sourceUrl2, setSourceUrl2] = useState("");
+  const [sourceUrl3, setSourceUrl3] = useState("");
   const [websiteSyncUrl, setWebsiteSyncUrl] = useState("");
 
   // Accommodation label + self catering
@@ -4470,11 +4472,14 @@ export default function PropertyForm() {
                                         closest_airport: formData.closest_airport,
                                         facilities: selectedFacilities,
                                       };
+                                      const additionalUrls = [sourceUrl2, sourceUrl3].filter(Boolean);
                                       const result = await syncFromWebsite(
                                         propertyId || "",
                                         formData.property_url || "",
                                         existingData,
-                                        tripadvisorId || undefined
+                                        tripadvisorId || undefined,
+                                        additionalUrls.length > 0 ? additionalUrls : undefined,
+                                        googlePlaceId || undefined
                                       );
                                       if (result.success && result.suggestions && result.suggestions.length > 0) {
                                         setWebsiteSyncSuggestions(result.suggestions);
@@ -4521,8 +4526,27 @@ export default function PropertyForm() {
                               )}
                             </div>
                             <p className="text-[10px] text-muted-foreground">
-                              Scan the website to auto-fill empty fields
+                              Scan the website to auto-fill empty fields. Add additional URLs below for more data sources.
                             </p>
+                          </div>
+                          
+                          {/* Additional Source URLs */}
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Additional Source URLs (optional)</Label>
+                            <Input
+                              type="url"
+                              value={sourceUrl2}
+                              onChange={(e) => setSourceUrl2(e.target.value)}
+                              placeholder="https://additional-source-1.com"
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="url"
+                              value={sourceUrl3}
+                              onChange={(e) => setSourceUrl3(e.target.value)}
+                              placeholder="https://additional-source-2.com"
+                              className="h-7 text-xs"
+                            />
                           </div>
                         </div>
                       </CardContent>
