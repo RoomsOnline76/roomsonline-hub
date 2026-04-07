@@ -52,7 +52,6 @@ import {
   Building2,
   Handshake,
   XCircle,
-  Ban,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
