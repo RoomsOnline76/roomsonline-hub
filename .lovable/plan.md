@@ -1,72 +1,95 @@
 
 
-# Phase 4: Route `useAuth` Database Calls Through Edge Function
+# Phase 5: Unify Routing and Concerns in App.tsx
 
-## Current State
+## Current State (714 lines)
 
-- **`SearchContext.tsx`** — contains **no database calls at all**. It is pure React state (useState/useCallback). No changes needed.
-- **`useAuth.tsx`** — contains **3 direct Supabase queries**:
-  1. `user_roles` table — fetch roles for current user
-  2. `profiles` table — fetch profile for current user
-  3. `sales_reps` table — fetch sales rep ID if user has that role
+`App.tsx` is functional but has several structural issues:
 
-There is no existing `data-access-api` edge function. One needs to be created.
+1. **No `PMSConnection.tsx` exists** — the original brief mentioned merging it, but it was never created as a standalone page. PMS adapter/connection logic already lives in `PropertyForm`'s GeneralTab (`OwnerPMSConnectionCard`). No merge needed.
+
+2. **Duplicate Connect portal routes** — lines 176–191 mount the Connect portal at `/` when on the connect domain, AND lines 682–696 mount the same routes under `/connect`. Both blocks lazy-load the same 12 components.
+
+3. **Inconsistent route grouping** — admin, dev, dashboard, journey, embed, and public routes are interleaved rather than grouped by concern. Indentation is inconsistent (2-space vs 4-space mixing).
+
+4. **Redundant redirect routes** — 5 legacy redirects (`/admin/system-health`, `/admin/supporting-systems`, `/admin/all-bookings`, `/admin/all-properties`, `/admin/system`) could be consolidated.
+
+5. **No route-level layout wrapping for admin** — admin routes repeat `<ProtectedRoute>` individually (~30 times) instead of using a nested layout route.
+
+6. **PMS routes are already clean** — the `/pms` nested route with `PMSShell` is well-structured and needs no changes.
 
 ## Plan
 
-### Step 1: Create `supabase/functions/data-access-api/index.ts`
+### Step 1: Group routes by concern with layout routes
 
-A new edge function that handles authenticated data-access requests. Initial action:
+Restructure `App.tsx` into clearly separated sections using React Router v6 nested layout routes:
 
-- **`get_user_context`** — accepts the user's JWT (via Authorization header), extracts `user_id` from claims, then queries `user_roles`, `profiles`, and conditionally `sales_reps` server-side. Returns a single JSON payload:
-
-```json
-{
-  "success": true,
-  "data": {
-    "profile": { "id": "...", "email": "...", "full_name": "...", "avatar_url": "...", "role": "..." },
-    "roles": ["admin", "dev"],
-    "sales_rep_id": "uuid-or-null"
-  }
-}
+```text
+Routes
+├── Connect domain routes (conditional)
+├── Public routes (/, /book, /property/:id, /embed/*, /staff-login, etc.)
+├── Auth route (/auth)
+├── Journey routes (/journey/*)
+├── Admin layout route → <ProtectedRoute> wrapper
+│   ├── /admin/properties/*
+│   ├── /admin/bookings
+│   ├── /admin/dashboard, /admin/payments
+│   ├── /admin/journals/*
+│   ├── /admin/contracts, /admin/onboarding
+│   ├── /admin/portfolios, /admin/billing-defaults
+│   └── ... (all admin routes)
+├── Dashboard routes (/dashboard/*)
+├── Dev layout route → <ProtectedRoute requireDev>
+│   ├── /dev/system-health
+│   ├── /dev/pms, /dev/features, /dev/testing, /dev/tasks
+├── PMS routes (/pms/*) — already nested, keep as-is
+├── Connect portal routes (/connect/*)
+├── Legacy redirects (consolidated)
+└── Catch-all (*)
 ```
 
-This replaces three round-trips with one. JWT validation via `getClaims()` ensures only the authenticated user's own data is returned — no user_id is accepted from the client.
+### Step 2: Create `AdminLayout` and `DevLayout` wrapper routes
 
-### Step 2: Update `src/hooks/useAuth.tsx`
+Create two small layout components that wrap children in `<ProtectedRoute>` + `<AppLayout>`:
 
-Replace `checkRolesAndProfile()` (lines 29–74) — remove the three `supabase.from(...)` calls and replace with:
+- `src/components/layout/AdminRouteLayout.tsx` — wraps with `<ProtectedRoute requireAdmin>`
+- `src/components/layout/DevRouteLayout.tsx` — wraps with `<ProtectedRoute requireDev>`
 
-```typescript
-const { data, error } = await supabase.functions.invoke("data-access-api", {
-  body: { action: "get_user_context" },
-});
-```
+This eliminates ~25 repeated `<ProtectedRoute>` wrappers. Routes that need different permission levels (e.g., `requireDevOrFearless`) use inline overrides.
 
-Then unpack `data.data.roles`, `data.data.profile`, and `data.data.sales_rep_id` into the existing state setters. The rest of the hook (auth listener, signOut) stays unchanged.
+### Step 3: Deduplicate Connect portal routes
 
-### Step 3: Add config entry
+Extract the 12 Connect child routes into a shared array or fragment, used by both the domain-root mount and the `/connect` path mount. Eliminates the duplicated block.
 
-Add `[functions.data-access-api]` to `supabase/config.toml`. This function **requires** JWT — it will validate via `getClaims()` in code.
+### Step 4: Consolidate legacy redirects
+
+Group the 5 redirect routes into a single block with a comment, and remove the empty lines / inconsistent spacing throughout.
+
+### Step 5: Verify PMS adapter layer consistency
+
+Confirm all PMS-related pages under `/pms/*` use `usePmsPropertyId` + edge function calls (not direct DB queries). Based on the Phase 2–4 work:
+- `booking-orchestrator-api` handles availability
+- `data-access-api` handles user context
+- PMS pages use `callPmsApi` via `usePmsApi` hook
+
+No additional adapter changes needed — this is a verification step.
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `supabase/functions/data-access-api/index.ts` | **New** — `get_user_context` action |
-| `src/hooks/useAuth.tsx` | Replace 3 direct DB calls with single edge function invoke |
-| `supabase/config.toml` | Add function entry |
+| `src/App.tsx` | Restructure into grouped sections, add nested layout routes, deduplicate Connect routes |
+| `src/components/layout/AdminRouteLayout.tsx` | **New** — `<ProtectedRoute>` + `<Outlet>` wrapper for admin routes |
+| `src/components/layout/DevRouteLayout.tsx` | **New** — `<ProtectedRoute requireDev>` + `<Outlet>` wrapper for dev routes |
 
 ## What does NOT change
-- `SearchContext.tsx` — no DB calls to remove
-- Auth listener / `onAuthStateChange` / `getSession` — stays client-side (Supabase Auth SDK)
-- `signOut()` — stays client-side
 - No database migrations
-- No user-facing behavior changes
+- No edge function changes
+- No PMS page modifications
+- No user-facing behavior changes — all routes resolve to the same components
+- `PMSShell` and PMS nested routing stays as-is
+- `ProtectedRoute` component stays as-is
 
-## Benefits
-- Removes all direct table queries from `useAuth` (3 → 0)
-- Reduces client-server round-trips from 3 sequential calls to 1
-- Role resolution logic moves server-side, reducing attack surface
-- Establishes `data-access-api` as the centralized data layer for future hook migrations
+## Target outcome
+`App.tsx` reduced from 714 → ~400 lines. Routes grouped by domain. Permission wrapping deduplicated. Modern React Router v6 nested layout pattern throughout.
 
