@@ -1369,6 +1369,68 @@ export default function AdminContracts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Resend Contract Modal */}
+      <Dialog open={resendModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setResendModalOpen(false);
+          setResendContract(null);
+          setResendAvailableProperties([]);
+          setResendPropertySelections({});
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resend Contract</DialogTitle>
+            <DialogDescription>
+              Select properties to link to this contract for <strong>{resendContract?.owner_email}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {resendAvailableProperties.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No properties found for this owner.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {resendAvailableProperties.map((prop) => (
+                  <label
+                    key={prop.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <Checkbox
+                      checked={resendPropertySelections[prop.id] ?? false}
+                      onCheckedChange={(checked) => {
+                        setResendPropertySelections(prev => ({ ...prev, [prop.id]: !!checked }));
+                      }}
+                    />
+                    <span className="text-sm font-medium">{prop.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResendModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResendContract}
+              disabled={resending}
+            >
+              {resending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Resending...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Resend & Link Properties
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
