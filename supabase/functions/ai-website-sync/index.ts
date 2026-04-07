@@ -440,6 +440,15 @@ serve(async (req) => {
               items: { type: "string" },
               description: "Key themes/highlights from TripAdvisor reviews (e.g. 'Excellent breakfast', 'Stunning views', 'Friendly staff'). Max 6 items. Only extract from TripAdvisor content."
             },
+            // Google Places fields
+            google_rating: {
+              type: "number",
+              description: "Google Places rating (1-5 scale). Only extract from Google Places content."
+            },
+            google_review_count: {
+              type: "integer",
+              description: "Total number of Google reviews. Only extract from Google Places content."
+            },
           },
           additionalProperties: false,
         },
