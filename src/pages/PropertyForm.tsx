@@ -110,6 +110,7 @@ import { ReferralSection } from "@/components/property/ReferralSection";
 import { AccommodationSpecialsTab } from "@/components/property/AccommodationSpecialsTab";
 import { useActivationReadiness } from "@/components/property/QualityGateIndicator";
 import { RoomManagerTab } from "@/components/property/RoomManagerTab";
+import { RateManagerTab } from "@/components/property/RateManagerTab";
 
 // Check if a PMS is fully integrated (all milestones complete)
 const isPMSFullyIntegrated = (systemType: string): boolean => {
