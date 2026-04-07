@@ -170,6 +170,9 @@ export default function AdminContracts() {
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
 
+  // Secondary owners: map secondary_email → Set of primary_emails that share a property
+  const [secondaryToPrimary, setSecondaryToPrimary] = useState<Record<string, string[]>>({});
+
   useEffect(() => {
     loadContracts();
     loadContractTemplates();
@@ -206,7 +209,7 @@ export default function AdminContracts() {
       if (ownerEmails.length > 0) {
         const { data: props } = await supabase
           .from("properties")
-          .select("owner_email, name, slug")
+          .select("id, owner_email, name, slug")
           .in("owner_email", ownerEmails)
           .is("permanently_deleted_at", null);
 
@@ -219,6 +222,52 @@ export default function AdminContracts() {
           }
         });
         setPropertiesByOwner(grouped);
+
+        // Cross-reference secondary owners via property_owners table
+        const propertyIds = (props || []).map(p => p.id);
+        if (propertyIds.length > 0) {
+          const { data: poRows } = await supabase
+            .from("property_owners")
+            .select("property_id, owner_email")
+            .in("property_id", propertyIds);
+
+          if (poRows && poRows.length > 0) {
+            // Build property_id → primary owner email map
+            const propToPrimary: Record<string, string> = {};
+            (props || []).forEach(p => {
+              if (p.owner_email) propToPrimary[p.id] = p.owner_email;
+            });
+
+            // Build secondary_email → [primary_emails] map
+            const secMap: Record<string, Set<string>> = {};
+            poRows.forEach(po => {
+              if (!po.owner_email) return;
+              const primaryEmail = propToPrimary[po.property_id];
+              if (!primaryEmail || po.owner_email.toLowerCase() === primaryEmail.toLowerCase()) return;
+              if (!secMap[po.owner_email]) secMap[po.owner_email] = new Set();
+              secMap[po.owner_email].add(primaryEmail);
+            });
+
+            const secResult: Record<string, string[]> = {};
+            Object.entries(secMap).forEach(([email, primaries]) => {
+              secResult[email] = Array.from(primaries);
+            });
+            setSecondaryToPrimary(secResult);
+
+            // Also add secondary owners' properties to propertiesByOwner for display
+            poRows.forEach(po => {
+              if (!po.owner_email) return;
+              const prop = (props || []).find(p => p.id === po.property_id);
+              if (!prop) return;
+              if (!grouped[po.owner_email]) grouped[po.owner_email] = [];
+              const nameLower = prop.name?.toLowerCase();
+              if (!grouped[po.owner_email].some(n => n.name.toLowerCase() === nameLower)) {
+                grouped[po.owner_email].push({ name: prop.name, slug: prop.slug || prop.name });
+              }
+            });
+            setPropertiesByOwner({ ...grouped });
+          }
+        }
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load contracts");
@@ -245,6 +294,20 @@ export default function AdminContracts() {
       }
     }
     result = Array.from(latestByOwner.values()).filter((c) => c.status !== 'revoked');
+
+    // Filter out secondary owners whose shared property already has a signed/overridden contract
+    // from the primary owner — they inherit that status
+    result = result.filter((c) => {
+      const primaryEmails = secondaryToPrimary[c.owner_email];
+      if (!primaryEmails || primaryEmails.length === 0) return true; // not a secondary owner
+      // Check if any primary owner has a signed/overridden contract
+      const primaryHasContract = primaryEmails.some(pe => {
+        const primaryContract = latestByOwner.get(pe);
+        return primaryContract && (primaryContract.status === 'signed' || primaryContract.status === 'overridden');
+      });
+      // If primary has signed contract, skip this secondary owner's contract
+      return !primaryHasContract;
+    });
 
     if (statusFilter !== "all") {
       result = result.filter((c) => c.status === statusFilter);
@@ -273,7 +336,7 @@ export default function AdminContracts() {
     }
 
     return result;
-  }, [contracts, statusFilter, searchQuery, propertiesByOwner]);
+  }, [contracts, statusFilter, searchQuery, propertiesByOwner, secondaryToPrimary]);
 
   const stats = useMemo(() => {
     const latestByOwner = new Map<string, OwnerContract>();
