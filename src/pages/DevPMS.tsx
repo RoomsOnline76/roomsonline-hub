@@ -89,8 +89,8 @@ export default function DevPMS() {
     try {
       setLoading(true);
       
-      // Fetch pms_credentials, pms_tracker_status, and NightsBridge sessions in parallel
-      const [credentialsResult, trackerResult, nbSessionResult] = await Promise.all([
+      // Fetch pms_credentials, pms_tracker_status, NightsBridge sessions, and cache activity in parallel
+      const [credentialsResult, trackerResult, nbSessionResult, cacheResult] = await Promise.all([
         supabase
           .from('pms_credentials')
           .select('*')
@@ -105,6 +105,8 @@ export default function DevPMS() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Get latest cache fetch per external_system from properties join
+        supabase.rpc('get_latest_cache_activity'),
       ]);
       
       if (credentialsResult.error) throw credentialsResult.error;
@@ -126,6 +128,17 @@ export default function DevPMS() {
         integration_status: t.integration_status,
         is_production: t.is_production ?? false,
       })));
+
+      // Build cache activity map: { benson: '2026-04-07T18:26:07Z', ... }
+      const cacheMap: Record<string, string> = {};
+      if (cacheResult.data && !cacheResult.error) {
+        (cacheResult.data as any[]).forEach((row: any) => {
+          if (row.external_system && row.latest_fetched_at) {
+            cacheMap[row.external_system] = row.latest_fetched_at;
+          }
+        });
+      }
+      setCacheActivity(cacheMap);
 
       setNightsBridgeLastActivity(nbSessionResult?.data?.created_at || null);
     } catch (error) {
@@ -260,6 +273,7 @@ export default function DevPMS() {
     config,
     connections: adapters.filter(a => a.system_type === config.key),
     trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
+    cacheLastSync: cacheActivity[config.key] || null,
   }));
 
   // Get the latest sync across all connections for a system
