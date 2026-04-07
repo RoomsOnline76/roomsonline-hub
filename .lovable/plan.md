@@ -1,95 +1,59 @@
 
 
-# Phase 5: Unify Routing and Concerns in App.tsx
+# Phase 6: Isolate AI Concierge from PMS Logic
 
-## Current State (714 lines)
+## Problem
 
-`App.tsx` is functional but has several structural issues:
+`ai-booking-concierge/index.ts` (1,012 lines) contains **direct PMS adapter switching** in `fetchLiveAvailability()` (lines 244–277) — a `switch` on `externalSystem` calling `hostfully-api`, `benson-api`, `hotelbeds-api`, and falling back to cache. This duplicates the same adapter logic that Phase 2 centralized into `booking-orchestrator-api`.
 
-1. **No `PMSConnection.tsx` exists** — the original brief mentioned merging it, but it was never created as a standalone page. PMS adapter/connection logic already lives in `PropertyForm`'s GeneralTab (`OwnerPMSConnectionCard`). No merge needed.
-
-2. **Duplicate Connect portal routes** — lines 176–191 mount the Connect portal at `/` when on the connect domain, AND lines 682–696 mount the same routes under `/connect`. Both blocks lazy-load the same 12 components.
-
-3. **Inconsistent route grouping** — admin, dev, dashboard, journey, embed, and public routes are interleaved rather than grouped by concern. Indentation is inconsistent (2-space vs 4-space mixing).
-
-4. **Redundant redirect routes** — 5 legacy redirects (`/admin/system-health`, `/admin/supporting-systems`, `/admin/all-bookings`, `/admin/all-properties`, `/admin/system`) could be consolidated.
-
-5. **No route-level layout wrapping for admin** — admin routes repeat `<ProtectedRoute>` individually (~30 times) instead of using a nested layout route.
-
-6. **PMS routes are already clean** — the `/pms` nested route with `PMSShell` is well-structured and needs no changes.
+The `help-assistant` edge function is a separate concern (internal docs chatbot) and is already isolated — no changes needed.
 
 ## Plan
 
-### Step 1: Group routes by concern with layout routes
+### Step 1: Replace PMS adapter switch with orchestrator call
 
-Restructure `App.tsx` into clearly separated sections using React Router v6 nested layout routes:
+Rewrite `fetchLiveAvailability()` to call `booking-orchestrator-api` instead of branching per PMS. This removes ~35 lines of adapter switching and replaces with a single invocation:
 
-```text
-Routes
-├── Connect domain routes (conditional)
-├── Public routes (/, /book, /property/:id, /embed/*, /staff-login, etc.)
-├── Auth route (/auth)
-├── Journey routes (/journey/*)
-├── Admin layout route → <ProtectedRoute> wrapper
-│   ├── /admin/properties/*
-│   ├── /admin/bookings
-│   ├── /admin/dashboard, /admin/payments
-│   ├── /admin/journals/*
-│   ├── /admin/contracts, /admin/onboarding
-│   ├── /admin/portfolios, /admin/billing-defaults
-│   └── ... (all admin routes)
-├── Dashboard routes (/dashboard/*)
-├── Dev layout route → <ProtectedRoute requireDev>
-│   ├── /dev/system-health
-│   ├── /dev/pms, /dev/features, /dev/testing, /dev/tasks
-├── PMS routes (/pms/*) — already nested, keep as-is
-├── Connect portal routes (/connect/*)
-├── Legacy redirects (consolidated)
-└── Catch-all (*)
+```typescript
+const pmsResponse = await supabase.functions.invoke('booking-orchestrator-api', {
+  body: {
+    property_id: propertyId,
+    start_date: dates.check_in,
+    end_date: dates.check_out,
+  }
+});
 ```
 
-### Step 2: Create `AdminLayout` and `DevLayout` wrapper routes
+The response parsing (extracting room types, rates, availability) stays the same since the orchestrator returns the identical `room_types[]` shape.
 
-Create two small layout components that wrap children in `<ProtectedRoute>` + `<AppLayout>`:
+### Step 2: Remove direct `properties.external_system` lookup
 
-- `src/components/layout/AdminRouteLayout.tsx` — wraps with `<ProtectedRoute requireAdmin>`
-- `src/components/layout/DevRouteLayout.tsx` — wraps with `<ProtectedRoute requireDev>`
+The function currently queries `properties` for `external_system` and `external_id` just to decide which PMS to call. Since the orchestrator handles that internally, this query can be simplified to only fetch `currency` (still needed for formatting).
 
-This eliminates ~25 repeated `<ProtectedRoute>` wrappers. Routes that need different permission levels (e.g., `requireDevOrFearless`) use inline overrides.
+### Step 3: Verify no other PMS leakage
 
-### Step 3: Deduplicate Connect portal routes
+Audit remaining code paths:
+- `fetchPropertyContext()` — queries `properties` and `local_experiences` for context data (not PMS) — **clean**
+- `fetchOwnerAlternatives()` — calls `fetchLiveAvailability()` recursively for cross-sell — **fixed by Step 1**
+- `generateValueBasedDelight()` — queries `properties` and `local_experiences` — **clean**
+- AI gateway calls (xAI/Lovable) — **clean, no PMS**
 
-Extract the 12 Connect child routes into a shared array or fragment, used by both the domain-root mount and the `/connect` path mount. Eliminates the duplicated block.
-
-### Step 4: Consolidate legacy redirects
-
-Group the 5 redirect routes into a single block with a comment, and remove the empty lines / inconsistent spacing throughout.
-
-### Step 5: Verify PMS adapter layer consistency
-
-Confirm all PMS-related pages under `/pms/*` use `usePmsPropertyId` + edge function calls (not direct DB queries). Based on the Phase 2–4 work:
-- `booking-orchestrator-api` handles availability
-- `data-access-api` handles user context
-- PMS pages use `callPmsApi` via `usePmsApi` hook
-
-No additional adapter changes needed — this is a verification step.
+No other PMS cross-contamination exists.
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `src/App.tsx` | Restructure into grouped sections, add nested layout routes, deduplicate Connect routes |
-| `src/components/layout/AdminRouteLayout.tsx` | **New** — `<ProtectedRoute>` + `<Outlet>` wrapper for admin routes |
-| `src/components/layout/DevRouteLayout.tsx` | **New** — `<ProtectedRoute requireDev>` + `<Outlet>` wrapper for dev routes |
+| `supabase/functions/ai-booking-concierge/index.ts` | Replace `fetchLiveAvailability` PMS switch with orchestrator call; simplify property query |
 
 ## What does NOT change
+- `help-assistant` edge function — already isolated
+- `booking-orchestrator-api` — no modifications needed
+- All three frontend consumers (`AIConciergePanel`, `EmbedConciergeChat`, `TobiJourneyAssistant`) — unchanged
+- AI narrative generation, delight engine, NLP parsing — untouched
 - No database migrations
-- No edge function changes
-- No PMS page modifications
-- No user-facing behavior changes — all routes resolve to the same components
-- `PMSShell` and PMS nested routing stays as-is
-- `ProtectedRoute` component stays as-is
+- No user-facing behavior changes
 
-## Target outcome
-`App.tsx` reduced from 714 → ~400 lines. Routes grouped by domain. Permission wrapping deduplicated. Modern React Router v6 nested layout pattern throughout.
+## Outcome
+AI concierge becomes PMS-agnostic. All availability resolution flows through a single orchestrator, eliminating duplicate adapter logic and preventing future PMS changes from requiring concierge updates.
 
