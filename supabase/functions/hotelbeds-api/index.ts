@@ -121,14 +121,20 @@ const propertyRequiredSchema = baseRequestSchema.extend({
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
   action: z.literal("fetch_availability"),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "startDate must be YYYY-MM-DD format" }),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "endDate must be YYYY-MM-DD format" }),
+  // Accept both camelCase and snake_case, normalize internally
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   occupancy: z.object({
     rooms: z.number().min(1).default(1),
     adults: z.number().min(1).default(2),
     children: z.number().min(0).default(0),
   }).optional(),
-});
+}).refine(
+  (d) => (d.startDate || d.start_date) && (d.endDate || d.end_date),
+  { message: "start_date/startDate and end_date/endDate are required" },
+);
 
 const createReservationSchema = baseRequestSchema.extend({
   action: z.literal("create_reservation"),
@@ -893,7 +899,10 @@ serve(async (req) => {
         );
       }
 
-      const { startDate: start_date, endDate: end_date, occupancy } = validation.data;
+      // Normalize: accept both camelCase and snake_case
+      const start_date = validation.data.startDate || validation.data.start_date!;
+      const end_date = validation.data.endDate || validation.data.end_date!;
+      const occupancy = validation.data.occupancy;
       const occ = occupancy || { rooms: 1, adults: 2, children: 0 };
 
       // Ensure dates are in the future (HotelBeds requirement)

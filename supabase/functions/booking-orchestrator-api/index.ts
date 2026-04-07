@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,8 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function ok(data: unknown) {
-  return new Response(JSON.stringify({ success: true, data }), {
+function ok(data: unknown, validate = false) {
+  const out = validate
+    ? safeParseResponse(AvailabilityResponseSchema, data, "booking-orchestrator")
+    : data;
+  return new Response(JSON.stringify({ success: true, data: out }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -503,7 +507,7 @@ Deno.serve(async (req) => {
       if (cached) return ok(cached);
 
       // Nothing found
-      return ok({ room_types: [] });
+      return ok(safeParseResponse(AvailabilityResponseSchema, { room_types: [] }, "orchestrator-empty"));
     }
 
     return fail("Unknown action: " + action);
