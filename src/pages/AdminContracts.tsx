@@ -63,6 +63,7 @@ interface OwnerContract {
   status: string;
   version: number;
   template_version: string;
+  template_version_id: string | null;
   sent_at: string | null;
   viewed_at: string | null;
   signed_at: string | null;
@@ -129,7 +130,9 @@ export default function AdminContracts() {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
   const [contractPreviewUrl, setContractPreviewUrl] = useState<string | null>(null);
+  const [contractPreviewMarkdown, setContractPreviewMarkdown] = useState<string | null>(null);
   const [contractPreviewTitle, setContractPreviewTitle] = useState("");
+  const [loadingContractPreview, setLoadingContractPreview] = useState(false);
   
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyEmail, setHistoryEmail] = useState<string | null>(null);
@@ -401,6 +404,38 @@ export default function AdminContracts() {
     const sigUrl = (contract.signature_data?.dataUrl as string) || contract.signature_image_url;
     setSignatureUrl(sigUrl || null);
     setSignaturePreviewOpen(true);
+  };
+
+  const handleViewContract = async (contract: OwnerContract) => {
+    setContractPreviewTitle(`Contract — ${contract.owner_name || contract.owner_email}`);
+    
+    if (contract.pdf_url || contract.unsigned_pdf_url) {
+      setContractPreviewUrl(contract.pdf_url || contract.unsigned_pdf_url);
+      setContractPreviewMarkdown(null);
+      setContractPreviewOpen(true);
+      return;
+    }
+
+    // Fall back to template markdown
+    setLoadingContractPreview(true);
+    setContractPreviewUrl(null);
+    setContractPreviewMarkdown(null);
+    setContractPreviewOpen(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("contract_template_versions")
+        .select("content_markdown")
+        .eq("id", contract.template_version_id ?? "")
+        .maybeSingle();
+
+      if (error) throw error;
+      setContractPreviewMarkdown(data?.content_markdown || "*No contract content available.*");
+    } catch {
+      setContractPreviewMarkdown("*Failed to load contract content.*");
+    } finally {
+      setLoadingContractPreview(false);
+    }
   };
 
   const validateOwnerEmail = async (email: string) => {
@@ -762,17 +797,10 @@ export default function AdminContracts() {
                             Resend Contract
                           </DropdownMenuItem>
                         )}
-                        {(contract.pdf_url || contract.unsigned_pdf_url) && (
-                          <DropdownMenuItem onClick={() => {
-                            const url = contract.pdf_url || contract.unsigned_pdf_url;
-                            setContractPreviewUrl(url);
-                            setContractPreviewTitle(`Contract — ${contract.owner_name || contract.owner_email}`);
-                            setContractPreviewOpen(true);
-                          }}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Contract
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onClick={() => handleViewContract(contract)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Contract
+                        </DropdownMenuItem>
                         {(contract.signature_data?.dataUrl || contract.signature_image_url) && (
                           <DropdownMenuItem onClick={() => handleViewSignature(contract)}>
                             <FileSignature className="h-4 w-4 mr-2" />
@@ -1125,7 +1153,12 @@ export default function AdminContracts() {
           <DialogHeader>
             <DialogTitle>{contractPreviewTitle}</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            {loadingContractPreview && (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
             {contractPreviewUrl && (
               <iframe
                 src={contractPreviewUrl}
@@ -1133,14 +1166,21 @@ export default function AdminContracts() {
                 className="w-full h-full rounded-lg border border-border"
               />
             )}
+            {!contractPreviewUrl && contractPreviewMarkdown && !loadingContractPreview && (
+              <div className="prose prose-sm max-w-none p-6 bg-background rounded-lg border border-border whitespace-pre-wrap">
+                {contractPreviewMarkdown}
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" asChild>
-              <a href={contractPreviewUrl || "#"} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in New Tab
-              </a>
-            </Button>
+            {contractPreviewUrl && (
+              <Button variant="outline" asChild>
+                <a href={contractPreviewUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open in New Tab
+                </a>
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
