@@ -430,7 +430,7 @@ const Booking = () => {
         // PMS-backed properties: fetch from pms_availability_cache
         const { data: cacheData } = await supabase
           .from("pms_availability_cache")
-          .select("date, available_units, rates")
+          .select("date, available_units, rates, external_room_type_id")
           .eq("property_id", property.id)
           .gte("date", todayStr)
           .lte("date", endStr)
@@ -453,16 +453,45 @@ const Booking = () => {
           });
         }
 
-        // Build map from cache data
+        // Filter cache to selected room if one is pre-selected, otherwise aggregate across rooms
+        const normalizeId = (s: string) => s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const selectedRoomName = preSelectedRoomTypeName;
+        const roomMatchIds = new Set<string>();
+        if (preSelectedRoomTypeId) {
+          roomMatchIds.add(preSelectedRoomTypeId);
+          if (selectedRoomName) roomMatchIds.add(normalizeId(selectedRoomName));
+        }
+
+        // Aggregate by date: available = any room available, rate = lowest across rooms
+        const dateAgg = new Map<string, { available: boolean; rate?: number }>();
         const cachedDates = new Set<string>();
+
         if (cacheData) {
           for (const row of cacheData) {
+            // If a room is pre-selected, only use rows matching that room
+            if (roomMatchIds.size > 0) {
+              const eid = row.external_room_type_id;
+              if (eid && !roomMatchIds.has(eid)) continue;
+            }
+
             cachedDates.add(row.date);
             const isBlocked = manualBlockedDates.has(row.date) || (row.available_units != null && row.available_units <= 0);
             const ratesData = row.rates as any;
             const rate = ratesData?.room_amount || (Array.isArray(ratesData) ? ratesData[0]?.room_amount : undefined);
-            calendarMap.set(row.date, { available: !isBlocked, rate });
+
+            const existing = dateAgg.get(row.date);
+            if (!existing) {
+              dateAgg.set(row.date, { available: !isBlocked, rate });
+            } else {
+              // Aggregate: available if ANY room is available, rate = lowest
+              if (!isBlocked) existing.available = true;
+              if (rate && (!existing.rate || rate < existing.rate)) existing.rate = rate;
+            }
           }
+        }
+
+        for (const [date, agg] of dateAgg) {
+          calendarMap.set(date, agg);
         }
 
         // Fill in gaps (dates not in cache) — mark as available by default
