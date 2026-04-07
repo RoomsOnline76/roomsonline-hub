@@ -51,10 +51,10 @@ import {
   Loader2,
   Building2,
   Handshake,
+  XCircle,
 } from "lucide-react";
 import { ContractOverrideModal } from "@/components/contract/ContractOverrideModal";
 import { Label } from "@/components/ui/label";
-import { Link } from "react-router-dom";
 
 interface OwnerContract {
   id: string;
@@ -85,7 +85,7 @@ interface LinkedProperty {
   name: string;
 }
 
-type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden";
+type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden" | "revoked";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pending", icon: Clock, variant: "secondary" },
@@ -93,6 +93,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; va
   viewed: { label: "Viewed", icon: Eye, variant: "outline" },
   signed: { label: "Signed", icon: Check, variant: "default" },
   overridden: { label: "Overridden", icon: Shield, variant: "destructive" },
+  revoked: { label: "Revoked", icon: XCircle, variant: "destructive" },
 };
 
 export default function AdminContracts() {
@@ -136,6 +137,15 @@ export default function AdminContracts() {
   const [linkedProperties, setLinkedProperties] = useState<LinkedProperty[]>([]);
   const [noPropertiesWarning, setNoPropertiesWarning] = useState(false);
 
+  // Revoke modal states
+  const [revokeModalOpen, setRevokeModalOpen] = useState(false);
+  const [revokeContract, setRevokeContract] = useState<OwnerContract | null>(null);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revoking, setRevoking] = useState(false);
+
+  // Properties lookup for table column
+  const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, string[]>>({});
+
   useEffect(() => {
     loadContracts();
     loadContractTemplates();
@@ -166,6 +176,26 @@ export default function AdminContracts() {
 
       if (error) throw error;
       setContracts(data || []);
+
+      // Load properties for all owner emails
+      const ownerEmails = [...new Set((data || []).map(c => c.owner_email))];
+      if (ownerEmails.length > 0) {
+        const { data: props } = await supabase
+          .from("properties")
+          .select("owner_email, name")
+          .in("owner_email", ownerEmails)
+          .is("permanently_deleted_at", null);
+
+        const grouped: Record<string, string[]> = {};
+        (props || []).forEach(p => {
+          if (!grouped[p.owner_email!]) grouped[p.owner_email!] = [];
+          const name = p.name?.toLowerCase();
+          if (!grouped[p.owner_email!].some(n => n.toLowerCase() === name)) {
+            grouped[p.owner_email!].push(p.name);
+          }
+        });
+        setPropertiesByOwner(grouped);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load contracts");
     } finally {
@@ -221,6 +251,7 @@ export default function AdminContracts() {
         const versionStr = `v${c.version}`;
         const sentDate = c.sent_at ? format(new Date(c.sent_at), "MMM d, yyyy").toLowerCase() : "";
         const signedDate = c.signed_at ? format(new Date(c.signed_at), "MMM d, yyyy").toLowerCase() : "";
+        const ownerProps = (propertiesByOwner[c.owner_email] || []).join(", ").toLowerCase();
         
         return (
           c.owner_email.toLowerCase().includes(query) ||
@@ -229,13 +260,14 @@ export default function AdminContracts() {
           versionStr.includes(query) ||
           c.template_version.toLowerCase().includes(query) ||
           sentDate.includes(query) ||
-          signedDate.includes(query)
+          signedDate.includes(query) ||
+          ownerProps.includes(query)
         );
       });
     }
 
     return result;
-  }, [contracts, statusFilter, searchQuery]);
+  }, [contracts, statusFilter, searchQuery, propertiesByOwner]);
 
   const stats = useMemo(() => {
     // Use the same logic as filteredContracts for accurate stats
@@ -270,6 +302,7 @@ export default function AdminContracts() {
       signed: latest.filter((c) => c.status === "signed").length,
       pending: latest.filter((c) => ["pending", "sent", "viewed"].includes(c.status)).length,
       overridden: latest.filter((c) => c.status === "overridden").length,
+      revoked: latest.filter((c) => c.status === "revoked").length,
     };
   }, [contracts]);
 
@@ -493,6 +526,38 @@ export default function AdminContracts() {
     }
   };
 
+  const handleRevokeContract = async () => {
+    if (!revokeContract || !revokeReason.trim()) return;
+
+    try {
+      setRevoking(true);
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase.from("owner_contracts").insert({
+        owner_email: revokeContract.owner_email,
+        owner_name: revokeContract.owner_name,
+        status: "revoked",
+        version: revokeContract.version + 1,
+        template_version: revokeContract.template_version,
+        override_at: new Date().toISOString(),
+        override_by: user?.id || null,
+        override_reason: revokeReason.trim(),
+      });
+
+      if (error) throw error;
+
+      toast.success("Contract revoked — a new contract can now be sent");
+      setRevokeModalOpen(false);
+      setRevokeContract(null);
+      setRevokeReason("");
+      loadContracts();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to revoke contract");
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   const handleViewHistory = async (email: string) => {
     const history = contracts.filter((c) => c.owner_email === email).sort((a, b) => b.version - a.version);
     setHistoryEmail(email);
@@ -525,7 +590,7 @@ export default function AdminContracts() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Owners</CardTitle>
@@ -558,6 +623,14 @@ export default function AdminContracts() {
             <p className="text-2xl font-bold text-red-600">{stats.overridden}</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Revoked</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-destructive">{stats.revoked}</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -572,7 +645,7 @@ export default function AdminContracts() {
           />
         </div>
         <div className="flex gap-2">
-          {(["all", "signed", "sent", "viewed", "pending", "overridden"] as StatusFilter[]).map((status) => (
+          {(["all", "signed", "sent", "viewed", "pending", "overridden", "revoked"] as StatusFilter[]).map((status) => (
             <Button
               key={status}
               variant={statusFilter === status ? "default" : "outline"}
@@ -591,10 +664,10 @@ export default function AdminContracts() {
           <TableHeader>
             <TableRow>
               <TableHead>Owner</TableHead>
+              <TableHead>Properties</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Sent</TableHead>
-              <TableHead>Viewed</TableHead>
               <TableHead>Signed</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -622,14 +695,29 @@ export default function AdminContracts() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const props = propertiesByOwner[contract.owner_email];
+                      if (!props || props.length === 0) return <span className="text-muted-foreground">—</span>;
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {props.slice(0, 2).map((name) => (
+                            <Badge key={name} variant="outline" className="text-xs font-normal">
+                              {name}
+                            </Badge>
+                          ))}
+                          {props.length > 2 && (
+                            <Badge variant="secondary" className="text-xs">+{props.length - 2}</Badge>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
                     <StatusBadge status={contract.status} />
                   </TableCell>
                   <TableCell>v{contract.version}</TableCell>
                   <TableCell>
                     {contract.sent_at ? format(new Date(contract.sent_at), "MMM d, yyyy") : "—"}
-                  </TableCell>
-                  <TableCell>
-                    {contract.viewed_at ? format(new Date(contract.viewed_at), "MMM d, yyyy") : "—"}
                   </TableCell>
                   <TableCell>
                     {contract.signed_at ? (
@@ -699,6 +787,22 @@ export default function AdminContracts() {
                             >
                               <Shield className="h-4 w-4 mr-2" />
                               Override Contract
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {(contract.status === "signed" || contract.status === "overridden") && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                setRevokeContract(contract);
+                                setRevokeReason("");
+                                setRevokeModalOpen(true);
+                              }}
+                            >
+                              <XCircle className="h-4 w-4 mr-2" />
+                              Revoke Contract
                             </DropdownMenuItem>
                           </>
                         )}
@@ -1004,9 +1108,9 @@ export default function AdminContracts() {
                     {contract.created_at && format(new Date(contract.created_at), "MMM d, yyyy HH:mm")}
                   </span>
                 </div>
-                {contract.status === "overridden" && contract.override_reason && (
-                  <div className="text-sm bg-destructive/10 p-2 rounded">
-                    <p className="font-medium text-destructive">Override Reason:</p>
+                {(contract.status === "overridden" || contract.status === "revoked") && contract.override_reason && (
+                  <div className={`text-sm p-2 rounded ${contract.status === "revoked" ? "bg-destructive/10" : "bg-destructive/10"}`}>
+                    <p className="font-medium text-destructive">{contract.status === "revoked" ? "Revoke Reason:" : "Override Reason:"}</p>
                     <p>{contract.override_reason}</p>
                     <p className="text-xs text-muted-foreground mt-1">By: {contract.override_by}</p>
                   </div>
@@ -1019,6 +1123,64 @@ export default function AdminContracts() {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke Contract Modal */}
+      <Dialog open={revokeModalOpen} onOpenChange={(open) => {
+        setRevokeModalOpen(open);
+        if (!open) {
+          setRevokeContract(null);
+          setRevokeReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revoke Contract</DialogTitle>
+            <DialogDescription>
+              Revoking this contract will allow a new one to be sent to <strong>{revokeContract?.owner_email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Alert className="border-destructive/50 bg-destructive/5">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-destructive">
+                This action cannot be undone. The contract will be marked as revoked and a new contract must be sent.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="revokeReason">Reason for revocation *</Label>
+              <textarea
+                id="revokeReason"
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="e.g. Terms need to be renegotiated, owner requested changes..."
+                value={revokeReason}
+                onChange={(e) => setRevokeReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRevokeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRevokeContract}
+              disabled={revoking || !revokeReason.trim()}
+            >
+              {revoking ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Revoking...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Revoke Contract
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>
