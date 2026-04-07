@@ -164,6 +164,7 @@ export default function AdminContracts() {
   const [managePropsAvailable, setManagePropsAvailable] = useState<{ id: string; name: string; linked: boolean }[]>([]);
   const [managePropsSelections, setManagePropsSelections] = useState<Record<string, boolean>>({});
   const [savingManagedProps, setSavingManagedProps] = useState(false);
+  const [managePropsSearch, setManagePropsSearch] = useState("");
 
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
