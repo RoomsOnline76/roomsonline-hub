@@ -230,55 +230,22 @@ async function fetchLiveAvailability(
   dates: { check_in: string; check_out: string }
 ): Promise<{ available: boolean; rates: { room_type_id: string; name: string; rate: number; total: number; description?: string }[] } | null> {
   try {
-    const { data: property } = await supabase
-      .from("properties")
-      .select("external_system, external_id, owner_pms_credential_id, currency")
-      .eq("id", propertyId)
-      .maybeSingle();
+    console.log(`[Concierge] Fetching availability via orchestrator for ${dates.check_in} - ${dates.check_out}`);
 
-    if (!property) return null;
-
-    const externalSystem = property.external_system || 'none';
-    console.log(`[Concierge] Fetching live availability from ${externalSystem} for ${dates.check_in} - ${dates.check_out}`);
-
-    let pmsResponse;
-    switch (externalSystem) {
-      case 'hostfully':
-        pmsResponse = await supabase.functions.invoke('hostfully-api', {
-          body: { action: 'fetch_availability', property_id: propertyId, start_date: dates.check_in, end_date: dates.check_out }
-        });
-        break;
-      case 'benson':
-        pmsResponse = await supabase.functions.invoke('benson-api', {
-          body: { action: 'get_availability', property_id: propertyId, start_date: dates.check_in, end_date: dates.check_out }
-        });
-        break;
-      case 'hotelbeds':
-        pmsResponse = await supabase.functions.invoke('hotelbeds-api', {
-          body: { action: 'fetch_availability', property_id: propertyId, start_date: dates.check_in, end_date: dates.check_out }
-        });
-        break;
-      default: {
-        const { data: cacheData } = await supabase
-          .from("pms_availability_cache")
-          .select("*")
-          .eq("property_id", propertyId)
-          .gte("date", dates.check_in)
-          .lte("date", dates.check_out);
-
-        if (cacheData && cacheData.length > 0) {
-          const nights = Math.ceil((new Date(dates.check_out).getTime() - new Date(dates.check_in).getTime()) / (1000 * 60 * 60 * 24));
-          const allAvailable = cacheData.every((day: any) => day.is_available && day.available_units > 0);
-          const avgRate = cacheData.reduce((sum: number, day: any) => sum + (day.rate || 0), 0) / cacheData.length;
-          return { available: allAvailable, rates: [{ room_type_id: 'default', name: 'Standard Room', rate: avgRate, total: avgRate * nights }] };
-        }
-        return { available: false, rates: [] };
+    const orchestratorResponse = await supabase.functions.invoke('booking-orchestrator-api', {
+      body: {
+        property_id: propertyId,
+        start_date: dates.check_in,
+        end_date: dates.check_out,
       }
+    });
+
+    if (orchestratorResponse?.error) {
+      console.error("[Concierge] Orchestrator error:", orchestratorResponse.error);
+      return null;
     }
 
-    if (pmsResponse?.error) { console.error("[Concierge] PMS error:", pmsResponse.error); return null; }
-
-    const data = pmsResponse?.data;
+    const data = orchestratorResponse?.data;
     if (!data?.success && !data?.room_types) return null;
 
     const roomTypes = data?.data?.room_types || data?.room_types || [];
