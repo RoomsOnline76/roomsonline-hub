@@ -85,7 +85,7 @@ interface LinkedProperty {
   name: string;
 }
 
-type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden" | "revoked";
+type StatusFilter = "all" | "pending" | "sent" | "viewed" | "signed" | "overridden";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pending", icon: Clock, variant: "secondary" },
@@ -238,7 +238,7 @@ export default function AdminContracts() {
       }
       // If existing is signed/overridden and current is not, keep existing
     }
-    result = Array.from(latestByOwner.values());
+    result = Array.from(latestByOwner.values()).filter(c => c.status !== 'revoked');
 
     if (statusFilter !== "all") {
       result = result.filter((c) => c.status === statusFilter);
@@ -295,14 +295,13 @@ export default function AdminContracts() {
         }
       }
     }
-    const latest = Array.from(latestByOwner.values());
+    const latest = Array.from(latestByOwner.values()).filter(c => c.status !== 'revoked');
     
     return {
       total: latest.length,
       signed: latest.filter((c) => c.status === "signed").length,
       pending: latest.filter((c) => ["pending", "sent", "viewed"].includes(c.status)).length,
       overridden: latest.filter((c) => c.status === "overridden").length,
-      revoked: latest.filter((c) => c.status === "revoked").length,
     };
   }, [contracts]);
 
@@ -590,7 +589,7 @@ export default function AdminContracts() {
       />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 xl:gap-6 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 xl:gap-6 mb-6">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Owners</CardTitle>
@@ -623,14 +622,6 @@ export default function AdminContracts() {
             <p className="text-2xl font-bold text-red-600">{stats.overridden}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Revoked</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-destructive">{stats.revoked}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
@@ -645,7 +636,7 @@ export default function AdminContracts() {
           />
         </div>
         <div className="flex gap-2">
-          {(["all", "signed", "sent", "viewed", "pending", "overridden", "revoked"] as StatusFilter[]).map((status) => (
+          {(["all", "signed", "sent", "viewed", "pending", "overridden"] as StatusFilter[]).map((status) => (
             <Button
               key={status}
               variant={statusFilter === status ? "default" : "outline"}
