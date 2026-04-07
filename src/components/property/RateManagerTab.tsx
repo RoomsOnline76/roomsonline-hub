@@ -1110,14 +1110,16 @@ export function RateManagerTab({
           <SyncRatesDialog
             open={syncRateTypesOpen}
             onOpenChange={setSyncRateTypesOpen}
-            sourcePropertyId={propertyId}
-            syncType="rate_types"
+            currentPropertyId={propertyId}
+            mode="rate-types"
+            currentAmenities={amenities}
           />
           <SyncRatesDialog
             open={syncSeasonsOpen}
             onOpenChange={setSyncSeasonsOpen}
-            sourcePropertyId={propertyId}
-            syncType="seasons"
+            currentPropertyId={propertyId}
+            mode="seasons"
+            currentAmenities={amenities}
           />
         </>
       )}
