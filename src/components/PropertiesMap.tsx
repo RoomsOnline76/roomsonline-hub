@@ -460,63 +460,64 @@ export function PropertiesMap({ enabledTypes, typeColors, selectedMapFilters = [
     }
   }, [mapReady, filteredProperties, typeColors, autoOpenFirstMarker]);
 
-  // Loading state - waiting for API key or Google Maps script
-  if (!apiKeyReady || (apiKey && !mapsLoaded && !mapError)) {
-    return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground mx-auto" />
-          <p className="text-xs text-muted-foreground">Loading map...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (mapError) {
-    return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
-          <p className="text-xs sm:text-sm text-muted-foreground">Map failed to load</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="text-xs text-primary underline"
-          >
-            Refresh page
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!apiKey) {
-    return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
-          <p className="text-xs sm:text-sm text-muted-foreground">Map unavailable</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (properties.length === 0) {
-    return (
-      <div className="w-full h-full rounded-xl border border-border bg-muted flex items-center justify-center">
-        <div className="text-center space-y-2">
-          <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
-          <p className="text-xs sm:text-sm text-muted-foreground px-4">No properties with locations available</p>
-        </div>
-      </div>
-    );
-  }
+  const showLoading = !apiKeyReady || (apiKey && !mapsLoaded && !mapError);
+  const showError = mapError;
+  const showNoKey = !apiKey && apiKeyReady && !mapError;
 
   return (
-    <div 
-      ref={mapRef} 
-      className="map-container w-full rounded-xl border border-border shadow-lg"
-      style={{ height: '100%', minHeight: '280px' }}
-    />
+    <div className="w-full h-full rounded-xl border border-border bg-muted relative overflow-hidden" style={{ minHeight: '280px' }}>
+      {/* Always-mounted map container so ref is stable */}
+      <div
+        ref={mapRef}
+        className="w-full h-full"
+        style={{ visibility: mapReady ? 'visible' : 'hidden', minHeight: '280px' }}
+      />
+
+      {/* Loading overlay */}
+      {showLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-muted">
+          <div className="text-center space-y-2">
+            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground mx-auto" />
+            <p className="text-xs text-muted-foreground">Loading map...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error overlay */}
+      {showError && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-muted">
+          <div className="text-center space-y-2">
+            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+            <p className="text-xs sm:text-sm text-muted-foreground">Map failed to load</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="text-xs text-primary underline"
+            >
+              Refresh page
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* No API key overlay */}
+      {showNoKey && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-muted">
+          <div className="text-center space-y-2">
+            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+            <p className="text-xs sm:text-sm text-muted-foreground">Map unavailable</p>
+          </div>
+        </div>
+      )}
+
+      {/* No properties overlay */}
+      {!showLoading && !showError && !showNoKey && properties.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-muted">
+          <div className="text-center space-y-2">
+            <MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-muted-foreground" />
+            <p className="text-xs sm:text-sm text-muted-foreground px-4">No properties with locations available</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
