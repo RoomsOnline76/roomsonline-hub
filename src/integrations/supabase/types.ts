@@ -10018,6 +10018,13 @@ export type Database = {
         Returns: string
       }
       get_booking_encryption_key: { Args: never; Returns: string }
+      get_latest_cache_activity: {
+        Args: never
+        Returns: {
+          external_system: string
+          latest_fetched_at: string
+        }[]
+      }
       get_user_audit_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["audit_user_role"]

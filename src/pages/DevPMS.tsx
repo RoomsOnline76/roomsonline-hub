@@ -68,11 +68,13 @@ interface SystemWithConnections {
   config: PMSSystemConfig;
   connections: PMSAdapter[];
   trackerStatus: TrackerStatus | null;
+  cacheLastSync: string | null;
 }
 
 export default function DevPMS() {
   const [adapters, setAdapters] = useState<PMSAdapter[]>([]);
   const [trackerStatuses, setTrackerStatuses] = useState<TrackerStatus[]>([]);
+  const [cacheActivity, setCacheActivity] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
@@ -87,8 +89,8 @@ export default function DevPMS() {
     try {
       setLoading(true);
       
-      // Fetch pms_credentials, pms_tracker_status, and NightsBridge sessions in parallel
-      const [credentialsResult, trackerResult, nbSessionResult] = await Promise.all([
+      // Fetch pms_credentials, pms_tracker_status, NightsBridge sessions, and cache activity in parallel
+      const [credentialsResult, trackerResult, nbSessionResult, cacheResult] = await Promise.all([
         supabase
           .from('pms_credentials')
           .select('*')
@@ -103,6 +105,8 @@ export default function DevPMS() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Get latest cache fetch per external_system
+        supabase.rpc('get_latest_cache_activity' as any),
       ]);
       
       if (credentialsResult.error) throw credentialsResult.error;
@@ -124,6 +128,17 @@ export default function DevPMS() {
         integration_status: t.integration_status,
         is_production: t.is_production ?? false,
       })));
+
+      // Build cache activity map: { benson: '2026-04-07T18:26:07Z', ... }
+      const cacheMap: Record<string, string> = {};
+      if (cacheResult.data && !cacheResult.error) {
+        (cacheResult.data as any[]).forEach((row: any) => {
+          if (row.external_system && row.latest_fetched_at) {
+            cacheMap[row.external_system] = row.latest_fetched_at;
+          }
+        });
+      }
+      setCacheActivity(cacheMap);
 
       setNightsBridgeLastActivity(nbSessionResult?.data?.created_at || null);
     } catch (error) {
@@ -258,6 +273,7 @@ export default function DevPMS() {
     config,
     connections: adapters.filter(a => a.system_type === config.key),
     trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
+    cacheLastSync: cacheActivity[config.key] || null,
   }));
 
   // Get the latest sync across all connections for a system
@@ -356,10 +372,14 @@ export default function DevPMS() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {systemsWithConnections.map(({ config, connections, trackerStatus }) => {
+          {systemsWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
             const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
             const statusInfo = getIntegrationStatusInfo(integrationStatus);
-            const latestSync = getLatestSync(connections);
+            const latestCredentialSync = getLatestSync(connections);
+            // Use the most recent timestamp between credential sync and cache activity
+            const latestSync = [latestCredentialSync, cacheLastSync]
+              .filter((s): s is string => s !== null)
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
             const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
             
             return (
@@ -395,7 +415,7 @@ export default function DevPMS() {
                     )}
                     {latestSync && (
                       <span className="ml-2 text-muted-foreground">
-                        • Last sync: {format(new Date(latestSync), 'MMM d, HH:mm')}
+                        • Last ARI: {formatDistanceToNow(new Date(latestSync), { addSuffix: true })} ({format(new Date(latestSync), 'MMM d, HH:mm')})
                       </span>
                     )}
                   </CardDescription>
@@ -417,7 +437,7 @@ export default function DevPMS() {
                         <TableRow key={adapter.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
+                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
                               {adapter.property_name || 'Unnamed'}
                             </div>
                           </TableCell>
@@ -427,14 +447,17 @@ export default function DevPMS() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at, config.isWidgetOnly)}
+                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {config.isWidgetOnly 
                               ? getWidgetLastActivity()
-                              : (adapter.last_sync_at 
-                                  ? format(new Date(adapter.last_sync_at), 'MMM d, HH:mm')
-                                  : 'Never')
+                              : (() => {
+                                  const effectiveSync = adapter.last_sync_at || cacheLastSync;
+                                  return effectiveSync 
+                                    ? formatDistanceToNow(new Date(effectiveSync), { addSuffix: true })
+                                    : 'Never';
+                                })()
                             }
                           </TableCell>
                           <TableCell className="text-right">
