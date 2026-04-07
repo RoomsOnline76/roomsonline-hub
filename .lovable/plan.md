@@ -1,58 +1,46 @@
 
 
-# Add Property Mandatory + Resend with Property Linking
+# Auto-Fill: Multiple Source URLs + Google/TripAdvisor Import
 
-## Changes to `src/pages/AdminContracts.tsx`
+## What changes
 
-### 1. Make Property Name mandatory on Send
+### 1. Add two additional URL fields in PropertyForm General tab
 
-- Add validation: disable "Send Contract" button when no `selectedProperty` is set (change `disabled={sending || !sendEmail}` → `disabled={sending || !sendEmail || !selectedProperty}`)
-- The search already works — it lists existing DB properties (excluding deleted), and allows typing a new name that creates on send
-- If `selectedProperty.id` is empty (new property), create the property in `handleSendContract` before invoking `send-owner-contract`:
-  ```sql
-  INSERT INTO properties (name, owner_email, owner_name, is_active) 
-  VALUES (selectedProperty.name, sendEmail, sendName, true)
-  ```
-  Then pass the new property's ID to the edge function
+Below the existing "Property Website" field, add two more URL inputs labeled "Additional Source URL 1" and "Additional Source URL 2". These are stored in `formData` state as `source_url_2` and `source_url_3` (not persisted to DB — ephemeral scraping sources only used during auto-fill).
 
-### 2. Resend Contract — Property selection modal
+### 2. Update Auto-Fill button logic to pass all sources
 
-Replace the direct `handleResendContract` call with a modal flow:
+When the Auto-Fill button is clicked, collect:
+- `property_url` (primary website)
+- `source_url_2`, `source_url_3` (additional URLs if populated)
+- `googlePlaceId` (if captured in the General tab)
+- `tripadvisorId` (already passed)
 
-**New state:**
-- `resendModalOpen`, `resendContract` (the contract being resent)
-- `resendPropertySelections` — `Map<string, boolean>` of property IDs to checked state
-- `resendAvailableProperties` — loaded from DB for the owner's email
+Pass all of these to `syncFromWebsite()`.
 
-**Flow:**
-1. Click "Resend" on a contract → open resend modal
-2. Modal loads all properties where `owner_email = contract.owner_email` (excluding deleted)
-3. Shows checkboxes for each property, all pre-checked
-4. Admin can uncheck/check properties
-5. On confirm:
-   - Call `send-owner-contract` with `owner_email` and `resend: true`
-   - For each **checked** property, update `owner_name` and `owner_email` on the `properties` table to match the contract's values (ensuring property records stay in sync)
-   - Toast success
+### 3. Update `src/lib/api/websiteSync.ts`
 
-**Modal UI:**
-- Title: "Resend Contract"
-- Description: "Select properties to link to this contract for {owner_email}"
-- Scrollable list of properties with checkboxes
-- Each row shows property name
-- Footer: Cancel + "Resend & Link Properties" button
+Add `additional_urls` (string array) and `google_place_id` to the edge function invocation body.
 
-### 3. Property search — also show unfiltered list on focus
+### 4. Update `supabase/functions/ai-website-sync/index.ts`
 
-Currently dropdown only appears after 2+ chars. Change: when the input is focused and empty, show the first 15 properties (ordered by name, excluding deleted) so admins can browse without typing. Trigger search on focus with empty query showing recent/all.
+- Accept `additional_urls: string[]` and `google_place_id: string` from the request body
+- Scrape each additional URL via Firecrawl (same as primary, appended to content)
+- If `google_place_id` is provided, fetch place details from Google Places API (New) using `GOOGLE_PLACES_API_KEY` env var — extract description, address, rating, phone, website
+- Append Google Places data to the AI extraction prompt alongside TripAdvisor content
+- Add `google_` prefixed extraction fields (rating, review count, address) to the tool schema
 
 ## Files changed
 
 | File | Change |
 |---|---|
-| `src/pages/AdminContracts.tsx` | Make property mandatory, add property creation on send, add resend modal with property linking |
+| `src/pages/PropertyForm.tsx` | Add `sourceUrl2`/`sourceUrl3` state + input fields below property URL; update Auto-Fill onClick to pass additional URLs and `googlePlaceId` |
+| `src/lib/api/websiteSync.ts` | Add `additional_urls` and `google_place_id` params to `syncFromWebsite()` and edge function body |
+| `supabase/functions/ai-website-sync/index.ts` | Accept + scrape additional URLs; fetch Google Places details if ID provided; merge all content into AI prompt |
 
 ## What does NOT change
-- Edge functions unchanged
-- Database schema unchanged
-- Contract signing flow unchanged
+- No database migrations (additional URLs are ephemeral, not stored)
+- TripAdvisor scraping logic unchanged (already works)
+- WebsiteSyncModal unchanged
+- No routing changes
 
