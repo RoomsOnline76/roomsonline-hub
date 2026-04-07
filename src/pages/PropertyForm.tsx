@@ -439,7 +439,7 @@ export default function PropertyForm() {
     };
     
     loadOwnerHostfullyCredential();
-  }, [isOwnerUser, user?.id, isAdmin, isDev, ownerPmsCredentialId]);
+  }, [isOwnerUser, user?.id, isAdmin, isDev, pmsSync?.ownerPmsCredentialId]);
 
   const handleOwnerCredentialChange = async () => {
     // Reload the credential after changes
