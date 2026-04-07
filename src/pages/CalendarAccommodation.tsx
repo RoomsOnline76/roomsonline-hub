@@ -477,17 +477,11 @@ const CalendarAccommodation = () => {
     setPmsSyncError("");
 
     try {
-      // Route to appropriate edge function based on PMS
-      const edgeFunction = `${selectedPropertyData.external_system}-api`;
-      
-      const { data, error } = await supabase.functions.invoke(edgeFunction, {
+      // Unified orchestrator call for all PMS adapters (Benson, Hostfully, HotelBeds, HyperGuest)
+      const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
         body: {
           action: "fetch_availability",
           property_id: selectedPropertyData.id,
-          propertyId: selectedPropertyData.id,
-          propertyUid: pmsPropertyCode,
-          startDate: startDateStr,
-          endDate: endDateStr,
           start_date: startDateStr,
           end_date: endDateStr,
         },
