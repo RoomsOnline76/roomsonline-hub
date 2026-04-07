@@ -130,7 +130,9 @@ export default function AdminContracts() {
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [contractPreviewOpen, setContractPreviewOpen] = useState(false);
   const [contractPreviewUrl, setContractPreviewUrl] = useState<string | null>(null);
+  const [contractPreviewMarkdown, setContractPreviewMarkdown] = useState<string | null>(null);
   const [contractPreviewTitle, setContractPreviewTitle] = useState("");
+  const [loadingContractPreview, setLoadingContractPreview] = useState(false);
   
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [historyEmail, setHistoryEmail] = useState<string | null>(null);
