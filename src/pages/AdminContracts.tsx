@@ -63,6 +63,7 @@ interface OwnerContract {
   status: string;
   version: number;
   template_version: string;
+  template_version_id: string | null;
   sent_at: string | null;
   viewed_at: string | null;
   signed_at: string | null;
