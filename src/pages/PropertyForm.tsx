@@ -4526,8 +4526,27 @@ export default function PropertyForm() {
                               )}
                             </div>
                             <p className="text-[10px] text-muted-foreground">
-                              Scan the website to auto-fill empty fields
+                              Scan the website to auto-fill empty fields. Add additional URLs below for more data sources.
                             </p>
+                          </div>
+                          
+                          {/* Additional Source URLs */}
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-muted-foreground">Additional Source URLs (optional)</Label>
+                            <Input
+                              type="url"
+                              value={sourceUrl2}
+                              onChange={(e) => setSourceUrl2(e.target.value)}
+                              placeholder="https://additional-source-1.com"
+                              className="h-7 text-xs"
+                            />
+                            <Input
+                              type="url"
+                              value={sourceUrl3}
+                              onChange={(e) => setSourceUrl3(e.target.value)}
+                              placeholder="https://additional-source-2.com"
+                              className="h-7 text-xs"
+                            />
                           </div>
                         </div>
                       </CardContent>
