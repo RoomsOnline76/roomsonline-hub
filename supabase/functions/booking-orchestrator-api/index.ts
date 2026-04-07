@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -503,7 +504,7 @@ Deno.serve(async (req) => {
       if (cached) return ok(cached);
 
       // Nothing found
-      return ok({ room_types: [] });
+      return ok(safeParseResponse(AvailabilityResponseSchema, { room_types: [] }, "orchestrator-empty"));
     }
 
     return fail("Unknown action: " + action);
