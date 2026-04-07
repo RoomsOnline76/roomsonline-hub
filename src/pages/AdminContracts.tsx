@@ -150,6 +150,13 @@ export default function AdminContracts() {
   const [revokeReason, setRevokeReason] = useState("");
   const [revoking, setRevoking] = useState(false);
 
+  // Resend modal states
+  const [resendModalOpen, setResendModalOpen] = useState(false);
+  const [resendContract, setResendContract] = useState<OwnerContract | null>(null);
+  const [resendAvailableProperties, setResendAvailableProperties] = useState<{ id: string; name: string }[]>([]);
+  const [resendPropertySelections, setResendPropertySelections] = useState<Record<string, boolean>>({});
+  const [resending, setResending] = useState(false);
+
   // Properties lookup for table column
   const [propertiesByOwner, setPropertiesByOwner] = useState<Record<string, { name: string; slug: string }[]>>({});
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
