@@ -386,6 +386,25 @@ export default function AdminContracts() {
     };
   }, [contracts]);
 
+  // Properties that have no contract for their owner
+  const uncontractedProperties = useMemo(() => {
+    if (allActiveProperties.length === 0) return [];
+    // Build set of owner emails that have a non-revoked contract
+    const contractedEmails = new Set(
+      filteredContracts.map(c => c.owner_email.toLowerCase())
+    );
+    // Also include all owner emails from the raw contracts (including revoked) — 
+    // any email that has ever had a contract sent
+    const allContractEmails = new Set(
+      contracts.map(c => c.owner_email.toLowerCase())
+    );
+    // Properties whose owner_email has NO contract at all
+    return allActiveProperties.filter(p => {
+      if (!p.owner_email) return true; // no owner = no contract
+      return !allContractEmails.has(p.owner_email.toLowerCase());
+    });
+  }, [allActiveProperties, contracts, filteredContracts]);
+
   const handleSendContract = async () => {
     if (!sendEmail) {
       toast.error("Email is required");
