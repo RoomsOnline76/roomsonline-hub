@@ -806,7 +806,7 @@ export default function AdminContracts() {
                               Revoke Contract
                             </DropdownMenuItem>
                           </>
-                        )
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
