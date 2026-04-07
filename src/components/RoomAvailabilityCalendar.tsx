@@ -311,26 +311,37 @@ export default function RoomAvailabilityCalendar({
         return;
       }
 
-      // For Hostfully: show cached data immediately, then refresh from live API in background
-      if (externalSystem === 'hostfully') {
-        // 1. Instant: load from pms_availability_cache first
-        const { data: cacheData } = await supabase
-          .from("pms_availability_cache")
-          .select("date, available_units, rates, restrictions")
-          .eq("property_id", propertyId)
-          .eq("external_room_type_id", roomId)
-          .gte("date", monthStart)
-          .lte("date", monthEnd);
-        
-        if (cacheData && cacheData.length > 0) {
-          const cachedMap = new Map<string, AvailabilityData>();
-          cacheData.forEach((item) => cachedMap.set(item.date, item));
-          setAvailability(cachedMap);
-          setLoading(false); // Show cached data immediately
-        }
+      // PMS-backed properties: load cache first, then refresh via unified orchestrator
+      const livePmsSystems = ['hostfully', 'benson', 'hotelbeds', 'hyperguest'];
+      const isLivePms = livePmsSystems.includes(externalSystem?.toLowerCase() || '');
 
-        // 2. Background: fetch live from Hostfully API and merge
-        supabase.functions.invoke("hostfully-api", {
+      // 1. Instant: load from pms_availability_cache (try both roomId and roomName)
+      let cacheQuery = supabase
+        .from("pms_availability_cache")
+        .select("date, available_units, rates, restrictions")
+        .eq("property_id", propertyId)
+        .gte("date", monthStart)
+        .lte("date", monthEnd);
+
+      const { data: cacheData } = await cacheQuery;
+
+      // Match cache rows to this room using ID or normalized name
+      const normalizedRoomName = roomName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      const matchedCache = (cacheData || []).filter((row: any) => {
+        const eid = row.external_room_type_id;
+        return eid === roomId || eid === normalizedRoomName;
+      });
+
+      if (matchedCache.length > 0) {
+        const cachedMap = new Map<string, AvailabilityData>();
+        matchedCache.forEach((item: any) => cachedMap.set(item.date, item));
+        setAvailability(cachedMap);
+        setLoading(false);
+      }
+
+      // 2. Background: fetch live from unified orchestrator and merge
+      if (isLivePms) {
+        supabase.functions.invoke("booking-orchestrator-api", {
           body: {
             action: 'fetch_availability',
             property_id: propertyId,
@@ -338,31 +349,41 @@ export default function RoomAvailabilityCalendar({
             end_date: monthEnd,
           }
         }).then(({ data, error }) => {
-          if (!error && data?.success && data?.data?.room_types) {
-            const matchedRoom = data.data.room_types.find((rt: any) => 
-              rt.room_type_id === roomId || rt.name === roomName
-            );
+          if (error) { console.warn('[RoomCal] Orchestrator error:', error); setLoading(false); return; }
+          const responseData = data?.data || data;
+          const roomTypes = responseData?.room_types || responseData?.roomTypes || [];
+          
+          // Find matching room using multiple strategies
+          const matchedRoom = roomTypes.find((rt: any) => {
+            const rtId = String(rt.room_type_id || rt.roomTypeId || '');
+            const rtName = String(rt.room_type_name || rt.roomTypeName || rt.name || '');
+            const rtNorm = rtName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            return rtId === roomId || rtNorm === normalizedRoomName || rtName === roomName;
+          });
+          
+          if (matchedRoom) {
+            console.log('[RoomCal] Live room matched:', matchedRoom.room_type_name || matchedRoom.roomTypeName);
+            const availMap = new Map<string, AvailabilityData>();
+            const availArray = matchedRoom.rooms_available_per_night || matchedRoom.availability_per_night || matchedRoom.roomsAvailablePerNight || [];
+            const rateTypes = matchedRoom.rate_types || matchedRoom.rateTypes || [];
             
-            if (matchedRoom) {
-              const availMap = new Map<string, AvailabilityData>();
-              const availArray = matchedRoom.availability_per_night || [];
-              const rateTypes = matchedRoom.rate_types || [];
+            availArray.forEach((item: any) => {
+              const dateStr = item.date;
+              const ratesForDate = rateTypes.flatMap((rt: any) => 
+                (rt.rates || []).filter((r: any) => r.date === dateStr)
+              );
               
-              availArray.forEach((item: any) => {
-                const ratesForDate = rateTypes.flatMap((rt: any) => 
-                  (rt.rates || []).filter((r: any) => r.date === item.date)
-                );
-                
-                availMap.set(item.date, {
-                  date: item.date,
-                  available_units: item.available_units,
-                  rates: ratesForDate.length > 0 ? ratesForDate : undefined,
-                  restrictions: item.restrictions,
-                });
+              availMap.set(dateStr, {
+                date: dateStr,
+                available_units: item.available_units ?? item.numberOfRoomsAvailable ?? 0,
+                rates: ratesForDate.length > 0 ? ratesForDate : undefined,
+                restrictions: item.restrictions,
               });
-              
-              setAvailability(availMap);
-            }
+            });
+            
+            setAvailability(availMap);
+          } else {
+            console.warn('[RoomCal] No matching room in orchestrator response for:', roomId, roomName);
           }
           setLoading(false);
         }).catch(() => setLoading(false));
@@ -370,22 +391,21 @@ export default function RoomAvailabilityCalendar({
         return;
       }
 
-      // Existing cache-based fetch for other PMS systems
-      const { data, error } = await supabase
-        .from("pms_availability_cache")
-        .select("date, available_units, rates, restrictions")
-        .eq("property_id", propertyId)
-        .eq("external_room_type_id", roomId)
-        .gte("date", monthStart)
-        .lte("date", monthEnd);
+      // Non-live PMS: just use cache (already loaded above)
+      if (matchedCache.length === 0) {
+        // Fallback: try without room filter
+        const { data: allCache } = await supabase
+          .from("pms_availability_cache")
+          .select("date, available_units, rates, restrictions")
+          .eq("property_id", propertyId)
+          .eq("external_room_type_id", roomId)
+          .gte("date", monthStart)
+          .lte("date", monthEnd);
 
-      if (error) throw error;
-
-      const availMap = new Map<string, AvailabilityData>();
-      data?.forEach((item) => {
-        availMap.set(item.date, item);
-      });
-      setAvailability(availMap);
+        const availMap = new Map<string, AvailabilityData>();
+        allCache?.forEach((item: any) => availMap.set(item.date, item));
+        setAvailability(availMap);
+      }
     } catch (error) {
       console.error("Error fetching availability:", error);
     } finally {
