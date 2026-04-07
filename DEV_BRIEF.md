@@ -118,8 +118,12 @@ Located in `supabase/functions/`:
 
 | Function | Purpose |
 |----------|---------|
+| `booking-orchestrator-api` | **PMS-agnostic booking orchestrator** — routes availability/room-type requests to the correct PMS adapter; single entry point for all booking flows |
+| `data-access-api` | **Centralized data access layer** — serves user profile, roles, and permissions; eliminates direct DB queries from frontend hooks |
 | `roomsonline-pms-api` | **Native PMS adapter** - manages availability, rates, bookings for properties without external PMS |
 | `benson-api` | Benson PMS integration - fetch availability, rates, room types, reservations; push bookings |
+| `hostfully-api` | Hostfully PMS integration - full adapter contract compliance |
+| `ai-booking-concierge` | AI-powered booking assistant — uses `booking-orchestrator-api` for PMS-agnostic availability |
 | `checkfront-api` | Checkfront PMS integration |
 | `push-booking` | Push bookings to connected PMS systems |
 | `sync-rates-availability` | Pull rates/availability from PMS into local cache |
@@ -395,17 +399,46 @@ TRIPADVISOR_API_KEY
 
 ```
 src/
-├── components/        # Reusable UI components
-├── pages/            # Route components
-├── hooks/            # Custom React hooks (useAuth, useExternalSync)
-├── integrations/     # Supabase client & types (auto-generated)
-├── lib/              # Utilities, configs
+├── components/
+│   └── property/
+│       ├── GeneralTab.tsx          # Property general info tab
+│       ├── HouseStyleTab.tsx       # Branding & style tab
+│       ├── InfoFacilitiesTab.tsx    # Amenities & facilities tab
+│       ├── HouseRulesTab.tsx       # Rules & policies tab
+│       ├── RoomManagerTab.tsx      # Room type management
+│       ├── RateManagerTab.tsx      # Rate management
+│       └── PropertyFormIntegrationsTab.tsx  # PMS connections
+├── pages/            # Route components (lazy-loaded except Home, Auth, NotFound)
+├── hooks/            # Custom React hooks (useAuth routes via data-access-api)
+├── integrations/     # Supabase client & types (auto-generated — never edit)
+├── lib/
+│   ├── schemas/
+│   │   └── pms.ts    # Zod schemas for all PMS adapter responses (snake_case enforcement)
+│   └── pmsUtils.ts   # Adapter response unwrapping utilities
 └── config/           # UI schema, field mappings
 
 supabase/
-├── functions/        # Edge functions
+├── functions/
+│   ├── booking-orchestrator-api/   # PMS-agnostic booking orchestrator
+│   ├── data-access-api/            # Centralized data access layer
+│   ├── _shared/
+│   │   ├── adapter-contract.ts     # Adapter response contract types
+│   │   └── validate.ts             # Soft validation with safeParseResponse
+│   └── ...                         # Other edge functions
 └── config.toml       # Supabase configuration
 ```
+
+---
+
+## Performance Optimizations
+
+| Optimization | Implementation |
+|-------------|----------------|
+| **Code-splitting** | `vite.config.ts` `manualChunks`: vendor-react, vendor-query, vendor-motion, vendor-ui |
+| **Route lazy loading** | ~20 pages use `React.lazy()`. Only `Home`, `Auth`, `NotFound` are eager |
+| **QueryClient defaults** | `staleTime: 5min`, `gcTime: 10min`, `refetchOnWindowFocus: false` globally |
+| **Component memoization** | `PropertyCard` wrapped in `React.memo` with custom comparator |
+| **Image optimization** | `loading="lazy"` + `decoding="async"` on all property images |
 
 ---
 
@@ -416,6 +449,10 @@ supabase/
 - PMS credentials stored in `pms_credentials`, not `api_keys`
 - Benson uses HTTP Basic Auth (username:password base64 encoded)
 - NightsBridge properties redirect to external booking URL
+- **useAuth** fetches profile/roles via `data-access-api` edge function (no direct DB queries)
+- **Booking flow** routes through `booking-orchestrator-api` (PMS-agnostic)
+- **AI concierge** uses orchestrator for availability — no direct PMS adapter calls
+- **Zod schemas** at `src/lib/schemas/pms.ts` enforce snake_case at API boundaries
 
 ### UI Component Guidelines for PMS Data
 
@@ -428,8 +465,8 @@ When consuming adapter responses in UI components:
 
 **Example:**
 ```typescript
-const { data } = await supabase.functions.invoke('benson-api', {
-  body: { action: 'fetch_property_data', property_id: propertyId }
+const { data } = await supabase.functions.invoke('booking-orchestrator-api', {
+  body: { action: 'get_room_types', property_id: propertyId }
 });
 
 const responseData = unwrapAdapterResponse(data);
