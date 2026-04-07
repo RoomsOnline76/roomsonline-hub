@@ -14,6 +14,7 @@ import { AdminRouteLayout } from "./components/layout/AdminRouteLayout";
 import { DevRouteLayout } from "./components/layout/DevRouteLayout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── Eager — critical path only (FCP) ────────────────────────────
 import Home from "./pages/Home";
@@ -370,6 +371,7 @@ const App = () => (
         </MobileBookingProvider>
       </CurrencyProvider>
     </QueryClientProvider>
+    <Analytics />
   </ThemeProvider>
 );
 
