@@ -4535,11 +4535,6 @@ export default function AdminKeys() {
         </div>
         <Accordion type="multiple" className="space-y-4">
           {renderBensonCard()}
-          {renderPlaceholderPMSCard(
-            "Channex.io",
-            "channex",
-            "Channel manager and PMS connectivity platform with open API for property distribution",
-          )}
           {renderCheckfrontCard()}
           {renderCloudbedsCard()}
           {renderPlaceholderPMSCard(
@@ -4581,6 +4576,11 @@ export default function AdminKeys() {
             "Booking.com",
             "booking_com",
             "Global OTA — rates, availability, and reservation sync",
+          )}
+          {renderPlaceholderPMSCard(
+            "Channex.io",
+            "channex",
+            "Channel manager and PMS connectivity platform with open API for property distribution",
           )}
           {renderPlaceholderPMSCard(
             "Expedia",
