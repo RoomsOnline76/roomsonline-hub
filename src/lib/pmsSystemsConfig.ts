@@ -37,6 +37,13 @@ export const getIntegrationStatusInfo = (status: IntegrationStatus | string | nu
 
 // All available PMS and API systems - sorted alphabetically by name
 export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
+  // A
+  {
+    key: 'airbnb',
+    name: 'Airbnb',
+    description: 'Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)',
+    deploymentStatus: 'in_development',
+  },
   // B
   {
     key: 'benson',
