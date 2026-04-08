@@ -4257,6 +4257,13 @@ export default function AdminKeys() {
             {/* Tracker Status */}
             <PMSTrackerStatusDisplay tracker={tracker} />
 
+            {/* Implementation Progress Toggles */}
+            <PMSProgressToggles
+              systemType={systemType}
+              trackerData={tracker}
+              onUpdated={() => fetchTrackerData()}
+            />
+
             {/* PMS IT Contact */}
             <PMSContactDetails
               systemType={systemType}
