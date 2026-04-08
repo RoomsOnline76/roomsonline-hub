@@ -228,6 +228,12 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
 // Get only visible systems (excludes hidden)
 export const VISIBLE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
 
+// Get channel manager systems (visible only)
+export const CHANNEL_MANAGER_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'channel_manager');
+
+// Get PMS-only systems (visible, non-channel-manager)
+export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category !== 'channel_manager');
+
 // Get total count of visible systems (used for milestones)
 export const TOTAL_PMS_SYSTEMS_COUNT = VISIBLE_PMS_SYSTEMS.length;
 
