@@ -26,6 +26,7 @@ import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
 import { BankExportConfigCard } from "@/components/bank-export";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   Key,
   AlertCircle,
@@ -48,10 +49,12 @@ import {
   Clock,
   Puzzle,
   Rocket,
+  ChevronDown,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -4402,8 +4405,12 @@ export default function AdminKeys() {
       </div>
 
       {/* ROL'OS Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">ROL'OS</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">ROL'OS</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           <AccordionItem
             value="roomsonline"
@@ -4516,12 +4523,16 @@ export default function AdminKeys() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* PMS Systems Section - Alphabetically ordered */}
-      <div className="mb-8">
+      <Collapsible className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Property Management Systems</h2>
+          <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer group">
+            <h2 className="text-xl font-semibold">Property Management Systems</h2>
+            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
           <Button
             variant="outline"
             size="sm"
@@ -4533,6 +4544,7 @@ export default function AdminKeys() {
             Email Status Report
           </Button>
         </div>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           {renderBensonCard()}
           {renderCheckfrontCard()}
@@ -4556,11 +4568,17 @@ export default function AdminKeys() {
           )}
           {pmsKeys.map(renderKeyCard)}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Channel Managers Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">Channel Managers</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Channel Managers</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+        
         <Accordion type="multiple" className="space-y-4">
           {renderPlaceholderPMSCard(
             "Agoda",
@@ -4779,19 +4797,29 @@ export default function AdminKeys() {
             "Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs",
           )}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Financial Services Section */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Financial Services</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Financial Services</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <div className="space-y-4">
           <BankExportConfigCard />
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Additional Services Section */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Additional Services</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           {renderResendCard()}
           {renderTripadvisorCard()}
@@ -4805,16 +4833,22 @@ export default function AdminKeys() {
             )
             .map(renderKeyCard)}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
       {/* PayFast Environment Toggle */}
       <PayFastEnvironmentToggle />
 
       {/* External Tools Section (formerly Supporting Systems) */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">External Tools</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">External Tools</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <p className="text-sm text-muted-foreground mb-4">Manage external tools, hosting accounts, and team credentials</p>
         <SupportingSystemsTab />
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {renderHostfullyListingSelector()}
       {renderSandboxQueryDialog()}
