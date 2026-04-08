@@ -4797,19 +4797,29 @@ export default function AdminKeys() {
             "Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs",
           )}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Financial Services Section */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Financial Services</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Financial Services</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <div className="space-y-4">
           <BankExportConfigCard />
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Additional Services Section */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Additional Services</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Additional Services</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           {renderResendCard()}
           {renderTripadvisorCard()}
@@ -4823,16 +4833,22 @@ export default function AdminKeys() {
             )
             .map(renderKeyCard)}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
       {/* PayFast Environment Toggle */}
       <PayFastEnvironmentToggle />
 
       {/* External Tools Section (formerly Supporting Systems) */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">External Tools</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">External Tools</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <p className="text-sm text-muted-foreground mb-4">Manage external tools, hosting accounts, and team credentials</p>
         <SupportingSystemsTab />
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {renderHostfullyListingSelector()}
       {renderSandboxQueryDialog()}
