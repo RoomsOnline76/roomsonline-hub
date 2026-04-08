@@ -1,45 +1,68 @@
 
 
-# Collapsible Categories + Category-Aware Status Report Email
+# Add WETU Content API Adapter
 
-## 1. Collapsible category sections in `/admin-keys`
+## Context
+WETU is a travel content portal providing read-only access to property content (descriptions, images, rooms, features, GPS coordinates) via a REST/JSON API at `https://wetu.com/API/Pins/<APIKEY>/...`. Endpoints: List, Get, Search, GetPinsWithPaging. No booking/ARI — content only.
 
-**File: `src/pages/AdminKeys.tsx`**
+## Changes
 
-Currently the page has flat `<div>` sections with `<h2>` headings for each category (ROL'OS PMS, Property Management Systems, Channel Managers, Financial Services, Additional Services, External Tools). These are always expanded.
+### 1. `src/lib/pmsSystemsConfig.ts` — New entry
 
-**Change**: Wrap each category section in a collapsible `<Collapsible>` component (from `@/components/ui/collapsible`) with a clickable header that toggles open/closed. Default state: **collapsed**. Each section header shows the category name + a chevron icon that rotates on expand.
+Add under "Additional Services" (no `category: 'channel_manager'` since it's a content portal, not a distribution channel):
 
-Use `Collapsible`, `CollapsibleTrigger`, and `CollapsibleContent` from the existing shadcn/ui collapsible component. Each category gets its own state toggle (or use a single `Set<string>` of open sections).
+```typescript
+{
+  key: 'wetu',
+  name: 'WETU',
+  description: 'Travel content portal — property descriptions, images, rooms, and features (read-only content API)',
+  deploymentStatus: 'in_development',
+}
+```
 
-Sections to make collapsible:
-- ROL'OS PMS (Internal)
-- Property Management Systems
-- Channel Managers
-- Financial Services
-- Additional Services
-- External Tools
+### 2. `supabase/functions/wetu-api/index.ts` — Edge function adapter
 
-## 2. Update status report email to include categories and all systems
+Actions:
+- `list_properties` — `GET /API/Pins/<KEY>/List?suppliers=y`
+- `get_property` — `GET /API/Pins/<KEY>/Get?ids=<id>`
+- `search` — `GET /API/Pins/<KEY>/Search/<terms>`
+- `get_paged` — `GET /API/Pins/<KEY>/GetPinsWithPaging?pageNumber=<n>`
+- `health_check` — calls List with limit to verify API key
 
-**File: `supabase/functions/send-pms-status-report/index.ts`**
+Requires secret `WETU_API_KEY`. Standard CORS, error handling, Zod input validation.
 
-Currently the email lists all systems in a single flat table sorted by integration status. The `getPMSDisplayName` map is also missing newer systems (Channex, Airbnb, Expedia, Agoda, Google Hotels, Lekkeslaap, HyperGuest).
+### 3. `src/components/PMSProgressToggles.tsx`
 
-**Changes**:
+Add `'wetu'` to both `MODIFY_NOT_SUPPORTED` and `CANCEL_NOT_SUPPORTED` lists (content-only, no booking operations).
 
-1. **Add missing systems to `getPMSDisplayName`**: Add entries for `channex` → "Channex.io", `airbnb` → "Airbnb", `expedia` → "Expedia", `agoda` → "Agoda", `google_hotels` → "Google Hotels", `lekkeslaap` → "Lekkeslaap", `hyperguest` → "HyperGuest", `booking_com` → "Booking.com".
+### 4. `src/pages/AdminKeys.tsx` — Add card
 
-2. **Add a category mapping** (mirroring `pmsSystemsConfig.ts`): A `const CHANNEL_MANAGERS` set containing all channel manager keys. Systems not in the set are PMS.
+Add `renderPlaceholderPMSCard("WETU", "wetu", "Travel content portal — property descriptions, images, rooms, and features (read-only content API)")` in the **Additional Services** section.
 
-3. **Split the status table into two sections** in the HTML: "Property Management Systems" table and "Channel Managers" table — each with its own heading, same column structure, same styling.
+### 5. `src/pages/DevPMS.tsx`
 
-4. **Update summary cards** to show counts per category (e.g., "PMS: 8 systems" / "Channels: 12 systems") or keep existing summary but ensure all systems are counted.
+WETU will appear automatically via `PMS_CATEGORY_SYSTEMS` (no category = defaults to PMS group).
+
+### 6. Database — tracker row
+
+```sql
+INSERT INTO pms_tracker_status (system_type, status, integration_status, has_docs)
+VALUES ('wetu', 'In Progress', 'in_development', true)
+ON CONFLICT (system_type) DO NOTHING;
+```
+
+### 7. Status report email
+
+Add `'wetu'` → `"WETU"` to `getPMSDisplayName` in `send-pms-status-report/index.ts`.
 
 ## Files
 
 | File | Change |
 |---|---|
-| `src/pages/AdminKeys.tsx` | Wrap each category section in `Collapsible` (default collapsed) |
-| `supabase/functions/send-pms-status-report/index.ts` | Add missing system names, split table by PMS vs Channel Manager category |
+| `src/lib/pmsSystemsConfig.ts` | Add WETU entry |
+| `supabase/functions/wetu-api/index.ts` | New edge function |
+| `src/components/PMSProgressToggles.tsx` | Add to not-supported lists |
+| `src/pages/AdminKeys.tsx` | Add placeholder card |
+| `supabase/functions/send-pms-status-report/index.ts` | Add display name |
+| Database | Insert tracker row |
 
