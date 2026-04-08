@@ -59,9 +59,23 @@ const getPMSDisplayName = (key: string): string => {
     roomsonline: "RoomsOnline PMS",
     mews: "Mews",
     profitroom: "ProfitRoom",
+    channex: "Channex.io",
+    airbnb: "Airbnb",
+    expedia: "Expedia",
+    agoda: "Agoda",
+    google_hotels: "Google Hotels",
+    lekkeslaap: "Lekkeslaap",
+    hyperguest: "HyperGuest",
+    booking_com: "Booking.com",
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };
+
+// Channel manager system keys (mirroring pmsSystemsConfig.ts categories)
+const CHANNEL_MANAGER_KEYS = new Set([
+  'agoda', 'airbnb', 'booking_com', 'channex', 'expedia', 'google_hotels',
+  'hyperguest', 'hotelbeds', 'lekkeslaap', 'nightsbridge', 'profitroom', 'rentalsunited',
+]);
 
 const getStatusColor = (status: string): string => {
   const normalized = status?.toLowerCase() || "";

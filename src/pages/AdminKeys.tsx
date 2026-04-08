@@ -26,6 +26,7 @@ import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
 import { BankExportConfigCard } from "@/components/bank-export";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   Key,
   AlertCircle,
@@ -48,10 +49,12 @@ import {
   Clock,
   Puzzle,
   Rocket,
+  ChevronDown,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 // Map PMS system types to icons
 const getPMSIcon = (systemType: string | null): LucideIcon => {
@@ -4402,8 +4405,12 @@ export default function AdminKeys() {
       </div>
 
       {/* ROL'OS Section */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">ROL'OS</h2>
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">ROL'OS</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           <AccordionItem
             value="roomsonline"
