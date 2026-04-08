@@ -6,10 +6,13 @@ export type DeploymentStatus = 'deployed' | 'ready' | 'in_development' | 'planne
 // Maps pms_tracker_status.integration_status to display status
 export type IntegrationStatus = 'deployed' | 'in_testing' | 'in_development' | 'coming_soon' | 'parked';
 
+export type PMSCategory = 'pms' | 'channel_manager';
+
 export interface PMSSystemConfig {
   key: string;
   name: string;
   description: string;
+  category?: PMSCategory; // Defaults to 'pms' if not set
   isInternal?: boolean; // RoomsOnline API is internal
   hasCustomCard?: boolean; // Systems with custom UI cards in AdminKeys
   deploymentStatus: DeploymentStatus;
