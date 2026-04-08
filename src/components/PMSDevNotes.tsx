@@ -164,7 +164,7 @@ const PMSDevNotes = ({ systemType }: PMSDevNotesProps) => {
           ) : notesLog.length === 0 ? (
             <p className="text-sm text-muted-foreground italic py-2">No notes yet</p>
           ) : (
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className="max-h-[500px]">
               <div className="space-y-3 pr-3">
                 {notesLog.map((entry) => (
                   <div 
