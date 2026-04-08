@@ -113,6 +113,10 @@ const formatNoteDate = (dateStr: string): string => {
 };
 
 const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[], generatedDate: string): string => {
+  // Split into PMS vs Channel Manager
+  const pmsData = trackerData.filter(t => !CHANNEL_MANAGER_KEYS.has(t.system_type));
+  const channelData = trackerData.filter(t => CHANNEL_MANAGER_KEYS.has(t.system_type));
+
   // New integration status counts
   const deployedCount = trackerData.filter((t) => t.integration_status === "deployed").length;
   const inTestingCount = trackerData.filter((t) => t.integration_status === "in_testing").length;
@@ -120,14 +124,12 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
   const parkedCount = trackerData.filter((t) => t.integration_status === "parked").length;
   const comingSoonCount = trackerData.filter((t) => t.integration_status === "coming_soon" || !t.integration_status).length;
   
-  // Calculate total milestones (9 per system)
+  // Calculate total milestones (11 per system)
   let totalMilestones = 0;
   trackerData.forEach((t) => {
-    // Setup phase
     if (t.has_account) totalMilestones++;
     if (t.has_docs) totalMilestones++;
     if (t.has_edge) totalMilestones++;
-    // Integration phase
     if (t.has_health) totalMilestones++;
     if (t.has_get) totalMilestones++;
     if (t.has_post) totalMilestones++;
@@ -156,63 +158,49 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
     notesBySystem[note.system_type].push(note);
   });
 
-  // Sort by integration status priority: deployed first, then in_testing, then in_development, then others
-  const sortedData = [...trackerData].sort((a, b) => {
+  // Sort by integration status priority
+  const sortByStatus = (data: TrackerData[]) => [...data].sort((a, b) => {
     const statusOrder = (s: string | null) => {
       if (s === 'deployed') return 0;
       if (s === 'in_testing') return 1;
       if (s === 'in_development') return 2;
       if (s === 'parked') return 4;
-      return 3; // coming_soon or null
+      return 3;
     };
     return statusOrder(a.integration_status) - statusOrder(b.integration_status);
   });
 
-  const tableRows = sortedData
+  const generateTableRows = (data: TrackerData[]) => sortByStatus(data)
     .map((row) => {
-      // Setup phase: Account, Docs, Edge
       const setupFlags = [row.has_account || row.has_access, row.has_docs, row.has_edge];
-      // Integration phase: Health, GET, POST, Modify, Cancel, Test, Certify, Live
       const integrationFlags = [row.has_health, row.has_get, row.has_post, row.has_modify, row.has_cancel, row.has_soft_test, row.is_certified, row.is_production];
       const allFlags = [...setupFlags, ...integrationFlags];
 
-      // Build contact display
       const contactParts: string[] = [];
       if (row.contact_name) contactParts.push(row.contact_name);
       else if (row.contact_person) contactParts.push(row.contact_person);
       const contactDisplay = contactParts.length > 0 ? contactParts.join(" ") : "—";
 
-      // Get latest note for this system
       const latestNote = latestNoteBySystem[row.system_type];
       let latestNoteDisplay = "—";
       if (latestNote) {
-        // Truncate note if too long (max 80 chars)
-        const truncatedNote =
-          latestNote.note_content.length > 80
-            ? latestNote.note_content.substring(0, 77) + "..."
-            : latestNote.note_content;
+        const truncatedNote = latestNote.note_content.length > 80
+          ? latestNote.note_content.substring(0, 77) + "..."
+          : latestNote.note_content;
         latestNoteDisplay = truncatedNote;
       }
 
-      // Setup progress dots (Account, Docs, Edge)
       const setupLabels = ["Ac", "Do", "Ed"];
       const setupDots = setupFlags
-        .map((flag, i) => {
-          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Account", "Docs", "Edge"][i]}">${setupLabels[i]}</span>`;
-        })
+        .map((flag, i) => `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Account", "Docs", "Edge"][i]}">${setupLabels[i]}</span>`)
         .join("");
 
-      // Integration progress dots (Health, GET, POST, Modify, Cancel, Test, Certify, Live)
       const integrationLabels = ["He", "Gt", "Ps", "Mo", "Ca", "Te", "Ce", "Lv"];
       const integrationDots = integrationFlags
-        .map((flag, i) => {
-          return `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Health", "GET", "POST", "Modify", "Cancel", "Test", "Certify", "Live"][i]}">${integrationLabels[i]}</span>`;
-        })
+        .map((flag, i) => `<span style="display: inline-block; width: 20px; height: 18px; border-radius: 3px; background: ${flag ? "#22c55e" : "#e2e8f0"}; color: ${flag ? "#fff" : "#94a3b8"}; font-size: 9px; line-height: 18px; text-align: center; margin-right: 2px;" title="${["Health", "GET", "POST", "Modify", "Cancel", "Test", "Certify", "Live"][i]}">${integrationLabels[i]}</span>`)
         .join("");
 
       const flagsCompleted = allFlags.filter(Boolean).length;
-      
-      // Get integration status badge config
       const integrationConfig = getIntegrationStatusConfig(row.integration_status);
 
       return `
@@ -242,6 +230,17 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
     `;
     })
     .join("");
+
+  const tableHeader = `
+    <thead>
+      <tr style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
+        <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">System</th>
+        <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Integration</th>
+        <th style="padding: 12px 10px; text-align: center; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
+        <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
+        <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Latest Note</th>
+      </tr>
+    </thead>`;
 
   // Build full notes log section with timestamps
   const notesSection = Object.entries(notesBySystem)
@@ -328,24 +327,50 @@ const generateEmailHtml = (trackerData: TrackerData[], notesLog: NoteLogEntry[],
                   </td>
                 </tr>
               </table>
+              <table width="100%" style="border-collapse: separate; border-spacing: 8px 0; margin-top: 8px;">
+                <tr>
+                  <td style="background: #f8fafc; padding: 10px 12px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 18px; font-weight: 700; color: #1a1a2e;">${pmsData.length}</div>
+                    <div style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">PMS Systems</div>
+                  </td>
+                  <td style="background: #f8fafc; padding: 10px 12px; border-radius: 8px; text-align: center; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 18px; font-weight: 700; color: #1a1a2e;">${channelData.length}</div>
+                    <div style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Channel Managers</div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           
-          <!-- Status Table -->
+          <!-- PMS Systems Table -->
+          <tr>
+            <td style="padding: 0 40px 10px;">
+              <h2 style="margin: 0 0 12px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Property Management Systems</h2>
+            </td>
+          </tr>
           <tr>
             <td style="padding: 0 40px 20px;">
               <table width="100%" style="border-collapse: collapse; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
-                <thead>
-                  <tr style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);">
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">System</th>
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Integration</th>
-                    <th style="padding: 12px 10px; text-align: center; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Progress</th>
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Contact</th>
-                    <th style="padding: 12px 10px; text-align: left; color: #ffffff; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Latest Note</th>
-                  </tr>
-                </thead>
+                ${tableHeader}
                 <tbody>
-                  ${tableRows}
+                  ${generateTableRows(pmsData)}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Channel Managers Table -->
+          <tr>
+            <td style="padding: 0 40px 10px;">
+              <h2 style="margin: 0 0 12px; color: #1a1a2e; font-size: 18px; font-weight: 600;">Channel Managers</h2>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 40px 20px;">
+              <table width="100%" style="border-collapse: collapse; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+                ${tableHeader}
+                <tbody>
+                  ${generateTableRows(channelData)}
                 </tbody>
               </table>
             </td>

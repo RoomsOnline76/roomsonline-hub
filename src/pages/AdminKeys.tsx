@@ -4578,7 +4578,7 @@ export default function AdminKeys() {
           <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent>
-        <h2 className="text-xl font-semibold mb-4">Channel Managers</h2>
+        
         <Accordion type="multiple" className="space-y-4">
           {renderPlaceholderPMSCard(
             "Agoda",
