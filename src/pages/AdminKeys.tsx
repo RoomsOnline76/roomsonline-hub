@@ -4529,7 +4529,7 @@ export default function AdminKeys() {
           {renderBensonCard()}
           {renderCheckfrontCard()}
           {renderCloudbedsCard()}
-          {/* Guesty hidden - no longer required */}
+          {/* Guesty - uses generic system card (no custom card) */}
           {renderHostfullyCard()}
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
