@@ -1,77 +1,45 @@
 
 
-# Add "Channel Managers" Category to Admin Keys & PMS Control
+# Collapsible Categories + Category-Aware Status Report Email
 
-## Overview
-Create a new "Channel Managers" section in both `/admin-keys` (AdminKeys.tsx) and `/dev/pms` (DevPMS.tsx), and move existing channel/distribution systems into it. Add new entries for channels not yet in the system config (Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap).
+## 1. Collapsible category sections in `/admin-keys`
 
-## Changes
+**File: `src/pages/AdminKeys.tsx`**
 
-### 1. `src/lib/pmsSystemsConfig.ts` — Add missing channels + category flag
+Currently the page has flat `<div>` sections with `<h2>` headings for each category (ROL'OS PMS, Property Management Systems, Channel Managers, Financial Services, Additional Services, External Tools). These are always expanded.
 
-Add a `category` field to `PMSSystemConfig`: `'pms' | 'channel_manager'`.
+**Change**: Wrap each category section in a collapsible `<Collapsible>` component (from `@/components/ui/collapsible`) with a clickable header that toggles open/closed. Default state: **collapsed**. Each section header shows the category name + a chevron icon that rotates on expand.
 
-Mark existing systems as channel managers:
-- `hyperguest` → `category: 'channel_manager'`
-- `hotelbeds` → `category: 'channel_manager'`
-- `rentalsunited` → `category: 'channel_manager'`
-- `profitroom` → `category: 'channel_manager'`
-- `nightsbridge` → `category: 'channel_manager'`
-- `airbnb` → `category: 'channel_manager'`
+Use `Collapsible`, `CollapsibleTrigger`, and `CollapsibleContent` from the existing shadcn/ui collapsible component. Each category gets its own state toggle (or use a single `Set<string>` of open sections).
 
-Add new channel manager entries:
-- `booking_com` — "Booking.com", "Global OTA — rates, availability, and reservation sync"
-- `expedia` — "Expedia", "Expedia Group — lodging availability, rates, and booking management"
-- `agoda` — "Agoda", "Agoda OTA — rates, availability, and reservation distribution"
-- `google_hotels` — "Google Hotels", "Google Hotel Ads — surface rates on Google Search & Maps"
-- `lekkeslaap` — "Lekkeslaap", "South Africa's leading accommodation platform"
+Sections to make collapsible:
+- ROL'OS PMS (Internal)
+- Property Management Systems
+- Channel Managers
+- Financial Services
+- Additional Services
+- External Tools
 
-All new entries: `deploymentStatus: 'planned'`, `category: 'channel_manager'`.
+## 2. Update status report email to include categories and all systems
 
-Add helper exports:
-```typescript
-export const CHANNEL_MANAGER_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'channel_manager');
-export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category !== 'channel_manager');
-```
+**File: `supabase/functions/send-pms-status-report/index.ts`**
 
-### 2. `src/pages/AdminKeys.tsx` — Split into two sections
+Currently the email lists all systems in a single flat table sorted by integration status. The `getPMSDisplayName` map is also missing newer systems (Channex, Airbnb, Expedia, Agoda, Google Hotels, Lekkeslaap, HyperGuest).
 
-**Before** (single "Property Management Systems" section with all cards):
+**Changes**:
 
-**After**:
-- **"Property Management Systems"** section — contains only PMS cards (Benson, Channex, Checkfront, Cloudbeds, Guesty, Hostfully, RoomKey, RoomRaccoon, ROL'OS, etc.)
-- **"Channel Managers"** section (new) — contains: Airbnb, Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap, NightsBridge, Rentals United, Profitroom, HyperGuest, HotelBeds
+1. **Add missing systems to `getPMSDisplayName`**: Add entries for `channex` → "Channex.io", `airbnb` → "Airbnb", `expedia` → "Expedia", `agoda` → "Agoda", `google_hotels` → "Google Hotels", `lekkeslaap` → "Lekkeslaap", `hyperguest` → "HyperGuest", `booking_com` → "Booking.com".
 
-Move existing render calls (Airbnb, NightsBridge, HotelBeds, Rentals United, Profitroom) from PMS section into the new Channel Managers section. Add `renderPlaceholderPMSCard` calls for the 5 new channels (Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap).
+2. **Add a category mapping** (mirroring `pmsSystemsConfig.ts`): A `const CHANNEL_MANAGERS` set containing all channel manager keys. Systems not in the set are PMS.
 
-### 3. `src/pages/DevPMS.tsx` — Add category grouping
+3. **Split the status table into two sections** in the HTML: "Property Management Systems" table and "Channel Managers" table — each with its own heading, same column structure, same styling.
 
-Split the single system list into two visual groups using the `category` field:
-- **"Property Management Systems"** heading — filter `PMS_CATEGORY_SYSTEMS`
-- **"Channel Managers"** heading — filter `CHANNEL_MANAGER_SYSTEMS`
-
-Each group retains the existing card rendering logic (connections table, status badges, credential editors).
-
-### 4. Database — `pms_tracker_status`
-
-Insert tracker rows for the 5 new channel managers so they appear in progress tracking:
-```sql
-INSERT INTO pms_tracker_status (system_type, status, integration_status, has_docs)
-VALUES 
-  ('booking_com', 'No Action', 'coming_soon', false),
-  ('expedia', 'No Action', 'coming_soon', false),
-  ('agoda', 'No Action', 'coming_soon', false),
-  ('google_hotels', 'No Action', 'coming_soon', false),
-  ('lekkeslaap', 'No Action', 'coming_soon', false)
-ON CONFLICT (system_type) DO NOTHING;
-```
+4. **Update summary cards** to show counts per category (e.g., "PMS: 8 systems" / "Channels: 12 systems") or keep existing summary but ensure all systems are counted.
 
 ## Files
 
 | File | Change |
 |---|---|
-| `src/lib/pmsSystemsConfig.ts` | Add `category` field, 5 new entries, helper exports |
-| `src/pages/AdminKeys.tsx` | Split into PMS + Channel Managers sections |
-| `src/pages/DevPMS.tsx` | Group systems by category |
-| Database | Insert 5 tracker rows |
+| `src/pages/AdminKeys.tsx` | Wrap each category section in `Collapsible` (default collapsed) |
+| `supabase/functions/send-pms-status-report/index.ts` | Add missing system names, split table by PMS vs Channel Manager category |
 
