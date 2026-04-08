@@ -4523,7 +4523,8 @@ export default function AdminKeys() {
             </AccordionContent>
           </AccordionItem>
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* PMS Systems Section - Alphabetically ordered */}
       <div className="mb-8">
