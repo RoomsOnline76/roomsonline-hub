@@ -4575,7 +4575,7 @@ export default function AdminKeys() {
           {renderPlaceholderPMSCard(
             "Airbnb",
             "airbnb",
-            "Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)",
+            "This is a SearchAPI.io wrapper for Airbnb data (search, listings, availability, reviews) — not a direct Airbnb PMS API. It's a read-only scraping/search API.",
           )}
           {renderPlaceholderPMSCard(
             "Booking.com",
