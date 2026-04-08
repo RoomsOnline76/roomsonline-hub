@@ -375,174 +375,347 @@ export default function DevPMS() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {systemsWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
-            const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
-            const statusInfo = getIntegrationStatusInfo(integrationStatus);
-            const latestCredentialSync = getLatestSync(connections);
-            // Use the most recent timestamp between credential sync and cache activity
-            const latestSync = [latestCredentialSync, cacheLastSync]
-              .filter((s): s is string => s !== null)
-              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
-            const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
-            
-            return (
-              <Card key={config.key} className={!isDeployed && connections.length === 0 ? "opacity-50" : ""}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Server className="h-5 w-5" />
-                    {config.name}
-                    {config.isInternal && (
-                      <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
-                    )}
-                    {config.isWidgetOnly && (
-                      <Badge variant="outline" className="ml-2 text-xs">Widget</Badge>
-                    )}
-                    <Badge 
-                      variant={statusInfo.variant}
-                      className={`ml-2 text-xs ${statusInfo.className}`}
-                    >
-                      {statusInfo.label}
-                    </Badge>
-                    {trackerStatus?.is_production && (
-                      <Badge className="ml-1 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                        Production
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription>
-                    {config.description}
-                    {connections.length > 0 && (
-                      <span className="ml-2 font-medium">
-                        • {connections.length} connection{connections.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {latestSync && (
-                      <span className="ml-2 text-muted-foreground">
-                        • Last ARI: {formatDistanceToNow(new Date(latestSync), { addSuffix: true })} ({format(new Date(latestSync), 'MMM d, HH:mm')})
-                      </span>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-              {connections.length > 0 && (
-                <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Property</TableHead>
-                        <TableHead>Environment</TableHead>
-                        <TableHead>{config.isWidgetOnly ? 'Status' : 'Sync Status'}</TableHead>
-                        <TableHead>{config.isWidgetOnly ? 'Last Activity' : 'Last Sync'}</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {connections.map((adapter) => (
-                        <TableRow key={adapter.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {getConnectionIcon(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
-                              {adapter.property_name || 'Unnamed'}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {adapter.environment}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {config.isWidgetOnly 
-                              ? getWidgetLastActivity()
-                              : (() => {
-                                  const effectiveSync = adapter.last_sync_at || cacheLastSync;
-                                  return effectiveSync 
-                                    ? formatDistanceToNow(new Date(effectiveSync), { addSuffix: true })
-                                    : 'Never';
-                                })()
-                            }
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* Hide Play button for widget-based systems */}
-                              {!config.isWidgetOnly && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => triggerSync(adapter)}
-                                  disabled={!adapter.is_active || syncing === adapter.id}
-                                >
-                                  <Play className={`h-4 w-4 ${syncing === adapter.id ? 'animate-spin' : ''}`} />
-                                </Button>
-                              )}
-                              
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={toggling === adapter.id}
-                                  >
-                                    {adapter.is_active ? (
-                                      <Power className="h-4 w-4 text-emerald-500" />
-                                    ) : (
-                                      <PowerOff className="h-4 w-4 text-muted-foreground" />
-                                    )}
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      {adapter.is_active ? 'Disable' : 'Enable'} Adapter?
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      {adapter.is_active 
-                                        ? 'This will stop all sync operations for this connection. Bookings will not be pushed until re-enabled.'
-                                        : 'This will resume sync operations for this connection.'
-                                      }
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => toggleAdapter(adapter)}>
-                                      {adapter.is_active ? 'Disable' : 'Enable'}
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              )}
-              {connections.length === 0 && (
-                <CardContent className="pt-0">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Circle className="h-3 w-3" />
-                    {config.isWidgetOnly 
-                      ? 'Widget-based integration (no API connections)' 
-                      : 'No connections configured'}
-                  </div>
-                </CardContent>
-              )}
-              {config.key === 'hyperguest' && (
-                <CardContent className="pt-0">
-                  <HyperGuestDetails />
-                </CardContent>
-              )}
-              {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
-                <CardContent className="pt-0">
-                  <ChannelCredentialEditor channelName={config.key} />
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
+        <div className="space-y-8">
+          {/* PMS Systems */}
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Property Management Systems</h2>
+            <div className="space-y-6">
+              {pmsSystemsWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
+                const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
+                const statusInfo = getIntegrationStatusInfo(integrationStatus);
+                const latestCredentialSync = getLatestSync(connections);
+                const latestSync = [latestCredentialSync, cacheLastSync]
+                  .filter((s): s is string => s !== null)
+                  .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
+                const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
+                
+                return (
+                  <Card key={config.key} className={!isDeployed && connections.length === 0 ? "opacity-50" : ""}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Server className="h-5 w-5" />
+                        {config.name}
+                        {config.isInternal && (
+                          <Badge variant="outline" className="ml-2 text-xs">Internal</Badge>
+                        )}
+                        {config.isWidgetOnly && (
+                          <Badge variant="outline" className="ml-2 text-xs">Widget</Badge>
+                        )}
+                        <Badge 
+                          variant={statusInfo.variant}
+                          className={`ml-2 text-xs ${statusInfo.className}`}
+                        >
+                          {statusInfo.label}
+                        </Badge>
+                        {trackerStatus?.is_production && (
+                          <Badge className="ml-1 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                            Production
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {config.description}
+                        {connections.length > 0 && (
+                          <span className="ml-2 font-medium">
+                            • {connections.length} connection{connections.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {latestSync && (
+                          <span className="ml-2 text-muted-foreground">
+                            • Last ARI: {formatDistanceToNow(new Date(latestSync), { addSuffix: true })} ({format(new Date(latestSync), 'MMM d, HH:mm')})
+                          </span>
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                  {connections.length > 0 && (
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Property</TableHead>
+                            <TableHead>Environment</TableHead>
+                            <TableHead>{config.isWidgetOnly ? 'Status' : 'Sync Status'}</TableHead>
+                            <TableHead>{config.isWidgetOnly ? 'Last Activity' : 'Last Sync'}</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {connections.map((adapter) => (
+                            <TableRow key={adapter.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {getConnectionIcon(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
+                                  {adapter.property_name || 'Unnamed'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="capitalize">
+                                  {adapter.environment}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {config.isWidgetOnly 
+                                  ? getWidgetLastActivity()
+                                  : (() => {
+                                      const effectiveSync = adapter.last_sync_at || cacheLastSync;
+                                      return effectiveSync 
+                                        ? formatDistanceToNow(new Date(effectiveSync), { addSuffix: true })
+                                        : 'Never';
+                                    })()
+                                }
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {!config.isWidgetOnly && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => triggerSync(adapter)}
+                                      disabled={!adapter.is_active || syncing === adapter.id}
+                                    >
+                                      <Play className={`h-4 w-4 ${syncing === adapter.id ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                  )}
+                                  
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={toggling === adapter.id}
+                                      >
+                                        {adapter.is_active ? (
+                                          <Power className="h-4 w-4 text-emerald-500" />
+                                        ) : (
+                                          <PowerOff className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          {adapter.is_active ? 'Disable' : 'Enable'} Adapter?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          {adapter.is_active 
+                                            ? 'This will stop all sync operations for this connection. Bookings will not be pushed until re-enabled.'
+                                            : 'This will resume sync operations for this connection.'
+                                          }
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => toggleAdapter(adapter)}>
+                                          {adapter.is_active ? 'Disable' : 'Enable'}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  )}
+                  {connections.length === 0 && (
+                    <CardContent className="pt-0">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Circle className="h-3 w-3" />
+                        {config.isWidgetOnly 
+                          ? 'Widget-based integration (no API connections)' 
+                          : 'No connections configured'}
+                      </div>
+                    </CardContent>
+                  )}
+                  {config.key === 'hyperguest' && (
+                    <CardContent className="pt-0">
+                      <HyperGuestDetails />
+                    </CardContent>
+                  )}
+                  {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
+                    <CardContent className="pt-0">
+                      <ChannelCredentialEditor channelName={config.key} />
+                    </CardContent>
+                  )}
+                </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Channel Managers */}
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Channel Managers</h2>
+            <div className="space-y-6">
+              {channelManagersWithConnections.map(({ config, connections, trackerStatus, cacheLastSync }) => {
+                const integrationStatus = trackerStatus?.integration_status || 'coming_soon';
+                const statusInfo = getIntegrationStatusInfo(integrationStatus);
+                const latestCredentialSync = getLatestSync(connections);
+                const latestSync = [latestCredentialSync, cacheLastSync]
+                  .filter((s): s is string => s !== null)
+                  .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
+                const isDeployed = integrationStatus === 'deployed' || integrationStatus === 'in_testing';
+                
+                return (
+                  <Card key={config.key} className={!isDeployed && connections.length === 0 ? "opacity-50" : ""}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Server className="h-5 w-5" />
+                        {config.name}
+                        {config.isWidgetOnly && (
+                          <Badge variant="outline" className="ml-2 text-xs">Widget</Badge>
+                        )}
+                        <Badge 
+                          variant={statusInfo.variant}
+                          className={`ml-2 text-xs ${statusInfo.className}`}
+                        >
+                          {statusInfo.label}
+                        </Badge>
+                        {trackerStatus?.is_production && (
+                          <Badge className="ml-1 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                            Production
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription>
+                        {config.description}
+                        {connections.length > 0 && (
+                          <span className="ml-2 font-medium">
+                            • {connections.length} connection{connections.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {latestSync && (
+                          <span className="ml-2 text-muted-foreground">
+                            • Last ARI: {formatDistanceToNow(new Date(latestSync), { addSuffix: true })} ({format(new Date(latestSync), 'MMM d, HH:mm')})
+                          </span>
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                  {connections.length > 0 && (
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Property</TableHead>
+                            <TableHead>Environment</TableHead>
+                            <TableHead>{config.isWidgetOnly ? 'Status' : 'Sync Status'}</TableHead>
+                            <TableHead>{config.isWidgetOnly ? 'Last Activity' : 'Last Sync'}</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {connections.map((adapter) => (
+                            <TableRow key={adapter.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {getConnectionIcon(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
+                                  {adapter.property_name || 'Unnamed'}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="capitalize">
+                                  {adapter.environment}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {getConnectionSyncBadge(adapter.is_active, adapter.last_sync_at || cacheLastSync, config.isWidgetOnly)}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-sm">
+                                {config.isWidgetOnly 
+                                  ? getWidgetLastActivity()
+                                  : (() => {
+                                      const effectiveSync = adapter.last_sync_at || cacheLastSync;
+                                      return effectiveSync 
+                                        ? formatDistanceToNow(new Date(effectiveSync), { addSuffix: true })
+                                        : 'Never';
+                                    })()
+                                }
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  {!config.isWidgetOnly && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => triggerSync(adapter)}
+                                      disabled={!adapter.is_active || syncing === adapter.id}
+                                    >
+                                      <Play className={`h-4 w-4 ${syncing === adapter.id ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                  )}
+                                  
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={toggling === adapter.id}
+                                      >
+                                        {adapter.is_active ? (
+                                          <Power className="h-4 w-4 text-emerald-500" />
+                                        ) : (
+                                          <PowerOff className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          {adapter.is_active ? 'Disable' : 'Enable'} Adapter?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          {adapter.is_active 
+                                            ? 'This will stop all sync operations for this connection. Bookings will not be pushed until re-enabled.'
+                                            : 'This will resume sync operations for this connection.'
+                                          }
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => toggleAdapter(adapter)}>
+                                          {adapter.is_active ? 'Disable' : 'Enable'}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  )}
+                  {connections.length === 0 && (
+                    <CardContent className="pt-0">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Circle className="h-3 w-3" />
+                        {config.isWidgetOnly 
+                          ? 'Widget-based integration (no API connections)' 
+                          : 'No connections configured'}
+                      </div>
+                    </CardContent>
+                  )}
+                  {config.key === 'hyperguest' && (
+                    <CardContent className="pt-0">
+                      <HyperGuestDetails />
+                    </CardContent>
+                  )}
+                  {DISTRIBUTION_CHANNELS.includes(config.key) && config.key !== 'hyperguest' && (
+                    <CardContent className="pt-0">
+                      <ChannelCredentialEditor channelName={config.key} />
+                    </CardContent>
+                  )}
+                </Card>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </AppLayout>
