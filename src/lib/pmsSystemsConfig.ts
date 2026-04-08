@@ -110,6 +110,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hyperguest',
     name: 'HyperGuest',
     description: 'Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
@@ -117,6 +118,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hotelbeds',
     name: 'HotelBeds',
     description: 'Global bedbank and travel distribution platform for hotels',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'ready',
   },
@@ -136,11 +138,36 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     description: 'Cloud-based property management system for hotels',
     deploymentStatus: 'planned',
   },
+  // E
+  {
+    key: 'expedia',
+    name: 'Expedia',
+    description: 'Expedia Group Rapid API — lodging availability, rates, and booking management',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  // G
+  {
+    key: 'google_hotels',
+    name: 'Google Hotels',
+    description: 'Google Hotel Ads — surface rates on Google Search & Maps',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  // L
+  {
+    key: 'lekkeslaap',
+    name: 'Lekkeslaap',
+    description: "South Africa's leading accommodation platform",
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   // N
   {
     key: 'nightsbridge',
     name: 'NightsBridge',
     description: 'Deployed via widget integration (no API access)',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'deployed',
     isWidgetOnly: true,
@@ -150,6 +177,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'profitroom',
     name: 'ProfitRoom',
     description: 'Hotel management platform with booking engine, channel manager, and CRS',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
@@ -158,6 +186,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'rentalsunited',
     name: 'Rentals United',
     description: 'Channel manager and distribution platform for vacation rentals',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
