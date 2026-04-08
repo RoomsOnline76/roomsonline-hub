@@ -4529,7 +4529,11 @@ export default function AdminKeys() {
           {renderBensonCard()}
           {renderCheckfrontCard()}
           {renderCloudbedsCard()}
-          {/* Guesty - uses generic system card (no custom card) */}
+          {renderPlaceholderPMSCard(
+            "Guesty",
+            "guesty",
+            "Property management and guest experience platform for vacation rentals",
+          )}
           {renderHostfullyCard()}
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
