@@ -269,12 +269,16 @@ export default function DevPMS() {
   };
 
   // Build systems list from centralized config with their connections and tracker status
-  const systemsWithConnections: SystemWithConnections[] = VISIBLE_PMS_SYSTEMS.map(config => ({
+  const buildSystemGroup = (systems: PMSSystemConfig[]) => systems.map(config => ({
     config,
     connections: adapters.filter(a => a.system_type === config.key),
     trackerStatus: trackerStatuses.find(t => t.system_type === config.key) || null,
     cacheLastSync: cacheActivity[config.key] || null,
   }));
+
+  const pmsSystemsWithConnections = buildSystemGroup(PMS_CATEGORY_SYSTEMS);
+  const channelManagersWithConnections = buildSystemGroup(CHANNEL_MANAGER_SYSTEMS);
+  const systemsWithConnections = [...pmsSystemsWithConnections, ...channelManagersWithConnections];
 
   // Get the latest sync across all connections for a system
   const getLatestSync = (connections: PMSAdapter[]): string | null => {
