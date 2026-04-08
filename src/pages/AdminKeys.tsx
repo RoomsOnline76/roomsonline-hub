@@ -4534,6 +4534,11 @@ export default function AdminKeys() {
           </Button>
         </div>
         <Accordion type="multiple" className="space-y-4">
+          {renderPlaceholderPMSCard(
+            "Airbnb",
+            "airbnb",
+            "Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)",
+          )}
           {renderBensonCard()}
           {renderPlaceholderPMSCard(
             "Channex.io",
