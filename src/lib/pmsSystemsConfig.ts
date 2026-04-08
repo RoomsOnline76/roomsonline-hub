@@ -42,12 +42,27 @@ export const getIntegrationStatusInfo = (status: IntegrationStatus | string | nu
 export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   // A
   {
+    key: 'agoda',
+    name: 'Agoda',
+    description: 'Agoda OTA — rates, availability, and reservation distribution',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  {
     key: 'airbnb',
     name: 'Airbnb',
     description: 'Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)',
+    category: 'channel_manager',
     deploymentStatus: 'in_development',
   },
   // B
+  {
+    key: 'booking_com',
+    name: 'Booking.com',
+    description: 'Global OTA — rates, availability, and reservation sync',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   {
     key: 'benson',
     name: 'Benson',
