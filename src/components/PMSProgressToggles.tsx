@@ -38,7 +38,7 @@ const MODIFY_NOT_SUPPORTED: string[] = [
   'airbnb', 'benson', 'nightsbridge', 'checkfront', 'cloudbeds',
   'littlehotelier', 'hostfully', 'hotelbeds',
   'profitroom', 'semper', 'siteminder', 'mews',
-  'roomkey', 'roomracoon',
+  'roomkey', 'roomracoon', 'wetu',
 ];
 
 // PMS systems where cancel is NOT supported by their API
@@ -46,7 +46,7 @@ const CANCEL_NOT_SUPPORTED: string[] = [
   'airbnb', 'benson', 'nightsbridge', 'checkfront', 'cloudbeds',
   'littlehotelier', 'hostfully',
   'profitroom', 'semper', 'siteminder', 'mews',
-  'roomkey', 'roomracoon',
+  'roomkey', 'roomracoon', 'wetu',
 ];
 
 interface PMSProgressTogglesProps {
