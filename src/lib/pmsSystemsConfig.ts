@@ -71,7 +71,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'guesty',
     name: 'Guesty',
     description: 'Property management and guest experience platform for vacation rentals',
-    deploymentStatus: 'planned',
+    deploymentStatus: 'in_development',
   },
   // H
   {
