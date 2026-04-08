@@ -6,10 +6,13 @@ export type DeploymentStatus = 'deployed' | 'ready' | 'in_development' | 'planne
 // Maps pms_tracker_status.integration_status to display status
 export type IntegrationStatus = 'deployed' | 'in_testing' | 'in_development' | 'coming_soon' | 'parked';
 
+export type PMSCategory = 'pms' | 'channel_manager';
+
 export interface PMSSystemConfig {
   key: string;
   name: string;
   description: string;
+  category?: PMSCategory; // Defaults to 'pms' if not set
   isInternal?: boolean; // RoomsOnline API is internal
   hasCustomCard?: boolean; // Systems with custom UI cards in AdminKeys
   deploymentStatus: DeploymentStatus;
@@ -39,12 +42,27 @@ export const getIntegrationStatusInfo = (status: IntegrationStatus | string | nu
 export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   // A
   {
+    key: 'agoda',
+    name: 'Agoda',
+    description: 'Agoda OTA — rates, availability, and reservation distribution',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  {
     key: 'airbnb',
     name: 'Airbnb',
     description: 'Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)',
+    category: 'channel_manager',
     deploymentStatus: 'in_development',
   },
   // B
+  {
+    key: 'booking_com',
+    name: 'Booking.com',
+    description: 'Global OTA — rates, availability, and reservation sync',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   {
     key: 'benson',
     name: 'Benson',
@@ -92,6 +110,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hyperguest',
     name: 'HyperGuest',
     description: 'Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
@@ -99,6 +118,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'hotelbeds',
     name: 'HotelBeds',
     description: 'Global bedbank and travel distribution platform for hotels',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'ready',
   },
@@ -118,11 +138,36 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     description: 'Cloud-based property management system for hotels',
     deploymentStatus: 'planned',
   },
+  // E
+  {
+    key: 'expedia',
+    name: 'Expedia',
+    description: 'Expedia Group Rapid API — lodging availability, rates, and booking management',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  // G
+  {
+    key: 'google_hotels',
+    name: 'Google Hotels',
+    description: 'Google Hotel Ads — surface rates on Google Search & Maps',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  // L
+  {
+    key: 'lekkeslaap',
+    name: 'Lekkeslaap',
+    description: "South Africa's leading accommodation platform",
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   // N
   {
     key: 'nightsbridge',
     name: 'NightsBridge',
     description: 'Deployed via widget integration (no API access)',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'deployed',
     isWidgetOnly: true,
@@ -132,6 +177,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'profitroom',
     name: 'ProfitRoom',
     description: 'Hotel management platform with booking engine, channel manager, and CRS',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
@@ -140,6 +186,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     key: 'rentalsunited',
     name: 'Rentals United',
     description: 'Channel manager and distribution platform for vacation rentals',
+    category: 'channel_manager',
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
@@ -180,6 +227,12 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
 
 // Get only visible systems (excludes hidden)
 export const VISIBLE_PMS_SYSTEMS = ALL_PMS_SYSTEMS.filter(s => !s.hidden);
+
+// Get channel manager systems (visible only)
+export const CHANNEL_MANAGER_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'channel_manager');
+
+// Get PMS-only systems (visible, non-channel-manager)
+export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category !== 'channel_manager');
 
 // Get total count of visible systems (used for milestones)
 export const TOTAL_PMS_SYSTEMS_COUNT = VISIBLE_PMS_SYSTEMS.length;

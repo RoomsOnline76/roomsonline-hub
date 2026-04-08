@@ -4534,11 +4534,6 @@ export default function AdminKeys() {
           </Button>
         </div>
         <Accordion type="multiple" className="space-y-4">
-          {renderPlaceholderPMSCard(
-            "Airbnb",
-            "airbnb",
-            "Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)",
-          )}
           {renderBensonCard()}
           {renderPlaceholderPMSCard(
             "Channex.io",
@@ -4553,6 +4548,50 @@ export default function AdminKeys() {
             "Property management and guest experience platform for vacation rentals",
           )}
           {renderHostfullyCard()}
+          {/* Little Hotelier hidden - no longer required */}
+          {renderPlaceholderPMSCard(
+            "RoomKey",
+            "roomkey",
+            "Hotel booking platform with direct connections to major hotel chains",
+          )}
+          {renderPlaceholderPMSCard(
+            "RoomRaccoon",
+            "roomracoon",
+            "All-in-one hotel management system with channel manager and booking engine",
+          )}
+          {pmsKeys.map(renderKeyCard)}
+        </Accordion>
+      </div>
+
+      {/* Channel Managers Section */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Channel Managers</h2>
+        <Accordion type="multiple" className="space-y-4">
+          {renderPlaceholderPMSCard(
+            "Agoda",
+            "agoda",
+            "Agoda OTA — rates, availability, and reservation distribution",
+          )}
+          {renderPlaceholderPMSCard(
+            "Airbnb",
+            "airbnb",
+            "Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)",
+          )}
+          {renderPlaceholderPMSCard(
+            "Booking.com",
+            "booking_com",
+            "Global OTA — rates, availability, and reservation sync",
+          )}
+          {renderPlaceholderPMSCard(
+            "Expedia",
+            "expedia",
+            "Expedia Group Rapid API — lodging availability, rates, and booking management",
+          )}
+          {renderPlaceholderPMSCard(
+            "Google Hotels",
+            "google_hotels",
+            "Google Hotel Ads — surface rates on Google Search & Maps",
+          )}
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
             value="hotelbeds"
@@ -4726,21 +4765,19 @@ export default function AdminKeys() {
               </div>
             </AccordionContent>
           </AccordionItem>
-          {/* Little Hotelier hidden - no longer required */}
+          {renderPlaceholderPMSCard(
+            "Lekkeslaap",
+            "lekkeslaap",
+            "South Africa's leading accommodation platform",
+          )}
           {renderNightsbridgeCard()}
           {renderRentalsunitedCard()}
           {renderProfitroomCard()}
           {renderPlaceholderPMSCard(
-            "RoomKey",
-            "roomkey",
-            "Hotel booking platform with direct connections to major hotel chains",
+            "HyperGuest",
+            "hyperguest",
+            "Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs",
           )}
-          {renderPlaceholderPMSCard(
-            "RoomRaccoon",
-            "roomracoon",
-            "All-in-one hotel management system with channel manager and booking engine",
-          )}
-          {pmsKeys.map(renderKeyCard)}
         </Accordion>
       </div>
 
