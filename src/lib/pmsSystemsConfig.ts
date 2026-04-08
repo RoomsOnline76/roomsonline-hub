@@ -54,6 +54,12 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     deploymentStatus: 'ready',
   },
   {
+    key: 'channex',
+    name: 'Channex.io',
+    description: 'Channel manager and PMS connectivity platform with open API for property distribution',
+    deploymentStatus: 'planned',
+  },
+  {
     key: 'cloudbeds',
     name: 'Cloudbeds',
     description: 'All-in-one hospitality management platform for hotels and accommodation providers',
