@@ -1,62 +1,77 @@
 
 
-# Add Expedia API Adapter + PMS Cards
+# Add "Channel Managers" Category to Admin Keys & PMS Control
 
-## Summary
-Create the Expedia Rapid API adapter edge function, add it to the central PMS config, register a placeholder card in AdminKeys, and insert a tracker row — following the exact same pattern as Airbnb/Channex/Guesty.
+## Overview
+Create a new "Channel Managers" section in both `/admin-keys` (AdminKeys.tsx) and `/dev/pms` (DevPMS.tsx), and move existing channel/distribution systems into it. Add new entries for channels not yet in the system config (Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap).
 
 ## Changes
 
-### 1. `src/lib/pmsSystemsConfig.ts`
-Add new entry alphabetically in the "E" section (between Cloudbeds and Guesty):
+### 1. `src/lib/pmsSystemsConfig.ts` — Add missing channels + category flag
 
+Add a `category` field to `PMSSystemConfig`: `'pms' | 'channel_manager'`.
+
+Mark existing systems as channel managers:
+- `hyperguest` → `category: 'channel_manager'`
+- `hotelbeds` → `category: 'channel_manager'`
+- `rentalsunited` → `category: 'channel_manager'`
+- `profitroom` → `category: 'channel_manager'`
+- `nightsbridge` → `category: 'channel_manager'`
+- `airbnb` → `category: 'channel_manager'`
+
+Add new channel manager entries:
+- `booking_com` — "Booking.com", "Global OTA — rates, availability, and reservation sync"
+- `expedia` — "Expedia", "Expedia Group — lodging availability, rates, and booking management"
+- `agoda` — "Agoda", "Agoda OTA — rates, availability, and reservation distribution"
+- `google_hotels` — "Google Hotels", "Google Hotel Ads — surface rates on Google Search & Maps"
+- `lekkeslaap` — "Lekkeslaap", "South Africa's leading accommodation platform"
+
+All new entries: `deploymentStatus: 'planned'`, `category: 'channel_manager'`.
+
+Add helper exports:
 ```typescript
-{
-  key: 'expedia',
-  name: 'Expedia',
-  description: 'Expedia Group Rapid API — lodging availability, rates, and booking management',
-  deploymentStatus: 'in_development',
-}
+export const CHANNEL_MANAGER_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category === 'channel_manager');
+export const PMS_CATEGORY_SYSTEMS = VISIBLE_PMS_SYSTEMS.filter(s => s.category !== 'channel_manager');
 ```
 
-### 2. `src/pages/AdminKeys.tsx`
-Add a `renderPlaceholderPMSCard` call for Expedia, placed alphabetically after Cloudbeds and before Guesty in the Accordion:
+### 2. `src/pages/AdminKeys.tsx` — Split into two sections
 
-```typescript
-{renderPlaceholderPMSCard(
-  "Expedia",
-  "expedia",
-  "Expedia Group Rapid API — lodging availability, rates, and booking management",
-)}
+**Before** (single "Property Management Systems" section with all cards):
+
+**After**:
+- **"Property Management Systems"** section — contains only PMS cards (Benson, Channex, Checkfront, Cloudbeds, Guesty, Hostfully, RoomKey, RoomRaccoon, ROL'OS, etc.)
+- **"Channel Managers"** section (new) — contains: Airbnb, Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap, NightsBridge, Rentals United, Profitroom, HyperGuest, HotelBeds
+
+Move existing render calls (Airbnb, NightsBridge, HotelBeds, Rentals United, Profitroom) from PMS section into the new Channel Managers section. Add `renderPlaceholderPMSCard` calls for the 5 new channels (Booking.com, Expedia, Agoda, Google Hotels, Lekkeslaap).
+
+### 3. `src/pages/DevPMS.tsx` — Add category grouping
+
+Split the single system list into two visual groups using the `category` field:
+- **"Property Management Systems"** heading — filter `PMS_CATEGORY_SYSTEMS`
+- **"Channel Managers"** heading — filter `CHANNEL_MANAGER_SYSTEMS`
+
+Each group retains the existing card rendering logic (connections table, status badges, credential editors).
+
+### 4. Database — `pms_tracker_status`
+
+Insert tracker rows for the 5 new channel managers so they appear in progress tracking:
+```sql
+INSERT INTO pms_tracker_status (system_type, status, integration_status, has_docs)
+VALUES 
+  ('booking_com', 'No Action', 'coming_soon', false),
+  ('expedia', 'No Action', 'coming_soon', false),
+  ('agoda', 'No Action', 'coming_soon', false),
+  ('google_hotels', 'No Action', 'coming_soon', false),
+  ('lekkeslaap', 'No Action', 'coming_soon', false)
+ON CONFLICT (system_type) DO NOTHING;
 ```
-
-### 3. `src/components/PMSProgressToggles.tsx`
-Expedia Rapid API supports booking creation and cancellation but not modification (modifications require cancel + rebook). Add `'expedia'` to `MODIFY_NOT_SUPPORTED` only.
-
-### 4. `supabase/functions/expedia-api/index.ts`
-New edge function following the established adapter pattern:
-
-- **Auth**: EAN signature-based auth (API key + shared secret → SHA-512 HMAC signature). Credentials from `pms_credentials` table (`api_key` = EAN API key, `api_secret` = shared secret).
-- **Base URL**: `https://test.ean.com/v3` (sandbox) / `https://api.ean.com/v3` (production)
-- **Actions**:
-  - `get_capabilities` — local capability declaration
-  - `health_check` — `GET /properties/availability` with minimal params to verify credentials
-  - `fetch_availability` — `GET /properties/availability` with checkin/checkout/occupancy
-  - `fetch_property` — `GET /properties/{id}/content` for property details
-  - `create_reservation` — `POST /itineraries` to book
-  - `cancel_reservation` — `DELETE /itineraries/{id}/rooms/{id}` to cancel
-- **Capabilities**: read availability, rates, create booking, cancel booking. No modify.
-
-### 5. Database — `pms_tracker_status`
-Insert tracker row: `system_type = 'expedia'`, `integration_status = 'in_development'`, `has_docs = true`.
 
 ## Files
 
 | File | Change |
 |---|---|
-| `src/lib/pmsSystemsConfig.ts` | Add Expedia entry |
-| `src/pages/AdminKeys.tsx` | Add placeholder card |
-| `src/components/PMSProgressToggles.tsx` | Add `'expedia'` to modify-not-supported |
-| `supabase/functions/expedia-api/index.ts` | New edge function |
-| Database | Insert tracker status row |
+| `src/lib/pmsSystemsConfig.ts` | Add `category` field, 5 new entries, helper exports |
+| `src/pages/AdminKeys.tsx` | Split into PMS + Channel Managers sections |
+| `src/pages/DevPMS.tsx` | Group systems by category |
+| Database | Insert 5 tracker rows |
 
