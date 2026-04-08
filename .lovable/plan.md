@@ -1,72 +1,71 @@
 
 
-# Channex.io Adapter + Milestone Toggles in Placeholder Cards
+# Add Airbnb API Adapter (via SearchAPI.io)
 
-## Summary
-Two changes: (1) create the `channex-api` edge function adapter, and (2) add milestone progress toggles to all placeholder PMS cards so you can track progress directly.
+## Context
+Airbnb does not offer a public PMS API. The SearchAPI.io Airbnb API provides read-only access to listings, availability, pricing, reviews, and property details via a search/scraping proxy. This means the adapter is **pull-only** — no booking creation, modification, or cancellation.
 
-## 1. Add PMSProgressToggles to Placeholder Cards
+## Changes
 
-**File: `src/pages/AdminKeys.tsx`**
+### 1. `src/lib/pmsSystemsConfig.ts`
+Add new entry in the "A" section (before Benson, alphabetically):
 
-The `renderPlaceholderPMSCard` function (line ~4225) currently shows description, tracker status, contact details, and dev notes — but no progress toggles. Add `<PMSProgressToggles>` between the tracker status display and the "planned for future release" message, matching all other custom cards.
+```typescript
+{
+  key: 'airbnb',
+  name: 'Airbnb',
+  description: 'Airbnb listing data via SearchAPI.io — availability, pricing, reviews (read-only)',
+  hasCustomCard: false, // uses placeholder card with progress toggles
+  deploymentStatus: 'in_development',
+}
+```
 
-## 2. Create `channex-api` Edge Function
+### 2. `src/components/PMSProgressToggles.tsx`
+Add `'airbnb'` to both `MODIFY_NOT_SUPPORTED` and `CANCEL_NOT_SUPPORTED` arrays, since SearchAPI.io is read-only (no write operations).
 
-**File: `supabase/functions/channex-api/index.ts`**
+### 3. `supabase/functions/airbnb-api/index.ts`
+New edge function following the established adapter pattern. Uses SearchAPI.io (`https://www.searchapi.io/api/v1/search?engine=airbnb`).
 
-A new adapter following the established pattern (Benson as reference). Channex.io uses:
-- **Auth**: `user-api-key` header (API key from user profile)
-- **Base URLs**: `https://staging.channex.io/api/v1` (sandbox) / `https://app.channex.io/api/v1` (production)
-- **Rate limit**: 10 availability + 10 restriction requests per minute per property
+**Auth**: Bearer token or `api_key` query param (SearchAPI.io API key stored in `pms_credentials` for the property).
 
-### Supported Actions
+**Supported actions**:
 
-| Action | Channex Endpoint | Method |
+| Action | SearchAPI Endpoint | Notes |
 |---|---|---|
-| `get_capabilities` | (local) | — |
-| `health_check` | `GET /properties` | Verify API key works |
-| `fetch_availability` | `GET /availability?filter[property_id]=X&filter[date][gte]=Y&filter[date][lte]=Z` | Pull room-level availability |
-| `fetch_restrictions` | `GET /restrictions?filter[property_id]=X&filter[date][gte]=Y&filter[date][lte]=Z` | Pull rate plan restrictions/rates |
-| `fetch_types` | `GET /room_types?filter[property_id]=X` | List room types |
-| `create_reservation` | `POST /bookings` | Push booking |
-| `modify_reservation` | `PUT /bookings/{id}` | Modify booking |
-| `cancel_reservation` | `DELETE /bookings/{id}/cancel` | Cancel booking |
-| `get_reservations` | `GET /booking_revisions/feed` | Pull booking feed |
+| `get_capabilities` | (local) | Read-only declaration |
+| `health_check` | `GET /search?engine=airbnb&q=test` | Verify API key works |
+| `fetch_availability` | `GET /search?engine=airbnb&q=...&check_in_date=...&check_out_date=...` | Pull pricing/availability for a location |
+| `fetch_listing` | `GET /search?engine=airbnb_listing&listing_id=...` | Get specific listing details |
+| `fetch_reviews` | `GET /search?engine=airbnb_reviews&listing_id=...` | Pull reviews for a listing |
 
-### Capabilities Declaration
+**Capabilities**:
 ```typescript
 const CAPABILITIES = {
   supports_live_availability: true,
   supports_rate_fetch: true,
-  supports_create_booking: true,
-  supports_modify_booking: true,  // Channex supports modify
-  supports_cancel_booking: true,  // Channex supports cancel
-  supports_webhooks: true,        // Channex has webhook support
+  supports_create_booking: false,  // Read-only API
+  supports_modify_booking: false,
+  supports_cancel_booking: false,
+  supports_webhooks: false,
   supports_owner_credentials: false,
 };
 ```
 
-### Credential Resolution
-Same pattern as other adapters — reads from `pms_credentials` table filtered by `system_type = 'channex'` and `property_id`. Stores `api_key` and `environment` (staging/production).
+**Credential resolution**: Reads `api_key` from `pms_credentials` where `system_type = 'airbnb'`. The API key is the SearchAPI.io key, not an Airbnb credential.
 
-### Response Normalization
-All responses normalized to the standard `AdapterResponse<T>` shape with `source: "channex"`. Availability data mapped from Channex's `{ [room_type_id]: { [date]: availability } }` format to the ROL'OS `room_types[]` contract.
+### 4. Database — `pms_tracker_status`
+Insert a tracker row for `airbnb` with `integration_status = 'in_development'` and `has_docs = true` (docs are available). This ensures it appears in PMS Control with milestone toggles.
 
-## 3. Update Config
+### 5. No changes needed
+- `src/pages/AdminKeys.tsx` — placeholder cards already render `PMSProgressToggles` for systems without `hasCustomCard`
+- `/admin/integrations` — automatically picks up from `VISIBLE_PMS_SYSTEMS`
 
-**File: `src/lib/pmsSystemsConfig.ts`**
-- Set `hasCustomCard: false` (uses placeholder card with toggles now)
-- Update `deploymentStatus` to `'in_development'`
-
-**File: `src/lib/pmsTrackerConfig.ts`**
-- Channex supports modify and cancel, so it should NOT be in the `MODIFY_NOT_SUPPORTED` or `CANCEL_NOT_SUPPORTED` lists (it isn't — no change needed)
-
-## Files Changed
+## Files
 
 | File | Change |
 |---|---|
-| `supabase/functions/channex-api/index.ts` | New edge function — full adapter |
-| `src/pages/AdminKeys.tsx` | Add `PMSProgressToggles` to `renderPlaceholderPMSCard` |
-| `src/lib/pmsSystemsConfig.ts` | Update Channex status to `in_development` |
+| `src/lib/pmsSystemsConfig.ts` | Add Airbnb entry |
+| `src/components/PMSProgressToggles.tsx` | Add `'airbnb'` to modify/cancel not-supported lists |
+| `supabase/functions/airbnb-api/index.ts` | New edge function (read-only adapter) |
+| Database migration | Insert `pms_tracker_status` row |
 
