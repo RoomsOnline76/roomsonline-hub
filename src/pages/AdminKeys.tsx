@@ -4527,9 +4527,12 @@ export default function AdminKeys() {
       </Collapsible>
 
       {/* PMS Systems Section - Alphabetically ordered */}
-      <div className="mb-8">
+      <Collapsible className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Property Management Systems</h2>
+          <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer group">
+            <h2 className="text-xl font-semibold">Property Management Systems</h2>
+            <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
           <Button
             variant="outline"
             size="sm"
@@ -4541,6 +4544,7 @@ export default function AdminKeys() {
             Email Status Report
           </Button>
         </div>
+        <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
           {renderBensonCard()}
           {renderCheckfrontCard()}
@@ -4564,10 +4568,16 @@ export default function AdminKeys() {
           )}
           {pmsKeys.map(renderKeyCard)}
         </Accordion>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Channel Managers Section */}
-      <div className="mb-8">
+      <Collapsible className="mb-8">
+        <CollapsibleTrigger className="flex items-center gap-2 cursor-pointer w-full mb-4 group">
+          <h2 className="text-xl font-semibold">Channel Managers</h2>
+          <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <h2 className="text-xl font-semibold mb-4">Channel Managers</h2>
         <Accordion type="multiple" className="space-y-4">
           {renderPlaceholderPMSCard(
