@@ -278,7 +278,7 @@ export default function DevPMS() {
 
   const pmsSystemsWithConnections = buildSystemGroup(PMS_CATEGORY_SYSTEMS);
   const channelManagersWithConnections = buildSystemGroup(CHANNEL_MANAGER_SYSTEMS);
-  const systemsWithConnections = [...pmsSystemsWithConnections, ...channelManagersWithConnections];
+  
 
   // Get the latest sync across all connections for a system
   const getLatestSync = (connections: PMSAdapter[]): string | null => {
