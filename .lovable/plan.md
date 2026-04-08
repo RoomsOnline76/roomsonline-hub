@@ -1,18 +1,32 @@
 
 
-# Un-hide Guesty PMS
-
-Guesty is already configured correctly (key: `guesty`, name: `Guesty`) but is marked `hidden: true` in the central config, which excludes it from PMS Control and integrations pages.
+# Add Channex.io to PMS Systems
 
 ## Changes
 
 ### 1. `src/lib/pmsSystemsConfig.ts`
-- Remove `hidden: true` from the Guesty entry (line ~68)
-- This automatically re-includes it in `VISIBLE_PMS_SYSTEMS` and all derived lists (PMS Control cards, property form dropdown, integrations page)
+Add a new entry in the `ALL_PMS_SYSTEMS` array under the "C" section (after Cloudbeds, alphabetically):
+
+```typescript
+{
+  key: 'channex',
+  name: 'Channex.io',
+  description: 'Channel manager and PMS connectivity platform with open API for property distribution',
+  deploymentStatus: 'planned',
+}
+```
+
+No `hasCustomCard` or `hidden` flags — it will appear as a generic/placeholder card with "Planned" status badge.
 
 ### 2. `src/pages/AdminKeys.tsx`
-- Remove the comment `{/* Guesty hidden - no longer required */}` (~line 4532)
-- Guesty has no `hasCustomCard: true`, so it will appear as a generic system card — no custom card renderer needed unless you want one
+Add a `renderPlaceholderPMSCard("Channex.io", "channex", "...")` call alongside the other placeholder cards (Guesty, RoomKey, etc.) so it renders on the integrations page.
 
-That's it — two lines changed. The name is already "Guesty" everywhere (config, edge function status report).
+### 3. `src/pages/connect/ConnectIntegrations.tsx`
+No change needed — Channex.io will automatically appear in any lists derived from `VISIBLE_PMS_SYSTEMS`.
+
+### 4. Tracker milestones
+Channex.io will automatically get the full 11-point progress tracker (has_account, has_docs, has_edge, has_health, has_get, has_post, has_modify, has_cancel, has_soft_test, is_certified, is_production) from the existing `pms_tracker_status` table when a row is inserted for it — no schema changes needed.
+
+## Summary
+Two files changed, one new config entry + one placeholder card render call.
 
