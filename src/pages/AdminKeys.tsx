@@ -4578,6 +4578,11 @@ export default function AdminKeys() {
             "Global OTA — rates, availability, and reservation sync",
           )}
           {renderPlaceholderPMSCard(
+            "Channex.io",
+            "channex",
+            "Channel manager and PMS connectivity platform with open API for property distribution",
+          )}
+          {renderPlaceholderPMSCard(
             "Expedia",
             "expedia",
             "Expedia Group Rapid API — lodging availability, rates, and booking management",
