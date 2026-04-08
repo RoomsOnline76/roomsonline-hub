@@ -67,6 +67,7 @@ const getPMSDisplayName = (key: string): string => {
     lekkeslaap: "Lekkeslaap",
     hyperguest: "HyperGuest",
     booking_com: "Booking.com",
+    wetu: "WETU",
   };
   return names[key] || key.charAt(0).toUpperCase() + key.slice(1);
 };

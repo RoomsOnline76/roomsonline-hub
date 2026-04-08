@@ -212,6 +212,14 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     deploymentStatus: 'in_development',
   },
   // S
+  // W
+  {
+    key: 'wetu',
+    name: 'WETU',
+    description: 'Travel content portal — property descriptions, images, rooms, and features (read-only content API)',
+    deploymentStatus: 'in_development',
+  },
+  // S
   {
     key: 'semper',
     name: 'Semper',

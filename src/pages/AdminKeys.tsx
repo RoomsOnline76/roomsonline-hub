@@ -4821,6 +4821,11 @@ export default function AdminKeys() {
         </CollapsibleTrigger>
         <CollapsibleContent>
         <Accordion type="multiple" className="space-y-4">
+          {renderPlaceholderPMSCard(
+            "WETU",
+            "wetu",
+            "Travel content portal — property descriptions, images, rooms, and features (read-only content API)",
+          )}
           {renderResendCard()}
           {renderTripadvisorCard()}
           {additionalKeys
