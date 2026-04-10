@@ -1,68 +1,74 @@
 
 
-# Add WETU Content API Adapter
+# Rentals United Adapter — Full Mandatory API Coverage
 
-## Context
-WETU is a travel content portal providing read-only access to property content (descriptions, images, rooms, features, GPS coordinates) via a REST/JSON API at `https://wetu.com/API/Pins/<APIKEY>/...`. Endpoints: List, Get, Search, GetPinsWithPaging. No booking/ARI — content only.
+## Gap Analysis
+
+The current `rentalsunited-api` edge function only implements **Pull (read)** operations. The Rentals United PMS integration mandate requires several **Push (write)** operations for full channel connectivity.
+
+| Method | Status | Type | Priority |
+|--------|--------|------|----------|
+| `Pull_ListOwnerProp_RQ` (list_properties) | Implemented | Pull | — |
+| `Pull_ListSpecProp_RQ` (get_property) | Implemented | Pull | — |
+| `Pull_ListPropertyAvailabilityCalendar_RQ` (get_availability) | Implemented | Pull | — |
+| `Pull_ListPropertyPrices_RQ` (get_prices) | Implemented | Pull | — |
+| `Pull_ListReservations_RQ` (list_reservations) | Implemented | Pull | Mandatory |
+| **Push_PutProperty_RQ** (push_property) | **Missing** | Push | **Mandatory** |
+| **Push_PutAvbUnits_RQ** (push_availability) | **Missing** | Push | **Mandatory** |
+| **Push_PutPrices_RQ** (push_prices) | **Missing** | Push | **Mandatory** |
+| **LNM_PutHandlerUrl_RQ** (subscribe_notifications) | **Missing** | Push | **Mandatory** |
+| **Pull_GetLeads_RQ** (get_leads) | **Missing** | Pull | Optional |
+| **Push_PutLongStayDiscounts_RQ** (push_long_stay_discounts) | **Missing** | Push | Optional |
+| **Push_PutLastMinuteDiscounts_RQ** (push_last_minute_discounts) | **Missing** | Push | Optional |
 
 ## Changes
 
-### 1. `src/lib/pmsSystemsConfig.ts` — New entry
+### 1. Edge Function — `supabase/functions/rentalsunited-api/index.ts`
 
-Add under "Additional Services" (no `category: 'channel_manager'` since it's a content portal, not a distribution channel):
+Add 7 new actions with XML request builders and handlers:
 
-```typescript
-{
-  key: 'wetu',
-  name: 'WETU',
-  description: 'Travel content portal — property descriptions, images, rooms, and features (read-only content API)',
-  deploymentStatus: 'in_development',
-}
-```
+**Mandatory actions:**
 
-### 2. `supabase/functions/wetu-api/index.ts` — Edge function adapter
+- **`push_property`** — `Push_PutProperty_RQ`: Accepts a property payload (name, type, address, coordinates, amenities, rooms, descriptions, images, payment methods, cancellation policies) and builds the full XML envelope. Requires `ru_property_id` and a `property` object in the request body.
 
-Actions:
-- `list_properties` — `GET /API/Pins/<KEY>/List?suppliers=y`
-- `get_property` — `GET /API/Pins/<KEY>/Get?ids=<id>`
-- `search` — `GET /API/Pins/<KEY>/Search/<terms>`
-- `get_paged` — `GET /API/Pins/<KEY>/GetPinsWithPaging?pageNumber=<n>`
-- `health_check` — calls List with limit to verify API key
+- **`push_availability`** — `Push_PutAvbUnits_RQ`: Accepts `ru_property_id` and an `availability` array of `{ date_from, date_to, units, min_stay?, changeover? }` objects. Builds the availability XML with day-level open/closed, min-stay, and changeover rules.
 
-Requires secret `WETU_API_KEY`. Standard CORS, error handling, Zod input validation.
+- **`push_prices`** — `Push_PutPrices_RQ`: Accepts `ru_property_id` and a `prices` array of `{ date_from, date_to, price, extra_guest_price? }` objects. Builds pricing XML per the RU pricing model.
 
-### 3. `src/components/PMSProgressToggles.tsx`
+- **`subscribe_notifications`** — `LNM_PutHandlerUrl_RQ`: Accepts a `handler_url` (our webhook endpoint) and registers it with RU for live reservation notifications.
 
-Add `'wetu'` to both `MODIFY_NOT_SUPPORTED` and `CANCEL_NOT_SUPPORTED` lists (content-only, no booking operations).
+**Optional actions:**
 
-### 4. `src/pages/AdminKeys.tsx` — Add card
+- **`get_leads`** — `Pull_GetLeads_RQ`: Pull reservation leads (request status, not confirmed).
 
-Add `renderPlaceholderPMSCard("WETU", "wetu", "Travel content portal — property descriptions, images, rooms, and features (read-only content API)")` in the **Additional Services** section.
+- **`push_long_stay_discounts`** — `Push_PutLongStayDiscounts_RQ`: Push long-stay discount rules.
 
-### 5. `src/pages/DevPMS.tsx`
+- **`push_last_minute_discounts`** — `Push_PutLastMinuteDiscounts_RQ`: Push last-minute discount rules.
 
-WETU will appear automatically via `PMS_CATEGORY_SYSTEMS` (no category = defaults to PMS group).
+Also update the `RequestBody` interface to include new fields (`property`, `availability`, `prices`, `handler_url`, `discounts`) and update the `health_check` capabilities list to reflect all supported actions.
 
-### 6. Database — tracker row
+### 2. PMSProgressToggles — `src/components/PMSProgressToggles.tsx`
+
+Remove `'rentalsunited'` from `MODIFY_NOT_SUPPORTED` and `CANCEL_NOT_SUPPORTED` if it was there (it's currently not, so no change needed — confirmed).
+
+### 3. Tracker Status Update — Database
+
+Update the `pms_tracker_status` row for `rentalsunited` to set `has_post = true` (push capabilities now exist):
 
 ```sql
-INSERT INTO pms_tracker_status (system_type, status, integration_status, has_docs)
-VALUES ('wetu', 'In Progress', 'in_development', true)
-ON CONFLICT (system_type) DO NOTHING;
+UPDATE pms_tracker_status
+SET has_post = true, has_edge = true
+WHERE system_type = 'rentalsunited';
 ```
 
-### 7. Status report email
+### 4. Deploy
 
-Add `'wetu'` → `"WETU"` to `getPMSDisplayName` in `send-pms-status-report/index.ts`.
+Redeploy the `rentalsunited-api` edge function.
 
 ## Files
 
 | File | Change |
 |---|---|
-| `src/lib/pmsSystemsConfig.ts` | Add WETU entry |
-| `supabase/functions/wetu-api/index.ts` | New edge function |
-| `src/components/PMSProgressToggles.tsx` | Add to not-supported lists |
-| `src/pages/AdminKeys.tsx` | Add placeholder card |
-| `supabase/functions/send-pms-status-report/index.ts` | Add display name |
-| Database | Insert tracker row |
+| `supabase/functions/rentalsunited-api/index.ts` | Add 7 new action handlers + XML builders |
+| Database | Update tracker flags |
 
