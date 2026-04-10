@@ -3,19 +3,110 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 /**
  * Rentals United XML API Adapter
  * 
- * Supported actions:
+ * Pull (read) actions:
  * - health_check: Verify API connectivity and credentials
  * - list_properties: Pull_ListOwnerProp_RQ
  * - get_property: Pull_ListSpecProp_RQ
  * - get_availability: Pull_ListPropertyAvailabilityCalendar_RQ
  * - get_prices: Pull_ListPropertyPrices_RQ
  * - list_reservations: Pull_ListReservations_RQ
+ * - get_leads: Pull_GetLeads_RQ
+ * 
+ * Push (write) actions:
+ * - push_property: Push_PutProperty_RQ
+ * - push_availability: Push_PutAvbUnits_RQ
+ * - push_prices: Push_PutPrices_RQ
+ * - subscribe_notifications: LNM_PutHandlerUrl_RQ
+ * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
+ * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
  */
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+// ── Types ────────────────────────────────────────────────────
+
+interface RUCredentials {
+  username: string;
+  password: string;
+  endpoint: string;
+}
+
+interface RUAmenity {
+  id: number;
+  count?: number;
+}
+
+interface RURoom {
+  room_id: number;
+  amenities: RUAmenity[];
+}
+
+interface RUDescription {
+  language_id: number;
+  text: string;
+}
+
+interface RUImage {
+  url: string;
+  type_id?: number;
+  is_main?: boolean;
+}
+
+interface RUCancellationPolicy {
+  valid_from: string;
+  valid_to: string;
+  rules: { from_days: number; to_days: number; percentage: number }[];
+}
+
+interface RUPropertyPayload {
+  name: string;
+  object_type_id: number;
+  can_sleep_max: number;
+  floor: number;
+  space: number;
+  street: string;
+  detailed_location_id: number;
+  zip_code: string;
+  latitude: number;
+  longitude: number;
+  amenities: RUAmenity[];
+  rooms: RURoom[];
+  descriptions: RUDescription[];
+  images: RUImage[];
+  payment_methods: number[];
+  cancellation_policies: RUCancellationPolicy[];
+  owner_id?: number;
+  security_deposit?: number;
+  check_in_from?: string;
+  check_in_to?: string;
+  check_out_until?: string;
+}
+
+interface RUAvailabilityEntry {
+  date_from: string;
+  date_to: string;
+  units: number;
+  min_stay?: number;
+  changeover?: number; // 1=CheckInOnly, 2=CheckOutOnly, 3=Both, 4=NoActivity
+}
+
+interface RUPriceEntry {
+  date_from: string;
+  date_to: string;
+  price: number;
+  extra_guest_price?: number;
+}
+
+interface RUDiscountEntry {
+  date_from: string;
+  date_to: string;
+  nights_from: number;
+  nights_to?: number;
+  discount_percentage: number;
+}
 
 interface RequestBody {
   action: string;
@@ -25,12 +116,13 @@ interface RequestBody {
   date_to?: string;
   test_mode?: boolean;
   metadata?: Record<string, unknown>;
-}
-
-interface RUCredentials {
-  username: string;
-  password: string;
-  endpoint: string;
+  // Push payloads
+  property?: RUPropertyPayload;
+  availability?: RUAvailabilityEntry[];
+  prices?: RUPriceEntry[];
+  handler_url?: string;
+  discounts?: RUDiscountEntry[];
+  search_terms?: string;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -58,22 +150,6 @@ function extractStatusId(xml: string): { id: string; message: string } {
     id: idMatch?.[1] || '0',
     message: msgMatch?.[1]?.trim() || 'Unknown',
   };
-}
-
-function extractSimpleElements(xml: string, tag: string): string[] {
-  const regex = new RegExp(`<${tag}[^>]*>(.*?)<\/${tag}>`, 'gs');
-  const results: string[] = [];
-  let match;
-  while ((match = regex.exec(xml)) !== null) {
-    results.push(match[1].trim());
-  }
-  return results;
-}
-
-function extractAttribute(xml: string, tag: string, attr: string): string | null {
-  const regex = new RegExp(`<${tag}[^>]*\\s${attr}="([^"]*)"`, 'g');
-  const match = regex.exec(xml);
-  return match?.[1] || null;
 }
 
 function extractPropertyIds(xml: string): { id: string; name: string }[] {
@@ -105,7 +181,6 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
 // ── Credential Loader ────────────────────────────────────────
 
 async function loadCredentials(): Promise<RUCredentials | null> {
-  // First try env vars
   const envUsername = Deno.env.get('RENTALS_UNITED_USERNAME');
   const envPassword = Deno.env.get('RENTALS_UNITED_API_KEY');
 
@@ -117,7 +192,6 @@ async function loadCredentials(): Promise<RUCredentials | null> {
     };
   }
 
-  // Fall back to pms_credentials table
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -142,14 +216,20 @@ async function loadCredentials(): Promise<RUCredentials | null> {
   }
 }
 
-// ── XML Request Builders ─────────────────────────────────────
+// ── JSON Response Helper ─────────────────────────────────────
 
-function buildHealthCheckXml(creds: RUCredentials): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListOwnerProp_RQ>
-  ${buildAuthXml(creds)}
-</Pull_ListOwnerProp_RQ>`;
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }
+
+function errorResponse(code: string, message: string, status = 400): Response {
+  return jsonResponse({ success: false, error: { code, message } }, status);
+}
+
+// ── Pull XML Builders ────────────────────────────────────────
 
 function buildListPropertiesXml(creds: RUCredentials): string {
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -195,6 +275,193 @@ function buildListReservationsXml(creds: RUCredentials, dateFrom: string, dateTo
 </Pull_ListReservations_RQ>`;
 }
 
+function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_GetLeads_RQ>
+  ${buildAuthXml(creds)}
+  <DateFrom>${dateFrom}</DateFrom>
+  <DateTo>${dateTo}</DateTo>
+</Pull_GetLeads_RQ>`;
+}
+
+// ── Push XML Builders ────────────────────────────────────────
+
+function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RUPropertyPayload): string {
+  const amenitiesXml = prop.amenities
+    .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
+    .join('\n      ');
+
+  const roomsXml = prop.rooms
+    .map(r => {
+      const roomAmenities = r.amenities
+        .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
+        .join('\n          ');
+      return `<CompositionRoomAmenities CompositionRoomID="${r.room_id}">
+        <Amenities>
+          ${roomAmenities}
+        </Amenities>
+      </CompositionRoomAmenities>`;
+    })
+    .join('\n      ');
+
+  const descriptionsXml = prop.descriptions
+    .map(d => `<Description LanguageID="${d.language_id}"><Text>${escapeXml(d.text)}</Text></Description>`)
+    .join('\n      ');
+
+  const imagesXml = prop.images
+    .map(img => `<Image ImageTypeID="${img.type_id || 1}"${img.is_main ? ' IsMainImage="true"' : ''}><URL>${escapeXml(img.url)}</URL></Image>`)
+    .join('\n      ');
+
+  const paymentMethodsXml = prop.payment_methods
+    .map(pm => `<PaymentMethod>${pm}</PaymentMethod>`)
+    .join('\n      ');
+
+  const cancellationPoliciesXml = prop.cancellation_policies
+    .map(cp => {
+      const rulesXml = cp.rules
+        .map(r => `<CancellationPolicyRule DateFrom="${r.from_days}" DateTo="${r.to_days}" PercentPrice="${r.percentage}" />`)
+        .join('\n          ');
+      return `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">
+        ${rulesXml}
+      </CancellationPolicy>`;
+    })
+    .join('\n      ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutProperty_RQ>
+  ${buildAuthXml(creds)}
+  <Property>
+    <ID>${propertyId}</ID>
+    <Name><Text>${escapeXml(prop.name)}</Text></Name>
+    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
+    <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
+    <Floor>${prop.floor}</Floor>
+    <Space>${prop.space}</Space>
+    <Street>${escapeXml(prop.street)}</Street>
+    <DetailedLocationID>${prop.detailed_location_id}</DetailedLocationID>
+    <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
+    <Coordinates>
+      <Latitude>${prop.latitude}</Latitude>
+      <Longitude>${prop.longitude}</Longitude>
+    </Coordinates>
+    <Amenities>
+      ${amenitiesXml}
+    </Amenities>
+    <CompositionRoomsAmenities>
+      ${roomsXml}
+    </CompositionRoomsAmenities>
+    <Descriptions>
+      ${descriptionsXml}
+    </Descriptions>
+    <Images>
+      ${imagesXml}
+    </Images>
+    <PaymentMethods>
+      ${paymentMethodsXml}
+    </PaymentMethods>
+    <CancellationPolicies>
+      ${cancellationPoliciesXml}
+    </CancellationPolicies>${prop.security_deposit != null ? `
+    <SecurityDeposit>${prop.security_deposit}</SecurityDeposit>` : ''}${prop.check_in_from ? `
+    <CheckInFrom>${prop.check_in_from}</CheckInFrom>` : ''}${prop.check_in_to ? `
+    <CheckInTo>${prop.check_in_to}</CheckInTo>` : ''}${prop.check_out_until ? `
+    <CheckOutUntil>${prop.check_out_until}</CheckOutUntil>` : ''}
+  </Property>
+</Push_PutProperty_RQ>`;
+}
+
+function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, availability: RUAvailabilityEntry[]): string {
+  const daysXml = availability
+    .map(a => {
+      let attrs = `DateFrom="${a.date_from}" DateTo="${a.date_to}" Units="${a.units}"`;
+      if (a.min_stay != null) attrs += ` MinStay="${a.min_stay}"`;
+      if (a.changeover != null) attrs += ` Changeover="${a.changeover}"`;
+      return `<AvailabilityDay ${attrs} />`;
+    })
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutAvbUnits_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+  <Availability>
+    ${daysXml}
+  </Availability>
+</Push_PutAvbUnits_RQ>`;
+}
+
+function buildPushPricesXml(creds: RUCredentials, propertyId: number, prices: RUPriceEntry[]): string {
+  const pricesXml = prices
+    .map(p => {
+      let inner = `<DateFrom>${p.date_from}</DateFrom>
+      <DateTo>${p.date_to}</DateTo>
+      <Price>${p.price}</Price>`;
+      if (p.extra_guest_price != null) {
+        inner += `\n      <ExtraGuestPrice>${p.extra_guest_price}</ExtraGuestPrice>`;
+      }
+      return `<Season>\n      ${inner}\n    </Season>`;
+    })
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutPrices_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+  <Prices>
+    ${pricesXml}
+  </Prices>
+</Push_PutPrices_RQ>`;
+}
+
+function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<LNM_PutHandlerUrl_RQ>
+  ${buildAuthXml(creds)}
+  <HandlerUrl>${escapeXml(handlerUrl)}</HandlerUrl>
+</LNM_PutHandlerUrl_RQ>`;
+}
+
+function buildPushLongStayDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
+  const discountsXml = discounts
+    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" NightsFrom="${d.nights_from}"${d.nights_to != null ? ` NightsTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutLongStayDiscounts_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+  <LongStayDiscounts>
+    ${discountsXml}
+  </LongStayDiscounts>
+</Push_PutLongStayDiscounts_RQ>`;
+}
+
+function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
+  const discountsXml = discounts
+    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" DaysToArrivalFrom="${d.nights_from}"${d.nights_to != null ? ` DaysToArrivalTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutLastMinuteDiscounts_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+  <LastMinuteDiscounts>
+    ${discountsXml}
+  </LastMinuteDiscounts>
+</Push_PutLastMinuteDiscounts_RQ>`;
+}
+
+// ── Action Handlers ──────────────────────────────────────────
+
+function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
+  const status = extractStatusId(response);
+  return { ok: status.id === '0', status };
+}
+
+function ruErrorResponse(status: { id: string; message: string }): Response {
+  return jsonResponse({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } });
+}
+
 // ── Main Handler ─────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -213,214 +480,224 @@ Deno.serve(async (req) => {
     // ── health_check ──
     if (action === 'health_check') {
       if (!creds || (!creds.username && !creds.password)) {
-        return new Response(
-          JSON.stringify({
-            healthy: false,
-            status: 'not_configured',
-            message: 'Rentals United credentials not configured',
-            integration_status: 'in_development',
-            metadata: { ...metadata, checked_at: new Date().toISOString() },
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({
+          healthy: false,
+          status: 'not_configured',
+          message: 'Rentals United credentials not configured',
+          integration_status: 'in_development',
+          metadata: { ...metadata, checked_at: new Date().toISOString() },
+        });
       }
 
       try {
-        const xml = buildHealthCheckXml(creds);
+        const xml = buildListPropertiesXml(creds);
         const response = await callRentalsUnited(creds, xml);
-        const status = extractStatusId(response);
-        const isHealthy = status.id === '0';
+        const { ok, status } = handleRUStatus(response);
 
-        return new Response(
-          JSON.stringify({
-            healthy: isHealthy,
-            status: isHealthy ? 'ok' : 'error',
-            message: isHealthy
-              ? 'Rentals United API connected successfully'
-              : `Rentals United API error: ${status.message}`,
-            ru_status_id: status.id,
-            ru_status_message: status.message,
-            integration_status: 'in_development',
-            capabilities: {
-              health_check: true,
-              list_properties: true,
-              get_property: true,
-              get_availability: true,
-              get_prices: true,
-              list_reservations: true,
-            },
-            metadata: { ...metadata, checked_at: new Date().toISOString() },
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({
+          healthy: ok,
+          status: ok ? 'ok' : 'error',
+          message: ok
+            ? 'Rentals United API connected successfully'
+            : `Rentals United API error: ${status.message}`,
+          ru_status_id: status.id,
+          ru_status_message: status.message,
+          integration_status: 'in_development',
+          capabilities: {
+            health_check: true,
+            list_properties: true,
+            get_property: true,
+            get_availability: true,
+            get_prices: true,
+            list_reservations: true,
+            get_leads: true,
+            push_property: true,
+            push_availability: true,
+            push_prices: true,
+            subscribe_notifications: true,
+            push_long_stay_discounts: true,
+            push_last_minute_discounts: true,
+          },
+          metadata: { ...metadata, checked_at: new Date().toISOString() },
+        });
       } catch (err) {
-        return new Response(
-          JSON.stringify({
-            healthy: false,
-            status: 'connection_error',
-            message: `Could not reach Rentals United: ${err instanceof Error ? err.message : 'Unknown error'}`,
-            metadata: { ...metadata, checked_at: new Date().toISOString() },
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({
+          healthy: false,
+          status: 'connection_error',
+          message: `Could not reach Rentals United: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          metadata: { ...metadata, checked_at: new Date().toISOString() },
+        });
       }
     }
 
     // All other actions require credentials
     if (!creds || !creds.username || !creds.password) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: { code: 'NOT_CONFIGURED', message: 'Rentals United credentials not configured' },
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('NOT_CONFIGURED', 'Rentals United credentials not configured');
     }
 
     // ── list_properties ──
     if (action === 'list_properties') {
       const xml = buildListPropertiesXml(creds);
       const response = await callRentalsUnited(creds, xml);
-      const status = extractStatusId(response);
-
-      if (status.id !== '0') {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
 
       const properties = extractPropertyIds(response);
-      return new Response(
-        JSON.stringify({ success: true, properties, count: properties.length }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return jsonResponse({ success: true, properties, count: properties.length });
     }
 
     // ── get_property ──
     if (action === 'get_property') {
-      if (!ru_property_id) {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'MISSING_PARAM', message: 'ru_property_id is required' } }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       const xml = buildGetPropertyXml(creds, ru_property_id);
       const response = await callRentalsUnited(creds, xml);
-      const status = extractStatusId(response);
-
-      if (status.id !== '0') {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, raw_xml: response }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
     }
 
     // ── get_availability ──
     if (action === 'get_availability') {
-      if (!ru_property_id || !date_from || !date_to) {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'MISSING_PARAM', message: 'ru_property_id, date_from, date_to are required' } }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
+      if (!ru_property_id || !date_from || !date_to) return errorResponse('MISSING_PARAM', 'ru_property_id, date_from, date_to are required');
       const xml = buildGetAvailabilityXml(creds, ru_property_id, date_from, date_to);
       const response = await callRentalsUnited(creds, xml);
-      const status = extractStatusId(response);
-
-      if (status.id !== '0') {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, raw_xml: response }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
     }
 
     // ── get_prices ──
     if (action === 'get_prices') {
-      if (!ru_property_id || !date_from || !date_to) {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'MISSING_PARAM', message: 'ru_property_id, date_from, date_to are required' } }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
+      if (!ru_property_id || !date_from || !date_to) return errorResponse('MISSING_PARAM', 'ru_property_id, date_from, date_to are required');
       const xml = buildGetPricesXml(creds, ru_property_id, date_from, date_to);
       const response = await callRentalsUnited(creds, xml);
-      const status = extractStatusId(response);
-
-      if (status.id !== '0') {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, raw_xml: response }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
     }
 
     // ── list_reservations ──
     if (action === 'list_reservations') {
-      if (!date_from || !date_to) {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'MISSING_PARAM', message: 'date_from and date_to are required' } }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
+      if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
       const xml = buildListReservationsXml(creds, date_from, date_to);
       const response = await callRentalsUnited(creds, xml);
-      const status = extractStatusId(response);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
+    }
 
-      if (status.id !== '0') {
-        return new Response(
-          JSON.stringify({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    // ── get_leads (optional) ──
+    if (action === 'get_leads') {
+      if (!date_from || !date_to) return errorResponse('MISSING_PARAM', 'date_from and date_to are required');
+      const xml = buildGetLeadsXml(creds, date_from, date_to);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
+    }
+
+    // ── push_property (mandatory) ──
+    if (action === 'push_property') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
+      const p = body.property;
+      if (!p.name || !p.object_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
+        return errorResponse('VALIDATION', 'Property must include name, object_type_id, can_sleep_max, floor, and space');
+      }
+      if (!p.street || !p.detailed_location_id || !p.zip_code) {
+        return errorResponse('VALIDATION', 'Property must include street, detailed_location_id, and zip_code');
+      }
+      if (p.latitude == null || p.longitude == null) {
+        return errorResponse('VALIDATION', 'Property must include latitude and longitude');
+      }
+      if (!p.amenities || p.amenities.length < 10) {
+        return errorResponse('VALIDATION', 'Property must include at least 10 amenities');
+      }
+      if (!p.rooms || p.rooms.length === 0) {
+        return errorResponse('VALIDATION', 'Property must include at least 1 room');
+      }
+      if (!p.images || p.images.length < 10) {
+        return errorResponse('VALIDATION', 'Property must include at least 10 images');
+      }
+      if (!p.payment_methods || p.payment_methods.length === 0) {
+        return errorResponse('VALIDATION', 'Property must include at least 1 payment method');
+      }
+      if (!p.cancellation_policies || p.cancellation_policies.length === 0) {
+        return errorResponse('VALIDATION', 'Property must include at least 1 cancellation policy');
       }
 
-      return new Response(
-        JSON.stringify({ success: true, raw_xml: response }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const xml = buildPushPropertyXml(creds, ru_property_id, p);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Property pushed successfully', raw_xml: response });
+    }
+
+    // ── push_availability (mandatory) ──
+    if (action === 'push_availability') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.availability || body.availability.length === 0) return errorResponse('MISSING_PARAM', 'availability array is required');
+      const xml = buildPushAvailabilityXml(creds, ru_property_id, body.availability);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Availability pushed successfully', raw_xml: response });
+    }
+
+    // ── push_prices (mandatory) ──
+    if (action === 'push_prices') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.prices || body.prices.length === 0) return errorResponse('MISSING_PARAM', 'prices array is required');
+      const xml = buildPushPricesXml(creds, ru_property_id, body.prices);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Prices pushed successfully', raw_xml: response });
+    }
+
+    // ── subscribe_notifications (mandatory RNLM) ──
+    if (action === 'subscribe_notifications') {
+      if (!body.handler_url) return errorResponse('MISSING_PARAM', 'handler_url is required');
+      const xml = buildSubscribeNotificationsXml(creds, body.handler_url);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Notification handler registered successfully', raw_xml: response });
+    }
+
+    // ── push_long_stay_discounts (optional) ──
+    if (action === 'push_long_stay_discounts') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      const xml = buildPushLongStayDiscountsXml(creds, ru_property_id, body.discounts);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Long stay discounts pushed successfully', raw_xml: response });
+    }
+
+    // ── push_last_minute_discounts (optional) ──
+    if (action === 'push_last_minute_discounts') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      const xml = buildPushLastMinuteDiscountsXml(creds, ru_property_id, body.discounts);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Last minute discounts pushed successfully', raw_xml: response });
     }
 
     // Unknown action
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: { code: 'UNKNOWN_ACTION', message: `Action "${action}" is not supported` },
-      }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 
   } catch (error) {
     console.error('[rentalsunited-api] Error:', error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        },
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return jsonResponse({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+    }, 500);
   }
 });
