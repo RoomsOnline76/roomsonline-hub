@@ -175,9 +175,28 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
-            {ruPropertyId && (
-              <Badge variant="outline" className="text-xs">
-                RU ID: {ruPropertyId}
+            {editingRuId ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={ruIdDraft}
+                  onChange={(e) => setRuIdDraft(e.target.value)}
+                  placeholder="RU Property ID"
+                  className="h-6 w-28 text-xs px-1.5"
+                />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveRuId} disabled={savingRuId}>
+                  {savingRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingRuId(false)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-accent"
+                onClick={() => { setRuIdDraft(ruPropertyId || ""); setEditingRuId(true); }}
+              >
+                {ruPropertyId ? `RU ID: ${ruPropertyId}` : "No RU ID — click to set"}
               </Badge>
             )}
           </div>
