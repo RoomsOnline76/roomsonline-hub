@@ -383,8 +383,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate minimums before pushing
-    if (ruPayload.images.length < 10) {
+    // Validate minimums before pushing (only enforce for NEW properties, not updates)
+    if (existingRuId === 0 && ruPayload.images.length < 10) {
       return new Response(
         JSON.stringify({
           success: false,
