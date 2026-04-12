@@ -3479,6 +3479,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url: string | null
+          rentalsunited_property_id: string | null
           review_sentiment: Json | null
           short_description: string | null
           show_on_website: boolean | null
@@ -3560,6 +3561,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url?: string | null
+          rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
           short_description?: string | null
           show_on_website?: boolean | null
@@ -3641,6 +3643,7 @@ export type Database = {
           price_per_night?: number
           property_type?: string
           property_url?: string | null
+          rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
           short_description?: string | null
           show_on_website?: boolean | null
