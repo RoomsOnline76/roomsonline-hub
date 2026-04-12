@@ -375,7 +375,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <CheckInFrom>${prop.check_in_from}</CheckInFrom>` : ''}${prop.check_in_to ? `
     <CheckInTo>${prop.check_in_to}</CheckInTo>` : ''}${prop.check_out_until ? `
     <CheckOutUntil>${prop.check_out_until}</CheckOutUntil>` : ''}
-  </Property>
+    <IsActive>1</IsActive>
+    <IsArchived>0</IsArchived>
 </Push_PutProperty_RQ>`;
 }
 
