@@ -23,6 +23,7 @@ const FACILITIES = {
   activitiesExperiences: ["Game Drives (Morning)","Game Drives (Evening)","Guided Safari Walks","Bird Watching","Cycling","Fishing","Cultural Tours","Hiking Trails","Airport Transfer","Walking Tours","Live Music/Performance"],
   familyServices: ["Children Play Area","Kids Meals","Child-Friendly Activities","Family Rooms","Babysitting/Child Services"],
   safetySecurity: ["24-Hour Security","CCTV","Fire Extinguishers","First Aid Kit"],
+  view: ["Sea View","Mountain View","Garden View","Pool View","City View","Lake View","River View","Courtyard View"],
   languagesSpoken: ["English","Afrikaans","Other Languages"],
   transportParking: ["On-Site Parking","Free Secure Parking","Nearby Parking","Car Hire Assistance","Airport Shuttle"],
 };
@@ -31,7 +32,8 @@ const FACILITY_LABELS: Record<string, string> = {
   general: "General", businessReception: "Business & Reception", conferenceEvents: "Conference & Events",
   mealsDining: "Meals & Dining", utilityRoom: "Utility & Room Features", wellnessFitness: "Wellness & Fitness",
   activitiesExperiences: "Activities & Experiences", familyServices: "Family Services",
-  safetySecurity: "Safety & Security", languagesSpoken: "Languages Spoken", transportParking: "Transport & Parking",
+  safetySecurity: "Safety & Security", view: "View",
+  languagesSpoken: "Languages Spoken", transportParking: "Transport & Parking",
 };
 
 interface InfoFacilitiesTabProps {

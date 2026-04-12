@@ -366,6 +366,10 @@ export const FACILITY_CATEGORIES = {
   security: [
     "cctv", "safe", "security_guard", "fire_extinguisher", "smoke_detector",
     "first_aid_kit", "carbon_monoxide_detector"
+  ],
+  view: [
+    "sea_view", "mountain_view", "garden_view", "pool_view", "city_view",
+    "lake_view", "river_view", "courtyard_view"
   ]
 } as const;
 
