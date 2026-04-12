@@ -173,8 +173,9 @@ function mapCancellationPolicies(amenities: Record<string, unknown> | null): { v
 
   // Sort policies by days ascending so we can build contiguous ranges
   const sorted = [...policies]
-    .filter((p: any) => typeof p.days === 'number' && typeof p.forfeit === 'number')
-    .sort((a: any, b: any) => a.days - b.days);
+    .filter((p: any) => p.days != null && p.forfeit != null)
+    .map((p: any) => ({ days: Number(p.days), forfeit: Number(p.forfeit) }))
+    .sort((a, b) => a.days - b.days);
 
   if (sorted.length === 0) {
     return [{
