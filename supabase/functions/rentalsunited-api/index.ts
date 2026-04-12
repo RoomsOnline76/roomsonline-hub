@@ -339,11 +339,11 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
+  <IsActive>true</IsActive>
+  <IsArchived>false</IsArchived>
   <Property>
     <ID>${propertyId}</ID>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
-    <IsActive>true</IsActive>
-    <IsArchived>false</IsArchived>
     <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <Floor>${prop.floor}</Floor>
