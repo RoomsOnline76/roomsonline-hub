@@ -531,7 +531,7 @@ Deno.serve(async (req) => {
     }
 
     // All other actions require credentials
-    if (!creds || !creds.username || !creds.password) {
+    if (!creds || !creds.api_key || !creds.api_secret) {
       return errorResponse('NOT_CONFIGURED', 'Rentals United credentials not configured');
     }
 
