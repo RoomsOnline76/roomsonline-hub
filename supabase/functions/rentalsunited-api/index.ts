@@ -339,10 +339,10 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
-  <IsActive>1</IsActive>
-  <IsArchived>0</IsArchived>
   <Property>
     <ID>${propertyId}</ID>
+    <IsActive>1</IsActive>
+    <IsArchived>0</IsArchived>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
     <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
@@ -732,7 +732,7 @@ Deno.serve(async (req) => {
       const lng = (metadata as any)?.longitude;
       if (!lat || !lng) return errorResponse('MISSING_PARAM', 'metadata.latitude and metadata.longitude are required');
       
-      const xml = `<Pull_GetLocationByCoordinates_RQ>${buildAuthXml(creds)}<Coordinates><Latitude>${lat}</Latitude><Longitude>${lng}</Longitude></Coordinates></Pull_GetLocationByCoordinates_RQ>`;
+      const xml = `<Pull_GetLocationByCoordinates_RQ>${buildAuthXml(creds)}<Latitude>${lat}</Latitude><Longitude>${lng}</Longitude></Pull_GetLocationByCoordinates_RQ>`;
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] Location lookup response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
