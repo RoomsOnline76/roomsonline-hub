@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { FACILITY_CATEGORIES } from "@/config/onboardingFieldSchema";
 import { StepProps } from "./types";
 import { 
-  Building2, Trees, Heart, Utensils, Users, Shield, Accessibility, Compass
+  Building2, Trees, Heart, Utensils, Users, Shield, Accessibility, Compass, Eye
 } from "lucide-react";
 
 const CATEGORY_CONFIG = {
@@ -14,7 +14,8 @@ const CATEGORY_CONFIG = {
   activities: { label: "Activities", icon: Compass },
   family: { label: "Family Friendly", icon: Users },
   accessibility: { label: "Accessibility", icon: Accessibility },
-  security: { label: "Safety & Security", icon: Shield }
+  security: { label: "Safety & Security", icon: Shield },
+  view: { label: "View", icon: Eye }
 } as const;
 
 const FACILITY_LABELS: Record<string, string> = {
@@ -94,7 +95,16 @@ const FACILITY_LABELS: Record<string, string> = {
   fire_extinguisher: "Fire Extinguisher",
   smoke_detector: "Smoke Detector",
   first_aid_kit: "First Aid Kit",
-  carbon_monoxide_detector: "Carbon Monoxide Detector"
+  carbon_monoxide_detector: "Carbon Monoxide Detector",
+  // View
+  sea_view: "Sea View",
+  mountain_view: "Mountain View",
+  garden_view: "Garden View",
+  pool_view: "Pool View",
+  city_view: "City View",
+  lake_view: "Lake View",
+  river_view: "River View",
+  courtyard_view: "Courtyard View"
 };
 
 export function StepFacilities({
