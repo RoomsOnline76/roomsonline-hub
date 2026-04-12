@@ -170,12 +170,16 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
 // ── API Call Helper ──────────────────────────────────────────
 
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
-  // Compact XML to single line — RU's .NET parser chokes on newlines after <?xml?> declaration
-  const compactXml = xmlBody.replace(/>\s+</g, '><').trim();
-  
+  // Strip XML declaration — RU's .NET handler identifies the method from the root element
+  // and chokes when <?xml?> is present. Then compact to single line.
+  const stripped = xmlBody.replace(/<\?xml[^?]*\?>\s*/gi, '');
+  const compactXml = stripped.replace(/>\s+</g, '><').trim();
+
+  console.log(`[rentalsunited-api] Compact XML first 500: "${compactXml.substring(0, 500)}"`);
+
   const response = await fetch(creds.endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/xml' },
+    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
     body: compactXml,
   });
 
@@ -335,6 +339,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
+  <IsActive>1</IsActive>
+  <IsArchived>0</IsArchived>
   <Property>
     <ID>${propertyId}</ID>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
@@ -454,6 +460,17 @@ function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: numbe
     ${discountsXml}
   </LastMinuteDiscounts>
 </Push_PutLastMinuteDiscounts_RQ>`;
+}
+
+function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isActive: boolean, isArchived: boolean): string {
+  return `<Push_SetPropertiesStatus_RQ>
+  ${buildAuthXml(creds)}
+  <IsActive>${isActive ? 1 : 0}</IsActive>
+  <IsArchived>${isArchived ? 1 : 0}</IsArchived>
+  <PropertyIDs>
+    <PropertyID>${propertyId}</PropertyID>
+  </PropertyIDs>
+</Push_SetPropertiesStatus_RQ>`;
 }
 
 // ── Action Handlers ──────────────────────────────────────────
@@ -694,6 +711,19 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, message: 'Last minute discounts pushed successfully', raw_xml: response });
+    }
+
+    // ── set_property_status ──
+    if (action === 'set_property_status') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const isActive = body.metadata?.is_active !== false;
+      const isArchived = body.metadata?.is_archived === true;
+      const xml = buildSetPropertyStatusXml(creds, ru_property_id, isActive as boolean, isArchived as boolean);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Property status updated', raw_xml: response });
     }
 
     // Unknown action
