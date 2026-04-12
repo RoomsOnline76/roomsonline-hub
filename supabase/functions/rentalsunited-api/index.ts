@@ -633,6 +633,7 @@ Deno.serve(async (req) => {
       }
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
+      console.log(`[rentalsunited-api] XML first 100 chars: ${JSON.stringify(xml.substring(0, 100))}`);
       console.log(`[rentalsunited-api] Push XML length: ${xml.length}, ru_property_id: ${ru_property_id}`);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
