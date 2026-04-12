@@ -240,10 +240,7 @@ function errorResponse(code: string, message: string, status = 400): Response {
 // ── Pull XML Builders ────────────────────────────────────────
 
 function buildListPropertiesXml(creds: RUCredentials): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListOwnerProp_RQ>
-  ${buildAuthXml(creds)}
-</Pull_ListOwnerProp_RQ>`;
+  return `<Pull_ListOwnerProp_RQ>${buildAuthXml(creds)}</Pull_ListOwnerProp_RQ>`;
 }
 
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
