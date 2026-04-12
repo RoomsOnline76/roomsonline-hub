@@ -342,6 +342,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   <Property>
     <ID>${propertyId}</ID>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
+    <IsActive>1</IsActive>
+    <IsArchived>0</IsArchived>
     <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <Floor>${prop.floor}</Floor>
@@ -375,8 +377,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <CheckInFrom>${prop.check_in_from}</CheckInFrom>` : ''}${prop.check_in_to ? `
     <CheckInTo>${prop.check_in_to}</CheckInTo>` : ''}${prop.check_out_until ? `
     <CheckOutUntil>${prop.check_out_until}</CheckOutUntil>` : ''}
-    <IsActive>1</IsActive>
-    <IsArchived>0</IsArchived>
   </Property>
 </Push_PutProperty_RQ>`;
 }
