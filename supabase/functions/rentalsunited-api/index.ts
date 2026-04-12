@@ -170,10 +170,13 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
 // ── API Call Helper ──────────────────────────────────────────
 
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
+  // Compact XML to single line — RU's .NET parser chokes on newlines after <?xml?> declaration
+  const compactXml = xmlBody.replace(/>\s+</g, '><').trim();
+  
   const response = await fetch(creds.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/xml' },
-    body: xmlBody,
+    body: compactXml,
   });
 
   if (!response.ok) {
