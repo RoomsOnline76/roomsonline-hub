@@ -598,7 +598,7 @@ Deno.serve(async (req) => {
 
     // ── push_property (mandatory) ──
     if (action === 'push_property') {
-      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (ru_property_id == null || ru_property_id === undefined) return errorResponse('MISSING_PARAM', 'ru_property_id is required (use 0 for new properties)');
       if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
       const p = body.property;
       if (!p.name || !p.object_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
