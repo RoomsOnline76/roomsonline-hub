@@ -10,12 +10,9 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader2,
-  ExternalLink,
   Image,
   MapPin,
   Home,
-  CreditCard,
-  FileText,
   BedDouble,
 } from "lucide-react";
 

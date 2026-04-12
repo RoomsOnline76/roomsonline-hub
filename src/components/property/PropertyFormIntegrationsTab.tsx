@@ -32,6 +32,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
   return (
     <div className="space-y-4">
+      {/* Push to Rentals United */}
+      <PushToRentalsUnited propertyId={property.id} propertyName={property.name} />
+
       {/* Payment Provider */}
       <PropertyPaymentProviderSelect propertyId={property.id} />
 
