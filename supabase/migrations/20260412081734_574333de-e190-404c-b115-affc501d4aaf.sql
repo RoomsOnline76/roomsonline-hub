@@ -1,0 +1,1 @@
+ALTER TABLE public.pms_credentials ADD COLUMN IF NOT EXISTS api_secret text;

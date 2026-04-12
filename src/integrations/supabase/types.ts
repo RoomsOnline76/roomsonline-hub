@@ -2716,6 +2716,7 @@ export type Database = {
         Row: {
           agent_code: string | null
           api_key: string | null
+          api_secret: string | null
           available_listings: Json | null
           base_url: string | null
           capabilities: Json | null
@@ -2736,6 +2737,7 @@ export type Database = {
         Insert: {
           agent_code?: string | null
           api_key?: string | null
+          api_secret?: string | null
           available_listings?: Json | null
           base_url?: string | null
           capabilities?: Json | null
@@ -2756,6 +2758,7 @@ export type Database = {
         Update: {
           agent_code?: string | null
           api_key?: string | null
+          api_secret?: string | null
           available_listings?: Json | null
           base_url?: string | null
           capabilities?: Json | null
