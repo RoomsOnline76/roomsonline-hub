@@ -616,7 +616,8 @@ Deno.serve(async (req) => {
       if (!p.rooms || p.rooms.length === 0) {
         return errorResponse('VALIDATION', 'Property must include at least 1 room');
       }
-      if (!p.images || p.images.length < 10) {
+      // Only enforce 10-image minimum for NEW properties (ru_property_id === 0)
+      if (ru_property_id === 0 && (!p.images || p.images.length < 10)) {
         return errorResponse('VALIDATION', 'Property must include at least 10 images');
       }
       if (!p.payment_methods || p.payment_methods.length === 0) {
