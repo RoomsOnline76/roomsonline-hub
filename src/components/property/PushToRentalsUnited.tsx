@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,6 +15,9 @@ import {
   MapPin,
   Home,
   BedDouble,
+  
+  Save,
+  X,
 } from "lucide-react";
 
 interface PushToRentalsUnitedProps {
@@ -35,13 +39,47 @@ interface PushError {
   message: string;
 }
 
-export function PushToRentalsUnited({ propertyId, propertyName }: PushToRentalsUnitedProps) {
+export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [loading, setLoading] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [ruPropertyId, setRuPropertyId] = useState<string | null>(null);
+  const [editingRuId, setEditingRuId] = useState(false);
+  const [ruIdDraft, setRuIdDraft] = useState("");
+  const [savingRuId, setSavingRuId] = useState(false);
   const [error, setError] = useState<PushError | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+
+  // Load existing RU ID on mount
+  useEffect(() => {
+    supabase
+      .from("properties")
+      .select("rentalsunited_property_id")
+      .eq("id", propertyId)
+      .single()
+      .then(({ data }) => {
+        if (data?.rentalsunited_property_id) {
+          setRuPropertyId(data.rentalsunited_property_id);
+        }
+      });
+  }, [propertyId]);
+
+  const saveRuId = async () => {
+    setSavingRuId(true);
+    const newId = ruIdDraft.trim() || null;
+    const { error: err } = await supabase
+      .from("properties")
+      .update({ rentalsunited_property_id: newId })
+      .eq("id", propertyId);
+    if (err) {
+      toast.error("Failed to save RU ID");
+    } else {
+      setRuPropertyId(newId);
+      setEditingRuId(false);
+      toast.success("RU ID saved");
+    }
+    setSavingRuId(false);
+  };
 
   const runDryRun = async () => {
     setDryRunning(true);
@@ -137,9 +175,28 @@ export function PushToRentalsUnited({ propertyId, propertyName }: PushToRentalsU
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
-            {ruPropertyId && (
-              <Badge variant="outline" className="text-xs">
-                RU ID: {ruPropertyId}
+            {editingRuId ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={ruIdDraft}
+                  onChange={(e) => setRuIdDraft(e.target.value)}
+                  placeholder="RU Property ID"
+                  className="h-6 w-28 text-xs px-1.5"
+                />
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveRuId} disabled={savingRuId}>
+                  {savingRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                </Button>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingRuId(false)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <Badge
+                variant="outline"
+                className="text-xs cursor-pointer hover:bg-accent"
+                onClick={() => { setRuIdDraft(ruPropertyId || ""); setEditingRuId(true); }}
+              >
+                {ruPropertyId ? `RU ID: ${ruPropertyId}` : "No RU ID — click to set"}
               </Badge>
             )}
           </div>
