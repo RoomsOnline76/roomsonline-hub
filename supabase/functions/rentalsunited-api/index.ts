@@ -175,7 +175,7 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   const stripped = xmlBody.replace(/<\?xml[^?]*\?>\s*/gi, '');
   const compactXml = stripped.replace(/>\s+</g, '><').trim();
 
-  console.log(`[rentalsunited-api] Sending XML (${compactXml.length} chars), first 120: "${compactXml.substring(0, 120)}"`);
+  console.log(`[rentalsunited-api] Compact XML first 500: "${compactXml.substring(0, 500)}"`);
 
   const response = await fetch(creds.endpoint, {
     method: 'POST',
