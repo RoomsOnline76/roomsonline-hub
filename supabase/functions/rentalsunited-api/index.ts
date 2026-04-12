@@ -144,6 +144,11 @@ function escapeXml(str: string): string {
 }
 
 function extractStatusId(xml: string): { id: string; message: string } {
+  // Check for <error ID="..."> responses first (XML parse errors, auth failures)
+  const errorMatch = xml.match(/<error\s+ID="([^"]+)"[^>]*>([\s\S]*?)<\/error>/i);
+  if (errorMatch) {
+    return { id: errorMatch[1], message: errorMatch[2]?.trim() || 'RU error' };
+  }
   const idMatch = xml.match(/<Status\s+ID="(\d+)"/);
   const msgMatch = xml.match(/<Status[^>]*>(.*?)<\/Status>/s);
   return {
