@@ -2058,6 +2058,13 @@ export default function PropertyForm() {
             setGooglePlaceId(amenities.external_ids.google_place_id);
           }
 
+          // Load additional source URLs
+          if (amenities?.additional_source_urls) {
+            const urls = amenities.additional_source_urls as string[];
+            if (urls[0]) setSourceUrl2(urls[0]);
+            if (urls[1]) setSourceUrl3(urls[1]);
+          }
+
           // Load linked owners
           if (data.id) {
             supabase
@@ -2921,6 +2928,7 @@ export default function PropertyForm() {
             motar_api: motarApi,
             website_colors: websiteColors,
           },
+          additional_source_urls: [sourceUrl2, sourceUrl3].filter(Boolean),
           seasons: seasons,
           season_rates: seasonRates,
           pms_rate_types: pmsRateTypes,
@@ -4554,14 +4562,14 @@ export default function PropertyForm() {
                             <Input
                               type="url"
                               value={sourceUrl2}
-                              onChange={(e) => setSourceUrl2(e.target.value)}
+                              onChange={(e) => { setSourceUrl2(e.target.value); setIsDirty(true); }}
                               placeholder="https://additional-source-1.com"
                               className="h-7 text-xs"
                             />
                             <Input
                               type="url"
                               value={sourceUrl3}
-                              onChange={(e) => setSourceUrl3(e.target.value)}
+                              onChange={(e) => { setSourceUrl3(e.target.value); setIsDirty(true); }}
                               placeholder="https://additional-source-2.com"
                               className="h-7 text-xs"
                             />
