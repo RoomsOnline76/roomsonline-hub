@@ -294,8 +294,8 @@ export default function AdminKeys() {
 
   // Rentals United-specific state
   const [rentalsunitedCredentials, setRentalsunitedCredentials] = useState<PMSCredentials | null>(null);
-  const [rentalsunitedUsername, setRentalsunitedUsername] = useState("");
   const [rentalsunitedApiKey, setRentalsunitedApiKey] = useState("");
+  const [rentalsunitedApiSecret, setRentalsunitedApiSecret] = useState("");
   const [rentalsunitedEndpointUrl, setRentalsunitedEndpointUrl] = useState("");
   const [editingRentalsunited, setEditingRentalsunited] = useState(false);
   const [savingRentalsunited, setSavingRentalsunited] = useState(false);
@@ -1536,7 +1536,7 @@ export default function AdminKeys() {
       system_type: "rentalsunited",
       environment: "production" as const,
       api_key: rentalsunitedApiKey || rentalsunitedCredentials?.api_key || null,
-      username: rentalsunitedUsername || rentalsunitedCredentials?.username || null,
+      api_secret: rentalsunitedApiSecret || (rentalsunitedCredentials as any)?.api_secret || null,
       base_url: rentalsunitedEndpointUrl || rentalsunitedCredentials?.base_url || "https://rm.rentalsunited.com/api/Handler.ashx",
       is_active: true,
     };
@@ -1559,7 +1559,7 @@ export default function AdminKeys() {
       });
       setEditingRentalsunited(false);
       setRentalsunitedApiKey("");
-      setRentalsunitedUsername("");
+      setRentalsunitedApiSecret("");
       setRentalsunitedEndpointUrl("");
       fetchRentalsunitedCredentials();
     }
@@ -3886,7 +3886,7 @@ export default function AdminKeys() {
 
   // Rentals United card renderer
   const renderRentalsunitedCard = () => {
-    const isConfigured = !!(rentalsunitedCredentials?.api_key && rentalsunitedCredentials?.username);
+    const isConfigured = !!(rentalsunitedCredentials?.api_key && (rentalsunitedCredentials as any)?.api_secret);
 
     return (
       <AccordionItem
@@ -3950,22 +3950,23 @@ export default function AdminKeys() {
             {editingRentalsunited ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ru-username">API Username</Label>
-                  <Input
-                    id="ru-username"
-                    value={rentalsunitedUsername}
-                    onChange={(e) => setRentalsunitedUsername(e.target.value)}
-                    placeholder={rentalsunitedCredentials?.username ? "••••••••" : "Enter API username"}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ru-apikey">API Password</Label>
+                  <Label htmlFor="ru-apikey">API Key</Label>
                   <Input
                     id="ru-apikey"
                     type="password"
                     value={rentalsunitedApiKey}
                     onChange={(e) => setRentalsunitedApiKey(e.target.value)}
-                    placeholder={rentalsunitedCredentials?.api_key ? "••••••••" : "Enter API password"}
+                    placeholder={rentalsunitedCredentials?.api_key ? "••••••••" : "Enter API key"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ru-apisecret">API Secret</Label>
+                  <Input
+                    id="ru-apisecret"
+                    type="password"
+                    value={rentalsunitedApiSecret}
+                    onChange={(e) => setRentalsunitedApiSecret(e.target.value)}
+                    placeholder={(rentalsunitedCredentials as any)?.api_secret ? "••••••••" : "Enter API secret"}
                   />
                 </div>
                 <div className="space-y-2">
@@ -3987,7 +3988,7 @@ export default function AdminKeys() {
                     onClick={() => {
                       setEditingRentalsunited(false);
                       setRentalsunitedApiKey("");
-                      setRentalsunitedUsername("");
+                      setRentalsunitedApiSecret("");
                       setRentalsunitedEndpointUrl("");
                     }}
                   >
@@ -3999,15 +4000,15 @@ export default function AdminKeys() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <Label className="text-muted-foreground">Username</Label>
-                    <p className={`font-medium ${rentalsunitedCredentials?.username ? "text-green-600" : ""}`}>
-                      {rentalsunitedCredentials?.username ? "Configured" : "Not set"}
+                    <Label className="text-muted-foreground">API Key</Label>
+                    <p className={`font-medium ${rentalsunitedCredentials?.api_key ? "text-green-600" : ""}`}>
+                      {rentalsunitedCredentials?.api_key ? "Configured" : "Not set"}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Password</Label>
-                    <p className={`font-medium ${rentalsunitedCredentials?.api_key ? "text-green-600" : ""}`}>
-                      {rentalsunitedCredentials?.api_key ? "Configured" : "Not set"}
+                    <Label className="text-muted-foreground">API Secret</Label>
+                    <p className={`font-medium ${(rentalsunitedCredentials as any)?.api_secret ? "text-green-600" : ""}`}>
+                      {(rentalsunitedCredentials as any)?.api_secret ? "Configured" : "Not set"}
                     </p>
                   </div>
                   <div>
