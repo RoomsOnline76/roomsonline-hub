@@ -726,6 +726,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: 'Property status updated', raw_xml: response });
     }
 
+    // ── get_location_by_coordinates ──
+    if (action === 'get_location_by_coordinates') {
+      const lat = (metadata as any)?.latitude;
+      const lng = (metadata as any)?.longitude;
+      if (!lat || !lng) return errorResponse('MISSING_PARAM', 'metadata.latitude and metadata.longitude are required');
+      
+      const xml = `<Pull_GetLocationByCoordinates_RQ>${buildAuthXml(creds)}<Coordinates><Latitude>${lat}</Latitude><Longitude>${lng}</Longitude></Coordinates></Pull_GetLocationByCoordinates_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] Location lookup response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      
+      // Extract LocationID from response
+      const locMatch = response.match(/<LocationID>(\d+)<\/LocationID>/);
+      const locationId = locMatch ? parseInt(locMatch[1], 10) : null;
+      return jsonResponse({ success: true, location_id: locationId, raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 

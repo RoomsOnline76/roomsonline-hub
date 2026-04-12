@@ -3294,6 +3294,20 @@ export default function PropertyForm() {
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
       });
 
+      // Auto-push to Rentals United if property has an RU ID
+      if (isEditMode && formData.rentalsunited_property_id) {
+        toast({ title: "Syncing to Rentals United...", description: "Property data is being pushed to RU in the background." });
+        supabase.functions.invoke("push-property-to-ru", {
+          body: { property_id: savedPropertyId },
+        }).then(({ data: ruResult, error: ruError }) => {
+          if (ruError || !ruResult?.success) {
+            console.warn("[RU Sync] Push failed:", ruError?.message || ruResult?.error?.message);
+          } else {
+            console.log("[RU Sync] Push succeeded:", ruResult.message);
+          }
+        });
+      }
+
       setIsDirty(false);
       // Stay on current page after save - don't navigate away for edits
     } catch (error) {
