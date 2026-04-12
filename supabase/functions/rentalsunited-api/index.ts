@@ -460,6 +460,19 @@ function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: numbe
 </Push_PutLastMinuteDiscounts_RQ>`;
 }
 
+function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isActive: boolean, isArchived: boolean): string {
+  return `<Push_SetPropertiesStatus_RQ>
+  ${buildAuthXml(creds)}
+  <Properties>
+    <Property>
+      <ID>${propertyId}</ID>
+      <IsActive>${isActive ? 1 : 0}</IsActive>
+      <IsArchived>${isArchived ? 1 : 0}</IsArchived>
+    </Property>
+  </Properties>
+</Push_SetPropertiesStatus_RQ>`;
+}
+
 // ── Action Handlers ──────────────────────────────────────────
 
 function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
