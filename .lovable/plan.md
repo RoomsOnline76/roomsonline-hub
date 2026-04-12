@@ -1,74 +1,47 @@
+# Rentals United: Switch Authentication from Username/Password to PAI (Key + Secret)
 
+## Context
 
-# Rentals United Adapter — Full Mandatory API Coverage
-
-## Gap Analysis
-
-The current `rentalsunited-api` edge function only implements **Pull (read)** operations. The Rentals United PMS integration mandate requires several **Push (write)** operations for full channel connectivity.
-
-| Method | Status | Type | Priority |
-|--------|--------|------|----------|
-| `Pull_ListOwnerProp_RQ` (list_properties) | Implemented | Pull | — |
-| `Pull_ListSpecProp_RQ` (get_property) | Implemented | Pull | — |
-| `Pull_ListPropertyAvailabilityCalendar_RQ` (get_availability) | Implemented | Pull | — |
-| `Pull_ListPropertyPrices_RQ` (get_prices) | Implemented | Pull | — |
-| `Pull_ListReservations_RQ` (list_reservations) | Implemented | Pull | Mandatory |
-| **Push_PutProperty_RQ** (push_property) | **Missing** | Push | **Mandatory** |
-| **Push_PutAvbUnits_RQ** (push_availability) | **Missing** | Push | **Mandatory** |
-| **Push_PutPrices_RQ** (push_prices) | **Missing** | Push | **Mandatory** |
-| **LNM_PutHandlerUrl_RQ** (subscribe_notifications) | **Missing** | Push | **Mandatory** |
-| **Pull_GetLeads_RQ** (get_leads) | **Missing** | Pull | Optional |
-| **Push_PutLongStayDiscounts_RQ** (push_long_stay_discounts) | **Missing** | Push | Optional |
-| **Push_PutLastMinuteDiscounts_RQ** (push_last_minute_discounts) | **Missing** | Push | Optional |
+Rentals United now uses API authentication (API Key + API Secret) instead of username/password for both the main API and messaging. The current adapter uses XML `<UserName>/<Password>` auth blocks throughout.
 
 ## Changes
 
 ### 1. Edge Function — `supabase/functions/rentalsunited-api/index.ts`
 
-Add 7 new actions with XML request builders and handlers:
+- **Replace `RUCredentials` interface**: Change from `{ username, password, endpoint }` to `{ api_key, api_secret, endpoint }`
+- **Update `buildAuthXml()**`: Replace `<UserName>/<Password>` XML with PAI auth format — likely `<APIKey>/<APISecret>` tags (per RU's PAI documentation)
+- **Update `loadCredentials()**`: 
+  - Env vars: `RENTALS_UNITED_API_KEY` + `RENTALS_UNITED_API_SECRET` (replace `RENTALS_UNITED_USERNAME`)
+  - DB fallback: Read `api_key` + `api_secret` from `pms_credentials` instead of `username` + `api_key`
+- **Update `health_check` response**: Report `api_key` and `api_secret` presence instead of username/password
 
-**Mandatory actions:**
+### 2. Admin Keys UI — `src/pages/AdminKeys.tsx`
 
-- **`push_property`** — `Push_PutProperty_RQ`: Accepts a property payload (name, type, address, coordinates, amenities, rooms, descriptions, images, payment methods, cancellation policies) and builds the full XML envelope. Requires `ru_property_id` and a `property` object in the request body.
+- **Rename form fields**: "API Username" → "API Key", "API Password" → "API Secret"
+- **Rename state variables**: `rentalsunitedUsername` → reuse or relabel, `rentalsunitedApiKey` → map to api_secret
+- **Update save handler**: Store `api_key` and `api_secret` fields in `pms_credentials` (use `api_key` for the key and a suitable column for the secret — likely `api_secret` or repurpose `username` field)
+- **Update `isConfigured` check**: Check for `api_key` and `api_secret` instead of `api_key` and `username`
 
-- **`push_availability`** — `Push_PutAvbUnits_RQ`: Accepts `ru_property_id` and an `availability` array of `{ date_from, date_to, units, min_stay?, changeover? }` objects. Builds the availability XML with day-level open/closed, min-stay, and changeover rules.
+### 3. Channel Credential Editor — `src/components/pms/ChannelCredentialEditor.tsx`
 
-- **`push_prices`** — `Push_PutPrices_RQ`: Accepts `ru_property_id` and a `prices` array of `{ date_from, date_to, price, extra_guest_price? }` objects. Builds pricing XML per the RU pricing model.
+- Update `rentalsunited` fields from `api_username`/`api_password` to `api_key`/`api_secret` with updated labels and placeholders
 
-- **`subscribe_notifications`** — `LNM_PutHandlerUrl_RQ`: Accepts a `handler_url` (our webhook endpoint) and registers it with RU for live reservation notifications.
+### 4. Database — `pms_credentials` table
 
-**Optional actions:**
-
-- **`get_leads`** — `Pull_GetLeads_RQ`: Pull reservation leads (request status, not confirmed).
-
-- **`push_long_stay_discounts`** — `Push_PutLongStayDiscounts_RQ`: Push long-stay discount rules.
-
-- **`push_last_minute_discounts`** — `Push_PutLastMinuteDiscounts_RQ`: Push last-minute discount rules.
-
-Also update the `RequestBody` interface to include new fields (`property`, `availability`, `prices`, `handler_url`, `discounts`) and update the `health_check` capabilities list to reflect all supported actions.
-
-### 2. PMSProgressToggles — `src/components/PMSProgressToggles.tsx`
-
-Remove `'rentalsunited'` from `MODIFY_NOT_SUPPORTED` and `CANCEL_NOT_SUPPORTED` if it was there (it's currently not, so no change needed — confirmed).
-
-### 3. Tracker Status Update — Database
-
-Update the `pms_tracker_status` row for `rentalsunited` to set `has_post = true` (push capabilities now exist):
+Check if an `api_secret` column exists. If not, add one:
 
 ```sql
-UPDATE pms_tracker_status
-SET has_post = true, has_edge = true
-WHERE system_type = 'rentalsunited';
+ALTER TABLE pms_credentials ADD COLUMN IF NOT EXISTS api_secret text;
 ```
 
-### 4. Deploy
-
-Redeploy the `rentalsunited-api` edge function.
+Update existing RU rows to move data if needed.
 
 ## Files
 
-| File | Change |
-|---|---|
-| `supabase/functions/rentalsunited-api/index.ts` | Add 7 new action handlers + XML builders |
-| Database | Update tracker flags |
 
+| File                                             | Change                                                 |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| `supabase/functions/rentalsunited-api/index.ts`  | Replace username/password auth with API Key/Secret PAI |
+| `src/pages/AdminKeys.tsx`                        | Update RU form labels and field mapping                |
+| `src/components/pms/ChannelCredentialEditor.tsx` | Update RU credential fields                            |
+| Database migration                               | Add `api_secret` column if missing                     |
