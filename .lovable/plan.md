@@ -1,47 +1,47 @@
-# Rentals United: Switch Authentication from Username/Password to PAI (Key + Secret)
 
-## Context
 
-Rentals United now uses API authentication (API Key + API Secret) instead of username/password for both the main API and messaging. The current adapter uses XML `<UserName>/<Password>` auth blocks throughout.
+# Test RU Health Connection and Activate in System Health
 
-## Changes
+## Current State
 
-### 1. Edge Function — `supabase/functions/rentalsunited-api/index.ts`
+- Rentals United is already registered in `system_health_components` but with `is_active = false`
+- The `system-health-check` edge function already has `rentalsunited` in its `PMS_ADAPTERS` map
+- The `rentalsunited-api` health_check action works (checks API key/secret, calls ListProperties)
+- **Bug**: Line 534 still references `creds.username || !creds.password` (stale from pre-PAI migration) — this will block all non-health-check actions
 
-- **Replace `RUCredentials` interface**: Change from `{ username, password, endpoint }` to `{ api_key, api_secret, endpoint }`
-- **Update `buildAuthXml()**`: Replace `<UserName>/<Password>` XML with PAI auth format — likely `<APIKey>/<APISecret>` tags (per RU's PAI documentation)
-- **Update `loadCredentials()**`: 
-  - Env vars: `RENTALS_UNITED_API_KEY` + `RENTALS_UNITED_API_SECRET` (replace `RENTALS_UNITED_USERNAME`)
-  - DB fallback: Read `api_key` + `api_secret` from `pms_credentials` instead of `username` + `api_key`
-- **Update `health_check` response**: Report `api_key` and `api_secret` presence instead of username/password
+## Plan
 
-### 2. Admin Keys UI — `src/pages/AdminKeys.tsx`
+### 1. Fix stale credential check in edge function
 
-- **Rename form fields**: "API Username" → "API Key", "API Password" → "API Secret"
-- **Rename state variables**: `rentalsunitedUsername` → reuse or relabel, `rentalsunitedApiKey` → map to api_secret
-- **Update save handler**: Store `api_key` and `api_secret` fields in `pms_credentials` (use `api_key` for the key and a suitable column for the secret — likely `api_secret` or repurpose `username` field)
-- **Update `isConfigured` check**: Check for `api_key` and `api_secret` instead of `api_key` and `username`
-
-### 3. Channel Credential Editor — `src/components/pms/ChannelCredentialEditor.tsx`
-
-- Update `rentalsunited` fields from `api_username`/`api_password` to `api_key`/`api_secret` with updated labels and placeholders
-
-### 4. Database — `pms_credentials` table
-
-Check if an `api_secret` column exists. If not, add one:
-
-```sql
-ALTER TABLE pms_credentials ADD COLUMN IF NOT EXISTS api_secret text;
+In `supabase/functions/rentalsunited-api/index.ts` line 534, replace:
+```typescript
+if (!creds || !creds.username || !creds.password) {
+```
+with:
+```typescript
+if (!creds || !creds.api_key || !creds.api_secret) {
 ```
 
-Update existing RU rows to move data if needed.
+### 2. Activate RU in system health components (migration)
+
+```sql
+UPDATE system_health_components
+SET is_active = true, is_critical = false
+WHERE component_key = 'rentalsunited';
+```
+
+This makes it appear in the active health monitoring dashboard and get checked during automated health runs.
+
+### 3. Deploy and test
+
+- Redeploy `rentalsunited-api` edge function
+- Call health_check via curl to verify API connectivity with stored secrets
+- Run system-wide health check to confirm RU appears in results
 
 ## Files
 
+| File | Change |
+|---|---|
+| `supabase/functions/rentalsunited-api/index.ts` | Fix stale `username/password` guard to `api_key/api_secret` |
+| Database migration | Set `is_active = true` for `rentalsunited` in `system_health_components` |
 
-| File                                             | Change                                                 |
-| ------------------------------------------------ | ------------------------------------------------------ |
-| `supabase/functions/rentalsunited-api/index.ts`  | Replace username/password auth with API Key/Secret PAI |
-| `src/pages/AdminKeys.tsx`                        | Update RU form labels and field mapping                |
-| `src/components/pms/ChannelCredentialEditor.tsx` | Update RU credential fields                            |
-| Database migration                               | Add `api_secret` column if missing                     |
