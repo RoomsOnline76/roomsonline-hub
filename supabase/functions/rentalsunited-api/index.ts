@@ -170,12 +170,16 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
 // ── API Call Helper ──────────────────────────────────────────
 
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
-  // Compact XML to single line — RU's .NET parser chokes on newlines after <?xml?> declaration
-  const compactXml = xmlBody.replace(/>\s+</g, '><').trim();
-  
+  // Strip XML declaration — RU's .NET handler identifies the method from the root element
+  // and chokes when <?xml?> is present. Then compact to single line.
+  const stripped = xmlBody.replace(/<\?xml[^?]*\?>\s*/gi, '');
+  const compactXml = stripped.replace(/>\s+</g, '><').trim();
+
+  console.log(`[rentalsunited-api] Sending XML (${compactXml.length} chars), first 120: "${compactXml.substring(0, 120)}"`);
+
   const response = await fetch(creds.endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/xml' },
+    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
     body: compactXml,
   });
 
