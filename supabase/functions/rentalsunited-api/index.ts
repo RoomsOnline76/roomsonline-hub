@@ -172,8 +172,8 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
   const response = await fetch(creds.endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: xmlBody.trim(),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: xmlBody,
   });
 
   if (!response.ok) {
