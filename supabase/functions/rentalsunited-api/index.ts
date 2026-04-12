@@ -463,13 +463,9 @@ function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: numbe
 function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isActive: boolean, isArchived: boolean): string {
   return `<Push_SetPropertiesStatus_RQ>
   ${buildAuthXml(creds)}
-  <Properties>
-    <Property>
-      <ID>${propertyId}</ID>
-      <IsActive>${isActive ? 1 : 0}</IsActive>
-      <IsArchived>${isArchived ? 1 : 0}</IsArchived>
-    </Property>
-  </Properties>
+  <IsActive>${isActive ? 1 : 0}</IsActive>
+  <IsArchived>${isArchived ? 1 : 0}</IsArchived>
+  <PropertyID>${propertyId}</PropertyID>
 </Push_SetPropertiesStatus_RQ>`;
 }
 
