@@ -542,8 +542,11 @@ Deno.serve(async (req) => {
 
     // ── list_properties ──
     if (action === 'list_properties') {
-      const xml = buildListPropertiesXml(creds);
+      // Use single-line XML to avoid formatting issues
+      const xml = `<?xml version="1.0" encoding="utf-8"?><Pull_ListOwnerProp_RQ><Authentication><AccessKey>${escapeXml(creds.api_key)}</AccessKey><SecretKey>${escapeXml(creds.api_secret)}</SecretKey></Authentication></Pull_ListOwnerProp_RQ>`;
+      console.log(`[rentalsunited-api] list_properties XML first 120: ${JSON.stringify(xml.substring(0, 120))}`);
       const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] list_properties response first 300: ${response.substring(0, 300)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
 
