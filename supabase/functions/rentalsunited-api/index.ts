@@ -144,6 +144,11 @@ function escapeXml(str: string): string {
 }
 
 function extractStatusId(xml: string): { id: string; message: string } {
+  // Check for <error ID="..."> responses first (XML parse errors, auth failures)
+  const errorMatch = xml.match(/<error\s+ID="([^"]+)"[^>]*>([\s\S]*?)<\/error>/i);
+  if (errorMatch) {
+    return { id: errorMatch[1], message: errorMatch[2]?.trim() || 'RU error' };
+  }
   const idMatch = xml.match(/<Status\s+ID="(\d+)"/);
   const msgMatch = xml.match(/<Status[^>]*>(.*?)<\/Status>/s);
   return {
@@ -165,10 +170,13 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
 // ── API Call Helper ──────────────────────────────────────────
 
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
+  // Compact XML to single line — RU's .NET parser chokes on newlines after <?xml?> declaration
+  const compactXml = xmlBody.replace(/>\s+</g, '><').trim();
+  
   const response = await fetch(creds.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/xml' },
-    body: xmlBody,
+    body: compactXml,
   });
 
   if (!response.ok) {
@@ -232,10 +240,7 @@ function errorResponse(code: string, message: string, status = 400): Response {
 // ── Pull XML Builders ────────────────────────────────────────
 
 function buildListPropertiesXml(creds: RUCredentials): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListOwnerProp_RQ>
-  ${buildAuthXml(creds)}
-</Pull_ListOwnerProp_RQ>`;
+  return `<Pull_ListOwnerProp_RQ>${buildAuthXml(creds)}</Pull_ListOwnerProp_RQ>`;
 }
 
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
@@ -628,7 +633,10 @@ Deno.serve(async (req) => {
       }
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
+      console.log(`[rentalsunited-api] XML first 100 chars: ${JSON.stringify(xml.substring(0, 100))}`);
+      console.log(`[rentalsunited-api] Push XML length: ${xml.length}, ru_property_id: ${ru_property_id}`);
       const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, message: 'Property pushed successfully', raw_xml: response });
