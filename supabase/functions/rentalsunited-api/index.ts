@@ -346,6 +346,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
     <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
+    <StandardGuests>${Math.min(prop.standard_guests || Math.ceil(prop.can_sleep_max * 0.7), prop.can_sleep_max)}</StandardGuests>
     <Floor>${prop.floor}</Floor>
     <Space>${prop.space}</Space>
     <Street>${escapeXml(prop.street)}</Street>
@@ -739,7 +740,7 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       
       // Extract LocationID from response
-      const locMatch = response.match(/<LocationID>(\d+)<\/LocationID>/);
+      const locMatch = response.match(/LocationID="(\d+)"/);
       const locationId = locMatch ? parseInt(locMatch[1], 10) : null;
       return jsonResponse({ success: true, location_id: locationId, raw_xml: response });
     }

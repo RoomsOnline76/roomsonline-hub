@@ -311,6 +311,7 @@ function buildRUPayload(
     name: property.name,
     object_type_id: objectTypeId,
     can_sleep_max: maxGuests,
+    standard_guests: Math.ceil(maxGuests * 0.7),
     floor: 0,
     space,
     street,
