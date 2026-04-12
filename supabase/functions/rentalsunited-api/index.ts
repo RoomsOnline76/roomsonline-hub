@@ -713,6 +713,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: 'Last minute discounts pushed successfully', raw_xml: response });
     }
 
+    // ── set_property_status ──
+    if (action === 'set_property_status') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const isActive = body.metadata?.is_active !== false;
+      const isArchived = body.metadata?.is_archived === true;
+      const xml = buildSetPropertyStatusXml(creds, ru_property_id, isActive as boolean, isArchived as boolean);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Property status updated', raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 
