@@ -129,8 +129,8 @@ interface RequestBody {
 
 function buildAuthXml(creds: RUCredentials): string {
   return `<Authentication>
-    <APIKey>${escapeXml(creds.api_key)}</APIKey>
-    <APISecret>${escapeXml(creds.api_secret)}</APISecret>
+    <AccessKey>${escapeXml(creds.api_key)}</AccessKey>
+    <SecretKey>${escapeXml(creds.api_secret)}</SecretKey>
   </Authentication>`;
 }
 
