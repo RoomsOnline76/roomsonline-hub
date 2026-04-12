@@ -339,8 +339,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
-  <IsActive>true</IsActive>
-  <IsArchived>false</IsArchived>
   <Property>
     <ID>${propertyId}</ID>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
