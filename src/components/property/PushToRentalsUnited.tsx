@@ -39,13 +39,47 @@ interface PushError {
   message: string;
 }
 
-export function PushToRentalsUnited({ propertyId, propertyName }: PushToRentalsUnitedProps) {
+export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [loading, setLoading] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [ruPropertyId, setRuPropertyId] = useState<string | null>(null);
+  const [editingRuId, setEditingRuId] = useState(false);
+  const [ruIdDraft, setRuIdDraft] = useState("");
+  const [savingRuId, setSavingRuId] = useState(false);
   const [error, setError] = useState<PushError | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+
+  // Load existing RU ID on mount
+  useEffect(() => {
+    supabase
+      .from("properties")
+      .select("rentalsunited_property_id")
+      .eq("id", propertyId)
+      .single()
+      .then(({ data }) => {
+        if (data?.rentalsunited_property_id) {
+          setRuPropertyId(data.rentalsunited_property_id);
+        }
+      });
+  }, [propertyId]);
+
+  const saveRuId = async () => {
+    setSavingRuId(true);
+    const newId = ruIdDraft.trim() || null;
+    const { error: err } = await supabase
+      .from("properties")
+      .update({ rentalsunited_property_id: newId })
+      .eq("id", propertyId);
+    if (err) {
+      toast.error("Failed to save RU ID");
+    } else {
+      setRuPropertyId(newId);
+      setEditingRuId(false);
+      toast.success("RU ID saved");
+    }
+    setSavingRuId(false);
+  };
 
   const runDryRun = async () => {
     setDryRunning(true);
