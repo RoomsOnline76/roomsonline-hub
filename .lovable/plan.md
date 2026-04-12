@@ -1,41 +1,24 @@
 
 
-## Fix Push_PutProperty_RQ: Two XML Structure Bugs
+## Fix Push_PutProperty_RQ — Three Bugs
 
-### Problem
-Two XML formatting issues are causing all RU pushes to fail with Error 127:
+### Bug 1: XML element ordering
+RU error: `"The element 'Property' has invalid child element 'IsActive'. List of possible elements expected: 'Name'."`
 
-**Bug 1 — IsActive/IsArchived placement**: Currently placed as children of `<Push_PutProperty_RQ>` (sibling of `<Property>`). RU expects them **inside** the `<Property>` element.
+The `<IsActive>` and `<IsArchived>` tags are placed **before** `<Name>` (line 344-345). RU's XSD requires `<Name>` first. Move these two tags to the **end** of the `<Property>` block, just before `</Property>`.
 
-**Bug 2 — Location lookup XML**: Uses a `<Coordinates>` wrapper around `<Latitude>`/`<Longitude>`, but RU expects them as **direct children** of `<Pull_GetLocationByCoordinates_RQ>` (no wrapper).
+### Bug 2: Location ID not parsed from response
+The RU response uses an **attribute**: `<Location LocationID="83272" ...>`, but the regex on line 742 looks for `<LocationID>(\d+)</LocationID>` (an element). Fix the regex to: `LocationID="(\d+)"`.
+
+### Bug 3: SEESIG max_guests is 2
+Room types sum to 24 (7+6+5+6). Update the property record to `max_guests = 24`.
 
 ### Changes
 
 **File: `supabase/functions/rentalsunited-api/index.ts`**
+- Move `<IsActive>1</IsActive>` and `<IsArchived>0</IsArchived>` from after `<ID>` to just before `</Property>` (after CheckOutUntil)
+- Fix regex on line 742: `/<LocationID>(\d+)<\/LocationID>/` → `/LocationID="(\d+)"/`
 
-1. Move `<IsActive>1</IsActive>` and `<IsArchived>0</IsArchived>` from lines 342-343 (outside `<Property>`) to inside `<Property>` (after `<ID>`), so the structure becomes:
-```xml
-<Push_PutProperty_RQ>
-  <Authentication>...</Authentication>
-  <Property>
-    <ID>...</ID>
-    <IsActive>1</IsActive>
-    <IsArchived>0</IsArchived>
-    <Name>...</Name>
-    ...
-  </Property>
-</Push_PutProperty_RQ>
-```
+**Database:**
+- `UPDATE properties SET max_guests = 24 WHERE id = '76f524f3-8229-4097-b45d-18489f897195'`
 
-2. Fix the location lookup XML (line ~735) — remove the `<Coordinates>` wrapper:
-```xml
-<!-- Before -->
-<Pull_GetLocationByCoordinates_RQ>...<Coordinates><Latitude>X</Latitude><Longitude>Y</Longitude></Coordinates></Pull_GetLocationByCoordinates_RQ>
-
-<!-- After -->
-<Pull_GetLocationByCoordinates_RQ>...<Latitude>X</Latitude><Longitude>Y</Longitude></Pull_GetLocationByCoordinates_RQ>
-```
-
-### Expected outcome
-- Error 127 should be resolved, allowing property data to push successfully
-- Location lookup should return a valid `DetailedLocationID` instead of falling back to `1`
