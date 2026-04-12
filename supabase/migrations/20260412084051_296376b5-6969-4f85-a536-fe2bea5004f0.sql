@@ -1,0 +1,1 @@
+ALTER TABLE public.properties ADD COLUMN rentalsunited_property_id text;
