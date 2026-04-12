@@ -29,8 +29,8 @@ const corsHeaders = {
 // ── Types ────────────────────────────────────────────────────
 
 interface RUCredentials {
-  username: string;
-  password: string;
+  api_key: string;
+  api_secret: string;
   endpoint: string;
 }
 
@@ -129,8 +129,8 @@ interface RequestBody {
 
 function buildAuthXml(creds: RUCredentials): string {
   return `<Authentication>
-    <UserName>${escapeXml(creds.username)}</UserName>
-    <Password>${escapeXml(creds.password)}</Password>
+    <APIKey>${escapeXml(creds.api_key)}</APIKey>
+    <APISecret>${escapeXml(creds.api_secret)}</APISecret>
   </Authentication>`;
 }
 
@@ -181,13 +181,13 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
 // ── Credential Loader ────────────────────────────────────────
 
 async function loadCredentials(): Promise<RUCredentials | null> {
-  const envUsername = Deno.env.get('RENTALS_UNITED_USERNAME');
-  const envPassword = Deno.env.get('RENTALS_UNITED_API_KEY');
+  const envApiKey = Deno.env.get('RENTALS_UNITED_API_KEY');
+  const envApiSecret = Deno.env.get('RENTALS_UNITED_API_SECRET');
 
-  if (envUsername && envPassword) {
+  if (envApiKey && envApiSecret) {
     return {
-      username: envUsername,
-      password: envPassword,
+      api_key: envApiKey,
+      api_secret: envApiSecret,
       endpoint: Deno.env.get('RENTALS_UNITED_ENDPOINT') || 'https://rm.rentalsunited.com/api/Handler.ashx',
     };
   }
@@ -199,7 +199,7 @@ async function loadCredentials(): Promise<RUCredentials | null> {
 
     const { data, error } = await supabase
       .from('pms_credentials')
-      .select('username, api_key, base_url')
+      .select('api_key, api_secret, base_url')
       .eq('system_type', 'rentalsunited')
       .eq('is_active', true)
       .maybeSingle();
@@ -207,8 +207,8 @@ async function loadCredentials(): Promise<RUCredentials | null> {
     if (error || !data) return null;
 
     return {
-      username: data.username || '',
-      password: data.api_key || '',
+      api_key: data.api_key || '',
+      api_secret: data.api_secret || '',
       endpoint: data.base_url || 'https://rm.rentalsunited.com/api/Handler.ashx',
     };
   } catch {
@@ -479,7 +479,7 @@ Deno.serve(async (req) => {
 
     // ── health_check ──
     if (action === 'health_check') {
-      if (!creds || (!creds.username && !creds.password)) {
+      if (!creds || (!creds.api_key && !creds.api_secret)) {
         return jsonResponse({
           healthy: false,
           status: 'not_configured',

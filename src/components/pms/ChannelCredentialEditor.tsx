@@ -20,8 +20,8 @@ const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string
     { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://api.hotelbeds.com" },
   ],
   rentalsunited: [
-    { key: "api_username", label: "API Username", placeholder: "Rentals United username" },
-    { key: "api_password", label: "API Password", type: "password", placeholder: "API password" },
+    { key: "api_key", label: "API Key", type: "password", placeholder: "Rentals United API key" },
+    { key: "api_secret", label: "API Secret", type: "password", placeholder: "Rentals United API secret" },
     { key: "endpoint_url", label: "Endpoint URL", placeholder: "https://rm.rentalsunited.com/api" },
   ],
   profitroom: [
