@@ -342,8 +342,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   <Property>
     <ID>${propertyId}</ID>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
-    <IsActive>1</IsActive>
-    <IsArchived>0</IsArchived>
+    <IsActive>true</IsActive>
+    <IsArchived>false</IsArchived>
     <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <Floor>${prop.floor}</Floor>
