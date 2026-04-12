@@ -465,7 +465,9 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
   ${buildAuthXml(creds)}
   <IsActive>${isActive ? 1 : 0}</IsActive>
   <IsArchived>${isArchived ? 1 : 0}</IsArchived>
-  <PropertyID>${propertyId}</PropertyID>
+  <PropertyIDs>
+    <PropertyID>${propertyId}</PropertyID>
+  </PropertyIDs>
 </Push_SetPropertiesStatus_RQ>`;
 }
 
