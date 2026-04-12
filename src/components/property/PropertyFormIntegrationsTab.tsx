@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PushToRentalsUnited } from "./PushToRentalsUnited";
 import { useNavigate } from "react-router-dom";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
@@ -31,6 +32,9 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
 
   return (
     <div className="space-y-4">
+      {/* Push to Rentals United */}
+      <PushToRentalsUnited propertyId={property.id} propertyName={property.name} />
+
       {/* Payment Provider */}
       <PropertyPaymentProviderSelect propertyId={property.id} />
 
