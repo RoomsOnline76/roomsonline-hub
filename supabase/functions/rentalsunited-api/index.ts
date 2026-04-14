@@ -344,6 +344,16 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
   };
 
+  // Build rooms/composition rooms XML with bed amenities
+  const roomsXml = prop.rooms && prop.rooms.length > 0
+    ? `<CompositionRoomsAmenities>
+      ${prop.rooms.map(r => `<CompositionRoomAmenities RoomID="${r.room_id}">
+        <Amenities>
+          ${r.amenities.map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`).join('\n          ')}
+        </Amenities>
+      </CompositionRoomAmenities>`).join('\n      ')}
+    </CompositionRoomsAmenities>` : '';
+
   const amenitiesXml = prop.amenities
     .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
     .join('\n      ');
