@@ -8923,6 +8923,61 @@ export type Database = {
           },
         ]
       }
+      ru_notifications: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          processed: boolean | null
+          property_id: string | null
+          raw_xml: string | null
+          ru_property_id: string | null
+          ru_reservation_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          processed?: boolean | null
+          property_id?: string | null
+          raw_xml?: string | null
+          ru_property_id?: string | null
+          ru_reservation_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          processed?: boolean | null
+          property_id?: string | null
+          raw_xml?: string | null
+          ru_property_id?: string | null
+          ru_reservation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_notifications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_notifications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_notifications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_rep_bank_details: {
         Row: {
           account_holder: string

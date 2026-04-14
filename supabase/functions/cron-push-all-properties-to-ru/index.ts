@@ -2,8 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
  * Weekly cron job: Push all RU-connected properties to Rentals United.
- * Queries all properties with rentalsunited_property_id IS NOT NULL,
- * then invokes push-property-to-ru for each.
+ * Also refreshes RLNM subscription (mandatory every 24 hours).
  */
 
 const corsHeaders = {
@@ -21,7 +20,27 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    // Get all properties with an RU property ID
+    // ── Step 0: Refresh RLNM subscription ──────────────────────
+    const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
+    let rlnmStatus = 'skipped';
+    try {
+      console.log(`[cron-push-all] Subscribing RLNM handler: ${handlerUrl}`);
+      const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'subscribe_notifications', handler_url: handlerUrl },
+      });
+      if (rlnmErr || !rlnmResult?.success) {
+        rlnmStatus = `failed: ${rlnmErr?.message || rlnmResult?.error?.message || 'Unknown'}`;
+        console.warn(`[cron-push-all] RLNM subscription failed:`, rlnmStatus);
+      } else {
+        rlnmStatus = 'ok';
+        console.log(`[cron-push-all] RLNM subscription refreshed successfully`);
+      }
+    } catch (err) {
+      rlnmStatus = `error: ${err instanceof Error ? err.message : 'Unknown'}`;
+      console.error(`[cron-push-all] RLNM subscription error:`, err);
+    }
+
+    // ── Step 1: Get all properties with an RU property ID ──────
     const { data: properties, error } = await supabase
       .from('properties')
       .select('id, name, rentalsunited_property_id')
@@ -30,14 +49,14 @@ Deno.serve(async (req) => {
     if (error) {
       console.error('[cron-push-all] Query error:', error.message);
       return new Response(
-        JSON.stringify({ success: false, error: error.message }),
+        JSON.stringify({ success: false, error: error.message, rlnm: rlnmStatus }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!properties || properties.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No RU-connected properties found', pushed: 0 }),
+        JSON.stringify({ success: true, message: 'No RU-connected properties found', pushed: 0, rlnm: rlnmStatus }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -78,6 +97,7 @@ Deno.serve(async (req) => {
         message: `Pushed ${successCount}/${properties.length} properties to RU`,
         pushed: successCount,
         total: properties.length,
+        rlnm: rlnmStatus,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
