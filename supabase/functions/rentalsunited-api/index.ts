@@ -95,6 +95,7 @@ interface RUPropertyPayload {
   check_in_to?: string;
   check_out_until?: string;
   check_in_place?: string;
+  building_id?: number;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -144,6 +145,9 @@ interface RequestBody {
   handler_url?: string;
   discounts?: RUDiscountEntry[];
   search_terms?: string;
+  // Building payloads
+  building_name?: string;
+  building_id?: number;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
