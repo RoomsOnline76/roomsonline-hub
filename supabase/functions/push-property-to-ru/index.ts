@@ -503,54 +503,68 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
 
-  if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
+  {
     try {
-      const priceEntries: { date_from: string; date_to: string; price: number }[] = [];
+      const priceEntries: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[] = [];
       let lastKnownRate = 0;
-      for (const season of seasons) {
-        const seasonId = String(season.id);
-        let rate: number | null = null;
+      let lastKnownExtraGuest: number | undefined;
 
-        if (unit) {
-          // Unit-specific rate resolution
-          rate = resolveUnitRateKey(seasonRates, seasonId, unit, amenities);
-        } else {
-          // Legacy single-unit: find lowest rate
-          let lowestRate = Infinity;
-          for (const [, rateData] of Object.entries(seasonRates)) {
-            if (typeof rateData === 'object' && rateData !== null) {
-              for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-                if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-                  const amount = (subData as any).roomAmount;
-                  if (typeof amount === 'number' && amount > 0 && amount < lowestRate) lowestRate = amount;
+      if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
+        for (const season of seasons) {
+          const seasonId = String(season.id);
+          let resolved: ResolvedRate | null = null;
+
+          if (unit) {
+            resolved = resolveUnitRateKey(seasonRates, seasonId, unit, amenities);
+          } else {
+            // Legacy single-unit: find lowest rate
+            let lowestRate = Infinity;
+            let lowestExtra: number | undefined;
+            for (const [, rateData] of Object.entries(seasonRates)) {
+              if (typeof rateData === 'object' && rateData !== null) {
+                for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
+                  if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
+                    const amount = (subData as any).roomAmount;
+                    if (typeof amount === 'number' && amount > 0 && amount < lowestRate) {
+                      lowestRate = amount;
+                      lowestExtra = typeof (subData as any).adultAmount === 'number' && (subData as any).adultAmount > 0 ? (subData as any).adultAmount : undefined;
+                    }
+                  }
                 }
               }
             }
+            resolved = lowestRate < Infinity ? { price: lowestRate, extra_guest_price: lowestExtra } : null;
           }
-          rate = lowestRate < Infinity ? lowestRate : null;
-        }
 
-        if (rate !== null && rate > 0) {
-          lastKnownRate = rate;
-          const periods = season.periods || [{ from: season.from, to: season.to }];
-          for (const period of periods) {
-            if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: rate });
+          if (resolved !== null && resolved.price > 0) {
+            lastKnownRate = resolved.price;
+            lastKnownExtraGuest = resolved.extra_guest_price;
+            const periods = season.periods || [{ from: season.from, to: season.to }];
+            for (const period of periods) {
+              if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: resolved.price, extra_guest_price: resolved.extra_guest_price });
+            }
           }
         }
+        // Filler period with last known rate
+        if (lastKnownRate > 0 && latestEnd < oneYearStr) {
+          const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
+          const fillerFrom = nextDay.toISOString().slice(0, 10);
+          if (fillerFrom <= oneYearStr) priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate, extra_guest_price: lastKnownExtraGuest });
+        }
       }
-      if (lastKnownRate > 0 && latestEnd < oneYearStr) {
-        const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
-        const fillerFrom = nextDay.toISOString().slice(0, 10);
-        if (fillerFrom <= oneYearStr) priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate });
+
+      // Fallback: RU requires pricing for 365 days with price > 0
+      if (priceEntries.length === 0) {
+        priceEntries.push({ date_from: todayStr, date_to: oneYearStr, price: 1 });
+        console.log(`[pushARI] WARNING: No valid prices found — pushing fallback price of 1 for ${todayStr} to ${oneYearStr}`);
       }
-      if (priceEntries.length > 0) {
-        const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
-        });
-        if (priceErr || !priceResult?.success) {
-          result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
-        } else { result.prices_pushed = true; }
-      }
+
+      const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
+      });
+      if (priceErr || !priceResult?.success) {
+        result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
+      } else { result.prices_pushed = true; }
     } catch (e) { result.prices_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
 
