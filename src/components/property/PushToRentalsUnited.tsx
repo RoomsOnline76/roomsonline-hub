@@ -86,6 +86,9 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [editingRuId, setEditingRuId] = useState(false);
   const [ruIdDraft, setRuIdDraft] = useState("");
   const [savingRuId, setSavingRuId] = useState(false);
+  const [editingUnitRuId, setEditingUnitRuId] = useState<string | null>(null);
+  const [unitRuIdDraft, setUnitRuIdDraft] = useState("");
+  const [savingUnitRuId, setSavingUnitRuId] = useState(false);
   const [error, setError] = useState<PushError | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
@@ -118,6 +121,27 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
       toast.success("RU ID saved");
     }
     setSavingRuId(false);
+  };
+
+  const saveUnitRuId = async (roomTypeId: string) => {
+    setSavingUnitRuId(true);
+    const newId = unitRuIdDraft.trim() || null;
+    const { error: err } = await supabase
+      .from("hostfully_room_types")
+      .update({ rentalsunited_property_id: newId })
+      .eq("id", roomTypeId);
+    if (err) {
+      toast.error("Failed to save unit RU ID");
+    } else {
+      setUnits((prev) =>
+        prev.map((u) =>
+          u.room_type_id === roomTypeId ? { ...u, ru_property_id: newId } : u
+        )
+      );
+      setEditingUnitRuId(null);
+      toast.success("Unit RU ID saved");
+    }
+    setSavingUnitRuId(false);
   };
 
   const runDryRun = async () => {
@@ -292,7 +316,21 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                     <div className="flex items-center gap-2">
                       {ready ? <CheckCircle className="h-3 w-3 text-green-600" /> : <AlertTriangle className="h-3 w-3 text-amber-500" />}
                       <span className="font-medium">{unit.name}</span>
-                      {unit.ru_property_id && <Badge variant="outline" className="text-[10px] h-4 px-1">RU: {unit.ru_property_id}</Badge>}
+                      {editingUnitRuId === unit.room_type_id ? (
+                        <div className="flex items-center gap-1">
+                          <Input value={unitRuIdDraft} onChange={(e) => setUnitRuIdDraft(e.target.value)} placeholder="RU Property ID" className="h-6 w-28 text-xs px-1.5" />
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => saveUnitRuId(unit.room_type_id)} disabled={savingUnitRuId}>
+                            {savingUnitRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingUnitRuId(null)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 cursor-pointer hover:bg-accent" onClick={() => { setUnitRuIdDraft(unit.ru_property_id || ""); setEditingUnitRuId(unit.room_type_id); }}>
+                          {unit.ru_property_id ? `RU: ${unit.ru_property_id}` : "No RU ID — click to set"}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       <span>{v.images_count} img</span>
