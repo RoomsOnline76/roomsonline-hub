@@ -1,70 +1,40 @@
 
 
-## Multi-Unit Building Push to Rentals United
+## Fix Room Type Data & Toggle Sync
 
-### The Problem
-You're right -- Seesig is a building containing multiple independent chalets, each with its own details and ARI (availability, rates, inventory). Currently we push "SEESIG" as a single property (RU ID 4691753), but we should be creating:
-
-1. A **Building** in RU (grouping container) using `Push_PutBuilding_RQ`
-2. Individual **Properties** per chalet (ANEMOON, SEESTER, SWARTMOSSEL, WITMOSSEL) using `Push_PutProperty_RQ` -- each with its own ARI
-
-Per RU docs: *"Buildings serve the same purpose as folders. Multiunit properties must be assigned to buildings."*
-
-### Current Data (Seesig)
-- 4 active room types: ANEMOON (6 guests), SEESTER (5), SWARTMOSSEL (6), WITMOSSEL (7)
-- Each has its own images and amenities
-- Missing per-unit: bedrooms, bathrooms, beds, coordinates, address, check-in/out, cleaning fee (inherit from parent property)
-- Parent property has: coordinates, address, amenities, images, seasons, rates
+### Problem
+1. **Seesig**: 9 chalets exist in amenities JSON (all `is_active: true`), but the `hostfully_room_types` table only has 4 names with `is_active = true` (ANEMOON, SEESTER, SWARTMOSSEL, WITMOSSEL). The other 5 (ALBATROS, DUIKER, OESTER, STANDLOPER, TOBIE) are `is_active = false`. Plus there's a typo entry "RANEMOON" that shouldn't exist.
+2. **Massive duplicates**: ANEMOON/SEESTER/SWARTMOSSEL/WITMOSSEL each have 12 rows. Every sync creates new rows instead of updating existing ones.
+3. **All properties**: The toggle updates amenities JSON correctly but the `hostfully_room_types` table may be out of sync with what the UI shows.
 
 ### Plan
 
-**1. Add `Push_PutBuilding_RQ` support to `rentalsunited-api`**
-- New action: `push_building`
-- XML format: `<Push_PutBuilding_RQ><Authentication>...</Authentication><Building><BuildingName>SEESIG</BuildingName></Building></Push_PutBuilding_RQ>`
-- Parse response for `BuildingID`
+**Step 1: Data cleanup via insert tool (UPDATE/DELETE statements)**
 
-**2. Add `list_buildings` support to `rentalsunited-api`**
-- New action: `list_buildings` using `Pull_ListBuildings_RQ`
-- To check if building already exists before creating
+For **Seesig** (`76f524f3-8229-4097-b45d-18489f897195`):
+- Delete the "RANEMOON" typo row
+- For each of the 9 valid chalet names, keep only the most recent row (by `created_at`) and delete all others
+- Set `is_active = true` on the surviving row for all 9 chalets
 
-**3. Add DB column for RU building ID**
-- Migration: `ALTER TABLE properties ADD COLUMN rentalsunited_building_id TEXT`
+For **all other properties** with duplicates:
+- Same dedup: keep most recent row per (property_id, name), delete the rest
+- Sync `is_active` from the amenities JSON — if the room exists in `amenities.room_types` with `is_active: true`, set it true in the table
 
-**4. Rewrite `push-property-to-ru` orchestrator for multi-unit flow**
-- Detect multi-unit: property has active room types (>0)
-- Step 1: Create/update RU Building for the parent property -> store `rentalsunited_building_id`
-- Step 2: For each active room type, push as an individual RU Property:
-  - Name: room type name (e.g. "ANEMOON")
-  - Inherit parent property's coordinates, address, amenities, check-in/out, cancellation policies, payment methods when room type data is missing
-  - Use room type's own images and amenities where available
-  - `BuildingID` set to the building created in Step 1
-  - Each gets its own `rentalsunited_property_id` -> stored on `hostfully_room_types` table
-- Step 3: Push availability per unit
-- Step 4: Push prices per unit
+**Step 2: Fix the toggle function to prevent future duplicates**
 
-**5. Add `rentalsunited_property_id` to room types table**
-- Migration: `ALTER TABLE hostfully_room_types ADD COLUMN rentalsunited_property_id TEXT`
-- Each chalet/unit gets its own RU property ID
+The `toggleRoomActive` function in `RoomManagerTab.tsx` uses `ilike("name", roomName)` which correctly updates all dupes. But the root cause of duplicates is likely in the sync/import logic — not the toggle itself. The toggle logic is fine; we just need the data fixed.
 
-**6. Update the existing Seesig RU property**
-- The current single property (4691753) may need to be archived or repurposed
-- First push will create the building + 4 individual properties
+**Step 3: Review all properties for consistency**
 
-**7. Update UI component**
-- Show building ID alongside property ID
-- Validation: show per-unit readiness (images count per unit)
-- Push button creates building + all units in sequence
+Write a quick query across all properties to compare amenities JSON `is_active` state vs `hostfully_room_types.is_active` state, and fix any mismatches via UPDATE.
 
 ### Technical Details
 
-- `Push_PutBuilding_RQ` XML is simple: just building name + optional ID for updates
-- Each unit property must include `<BuildingID>` in the `Push_PutProperty_RQ` XML (added after `<NoOfUnits>` or similar per XSD)
-- ARI (availability + prices) is pushed per-unit using each unit's RU property ID
-- Seasons are shared (property-level), but rates may differ per room type via `season_rates`
+- Data operations use the insert tool (UPDATE/DELETE)
+- No schema migrations needed
+- No code changes needed — the toggle function already syncs both amenities JSON and the canonical table correctly
+- The duplicate creation bug is in the sync/import flow (separate issue)
 
 ### Files Modified
-- `supabase/functions/rentalsunited-api/index.ts` -- add `push_building`, `list_buildings` actions + `BuildingID` field in property XML
-- `supabase/functions/push-property-to-ru/index.ts` -- multi-unit orchestration loop
-- `src/components/property/PushToRentalsUnited.tsx` -- show building + per-unit status
-- DB migration: add `rentalsunited_building_id` to `properties`, `rentalsunited_property_id` to `hostfully_room_types`
+- None (data-only fix)
 
