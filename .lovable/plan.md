@@ -1,84 +1,70 @@
 
-Goal: make the RU edge-function return the exact RU error code and enough diagnostics to pinpoint the XML fault, instead of losing detail behind generic edge-function failures.
 
-What I found
-- The RU adapter is already capturing RU’s XML error code correctly:
-  - `extractStatusId()` reads `<error ID="...">...`
-  - current logs show RU returned `ID="-3"` with:
-    `Invalid request. There is an error in XML document (1, 2941). Input string was not in a correct format.`
-- The main problem is observability, not just parsing:
-  - `rentalsunited-api` returns `{ success:false, error:{ code:'RU_ERROR', message, ru_status_id } }`, but it does not return the raw RU response, XML diagnostics, or a snippet around the failing character.
-  - `push-property-to-ru` then re-wraps failures as HTTP 422 and drops most debugging context.
-  - UI components only display `error.code` + `error.message`, so the exact RU fault location is not exposed.
+## Multi-Unit Building Push to Rentals United
 
-Likely fault from current evidence
-- RU’s parser is failing at XML character ~2941 with “Input string was not in a correct format”.
-- That strongly suggests a field value/attribute format issue inside our generated XML, not a connectivity issue.
-- Since we already know the position, the fastest next step is to return the compact XML length and a snippet around char 2941 so we can identify the exact offending node/value.
+### The Problem
+You're right -- Seesig is a building containing multiple independent chalets, each with its own details and ARI (availability, rates, inventory). Currently we push "SEESIG" as a single property (RU ID 4691753), but we should be creating:
 
-Implementation plan
-1. Improve `rentalsunited-api` diagnostics
-- Keep returning HTTP 200 for RU-level failures so callers can always read the body.
-- Extend the RU error response to include:
-  - `ru_status_id`
-  - `ru_status_message`
-  - `ru_raw_xml` or truncated raw response
-  - `diagnostics.error_stage` (`push_property`)
-  - `diagnostics.xml_length`
-  - `diagnostics.xml_error_position` parsed from `(1, 2941)`
-  - `diagnostics.xml_context` = substring around that position from the compacted request XML
-  - `diagnostics.request_preview` = safe truncated start of compact XML
-- Add helper logic to parse XML error positions from RU messages like:
-  `XML document (1, 2941)`
+1. A **Building** in RU (grouping container) using `Push_PutBuilding_RQ`
+2. Individual **Properties** per chalet (ANEMOON, SEESTER, SWARTMOSSEL, WITMOSSEL) using `Push_PutProperty_RQ` -- each with its own ARI
 
-2. Preserve diagnostics in `push-property-to-ru`
-- Do not collapse RU failures into a generic 422-only response.
-- Forward the full structured error object from `rentalsunited-api`, including `ru_status_id`, `ru_status_message`, and `diagnostics`.
-- Prefer a 200 response with `success:false` for RU validation failures so the client can reliably read the body through the SDK.
+Per RU docs: *"Buildings serve the same purpose as folders. Multiunit properties must be assigned to buildings."*
 
-3. Surface the exact RU fault in the UI
-- Update `src/components/property/PushToRentalsUnited.tsx` to support richer error fields:
-  - show RU status ID prominently
-  - show parsed XML position if present
-  - show a short “XML context” snippet in the alert for debugging
-- Optional small improvement in the background auto-push path in `src/pages/PropertyForm.tsx`:
-  - log full returned diagnostics instead of only `message`
+### Current Data (Seesig)
+- 4 active room types: ANEMOON (6 guests), SEESTER (5), SWARTMOSSEL (6), WITMOSSEL (7)
+- Each has its own images and amenities
+- Missing per-unit: bedrooms, bathrooms, beds, coordinates, address, check-in/out, cleaning fee (inherit from parent property)
+- Parent property has: coordinates, address, amenities, images, seasons, rates
 
-4. Then use the returned RU code/details to fault-find the actual XML bug
-- After diagnostics are in place, retry the Seesig push.
-- Use the returned `xml_context` around char 2941 to identify the bad value/tag.
-- Based on current code, I would inspect first:
-  - `SecurityDeposit DepositTypeID="5"` numeric formatting
-  - cancellation policy attribute/value format
-  - check-in/out field formats
-  - payment method values
-  - any empty or malformed numeric field serialized as text
+### Plan
 
-Files to update
-- `supabase/functions/rentalsunited-api/index.ts`
-- `supabase/functions/push-property-to-ru/index.ts`
-- `src/components/property/PushToRentalsUnited.tsx`
-- optionally `src/pages/PropertyForm.tsx`
+**1. Add `Push_PutBuilding_RQ` support to `rentalsunited-api`**
+- New action: `push_building`
+- XML format: `<Push_PutBuilding_RQ><Authentication>...</Authentication><Building><BuildingName>SEESIG</BuildingName></Building></Push_PutBuilding_RQ>`
+- Parse response for `BuildingID`
 
-Technical detail
-- Current logs already confirm RU code `-3`; the missing piece is correlating that error to the exact part of the outbound compact XML.
-- Best debugging payload shape:
-```ts
-{
-  success: false,
-  error: {
-    code: "RU_ERROR",
-    message: "...",
-    ru_status_id: "-3",
-    ru_status_message: "...",
-  },
-  diagnostics: {
-    error_stage: "push_property",
-    xml_length: 5574,
-    xml_error_position: 2941,
-    xml_context: "...<snippet around failing char>...",
-    request_preview: "<Push_PutProperty_RQ>..."
-  }
-}
-```
-- This keeps client behavior stable while making the next retry actionable instead of guesswork.
+**2. Add `list_buildings` support to `rentalsunited-api`**
+- New action: `list_buildings` using `Pull_ListBuildings_RQ`
+- To check if building already exists before creating
+
+**3. Add DB column for RU building ID**
+- Migration: `ALTER TABLE properties ADD COLUMN rentalsunited_building_id TEXT`
+
+**4. Rewrite `push-property-to-ru` orchestrator for multi-unit flow**
+- Detect multi-unit: property has active room types (>0)
+- Step 1: Create/update RU Building for the parent property -> store `rentalsunited_building_id`
+- Step 2: For each active room type, push as an individual RU Property:
+  - Name: room type name (e.g. "ANEMOON")
+  - Inherit parent property's coordinates, address, amenities, check-in/out, cancellation policies, payment methods when room type data is missing
+  - Use room type's own images and amenities where available
+  - `BuildingID` set to the building created in Step 1
+  - Each gets its own `rentalsunited_property_id` -> stored on `hostfully_room_types` table
+- Step 3: Push availability per unit
+- Step 4: Push prices per unit
+
+**5. Add `rentalsunited_property_id` to room types table**
+- Migration: `ALTER TABLE hostfully_room_types ADD COLUMN rentalsunited_property_id TEXT`
+- Each chalet/unit gets its own RU property ID
+
+**6. Update the existing Seesig RU property**
+- The current single property (4691753) may need to be archived or repurposed
+- First push will create the building + 4 individual properties
+
+**7. Update UI component**
+- Show building ID alongside property ID
+- Validation: show per-unit readiness (images count per unit)
+- Push button creates building + all units in sequence
+
+### Technical Details
+
+- `Push_PutBuilding_RQ` XML is simple: just building name + optional ID for updates
+- Each unit property must include `<BuildingID>` in the `Push_PutProperty_RQ` XML (added after `<NoOfUnits>` or similar per XSD)
+- ARI (availability + prices) is pushed per-unit using each unit's RU property ID
+- Seasons are shared (property-level), but rates may differ per room type via `season_rates`
+
+### Files Modified
+- `supabase/functions/rentalsunited-api/index.ts` -- add `push_building`, `list_buildings` actions + `BuildingID` field in property XML
+- `supabase/functions/push-property-to-ru/index.ts` -- multi-unit orchestration loop
+- `src/components/property/PushToRentalsUnited.tsx` -- show building + per-unit status
+- DB migration: add `rentalsunited_building_id` to `properties`, `rentalsunited_property_id` to `hostfully_room_types`
+
