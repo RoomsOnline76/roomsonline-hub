@@ -588,15 +588,51 @@ Deno.serve(async (req) => {
         }
 
         // Step 3 & 4: Push ARI for this unit
-        const ariResult = await pushARI(supabase, parseInt(unitRuId || '0', 10), property as PropertyRow, 1);
+        const ruIdNum = parseInt(unitRuId || '0', 10);
+        if (ruIdNum > 0) {
+          console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1);
+          if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
+          if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
+          unitResults.push({
+            name: unit.name,
+            room_type_id: unit.id,
+            success: true,
+            rentalsunited_property_id: unitRuId,
+            ...ariResult,
+          });
+        } else {
+          console.warn(`[push-property-to-ru] Skipping ARI for "${unit.name}" — no valid RU ID`);
+          unitResults.push({
+            name: unit.name,
+            room_type_id: unit.id,
+            success: true,
+            rentalsunited_property_id: unitRuId,
+            availability_error: 'Skipped — no valid RU property ID',
+            prices_error: 'Skipped — no valid RU property ID',
+          });
+        }
+      }
 
-        unitResults.push({
-          name: unit.name,
-          room_type_id: unit.id,
-          success: true,
-          rentalsunited_property_id: unitRuId,
-          ...ariResult,
+      // Step 5: Assign all successfully-pushed units to the building
+      const successRuIds = unitResults
+        .filter(u => u.success && u.rentalsunited_property_id && parseInt(u.rentalsunited_property_id, 10) > 0)
+        .map(u => parseInt(u.rentalsunited_property_id, 10));
+
+      let assignResult: any = null;
+      if (successRuIds.length > 0 && buildingId > 0) {
+        console.log(`[push-property-to-ru] Step 5: Assigning ${successRuIds.length} units to building ${buildingId}`);
+        const { data: assignData, error: assignErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'assign_building_properties', building_id: buildingId, property_ids: successRuIds },
         });
+        if (assignErr || !assignData?.success) {
+          const errMsg = assignErr?.message || assignData?.error?.message || 'Unknown error';
+          console.error(`[push-property-to-ru] Building assignment failed: ${errMsg}`);
+          assignResult = { success: false, error: errMsg };
+        } else {
+          console.log(`[push-property-to-ru] Successfully assigned ${successRuIds.length} units to building ${buildingId}`);
+          assignResult = { success: true };
+        }
       }
 
       return new Response(
@@ -606,6 +642,7 @@ Deno.serve(async (req) => {
           property_id,
           building_id: buildingId,
           units: unitResults,
+          building_assignment: assignResult,
           message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

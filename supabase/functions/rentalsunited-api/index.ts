@@ -148,6 +148,7 @@ interface RequestBody {
   // Building payloads
   building_name?: string;
   building_id?: number;
+  property_ids?: number[];
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -855,6 +856,19 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       const buildings = extractBuildings(response);
       return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+    }
+
+    // ── assign_building_properties ──
+    if (action === 'assign_building_properties') {
+      if (!body.building_id) return errorResponse('MISSING_PARAM', 'building_id is required');
+      if (!body.property_ids || body.property_ids.length === 0) return errorResponse('MISSING_PARAM', 'property_ids array is required');
+      const propertyIdsXml = body.property_ids.map((id: number) => `<PropertyID>${id}</PropertyID>`).join('');
+      const xml = `<Push_PutBuildingProperties_RQ>${buildAuthXml(creds)}<BuildingID>${body.building_id}</BuildingID><PropertyIDs>${propertyIdsXml}</PropertyIDs></Push_PutBuildingProperties_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] AssignBuildingProperties response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: `Assigned ${body.property_ids.length} properties to building ${body.building_id}`, raw_xml: response });
     }
 
     // Unknown action
