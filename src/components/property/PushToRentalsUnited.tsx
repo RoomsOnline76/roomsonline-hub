@@ -202,6 +202,17 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
       if (data.multi_unit) {
         setBuildingId(String(data.building_id));
         setUnitResults(data.units || []);
+        // Refresh unit RU IDs from push results
+        if (data.units) {
+          setUnits((prev) =>
+            prev.map((u) => {
+              const pushed = data.units.find((r: any) => r.room_type_id === u.room_type_id);
+              return pushed?.rentalsunited_property_id
+                ? { ...u, ru_property_id: pushed.rentalsunited_property_id }
+                : u;
+            })
+          );
+        }
         const successCount = (data.units || []).filter((u: any) => u.success).length;
         toast.success(`Building + ${successCount}/${(data.units || []).length} units pushed to RU`);
       } else {
