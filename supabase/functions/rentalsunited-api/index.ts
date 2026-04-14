@@ -87,6 +87,15 @@ interface RUPropertyPayload {
   check_out_until?: string;
 }
 
+const PAYMENT_METHOD_LABELS: Record<number, string> = {
+  1: 'Cash',
+  2: 'Credit card',
+  3: 'Mastercard',
+  4: 'American Express',
+  5: 'Bank transfer',
+  6: 'PayPal',
+};
+
 interface RUAvailabilityEntry {
   date_from: string;
   date_to: string;
@@ -320,11 +329,14 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   const imagesXml = prop.images
-    .map(img => `<Image ImageTypeID="${img.type_id || 1}"${img.is_main ? ' IsMainImage="true"' : ''}><URL>${escapeXml(img.url)}</URL></Image>`)
+    .map((img, index) => {
+      const imageTypeId = index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3);
+      return `<Image ImageTypeID="${imageTypeId}" ImageReferenceID="${index + 1}">${escapeXml(img.url)}</Image>`;
+    })
     .join('\n      ');
 
   const paymentMethodsXml = prop.payment_methods
-    .map(pm => `<PaymentMethod>${pm}</PaymentMethod>`)
+    .map(pm => `<PaymentMethod PaymentMethodID="${pm}">${escapeXml(PAYMENT_METHOD_LABELS[pm] || `Method ${pm}`)}</PaymentMethod>`)
     .join('\n      ');
 
   const cancellationPoliciesXml = prop.cancellation_policies

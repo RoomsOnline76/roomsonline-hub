@@ -279,6 +279,7 @@ function buildRUPayload(
   allImages = allImages.map((img, index) => ({
     ...img,
     is_main: index === 0,
+    type_id: index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3),
   }));
 
   // Build descriptions
