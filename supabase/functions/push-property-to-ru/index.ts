@@ -353,7 +353,8 @@ function buildRUPayload(
 // ── Extract RU Property ID from response XML ────────────────
 
 function extractRUPropertyId(rawXml: string): string | null {
-  const match = rawXml.match(/<PropertyID>(\d+)<\/PropertyID>/);
+  // RU returns <ID>123</ID> in Push_PutProperty_RS (not <PropertyID>)
+  const match = rawXml.match(/<ID>(\d+)<\/ID>/);
   return match?.[1] || null;
 }
 
