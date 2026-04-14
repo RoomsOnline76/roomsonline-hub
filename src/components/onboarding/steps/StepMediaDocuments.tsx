@@ -13,6 +13,7 @@ import { StepProps } from "./types";
 import { OnboardingImage, PropertyDocument, OnboardingRoomType } from "@/config/onboardingFieldSchema";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { cn } from "@/lib/utils";
 import { Json } from "@/integrations/supabase/types";
 
@@ -99,6 +100,12 @@ export function StepMediaDocuments({
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 10 * 1024 * 1024) {
           toast({ title: "File too large", description: `${file.name} exceeds 10MB`, variant: "destructive" });
+          continue;
+        }
+
+        const dims = await validateImageDimensions(file);
+        if (!dims.valid) {
+          toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
           continue;
         }
 

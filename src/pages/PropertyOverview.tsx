@@ -14,6 +14,7 @@ import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, Arrow
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";
@@ -177,6 +178,13 @@ const PropertyOverview = () => {
     setUploadingCell(cellKey);
     
     try {
+      const dims = await validateImageDimensions(file);
+      if (!dims.valid) {
+        toast.error(`Image too small: ${getValidationErrorMessage(file.name, dims.width, dims.height)}`);
+        setUploadingCell(null);
+        return;
+      }
+
       const fileExt = file.name.split(".").pop();
       const fileName = `book-page/${columnType}-row${rowPosition}-${Date.now()}.${fileExt}`;
       

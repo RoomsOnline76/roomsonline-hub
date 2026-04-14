@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
@@ -945,12 +946,24 @@ export default function PropertyForm() {
 
     if (supportedFiles.length === 0) return;
 
+    // Validate dimensions before uploading
+    const validFiles: File[] = [];
+    for (const file of supportedFiles) {
+      const dims = await validateImageDimensions(file);
+      if (!dims.valid) {
+        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+      } else {
+        validFiles.push(file);
+      }
+    }
+    if (validFiles.length === 0) return;
+
     setIsRoomImageUploading(true);
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
     const existingImages = [...(currentRoom?.images || [])];
 
-    for (let i = 0; i < supportedFiles.length; i++) {
-      const file = supportedFiles[i];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `room-${selectedRoomType}-${Date.now()}-${i}.${fileExt}`;
@@ -2594,7 +2607,19 @@ export default function PropertyForm() {
 
     if (supportedFiles.length === 0) return;
 
+    // Validate dimensions before uploading
+    const validFiles: File[] = [];
     for (const file of supportedFiles) {
+      const dims = await validateImageDimensions(file);
+      if (!dims.valid) {
+        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+      } else {
+        validFiles.push(file);
+      }
+    }
+    if (validFiles.length === 0) return;
+
+    for (const file of validFiles) {
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `${Math.random()}.${fileExt}`;
