@@ -238,6 +238,84 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Phase 2: Poll Leads ──
+    try {
+      console.log(`[cron-pull-ru] Polling leads from ${dateFrom} to ${dateTo}`);
+      const { data: leadsResult, error: leadsErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'get_leads', date_from: dateFrom, date_to: dateTo },
+      });
+
+      if (leadsErr || !leadsResult?.success) {
+        console.warn(`[cron-pull-ru] Leads API call failed: ${leadsErr?.message || leadsResult?.error?.message || 'Unknown'}`);
+      } else {
+        const leadsXml: string = leadsResult.raw_xml || '';
+        const leadBlocks = extractAllBlocks(leadsXml, 'Lead');
+        summary.leads_found = leadBlocks.length;
+        console.log(`[cron-pull-ru] Found ${leadBlocks.length} lead(s)`);
+
+        for (const leadBlock of leadBlocks) {
+          try {
+            const leadId = extractTag(leadBlock, 'LeadID');
+            if (!leadId) continue;
+
+            // Deduplicate: skip if already logged
+            const { data: existingNotif } = await supabase
+              .from('ru_notifications')
+              .select('id')
+              .eq('ru_reservation_id', leadId)
+              .eq('event_type', 'poll_lead')
+              .limit(1)
+              .maybeSingle();
+
+            if (existingNotif) continue;
+
+            const ruPropertyId = extractTag(leadBlock, 'PropID') || extractTag(leadBlock, 'PropertyID');
+            const guestFirstName = extractTag(leadBlock, 'FirstName') || extractTag(leadBlock, 'GuestName') || '';
+            const guestLastName = extractTag(leadBlock, 'LastName') || extractTag(leadBlock, 'GuestSurname') || '';
+            const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'RU Lead';
+            const guestEmail = extractTag(leadBlock, 'Email') || null;
+
+            // Resolve property
+            let propertyId: string | null = null;
+            if (ruPropertyId) {
+              const { data: roomType } = await supabase
+                .from('hostfully_room_types')
+                .select('property_id')
+                .eq('rentalsunited_property_id', ruPropertyId)
+                .limit(1)
+                .maybeSingle();
+              if (roomType?.property_id) {
+                propertyId = roomType.property_id;
+              } else {
+                const { data: prop } = await supabase
+                  .from('properties')
+                  .select('id')
+                  .eq('rentalsunited_property_id', ruPropertyId)
+                  .limit(1)
+                  .maybeSingle();
+                if (prop?.id) propertyId = prop.id;
+              }
+            }
+
+            await supabase.from('ru_notifications').insert({
+              event_type: 'poll_lead',
+              ru_reservation_id: leadId,
+              ru_property_id: ruPropertyId,
+              property_id: propertyId,
+              raw_xml: leadBlock,
+              processed: true,
+            });
+            summary.leads_logged++;
+            console.log(`[cron-pull-ru] ✅ Logged lead ${leadId} from ${guestName} (${guestEmail || 'no email'})`);
+          } catch (leadErr) {
+            console.error(`[cron-pull-ru] Error processing lead:`, leadErr);
+          }
+        }
+      }
+    } catch (leadsError) {
+      console.warn(`[cron-pull-ru] Leads polling error (non-fatal):`, leadsError);
+    }
+
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
     return new Response(JSON.stringify({ success: true, summary }), {
       status: 200,
