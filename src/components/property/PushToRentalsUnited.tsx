@@ -63,6 +63,8 @@ interface Diagnostics {
   xml_error_position?: number | null;
   xml_context?: string | null;
   request_preview?: string;
+  request_xml?: string;
+  response_preview?: string | null;
 }
 
 interface UnitPushResult {
@@ -73,6 +75,7 @@ interface UnitPushResult {
   error?: string;
   availability_pushed?: boolean;
   prices_pushed?: boolean;
+  diagnostics?: Diagnostics;
 }
 
 export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
@@ -96,6 +99,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
+  const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
 
   useEffect(() => {
     supabase
@@ -173,6 +177,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     setValidation(null);
     setUnits([]);
     setUnitResults([]);
+    setBuildingDiagnostics(null);
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
@@ -207,6 +212,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     setError(null);
     setDiagnostics(null);
     setUnitResults([]);
+    setBuildingDiagnostics(null);
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
@@ -224,6 +230,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
       if (data.multi_unit) {
         setBuildingId(String(data.building_id));
         setUnitResults(data.units || []);
+        setBuildingDiagnostics(data.building_diagnostics || null);
         // Refresh unit RU IDs from push results
         if (data.units) {
           setUnits((prev) =>
@@ -369,6 +376,19 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
             </Alert>
           )}
 
+          {buildingDiagnostics?.request_preview && (
+            <Alert>
+              <Building2 className="h-4 w-4" />
+              <AlertTitle className="text-xs font-medium">Building XML</AlertTitle>
+              <AlertDescription className="space-y-1 text-xs">
+                <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.request_preview}</pre>
+                {buildingDiagnostics.response_preview && (
+                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.response_preview}</pre>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Multi-unit: per-unit validation details */}
           {isMultiUnit && units.length > 0 && (
             <div className="space-y-1">
@@ -429,6 +449,21 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                       <span className="text-red-500 truncate max-w-[200px]">{ur.error}</span>
                     )}
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {unitResults.some((ur) => ur.diagnostics?.request_preview) && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Unit XML Previews</p>
+              {unitResults.filter((ur) => ur.diagnostics?.request_preview).map((ur) => (
+                <div key={`${ur.room_type_id}-xml`} className="border rounded px-2 py-1 space-y-1">
+                  <p className="text-xs font-medium">{ur.name}</p>
+                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics?.request_preview}</pre>
+                  {ur.diagnostics?.response_preview && (
+                    <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics.response_preview}</pre>
+                  )}
                 </div>
               ))}
             </div>
