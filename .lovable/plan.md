@@ -1,88 +1,49 @@
 
-What’s actually going wrong
 
-1. The RU validator is still showing the old property RU ID and no unit IDs because the property is currently being treated as single-unit during validation, not multi-unit.
-   - Evidence: the latest `push-property-to-ru` dry-run response returned `"multi_unit": false` with `ru_property_id: 4691753`.
-   - Root cause in code: `push-property-to-ru` only looks at active rows in `hostfully_room_types`, but the save flow in `PropertyForm.tsx` is writing `is_active: room.selected !== false`. Most room records load with `selected: false`, so they get saved inactive even though the room UI uses `is_active`, not `selected`.
+## Fix: Duplicate Building + Units Not in Building + ARI Ownership Errors
 
-2. The background push after Save therefore also runs in single-unit mode.
-   - That means it updates the property-level RU record only, never enters the unit loop, never assigns units to the building, and never pushes per-unit ARI.
+### Root Causes
 
-3. Bed counts pushed to RU are likely still wrong for units because the RU payload builder ignores `bed_configuration`.
-   - `buildUnitPayload` currently uses `unit.beds || unit.bedrooms || Math.max(1, maxGuests)`.
-   - The Seesig fix updated `bed_configuration`, not necessarily `beds`, so RU can still receive inflated or incorrect `NumberOfBeds`.
+**1. Duplicate building created every push**
+`buildPushBuildingXml` accepts `_buildingId` but never uses it. The XML always sends only `<BuildingName>` without `<BuildingID>`, so RU creates a brand new building every time. The existing building 46833 (and now 46838) is never updated.
 
-4. Seasons/rates are not being pushed per unit in a room-specific way.
-   - `pushARI` reads only property-level `amenities.seasons` and `amenities.season_rates`, but it does not know which room/unit it is pushing.
-   - It currently scans all season rate groups and picks the lowest matching season rate across every room, instead of resolving the rates for the specific room type being pushed.
-   - That can cause wrong rates, missing rates, or RU rejection depending on the returned shape.
+**Fix**: Include `<BuildingID>` in the XML when an existing building ID > 0 is provided. This tells RU to update the existing building instead of creating a new one.
 
-What I will change
+**2. `Push_PutBuildingProperties_RQ` doesn't exist**
+The RU API returned "not implemented method" — this API call doesn't exist. However, the property push XML already includes `<BuildingID>` (line 393), which should assign units to the building at creation time. The real problem is that these units were originally created without a valid building ID, and now re-pushing them with `<BuildingID>` may not reassign them.
 
-1. Fix room activation persistence for ROL properties
-   File: `src/pages/PropertyForm.tsx`
-   - Change the room sync payload so `hostfully_room_types.is_active` is derived from `room.is_active !== false`, not `room.selected !== false`.
-   - This is the main blocker causing validation/push to ignore all units.
+**Fix**: Since the property XML already includes `<BuildingID>`, the assignment should work if the building ID is correct and consistent. Remove the `assign_building_properties` action (it's not a valid RU method). Instead, rely on the `<BuildingID>` in each unit's property push XML. For the already-orphaned units, the re-push with the correct building ID should reassign them.
 
-2. Fix Hostfully room loading to preserve bed configuration properly
-   File: `src/pages/PropertyForm.tsx`
-   - In the Hostfully room loader, map `bedConfiguration` from `hr.bed_configuration` first, instead of incorrectly reading `hr.beds`.
-   - This keeps the editor and save flow aligned with the data you already entered for Seesig.
+**3. ARI "not the owner" errors**
+The units (4692138–4692146) were created under building 46838 with OwnerID 738925. The "not the owner" error on pricing suggests the units may need to be fully validated/activated in RU before ARI can be pushed, or the building assignment needs to complete first.
 
-3. Fix RU bed count mapping
-   File: `supabase/functions/push-property-to-ru/index.ts`
-   - Add a helper to calculate total beds from `bed_configuration`.
-   - Use that total for `number_of_beds` before falling back to `beds`, `bedrooms`, or guests.
-   - This should resolve the “sufficient beds” validation issue for units.
+### Changes
 
-4. Fix per-unit ARI rate resolution
-   File: `supabase/functions/push-property-to-ru/index.ts`
-   - Update `pushARI` to accept the current room/unit context, not just the property.
-   - Resolve season rates using the same room-key fallback pattern used elsewhere in the app:
-     - room UUID
-     - linked overview id if available
-     - room name
-     - matching amenity room id by name if available
-   - Only build price entries from that unit’s own season rate bucket.
+**File: `supabase/functions/rentalsunited-api/index.ts`**
 
-5. Improve RU validation UI data freshness
-   File: `src/components/property/PushToRentalsUnited.tsx`
-   - After push success, refresh property RU IDs and unit RU IDs from the database (or merge returned results into local state).
-   - Show building-assignment failure if the backend returns it.
-   - This will make the visible badges match the latest saved/pushed values.
+1. Fix `buildPushBuildingXml` to include `<BuildingID>` when updating an existing building:
+```xml
+<!-- Create new -->
+<Push_PutBuilding_RQ><Auth/><BuildingName>SEESIG</BuildingName></Push_PutBuilding_RQ>
 
-6. Verify multi-unit flow behavior after the fix
-   Expected outcome after implementation:
-   - Validate returns `multi_unit: true`
-   - Building badge stays visible
-   - Each unit shows its RU ID badge
-   - Push runs the unit loop
-   - Units get assigned into the building folder
-   - ARI runs per unit using that unit’s season/rate data
-   - Bed validation passes using the new bed configuration totals
+<!-- Update existing -->
+<Push_PutBuilding_RQ><Auth/><BuildingID>46833</BuildingID><BuildingName>SEESIG</BuildingName></Push_PutBuilding_RQ>
+```
 
-Technical details
+2. Remove the `assign_building_properties` action — it's not a valid RU API method.
 
-Files to update:
-- `src/pages/PropertyForm.tsx`
-- `src/components/property/PushToRentalsUnited.tsx`
-- `supabase/functions/push-property-to-ru/index.ts`
+**File: `supabase/functions/push-property-to-ru/index.ts`**
 
-Key logic corrections:
-- Replace:
-  - `is_active: room.selected !== false`
-  with:
-  - `is_active: room.is_active !== false`
-- Replace Hostfully room load mapping from:
-  - `bedConfiguration: Array.isArray(hr.beds) ? ...`
-  to:
-  - `bedConfiguration: hr.bed_configuration || ...`
-- Refactor `pushARI(...)` to take unit metadata and resolve room-specific season keys before pushing prices.
+3. Remove the Step 5 `assign_building_properties` call entirely. The building assignment is already handled by `<BuildingID>` in each unit's property XML (line 393 of rentalsunited-api).
 
-Why this should fix your exact report
-- Old RU ID/no unit IDs: caused by false single-unit detection.
-- Units not belonging to building: unit loop never ran when save-triggered push treated property as single-unit.
-- Beds outstanding: RU payload still not using `bed_configuration`.
-- Seasons incorrect for all units: ARI logic is not scoped to the current unit.
+4. Before the push, verify that `buildingId` from Step 1 is correctly passed to `buildUnitPayload` so each unit's XML includes the right `<BuildingID>`.
 
-If approved, I’ll implement these fixes and align the RU validation/push flow with the actual Seesig unit data.
+### Expected Outcome After Fix
+- Push uses existing building ID (46833) — no duplicate created
+- Each unit's property XML includes `<BuildingID>46833</BuildingID>`
+- Units appear inside the building folder in RU
+- ARI pushes succeed once units are properly owned/assigned
+
+### Data Cleanup Note
+Buildings 46838 (and any other duplicates) will need to be cleaned up in RU. After the fix deploys, you should re-push Seesig to update all units with the correct building ID 46833.
+
