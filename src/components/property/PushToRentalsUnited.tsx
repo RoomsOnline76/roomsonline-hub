@@ -83,6 +83,9 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [isMultiUnit, setIsMultiUnit] = useState(false);
   const [buildingId, setBuildingId] = useState<string | null>(null);
   const [ruPropertyId, setRuPropertyId] = useState<string | null>(null);
+  const [editingBuildingId, setEditingBuildingId] = useState(false);
+  const [buildingIdDraft, setBuildingIdDraft] = useState("");
+  const [savingBuildingId, setSavingBuildingId] = useState(false);
   const [editingRuId, setEditingRuId] = useState(false);
   const [ruIdDraft, setRuIdDraft] = useState("");
   const [savingRuId, setSavingRuId] = useState(false);
@@ -101,10 +104,29 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
-        if (data?.rentalsunited_property_id) setRuPropertyId(data.rentalsunited_property_id);
-        if (data?.rentalsunited_building_id) setBuildingId(data.rentalsunited_building_id);
+        setRuPropertyId(data?.rentalsunited_property_id ?? null);
+        setBuildingId(data?.rentalsunited_building_id ?? null);
       });
   }, [propertyId]);
+
+  const saveBuildingId = async () => {
+    setSavingBuildingId(true);
+    const newId = buildingIdDraft.trim() || null;
+    const { error: err } = await supabase
+      .from("properties")
+      .update({ rentalsunited_building_id: newId })
+      .eq("id", propertyId);
+
+    if (err) {
+      toast.error("Failed to save building ID");
+    } else {
+      setBuildingId(newId);
+      setEditingBuildingId(false);
+      toast.success(newId ? "Building ID saved" : "Building ID cleared");
+    }
+
+    setSavingBuildingId(false);
+  };
 
   const saveRuId = async () => {
     setSavingRuId(true);
@@ -244,11 +266,43 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
-            {buildingId && (
-              <Badge variant="secondary" className="text-[10px] gap-1">
-                <Building2 className="h-3 w-3" />
-                Building: {buildingId}
-              </Badge>
+            {isMultiUnit && (
+              editingBuildingId ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={buildingIdDraft}
+                    onChange={(e) => setBuildingIdDraft(e.target.value)}
+                    placeholder="Building ID"
+                    className="h-6 w-28 text-xs px-1.5"
+                  />
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveBuildingId} disabled={savingBuildingId}>
+                    {savingBuildingId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => {
+                      setEditingBuildingId(false);
+                      setBuildingIdDraft(buildingId || "");
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Badge
+                  variant={buildingId ? "secondary" : "outline"}
+                  className="text-[10px] gap-1 cursor-pointer hover:bg-accent"
+                  onClick={() => {
+                    setBuildingIdDraft(buildingId || "");
+                    setEditingBuildingId(true);
+                  }}
+                >
+                  <Building2 className="h-3 w-3" />
+                  {buildingId ? `Building: ${buildingId}` : "No Building ID — click to set"}
+                </Badge>
+              )
             )}
             {!isMultiUnit && (
               editingRuId ? (
