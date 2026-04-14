@@ -276,6 +276,10 @@ function buildRUPayload(
     seenUrls.add(img.url);
     return true;
   });
+  allImages = allImages.map((img, index) => ({
+    ...img,
+    is_main: index === 0,
+  }));
 
   // Build descriptions
   const descText = property.description || property.name || 'Beautiful property';
