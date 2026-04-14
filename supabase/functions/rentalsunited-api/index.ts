@@ -83,10 +83,18 @@ interface RUPropertyPayload {
   cancellation_policies: RUCancellationPolicy[];
   owner_id?: number;
   no_of_units?: number;
+  cleaning_price?: number;
   security_deposit?: number;
+  arrival_landlord?: string;
+  arrival_email?: string;
+  arrival_phone?: string;
+  arrival_days_before?: number;
+  arrival_pickup_service?: string | null;
+  arrival_how_to_arrive?: string | null;
   check_in_from?: string;
   check_in_to?: string;
   check_out_until?: string;
+  check_in_place?: string;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -309,21 +317,13 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
 // ── Push XML Builders ────────────────────────────────────────
 
 function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RUPropertyPayload): string {
+  const buildOptionalNode = (tag: string, value?: string | null) => {
+    const normalized = value?.trim();
+    return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
+  };
+
   const amenitiesXml = prop.amenities
     .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
-    .join('\n      ');
-
-  const roomsXml = prop.rooms
-    .map(r => {
-      const roomAmenities = r.amenities
-        .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
-        .join('\n          ');
-      return `<CompositionRoomAmenities CompositionRoomID="${r.room_id}">
-        <Amenities>
-          ${roomAmenities}
-        </Amenities>
-      </CompositionRoomAmenities>`;
-    })
     .join('\n      ');
 
   const descriptionsXml = prop.descriptions
@@ -347,21 +347,27 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
+  const cleaningPriceXml = `<CleaningPrice>${prop.cleaning_price ?? 0}</CleaningPrice>`;
+  const arrivalInstructionsXml = `<ArrivalInstructions>
+      <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
+      <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
+      <Phone>${escapeXml(prop.arrival_phone || '+27 824602220')}</Phone>
+      <DaysBeforeArrival>${Math.max(0, Math.trunc(prop.arrival_days_before ?? 0))}</DaysBeforeArrival>
+      ${buildOptionalNode('PickupService', prop.arrival_pickup_service)}
+      ${buildOptionalNode('HowToArrive', prop.arrival_how_to_arrive)}
+    </ArrivalInstructions>`;
+
   // Build CheckInOut block
   const checkInOutXml = `<CheckInOut>
       <CheckInFrom>${prop.check_in_from || '14:00'}</CheckInFrom>
       <CheckInTo>${prop.check_in_to || '22:00'}</CheckInTo>
       <CheckOutUntil>${prop.check_out_until || '10:00'}</CheckOutUntil>
-      <Place>apartment</Place>
+      <Place>${escapeXml(prop.check_in_place || 'at_the_apartment')}</Place>
     </CheckInOut>`;
 
   // SecurityDeposit with required DepositTypeID attribute
   const securityDepositXml = prop.security_deposit != null
-    ? `\n    <SecurityDeposit DepositTypeID="5">${prop.security_deposit}</SecurityDeposit>` : '';
-
-  // Only include CompositionRoomsAmenities if we have actual room data
-  const compositionXml = roomsXml
-    ? `\n    <CompositionRoomsAmenities>\n      ${roomsXml}\n    </CompositionRoomsAmenities>` : '';
+    ? `\n    <SecurityDeposit DepositTypeID="${prop.security_deposit > 0 ? 5 : 0}">${Number(prop.security_deposit).toFixed(2)}</SecurityDeposit>` : '';
 
   // Strict XSD element order per RU documentation
   return `<Push_PutProperty_RQ>
@@ -373,6 +379,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
     <IsArchived>false</IsArchived>
+    ${cleaningPriceXml}
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
@@ -385,6 +392,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
     </Coordinates>
+    ${arrivalInstructionsXml}
     <Amenities>
       ${amenitiesXml}
     </Amenities>
@@ -401,7 +409,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}${compositionXml}
+    </Descriptions>${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
