@@ -440,7 +440,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}
+    </Descriptions>${securityDepositXml}${roomsXml ? `\n    ${roomsXml}` : ''}
   </Property>
 </Push_PutProperty_RQ>`;
 }
