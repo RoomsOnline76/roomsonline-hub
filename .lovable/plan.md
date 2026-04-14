@@ -1,21 +1,35 @@
 
 
-## Fix Push Property Validation Mismatch
+## Fix Push_PutProperty_RQ — Name Tag and Coordinate Order
 
 ### Root Cause
-Line 641 in `rentalsunited-api/index.ts` validates for `p.object_type_id`, but the payload from `push-property-to-ru` was renamed to `property_type_id` in the last refactor. This validation fails immediately, returning a 422 error before any XML is even built or sent to RU.
+Two issues found by comparing our XML against the official RU example (visible on developer.rentalsunited.com):
 
-### Change
+**Bug 1: `<Name>` wraps text in `<Text>` — RU expects plain text**
+- Our code (line 362): `<Name><Text>Seesig</Text></Name>`
+- RU expects: `<Name>Seesig</Name>`
+- The `<Text>` wrapper is only valid inside `<Description>`, not `<Name>`. This causes RU to reject the XML as malformed.
 
-**File: `supabase/functions/rentalsunited-api/index.ts`** (line 641)
+**Bug 2: Coordinate element order is reversed**
+- Our code: `<Latitude>` then `<Longitude>`
+- RU example: `<Longitude>` first, then `<Latitude>`
+- XSD strict ordering means wrong order = validation failure.
 
-Update the validation check from:
-```typescript
-if (!p.name || !p.object_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
+### Changes
+
+**File: `supabase/functions/rentalsunited-api/index.ts`**
+
+1. Line 362: Change `<Name><Text>${escapeXml(prop.name)}</Text></Name>` to `<Name>${escapeXml(prop.name)}</Name>`
+
+2. Lines 376-377: Swap coordinate order from:
+```xml
+<Latitude>${prop.latitude}</Latitude>
+<Longitude>${prop.longitude}</Longitude>
 ```
 to:
-```typescript
-if (!p.name || !p.property_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
+```xml
+<Longitude>${prop.longitude}</Longitude>
+<Latitude>${prop.latitude}</Latitude>
 ```
 
 Then redeploy `rentalsunited-api`.
