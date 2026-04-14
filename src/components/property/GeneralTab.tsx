@@ -727,7 +727,14 @@ export function GeneralTab(props: GeneralTabProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="py-2 px-4 space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="banking_currency" className="text-xs">Currency *</Label>
+                <Select value={formData.currency || "ZAR"} onValueChange={(v) => handleInputChange("currency", v)}>
+                  <SelectTrigger id="banking_currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{["ZAR","USD","EUR","GBP","BWP","MZN","NAD","KES","TZS","MUR","SCR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               {formData.has_vat && <div className="flex flex-col gap-1"><Label htmlFor="vat_number" className="text-xs">VAT #</Label><Input id="vat_number" value={formData.vat_number} onChange={(e) => handleInputChange("vat_number", e.target.value)} placeholder="VAT number" className="h-7 text-xs" /></div>}
               {[
                 { id: "property_registration", label: "Reg #" },
