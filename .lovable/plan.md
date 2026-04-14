@@ -1,52 +1,33 @@
 
 
-## Image Minimum Size Validation (1024×683 px)
+## Add Push_PutAvbUnits_RQ Enhancements to RU Sync
 
-### What This Does
-Adds a global minimum image dimension requirement of **1024×683 pixels** to all property and room image uploads. Also creates a one-time cleanup script to audit and remove existing undersized images from storage and database references.
-
-### Scope — Which uploads get validated
-- **Property gallery images** (`PropertyForm.tsx` — main property images)
-- **Room type images** (`RoomManagerTab.tsx` — room-specific images)
-- **Room type images** (`PropertyForm.tsx` — duplicate room upload handler)
-- **Onboarding property images** (`StepMediaDocuments.tsx`)
-- **Book page images** (`PropertyOverview.tsx`)
-
-**Excluded** (not photo content): logos, favicons, hero videos, journal images, addon images, package images.
+### Current State
+- The `push_availability` action and XML builder **already exist** in `rentalsunited-api` and support `units`, `min_stay`, and `changeover` attributes.
+- `pushARI` in `push-property-to-ru` already calls it with season-based periods covering 365 days (with a filler period to fill gaps).
+- The cron job exists but runs **weekly** (`0 2 * * 0` = Sunday 2 AM). RU requires **daily**.
+- **Changeover** is supported in the XML but never populated — it always defaults to omitting the attribute, which means RU uses its own default. There is no changeover preference stored in property data currently.
 
 ### Changes
 
-**1. `src/lib/imageValidation.ts`** (new file)
-- Export `MIN_IMAGE_WIDTH = 1024` and `MIN_IMAGE_HEIGHT = 683`
-- Export `validateImageDimensions(file: File): Promise<{ valid: boolean; width: number; height: number }>` — loads file into an `Image` element via `createObjectURL`, resolves with dimensions
-- Export a helper `getValidationErrorMessage(width, height)` for consistent toast text
+**1. Change cron schedule from weekly to daily**
+- Update the `cron.job` entry from `0 2 * * 0` (weekly Sunday) to `0 2 * * *` (daily at 2 AM).
+- Uses `cron.alter_job` SQL via the insert tool (not migration, since it contains project-specific data).
 
-**2. Add validation to all 5 upload handlers**
-Each handler gets a dimension check before the storage upload call:
+**2. Add changeover default to availability push (`push-property-to-ru/index.ts`)**
+- In `pushARI`, set `changeover: 3` (Both check-in and check-out allowed) as the default for all availability entries. This is the most flexible setting and matches ROL'OS's standard behavior.
+- If a property has a `changeover` field in amenities, use that instead. This makes it extensible for future per-property configuration.
+- Changeover values: `1` = CheckInOnly, `2` = CheckOutOnly, `3` = Both, `4` = NoActivity.
 
-- **`src/pages/PropertyForm.tsx`** — property gallery upload (~line 2597) and room image upload (~line 952): wrap each file in `validateImageDimensions()`, skip with toast if undersized
-- **`src/components/property/RoomManagerTab.tsx`** — `handleRoomImageUpload` (~line 306): same check
-- **`src/components/onboarding/steps/StepMediaDocuments.tsx`** — `handleImageUpload` (~line 96): same check
-- **`src/pages/PropertyOverview.tsx`** — `handleBookPageImageUpload` (~line 179): same check
+**3. Ensure 365-day minimum coverage with at least 1 available day**
+- The current code already fills gaps to `oneYearStr`. Add a safety check: if no seasons exist at all, push a single entry covering today → today+365 with `units: 1`, `min_stay: 1`, `changeover: 3`. This guarantees at least 1 available day even for properties with no seasons configured.
 
-Pattern applied to each:
-```typescript
-const dims = await validateImageDimensions(file);
-if (!dims.valid) {
-  toast({ title: "Image too small", description: `${file.name} is ${dims.width}×${dims.height}px. Minimum required: 1024×683px.`, variant: "destructive" });
-  continue; // or return
-}
-```
+### Files to Update
+- `supabase/functions/push-property-to-ru/index.ts` — add changeover + fallback coverage
+- Cron job SQL update via insert tool
 
-**3. Cleanup edge function: `supabase/functions/cleanup-undersized-images/index.ts`** (new)
-- Queries all properties, iterates their `images` arrays and `amenities.room_types[].images`
-- For each image URL, fetches the image and checks dimensions server-side (using a canvas-less approach: fetch headers or decode dimensions from the binary)
-- If undersized: removes the file from `property-images` storage bucket and removes the URL from the property's image array
-- Returns a report of deleted files
-- This is a one-time admin-triggered function, not automated
-
-### Technical Notes
-- Client-side validation uses `new Image()` + `URL.createObjectURL()` — works in all browsers, no library needed
-- The cleanup function uses image header parsing (JPEG SOF marker / PNG IHDR chunk) to read dimensions without fully decoding — fast and memory-efficient
-- Logos and branding assets are intentionally excluded since they have different size requirements
+### What This Does NOT Change
+- No new UI fields (changeover preference can be added later)
+- No changes to `rentalsunited-api/index.ts` (already supports changeover in XML)
+- No schema/migration changes
 
