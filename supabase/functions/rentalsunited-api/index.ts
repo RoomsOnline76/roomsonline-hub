@@ -511,14 +511,10 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
-function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string): string {
-  return `<Push_PutBuilding_RQ>
-  ${buildAuthXml(creds)}
-  <Building>
-    <BuildingID>${buildingId}</BuildingID>
-    <BuildingName>${escapeXml(buildingName)}</BuildingName>
-  </Building>
-</Push_PutBuilding_RQ>`;
+function buildPushBuildingXml(creds: RUCredentials, _buildingId: number, buildingName: string): string {
+  // RU API: BuildingName is a direct child of Push_PutBuilding_RQ, max 20 chars
+  const truncatedName = buildingName.substring(0, 20);
+  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}<BuildingName>${escapeXml(truncatedName)}</BuildingName></Push_PutBuilding_RQ>`;
 }
 
 function buildListBuildingsXml(creds: RUCredentials): string {
