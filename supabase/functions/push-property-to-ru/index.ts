@@ -155,64 +155,41 @@ function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] 
 /**
  * Map cancellation policies from DB format to RU format.
  * DB: [{days: 999, forfeit: 10, type: "% of Total"}, {days: 30, forfeit: 100}]
- * RU expects: CancellationPolicy with valid_from/valid_to and rules with from_days/to_days/percentage
+ * RU expects flat CancellationPolicy entries like:
+ * <CancellationPolicy ValidFrom="0" ValidTo="30">100</CancellationPolicy>
  */
-function mapCancellationPolicies(amenities: Record<string, unknown> | null): { valid_from: string; valid_to: string; rules: { from_days: number; to_days: number; percentage: number }[] }[] {
+function mapCancellationPolicies(amenities: Record<string, unknown> | null): { valid_from: number; valid_to: number; percentage: number }[] {
   const policies = amenities?.cancellation_policies;
   if (!Array.isArray(policies) || policies.length === 0) {
-    // Default fallback
-    return [{
-      valid_from: new Date().toISOString().split('T')[0],
-      valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      rules: [
-        { from_days: 0, to_days: 14, percentage: 100 },
-        { from_days: 15, to_days: 30, percentage: 50 },
-      ],
-    }];
+    return [
+      { valid_from: 0, valid_to: 14, percentage: 100 },
+      { valid_from: 15, valid_to: 30, percentage: 50 },
+    ];
   }
 
   // Sort policies by days ascending so we can build contiguous ranges
   const sorted = [...policies]
     .filter((p: any) => p.days != null && p.forfeit != null)
     .map((p: any) => ({ days: Number(p.days), forfeit: Number(p.forfeit) }))
+    .filter((p) => Number.isFinite(p.days) && Number.isFinite(p.forfeit) && p.days >= 0)
     .sort((a, b) => a.days - b.days);
 
   if (sorted.length === 0) {
-    return [{
-      valid_from: new Date().toISOString().split('T')[0],
-      valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      rules: [{ from_days: 0, to_days: 30, percentage: 100 }],
-    }];
+    return [{ valid_from: 0, valid_to: 30, percentage: 100 }];
   }
 
-  // Build RU rules: each policy entry defines "if cancelled within X days, forfeit Y%"
-  // We need contiguous from_days/to_days ranges
-  const rules: { from_days: number; to_days: number; percentage: number }[] = [];
+  const rules: { valid_from: number; valid_to: number; percentage: number }[] = [];
   
   for (let i = 0; i < sorted.length; i++) {
     const policy = sorted[i] as any;
     const fromDays = i === 0 ? 0 : (sorted[i - 1] as any).days + 1;
-    const toDays = Math.min(policy.days, 365);
+    const toDays = policy.days;
     if (fromDays <= toDays) {
-      rules.push({ from_days: fromDays, to_days: toDays, percentage: policy.forfeit });
+      rules.push({ valid_from: fromDays, valid_to: toDays, percentage: policy.forfeit });
     }
   }
 
-  // If last policy doesn't reach 365, extend it
-  if (rules.length > 0 && rules[rules.length - 1].to_days < 365) {
-    const lastPolicy = sorted[sorted.length - 1] as any;
-    rules.push({
-      from_days: rules[rules.length - 1].to_days + 1,
-      to_days: 365,
-      percentage: lastPolicy.forfeit,
-    });
-  }
-
-  return [{
-    valid_from: new Date().toISOString().split('T')[0],
-    valid_to: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    rules,
-  }];
+  return rules;
 }
 
 /**
