@@ -78,6 +78,8 @@ interface RUPropertyPayload {
   descriptions: RUDescription[];
   images: RUImage[];
   payment_methods: number[];
+  deposit?: number;
+  deposit_type_id?: number;
   cancellation_policies: RUCancellationPolicy[];
   owner_id?: number;
   no_of_units?: number;
@@ -339,6 +341,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(pm => `<PaymentMethod PaymentMethodID="${pm}">${escapeXml(PAYMENT_METHOD_LABELS[pm] || `Method ${pm}`)}</PaymentMethod>`)
     .join('\n      ');
 
+  const depositXml = `<Deposit DepositTypeID="${prop.deposit_type_id || 1}">${prop.deposit ?? 0}</Deposit>`;
+
   const cancellationPoliciesXml = prop.cancellation_policies
     .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
@@ -391,6 +395,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <PaymentMethods>
       ${paymentMethodsXml}
     </PaymentMethods>
+    ${depositXml}
     <CancellationPolicies>
       ${cancellationPoliciesXml}
     </CancellationPolicies>

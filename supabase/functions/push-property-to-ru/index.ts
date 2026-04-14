@@ -86,6 +86,11 @@ interface RoomTypeRow {
   room_size: number | null;
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 // ── Mapping Functions ────────────────────────────────────────
 
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number }[] {
@@ -250,8 +255,20 @@ function buildRUPayload(
   const checkInTo = houseRules.check_in_to || '22:00';
   const checkOutUntil = houseRules.check_out_to || primaryRoom?.check_out_time || '10:00';
 
-  // Security deposit: from amenities.banking or room type
+  // Deposit/prepayment + security deposit from amenities.banking or room type
   const banking = (amenities as any)?.banking || {};
+  const depositPercent = toFiniteNumber(
+    banking.deposit_percentage ?? banking.prepayment_percentage ?? banking.prepayment_percent,
+  );
+  const depositAmount = toFiniteNumber(
+    banking.deposit_amount ?? banking.prepayment_amount ?? banking.deposit ?? banking.prepayment,
+  );
+  const deposit = depositPercent && depositPercent > 0
+    ? depositPercent
+    : depositAmount && depositAmount > 0
+      ? depositAmount
+      : 0;
+  const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
   const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
 
   // Build rooms from room types
@@ -308,6 +325,8 @@ function buildRUPayload(
     descriptions,
     images: allImages,
     payment_methods: mapPaymentMethods(property.amenities),
+    deposit,
+    deposit_type_id: depositTypeId,
     cancellation_policies: cancellationPolicies,
     security_deposit: securityDeposit,
     check_in_from: checkInFrom,
