@@ -1384,6 +1384,7 @@ export type Database = {
           property_type: string | null
           rate_type: string | null
           raw_data: Json | null
+          rentalsunited_property_id: string | null
           room_size: number | null
           room_size_unit: string | null
           security_deposit: number | null
@@ -1437,6 +1438,7 @@ export type Database = {
           property_type?: string | null
           rate_type?: string | null
           raw_data?: Json | null
+          rentalsunited_property_id?: string | null
           room_size?: number | null
           room_size_unit?: string | null
           security_deposit?: number | null
@@ -1490,6 +1492,7 @@ export type Database = {
           property_type?: string | null
           rate_type?: string | null
           raw_data?: Json | null
+          rentalsunited_property_id?: string | null
           room_size?: number | null
           room_size_unit?: string | null
           security_deposit?: number | null
@@ -3479,6 +3482,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url: string | null
+          rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
           short_description: string | null
@@ -3561,6 +3565,7 @@ export type Database = {
           price_per_night: number
           property_type: string
           property_url?: string | null
+          rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
           short_description?: string | null
@@ -3643,6 +3648,7 @@ export type Database = {
           price_per_night?: number
           property_type?: string
           property_url?: string | null
+          rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
           short_description?: string | null
