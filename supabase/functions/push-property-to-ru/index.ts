@@ -454,9 +454,17 @@ Deno.serve(async (req) => {
     }
 
     if (!pushResult?.success) {
+      console.error('[push-property-to-ru] RU push failed:', JSON.stringify(pushResult?.error));
+      if (pushResult?.diagnostics) {
+        console.error('[push-property-to-ru] Diagnostics:', JSON.stringify(pushResult.diagnostics));
+      }
       return new Response(
-        JSON.stringify({ success: false, error: pushResult?.error || { code: 'RU_ERROR', message: 'Unknown RU error' } }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          success: false,
+          error: pushResult?.error || { code: 'RU_ERROR', message: 'Unknown RU error' },
+          diagnostics: pushResult?.diagnostics || null,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
