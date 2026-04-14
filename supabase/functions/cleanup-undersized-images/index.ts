@@ -104,6 +104,8 @@ Deno.serve(async (req) => {
     let deletedCount = 0;
 
     console.log(`Processing ${(properties || []).length} properties...`);
+    for (const prop of properties || []) {
+      console.log(`Checking property: ${prop.name || prop.id}`);
       const images: string[] = Array.isArray(prop.images) ? prop.images : [];
       const roomTypes: any[] = prop.amenities?.room_types || [];
 
