@@ -465,7 +465,7 @@ export function GeneralTab(props: GeneralTabProps) {
                   <Label htmlFor="currency" className="text-xs">Currency *</Label>
                   <Select value={formData.currency} onValueChange={(v) => handleInputChange("currency", v)}>
                     <SelectTrigger id="currency" className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{["ZAR","USD","EUR","GBP"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    <SelectContent>{["ZAR","USD","EUR","GBP","BWP","MZN","NAD","KES","TZS","MUR","SCR"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1">
