@@ -180,7 +180,7 @@ const PropertyOverview = () => {
     try {
       const dims = await validateImageDimensions(file);
       if (!dims.valid) {
-        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+        toast.error(`Image too small: ${getValidationErrorMessage(file.name, dims.width, dims.height)}`);
         setUploadingCell(null);
         return;
       }
