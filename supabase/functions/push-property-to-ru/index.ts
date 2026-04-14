@@ -521,55 +521,80 @@ Deno.serve(async (req) => {
     const pushExtras: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string } = {};
 
     if (finalRuId > 0 && !dry_run) {
-      // Build availability: open all season dates with units = total room types count
       const totalUnits = (roomTypes || []).length || 1;
-      if (Array.isArray(seasons) && seasons.length > 0) {
-        try {
-          const availEntries: { date_from: string; date_to: string; units: number; min_stay?: number }[] = [];
-          for (const season of seasons) {
-            const periods = season.periods || [{ from: season.from, to: season.to }];
-            for (const period of periods) {
-              if (period.from && period.to) {
-                availEntries.push({
-                  date_from: period.from,
-                  date_to: period.to,
-                  units: totalUnits,
-                  min_stay: season.minStay || 1,
-                });
-              }
-            }
-          }
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const oneYearLater = new Date(today);
+      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+      const oneYearStr = oneYearLater.toISOString().slice(0, 10);
 
-          if (availEntries.length > 0) {
-            const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-              body: { action: 'push_availability', ru_property_id: finalRuId, availability: availEntries },
-            });
-            if (availErr || !availResult?.success) {
-              pushExtras.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
-              console.error('[push-property-to-ru] Availability push failed:', pushExtras.availability_error);
-            } else {
-              pushExtras.availability_pushed = true;
-              console.log(`[push-property-to-ru] Pushed ${availEntries.length} availability periods`);
+      // Collect all season periods with their season metadata
+      type PeriodEntry = { from: string; to: string; minStay: number; seasonId: string };
+      const allPeriods: PeriodEntry[] = [];
+      if (Array.isArray(seasons)) {
+        for (const season of seasons) {
+          const periods = season.periods || [{ from: season.from, to: season.to }];
+          for (const period of periods) {
+            if (period.from && period.to) {
+              allPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
             }
           }
-        } catch (e) {
-          pushExtras.availability_error = e instanceof Error ? e.message : 'Unknown error';
-          console.error('[push-property-to-ru] Availability push exception:', e);
+        }
+      }
+      // Sort by start date
+      allPeriods.sort((a, b) => a.from.localeCompare(b.from));
+
+      // Find the latest end date covered by seasons
+      let latestEnd = todayStr;
+      for (const p of allPeriods) {
+        if (p.to > latestEnd) latestEnd = p.to;
+      }
+
+      // If seasons don't cover up to oneYearStr, extend with a filler period
+      if (latestEnd < oneYearStr) {
+        const nextDay = new Date(latestEnd);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const fillerFrom = nextDay.toISOString().slice(0, 10);
+        if (fillerFrom <= oneYearStr) {
+          allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
         }
       }
 
-      // Build prices from season_rates: find the lowest rate per season period
+      // Build availability entries
+      if (allPeriods.length > 0) {
+        try {
+          const availEntries = allPeriods.map(p => ({
+            date_from: p.from,
+            date_to: p.to,
+            units: totalUnits,
+            min_stay: p.minStay,
+          }));
+
+          const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_availability', ru_property_id: finalRuId, availability: availEntries },
+          });
+          if (availErr || !availResult?.success) {
+            pushExtras.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
+            console.error('[push-property-to-ru] Availability push failed:', pushExtras.availability_error);
+          } else {
+            pushExtras.availability_pushed = true;
+            console.log(`[push-property-to-ru] Pushed ${availEntries.length} availability periods (up to ${oneYearStr})`);
+          }
+        } catch (e) {
+          pushExtras.availability_error = e instanceof Error ? e.message : 'Unknown error';
+        }
+      }
+
+      // Build prices: find lowest rate per season, extend filler with last known rate
       if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
         try {
           const priceEntries: { date_from: string; date_to: string; price: number }[] = [];
+          let lastKnownRate = 0;
+
           for (const season of seasons) {
-            // Find rates for this season across all rate types
             const seasonId = String(season.id);
             let lowestRate = Infinity;
-
-            for (const [rateKey, rateData] of Object.entries(seasonRates)) {
-              // rateKey format: seasonId or rateTypeId
-              // rateData contains keys like "seasonId-roomTypeId" with roomAmount
+            for (const [, rateData] of Object.entries(seasonRates)) {
               if (typeof rateData === 'object' && rateData !== null) {
                 for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
                   if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
@@ -581,18 +606,25 @@ Deno.serve(async (req) => {
                 }
               }
             }
-
             if (lowestRate < Infinity) {
+              lastKnownRate = lowestRate;
               const periods = season.periods || [{ from: season.from, to: season.to }];
               for (const period of periods) {
                 if (period.from && period.to) {
-                  priceEntries.push({
-                    date_from: period.from,
-                    date_to: period.to,
-                    price: lowestRate,
-                  });
+                  priceEntries.push({ date_from: period.from, date_to: period.to, price: lowestRate });
                 }
               }
+            }
+          }
+
+          // Add filler price if seasons don't cover full year
+          if (lastKnownRate > 0 && latestEnd < oneYearStr) {
+            const nextDay = new Date(latestEnd);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const fillerFrom = nextDay.toISOString().slice(0, 10);
+            if (fillerFrom <= oneYearStr) {
+              priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate });
+              console.log(`[push-property-to-ru] Extended prices with filler ${fillerFrom} → ${oneYearStr} @ ${lastKnownRate}`);
             }
           }
 
@@ -610,7 +642,6 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           pushExtras.prices_error = e instanceof Error ? e.message : 'Unknown error';
-          console.error('[push-property-to-ru] Prices push exception:', e);
         }
       }
     }
