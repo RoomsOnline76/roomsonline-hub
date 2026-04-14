@@ -41,6 +41,19 @@ const AMENITY_MAP: Record<string, number> = {
   cctv: 73, alarm: 74,
 };
 
+// RU bed-type amenity IDs — must be included in <Room> amenities
+const BED_AMENITY_MAP: Record<string, number> = {
+  single: 97,
+  twin: 97,
+  double: 98,
+  queen: 98,
+  king: 99,
+  'king-twin': 99,
+  'sofa-bed': 100,
+  sofa: 100,
+  bunk: 101,
+};
+
 const PAYMENT_METHOD_MAP: Record<string, number> = {
   cash: 1, visa: 2, mastercard: 3, amex: 4, bank_transfer: 5, paypal: 6,
   credit_card: 2, debit_card: 2, eft: 5,
@@ -240,11 +253,29 @@ function buildUnitPayload(
 
   // Calculate beds from bed_configuration if available
   let beds = 0;
+  const bedAmenities: { id: number; count: number }[] = [];
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     beds = unit.bed_configuration.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+    // Map bed types to RU bed amenity IDs
+    const seenBedIds = new Set<number>();
+    for (const bedEntry of unit.bed_configuration) {
+      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
+      const ruBedId = BED_AMENITY_MAP[bedType];
+      if (ruBedId && !seenBedIds.has(ruBedId)) {
+        seenBedIds.add(ruBedId);
+        bedAmenities.push({ id: ruBedId, count: bedEntry.count || 1 });
+      } else if (ruBedId && seenBedIds.has(ruBedId)) {
+        // Add count to existing entry
+        const existing = bedAmenities.find(a => a.id === ruBedId);
+        if (existing) existing.count += (bedEntry.count || 1);
+      }
+    }
   }
   if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
+
+  // Combine regular amenities + bed amenities for Room block
+  const roomAmenities = [...unitAmenities.slice(0, 5), ...bedAmenities];
   
   return {
     name: unit.name,
@@ -262,7 +293,7 @@ function buildUnitPayload(
     latitude: lat,
     longitude: lng,
     amenities: unitAmenities,
-    rooms: [{ room_id: 1, amenities: unitAmenities.slice(0, 5) }],
+    rooms: [{ room_id: 1, amenities: roomAmenities }],
     descriptions: [{ language_id: 1, text: descText }],
     images,
     payment_methods: mapPaymentMethods(property.amenities),
@@ -360,12 +391,25 @@ interface UnitContext {
 
 function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): number | null {
   // Try multiple keys to find the rate for this specific unit
+  // The critical insight: season_rates uses amenity room_type IDs (timestamp-based like "1775237066341"),
+  // NOT hostfully_room_types UUIDs. We must match by name to find the amenity room_type entry.
   const roomTypes = (amenities.room_types || []) as any[];
   const candidateKeys = [unit.id];
   if (unit.linked_rolos_id) candidateKeys.push(unit.linked_rolos_id);
-  // Find matching amenity room by name
-  const matchedRoom = roomTypes.find((rt: any) => rt.name === unit.name || rt.id === unit.id);
-  if (matchedRoom && matchedRoom.id && !candidateKeys.includes(matchedRoom.id)) candidateKeys.push(matchedRoom.id);
+
+  // Find matching amenity room by name (case-insensitive), linked_rolos_id, or direct id match
+  for (const rt of roomTypes) {
+    const nameMatch = rt.name && unit.name && rt.name.toLowerCase() === unit.name.toLowerCase();
+    const idMatch = rt.id === unit.id;
+    const rolosMatch = unit.linked_rolos_id && rt.linked_rolos_id === unit.linked_rolos_id;
+    if (nameMatch || idMatch || rolosMatch) {
+      if (rt.id && !candidateKeys.includes(String(rt.id))) {
+        candidateKeys.push(String(rt.id));
+      }
+    }
+  }
+
+  console.log(`[resolveUnitRateKey] Unit "${unit.name}" candidate keys: [${candidateKeys.join(', ')}] for season ${seasonId}`);
 
   for (const [, rateData] of Object.entries(seasonRates)) {
     if (typeof rateData !== 'object' || rateData === null) continue;
@@ -373,6 +417,7 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
       const compositeKey = `${seasonId}-${roomKey}`;
       const entry = (rateData as Record<string, any>)[compositeKey];
       if (entry && typeof entry === 'object' && typeof (entry as any).roomAmount === 'number' && (entry as any).roomAmount > 0) {
+        console.log(`[resolveUnitRateKey] Found rate ${(entry as any).roomAmount} via key "${compositeKey}"`);
         return (entry as any).roomAmount;
       }
     }
@@ -389,6 +434,7 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
       }
     }
   }
+  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} for season ${seasonId}`);
   return lowest < Infinity ? lowest : null;
 }
 
