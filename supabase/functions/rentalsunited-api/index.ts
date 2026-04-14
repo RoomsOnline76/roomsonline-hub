@@ -359,7 +359,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   ${buildAuthXml(creds)}
   <Property>
     <ID>${propertyId}</ID>
-    <Name><Text>${escapeXml(prop.name)}</Text></Name>
+    <Name>${escapeXml(prop.name)}</Name>
     <OwnerID>${prop.owner_id || 1}</OwnerID>
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
@@ -373,8 +373,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Street>${escapeXml(prop.street)}</Street>
     <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
     <Coordinates>
-      <Latitude>${prop.latitude}</Latitude>
       <Longitude>${prop.longitude}</Longitude>
+      <Latitude>${prop.latitude}</Latitude>
     </Coordinates>
     <Amenities>
       ${amenitiesXml}
