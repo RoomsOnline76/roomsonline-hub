@@ -11,24 +11,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Shield, AlertTriangle, Plus, Trash2, Info } from "lucide-react";
 import { usePolicies } from "@/hooks/usePolicies";
-import { formatCancellationPolicy, type CancellationRule } from "@/lib/policyFormatter";
+import { formatCancellationPolicy, type CancellationRule, type CancellationTier } from "@/lib/policyFormatter";
 
 interface PoliciesTabProps {
   propertyId: string;
 }
 
-interface DateRangeOverride {
-  start: string;
-  end: string;
-  days_before?: number;
-  forfeit_percent?: number;
-}
-
 const DEFAULT_CANCELLATION: CancellationRule = {
   mode: "standard",
-  days_before: 14,
-  forfeit_percent: 50,
   non_refundable: false,
+  tiers: [
+    { days_before: 60, forfeit_percent: 0 },
+    { days_before: 30, forfeit_percent: 50 },
+    { days_before: 0, forfeit_percent: 100 },
+  ],
   date_ranges: [],
   dynamic_factors: [],
   ai_prompt_override: null,
@@ -39,7 +35,6 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
   const [cancellationRule, setCancellationRule] = useState<CancellationRule>(DEFAULT_CANCELLATION);
   const [saving, setSaving] = useState(false);
 
-  // Load existing policy
   useEffect(() => {
     const existing = policies.find((p) => p.policy_type === "cancellation");
     if (existing?.rule) {
@@ -51,24 +46,21 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
     setCancellationRule((prev) => ({ ...prev, [key]: value }));
   };
 
-  const addDateRange = () => {
-    updateField("date_ranges", [
-      ...(cancellationRule.date_ranges || []),
-      { start: "", end: "", days_before: 30, forfeit_percent: 100 },
-    ]);
+  // Tier management
+  const addTier = () => {
+    const tiers = [...(cancellationRule.tiers || [])];
+    tiers.push({ days_before: 0, forfeit_percent: 100 });
+    updateField("tiers", tiers);
   };
 
-  const removeDateRange = (idx: number) => {
-    updateField(
-      "date_ranges",
-      (cancellationRule.date_ranges || []).filter((_, i) => i !== idx)
-    );
+  const removeTier = (idx: number) => {
+    updateField("tiers", (cancellationRule.tiers || []).filter((_, i) => i !== idx));
   };
 
-  const updateDateRange = (idx: number, field: keyof DateRangeOverride, value: string | number) => {
-    const ranges = [...(cancellationRule.date_ranges || [])];
-    ranges[idx] = { ...ranges[idx], [field]: value };
-    updateField("date_ranges", ranges);
+  const updateTier = (idx: number, field: keyof CancellationTier, value: number) => {
+    const tiers = [...(cancellationRule.tiers || [])];
+    tiers[idx] = { ...tiers[idx], [field]: value };
+    updateField("tiers", tiers);
   };
 
   const handleSave = async () => {
@@ -86,6 +78,8 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
       </div>
     );
   }
+
+  const sortedTiers = [...(cancellationRule.tiers || [])].sort((a, b) => b.days_before - a.days_before);
 
   return (
     <div className="space-y-4">
@@ -106,11 +100,33 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">{preview.summaryText}</p>
+              {cancellationRule.non_refundable ? (
+                <p className="text-sm text-muted-foreground">{preview.summaryText}</p>
+              ) : (
+                <div className="space-y-1">
+                  {sortedTiers.map((tier, idx) => {
+                    const refundPct = 100 - tier.forfeit_percent;
+                    const prevDays = idx > 0 ? sortedTiers[idx - 1].days_before : null;
+                    const label = tier.days_before > 0
+                      ? `More than ${tier.days_before} days before check-in`
+                      : prevDays
+                        ? `Less than ${prevDays} days before check-in`
+                        : "At any time";
+                    return (
+                      <div key={idx} className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">{label}</span>
+                        <Badge variant={refundPct === 100 ? "default" : refundPct > 0 ? "secondary" : "destructive"} className="text-xs">
+                          {refundPct}% refunded
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Mode & Non-refundable */}
+          {/* Main Policy Card */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Cancellation Policy</CardTitle>
@@ -133,40 +149,63 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
 
               {!cancellationRule.non_refundable && (
                 <>
-                  {/* Days before */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Free Cancellation Window (days before check-in)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={365}
-                      value={cancellationRule.days_before ?? 14}
-                      onChange={(e) => updateField("days_before", parseInt(e.target.value) || 0)}
-                      className="h-8 text-xs w-32"
-                    />
-                  </div>
-
-                  {/* Forfeit percentage */}
-                  <div className="space-y-1.5">
+                  {/* Cancellation Tiers */}
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs">Forfeit Percentage</Label>
-                      <Badge variant="secondary" className="text-xs">
-                        {cancellationRule.forfeit_percent ?? 50}%
-                      </Badge>
+                      <Label className="text-xs font-medium">Cancellation Tiers</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={addTier} className="h-7 text-xs">
+                        <Plus className="h-3 w-3 mr-1" /> Add Tier
+                      </Button>
                     </div>
-                    <Slider
-                      value={[cancellationRule.forfeit_percent ?? 50]}
-                      onValueChange={([v]) => updateField("forfeit_percent", v)}
-                      min={0}
-                      max={100}
-                      step={5}
-                    />
                     <p className="text-xs text-muted-foreground">
-                      Charged when cancelled within the window
+                      Define forfeit percentages based on how far in advance the guest cancels
                     </p>
+                    <div className="space-y-2">
+                      {sortedTiers.map((tier, sortedIdx) => {
+                        const realIdx = (cancellationRule.tiers || []).indexOf(tier);
+                        return (
+                          <div key={realIdx} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                            <div className="flex items-center gap-1.5 flex-1">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">≥</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={365}
+                                value={tier.days_before}
+                                onChange={(e) => updateTier(realIdx, "days_before", parseInt(e.target.value) || 0)}
+                                className="h-7 text-xs w-16"
+                              />
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">days before →</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">forfeit</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={tier.forfeit_percent}
+                                onChange={(e) => updateTier(realIdx, "forfeit_percent", parseInt(e.target.value) || 0)}
+                                className="h-7 text-xs w-16"
+                              />
+                              <span className="text-xs text-muted-foreground">%</span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeTier(realIdx)}
+                              className="h-7 w-7 p-0 text-destructive"
+                              disabled={(cancellationRule.tiers || []).length <= 1}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Mode selector */}
+                  {/* Dynamic mode */}
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div>
                       <Label className="text-xs font-medium">Dynamic Mode</Label>
@@ -221,84 +260,6 @@ export const PoliciesTab: React.FC<PoliciesTabProps> = ({ propertyId }) => {
               )}
             </CardContent>
           </Card>
-
-          {/* Peak Season Overrides */}
-          {!cancellationRule.non_refundable && (
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-sm">Peak Season Overrides</CardTitle>
-                    <CardDescription className="text-xs">
-                      Stricter policies for high-demand periods
-                    </CardDescription>
-                  </div>
-                  <Button type="button" variant="outline" size="sm" onClick={addDateRange} className="h-7 text-xs">
-                    <Plus className="h-3 w-3 mr-1" /> Add Range
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {(!cancellationRule.date_ranges || cancellationRule.date_ranges.length === 0) && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Info className="h-3.5 w-3.5" />
-                    No peak season overrides — default policy applies year-round
-                  </p>
-                )}
-                {(cancellationRule.date_ranges || []).map((range, idx) => (
-                  <div key={idx} className="flex items-end gap-2 p-2 rounded-md bg-muted/50">
-                    <div className="space-y-1 flex-1">
-                      <Label className="text-xs">From</Label>
-                      <Input
-                        type="date"
-                        value={range.start}
-                        onChange={(e) => updateDateRange(idx, "start", e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1 flex-1">
-                      <Label className="text-xs">To</Label>
-                      <Input
-                        type="date"
-                        value={range.end}
-                        onChange={(e) => updateDateRange(idx, "end", e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1 w-20">
-                      <Label className="text-xs">Days</Label>
-                      <Input
-                        type="number"
-                        value={range.days_before ?? 30}
-                        onChange={(e) => updateDateRange(idx, "days_before", parseInt(e.target.value) || 0)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1 w-20">
-                      <Label className="text-xs">Forfeit %</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={range.forfeit_percent ?? 100}
-                        onChange={(e) => updateDateRange(idx, "forfeit_percent", parseInt(e.target.value) || 0)}
-                        className="h-7 text-xs"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeDateRange(idx)}
-                      className="h-7 w-7 p-0 text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Save */}
           <div className="flex justify-end">
