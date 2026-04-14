@@ -533,10 +533,12 @@ Deno.serve(async (req) => {
 
       // Step 1: Create/update RU Building
       let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
-      console.log(`[push-property-to-ru] Step 1: Push building "${property.name}" (existing ID: ${buildingId})`);
+      // Truncate building name to 20 chars (RU API limit)
+      const buildingName = property.name.substring(0, 20);
+      console.log(`[push-property-to-ru] Step 1: Push building "${buildingName}" (existing ID: ${buildingId})`);
 
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: property.name, building_id: buildingId },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId },
       });
 
       if (buildingErr || !buildingResult?.success) {
