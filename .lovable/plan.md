@@ -1,52 +1,36 @@
 
-Goal: finish the RU unit-type fix properly. The previous work is not complete because the current code already sends both pieces we thought were missing, yet RU buildings still show 0 unit types.
 
-What I verified
-- `push-property-to-ru` already aggregates active room types and sends `unit_types` in the building push.
-- `rentalsunited-api` already sends:
-  - building XML with `<Composition><UnitsComposition>...`
-  - property XML with `<BuildingID>`
-- So the unresolved issue is no longer “missing logic”; it is most likely one of:
-  1. the building XML shape/order is still wrong for RU’s schema,
-  2. the property XML placement of `<BuildingID>` is still wrong,
-  3. RU accepts the request but ignores the fields silently.
+## Fix: RU Seasons/Prices Not Pushed + Beds Warning
 
-Implementation plan
-1. Add proper request typing and diagnostics
-- Extend the `RequestBody` type in `supabase/functions/rentalsunited-api/index.ts` to explicitly include `unit_types`.
-- Return/log the exact compact XML used for `push_building` and `push_property` so we can confirm the live payload, not just assume it.
+### Root Causes Found
 
-2. Rework RU building XML to match schema more defensively
-- Update `buildPushBuildingXml` to support the exact field ordering/shape RU expects.
-- Make the composition block builder isolated so we can adjust tag names/order without touching the rest of the adapter.
-- Keep name truncation, but preserve original room-type naming logic from the property data.
+**1. Seasons/Prices: Rate key mismatch**
+The `resolveUnitRateKey` function tries to look up rates using `hostfully_room_types.id` (UUID like `f042d323-...`) and `linked_rolos_id` (UUID like `c6a5bd41-...`). But the actual `season_rates` composite keys use the **amenity room_type ID** from `properties.amenities.room_types` (timestamp-based IDs like `1775237066341`).
 
-3. Re-audit property XML ordering around building assignment
-- Revisit `buildPushPropertyXml` and place `<BuildingID>` in the safest schema position relative to neighboring fields.
-- Ensure no unintended ordering regressions exist around `PropertyTypeID`, `NoOfUnits`, `Floor`, `BuildingID`, `Street`, and coordinates.
+Example: For SEESTER, the rate key is `1775218225666-1775237066341` (seasonId-amenityRoomId), but the code searches for `1775218225666-ea5b95f2-...` (seasonId-hostfullyId). No match is ever found, so **zero prices are pushed** to RU for any unit.
 
-4. Improve multi-unit push verification flow
-- In `push-property-to-ru`, include richer per-step results:
-  - building XML preview
-  - unit XML preview
-  - returned RU IDs
-- This makes failures visible in the UI instead of looking “successful” while RU ignores the linkage.
+**2. Beds: Missing bed amenity IDs in Rooms block**
+The `<Rooms>` section currently sends generic property amenities (wifi, parking, etc.) but never includes RU bed-type amenity IDs. RU requires bed definitions within the `<Room>` amenities using specific IDs (e.g., 97=Single bed, 98=Double bed, 99=King bed, 100=Sofa bed). The `<NumberOfBeds>` tag alone is insufficient — RU needs to know the bed *types*.
 
-5. End-to-end validation against live RU
-- Redeploy the RU functions.
-- Re-push one affected building (SEESIG) and one test building.
-- Verify whether unit types appear after the new payload shape.
-- If still not visible, inspect RU responses/logs and do one more schema correction pass before closing the task.
+### Changes
 
-Files to update
-- `supabase/functions/rentalsunited-api/index.ts`
-- `supabase/functions/push-property-to-ru/index.ts`
-- optionally `src/components/property/PushToRentalsUnited.tsx` if we surface the new diagnostics in the panel
+**1. `supabase/functions/push-property-to-ru/index.ts`**
 
-Expected outcome
-- RU building pushes use a schema-accurate composition payload.
-- Unit property pushes attach to the building with the correct XML ordering.
-- SEESIG and the test buildings show actual unit types in RU, not just a successful push response.
+- **Fix rate key resolution**: In `resolveUnitRateKey`, add the amenity room_type ID as a candidate key. Match the unit to its corresponding `amenities.room_types[]` entry by name, then use that entry's `id` for the composite key lookup. This is the only way the `seasonId-roomId` keys in `season_rates` will resolve.
 
-Technical note
-Right now the code proves the earlier hypothesis was incomplete: the Composition block and BuildingID assignment are already present. The next fix must focus on exact RU XML compatibility plus live verification, not just adding more fields.
+- **Add bed amenities to Rooms block**: In `buildUnitPayload`, map `bed_configuration` entries to RU bed amenity IDs:
+  - `single` → amenity ID 97
+  - `double` → amenity ID 98  
+  - `king` → amenity ID 99
+  - `sofa` → amenity ID 100
+  - `bunk` → amenity ID 101
+  
+  Include these in the `rooms` array with `count` set to the actual bed count from the configuration.
+
+**2. `supabase/functions/rentalsunited-api/index.ts`**
+- No changes needed. The `buildPushPropertyXml` and `buildPushPricesXml` functions are correct — they just never receive data due to the key mismatch upstream.
+
+### Expected Outcome
+- Each unit push includes bed-type amenities in `<Room>`, resolving the "Add sufficient amount of beds" warning.
+- Each unit push is followed by a successful `push_prices` call with the correct per-unit rates per season, resolving the "Please add more seasons with defined prices" warning.
+
