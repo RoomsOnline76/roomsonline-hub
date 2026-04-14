@@ -41,6 +41,19 @@ const AMENITY_MAP: Record<string, number> = {
   cctv: 73, alarm: 74,
 };
 
+// RU bed-type amenity IDs — must be included in <Room> amenities
+const BED_AMENITY_MAP: Record<string, number> = {
+  single: 97,
+  twin: 97,
+  double: 98,
+  queen: 98,
+  king: 99,
+  'king-twin': 99,
+  'sofa-bed': 100,
+  sofa: 100,
+  bunk: 101,
+};
+
 const PAYMENT_METHOD_MAP: Record<string, number> = {
   cash: 1, visa: 2, mastercard: 3, amex: 4, bank_transfer: 5, paypal: 6,
   credit_card: 2, debit_card: 2, eft: 5,
