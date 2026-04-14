@@ -609,7 +609,7 @@ Deno.serve(async (req) => {
         const errMsg = buildingErr?.message || buildingResult?.error?.message || 'Unknown error';
         console.error('[push-property-to-ru] Building push failed:', errMsg);
         return new Response(
-          JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg } }),
+          JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg }, diagnostics: buildingResult?.diagnostics }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -663,6 +663,7 @@ Deno.serve(async (req) => {
             room_type_id: unit.id,
             success: true,
             rentalsunited_property_id: unitRuId,
+            diagnostics: pushResult?.diagnostics,
             ...ariResult,
           });
         } else {
@@ -672,6 +673,7 @@ Deno.serve(async (req) => {
             room_type_id: unit.id,
             success: true,
             rentalsunited_property_id: unitRuId,
+            diagnostics: pushResult?.diagnostics,
             availability_error: 'Skipped — no valid RU property ID',
             prices_error: 'Skipped — no valid RU property ID',
           });
@@ -686,6 +688,7 @@ Deno.serve(async (req) => {
           multi_unit: true,
           property_id,
           building_id: buildingId,
+          building_diagnostics: buildingResult?.diagnostics || null,
           units: unitResults,
           building_assignment: { success: true, note: 'Units assigned via BuildingID in property XML' },
           message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
