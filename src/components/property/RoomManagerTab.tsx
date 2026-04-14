@@ -299,12 +299,24 @@ export function RoomManagerTab({
 
     if (supportedFiles.length === 0) return;
 
+    // Validate dimensions before uploading
+    const validFiles: File[] = [];
+    for (const file of supportedFiles) {
+      const dims = await validateImageDimensions(file);
+      if (!dims.valid) {
+        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+      } else {
+        validFiles.push(file);
+      }
+    }
+    if (validFiles.length === 0) { return; }
+
     setIsRoomImageUploading(true);
     const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
     const existingImages = [...(currentRoom?.images || [])];
 
-    for (let i = 0; i < supportedFiles.length; i++) {
-      const file = supportedFiles[i];
+    for (let i = 0; i < validFiles.length; i++) {
+      const file = validFiles[i];
       try {
         const fileExt = file.name.split(".").pop();
         const fileName = `room-${selectedRoomType}-${Date.now()}-${i}.${fileExt}`;

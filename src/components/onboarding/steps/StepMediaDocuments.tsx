@@ -102,6 +102,12 @@ export function StepMediaDocuments({
           continue;
         }
 
+        const dims = await validateImageDimensions(file);
+        if (!dims.valid) {
+          toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+          continue;
+        }
+
         const ext = file.name.split('.').pop();
         const filename = `${propertyData.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
 

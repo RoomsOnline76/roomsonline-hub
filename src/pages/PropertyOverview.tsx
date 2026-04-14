@@ -177,6 +177,13 @@ const PropertyOverview = () => {
     setUploadingCell(cellKey);
     
     try {
+      const dims = await validateImageDimensions(file);
+      if (!dims.valid) {
+        toast({ title: "Image too small", description: getValidationErrorMessage(file.name, dims.width, dims.height), variant: "destructive" });
+        setUploadingCell(null);
+        return;
+      }
+
       const fileExt = file.name.split(".").pop();
       const fileName = `book-page/${columnType}-row${rowPosition}-${Date.now()}.${fileExt}`;
       
