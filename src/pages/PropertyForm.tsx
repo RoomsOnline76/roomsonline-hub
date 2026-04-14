@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { z } from "zod";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";

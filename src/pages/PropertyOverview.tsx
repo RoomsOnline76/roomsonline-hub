@@ -14,6 +14,7 @@ import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, Arrow
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getPropertyUrl } from "@/lib/config";

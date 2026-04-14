@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateImageDimensions, getValidationErrorMessage } from "@/lib/imageValidation";
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry } from "@/lib/bedConfig";
 import { cn } from "@/lib/utils";
