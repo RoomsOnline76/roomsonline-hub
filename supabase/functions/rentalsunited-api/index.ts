@@ -382,6 +382,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     ${cleaningPriceXml}
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
+    <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
     <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
