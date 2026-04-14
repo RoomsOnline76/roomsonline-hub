@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
     const report: { property: string; file: string; width: number; height: number; action: string }[] = [];
     let deletedCount = 0;
 
-    for (const prop of properties || []) {
+    console.log(`Processing ${(properties || []).length} properties...`);
       const images: string[] = Array.isArray(prop.images) ? prop.images : [];
       const roomTypes: any[] = prop.amenities?.room_types || [];
 
