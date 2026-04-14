@@ -583,7 +583,25 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { property_id, dry_run } = await req.json();
+    const { property_id, dry_run, subscribe_rlnm } = await req.json();
+
+    // Optional: subscribe RLNM before pushing
+    if (subscribe_rlnm) {
+      const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
+      console.log(`[push-property-to-ru] Subscribing RLNM handler: ${handlerUrl}`);
+      try {
+        const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'subscribe_notifications', handler_url: handlerUrl },
+        });
+        if (rlnmErr || !rlnmResult?.success) {
+          console.warn(`[push-property-to-ru] RLNM subscription failed:`, rlnmErr?.message || rlnmResult?.error?.message);
+        } else {
+          console.log(`[push-property-to-ru] RLNM subscription OK`);
+        }
+      } catch (e) {
+        console.warn(`[push-property-to-ru] RLNM error:`, e instanceof Error ? e.message : e);
+      }
+    }
 
     if (!property_id) {
       return new Response(
