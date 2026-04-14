@@ -1,60 +1,52 @@
-## Set Tiered Cancellation Policy for All ROL'OS Properties
 
-### What This Does
+Goal: finish the RU unit-type fix properly. The previous work is not complete because the current code already sends both pieces we thought were missing, yet RU buildings still show 0 unit types.
 
-Replaces the single-tier cancellation logic with a multi-tier system and sets the following default for all 32 active ROL'OS properties:
+What I verified
+- `push-property-to-ru` already aggregates active room types and sends `unit_types` in the building push.
+- `rentalsunited-api` already sends:
+  - building XML with `<Composition><UnitsComposition>...`
+  - property XML with `<BuildingID>`
+- So the unresolved issue is no longer “missing logic”; it is most likely one of:
+  1. the building XML shape/order is still wrong for RU’s schema,
+  2. the property XML placement of `<BuildingID>` is still wrong,
+  3. RU accepts the request but ignores the fields silently.
 
+Implementation plan
+1. Add proper request typing and diagnostics
+- Extend the `RequestBody` type in `supabase/functions/rentalsunited-api/index.ts` to explicitly include `unit_types`.
+- Return/log the exact compact XML used for `push_building` and `push_property` so we can confirm the live payload, not just assume it.
 
-| Window                                  | Deposit Refund |
-| --------------------------------------- | -------------- |
-| >2 months (60 days) before check-in     | 100% refunded  |
-| 1–2 months (30–60 days) before check-in | 50% refunded   |
-| <1 month (30 days) before check-in      | 0% refunded    |
+2. Rework RU building XML to match schema more defensively
+- Update `buildPushBuildingXml` to support the exact field ordering/shape RU expects.
+- Make the composition block builder isolated so we can adjust tag names/order without touching the rest of the adapter.
+- Keep name truncation, but preserve original room-type naming logic from the property data.
 
+3. Re-audit property XML ordering around building assignment
+- Revisit `buildPushPropertyXml` and place `<BuildingID>` in the safest schema position relative to neighboring fields.
+- Ensure no unintended ordering regressions exist around `PropertyTypeID`, `NoOfUnits`, `Floor`, `BuildingID`, `Street`, and coordinates.
 
-### Changes
+4. Improve multi-unit push verification flow
+- In `push-property-to-ru`, include richer per-step results:
+  - building XML preview
+  - unit XML preview
+  - returned RU IDs
+- This makes failures visible in the UI instead of looking “successful” while RU ignores the linkage.
 
-**1. Data Update — All 32 ROL'OS property policies**
-Update all existing `rolos_policies` rows (policy_type = 'cancellation') for ROL'OS properties with:
+5. End-to-end validation against live RU
+- Redeploy the RU functions.
+- Re-push one affected building (SEESIG) and one test building.
+- Verify whether unit types appear after the new payload shape.
+- If still not visible, inspect RU responses/logs and do one more schema correction pass before closing the task.
 
-```json
-{
-  "mode": "standard",
-  "non_refundable": false,
-  "tiers": [
-    { "days_before": 60, "forfeit_percent": 0 },
-    { "days_before": 30, "forfeit_percent": 50 },
-    { "days_before": 0, "forfeit_percent": 100 }
-  ]
-}
-```
+Files to update
+- `supabase/functions/rentalsunited-api/index.ts`
+- `supabase/functions/push-property-to-ru/index.ts`
+- optionally `src/components/property/PushToRentalsUnited.tsx` if we surface the new diagnostics in the panel
 
-The `tiers` array is evaluated top-down: if days until check-in >= 60, use 0% forfeit; if >= 30, use 50%; otherwise 100%.
+Expected outcome
+- RU building pushes use a schema-accurate composition payload.
+- Unit property pushes attach to the building with the correct XML ordering.
+- SEESIG and the test buildings show actual unit types in RU, not just a successful push response.
 
-**2. `src/lib/policyFormatter.ts**`
-
-- Add `tiers?: Array<{ days_before: number; forfeit_percent: number }>` to `CancellationRule`
-- Update `formatCancellationPolicy` to check for `tiers` first: iterate tiers (sorted descending by `days_before`), find the matching tier based on days until check-in, and use that tier's `forfeit_percent`
-- Generate a multi-line summary text describing all tiers
-
-**3. `supabase/functions/experience-engine/index.ts**`
-
-- Update the cancellation_policy evaluation block (lines 96–127) to handle `tiers`: same logic as the formatter — iterate tiers to find the applicable forfeit percentage based on days until check-in
-
-**4. `src/components/property/PoliciesTab.tsx**`
-
-- Add UI for managing tiers: a list of tier rows (days_before + forfeit_percent) with add/remove buttons
-- When `tiers` is present, hide the single days_before/forfeit_percent fields and show the tiers editor instead
-- Keep backward compatibility with single-tier rules
-
-**5. `src/components/booking/CancelBookingModal.tsx` and `src/pages/GuestPortal.tsx**`
-
-- No changes needed — these consume the `evaluation` object from the experience engine, which already returns `forfeit_percent`, `forfeit_amount`, `is_free_cancel`. The tiered logic is resolved server-side.
-
-### Technical Notes
-
-- Tiers are always sorted descending by `days_before` for evaluation
-- The `days_before` and `forfeit_percent` root-level fields are kept for backward compatibility with any properties not using tiers
-- `forfeit_percent: 0` means 100% deposit refunded; `forfeit_percent: 100` means 0% refunded
-
-there already exist a cancellation UI capturing frame on page  /edit property/ house rules/ cancellation Policies. this update should merge/work with this  as this UI elelment is commopn for all properties in the system
+Technical note
+Right now the code proves the earlier hypothesis was incomplete: the Composition block and BuildingID assignment are already present. The next fix must focus on exact RU XML compatibility plus live verification, not just adding more fields.
