@@ -56,9 +56,9 @@ interface RUImage {
 }
 
 interface RUCancellationPolicy {
-  valid_from: string;
-  valid_to: string;
-  rules: { from_days: number; to_days: number; percentage: number }[];
+  valid_from: number;
+  valid_to: number;
+  percentage: number;
 }
 
 interface RUPropertyPayload {
@@ -328,14 +328,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   const cancellationPoliciesXml = prop.cancellation_policies
-    .map(cp => {
-      const rulesXml = cp.rules
-        .map(r => `<CancellationPolicyRule DateFrom="${r.from_days}" DateTo="${r.to_days}" PercentPrice="${r.percentage}" />`)
-        .join('\n          ');
-      return `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">
-        ${rulesXml}
-      </CancellationPolicy>`;
-    })
+    .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
   // Build CheckInOut block
