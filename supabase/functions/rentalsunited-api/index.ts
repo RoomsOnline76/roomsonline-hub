@@ -95,6 +95,7 @@ interface RUPropertyPayload {
   check_in_to?: string;
   check_out_until?: string;
   check_in_place?: string;
+  building_id?: number;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -144,6 +145,9 @@ interface RequestBody {
   handler_url?: string;
   discounts?: RUDiscountEntry[];
   search_terms?: string;
+  // Building payloads
+  building_name?: string;
+  building_id?: number;
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -385,7 +389,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
-    <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
+    <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
     <Floor>${prop.floor}</Floor>
     <Street>${escapeXml(prop.street)}</Street>
     <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
@@ -505,6 +509,35 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
     <PropertyID>${propertyId}</PropertyID>
   </PropertyIDs>
 </Push_SetPropertiesStatus_RQ>`;
+}
+
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string): string {
+  return `<Push_PutBuilding_RQ>
+  ${buildAuthXml(creds)}
+  <Building>
+    <BuildingID>${buildingId}</BuildingID>
+    <BuildingName>${escapeXml(buildingName)}</BuildingName>
+  </Building>
+</Push_PutBuilding_RQ>`;
+}
+
+function buildListBuildingsXml(creds: RUCredentials): string {
+  return `<Pull_ListBuildings_RQ>${buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
+}
+
+function extractBuildingId(xml: string): string | null {
+  const match = xml.match(/<BuildingID>(\d+)<\/BuildingID>/);
+  return match?.[1] || null;
+}
+
+function extractBuildings(xml: string): { id: string; name: string }[] {
+  const regex = /<Building>[\s\S]*?<BuildingID>(\d+)<\/BuildingID>[\s\S]*?<BuildingName>(.*?)<\/BuildingName>[\s\S]*?<\/Building>/g;
+  const results: { id: string; name: string }[] = [];
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    results.push({ id: match[1], name: match[2].trim() });
+  }
+  return results;
 }
 
 // ── Action Handlers ──────────────────────────────────────────
@@ -803,6 +836,29 @@ Deno.serve(async (req) => {
       const locMatch = response.match(/LocationID="(\d+)"/);
       const locationId = locMatch ? parseInt(locMatch[1], 10) : null;
       return jsonResponse({ success: true, location_id: locationId, raw_xml: response });
+    }
+
+    // ── push_building ──
+    if (action === 'push_building') {
+      if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
+      const bId = body.building_id || 0;
+      const xml = buildPushBuildingXml(creds, bId, body.building_name);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const buildingId = extractBuildingId(response);
+      return jsonResponse({ success: true, building_id: buildingId ? parseInt(buildingId, 10) : null, message: 'Building pushed successfully', raw_xml: response });
+    }
+
+    // ── list_buildings ──
+    if (action === 'list_buildings') {
+      const xml = buildListBuildingsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const buildings = extractBuildings(response);
+      return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
     }
 
     // Unknown action
