@@ -85,9 +85,16 @@ interface RUPropertyPayload {
   no_of_units?: number;
   cleaning_price?: number;
   security_deposit?: number;
+  arrival_landlord?: string;
+  arrival_email?: string;
+  arrival_phone?: string;
+  arrival_days_before?: number;
+  arrival_pickup_service?: string | null;
+  arrival_how_to_arrive?: string | null;
   check_in_from?: string;
   check_in_to?: string;
   check_out_until?: string;
+  check_in_place?: string;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -310,6 +317,11 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
 // ── Push XML Builders ────────────────────────────────────────
 
 function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RUPropertyPayload): string {
+  const buildOptionalNode = (tag: string, value?: string | null) => {
+    const normalized = value?.trim();
+    return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
+  };
+
   const amenitiesXml = prop.amenities
     .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
     .join('\n      ');
@@ -336,18 +348,26 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   const cleaningPriceXml = `<CleaningPrice>${prop.cleaning_price ?? 0}</CleaningPrice>`;
+  const arrivalInstructionsXml = `<ArrivalInstructions>
+      <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
+      <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
+      <Phone>${escapeXml(prop.arrival_phone || '+27 824602220')}</Phone>
+      <DaysBeforeArrival>${Math.max(0, Math.trunc(prop.arrival_days_before ?? 0))}</DaysBeforeArrival>
+      ${buildOptionalNode('PickupService', prop.arrival_pickup_service)}
+      ${buildOptionalNode('HowToArrive', prop.arrival_how_to_arrive)}
+    </ArrivalInstructions>`;
 
   // Build CheckInOut block
   const checkInOutXml = `<CheckInOut>
       <CheckInFrom>${prop.check_in_from || '14:00'}</CheckInFrom>
       <CheckInTo>${prop.check_in_to || '22:00'}</CheckInTo>
       <CheckOutUntil>${prop.check_out_until || '10:00'}</CheckOutUntil>
-      <Place>apartment</Place>
+      <Place>${escapeXml(prop.check_in_place || 'at_the_apartment')}</Place>
     </CheckInOut>`;
 
   // SecurityDeposit with required DepositTypeID attribute
   const securityDepositXml = prop.security_deposit != null
-    ? `\n    <SecurityDeposit DepositTypeID="5">${prop.security_deposit}</SecurityDeposit>` : '';
+    ? `\n    <SecurityDeposit DepositTypeID="${prop.security_deposit > 0 ? 5 : 0}">${Number(prop.security_deposit).toFixed(2)}</SecurityDeposit>` : '';
 
   // Strict XSD element order per RU documentation
   return `<Push_PutProperty_RQ>
@@ -372,6 +392,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
     </Coordinates>
+    ${arrivalInstructionsXml}
     <Amenities>
       ${amenitiesXml}
     </Amenities>

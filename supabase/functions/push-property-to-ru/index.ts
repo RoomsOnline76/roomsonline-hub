@@ -84,6 +84,7 @@ interface RoomTypeRow {
   property_type: string | null;
   cancellation_policy: string | null;
   room_size: number | null;
+  check_in_instructions: string | null;
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -251,9 +252,15 @@ function buildRUPayload(
 
   // Check-in/out: read from property amenities.house_rules, then room type, then defaults
   const houseRules = (amenities as any)?.house_rules || {};
+  const contact = (amenities as any)?.contact || {};
   const checkInFrom = houseRules.check_in_from || primaryRoom?.check_in_time || '14:00';
   const checkInTo = houseRules.check_in_to || '22:00';
   const checkOutUntil = houseRules.check_out_to || primaryRoom?.check_out_time || '10:00';
+  const arrivalLandlord = contact.name || contact.full_name || property.name || 'RoomsOnline';
+  const arrivalEmail = (amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za';
+  const arrivalPhone = (amenities as any)?.telephone || (amenities as any)?.mobile_number || contact.telephone || contact.phone || '+27 824602220';
+  const arrivalHowToArrive = primaryRoom?.check_in_instructions || houseRules.check_in_instructions || '';
+  const arrivalDaysBefore = toFiniteNumber(houseRules.days_before_arrival) ?? 0;
 
   // Deposit/prepayment + security deposit from amenities.banking or room type
   const banking = (amenities as any)?.banking || {};
@@ -331,9 +338,15 @@ function buildRUPayload(
     cleaning_price: cleaningPrice,
     cancellation_policies: cancellationPolicies,
     security_deposit: securityDeposit,
+    arrival_landlord: String(arrivalLandlord),
+    arrival_email: String(arrivalEmail),
+    arrival_phone: String(arrivalPhone),
+    arrival_days_before: arrivalDaysBefore,
+    arrival_how_to_arrive: String(arrivalHowToArrive),
     check_in_from: checkInFrom,
     check_in_to: checkInTo,
     check_out_until: checkOutUntil,
+    check_in_place: 'at_the_apartment',
   };
 }
 
@@ -384,7 +397,7 @@ Deno.serve(async (req) => {
     // Load room types
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
-      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, amenities, images, check_in_time, check_out_time, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size')
+      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size')
       .eq('property_id', property_id)
       .eq('is_active', true);
 
