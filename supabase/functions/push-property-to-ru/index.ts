@@ -389,7 +389,12 @@ interface UnitContext {
   linked_rolos_id?: string | null;
 }
 
-function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): number | null {
+interface ResolvedRate {
+  price: number;
+  extra_guest_price?: number;
+}
+
+function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): ResolvedRate | null {
   // Try multiple keys to find the rate for this specific unit
   // The critical insight: season_rates uses amenity room_type IDs (timestamp-based like "1775237066341"),
   // NOT hostfully_room_types UUIDs. We must match by name to find the amenity room_type entry.
@@ -417,25 +422,30 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
       const compositeKey = `${seasonId}-${roomKey}`;
       const entry = (rateData as Record<string, any>)[compositeKey];
       if (entry && typeof entry === 'object' && typeof (entry as any).roomAmount === 'number' && (entry as any).roomAmount > 0) {
-        console.log(`[resolveUnitRateKey] Found rate ${(entry as any).roomAmount} via key "${compositeKey}"`);
-        return (entry as any).roomAmount;
+        const adultAmt = typeof (entry as any).adultAmount === 'number' && (entry as any).adultAmount > 0 ? (entry as any).adultAmount : undefined;
+        console.log(`[resolveUnitRateKey] Found rate ${(entry as any).roomAmount} (extra guest: ${adultAmt ?? 'none'}) via key "${compositeKey}"`);
+        return { price: (entry as any).roomAmount, extra_guest_price: adultAmt };
       }
     }
   }
 
   // Fallback: find lowest rate for this season across all entries
   let lowest = Infinity;
+  let lowestExtraGuest: number | undefined;
   for (const [, rateData] of Object.entries(seasonRates)) {
     if (typeof rateData !== 'object' || rateData === null) continue;
     for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
       if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
         const amount = (subData as any).roomAmount;
-        if (typeof amount === 'number' && amount > 0 && amount < lowest) lowest = amount;
+        if (typeof amount === 'number' && amount > 0 && amount < lowest) {
+          lowest = amount;
+          lowestExtraGuest = typeof (subData as any).adultAmount === 'number' && (subData as any).adultAmount > 0 ? (subData as any).adultAmount : undefined;
+        }
       }
     }
   }
-  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} for season ${seasonId}`);
-  return lowest < Infinity ? lowest : null;
+  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} (extra guest: ${lowestExtraGuest ?? 'none'}) for season ${seasonId}`);
+  return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtraGuest } : null;
 }
 
 async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext) {
