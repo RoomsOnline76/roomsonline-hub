@@ -511,6 +511,35 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string): string {
+  return `<Push_PutBuilding_RQ>
+  ${buildAuthXml(creds)}
+  <Building>
+    <BuildingID>${buildingId}</BuildingID>
+    <BuildingName>${escapeXml(buildingName)}</BuildingName>
+  </Building>
+</Push_PutBuilding_RQ>`;
+}
+
+function buildListBuildingsXml(creds: RUCredentials): string {
+  return `<Pull_ListBuildings_RQ>${buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
+}
+
+function extractBuildingId(xml: string): string | null {
+  const match = xml.match(/<BuildingID>(\d+)<\/BuildingID>/);
+  return match?.[1] || null;
+}
+
+function extractBuildings(xml: string): { id: string; name: string }[] {
+  const regex = /<Building>[\s\S]*?<BuildingID>(\d+)<\/BuildingID>[\s\S]*?<BuildingName>(.*?)<\/BuildingName>[\s\S]*?<\/Building>/g;
+  const results: { id: string; name: string }[] = [];
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    results.push({ id: match[1], name: match[2].trim() });
+  }
+  return results;
+}
+
 // ── Action Handlers ──────────────────────────────────────────
 
 function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
