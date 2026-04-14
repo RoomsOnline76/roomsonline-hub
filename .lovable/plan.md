@@ -1,36 +1,52 @@
 
 
-## Fix: RU Seasons/Prices Not Pushed + Beds Warning
+## Image Minimum Size Validation (1024×683 px)
 
-### Root Causes Found
+### What This Does
+Adds a global minimum image dimension requirement of **1024×683 pixels** to all property and room image uploads. Also creates a one-time cleanup script to audit and remove existing undersized images from storage and database references.
 
-**1. Seasons/Prices: Rate key mismatch**
-The `resolveUnitRateKey` function tries to look up rates using `hostfully_room_types.id` (UUID like `f042d323-...`) and `linked_rolos_id` (UUID like `c6a5bd41-...`). But the actual `season_rates` composite keys use the **amenity room_type ID** from `properties.amenities.room_types` (timestamp-based IDs like `1775237066341`).
+### Scope — Which uploads get validated
+- **Property gallery images** (`PropertyForm.tsx` — main property images)
+- **Room type images** (`RoomManagerTab.tsx` — room-specific images)
+- **Room type images** (`PropertyForm.tsx` — duplicate room upload handler)
+- **Onboarding property images** (`StepMediaDocuments.tsx`)
+- **Book page images** (`PropertyOverview.tsx`)
 
-Example: For SEESTER, the rate key is `1775218225666-1775237066341` (seasonId-amenityRoomId), but the code searches for `1775218225666-ea5b95f2-...` (seasonId-hostfullyId). No match is ever found, so **zero prices are pushed** to RU for any unit.
-
-**2. Beds: Missing bed amenity IDs in Rooms block**
-The `<Rooms>` section currently sends generic property amenities (wifi, parking, etc.) but never includes RU bed-type amenity IDs. RU requires bed definitions within the `<Room>` amenities using specific IDs (e.g., 97=Single bed, 98=Double bed, 99=King bed, 100=Sofa bed). The `<NumberOfBeds>` tag alone is insufficient — RU needs to know the bed *types*.
+**Excluded** (not photo content): logos, favicons, hero videos, journal images, addon images, package images.
 
 ### Changes
 
-**1. `supabase/functions/push-property-to-ru/index.ts`**
+**1. `src/lib/imageValidation.ts`** (new file)
+- Export `MIN_IMAGE_WIDTH = 1024` and `MIN_IMAGE_HEIGHT = 683`
+- Export `validateImageDimensions(file: File): Promise<{ valid: boolean; width: number; height: number }>` — loads file into an `Image` element via `createObjectURL`, resolves with dimensions
+- Export a helper `getValidationErrorMessage(width, height)` for consistent toast text
 
-- **Fix rate key resolution**: In `resolveUnitRateKey`, add the amenity room_type ID as a candidate key. Match the unit to its corresponding `amenities.room_types[]` entry by name, then use that entry's `id` for the composite key lookup. This is the only way the `seasonId-roomId` keys in `season_rates` will resolve.
+**2. Add validation to all 5 upload handlers**
+Each handler gets a dimension check before the storage upload call:
 
-- **Add bed amenities to Rooms block**: In `buildUnitPayload`, map `bed_configuration` entries to RU bed amenity IDs:
-  - `single` → amenity ID 97
-  - `double` → amenity ID 98  
-  - `king` → amenity ID 99
-  - `sofa` → amenity ID 100
-  - `bunk` → amenity ID 101
-  
-  Include these in the `rooms` array with `count` set to the actual bed count from the configuration.
+- **`src/pages/PropertyForm.tsx`** — property gallery upload (~line 2597) and room image upload (~line 952): wrap each file in `validateImageDimensions()`, skip with toast if undersized
+- **`src/components/property/RoomManagerTab.tsx`** — `handleRoomImageUpload` (~line 306): same check
+- **`src/components/onboarding/steps/StepMediaDocuments.tsx`** — `handleImageUpload` (~line 96): same check
+- **`src/pages/PropertyOverview.tsx`** — `handleBookPageImageUpload` (~line 179): same check
 
-**2. `supabase/functions/rentalsunited-api/index.ts`**
-- No changes needed. The `buildPushPropertyXml` and `buildPushPricesXml` functions are correct — they just never receive data due to the key mismatch upstream.
+Pattern applied to each:
+```typescript
+const dims = await validateImageDimensions(file);
+if (!dims.valid) {
+  toast({ title: "Image too small", description: `${file.name} is ${dims.width}×${dims.height}px. Minimum required: 1024×683px.`, variant: "destructive" });
+  continue; // or return
+}
+```
 
-### Expected Outcome
-- Each unit push includes bed-type amenities in `<Room>`, resolving the "Add sufficient amount of beds" warning.
-- Each unit push is followed by a successful `push_prices` call with the correct per-unit rates per season, resolving the "Please add more seasons with defined prices" warning.
+**3. Cleanup edge function: `supabase/functions/cleanup-undersized-images/index.ts`** (new)
+- Queries all properties, iterates their `images` arrays and `amenities.room_types[].images`
+- For each image URL, fetches the image and checks dimensions server-side (using a canvas-less approach: fetch headers or decode dimensions from the binary)
+- If undersized: removes the file from `property-images` storage bucket and removes the URL from the property's image array
+- Returns a report of deleted files
+- This is a one-time admin-triggered function, not automated
+
+### Technical Notes
+- Client-side validation uses `new Image()` + `URL.createObjectURL()` — works in all browsers, no library needed
+- The cleanup function uses image header parsing (JPEG SOF marker / PNG IHDR chunk) to read dimensions without fully decoding — fast and memory-efficient
+- Logos and branding assets are intentionally excluded since they have different size requirements
 
