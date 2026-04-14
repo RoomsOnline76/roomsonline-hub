@@ -356,19 +356,19 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                   <p className="text-[10px] text-muted-foreground">XML error at position {diagnostics.xml_error_position} of {diagnostics.xml_length}</p>
                 )}
                 {diagnostics?.xml_context && (
-                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-20">{diagnostics.xml_context}</pre>
+                  <pre className="text-[10px] bg-muted rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-20">{diagnostics.xml_context}</pre>
                 )}
               </AlertDescription>
             </Alert>
           )}
 
           {validation && isReady && (
-            <Alert className="border-green-500/30 bg-green-500/5">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-xs font-medium text-green-700">
+            <Alert className="border-border bg-muted/30">
+              <CheckCircle className="h-4 w-4 text-foreground" />
+              <AlertTitle className="text-xs font-medium text-foreground">
                 {isMultiUnit ? `Building ready — ${validation.total_units} units` : "Ready to push"}
               </AlertTitle>
-              <AlertDescription className="text-xs text-green-600">
+              <AlertDescription className="text-xs text-foreground">
                 {isMultiUnit
                   ? `${validation.total_units} units · All have ≥10 images & amenities · Coordinates set`
                   : `${validation.images_count} images · ${validation.amenities_count} amenities · ${validation.rooms_count} rooms · Coordinates set`}
@@ -381,9 +381,9 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
               <Building2 className="h-4 w-4" />
               <AlertTitle className="text-xs font-medium">Building XML</AlertTitle>
               <AlertDescription className="space-y-1 text-xs">
-                <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.request_preview}</pre>
+                <pre className="text-[10px] bg-muted rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.request_preview}</pre>
                 {buildingDiagnostics.response_preview && (
-                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.response_preview}</pre>
+                  <pre className="text-[10px] bg-muted rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{buildingDiagnostics.response_preview}</pre>
                 )}
               </AlertDescription>
             </Alert>
@@ -399,7 +399,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                 return (
                   <div key={unit.room_type_id} className="flex items-center justify-between text-xs border rounded px-2 py-1">
                     <div className="flex items-center gap-2">
-                      {ready ? <CheckCircle className="h-3 w-3 text-green-600" /> : <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                      {ready ? <CheckCircle className="h-3 w-3 text-foreground" /> : <AlertTriangle className="h-3 w-3 text-muted-foreground" />}
                       <span className="font-medium">{unit.name}</span>
                       {editingUnitRuId === unit.room_type_id ? (
                         <div className="flex items-center gap-1">
@@ -433,9 +433,9 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
             <div className="space-y-1">
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Push Results</p>
               {unitResults.map((ur) => (
-                <div key={ur.room_type_id} className={`flex items-center justify-between text-xs border rounded px-2 py-1 ${ur.success ? "border-green-500/30" : "border-red-500/30"}`}>
+                <div key={ur.room_type_id} className={`flex items-center justify-between text-xs border rounded px-2 py-1 ${ur.success ? "border-border" : "border-destructive/30"}`}>
                   <div className="flex items-center gap-2">
-                    {ur.success ? <CheckCircle className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-red-500" />}
+                    {ur.success ? <CheckCircle className="h-3 w-3 text-foreground" /> : <X className="h-3 w-3 text-destructive" />}
                     <span className="font-medium">{ur.name}</span>
                     {ur.rentalsunited_property_id && <Badge variant="outline" className="text-[10px] h-4 px-1">RU: {ur.rentalsunited_property_id}</Badge>}
                   </div>
@@ -446,7 +446,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
                         {ur.prices_pushed && <Badge variant="secondary" className="text-[9px] h-4 px-1">Prices ✓</Badge>}
                       </>
                     ) : (
-                      <span className="text-red-500 truncate max-w-[200px]">{ur.error}</span>
+                      <span className="text-destructive truncate max-w-[200px]">{ur.error}</span>
                     )}
                   </div>
                 </div>
@@ -460,9 +460,9 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
               {unitResults.filter((ur) => ur.diagnostics?.request_preview).map((ur) => (
                 <div key={`${ur.room_type_id}-xml`} className="border rounded px-2 py-1 space-y-1">
                   <p className="text-xs font-medium">{ur.name}</p>
-                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics?.request_preview}</pre>
+                  <pre className="text-[10px] bg-muted rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics?.request_preview}</pre>
                   {ur.diagnostics?.response_preview && (
-                    <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics.response_preview}</pre>
+                    <pre className="text-[10px] bg-muted rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-24">{ur.diagnostics.response_preview}</pre>
                   )}
                 </div>
               ))}
@@ -470,13 +470,13 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           )}
 
           {validation && !isReady && issues.length > 0 && (
-            <Alert variant="destructive" className="border-amber-500/30 bg-amber-500/5">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-xs font-medium text-amber-700">Missing requirements:</AlertTitle>
+            <Alert variant="destructive" className="border-border bg-muted/30">
+              <AlertTriangle className="h-4 w-4 text-foreground" />
+              <AlertTitle className="text-xs font-medium text-foreground">Missing requirements:</AlertTitle>
               <AlertDescription>
                 <ul className="mt-1 space-y-1">
                   {issues.map((issue, i) => (
-                    <li key={i} className="flex items-center gap-2 text-xs text-amber-700">
+                    <li key={i} className="flex items-center gap-2 text-xs text-foreground">
                       <issue.icon className="h-3 w-3 flex-shrink-0" />
                       <span>{issue.label}</span>
                       <Badge variant="outline" className="text-[10px] h-4 px-1">{issue.tab} tab</Badge>
