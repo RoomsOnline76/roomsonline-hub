@@ -1,33 +1,41 @@
 
 
-## Add Push_PutAvbUnits_RQ Enhancements to RU Sync
+## Enhance Push_PutPrices_RQ: Extra Guest Pricing + 365-Day Coverage
 
-### Current State
-- The `push_availability` action and XML builder **already exist** in `rentalsunited-api` and support `units`, `min_stay`, and `changeover` attributes.
-- `pushARI` in `push-property-to-ru` already calls it with season-based periods covering 365 days (with a filler period to fill gaps).
-- The cron job exists but runs **weekly** (`0 2 * * 0` = Sunday 2 AM). RU requires **daily**.
-- **Changeover** is supported in the XML but never populated — it always defaults to omitting the attribute, which means RU uses its own default. There is no changeover preference stored in property data currently.
+### What's Already Working
+- `push_prices` action and XML builder exist in `rentalsunited-api` — already supports `<ExtraGuestPrice>` in the XML.
+- `pushARI` in `push-property-to-ru` already pushes prices per season with gap-filling to 365 days.
+- Daily cron refresh is already configured.
+
+### What's Missing
+
+**1. Extra guest pricing is never sent**
+`resolveUnitRateKey` returns only `roomAmount` (a single number). The `season_rates` entries also contain `adultAmount` (per-adult rate for guests above `StandardGuests`), but this value is never extracted or passed to `push_prices`. The `extra_guest_price` field in the XML builder is always `undefined`.
+
+**2. No fallback pricing when seasons have no rates**
+If no season rates resolve (all rates are 0 or missing), zero price entries are pushed. RU requires pricing for the next 365 days with price > 0.
 
 ### Changes
 
-**1. Change cron schedule from weekly to daily**
-- Update the `cron.job` entry from `0 2 * * 0` (weekly Sunday) to `0 2 * * *` (daily at 2 AM).
-- Uses `cron.alter_job` SQL via the insert tool (not migration, since it contains project-specific data).
+**`supabase/functions/push-property-to-ru/index.ts`**
 
-**2. Add changeover default to availability push (`push-property-to-ru/index.ts`)**
-- In `pushARI`, set `changeover: 3` (Both check-in and check-out allowed) as the default for all availability entries. This is the most flexible setting and matches ROL'OS's standard behavior.
-- If a property has a `changeover` field in amenities, use that instead. This makes it extensible for future per-property configuration.
-- Changeover values: `1` = CheckInOnly, `2` = CheckOutOnly, `3` = Both, `4` = NoActivity.
+1. **Change `resolveUnitRateKey` to return an object** instead of just a number:
+   - Return `{ price: number; extra_guest_price?: number }` containing both `roomAmount` and `adultAmount` (if > 0).
+   - The `adultAmount` field in `season_rates` represents the per-person nightly rate — this maps directly to RU's `ExtraGuestPrice`.
 
-**3. Ensure 365-day minimum coverage with at least 1 available day**
-- The current code already fills gaps to `oneYearStr`. Add a safety check: if no seasons exist at all, push a single entry covering today → today+365 with `units: 1`, `min_stay: 1`, `changeover: 3`. This guarantees at least 1 available day even for properties with no seasons configured.
+2. **Update price entry construction** in `pushARI`:
+   - Change the `priceEntries` type to include `extra_guest_price?: number`.
+   - When building entries from resolved rates, include the `extra_guest_price` from the rate object.
+   - Legacy single-unit path: also extract `adultAmount` alongside the lowest `roomAmount`.
+
+3. **Add fallback pricing** for 365-day coverage:
+   - If after processing all seasons `priceEntries` is still empty, push a single fallback entry from today → today+365 with `price: 1` (minimum valid price for RU compliance). Log a warning so it's visible in diagnostics.
 
 ### Files to Update
-- `supabase/functions/push-property-to-ru/index.ts` — add changeover + fallback coverage
-- Cron job SQL update via insert tool
+- `supabase/functions/push-property-to-ru/index.ts` — rate resolution + price entry construction + fallback
 
-### What This Does NOT Change
-- No new UI fields (changeover preference can be added later)
-- No changes to `rentalsunited-api/index.ts` (already supports changeover in XML)
-- No schema/migration changes
+### What Does NOT Change
+- `rentalsunited-api/index.ts` — XML builder already handles `ExtraGuestPrice` correctly
+- No schema or UI changes
+- No changes to cron schedule (already daily)
 
