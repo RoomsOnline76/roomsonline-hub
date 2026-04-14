@@ -1,59 +1,46 @@
 
 
-## Phase 2: Process RU RLNM Notifications into Bookings
+## Add Pull_ListReservations_RQ Polling (Every 30 Minutes)
 
 ### What This Does
-Upgrades the `ru-reservation-handler` edge function to create actual booking records in the `bookings` table when a confirmed reservation arrives from Rentals United, and cancel bookings when a cancellation notification arrives. Bookings created via RU channels are marked with a distinctive `booking_channel` value and visual badge so users can immediately identify them.
+Creates a new edge function that polls RU every 30 minutes for reservations from the last 7 days. This acts as a safety net alongside RLNM — catching any notifications that were missed or failed to deliver.
 
-### How RU Channel Bookings Will Be Marked
-- `booking_channel` = `'rentals_united'` — used for filtering, reporting, and channel breakdowns
-- `integration_type` = `'rentalsunited'` — consistent with existing integration type naming
-- `external_reservation_id` = RU reservation ID — for deduplication and cross-referencing
-- **UI**: An orange "RU" badge displayed next to the booking channel in the PMS Dashboard booking detail panel and the Bookings list page, making these bookings instantly recognizable
+### Current State
+- `list_reservations` action already exists in `rentalsunited-api` — accepts `date_from`/`date_to`, returns raw XML
+- `ru-reservation-handler` already has booking creation/cancellation logic
+- Cron infrastructure (`pg_cron` + `pg_net`) is already set up
 
 ### Changes
 
-**1. `supabase/functions/ru-reservation-handler/index.ts` — Major update**
+**1. New edge function: `supabase/functions/cron-pull-ru-reservations/index.ts`**
 
-Extract full reservation details from the RLNM XML:
-- `DateFrom` / `DateTo` → `check_in_date` / `check_out_date`
-- `NumberOfGuests` → `adults`
-- `GuestName` + `GuestSurname` → `guest_name`
-- `Email` → `guest_email`
-- `Phone` → `guest_phone`
-- `RUPrice` → `total_price`
-- `ReservationID` → `external_reservation_id`
-- `PropID` → resolve to `property_id` (existing logic) + `room_type_id` (from `hostfully_room_types`)
+- Calculates date range: today minus 7 days → today
+- Calls `rentalsunited-api` with `action: 'list_reservations'`
+- Parses the `Pull_ListReservations_RS` XML response to extract each `<Reservation>` block
+- For each reservation, extracts: `ReservationID`, `StatusID` (1=confirmed, 4=cancelled), `PropID`, `DateFrom`, `DateTo`, guest details, `RUPrice`
+- Resolves `PropID` to internal property/room type (same lookup as ru-reservation-handler)
+- For confirmed/modified reservations: upserts booking (insert if new, update dates/price/guest if existing) using `external_reservation_id` + `integration_type='rentalsunited'` for dedup
+- For cancelled reservations: updates existing booking to `status: 'cancelled'`
+- Logs each processed reservation to `ru_notifications` with `event_type` prefixed with `poll_` to distinguish from push notifications
+- Returns summary of processed/skipped/failed reservations
 
-For **confirmed reservations**:
-- Check if booking with same `external_reservation_id` already exists (dedup)
-- If not, insert into `bookings` with `booking_channel: 'rentals_united'`, `integration_type: 'rentalsunited'`, `status: 'confirmed'`, `payment_status: 'paid_externally'`
-- Mark `ru_notifications` row as `processed: true`
+**2. Register 30-minute cron job via SQL insert**
 
-For **cancelled reservations**:
-- Find existing booking by `external_reservation_id` and update `status: 'cancelled'`
-- Mark notification as processed
+```
+*/30 * * * *  →  cron-pull-ru-reservations
+```
 
-For **leads**:
-- Log only (no booking creation) — same as current behavior
+### Key Design Decisions
+- **Upsert logic**: If a booking with the same `external_reservation_id` already exists (created by RLNM), the poll updates it rather than creating a duplicate. This handles modification events that RLNM may have missed.
+- **7-day window**: Matches RU's documented limit. Wide enough to catch delayed or retried reservations.
+- **Rate limit awareness**: RU allows only 1 concurrent request and 1 per minute for this endpoint. A single call every 30 minutes is well within limits.
+- **`poll_` prefix on notification event types**: Makes it easy to distinguish poll-sourced vs push-sourced entries in `ru_notifications`.
 
-**2. `src/pages/pms/PMSDashboard.tsx` — Add RU channel badge**
+### Files to Create
+- `supabase/functions/cron-pull-ru-reservations/index.ts`
 
-In the booking detail panel where `booking_channel` is displayed (around line 2312-2316), add a colored badge for `rentals_united` channel:
-- Orange `Badge` with "RU" text and a distinctive icon
-- This makes RU-originated bookings visually distinct from direct bookings, website bookings, and itinerary bookings
-
-**3. `src/pages/Bookings.tsx` — Add RU channel badge in list view**
-
-Add similar visual treatment in the bookings list to identify RU channel bookings with the orange badge.
-
-### Files to Update
-- `supabase/functions/ru-reservation-handler/index.ts` — booking creation + cancellation logic
-- `src/pages/pms/PMSDashboard.tsx` — RU badge in booking detail
-- `src/pages/Bookings.tsx` — RU badge in bookings list
-
-### What Does NOT Change
-- No schema changes needed — `bookings` table already has `booking_channel`, `integration_type`, `external_reservation_id`, `payment_status` columns
-- No changes to `rentalsunited-api` or `push-property-to-ru`
-- No changes to cron job
+### Files NOT Changed
+- `rentalsunited-api` — `list_reservations` action already works
+- `ru-reservation-handler` — push handler stays independent
+- No schema changes — reuses existing `bookings` and `ru_notifications` tables
 
