@@ -391,12 +391,25 @@ interface UnitContext {
 
 function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): number | null {
   // Try multiple keys to find the rate for this specific unit
+  // The critical insight: season_rates uses amenity room_type IDs (timestamp-based like "1775237066341"),
+  // NOT hostfully_room_types UUIDs. We must match by name to find the amenity room_type entry.
   const roomTypes = (amenities.room_types || []) as any[];
   const candidateKeys = [unit.id];
   if (unit.linked_rolos_id) candidateKeys.push(unit.linked_rolos_id);
-  // Find matching amenity room by name
-  const matchedRoom = roomTypes.find((rt: any) => rt.name === unit.name || rt.id === unit.id);
-  if (matchedRoom && matchedRoom.id && !candidateKeys.includes(matchedRoom.id)) candidateKeys.push(matchedRoom.id);
+
+  // Find matching amenity room by name (case-insensitive), linked_rolos_id, or direct id match
+  for (const rt of roomTypes) {
+    const nameMatch = rt.name && unit.name && rt.name.toLowerCase() === unit.name.toLowerCase();
+    const idMatch = rt.id === unit.id;
+    const rolosMatch = unit.linked_rolos_id && rt.linked_rolos_id === unit.linked_rolos_id;
+    if (nameMatch || idMatch || rolosMatch) {
+      if (rt.id && !candidateKeys.includes(String(rt.id))) {
+        candidateKeys.push(String(rt.id));
+      }
+    }
+  }
+
+  console.log(`[resolveUnitRateKey] Unit "${unit.name}" candidate keys: [${candidateKeys.join(', ')}] for season ${seasonId}`);
 
   for (const [, rateData] of Object.entries(seasonRates)) {
     if (typeof rateData !== 'object' || rateData === null) continue;
@@ -404,6 +417,7 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
       const compositeKey = `${seasonId}-${roomKey}`;
       const entry = (rateData as Record<string, any>)[compositeKey];
       if (entry && typeof entry === 'object' && typeof (entry as any).roomAmount === 'number' && (entry as any).roomAmount > 0) {
+        console.log(`[resolveUnitRateKey] Found rate ${(entry as any).roomAmount} via key "${compositeKey}"`);
         return (entry as any).roomAmount;
       }
     }
@@ -420,6 +434,7 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
       }
     }
   }
+  if (lowest < Infinity) console.log(`[resolveUnitRateKey] Fallback rate ${lowest} for season ${seasonId}`);
   return lowest < Infinity ? lowest : null;
 }
 
