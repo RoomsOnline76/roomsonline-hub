@@ -512,10 +512,12 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
-function buildPushBuildingXml(creds: RUCredentials, _buildingId: number, buildingName: string): string {
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string): string {
   // RU API: BuildingName is a direct child of Push_PutBuilding_RQ, max 20 chars
   const truncatedName = buildingName.substring(0, 20);
-  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}<BuildingName>${escapeXml(truncatedName)}</BuildingName></Push_PutBuilding_RQ>`;
+  // Include BuildingID when updating an existing building to avoid creating duplicates
+  const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
+  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName></Push_PutBuilding_RQ>`;
 }
 
 function buildListBuildingsXml(creds: RUCredentials): string {
@@ -858,18 +860,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
     }
 
-    // ── assign_building_properties ──
-    if (action === 'assign_building_properties') {
-      if (!body.building_id) return errorResponse('MISSING_PARAM', 'building_id is required');
-      if (!body.property_ids || body.property_ids.length === 0) return errorResponse('MISSING_PARAM', 'property_ids array is required');
-      const propertyIdsXml = body.property_ids.map((id: number) => `<PropertyID>${id}</PropertyID>`).join('');
-      const xml = `<Push_PutBuildingProperties_RQ>${buildAuthXml(creds)}<BuildingID>${body.building_id}</BuildingID><PropertyIDs>${propertyIdsXml}</PropertyIDs></Push_PutBuildingProperties_RQ>`;
-      const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] AssignBuildingProperties response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: `Assigned ${body.property_ids.length} properties to building ${body.building_id}`, raw_xml: response });
-    }
+    // assign_building_properties removed — not a valid RU API method.
+    // Units are assigned to buildings via <BuildingID> in each unit's property push XML.
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);

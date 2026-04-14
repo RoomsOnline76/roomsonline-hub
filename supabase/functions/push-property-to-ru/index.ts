@@ -671,26 +671,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Step 5: Assign all successfully-pushed units to the building
-      const successRuIds = unitResults
-        .filter(u => u.success && u.rentalsunited_property_id && parseInt(u.rentalsunited_property_id, 10) > 0)
-        .map(u => parseInt(u.rentalsunited_property_id, 10));
-
-      let assignResult: any = null;
-      if (successRuIds.length > 0 && buildingId > 0) {
-        console.log(`[push-property-to-ru] Step 5: Assigning ${successRuIds.length} units to building ${buildingId}`);
-        const { data: assignData, error: assignErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'assign_building_properties', building_id: buildingId, property_ids: successRuIds },
-        });
-        if (assignErr || !assignData?.success) {
-          const errMsg = assignErr?.message || assignData?.error?.message || 'Unknown error';
-          console.error(`[push-property-to-ru] Building assignment failed: ${errMsg}`);
-          assignResult = { success: false, error: errMsg };
-        } else {
-          console.log(`[push-property-to-ru] Successfully assigned ${successRuIds.length} units to building ${buildingId}`);
-          assignResult = { success: true };
-        }
-      }
+      // Building assignment is handled via <BuildingID> in each unit's property push XML — no separate API call needed.
 
       return new Response(
         JSON.stringify({
