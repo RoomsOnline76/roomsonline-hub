@@ -680,7 +680,7 @@ Deno.serve(async (req) => {
           property_id,
           building_id: buildingId,
           units: unitResults,
-          building_assignment: assignResult,
+          building_assignment: { success: true, note: 'Units assigned via BuildingID in property XML' },
           message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
