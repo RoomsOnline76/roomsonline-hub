@@ -37,6 +37,15 @@ interface ValidationResult {
 interface PushError {
   code: string;
   message: string;
+  ru_status_id?: string;
+}
+
+interface Diagnostics {
+  error_stage?: string;
+  xml_length?: number;
+  xml_error_position?: number | null;
+  xml_context?: string | null;
+  request_preview?: string;
 }
 
 export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
@@ -48,6 +57,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [ruIdDraft, setRuIdDraft] = useState("");
   const [savingRuId, setSavingRuId] = useState(false);
   const [error, setError] = useState<PushError | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
 
   // Load existing RU ID on mount
@@ -84,6 +94,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const runDryRun = async () => {
     setDryRunning(true);
     setError(null);
+    setDiagnostics(null);
     setValidation(null);
 
     try {
@@ -118,6 +129,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const pushToRU = async () => {
     setLoading(true);
     setError(null);
+    setDiagnostics(null);
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
@@ -128,6 +140,7 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
 
       if (!data.success) {
         setError(data.error);
+        if (data.diagnostics) setDiagnostics(data.diagnostics);
         toast.error(data.error?.message || "Push failed");
         return;
       }
@@ -229,8 +242,22 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           {error && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle className="text-xs font-medium">{error.code}</AlertTitle>
-              <AlertDescription className="text-xs">{error.message}</AlertDescription>
+              <AlertTitle className="text-xs font-medium">
+                {error.code}{error.ru_status_id ? ` (RU Status: ${error.ru_status_id})` : ""}
+              </AlertTitle>
+              <AlertDescription className="text-xs space-y-1">
+                <p>{error.message}</p>
+                {diagnostics?.xml_error_position != null && (
+                  <p className="text-[10px] text-muted-foreground">
+                    XML error at position {diagnostics.xml_error_position} of {diagnostics.xml_length}
+                  </p>
+                )}
+                {diagnostics?.xml_context && (
+                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-20">
+                    {diagnostics.xml_context}
+                  </pre>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

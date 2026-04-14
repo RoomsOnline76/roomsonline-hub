@@ -495,8 +495,28 @@ function handleRUStatus(response: string): { ok: boolean; status: { id: string; 
   return { ok: status.id === '0', status };
 }
 
-function ruErrorResponse(status: { id: string; message: string }): Response {
-  return jsonResponse({ success: false, error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id } });
+function ruErrorResponse(status: { id: string; message: string }, diagnostics?: Record<string, unknown>): Response {
+  return jsonResponse({
+    success: false,
+    error: { code: 'RU_ERROR', message: status.message, ru_status_id: status.id },
+    ...(diagnostics ? { diagnostics } : {}),
+  });
+}
+
+function parseXmlErrorPosition(message: string): number | null {
+  const match = message.match(/\(\d+,\s*(\d+)\)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function buildDiagnostics(compactXml: string, status: { id: string; message: string }, stage: string): Record<string, unknown> {
+  const xmlPos = parseXmlErrorPosition(status.message);
+  return {
+    error_stage: stage,
+    xml_length: compactXml.length,
+    xml_error_position: xmlPos,
+    xml_context: xmlPos ? compactXml.substring(Math.max(0, xmlPos - 60), xmlPos + 60) : null,
+    request_preview: compactXml.substring(0, 200),
+  };
 }
 
 // ── Main Handler ─────────────────────────────────────────────
@@ -665,12 +685,19 @@ Deno.serve(async (req) => {
       }
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
-      console.log(`[rentalsunited-api] XML first 100 chars: ${JSON.stringify(xml.substring(0, 100))}`);
-      console.log(`[rentalsunited-api] Push XML length: ${xml.length}, ru_property_id: ${ru_property_id}`);
+      // Compact XML the same way callRentalsUnited does, so char positions match
+      const compactXml = xml.replace(/<\?xml[^?]*\?>\s*/gi, '').replace(/>\s+</g, '><').trim();
+      console.log(`[rentalsunited-api] Push XML length: ${compactXml.length}, ru_property_id: ${ru_property_id}`);
+      console.log(`[rentalsunited-api] XML first 300 chars: ${compactXml.substring(0, 300)}`);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) {
+        const diag = buildDiagnostics(compactXml, status, 'push_property');
+        console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
+        console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
+        return ruErrorResponse(status, diag);
+      }
       return jsonResponse({ success: true, message: 'Property pushed successfully', raw_xml: response });
     }
 
