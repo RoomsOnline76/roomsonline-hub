@@ -63,8 +63,9 @@ interface RUCancellationPolicy {
 
 interface RUPropertyPayload {
   name: string;
-  object_type_id: number;
+  property_type_id: number;
   can_sleep_max: number;
+  standard_guests: number;
   floor: number;
   space: number;
   street: string;
@@ -79,6 +80,7 @@ interface RUPropertyPayload {
   payment_methods: number[];
   cancellation_policies: RUCancellationPolicy[];
   owner_id?: number;
+  no_of_units?: number;
   security_deposit?: number;
   check_in_from?: string;
   check_in_to?: string;
@@ -336,21 +338,39 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     })
     .join('\n      ');
 
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Push_PutProperty_RQ>
+  // Build CheckInOut block
+  const checkInOutXml = `<CheckInOut>
+      <CheckInFrom>${prop.check_in_from || '14:00'}</CheckInFrom>
+      <CheckInTo>${prop.check_in_to || '22:00'}</CheckInTo>
+      <CheckOutUntil>${prop.check_out_until || '10:00'}</CheckOutUntil>
+      <Place>apartment</Place>
+    </CheckInOut>`;
+
+  // SecurityDeposit with required DepositTypeID attribute
+  const securityDepositXml = prop.security_deposit != null
+    ? `\n    <SecurityDeposit DepositTypeID="5">${prop.security_deposit}</SecurityDeposit>` : '';
+
+  // Only include CompositionRoomsAmenities if we have actual room data
+  const compositionXml = roomsXml
+    ? `\n    <CompositionRoomsAmenities>\n      ${roomsXml}\n    </CompositionRoomsAmenities>` : '';
+
+  // Strict XSD element order per RU documentation
+  return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
   <Property>
     <ID>${propertyId}</ID>
-    <IsActive>1</IsActive>
-    <IsArchived>0</IsArchived>
     <Name><Text>${escapeXml(prop.name)}</Text></Name>
-    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>
-    <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
-    <StandardGuests>${Math.min(prop.standard_guests || Math.ceil(prop.can_sleep_max * 0.7), prop.can_sleep_max)}</StandardGuests>
-    <Floor>${prop.floor}</Floor>
+    <OwnerID>${prop.owner_id || 1}</OwnerID>
+    <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
+    <IsActive>true</IsActive>
+    <IsArchived>false</IsArchived>
     <Space>${prop.space}</Space>
+    <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
+    <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
+    <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
+    <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
+    <Floor>${prop.floor}</Floor>
     <Street>${escapeXml(prop.street)}</Street>
-    <DetailedLocationID>${prop.detailed_location_id}</DetailedLocationID>
     <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
     <Coordinates>
       <Latitude>${prop.latitude}</Latitude>
@@ -359,25 +379,19 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Amenities>
       ${amenitiesXml}
     </Amenities>
-    <CompositionRoomsAmenities>
-      ${roomsXml}
-    </CompositionRoomsAmenities>
-    <Descriptions>
-      ${descriptionsXml}
-    </Descriptions>
     <Images>
       ${imagesXml}
     </Images>
+    ${checkInOutXml}
     <PaymentMethods>
       ${paymentMethodsXml}
     </PaymentMethods>
     <CancellationPolicies>
       ${cancellationPoliciesXml}
-    </CancellationPolicies>${prop.security_deposit != null ? `
-    <SecurityDeposit>${prop.security_deposit}</SecurityDeposit>` : ''}${prop.check_in_from ? `
-    <CheckInFrom>${prop.check_in_from}</CheckInFrom>` : ''}${prop.check_in_to ? `
-    <CheckInTo>${prop.check_in_to}</CheckInTo>` : ''}${prop.check_out_until ? `
-    <CheckOutUntil>${prop.check_out_until}</CheckOutUntil>` : ''}
+    </CancellationPolicies>
+    <Descriptions>
+      ${descriptionsXml}
+    </Descriptions>${securityDepositXml}${compositionXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
