@@ -1,35 +1,60 @@
+## Set Tiered Cancellation Policy for All ROL'OS Properties
+
+### What This Does
+
+Replaces the single-tier cancellation logic with a multi-tier system and sets the following default for all 32 active ROL'OS properties:
 
 
-## Fix: Building Created Without Unit Types — Root Cause Analysis
+| Window                                  | Deposit Refund |
+| --------------------------------------- | -------------- |
+| >2 months (60 days) before check-in     | 100% refunded  |
+| 1–2 months (30–60 days) before check-in | 50% refunded   |
+| <1 month (30 days) before check-in      | 0% refunded    |
 
-### What I Found
-
-1. **The `<Composition>` block IS being sent** in the building XML and RU accepts it (Status 0), but it appears to be **silently ignored**. RU docs confirm unit types are created by pushing properties with `<BuildingID>` and `<NoOfUnits>`, not via a Composition block on the building.
-
-2. **The real issue: `<BuildingID>` position in property XML violates XSD order.** Currently the XML outputs:
-   ```
-   <NoOfUnits>1</NoOfUnits>
-   <BuildingID>46843</BuildingID>   ← wrong position
-   <Floor>0</Floor>
-   ```
-   RU's XSD has a strict element order. `<BuildingID>` likely needs to be placed elsewhere (probably after `<Floor>` or in a different position), and when it's in the wrong spot, RU silently ignores it — the property is created but NOT linked to the building.
-
-3. **Logs confirm** properties were pushed with building ID 46843, but they show "0 Unit types" in RU dashboard, meaning the `<BuildingID>` tag is being ignored due to incorrect positioning.
 
 ### Changes
 
-**1. `supabase/functions/rentalsunited-api/index.ts`**
-- Move `<BuildingID>` to the correct XSD position in `buildPushPropertyXml`. Based on the RU XSD, `<BuildingID>` should come right after `<Floor>` (before `<Street>`).
-- Add a debug log that prints the full XML (first 1000 chars) for building pushes to confirm the Composition block content.
-- Keep the `<Composition>` block in `buildPushBuildingXml` as a fallback (it doesn't hurt).
+**1. Data Update — All 32 ROL'OS property policies**
+Update all existing `rolos_policies` rows (policy_type = 'cancellation') for ROL'OS properties with:
 
-**2. `supabase/functions/push-property-to-ru/index.ts`**  
-- No changes needed — it already passes `building_id` correctly.
+```json
+{
+  "mode": "standard",
+  "non_refundable": false,
+  "tiers": [
+    { "days_before": 60, "forfeit_percent": 0 },
+    { "days_before": 30, "forfeit_percent": 50 },
+    { "days_before": 0, "forfeit_percent": 100 }
+  ]
+}
+```
 
-**3. Verification step**
-- After deploying, I'll use the edge function curl tool to push a test property with the corrected `<BuildingID>` position and verify it appears under the building in the list_buildings response.
+The `tiers` array is evaluated top-down: if days until check-in >= 60, use 0% forfeit; if >= 30, use 50%; otherwise 100%.
 
-### Expected Outcome
-- Properties pushed with `<BuildingID>` in the correct XSD position will be linked to the building.
-- RU dashboard will show the correct unit type count.
+**2. `src/lib/policyFormatter.ts**`
 
+- Add `tiers?: Array<{ days_before: number; forfeit_percent: number }>` to `CancellationRule`
+- Update `formatCancellationPolicy` to check for `tiers` first: iterate tiers (sorted descending by `days_before`), find the matching tier based on days until check-in, and use that tier's `forfeit_percent`
+- Generate a multi-line summary text describing all tiers
+
+**3. `supabase/functions/experience-engine/index.ts**`
+
+- Update the cancellation_policy evaluation block (lines 96–127) to handle `tiers`: same logic as the formatter — iterate tiers to find the applicable forfeit percentage based on days until check-in
+
+**4. `src/components/property/PoliciesTab.tsx**`
+
+- Add UI for managing tiers: a list of tier rows (days_before + forfeit_percent) with add/remove buttons
+- When `tiers` is present, hide the single days_before/forfeit_percent fields and show the tiers editor instead
+- Keep backward compatibility with single-tier rules
+
+**5. `src/components/booking/CancelBookingModal.tsx` and `src/pages/GuestPortal.tsx**`
+
+- No changes needed — these consume the `evaluation` object from the experience engine, which already returns `forfeit_percent`, `forfeit_amount`, `is_free_cancel`. The tiered logic is resolved server-side.
+
+### Technical Notes
+
+- Tiers are always sorted descending by `days_before` for evaluation
+- The `days_before` and `forfeit_percent` root-level fields are kept for backward compatibility with any properties not using tiers
+- `forfeit_percent: 0` means 100% deposit refunded; `forfeit_percent: 100` means 0% refunded
+
+there already exist a cancellation UI capturing frame on page  /edit property/ house rules/ cancellation Policies. this update should merge/work with this  as this UI elelment is commopn for all properties in the system
