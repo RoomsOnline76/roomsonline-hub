@@ -1,46 +1,36 @@
 
 
-## Add Pull_ListReservations_RQ Polling (Every 30 Minutes)
+## Add Pull_GetLeads_RQ to RU Reservation Polling
 
 ### What This Does
-Creates a new edge function that polls RU every 30 minutes for reservations from the last 7 days. This acts as a safety net alongside RLNM — catching any notifications that were missed or failed to deliver.
+Adds lead polling to the existing `cron-pull-ru-reservations` function. Leads are guest inquiries (request status) that don't block availability and aren't confirmed bookings. They'll be logged to `ru_notifications` with event type `poll_lead` for visibility — no booking record is created since leads are non-binding.
 
 ### Current State
-- `list_reservations` action already exists in `rentalsunited-api` — accepts `date_from`/`date_to`, returns raw XML
-- `ru-reservation-handler` already has booking creation/cancellation logic
-- Cron infrastructure (`pg_cron` + `pg_net`) is already set up
+- `get_leads` action already exists in `rentalsunited-api` — accepts `date_from`/`date_to`, returns raw XML
+- The cron function already polls reservations every 30 minutes but ignores leads
+- `ru-reservation-handler` (RLNM push) already logs leads but takes no booking action
 
 ### Changes
 
-**1. New edge function: `supabase/functions/cron-pull-ru-reservations/index.ts`**
+**1. Update `supabase/functions/cron-pull-ru-reservations/index.ts`**
 
-- Calculates date range: today minus 7 days → today
-- Calls `rentalsunited-api` with `action: 'list_reservations'`
-- Parses the `Pull_ListReservations_RS` XML response to extract each `<Reservation>` block
-- For each reservation, extracts: `ReservationID`, `StatusID` (1=confirmed, 4=cancelled), `PropID`, `DateFrom`, `DateTo`, guest details, `RUPrice`
-- Resolves `PropID` to internal property/room type (same lookup as ru-reservation-handler)
-- For confirmed/modified reservations: upserts booking (insert if new, update dates/price/guest if existing) using `external_reservation_id` + `integration_type='rentalsunited'` for dedup
-- For cancelled reservations: updates existing booking to `status: 'cancelled'`
-- Logs each processed reservation to `ru_notifications` with `event_type` prefixed with `poll_` to distinguish from push notifications
-- Returns summary of processed/skipped/failed reservations
+After the reservation polling block, add a second API call to `get_leads` with the same date range (last 7 days):
+- Call `rentalsunited-api` with `action: 'get_leads'`
+- Parse `<Lead>` blocks from the response XML
+- Extract: `LeadID`, `PropID`, `DateFrom`, `DateTo`, guest name/email, message text
+- Resolve `PropID` to internal property (same lookup logic already in the function)
+- Log each lead to `ru_notifications` with `event_type: 'poll_lead'`
+- Deduplicate: skip if a `ru_notifications` entry with the same `ru_reservation_id` (using LeadID) already exists
+- Add `leads_found` and `leads_logged` counters to the summary
 
-**2. Register 30-minute cron job via SQL insert**
+No bookings are created for leads — they're informational only. The `ru_notifications` table provides an audit trail that can later feed a guest messaging or inquiry management feature.
 
-```
-*/30 * * * *  →  cron-pull-ru-reservations
-```
+### Files to Update
+- `supabase/functions/cron-pull-ru-reservations/index.ts` — add leads polling after reservations
 
-### Key Design Decisions
-- **Upsert logic**: If a booking with the same `external_reservation_id` already exists (created by RLNM), the poll updates it rather than creating a duplicate. This handles modification events that RLNM may have missed.
-- **7-day window**: Matches RU's documented limit. Wide enough to catch delayed or retried reservations.
-- **Rate limit awareness**: RU allows only 1 concurrent request and 1 per minute for this endpoint. A single call every 30 minutes is well within limits.
-- **`poll_` prefix on notification event types**: Makes it easy to distinguish poll-sourced vs push-sourced entries in `ru_notifications`.
-
-### Files to Create
-- `supabase/functions/cron-pull-ru-reservations/index.ts`
-
-### Files NOT Changed
-- `rentalsunited-api` — `list_reservations` action already works
-- `ru-reservation-handler` — push handler stays independent
-- No schema changes — reuses existing `bookings` and `ru_notifications` tables
+### What Does NOT Change
+- `rentalsunited-api` — `get_leads` action already works
+- No schema changes — reuses `ru_notifications` table
+- No UI changes
+- Cron schedule stays at every 30 minutes
 
