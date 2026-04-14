@@ -98,33 +98,61 @@ Deno.serve(async (req) => {
         const now = new Date();
         const msPerDay = 86400000;
         const daysUntil = Math.floor((checkIn.getTime() - now.getTime()) / msPerDay);
-
-        let effectiveDaysBefore = (policyRule.days_before as number) ?? 0;
-        let effectiveForfeitPct = (policyRule.forfeit_percent as number) ?? 100;
-
-        // Check date range overrides
-        const dateRanges = policyRule.date_ranges as Array<{ start: string; end: string; days_before?: number; forfeit_percent?: number }> | undefined;
-        if (dateRanges?.length) {
-          const override = dateRanges.find(r => checkIn >= new Date(r.start) && checkIn <= new Date(r.end));
-          if (override) {
-            effectiveDaysBefore = override.days_before ?? effectiveDaysBefore;
-            effectiveForfeitPct = override.forfeit_percent ?? effectiveForfeitPct;
-          }
-        }
-
-        const isFree = daysUntil >= effectiveDaysBefore;
         const totalPrice = (payload.total_price as number) || 0;
-        const forfeitAmount = isFree ? 0 : (totalPrice * effectiveForfeitPct / 100);
-        const deadlineDate = new Date(checkIn.getTime() - effectiveDaysBefore * msPerDay).toISOString().split('T')[0];
 
-        evaluation = {
-          is_free_cancel: isFree,
-          forfeit_amount: forfeitAmount,
-          forfeit_percent: effectiveForfeitPct,
-          deadline_date: deadlineDate,
-          days_until_deadline: daysUntil - effectiveDaysBefore,
-          is_non_refundable: !!(policyRule.non_refundable),
-        };
+        // Check for tiered cancellation policy
+        const tiers = policyRule.tiers as Array<{ days_before: number; forfeit_percent: number }> | undefined;
+        if (tiers && tiers.length > 0) {
+          const sorted = [...tiers].sort((a, b) => b.days_before - a.days_before);
+          let forfeitPct = sorted[sorted.length - 1]?.forfeit_percent ?? 100;
+          for (const tier of sorted) {
+            if (daysUntil >= tier.days_before) {
+              forfeitPct = tier.forfeit_percent;
+              break;
+            }
+          }
+          const isFree = forfeitPct === 0;
+          const forfeitAmount = (totalPrice * forfeitPct) / 100;
+          const freeTier = sorted.find(t => t.forfeit_percent === 0);
+          const deadlineDate = freeTier
+            ? new Date(checkIn.getTime() - freeTier.days_before * msPerDay).toISOString().split('T')[0]
+            : null;
+
+          evaluation = {
+            is_free_cancel: isFree,
+            forfeit_amount: forfeitAmount,
+            forfeit_percent: forfeitPct,
+            deadline_date: deadlineDate,
+            days_until_deadline: freeTier ? daysUntil - freeTier.days_before : null,
+            is_non_refundable: !!(policyRule.non_refundable),
+          };
+        } else {
+          // Legacy single-tier logic
+          let effectiveDaysBefore = (policyRule.days_before as number) ?? 0;
+          let effectiveForfeitPct = (policyRule.forfeit_percent as number) ?? 100;
+
+          const dateRanges = policyRule.date_ranges as Array<{ start: string; end: string; days_before?: number; forfeit_percent?: number }> | undefined;
+          if (dateRanges?.length) {
+            const override = dateRanges.find(r => checkIn >= new Date(r.start) && checkIn <= new Date(r.end));
+            if (override) {
+              effectiveDaysBefore = override.days_before ?? effectiveDaysBefore;
+              effectiveForfeitPct = override.forfeit_percent ?? effectiveForfeitPct;
+            }
+          }
+
+          const isFree = daysUntil >= effectiveDaysBefore;
+          const forfeitAmount = isFree ? 0 : (totalPrice * effectiveForfeitPct / 100);
+          const deadlineDate = new Date(checkIn.getTime() - effectiveDaysBefore * msPerDay).toISOString().split('T')[0];
+
+          evaluation = {
+            is_free_cancel: isFree,
+            forfeit_amount: forfeitAmount,
+            forfeit_percent: effectiveForfeitPct,
+            deadline_date: deadlineDate,
+            days_until_deadline: daysUntil - effectiveDaysBefore,
+            is_non_refundable: !!(policyRule.non_refundable),
+          };
+        }
       }
 
       result = {
