@@ -838,6 +838,29 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, location_id: locationId, raw_xml: response });
     }
 
+    // ── push_building ──
+    if (action === 'push_building') {
+      if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
+      const bId = body.building_id || 0;
+      const xml = buildPushBuildingXml(creds, bId, body.building_name);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const buildingId = extractBuildingId(response);
+      return jsonResponse({ success: true, building_id: buildingId ? parseInt(buildingId, 10) : null, message: 'Building pushed successfully', raw_xml: response });
+    }
+
+    // ── list_buildings ──
+    if (action === 'list_buildings') {
+      const xml = buildListBuildingsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const buildings = extractBuildings(response);
+      return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 
