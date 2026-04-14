@@ -1,49 +1,45 @@
 
 
-## Fix: Duplicate Building + Units Not in Building + ARI Ownership Errors
+## Fix: Building Created Without Unit Types
 
-### Root Causes
+### Problem
+The `Push_PutBuilding_RQ` XML only sends `<BuildingName>` but omits the `<Composition>` block that defines unit types and their quantities. RU requires this block for units to appear inside the building. That's why the dashboard shows "0 Unit types".
 
-**1. Duplicate building created every push**
-`buildPushBuildingXml` accepts `_buildingId` but never uses it. The XML always sends only `<BuildingName>` without `<BuildingID>`, so RU creates a brand new building every time. The existing building 46833 (and now 46838) is never updated.
-
-**Fix**: Include `<BuildingID>` in the XML when an existing building ID > 0 is provided. This tells RU to update the existing building instead of creating a new one.
-
-**2. `Push_PutBuildingProperties_RQ` doesn't exist**
-The RU API returned "not implemented method" — this API call doesn't exist. However, the property push XML already includes `<BuildingID>` (line 393), which should assign units to the building at creation time. The real problem is that these units were originally created without a valid building ID, and now re-pushing them with `<BuildingID>` may not reassign them.
-
-**Fix**: Since the property XML already includes `<BuildingID>`, the assignment should work if the building ID is correct and consistent. Remove the `assign_building_properties` action (it's not a valid RU method). Instead, rely on the `<BuildingID>` in each unit's property push XML. For the already-orphaned units, the re-push with the correct building ID should reassign them.
-
-**3. ARI "not the owner" errors**
-The units (4692138–4692146) were created under building 46838 with OwnerID 738925. The "not the owner" error on pricing suggests the units may need to be fully validated/activated in RU before ARI can be pushed, or the building assignment needs to complete first.
+### Required XML Structure
+```xml
+<Push_PutBuilding_RQ>
+  <Authentication>...</Authentication>
+  <BuildingID>46840</BuildingID>          <!-- for updates -->
+  <BuildingName>Fonteinhutte Self-Ca</BuildingName>
+  <Composition>
+    <UnitsComposition>
+      <UnitType>
+        <UnitTypeName>ALBATROS</UnitTypeName>
+        <Quantity>1</Quantity>
+      </UnitType>
+      <UnitType>
+        <UnitTypeName>ANEMOON</UnitTypeName>
+        <Quantity>1</Quantity>
+      </UnitType>
+      <!-- ... one per distinct room type name -->
+    </UnitsComposition>
+  </Composition>
+</Push_PutBuilding_RQ>
+```
 
 ### Changes
 
-**File: `supabase/functions/rentalsunited-api/index.ts`**
+**1. `supabase/functions/rentalsunited-api/index.ts`**
+- Update `buildPushBuildingXml` to accept a `unitTypes` parameter: `Array<{ name: string; quantity: number }>`.
+- When provided, append a `<Composition><UnitsComposition>` block with one `<UnitType>` per entry.
+- Update the `push_building` action handler to pass `body.unit_types` through.
 
-1. Fix `buildPushBuildingXml` to include `<BuildingID>` when updating an existing building:
-```xml
-<!-- Create new -->
-<Push_PutBuilding_RQ><Auth/><BuildingName>SEESIG</BuildingName></Push_PutBuilding_RQ>
+**2. `supabase/functions/push-property-to-ru/index.ts`**
+- Before calling `push_building`, aggregate `activeRoomTypes` by name to build the unit types array (each distinct room type name with a count).
+- Pass this array in the `push_building` request body as `unit_types`.
 
-<!-- Update existing -->
-<Push_PutBuilding_RQ><Auth/><BuildingID>46833</BuildingID><BuildingName>SEESIG</BuildingName></Push_PutBuilding_RQ>
-```
-
-2. Remove the `assign_building_properties` action — it's not a valid RU API method.
-
-**File: `supabase/functions/push-property-to-ru/index.ts`**
-
-3. Remove the Step 5 `assign_building_properties` call entirely. The building assignment is already handled by `<BuildingID>` in each unit's property XML (line 393 of rentalsunited-api).
-
-4. Before the push, verify that `buildingId` from Step 1 is correctly passed to `buildUnitPayload` so each unit's XML includes the right `<BuildingID>`.
-
-### Expected Outcome After Fix
-- Push uses existing building ID (46833) — no duplicate created
-- Each unit's property XML includes `<BuildingID>46833</BuildingID>`
-- Units appear inside the building folder in RU
-- ARI pushes succeed once units are properly owned/assigned
-
-### Data Cleanup Note
-Buildings 46838 (and any other duplicates) will need to be cleaned up in RU. After the fix deploys, you should re-push Seesig to update all units with the correct building ID 46833.
+### Expected Outcome
+- Building is created/updated with unit type definitions matching the active room types.
+- Units pushed with `<BuildingID>` are properly linked to their unit types within the building.
+- RU dashboard shows the correct unit type count and unit assignments.
 
