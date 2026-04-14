@@ -56,9 +56,9 @@ interface RUImage {
 }
 
 interface RUCancellationPolicy {
-  valid_from: string;
-  valid_to: string;
-  rules: { from_days: number; to_days: number; percentage: number }[];
+  valid_from: number;
+  valid_to: number;
+  percentage: number;
 }
 
 interface RUPropertyPayload {
@@ -78,6 +78,8 @@ interface RUPropertyPayload {
   descriptions: RUDescription[];
   images: RUImage[];
   payment_methods: number[];
+  deposit?: number;
+  deposit_type_id?: number;
   cancellation_policies: RUCancellationPolicy[];
   owner_id?: number;
   no_of_units?: number;
@@ -86,6 +88,15 @@ interface RUPropertyPayload {
   check_in_to?: string;
   check_out_until?: string;
 }
+
+const PAYMENT_METHOD_LABELS: Record<number, string> = {
+  1: 'Cash',
+  2: 'Credit card',
+  3: 'Mastercard',
+  4: 'American Express',
+  5: 'Bank transfer',
+  6: 'PayPal',
+};
 
 interface RUAvailabilityEntry {
   date_from: string;
@@ -320,22 +331,20 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   const imagesXml = prop.images
-    .map(img => `<Image ImageTypeID="${img.type_id || 1}"${img.is_main ? ' IsMainImage="true"' : ''}><URL>${escapeXml(img.url)}</URL></Image>`)
+    .map((img, index) => {
+      const imageTypeId = index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3);
+      return `<Image ImageTypeID="${imageTypeId}" ImageReferenceID="${index + 1}">${escapeXml(img.url)}</Image>`;
+    })
     .join('\n      ');
 
   const paymentMethodsXml = prop.payment_methods
-    .map(pm => `<PaymentMethod>${pm}</PaymentMethod>`)
+    .map(pm => `<PaymentMethod PaymentMethodID="${pm}">${escapeXml(PAYMENT_METHOD_LABELS[pm] || `Method ${pm}`)}</PaymentMethod>`)
     .join('\n      ');
 
+  const depositXml = `<Deposit DepositTypeID="${prop.deposit_type_id || 1}">${prop.deposit ?? 0}</Deposit>`;
+
   const cancellationPoliciesXml = prop.cancellation_policies
-    .map(cp => {
-      const rulesXml = cp.rules
-        .map(r => `<CancellationPolicyRule DateFrom="${r.from_days}" DateTo="${r.to_days}" PercentPrice="${r.percentage}" />`)
-        .join('\n          ');
-      return `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">
-        ${rulesXml}
-      </CancellationPolicy>`;
-    })
+    .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
   // Build CheckInOut block
@@ -386,6 +395,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <PaymentMethods>
       ${paymentMethodsXml}
     </PaymentMethods>
+    ${depositXml}
     <CancellationPolicies>
       ${cancellationPoliciesXml}
     </CancellationPolicies>
