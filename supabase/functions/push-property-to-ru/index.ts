@@ -75,6 +75,8 @@ interface RoomTypeRow {
   bedrooms: number | null;
   bathrooms: number | null;
   beds: number | null;
+  bed_configuration: { type: string; count: number }[] | null;
+  linked_rolos_id: string | null;
   amenities: Record<string, unknown> | null;
   images: unknown[] | null;
   check_in_time: string | null;
