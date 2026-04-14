@@ -1,25 +1,34 @@
 
 
-## Add Editable RU ID per Unit
+## Fix Push Building to Rentals United
 
-### What
-Make each unit's RU ID clickable and editable — matching the same inline edit pattern used for the property/building RU ID (click badge → input + save/cancel buttons). This lets you manually set or correct a unit's RU property ID directly from the UI.
+### Root Cause (two issues)
+
+1. **Wrong XML structure**: Our `buildPushBuildingXml` wraps the building data in a `<Building>` element with `<BuildingID>`. The RU API docs show `<BuildingName>` should be a **direct child** of `<Push_PutBuilding_RQ>` — no `<Building>` wrapper, no `<BuildingID>` in the request.
+
+2. **BuildingName too long**: RU limits `BuildingName` to **20 characters**. "SEESIG Self Catering CHALETS" is 29 characters, causing the "Unexpected error" (error 17).
+
+### RU API Expected XML
+```text
+<Push_PutBuilding_RQ>
+  <Authentication>
+    <AccessKey>...</AccessKey>
+    <SecretKey>...</SecretKey>
+  </Authentication>
+  <BuildingName>SEESIG CHALETS</BuildingName>
+</Push_PutBuilding_RQ>
+```
+
+Response returns `<BuildingID>` which we save.
 
 ### Changes
 
-**File: `src/components/property/PushToRentalsUnited.tsx`**
+**File: `supabase/functions/rentalsunited-api/index.ts`**
 
-1. Add state for tracking which unit is being edited and draft values:
-   - `editingUnitRuId: string | null` (room_type_id being edited)
-   - `unitRuIdDraft: string`
-   - `savingUnitRuId: boolean`
+1. Fix `buildPushBuildingXml` to remove the `<Building>` wrapper and `<BuildingID>` element. Place `<BuildingName>` directly under root.
+2. Truncate `buildingName` to 20 characters max.
 
-2. Add a `saveUnitRuId` function that updates `hostfully_room_types.rentalsunited_property_id` for the given room type ID, similar to the existing `saveRuId` function.
+**File: `supabase/functions/push-property-to-ru/index.ts`**
 
-3. In the units list (line 291-304), replace the read-only `RU: {unit.ru_property_id}` badge with the same click-to-edit pattern:
-   - Default: clickable badge showing `RU: {id}` or "No RU ID — click to set"
-   - Editing: small input + save/cancel buttons (same as lines 219-234)
-   - After save: update the unit in local `units` state so it reflects immediately
-
-No backend or schema changes needed — `rentalsunited_property_id` column already exists on `hostfully_room_types`.
+3. When constructing the building name, use a shorter version (e.g. truncate or abbreviate) to fit the 20-char limit.
 
