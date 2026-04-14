@@ -1,14 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
- * RU Reservation Live Notification Mechanism (RLNM) Handler
+ * RU Reservation Live Notification Mechanism (RLNM) Handler — Phase 2
  *
  * Receives POST XML from Rentals United for:
- * - Confirmed reservations
- * - Cancelled reservations
- * - New leads
+ * - Confirmed reservations → creates booking record
+ * - Cancelled reservations → cancels existing booking
+ * - New leads → logs only
  *
- * Logs to ru_notifications table. Phase 2 will trigger booking creation.
+ * Bookings created here are tagged with booking_channel='rentals_united'
+ * and integration_type='rentalsunited' for easy identification.
  */
 
 const corsHeaders = {
@@ -59,21 +60,34 @@ Deno.serve(async (req) => {
     const ruPropertyId = extractTag(rawXml, 'PropID') || extractTag(rawXml, 'PropertyID') || extractTag(rawXml, 'propertyid') || null;
     const eventType = determineEventType(rawXml);
 
-    console.log(`[ru-reservation-handler] Event: ${eventType}, RU Reservation: ${ruReservationId}, RU Property: ${ruPropertyId}`);
+    // Extract guest & booking details
+    const guestFirstName = extractTag(rawXml, 'GuestName') || extractTag(rawXml, 'FirstName') || '';
+    const guestLastName = extractTag(rawXml, 'GuestSurname') || extractTag(rawXml, 'LastName') || '';
+    const guestName = `${guestFirstName} ${guestLastName}`.trim() || 'RU Guest';
+    const guestEmail = extractTag(rawXml, 'Email') || extractTag(rawXml, 'email') || 'ru-notification@rentalsunited.com';
+    const guestPhone = extractTag(rawXml, 'Phone') || extractTag(rawXml, 'phone') || null;
+    const dateFrom = extractTag(rawXml, 'DateFrom') || extractTag(rawXml, 'datefrom') || null;
+    const dateTo = extractTag(rawXml, 'DateTo') || extractTag(rawXml, 'dateto') || null;
+    const numGuests = parseInt(extractTag(rawXml, 'NumberOfGuests') || extractTag(rawXml, 'numberofguests') || '1', 10);
+    const ruPrice = parseFloat(extractTag(rawXml, 'RUPrice') || extractTag(rawXml, 'ruprice') || '0');
+
+    console.log(`[ru-reservation-handler] Event: ${eventType}, RU Reservation: ${ruReservationId}, RU Property: ${ruPropertyId}, Guest: ${guestName}`);
 
     // Try to match to a ROL'OS property
     let propertyId: string | null = null;
+    let roomTypeId: string | null = null;
     if (ruPropertyId) {
       // Check room types first (multi-unit)
       const { data: roomType } = await supabase
         .from('hostfully_room_types')
-        .select('property_id')
+        .select('property_id, id')
         .eq('rentalsunited_property_id', ruPropertyId)
         .limit(1)
         .maybeSingle();
 
       if (roomType?.property_id) {
         propertyId = roomType.property_id;
+        roomTypeId = roomType.id;
       } else {
         // Check properties table (single-unit)
         const { data: prop } = await supabase
@@ -87,19 +101,104 @@ Deno.serve(async (req) => {
     }
 
     // Log to ru_notifications
-    const { error: insertErr } = await supabase.from('ru_notifications').insert({
+    const { data: notification, error: insertErr } = await supabase.from('ru_notifications').insert({
       event_type: eventType,
       ru_reservation_id: ruReservationId,
       ru_property_id: ruPropertyId,
       property_id: propertyId,
       raw_xml: rawXml,
       processed: false,
-    });
+    }).select('id').single();
 
     if (insertErr) {
       console.error('[ru-reservation-handler] Failed to log notification:', insertErr.message);
     } else {
       console.log(`[ru-reservation-handler] Notification logged (property: ${propertyId || 'unmatched'})`);
+    }
+
+    const notificationId = notification?.id;
+
+    // --- Phase 2: Process into bookings ---
+
+    if (eventType === 'reservation_confirmed' && propertyId && ruReservationId && dateFrom && dateTo) {
+      // Dedup: check if booking already exists
+      const { data: existing } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('external_reservation_id', ruReservationId)
+        .eq('integration_type', 'rentalsunited')
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        console.log(`[ru-reservation-handler] Booking already exists for RU reservation ${ruReservationId}, skipping`);
+      } else {
+        const bookingData: Record<string, unknown> = {
+          property_id: propertyId,
+          guest_name: guestName,
+          guest_email: guestEmail,
+          guest_phone: guestPhone,
+          check_in_date: dateFrom,
+          check_out_date: dateTo,
+          adults: numGuests || 1,
+          total_price: ruPrice || 0,
+          status: 'confirmed',
+          booking_channel: 'rentals_united',
+          integration_type: 'rentalsunited',
+          external_reservation_id: ruReservationId,
+          payment_status: 'paid_externally',
+        };
+
+        if (roomTypeId) {
+          bookingData.room_type_id = roomTypeId;
+        }
+
+        const { error: bookingErr } = await supabase.from('bookings').insert(bookingData);
+
+        if (bookingErr) {
+          console.error(`[ru-reservation-handler] Failed to create booking: ${bookingErr.message}`);
+        } else {
+          console.log(`[ru-reservation-handler] ✅ Booking created for RU reservation ${ruReservationId}`);
+        }
+      }
+
+      // Mark notification as processed
+      if (notificationId) {
+        await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
+      }
+    } else if (eventType === 'reservation_cancelled' && ruReservationId) {
+      // Find and cancel existing booking
+      const { data: existingBooking } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('external_reservation_id', ruReservationId)
+        .eq('integration_type', 'rentalsunited')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingBooking) {
+        const { error: cancelErr } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled', cancellation_reason: 'Cancelled via Rentals United' })
+          .eq('id', existingBooking.id);
+
+        if (cancelErr) {
+          console.error(`[ru-reservation-handler] Failed to cancel booking: ${cancelErr.message}`);
+        } else {
+          console.log(`[ru-reservation-handler] ✅ Booking cancelled for RU reservation ${ruReservationId}`);
+        }
+      } else {
+        console.warn(`[ru-reservation-handler] No existing booking found for cancelled RU reservation ${ruReservationId}`);
+      }
+
+      if (notificationId) {
+        await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
+      }
+    } else if (eventType === 'lead') {
+      console.log(`[ru-reservation-handler] Lead received — logged only, no booking created`);
+      if (notificationId) {
+        await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
+      }
     }
 
     // Return 200 with XML so RU marks delivery as complete
