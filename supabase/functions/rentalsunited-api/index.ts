@@ -390,8 +390,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
-    <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
-    <Floor>${prop.floor}</Floor>
+    <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
+    <Floor>${prop.floor}</Floor>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
     <Street>${escapeXml(prop.street)}</Street>
     <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
     <Coordinates>
