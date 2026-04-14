@@ -314,11 +314,16 @@ function buildRUPayload(
   // Cancellation policies from DB
   const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
 
+  // Number of beds: sum from room types, or derive from bedrooms/max_guests
+  const totalBeds = roomTypes.reduce((sum, rt) => sum + (rt.beds || 0), 0);
+  const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
+
   return {
     name: property.name,
     property_type_id: objectTypeId,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
+    number_of_beds: numberOfBeds,
     owner_id: 738925,
     no_of_units: 1,
     floor: 0,
