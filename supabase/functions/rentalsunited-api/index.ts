@@ -512,12 +512,18 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
-function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string): string {
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: Array<{ name: string; quantity: number }>): string {
   // RU API: BuildingName is a direct child of Push_PutBuilding_RQ, max 20 chars
   const truncatedName = buildingName.substring(0, 20);
   // Include BuildingID when updating an existing building to avoid creating duplicates
   const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
-  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName></Push_PutBuilding_RQ>`;
+  // Include Composition block so RU knows which unit types belong to this building
+  let compositionXml = '';
+  if (unitTypes && unitTypes.length > 0) {
+    const unitTypeNodes = unitTypes.map(ut => `<UnitType><UnitTypeName>${escapeXml(ut.name)}</UnitTypeName><Quantity>${ut.quantity}</Quantity></UnitType>`).join('');
+    compositionXml = `<Composition><UnitsComposition>${unitTypeNodes}</UnitsComposition></Composition>`;
+  }
+  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
 }
 
 function buildListBuildingsXml(creds: RUCredentials): string {
@@ -841,7 +847,7 @@ Deno.serve(async (req) => {
     if (action === 'push_building') {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
       const bId = body.building_id || 0;
-      const xml = buildPushBuildingXml(creds, bId, body.building_name);
+      const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);

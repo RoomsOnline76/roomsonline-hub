@@ -592,10 +592,17 @@ Deno.serve(async (req) => {
       let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
       // Truncate building name to 20 chars (RU API limit)
       const buildingName = property.name.substring(0, 20);
-      console.log(`[push-property-to-ru] Step 1: Push building "${buildingName}" (existing ID: ${buildingId})`);
+      // Aggregate room types by name for the Composition block
+      const unitTypeMap = new Map<string, number>();
+      for (const rt of activeRoomTypes) {
+        const rtName = rt.name.toUpperCase();
+        unitTypeMap.set(rtName, (unitTypeMap.get(rtName) || 0) + 1);
+      }
+      const unitTypes = Array.from(unitTypeMap.entries()).map(([name, quantity]) => ({ name, quantity }));
+      console.log(`[push-property-to-ru] Step 1: Push building "${buildingName}" (existing ID: ${buildingId}) with ${unitTypes.length} unit types`);
 
       const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_building', building_name: buildingName, building_id: buildingId },
+        body: { action: 'push_building', building_name: buildingName, building_id: buildingId, unit_types: unitTypes },
       });
 
       if (buildingErr || !buildingResult?.success) {
