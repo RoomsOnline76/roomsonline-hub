@@ -253,11 +253,29 @@ function buildUnitPayload(
 
   // Calculate beds from bed_configuration if available
   let beds = 0;
+  const bedAmenities: { id: number; count: number }[] = [];
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
     beds = unit.bed_configuration.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+    // Map bed types to RU bed amenity IDs
+    const seenBedIds = new Set<number>();
+    for (const bedEntry of unit.bed_configuration) {
+      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
+      const ruBedId = BED_AMENITY_MAP[bedType];
+      if (ruBedId && !seenBedIds.has(ruBedId)) {
+        seenBedIds.add(ruBedId);
+        bedAmenities.push({ id: ruBedId, count: bedEntry.count || 1 });
+      } else if (ruBedId && seenBedIds.has(ruBedId)) {
+        // Add count to existing entry
+        const existing = bedAmenities.find(a => a.id === ruBedId);
+        if (existing) existing.count += (bedEntry.count || 1);
+      }
+    }
   }
   if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
+
+  // Combine regular amenities + bed amenities for Room block
+  const roomAmenities = [...unitAmenities.slice(0, 5), ...bedAmenities];
   
   return {
     name: unit.name,
@@ -275,7 +293,7 @@ function buildUnitPayload(
     latitude: lat,
     longitude: lng,
     amenities: unitAmenities,
-    rooms: [{ room_id: 1, amenities: unitAmenities.slice(0, 5) }],
+    rooms: [{ room_id: 1, amenities: roomAmenities }],
     descriptions: [{ language_id: 1, text: descText }],
     images,
     payment_methods: mapPaymentMethods(property.amenities),
