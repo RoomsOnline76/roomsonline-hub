@@ -2228,11 +2228,13 @@ export default function PropertyForm() {
                 pmsRoomId: hr.hostfully_room_id,
                 description: hr.description || "",
                 extraPersonPolicy: "",
-                bedConfiguration: Array.isArray(hr.beds) 
-                  ? hr.beds 
-                  : (typeof hr.beds === 'number' && hr.beds > 0 
-                      ? [{ type: 'bed', count: hr.beds }] 
-                      : []),
+                bedConfiguration: Array.isArray(hr.bed_configuration) && hr.bed_configuration.length > 0
+                  ? hr.bed_configuration
+                  : (Array.isArray(hr.beds) 
+                    ? hr.beds 
+                    : (typeof hr.beds === 'number' && hr.beds > 0 
+                        ? [{ type: 'bed', count: hr.beds }] 
+                        : [])),
                 roomSize: hr.room_size || 0,
                 bathrooms: hr.bathrooms || 1,
                 maxPeople: hr.max_guests || 2,
@@ -2990,7 +2992,7 @@ export default function PropertyForm() {
               description: room.description || null,
               max_guests: room.maxPeople || room.maxAdults || 2,
               daily_rate: baseRate,
-              is_active: room.selected !== false,
+              is_active: room.is_active !== false,
               bed_configuration: room.bedConfiguration || null,
               amenities: room.amenities || null,
               images: room.images || null,

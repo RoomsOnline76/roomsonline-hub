@@ -236,7 +236,12 @@ function buildUnitPayload(
     }
   }
 
-  const beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
+  // Calculate beds from bed_configuration if available
+  let beds = 0;
+  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
+    beds = unit.bed_configuration.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+  }
+  if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
   
   return {
