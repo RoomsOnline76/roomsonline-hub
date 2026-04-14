@@ -83,6 +83,7 @@ interface RUPropertyPayload {
   cancellation_policies: RUCancellationPolicy[];
   owner_id?: number;
   no_of_units?: number;
+  cleaning_price?: number;
   security_deposit?: number;
   check_in_from?: string;
   check_in_to?: string;
@@ -313,19 +314,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
     .join('\n      ');
 
-  const roomsXml = prop.rooms
-    .map(r => {
-      const roomAmenities = r.amenities
-        .map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`)
-        .join('\n          ');
-      return `<CompositionRoomAmenities CompositionRoomID="${r.room_id}">
-        <Amenities>
-          ${roomAmenities}
-        </Amenities>
-      </CompositionRoomAmenities>`;
-    })
-    .join('\n      ');
-
   const descriptionsXml = prop.descriptions
     .map(d => `<Description LanguageID="${d.language_id}"><Text>${escapeXml(d.text)}</Text></Description>`)
     .join('\n      ');
@@ -347,6 +335,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
+  const cleaningPriceXml = `<CleaningPrice>${prop.cleaning_price ?? 0}</CleaningPrice>`;
+
   // Build CheckInOut block
   const checkInOutXml = `<CheckInOut>
       <CheckInFrom>${prop.check_in_from || '14:00'}</CheckInFrom>
@@ -359,10 +349,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = prop.security_deposit != null
     ? `\n    <SecurityDeposit DepositTypeID="5">${prop.security_deposit}</SecurityDeposit>` : '';
 
-  // Only include CompositionRoomsAmenities if we have actual room data
-  const compositionXml = roomsXml
-    ? `\n    <CompositionRoomsAmenities>\n      ${roomsXml}\n    </CompositionRoomsAmenities>` : '';
-
   // Strict XSD element order per RU documentation
   return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
@@ -373,6 +359,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
     <IsArchived>false</IsArchived>
+    ${cleaningPriceXml}
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
@@ -401,7 +388,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}${compositionXml}
+    </Descriptions>${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }

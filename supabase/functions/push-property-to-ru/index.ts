@@ -270,6 +270,7 @@ function buildRUPayload(
       : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
   const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
+  const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
 
   // Build rooms from room types
   const rooms = roomTypes.map((rt, i) => ({
@@ -327,6 +328,7 @@ function buildRUPayload(
     payment_methods: mapPaymentMethods(property.amenities),
     deposit,
     deposit_type_id: depositTypeId,
+    cleaning_price: cleaningPrice,
     cancellation_policies: cancellationPolicies,
     security_deposit: securityDeposit,
     check_in_from: checkInFrom,
