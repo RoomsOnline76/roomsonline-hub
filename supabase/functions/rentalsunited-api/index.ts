@@ -61,11 +61,17 @@ interface RUCancellationPolicy {
   percentage: number;
 }
 
+interface RUBuildingUnitType {
+  name: string;
+  quantity: number;
+}
+
 interface RUPropertyPayload {
   name: string;
   property_type_id: number;
   can_sleep_max: number;
   standard_guests: number;
+  number_of_beds?: number;
   floor: number;
   space: number;
   street: string;
@@ -148,6 +154,7 @@ interface RequestBody {
   // Building payloads
   building_name?: string;
   building_id?: number;
+  unit_types?: RUBuildingUnitType[];
   property_ids?: number[];
 }
 
@@ -193,20 +200,30 @@ function extractPropertyIds(xml: string): { id: string; name: string }[] {
   return results;
 }
 
+function compactXml(xml: string): string {
+  return xml.replace(/<\?xml[^?]*\?>\s*/gi, '').replace(/>\s+</g, '><').trim();
+}
+
+function sanitizeXmlForLogs(xml: string): string {
+  return xml
+    .replace(/<AccessKey>.*?<\/AccessKey>/gi, '<AccessKey>[REDACTED]</AccessKey>')
+    .replace(/<SecretKey>.*?<\/SecretKey>/gi, '<SecretKey>[REDACTED]</SecretKey>');
+}
+
+function previewXml(xml: string, limit = 1200): string {
+  return xml.length > limit ? `${xml.substring(0, limit)}…` : xml;
+}
+
 // ── API Call Helper ──────────────────────────────────────────
 
 async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise<string> {
-  // Strip XML declaration — RU's .NET handler identifies the method from the root element
-  // and chokes when <?xml?> is present. Then compact to single line.
-  const stripped = xmlBody.replace(/<\?xml[^?]*\?>\s*/gi, '');
-  const compactXml = stripped.replace(/>\s+</g, '><').trim();
-
-  console.log(`[rentalsunited-api] Compact XML first 500: "${compactXml.substring(0, 500)}"`);
+  const compactRequestXml = compactXml(xmlBody);
+  console.log(`[rentalsunited-api] Compact XML first 500: "${previewXml(sanitizeXmlForLogs(compactRequestXml), 500)}"`);
 
   const response = await fetch(creds.endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'text/xml; charset=utf-8' },
-    body: compactXml,
+    body: compactRequestXml,
   });
 
   if (!response.ok) {
@@ -387,17 +404,15 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     ${cleaningPriceXml}
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
-    <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
     <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
+    <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
     <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
     <Floor>${prop.floor}</Floor>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
     <Street>${escapeXml(prop.street)}</Street>
     <ZipCode>${escapeXml(prop.zip_code)}</ZipCode>
-    <Coordinates>
-      <Longitude>${prop.longitude}</Longitude>
-      <Latitude>${prop.latitude}</Latitude>
-    </Coordinates>
+    <Longitude>${prop.longitude}</Longitude>
+    <Latitude>${prop.latitude}</Latitude>
     ${arrivalInstructionsXml}
     <Amenities>
       ${amenitiesXml}
@@ -512,18 +527,22 @@ function buildSetPropertyStatusXml(creds: RUCredentials, propertyId: number, isA
 </Push_SetPropertiesStatus_RQ>`;
 }
 
-function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: Array<{ name: string; quantity: number }>): string {
-  // RU API: BuildingName is a direct child of Push_PutBuilding_RQ, max 20 chars
+function buildBuildingCompositionXml(unitTypes?: RUBuildingUnitType[]): string {
+  if (!unitTypes || unitTypes.length === 0) return '';
+
+  const unitTypeNodes = unitTypes
+    .filter((unitType) => unitType.name?.trim() && Number.isFinite(unitType.quantity) && unitType.quantity > 0)
+    .map((unitType) => `<UnitType><UnitTypeName>${escapeXml(unitType.name.trim())}</UnitTypeName><Quantity>${Math.trunc(unitType.quantity)}</Quantity></UnitType>`)
+    .join('');
+
+  return unitTypeNodes ? `<Composition><UnitsComposition>${unitTypeNodes}</UnitsComposition></Composition>` : '';
+}
+
+function buildPushBuildingXml(creds: RUCredentials, buildingId: number, buildingName: string, unitTypes?: RUBuildingUnitType[]): string {
   const truncatedName = buildingName.substring(0, 20);
-  // Include BuildingID when updating an existing building to avoid creating duplicates
   const buildingIdXml = buildingId > 0 ? `<BuildingID>${buildingId}</BuildingID>` : '';
-  // Include Composition block so RU knows which unit types belong to this building
-  let compositionXml = '';
-  if (unitTypes && unitTypes.length > 0) {
-    const unitTypeNodes = unitTypes.map(ut => `<UnitType><UnitTypeName>${escapeXml(ut.name)}</UnitTypeName><Quantity>${ut.quantity}</Quantity></UnitType>`).join('');
-    compositionXml = `<Composition><UnitsComposition>${unitTypeNodes}</UnitsComposition></Composition>`;
-  }
-  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}${buildingIdXml}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${compositionXml}</Push_PutBuilding_RQ>`;
+  const compositionXml = buildBuildingCompositionXml(unitTypes);
+  return `<Push_PutBuilding_RQ>${buildAuthXml(creds)}<BuildingName>${escapeXml(truncatedName)}</BuildingName>${buildingIdXml}${compositionXml}</Push_PutBuilding_RQ>`;
 }
 
 function buildListBuildingsXml(creds: RUCredentials): string {
@@ -565,14 +584,17 @@ function parseXmlErrorPosition(message: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-function buildDiagnostics(compactXml: string, status: { id: string; message: string }, stage: string): Record<string, unknown> {
+function buildDiagnostics(compactRequestXml: string, status: { id: string; message: string }, stage: string, responseXml?: string): Record<string, unknown> {
+  const safeXml = sanitizeXmlForLogs(compactRequestXml);
   const xmlPos = parseXmlErrorPosition(status.message);
   return {
     error_stage: stage,
-    xml_length: compactXml.length,
+    xml_length: safeXml.length,
     xml_error_position: xmlPos,
-    xml_context: xmlPos ? compactXml.substring(Math.max(0, xmlPos - 60), xmlPos + 60) : null,
-    request_preview: compactXml.substring(0, 200),
+    xml_context: xmlPos ? safeXml.substring(Math.max(0, xmlPos - 60), xmlPos + 60) : null,
+    request_preview: previewXml(safeXml, 600),
+    request_xml: safeXml,
+    response_preview: responseXml ? previewXml(responseXml, 600) : null,
   };
 }
 
@@ -742,20 +764,28 @@ Deno.serve(async (req) => {
       }
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
-      // Compact XML the same way callRentalsUnited does, so char positions match
-      const compactXml = xml.replace(/<\?xml[^?]*\?>\s*/gi, '').replace(/>\s+</g, '><').trim();
-      console.log(`[rentalsunited-api] Push XML length: ${compactXml.length}, ru_property_id: ${ru_property_id}`);
-      console.log(`[rentalsunited-api] XML first 300 chars: ${compactXml.substring(0, 300)}`);
+      const compactRequestXml = compactXml(xml);
+      console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}`);
+      console.log(`[rentalsunited-api] XML first 300 chars: ${previewXml(sanitizeXmlForLogs(compactRequestXml), 300)}`);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
-        const diag = buildDiagnostics(compactXml, status, 'push_property');
+        const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
         console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
         return ruErrorResponse(status, diag);
       }
-      return jsonResponse({ success: true, message: 'Property pushed successfully', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        message: 'Property pushed successfully',
+        raw_xml: response,
+        diagnostics: {
+          request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
+          request_xml: sanitizeXmlForLogs(compactRequestXml),
+          response_preview: previewXml(response, 600),
+        },
+      });
     }
 
     // ── push_availability (mandatory) ──
@@ -848,12 +878,23 @@ Deno.serve(async (req) => {
       if (!body.building_name) return errorResponse('MISSING_PARAM', 'building_name is required');
       const bId = body.building_id || 0;
       const xml = buildPushBuildingXml(creds, bId, body.building_name, body.unit_types);
+      const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] Push building response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'push_building', response));
       const buildingId = extractBuildingId(response);
-      return jsonResponse({ success: true, building_id: buildingId ? parseInt(buildingId, 10) : null, message: 'Building pushed successfully', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        building_id: buildingId ? parseInt(buildingId, 10) : null,
+        message: 'Building pushed successfully',
+        raw_xml: response,
+        diagnostics: {
+          request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
+          request_xml: sanitizeXmlForLogs(compactRequestXml),
+          response_preview: previewXml(response, 600),
+        },
+      });
     }
 
     // ── list_buildings ──
