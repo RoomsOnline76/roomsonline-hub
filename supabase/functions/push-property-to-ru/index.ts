@@ -470,9 +470,18 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
   }
 
-  if (allPeriods.length > 0) {
+  // Resolve changeover preference: property-level override or default 3 (Both)
+  const changeoverPref = (amenities as any)?.changeover ?? 3;
+
+  // Ensure at least 1 available day over the next 365 days
+  if (allPeriods.length === 0) {
+    allPeriods.push({ from: todayStr, to: oneYearStr, minStay: 1, seasonId: '__fallback__' });
+    console.log(`[pushARI] No seasons found — pushing fallback availability for ${todayStr} to ${oneYearStr}`);
+  }
+
+  {
     try {
-      const availEntries = allPeriods.map(p => ({ date_from: p.from, date_to: p.to, units: unitUnits, min_stay: p.minStay }));
+      const availEntries = allPeriods.map(p => ({ date_from: p.from, date_to: p.to, units: unitUnits, min_stay: p.minStay, changeover: changeoverPref }));
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
       });
