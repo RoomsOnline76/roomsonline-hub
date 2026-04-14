@@ -75,6 +75,8 @@ interface RoomTypeRow {
   bedrooms: number | null;
   bathrooms: number | null;
   beds: number | null;
+  bed_configuration: { type: string; count: number }[] | null;
+  linked_rolos_id: string | null;
   amenities: Record<string, unknown> | null;
   images: unknown[] | null;
   check_in_time: string | null;
@@ -236,7 +238,12 @@ function buildUnitPayload(
     }
   }
 
-  const beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
+  // Calculate beds from bed_configuration if available
+  let beds = 0;
+  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
+    beds = unit.bed_configuration.reduce((sum: number, b: any) => sum + (b.count || 0), 0);
+  }
+  if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
   
   return {
@@ -345,7 +352,47 @@ function extractRUPropertyId(rawXml: string): string | null {
 
 // ── ARI Push Helper ──────────────────────────────────────────
 
-async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1) {
+interface UnitContext {
+  id: string;
+  name: string;
+  linked_rolos_id?: string | null;
+}
+
+function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, unit: UnitContext, amenities: Record<string, any>): number | null {
+  // Try multiple keys to find the rate for this specific unit
+  const roomTypes = (amenities.room_types || []) as any[];
+  const candidateKeys = [unit.id];
+  if (unit.linked_rolos_id) candidateKeys.push(unit.linked_rolos_id);
+  // Find matching amenity room by name
+  const matchedRoom = roomTypes.find((rt: any) => rt.name === unit.name || rt.id === unit.id);
+  if (matchedRoom && matchedRoom.id && !candidateKeys.includes(matchedRoom.id)) candidateKeys.push(matchedRoom.id);
+
+  for (const [, rateData] of Object.entries(seasonRates)) {
+    if (typeof rateData !== 'object' || rateData === null) continue;
+    for (const roomKey of candidateKeys) {
+      const compositeKey = `${seasonId}-${roomKey}`;
+      const entry = (rateData as Record<string, any>)[compositeKey];
+      if (entry && typeof entry === 'object' && typeof (entry as any).roomAmount === 'number' && (entry as any).roomAmount > 0) {
+        return (entry as any).roomAmount;
+      }
+    }
+  }
+
+  // Fallback: find lowest rate for this season across all entries
+  let lowest = Infinity;
+  for (const [, rateData] of Object.entries(seasonRates)) {
+    if (typeof rateData !== 'object' || rateData === null) continue;
+    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
+      if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
+        const amount = (subData as any).roomAmount;
+        if (typeof amount === 'number' && amount > 0 && amount < lowest) lowest = amount;
+      }
+    }
+  }
+  return lowest < Infinity ? lowest : null;
+}
+
+async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
@@ -397,22 +444,32 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       let lastKnownRate = 0;
       for (const season of seasons) {
         const seasonId = String(season.id);
-        let lowestRate = Infinity;
-        for (const [, rateData] of Object.entries(seasonRates)) {
-          if (typeof rateData === 'object' && rateData !== null) {
-            for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-              if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-                const amount = (subData as any).roomAmount;
-                if (typeof amount === 'number' && amount > 0 && amount < lowestRate) lowestRate = amount;
+        let rate: number | null = null;
+
+        if (unit) {
+          // Unit-specific rate resolution
+          rate = resolveUnitRateKey(seasonRates, seasonId, unit, amenities);
+        } else {
+          // Legacy single-unit: find lowest rate
+          let lowestRate = Infinity;
+          for (const [, rateData] of Object.entries(seasonRates)) {
+            if (typeof rateData === 'object' && rateData !== null) {
+              for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
+                if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
+                  const amount = (subData as any).roomAmount;
+                  if (typeof amount === 'number' && amount > 0 && amount < lowestRate) lowestRate = amount;
+                }
               }
             }
           }
+          rate = lowestRate < Infinity ? lowestRate : null;
         }
-        if (lowestRate < Infinity) {
-          lastKnownRate = lowestRate;
+
+        if (rate !== null && rate > 0) {
+          lastKnownRate = rate;
           const periods = season.periods || [{ from: season.from, to: season.to }];
           for (const period of periods) {
-            if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: lowestRate });
+            if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: rate });
           }
         }
       }
@@ -473,7 +530,7 @@ Deno.serve(async (req) => {
 
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
-      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
+      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
       .eq('property_id', property_id)
       .eq('is_active', true);
 
@@ -591,7 +648,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1);
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
