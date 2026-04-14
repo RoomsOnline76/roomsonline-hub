@@ -1,12 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
- * Push Property to Rentals United
+ * Push Property to Rentals United — Multi-Unit Building Support
  * 
- * Orchestrator that loads a ROL'OS property + room types,
- * maps them to the RU Push_PutProperty_RQ format,
- * calls the rentalsunited-api edge function,
- * and stores the returned RU property ID back on the property record.
+ * For properties with room types (multi-unit buildings like Seesig):
+ *  1. Create/update an RU Building container
+ *  2. Push each room type as an individual RU Property within that building
+ *  3. Push ARI (availability, rates, inventory) per unit
+ * 
+ * For single-unit properties (no room types):
+ *  Push as a single RU Property (legacy behaviour)
  */
 
 const corsHeaders = {
@@ -61,6 +64,7 @@ interface PropertyRow {
   amenities: Record<string, unknown> | null;
   images: unknown[] | null;
   rentalsunited_property_id: string | null;
+  rentalsunited_building_id: string | null;
 }
 
 interface RoomTypeRow {
@@ -85,6 +89,7 @@ interface RoomTypeRow {
   cancellation_policy: string | null;
   room_size: number | null;
   check_in_instructions: string | null;
+  rentalsunited_property_id: string | null;
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -96,14 +101,11 @@ function toFiniteNumber(value: unknown): number | null {
 
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number }[] {
   if (!amenitiesData) return [];
-
   const mapped: { id: number; count: number }[] = [];
   const seen = new Set<number>();
-
   const amenityList = Array.isArray(amenitiesData)
     ? amenitiesData
     : (amenitiesData.list || amenitiesData.amenities || amenitiesData.features || []);
-
   if (Array.isArray(amenityList)) {
     for (const item of amenityList) {
       const key = typeof item === 'string'
@@ -116,17 +118,11 @@ function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: numb
       }
     }
   }
-
-  // Pad with generic amenities if fewer than 10
   const padIds = [2, 6, 11, 12, 14, 39, 42, 44, 45, 60, 61, 62];
   for (const id of padIds) {
     if (mapped.length >= 10) break;
-    if (!seen.has(id)) {
-      seen.add(id);
-      mapped.push({ id, count: 1 });
-    }
+    if (!seen.has(id)) { seen.add(id); mapped.push({ id, count: 1 }); }
   }
-
   return mapped;
 }
 
@@ -141,189 +137,114 @@ function mapImages(images: unknown[] | null): { url: string; type_id: number; is
 function mapPaymentMethods(amenities: Record<string, unknown> | null): number[] {
   const methods: number[] = [];
   const seen = new Set<number>();
-
   const paymentData = amenities?.payment_methods || amenities?.payments;
   if (Array.isArray(paymentData)) {
     for (const pm of paymentData) {
       const key = typeof pm === 'string' ? pm.toLowerCase().replace(/[\s-]+/g, '_') : '';
       const ruId = PAYMENT_METHOD_MAP[key];
-      if (ruId && !seen.has(ruId)) {
-        seen.add(ruId);
-        methods.push(ruId);
-      }
+      if (ruId && !seen.has(ruId)) { seen.add(ruId); methods.push(ruId); }
     }
   }
-
   if (methods.length === 0) methods.push(1, 2);
   return methods;
 }
 
-/**
- * Map cancellation policies from DB format to RU format.
- * DB: [{days: 999, forfeit: 10, type: "% of Total"}, {days: 30, forfeit: 100}]
- * RU expects flat CancellationPolicy entries like:
- * <CancellationPolicy ValidFrom="0" ValidTo="30">100</CancellationPolicy>
- */
 function mapCancellationPolicies(amenities: Record<string, unknown> | null): { valid_from: number; valid_to: number; percentage: number }[] {
   const policies = amenities?.cancellation_policies;
   if (!Array.isArray(policies) || policies.length === 0) {
-    return [
-      { valid_from: 0, valid_to: 14, percentage: 100 },
-      { valid_from: 15, valid_to: 30, percentage: 50 },
-    ];
+    return [{ valid_from: 0, valid_to: 14, percentage: 100 }, { valid_from: 15, valid_to: 30, percentage: 50 }];
   }
-
-  // Sort policies by days ascending so we can build contiguous ranges
   const sorted = [...policies]
     .filter((p: any) => p.days != null && p.forfeit != null)
     .map((p: any) => ({ days: Number(p.days), forfeit: Number(p.forfeit) }))
     .filter((p) => Number.isFinite(p.days) && Number.isFinite(p.forfeit) && p.days >= 0)
     .sort((a, b) => a.days - b.days);
-
-  if (sorted.length === 0) {
-    return [{ valid_from: 0, valid_to: 30, percentage: 100 }];
-  }
-
+  if (sorted.length === 0) return [{ valid_from: 0, valid_to: 30, percentage: 100 }];
   const rules: { valid_from: number; valid_to: number; percentage: number }[] = [];
-  
   for (let i = 0; i < sorted.length; i++) {
     const policy = sorted[i] as any;
     const fromDays = i === 0 ? 0 : (sorted[i - 1] as any).days + 1;
     const toDays = policy.days;
-    if (fromDays <= toDays) {
-      rules.push({ valid_from: fromDays, valid_to: toDays, percentage: policy.forfeit });
-    }
+    if (fromDays <= toDays) rules.push({ valid_from: fromDays, valid_to: toDays, percentage: policy.forfeit });
   }
-
   return rules;
 }
 
-/**
- * Resolve RU DetailedLocationID via coordinates lookup.
- * Falls back to 1 if lookup fails.
- */
 async function resolveLocationId(supabase: any, lat: number, lng: number): Promise<number> {
   if (!lat || !lng) return 1;
-
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
       body: { action: 'get_location_by_coordinates', metadata: { latitude: lat, longitude: lng } },
     });
-
-    if (error || !data?.success || !data?.location_id) {
-      console.warn('[push-property-to-ru] Location lookup failed, using fallback:', error?.message || data?.error);
-      return 1;
-    }
-
+    if (error || !data?.success || !data?.location_id) return 1;
     console.log(`[push-property-to-ru] Resolved LocationID: ${data.location_id}`);
     return data.location_id;
-  } catch (err) {
-    console.warn('[push-property-to-ru] Location lookup exception:', err);
-    return 1;
-  }
+  } catch { return 1; }
 }
 
-function buildRUPayload(
+// ── Build RU payload for a single unit ───────────────────────
+
+function buildUnitPayload(
   property: PropertyRow,
-  roomTypes: RoomTypeRow[],
+  unit: RoomTypeRow,
   locationId: number,
+  buildingId?: number,
 ) {
-  const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
+  const unitType = (unit.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
+  const objectTypeId = PROPERTY_TYPE_MAP[unitType] || 12; // default chalet
 
-  const objectTypeId = PROPERTY_TYPE_MAP[
-    (primaryRoom?.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
-  ] || 1;
+  const lat = unit.latitude || property.latitude || 0;
+  const lng = unit.longitude || property.longitude || 0;
+  const street = unit.address_street || property.address || 'Not specified';
+  const zipCode = unit.address_postal_code || '0000';
+  const maxGuests = unit.max_guests || 2;
+  const space = unit.room_size || 50;
 
-  const lat = primaryRoom?.latitude || property.latitude || 0;
-  const lng = primaryRoom?.longitude || property.longitude || 0;
-  const street = primaryRoom?.address_street || property.address || 'Not specified';
-  const zipCode = primaryRoom?.address_postal_code || '0000';
-
-  // max_guests: use property value if > 1, else aggregate from room types
-  let maxGuests = property.max_guests || 0;
-  if (maxGuests <= 1 && roomTypes.length > 0) {
-    maxGuests = roomTypes.reduce((sum, rt) => sum + (rt.max_guests || 2), 0);
-  }
-  if (maxGuests < 1) maxGuests = 2;
-
-  // Space: use room_size from first room type, or property data, or default
-  const space = primaryRoom?.room_size || 50;
-
-  // Check-in/out: read from property amenities.house_rules, then room type, then defaults
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
-  const checkInFrom = houseRules.check_in_from || primaryRoom?.check_in_time || '14:00';
+  const checkInFrom = houseRules.check_in_from || unit.check_in_time || '14:00';
   const checkInTo = houseRules.check_in_to || '22:00';
-  const checkOutUntil = houseRules.check_out_to || primaryRoom?.check_out_time || '10:00';
-  const arrivalLandlord = contact.name || contact.full_name || property.name || 'RoomsOnline';
-  const arrivalEmail = (amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za';
-  const arrivalPhone = (amenities as any)?.telephone || (amenities as any)?.mobile_number || contact.telephone || contact.phone || '+27 824602220';
-  const arrivalHowToArrive = primaryRoom?.check_in_instructions || houseRules.check_in_instructions || '';
-  const arrivalDaysBefore = toFiniteNumber(houseRules.days_before_arrival) ?? 0;
+  const checkOutUntil = houseRules.check_out_to || unit.check_out_time || '10:00';
 
-  // Deposit/prepayment + security deposit from amenities.banking or room type
   const banking = (amenities as any)?.banking || {};
-  const depositPercent = toFiniteNumber(
-    banking.deposit_percentage ?? banking.prepayment_percentage ?? banking.prepayment_percent,
-  );
-  const depositAmount = toFiniteNumber(
-    banking.deposit_amount ?? banking.prepayment_amount ?? banking.deposit ?? banking.prepayment,
-  );
-  const deposit = depositPercent && depositPercent > 0
-    ? depositPercent
-    : depositAmount && depositAmount > 0
-      ? depositAmount
-      : 0;
+  const depositPercent = toFiniteNumber(banking.deposit_percentage ?? banking.prepayment_percentage);
+  const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
+  const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
-  const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
-  const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
+  const securityDeposit = banking.security_deposit || unit.security_deposit || undefined;
+  const cleaningPrice = toFiniteNumber(unit.cleaning_fee) ?? 0;
 
-  // Build rooms from room types
-  const rooms = roomTypes.map((rt, i) => ({
-    room_id: i + 1,
-    amenities: mapAmenities(rt.amenities).slice(0, 5),
-  }));
+  // Use unit images first, fall back to property images
+  let images = mapImages(unit.images as unknown[] | null);
+  if (images.length < 10) {
+    const propImages = mapImages(property.images as unknown[] | null);
+    const seenUrls = new Set(images.map(i => i.url));
+    for (const pi of propImages) {
+      if (!seenUrls.has(pi.url)) { images.push(pi); seenUrls.add(pi.url); }
+    }
+  }
+  images = images.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
 
-  if (rooms.length === 0) {
-    rooms.push({ room_id: 1, amenities: [{ id: 2, count: 1 }] });
+  // Amenities: merge unit + property
+  let unitAmenities = mapAmenities(unit.amenities);
+  if (unitAmenities.length < 10) {
+    const propAmenities = mapAmenities(property.amenities);
+    const seenIds = new Set(unitAmenities.map(a => a.id));
+    for (const pa of propAmenities) {
+      if (!seenIds.has(pa.id)) { unitAmenities.push(pa); seenIds.add(pa.id); }
+    }
   }
 
-  // Collect all images from property + room types
-  let allImages = mapImages(property.images as unknown[] | null);
-  for (const rt of roomTypes) {
-    allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
-  }
-  // Deduplicate by URL
-  const seenUrls = new Set<string>();
-  allImages = allImages.filter(img => {
-    if (seenUrls.has(img.url)) return false;
-    seenUrls.add(img.url);
-    return true;
-  });
-  allImages = allImages.map((img, index) => ({
-    ...img,
-    is_main: index === 0,
-    type_id: index === 0 ? 1 : (img.type_id && img.type_id !== 1 ? img.type_id : 3),
-  }));
-
-  // Build descriptions
-  const descText = property.description || property.name || 'Beautiful property';
-  const descriptions = [{ language_id: 1, text: descText }];
-
-  // Cancellation policies from DB
-  const cancellationPolicies = mapCancellationPolicies(amenities as Record<string, unknown>);
-
-  // Number of beds: sum from room types, or derive from bedrooms/max_guests
-  const totalBeds = roomTypes.reduce((sum, rt) => sum + (rt.beds || 0), 0);
-  const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
-
+  const beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
+  const descText = unit.description || property.description || unit.name;
+  
   return {
-    name: property.name,
+    name: unit.name,
     property_type_id: objectTypeId,
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
-    number_of_beds: numberOfBeds,
+    number_of_beds: beds,
     owner_id: 738925,
     no_of_units: 1,
     floor: 0,
@@ -333,34 +254,185 @@ function buildRUPayload(
     zip_code: zipCode,
     latitude: lat,
     longitude: lng,
-    amenities: mapAmenities(property.amenities),
-    rooms,
-    descriptions,
-    images: allImages,
+    amenities: unitAmenities,
+    rooms: [{ room_id: 1, amenities: unitAmenities.slice(0, 5) }],
+    descriptions: [{ language_id: 1, text: descText }],
+    images,
     payment_methods: mapPaymentMethods(property.amenities),
     deposit,
     deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
-    cancellation_policies: cancellationPolicies,
+    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
     security_deposit: securityDeposit,
-    arrival_landlord: String(arrivalLandlord),
-    arrival_email: String(arrivalEmail),
-    arrival_phone: String(arrivalPhone),
-    arrival_days_before: arrivalDaysBefore,
-    arrival_how_to_arrive: String(arrivalHowToArrive),
+    arrival_landlord: String((amenities as any)?.contact?.name || property.name || 'RoomsOnline'),
+    arrival_email: String((amenities as any)?.contact_email || (amenities as any)?.contact?.email || 'dev@roomsonline.co.za'),
+    arrival_phone: String((amenities as any)?.telephone || (amenities as any)?.contact?.telephone || '+27 824602220'),
+    arrival_days_before: toFiniteNumber(houseRules.days_before_arrival) ?? 0,
+    arrival_how_to_arrive: String(unit.check_in_instructions || houseRules.check_in_instructions || ''),
     check_in_from: checkInFrom,
     check_in_to: checkInTo,
     check_out_until: checkOutUntil,
     check_in_place: 'at_the_apartment',
+    building_id: buildingId,
   };
 }
 
-// ── Extract RU Property ID from response XML ────────────────
+// Legacy single-property payload builder (kept for properties with no room types)
+function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number) {
+  const primaryRoom = roomTypes[0] || null;
+  const amenities = property.amenities || {};
+  const objectTypeId = PROPERTY_TYPE_MAP[
+    (primaryRoom?.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_')
+  ] || 1;
+  const lat = primaryRoom?.latitude || property.latitude || 0;
+  const lng = primaryRoom?.longitude || property.longitude || 0;
+  const street = primaryRoom?.address_street || property.address || 'Not specified';
+  const zipCode = primaryRoom?.address_postal_code || '0000';
+  let maxGuests = property.max_guests || 0;
+  if (maxGuests <= 1 && roomTypes.length > 0) maxGuests = roomTypes.reduce((sum, rt) => sum + (rt.max_guests || 2), 0);
+  if (maxGuests < 1) maxGuests = 2;
+  const space = primaryRoom?.room_size || 50;
+  const houseRules = (amenities as any)?.house_rules || {};
+  const contact = (amenities as any)?.contact || {};
+  const banking = (amenities as any)?.banking || {};
+  const depositPercent = toFiniteNumber(banking.deposit_percentage ?? banking.prepayment_percentage);
+  const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
+  const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
+  const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
+  const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
+  const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
+  const rooms = roomTypes.map((rt, i) => ({ room_id: i + 1, amenities: mapAmenities(rt.amenities).slice(0, 5) }));
+  if (rooms.length === 0) rooms.push({ room_id: 1, amenities: [{ id: 2, count: 1 }] });
+  let allImages = mapImages(property.images as unknown[] | null);
+  for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
+  const seenUrls = new Set<string>();
+  allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
+  allImages = allImages.map((img, index) => ({ ...img, is_main: index === 0, type_id: index === 0 ? 1 : 3 }));
+  const totalBeds = roomTypes.reduce((sum, rt) => sum + (rt.beds || 0), 0);
+  const numberOfBeds = totalBeds > 0 ? totalBeds : (property.bedrooms || Math.max(1, maxGuests));
+  return {
+    name: property.name,
+    property_type_id: objectTypeId,
+    can_sleep_max: maxGuests,
+    standard_guests: Math.ceil(maxGuests * 0.7),
+    number_of_beds: numberOfBeds,
+    owner_id: 738925, no_of_units: 1, floor: 0, space, street,
+    detailed_location_id: locationId, zip_code: zipCode,
+    latitude: lat, longitude: lng,
+    amenities: mapAmenities(property.amenities),
+    rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
+    images: allImages, payment_methods: mapPaymentMethods(property.amenities),
+    deposit, deposit_type_id: depositTypeId,
+    cleaning_price: cleaningPrice,
+    cancellation_policies: mapCancellationPolicies(amenities as Record<string, unknown>),
+    security_deposit: securityDeposit,
+    arrival_landlord: String(contact.name || property.name || 'RoomsOnline'),
+    arrival_email: String((amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za'),
+    arrival_phone: String((amenities as any)?.telephone || contact.telephone || '+27 824602220'),
+    arrival_days_before: toFiniteNumber(houseRules.days_before_arrival) ?? 0,
+    arrival_how_to_arrive: String(primaryRoom?.check_in_instructions || houseRules.check_in_instructions || ''),
+    check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
+    check_in_to: houseRules.check_in_to || '22:00',
+    check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
+    check_in_place: 'at_the_apartment',
+  };
+}
 
 function extractRUPropertyId(rawXml: string): string | null {
-  // RU returns <ID>123</ID> in Push_PutProperty_RS (not <PropertyID>)
   const match = rawXml.match(/<ID>(\d+)<\/ID>/);
   return match?.[1] || null;
+}
+
+// ── ARI Push Helper ──────────────────────────────────────────
+
+async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1) {
+  const amenities = (property.amenities || {}) as Record<string, any>;
+  const seasons = amenities.seasons as any[] | undefined;
+  const seasonRates = amenities.season_rates as Record<string, any> | undefined;
+  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string } = {};
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const oneYearLater = new Date(today);
+  oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+  const oneYearStr = oneYearLater.toISOString().slice(0, 10);
+
+  type PeriodEntry = { from: string; to: string; minStay: number; seasonId: string };
+  const allPeriods: PeriodEntry[] = [];
+  if (Array.isArray(seasons)) {
+    for (const season of seasons) {
+      const periods = season.periods || [{ from: season.from, to: season.to }];
+      for (const period of periods) {
+        if (period.from && period.to) allPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
+      }
+    }
+  }
+  allPeriods.sort((a, b) => a.from.localeCompare(b.from));
+
+  let latestEnd = todayStr;
+  for (const p of allPeriods) { if (p.to > latestEnd) latestEnd = p.to; }
+  if (latestEnd < oneYearStr) {
+    const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
+    const fillerFrom = nextDay.toISOString().slice(0, 10);
+    if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
+  }
+
+  if (allPeriods.length > 0) {
+    try {
+      const availEntries = allPeriods.map(p => ({ date_from: p.from, date_to: p.to, units: unitUnits, min_stay: p.minStay }));
+      const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
+      });
+      if (availErr || !availResult?.success) {
+        result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
+      } else {
+        result.availability_pushed = true;
+      }
+    } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
+  }
+
+  if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
+    try {
+      const priceEntries: { date_from: string; date_to: string; price: number }[] = [];
+      let lastKnownRate = 0;
+      for (const season of seasons) {
+        const seasonId = String(season.id);
+        let lowestRate = Infinity;
+        for (const [, rateData] of Object.entries(seasonRates)) {
+          if (typeof rateData === 'object' && rateData !== null) {
+            for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
+              if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
+                const amount = (subData as any).roomAmount;
+                if (typeof amount === 'number' && amount > 0 && amount < lowestRate) lowestRate = amount;
+              }
+            }
+          }
+        }
+        if (lowestRate < Infinity) {
+          lastKnownRate = lowestRate;
+          const periods = season.periods || [{ from: season.from, to: season.to }];
+          for (const period of periods) {
+            if (period.from && period.to) priceEntries.push({ date_from: period.from, date_to: period.to, price: lowestRate });
+          }
+        }
+      }
+      if (lastKnownRate > 0 && latestEnd < oneYearStr) {
+        const nextDay = new Date(latestEnd); nextDay.setDate(nextDay.getDate() + 1);
+        const fillerFrom = nextDay.toISOString().slice(0, 10);
+        if (fillerFrom <= oneYearStr) priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate });
+      }
+      if (priceEntries.length > 0) {
+        const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceEntries },
+        });
+        if (priceErr || !priceResult?.success) {
+          result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
+        } else { result.prices_pushed = true; }
+      }
+    } catch (e) { result.prices_error = e instanceof Error ? e.message : 'Unknown error'; }
+  }
+
+  return result;
 }
 
 // ── Main Handler ─────────────────────────────────────────────
@@ -386,10 +458,9 @@ Deno.serve(async (req) => {
 
     console.log(`[push-property-to-ru] Loading property ${property_id}...`);
 
-    // Load property
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id')
+      .select('id, name, description, property_type, address, city, country, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id')
       .eq('id', property_id)
       .single();
 
@@ -400,37 +471,154 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load room types
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
-      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size')
+      .select('id, name, description, max_guests, bedrooms, bathrooms, beds, amenities, images, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id')
       .eq('property_id', property_id)
       .eq('is_active', true);
 
-    // Resolve RU location ID from coordinates
-    const lat = property.latitude || (roomTypes?.[0] as any)?.latitude || 0;
-    const lng = property.longitude || (roomTypes?.[0] as any)?.longitude || 0;
+    const activeRoomTypes = (roomTypes || []) as RoomTypeRow[];
+    const isMultiUnit = activeRoomTypes.length > 0;
+
+    const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
+    const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
     const locationId = await resolveLocationId(supabase, lat, lng);
 
-    // Build the RU payload
-    const ruPayload = buildRUPayload(property as PropertyRow, (roomTypes || []) as RoomTypeRow[], locationId);
+    // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
+    if (isMultiUnit) {
+      console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
 
-    // Determine RU property ID: use existing or 0 for new
-    const existingRuId = property.rentalsunited_property_id
-      ? parseInt(property.rentalsunited_property_id, 10)
-      : 0;
+      // Dry run: validate each unit
+      if (dry_run) {
+        const units = activeRoomTypes.map(rt => {
+          const payload = buildUnitPayload(property as PropertyRow, rt, locationId);
+          return {
+            room_type_id: rt.id,
+            name: rt.name,
+            ru_property_id: rt.rentalsunited_property_id || null,
+            validation: {
+              images_count: payload.images.length,
+              amenities_count: payload.amenities.length,
+              rooms_count: 1,
+              has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
+              meets_minimum_images: payload.images.length >= 10,
+              meets_minimum_amenities: payload.amenities.length >= 10,
+              max_guests: payload.can_sleep_max,
+            },
+          };
+        });
 
-    console.log(`[push-property-to-ru] Mapped property "${property.name}" → RU format (${ruPayload.images.length} images, ${ruPayload.amenities.length} amenities, locationId: ${locationId}, maxGuests: ${ruPayload.can_sleep_max})`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            dry_run: true,
+            multi_unit: true,
+            property_id,
+            building_id: property.rentalsunited_building_id || null,
+            units,
+            validation: {
+              total_units: units.length,
+              all_ready: units.every(u => u.validation.meets_minimum_images && u.validation.meets_minimum_amenities && u.validation.has_coordinates),
+              images_count: units.reduce((s, u) => s + u.validation.images_count, 0),
+              amenities_count: units[0]?.validation.amenities_count || 0,
+              rooms_count: units.length,
+              has_coordinates: units.every(u => u.validation.has_coordinates),
+              meets_minimum_images: units.every(u => u.validation.meets_minimum_images),
+              meets_minimum_amenities: units.every(u => u.validation.meets_minimum_amenities),
+            },
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
-    // Dry run: return mapped payload without pushing
-    if (dry_run) {
+      // Step 1: Create/update RU Building
+      let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
+      console.log(`[push-property-to-ru] Step 1: Push building "${property.name}" (existing ID: ${buildingId})`);
+
+      const { data: buildingResult, error: buildingErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'push_building', building_name: property.name, building_id: buildingId },
+      });
+
+      if (buildingErr || !buildingResult?.success) {
+        const errMsg = buildingErr?.message || buildingResult?.error?.message || 'Unknown error';
+        console.error('[push-property-to-ru] Building push failed:', errMsg);
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'BUILDING_FAILED', message: errMsg } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (buildingResult.building_id) {
+        buildingId = buildingResult.building_id;
+        await supabase.from('properties').update({ rentalsunited_building_id: String(buildingId) }).eq('id', property_id);
+        console.log(`[push-property-to-ru] Building ID saved: ${buildingId}`);
+      }
+
+      // Step 2: Push each unit as an individual RU property
+      const unitResults: any[] = [];
+      for (const unit of activeRoomTypes) {
+        const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
+        const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
+
+        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId})`);
+
+        const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+        });
+
+        if (pushErr || !pushResult?.success) {
+          const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
+          console.error(`[push-property-to-ru] Unit "${unit.name}" push failed:`, errMsg);
+          unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: errMsg, diagnostics: pushResult?.diagnostics });
+          continue;
+        }
+
+        // Extract and save RU property ID for this unit
+        let unitRuId = existingUnitRuId > 0 ? String(existingUnitRuId) : null;
+        if (pushResult.raw_xml) {
+          const extracted = extractRUPropertyId(pushResult.raw_xml);
+          if (extracted) unitRuId = extracted;
+        }
+
+        if (unitRuId) {
+          await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: unitRuId }).eq('id', unit.id);
+          console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"`);
+        }
+
+        // Step 3 & 4: Push ARI for this unit
+        const ariResult = await pushARI(supabase, parseInt(unitRuId || '0', 10), property as PropertyRow, 1);
+
+        unitResults.push({
+          name: unit.name,
+          room_type_id: unit.id,
+          success: true,
+          rentalsunited_property_id: unitRuId,
+          ...ariResult,
+        });
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
-          dry_run: true,
+          multi_unit: true,
           property_id,
+          building_id: buildingId,
+          units: unitResults,
+          message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
+    const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId);
+    const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
+
+    if (dry_run) {
+      return new Response(
+        JSON.stringify({
+          success: true, dry_run: true, multi_unit: false, property_id,
           ru_property_id: existingRuId || null,
-          mapped_payload: ruPayload,
           validation: {
             images_count: ruPayload.images.length,
             amenities_count: ruPayload.amenities.length,
@@ -444,226 +632,49 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate minimums before pushing (only enforce for NEW properties, not updates)
     if (existingRuId === 0 && ruPayload.images.length < 10) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: {
-            code: 'VALIDATION_FAILED',
-            message: `Property needs at least 10 images (has ${ruPayload.images.length}). Add more images before pushing to RU.`,
-          },
-        }),
+        JSON.stringify({ success: false, error: { code: 'VALIDATION_FAILED', message: `Property needs at least 10 images (has ${ruPayload.images.length}).` } }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Call rentalsunited-api push_property
     const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
-      body: {
-        action: 'push_property',
-        ru_property_id: existingRuId,
-        property: ruPayload,
-      },
+      body: { action: 'push_property', ru_property_id: existingRuId, property: ruPayload },
     });
 
-    if (pushErr) {
-      console.error('[push-property-to-ru] Push failed:', pushErr.message);
+    if (pushErr || !pushResult?.success) {
       return new Response(
-        JSON.stringify({ success: false, error: { code: 'PUSH_FAILED', message: pushErr.message } }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!pushResult?.success) {
-      console.error('[push-property-to-ru] RU push failed:', JSON.stringify(pushResult?.error));
-      if (pushResult?.diagnostics) {
-        console.error('[push-property-to-ru] Diagnostics:', JSON.stringify(pushResult.diagnostics));
-      }
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: pushResult?.error || { code: 'RU_ERROR', message: 'Unknown RU error' },
-          diagnostics: pushResult?.diagnostics || null,
-        }),
+        JSON.stringify({ success: false, error: pushResult?.error || { code: 'PUSH_FAILED', message: pushErr?.message || 'Unknown' }, diagnostics: pushResult?.diagnostics }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Extract RU property ID from response
     let ruPropertyId = existingRuId > 0 ? String(existingRuId) : null;
     if (pushResult.raw_xml) {
       const extractedId = extractRUPropertyId(pushResult.raw_xml);
-      if (extractedId) {
-        ruPropertyId = extractedId;
-      }
+      if (extractedId) ruPropertyId = extractedId;
     }
 
-    // Store RU property ID back on the property
     if (ruPropertyId) {
-      const { error: updateErr } = await supabase
-        .from('properties')
-        .update({ rentalsunited_property_id: ruPropertyId })
-        .eq('id', property_id);
-
-      if (updateErr) {
-        console.error('[push-property-to-ru] Failed to save RU ID:', updateErr.message);
-      } else {
-        console.log(`[push-property-to-ru] Saved RU property ID ${ruPropertyId} for ${property_id}`);
-      }
+      await supabase.from('properties').update({ rentalsunited_property_id: ruPropertyId }).eq('id', property_id);
     }
 
-    // ── Push Availability & Prices from Seasons data ──────────
     const finalRuId = parseInt(ruPropertyId || '0', 10);
-    const amenities = (property.amenities || {}) as Record<string, any>;
-    const seasons = amenities.seasons as any[] | undefined;
-    const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-    const pushExtras: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string } = {};
-
-    if (finalRuId > 0 && !dry_run) {
-      const totalUnits = (roomTypes || []).length || 1;
-      const today = new Date();
-      const todayStr = today.toISOString().slice(0, 10);
-      const oneYearLater = new Date(today);
-      oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-      const oneYearStr = oneYearLater.toISOString().slice(0, 10);
-
-      // Collect all season periods with their season metadata
-      type PeriodEntry = { from: string; to: string; minStay: number; seasonId: string };
-      const allPeriods: PeriodEntry[] = [];
-      if (Array.isArray(seasons)) {
-        for (const season of seasons) {
-          const periods = season.periods || [{ from: season.from, to: season.to }];
-          for (const period of periods) {
-            if (period.from && period.to) {
-              allPeriods.push({ from: period.from, to: period.to, minStay: season.minStay || 1, seasonId: String(season.id) });
-            }
-          }
-        }
-      }
-      // Sort by start date
-      allPeriods.sort((a, b) => a.from.localeCompare(b.from));
-
-      // Find the latest end date covered by seasons
-      let latestEnd = todayStr;
-      for (const p of allPeriods) {
-        if (p.to > latestEnd) latestEnd = p.to;
-      }
-
-      // If seasons don't cover up to oneYearStr, extend with a filler period
-      if (latestEnd < oneYearStr) {
-        const nextDay = new Date(latestEnd);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const fillerFrom = nextDay.toISOString().slice(0, 10);
-        if (fillerFrom <= oneYearStr) {
-          allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
-        }
-      }
-
-      // Build availability entries
-      if (allPeriods.length > 0) {
-        try {
-          const availEntries = allPeriods.map(p => ({
-            date_from: p.from,
-            date_to: p.to,
-            units: totalUnits,
-            min_stay: p.minStay,
-          }));
-
-          const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'push_availability', ru_property_id: finalRuId, availability: availEntries },
-          });
-          if (availErr || !availResult?.success) {
-            pushExtras.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
-            console.error('[push-property-to-ru] Availability push failed:', pushExtras.availability_error);
-          } else {
-            pushExtras.availability_pushed = true;
-            console.log(`[push-property-to-ru] Pushed ${availEntries.length} availability periods (up to ${oneYearStr})`);
-          }
-        } catch (e) {
-          pushExtras.availability_error = e instanceof Error ? e.message : 'Unknown error';
-        }
-      }
-
-      // Build prices: find lowest rate per season, extend filler with last known rate
-      if (seasonRates && Array.isArray(seasons) && seasons.length > 0) {
-        try {
-          const priceEntries: { date_from: string; date_to: string; price: number }[] = [];
-          let lastKnownRate = 0;
-
-          for (const season of seasons) {
-            const seasonId = String(season.id);
-            let lowestRate = Infinity;
-            for (const [, rateData] of Object.entries(seasonRates)) {
-              if (typeof rateData === 'object' && rateData !== null) {
-                for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
-                  if (subKey.startsWith(seasonId + '-') && typeof subData === 'object' && subData !== null) {
-                    const amount = (subData as any).roomAmount;
-                    if (typeof amount === 'number' && amount > 0 && amount < lowestRate) {
-                      lowestRate = amount;
-                    }
-                  }
-                }
-              }
-            }
-            if (lowestRate < Infinity) {
-              lastKnownRate = lowestRate;
-              const periods = season.periods || [{ from: season.from, to: season.to }];
-              for (const period of periods) {
-                if (period.from && period.to) {
-                  priceEntries.push({ date_from: period.from, date_to: period.to, price: lowestRate });
-                }
-              }
-            }
-          }
-
-          // Add filler price if seasons don't cover full year
-          if (lastKnownRate > 0 && latestEnd < oneYearStr) {
-            const nextDay = new Date(latestEnd);
-            nextDay.setDate(nextDay.getDate() + 1);
-            const fillerFrom = nextDay.toISOString().slice(0, 10);
-            if (fillerFrom <= oneYearStr) {
-              priceEntries.push({ date_from: fillerFrom, date_to: oneYearStr, price: lastKnownRate });
-              console.log(`[push-property-to-ru] Extended prices with filler ${fillerFrom} → ${oneYearStr} @ ${lastKnownRate}`);
-            }
-          }
-
-          if (priceEntries.length > 0) {
-            const { data: priceResult, error: priceErr } = await supabase.functions.invoke('rentalsunited-api', {
-              body: { action: 'push_prices', ru_property_id: finalRuId, prices: priceEntries },
-            });
-            if (priceErr || !priceResult?.success) {
-              pushExtras.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
-              console.error('[push-property-to-ru] Prices push failed:', pushExtras.prices_error);
-            } else {
-              pushExtras.prices_pushed = true;
-              console.log(`[push-property-to-ru] Pushed ${priceEntries.length} price periods`);
-            }
-          }
-        } catch (e) {
-          pushExtras.prices_error = e instanceof Error ? e.message : 'Unknown error';
-        }
-      }
+    let pushExtras = {};
+    if (finalRuId > 0) {
+      pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1);
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        property_id,
-        rentalsunited_property_id: ruPropertyId,
-        message: `Property "${property.name}" pushed to Rentals United successfully`,
-        ...pushExtras,
-      }),
+      JSON.stringify({ success: true, property_id, rentalsunited_property_id: ruPropertyId, message: `Property "${property.name}" pushed to Rentals United successfully`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('[push-property-to-ru] Error:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Unknown error' },
-      }),
+      JSON.stringify({ success: false, error: { code: 'INTERNAL_ERROR', message: error instanceof Error ? error.message : 'Unknown error' } }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

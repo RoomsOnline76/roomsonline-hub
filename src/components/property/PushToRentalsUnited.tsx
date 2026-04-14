@@ -15,14 +15,29 @@ import {
   MapPin,
   Home,
   BedDouble,
-  
   Save,
   X,
+  Building2,
 } from "lucide-react";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
   propertyName: string;
+}
+
+interface UnitValidation {
+  room_type_id: string;
+  name: string;
+  ru_property_id: string | null;
+  validation: {
+    images_count: number;
+    amenities_count: number;
+    rooms_count: number;
+    has_coordinates: boolean;
+    meets_minimum_images: boolean;
+    meets_minimum_amenities: boolean;
+    max_guests?: number;
+  };
 }
 
 interface ValidationResult {
@@ -32,6 +47,8 @@ interface ValidationResult {
   has_coordinates: boolean;
   meets_minimum_images: boolean;
   meets_minimum_amenities: boolean;
+  total_units?: number;
+  all_ready?: boolean;
 }
 
 interface PushError {
@@ -48,10 +65,23 @@ interface Diagnostics {
   request_preview?: string;
 }
 
+interface UnitPushResult {
+  name: string;
+  room_type_id: string;
+  success: boolean;
+  rentalsunited_property_id?: string;
+  error?: string;
+  availability_pushed?: boolean;
+  prices_pushed?: boolean;
+}
+
 export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [loading, setLoading] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [units, setUnits] = useState<UnitValidation[]>([]);
+  const [isMultiUnit, setIsMultiUnit] = useState(false);
+  const [buildingId, setBuildingId] = useState<string | null>(null);
   const [ruPropertyId, setRuPropertyId] = useState<string | null>(null);
   const [editingRuId, setEditingRuId] = useState(false);
   const [ruIdDraft, setRuIdDraft] = useState("");
@@ -59,18 +89,17 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [error, setError] = useState<PushError | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+  const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
 
-  // Load existing RU ID on mount
   useEffect(() => {
     supabase
       .from("properties")
-      .select("rentalsunited_property_id")
+      .select("rentalsunited_property_id, rentalsunited_building_id")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
-        if (data?.rentalsunited_property_id) {
-          setRuPropertyId(data.rentalsunited_property_id);
-        }
+        if (data?.rentalsunited_property_id) setRuPropertyId(data.rentalsunited_property_id);
+        if (data?.rentalsunited_building_id) setBuildingId(data.rentalsunited_building_id);
       });
   }, [propertyId]);
 
@@ -96,25 +125,26 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     setError(null);
     setDiagnostics(null);
     setValidation(null);
+    setUnits([]);
+    setUnitResults([]);
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
         body: { property_id: propertyId, dry_run: true },
       });
-
       if (fnErr) throw new Error(fnErr.message);
+      if (!data.success) { setError(data.error); return; }
 
-      if (!data.success) {
-        setError(data.error);
-        return;
-      }
-
+      setIsMultiUnit(!!data.multi_unit);
       setValidation(data.validation);
-      setRuPropertyId(data.ru_property_id);
+      if (data.multi_unit && data.units) setUnits(data.units);
+      if (data.building_id) setBuildingId(String(data.building_id));
+      if (data.ru_property_id) setRuPropertyId(String(data.ru_property_id));
       setLastChecked(new Date().toLocaleTimeString());
 
-      if (data.validation.meets_minimum_images && data.validation.meets_minimum_amenities && data.validation.has_coordinates) {
-        toast.success("Property is ready to push to Rentals United");
+      const v = data.validation;
+      if (v.meets_minimum_images && v.meets_minimum_amenities && v.has_coordinates) {
+        toast.success(data.multi_unit ? `All ${v.total_units} units ready to push` : "Property is ready to push to Rentals United");
       } else {
         toast.warning("Property needs attention before pushing to RU");
       }
@@ -130,12 +160,12 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
     setLoading(true);
     setError(null);
     setDiagnostics(null);
+    setUnitResults([]);
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("push-property-to-ru", {
         body: { property_id: propertyId },
       });
-
       if (fnErr) throw new Error(fnErr.message);
 
       if (!data.success) {
@@ -145,8 +175,15 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
         return;
       }
 
-      setRuPropertyId(data.rentalsunited_property_id);
-      toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
+      if (data.multi_unit) {
+        setBuildingId(String(data.building_id));
+        setUnitResults(data.units || []);
+        const successCount = (data.units || []).filter((u: any) => u.success).length;
+        toast.success(`Building + ${successCount}/${(data.units || []).length} units pushed to RU`);
+      } else {
+        setRuPropertyId(data.rentalsunited_property_id);
+        toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError({ code: "EXCEPTION", message });
@@ -159,26 +196,10 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const isReady = validation && validation.meets_minimum_images && validation.meets_minimum_amenities && validation.has_coordinates && validation.rooms_count > 0;
 
   const issues = validation ? [
-    !validation.meets_minimum_images && {
-      icon: Image,
-      tab: "images",
-      label: `Need at least 10 images (currently ${validation.images_count})`,
-    },
-    !validation.meets_minimum_amenities && {
-      icon: Home,
-      tab: "info-facilities",
-      label: `Need at least 10 amenities (currently ${validation.amenities_count})`,
-    },
-    !validation.has_coordinates && {
-      icon: MapPin,
-      tab: "general",
-      label: "Property must have latitude and longitude coordinates",
-    },
-    validation.rooms_count === 0 && {
-      icon: BedDouble,
-      tab: "rooms",
-      label: "Property must have at least 1 room type",
-    },
+    !validation.meets_minimum_images && { icon: Image, tab: "images", label: `Need at least 10 images (currently ${validation.images_count})` },
+    !validation.meets_minimum_amenities && { icon: Home, tab: "info-facilities", label: `Need at least 10 amenities (currently ${validation.amenities_count})` },
+    !validation.has_coordinates && { icon: MapPin, tab: "general", label: "Property must have latitude and longitude coordinates" },
+    validation.rooms_count === 0 && { icon: BedDouble, tab: "rooms", label: "Property must have at least 1 room type" },
   ].filter(Boolean) as { icon: any; tab: string; label: string }[] : [];
 
   return (
@@ -188,56 +209,44 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
-            {editingRuId ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  value={ruIdDraft}
-                  onChange={(e) => setRuIdDraft(e.target.value)}
-                  placeholder="RU Property ID"
-                  className="h-6 w-28 text-xs px-1.5"
-                />
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveRuId} disabled={savingRuId}>
-                  {savingRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                </Button>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingRuId(false)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ) : (
-              <Badge
-                variant="outline"
-                className="text-xs cursor-pointer hover:bg-accent"
-                onClick={() => { setRuIdDraft(ruPropertyId || ""); setEditingRuId(true); }}
-              >
-                {ruPropertyId ? `RU ID: ${ruPropertyId}` : "No RU ID — click to set"}
+            {buildingId && (
+              <Badge variant="secondary" className="text-[10px] gap-1">
+                <Building2 className="h-3 w-3" />
+                Building: {buildingId}
               </Badge>
+            )}
+            {!isMultiUnit && (
+              editingRuId ? (
+                <div className="flex items-center gap-1">
+                  <Input value={ruIdDraft} onChange={(e) => setRuIdDraft(e.target.value)} placeholder="RU Property ID" className="h-6 w-28 text-xs px-1.5" />
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={saveRuId} disabled={savingRuId}>
+                    {savingRuId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setEditingRuId(false)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Badge variant="outline" className="text-xs cursor-pointer hover:bg-accent" onClick={() => { setRuIdDraft(ruPropertyId || ""); setEditingRuId(true); }}>
+                  {ruPropertyId ? `RU ID: ${ruPropertyId}` : "No RU ID — click to set"}
+                </Badge>
+              )
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={runDryRun}
-              disabled={dryRunning || loading}
-            >
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={runDryRun} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={pushToRU}
-              disabled={loading || dryRunning || (validation !== null && !isReady)}
-            >
+            <Button size="sm" className="h-7 text-xs gap-1" onClick={pushToRU} disabled={loading || dryRunning || (validation !== null && !isReady)}>
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading ? "Pushing..." : "Push to RU"}
+              {loading ? "Pushing..." : isMultiUnit ? "Push Building + Units" : "Push to RU"}
             </Button>
           </div>
         </div>
       </CardHeader>
 
-      {(validation || error) && (
+      {(validation || error || unitResults.length > 0) && (
         <CardContent className="pt-0 pb-3 px-4 space-y-2">
           {error && (
             <Alert variant="destructive">
@@ -248,14 +257,10 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
               <AlertDescription className="text-xs space-y-1">
                 <p>{error.message}</p>
                 {diagnostics?.xml_error_position != null && (
-                  <p className="text-[10px] text-muted-foreground">
-                    XML error at position {diagnostics.xml_error_position} of {diagnostics.xml_length}
-                  </p>
+                  <p className="text-[10px] text-muted-foreground">XML error at position {diagnostics.xml_error_position} of {diagnostics.xml_length}</p>
                 )}
                 {diagnostics?.xml_context && (
-                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-20">
-                    {diagnostics.xml_context}
-                  </pre>
+                  <pre className="text-[10px] bg-black/10 rounded p-1 overflow-x-auto whitespace-pre-wrap break-all max-h-20">{diagnostics.xml_context}</pre>
                 )}
               </AlertDescription>
             </Alert>
@@ -264,28 +269,79 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           {validation && isReady && (
             <Alert className="border-green-500/30 bg-green-500/5">
               <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle className="text-xs font-medium text-green-700">Ready to push</AlertTitle>
+              <AlertTitle className="text-xs font-medium text-green-700">
+                {isMultiUnit ? `Building ready — ${validation.total_units} units` : "Ready to push"}
+              </AlertTitle>
               <AlertDescription className="text-xs text-green-600">
-                {validation.images_count} images · {validation.amenities_count} amenities · {validation.rooms_count} rooms · Coordinates set
+                {isMultiUnit
+                  ? `${validation.total_units} units · All have ≥10 images & amenities · Coordinates set`
+                  : `${validation.images_count} images · ${validation.amenities_count} amenities · ${validation.rooms_count} rooms · Coordinates set`}
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Multi-unit: per-unit validation details */}
+          {isMultiUnit && units.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Units</p>
+              {units.map((unit) => {
+                const v = unit.validation;
+                const ready = v.meets_minimum_images && v.meets_minimum_amenities && v.has_coordinates;
+                return (
+                  <div key={unit.room_type_id} className="flex items-center justify-between text-xs border rounded px-2 py-1">
+                    <div className="flex items-center gap-2">
+                      {ready ? <CheckCircle className="h-3 w-3 text-green-600" /> : <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                      <span className="font-medium">{unit.name}</span>
+                      {unit.ru_property_id && <Badge variant="outline" className="text-[10px] h-4 px-1">RU: {unit.ru_property_id}</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{v.images_count} img</span>
+                      <span>{v.amenities_count} amen</span>
+                      <span>{v.max_guests || "?"} guests</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Multi-unit: push results */}
+          {unitResults.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Push Results</p>
+              {unitResults.map((ur) => (
+                <div key={ur.room_type_id} className={`flex items-center justify-between text-xs border rounded px-2 py-1 ${ur.success ? "border-green-500/30" : "border-red-500/30"}`}>
+                  <div className="flex items-center gap-2">
+                    {ur.success ? <CheckCircle className="h-3 w-3 text-green-600" /> : <X className="h-3 w-3 text-red-500" />}
+                    <span className="font-medium">{ur.name}</span>
+                    {ur.rentalsunited_property_id && <Badge variant="outline" className="text-[10px] h-4 px-1">RU: {ur.rentalsunited_property_id}</Badge>}
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px]">
+                    {ur.success ? (
+                      <>
+                        {ur.availability_pushed && <Badge variant="secondary" className="text-[9px] h-4 px-1">Avail ✓</Badge>}
+                        {ur.prices_pushed && <Badge variant="secondary" className="text-[9px] h-4 px-1">Prices ✓</Badge>}
+                      </>
+                    ) : (
+                      <span className="text-red-500 truncate max-w-[200px]">{ur.error}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {validation && !isReady && issues.length > 0 && (
             <Alert variant="destructive" className="border-amber-500/30 bg-amber-500/5">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-xs font-medium text-amber-700">
-                Missing requirements — fix these in the property editor:
-              </AlertTitle>
+              <AlertTitle className="text-xs font-medium text-amber-700">Missing requirements:</AlertTitle>
               <AlertDescription>
                 <ul className="mt-1 space-y-1">
                   {issues.map((issue, i) => (
                     <li key={i} className="flex items-center gap-2 text-xs text-amber-700">
                       <issue.icon className="h-3 w-3 flex-shrink-0" />
                       <span>{issue.label}</span>
-                      <Badge variant="outline" className="text-[10px] h-4 px-1">
-                        {issue.tab} tab
-                      </Badge>
+                      <Badge variant="outline" className="text-[10px] h-4 px-1">{issue.tab} tab</Badge>
                     </li>
                   ))}
                 </ul>
