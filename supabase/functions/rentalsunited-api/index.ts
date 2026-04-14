@@ -638,8 +638,8 @@ Deno.serve(async (req) => {
       if (ru_property_id == null || ru_property_id === undefined) return errorResponse('MISSING_PARAM', 'ru_property_id is required (use 0 for new properties)');
       if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
       const p = body.property;
-      if (!p.name || !p.object_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
-        return errorResponse('VALIDATION', 'Property must include name, object_type_id, can_sleep_max, floor, and space');
+      if (!p.name || !p.property_type_id || !p.can_sleep_max || p.floor == null || !p.space) {
+        return errorResponse('VALIDATION', 'Property must include name, property_type_id, can_sleep_max, floor, and space');
       }
       if (!p.street || !p.detailed_location_id || !p.zip_code) {
         return errorResponse('VALIDATION', 'Property must include street, detailed_location_id, and zip_code');
