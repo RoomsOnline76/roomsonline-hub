@@ -88,10 +88,15 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Fetch all properties
-    const { data: properties, error: propErr } = await supabase
-      .from("properties")
-      .select("id, name, images, amenities");
+    // Optional: filter by property_id or slug
+    const url = new URL(req.url);
+    const filterPropertyId = url.searchParams.get("property_id");
+
+    let query = supabase.from("properties").select("id, name, images, amenities");
+    if (filterPropertyId) {
+      query = query.eq("id", filterPropertyId);
+    }
+    const { data: properties, error: propErr } = await query;
 
     if (propErr) throw propErr;
 
