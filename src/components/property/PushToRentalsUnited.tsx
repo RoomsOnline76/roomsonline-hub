@@ -515,6 +515,44 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           {lastChecked && (
             <p className="text-[10px] text-muted-foreground text-right">Last checked: {lastChecked}</p>
           )}
+
+          {/* RU Sub-Account Details */}
+          {ruOwnerAccount && (
+            <div className="border rounded px-3 py-2 space-y-1 bg-muted/20">
+              <div className="flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-medium">Rentals United Sub-Account</span>
+                {ruOwnerAccount.ru_owner_id && (
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1">Owner: {ruOwnerAccount.ru_owner_id}</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                {ruOwnerAccount.ru_login_email && (
+                  <div>
+                    <span className="text-muted-foreground">Login Email:</span>{" "}
+                    <span className="font-mono">{ruOwnerAccount.ru_login_email}</span>
+                  </div>
+                )}
+                {ruOwnerAccount.ru_user_id && (
+                  <div>
+                    <span className="text-muted-foreground">Account ID:</span>{" "}
+                    <span className="font-mono">{ruOwnerAccount.ru_user_id}</span>
+                  </div>
+                )}
+              </div>
+              {ruOwnerAccount.ru_login_url && (
+                <a
+                  href={ruOwnerAccount.ru_login_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Open Rentals United Portal
+                </a>
+              )}
+            </div>
+          )}
         </CardContent>
       )}
     </Card>
