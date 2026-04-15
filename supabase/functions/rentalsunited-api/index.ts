@@ -987,6 +987,43 @@ Deno.serve(async (req) => {
     // assign_building_properties removed — not a valid RU API method.
     // Units are assigned to buildings via <BuildingID> in each unit's property push XML.
 
+    // ── create_user ──
+    if (action === 'create_user') {
+      if (!body.user) return errorResponse('MISSING_PARAM', 'user payload is required (first_name, last_name, email, password)');
+      const { first_name, last_name, email, password } = body.user;
+      if (!first_name || !last_name || !email || !password) return errorResponse('VALIDATION', 'user must include first_name, last_name, email, and password');
+      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password });
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const userAccountId = extractUserAccountId(response);
+      return jsonResponse({ success: true, user_account_id: userAccountId, message: 'User created successfully', raw_xml: response });
+    }
+
+    // ── list_users ──
+    if (action === 'list_users') {
+      const xml = buildListUsersXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const users = extractUsers(response);
+      return jsonResponse({ success: true, users, count: users.length, raw_xml: response });
+    }
+
+    // ── fill_company_details ──
+    if (action === 'fill_company_details') {
+      if (!body.ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id (UserAccountId) is required');
+      if (!body.company) return errorResponse('MISSING_PARAM', 'company payload is required');
+      if (!body.company.name) return errorResponse('VALIDATION', 'company.name is required');
+      const xml = buildFillCompanyDetailsXml(creds, body.ru_property_id, body.company);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] FillCompanyDetails response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 
