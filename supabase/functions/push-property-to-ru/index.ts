@@ -853,6 +853,20 @@ Deno.serve(async (req) => {
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
     const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
     const locationId = await resolveLocationId(supabase, lat, lng);
+    // ── Resolve RU sub-account for this property's owner ──────
+    let ruOwnerId = 738925; // fallback to master account
+    if (property.owner_email && !dry_run) {
+      try {
+        const ownerName = property.name || 'Property Owner';
+        const ownerResult = await resolveRuOwnerAccount(supabase, property.owner_email, ownerName);
+        ruOwnerId = ownerResult.ru_owner_id;
+        if (ownerResult.created) {
+          console.log(`[push-property-to-ru] Created new RU sub-account for ${property.owner_email}, OwnerID: ${ruOwnerId}`);
+        }
+      } catch (e) {
+        console.warn(`[push-property-to-ru] Failed to resolve RU owner account, using master:`, e);
+      }
+    }
 
     // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
     if (isMultiUnit) {
