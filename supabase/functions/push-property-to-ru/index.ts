@@ -283,7 +283,7 @@ function buildUnitPayload(
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
-    owner_id: 738925,
+    owner_id: 738925, // Will be overridden by resolveRuOwnerAccount
     no_of_units: 1,
     floor: 0,
     space,
@@ -313,6 +313,91 @@ function buildUnitPayload(
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
   };
+}
+
+// ── RU Sub-Account Resolution ────────────────────────────────
+
+function generateSecurePassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+  let password = '';
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  for (const byte of array) password += chars[byte % chars.length];
+  return password;
+}
+
+async function resolveRuOwnerAccount(
+  supabase: any,
+  ownerEmail: string,
+  ownerName: string,
+): Promise<{ ru_owner_id: number; ru_user_id: string | null; created: boolean }> {
+  // 1. Check if an RU sub-account already exists for this owner
+  const { data: existing } = await supabase
+    .from('ru_owner_accounts')
+    .select('ru_owner_id, ru_user_id')
+    .eq('owner_email', ownerEmail)
+    .maybeSingle();
+
+  if (existing?.ru_owner_id) {
+    console.log(`[push-property-to-ru] Found existing RU owner account for ${ownerEmail}: owner_id=${existing.ru_owner_id}`);
+    return { ru_owner_id: parseInt(existing.ru_owner_id, 10), ru_user_id: existing.ru_user_id, created: false };
+  }
+
+  // 2. Create a new RU sub-account
+  const nameParts = ownerName.split(' ');
+  const firstName = nameParts[0] || 'Property';
+  const lastName = nameParts.slice(1).join(' ') || 'Owner';
+  const password = generateSecurePassword();
+  // Use the owner email directly for the RU login
+  const ruLoginEmail = ownerEmail;
+
+  console.log(`[push-property-to-ru] Creating new RU sub-account for ${ownerEmail} (${firstName} ${lastName})`);
+
+  const { data: createResult, error: createErr } = await supabase.functions.invoke('rentalsunited-api', {
+    body: {
+      action: 'create_user',
+      user: { first_name: firstName, last_name: lastName, email: ruLoginEmail, password },
+    },
+  });
+
+  if (createErr || !createResult?.success) {
+    const errMsg = createErr?.message || createResult?.error?.message || 'Unknown error';
+    console.error(`[push-property-to-ru] Failed to create RU sub-account for ${ownerEmail}: ${errMsg}`);
+    // Fall back to master account owner ID
+    return { ru_owner_id: 738925, ru_user_id: null, created: false };
+  }
+
+  const userAccountId = createResult.user_account_id;
+  console.log(`[push-property-to-ru] Created RU sub-account: UserAccountId=${userAccountId}`);
+
+  // 3. List users to find the OwnerID for this new account
+  let ownerId: string | null = null;
+  try {
+    const { data: listResult } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'list_users' },
+    });
+    if (listResult?.success && Array.isArray(listResult.users)) {
+      const matched = listResult.users.find((u: any) => u.user_account_id === userAccountId || u.email === ruLoginEmail);
+      if (matched?.owner_id) ownerId = matched.owner_id;
+    }
+  } catch (e) {
+    console.warn(`[push-property-to-ru] Failed to list users to resolve OwnerID:`, e);
+  }
+
+  // 4. Store the account details
+  const { error: insertErr } = await supabase.from('ru_owner_accounts').upsert({
+    owner_email: ownerEmail,
+    ru_user_id: userAccountId,
+    ru_owner_id: ownerId,
+    ru_login_email: ruLoginEmail,
+    ru_login_url: 'https://new.rentalsunited.com',
+  }, { onConflict: 'owner_email' });
+
+  if (insertErr) console.error(`[push-property-to-ru] Failed to save RU account: ${insertErr.message}`);
+
+  const resolvedOwnerId = ownerId ? parseInt(ownerId, 10) : 738925;
+  console.log(`[push-property-to-ru] Resolved RU OwnerID: ${resolvedOwnerId} for ${ownerEmail}`);
+  return { ru_owner_id: resolvedOwnerId, ru_user_id: userAccountId, created: true };
 }
 
 // Legacy single-property payload builder (kept for properties with no room types)
@@ -745,7 +830,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id')
+      .select('id, name, description, property_type, address, city, country, latitude, longitude, max_guests, bedrooms, bathrooms, amenities, images, rentalsunited_property_id, rentalsunited_building_id, owner_email')
       .eq('id', property_id)
       .single();
 
@@ -768,6 +853,20 @@ Deno.serve(async (req) => {
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
     const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
     const locationId = await resolveLocationId(supabase, lat, lng);
+    // ── Resolve RU sub-account for this property's owner ──────
+    let ruOwnerId = 738925; // fallback to master account
+    if (property.owner_email && !dry_run) {
+      try {
+        const ownerName = property.name || 'Property Owner';
+        const ownerResult = await resolveRuOwnerAccount(supabase, property.owner_email, ownerName);
+        ruOwnerId = ownerResult.ru_owner_id;
+        if (ownerResult.created) {
+          console.log(`[push-property-to-ru] Created new RU sub-account for ${property.owner_email}, OwnerID: ${ruOwnerId}`);
+        }
+      } catch (e) {
+        console.warn(`[push-property-to-ru] Failed to resolve RU owner account, using master:`, e);
+      }
+    }
 
     // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
     if (isMultiUnit) {
@@ -853,6 +952,7 @@ Deno.serve(async (req) => {
       for (const unit of activeRoomTypes) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
+        unitPayload.owner_id = ruOwnerId;
 
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId})`);
 
@@ -934,6 +1034,7 @@ Deno.serve(async (req) => {
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId);
+    ruPayload.owner_id = ruOwnerId;
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
     if (dry_run) {

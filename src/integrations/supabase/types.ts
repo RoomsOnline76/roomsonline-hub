@@ -8978,6 +8978,42 @@ export type Database = {
           },
         ]
       }
+      ru_owner_accounts: {
+        Row: {
+          company_details_sent: boolean
+          created_at: string
+          id: string
+          owner_email: string
+          ru_login_email: string | null
+          ru_login_url: string | null
+          ru_owner_id: string | null
+          ru_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_details_sent?: boolean
+          created_at?: string
+          id?: string
+          owner_email: string
+          ru_login_email?: string | null
+          ru_login_url?: string | null
+          ru_owner_id?: string | null
+          ru_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_details_sent?: boolean
+          created_at?: string
+          id?: string
+          owner_email?: string
+          ru_login_email?: string | null
+          ru_login_url?: string | null
+          ru_owner_id?: string | null
+          ru_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales_rep_bank_details: {
         Row: {
           account_holder: string

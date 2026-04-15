@@ -18,11 +18,21 @@ import {
   Save,
   X,
   Building2,
+  ExternalLink,
+  User,
 } from "lucide-react";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
   propertyName: string;
+}
+
+interface RuOwnerAccount {
+  ru_user_id: string | null;
+  ru_owner_id: string | null;
+  ru_login_email: string | null;
+  ru_login_url: string | null;
+  company_details_sent: boolean;
 }
 
 interface UnitValidation {
@@ -101,15 +111,30 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
   const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
 
+  const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
+
   useEffect(() => {
+    // Load property RU IDs and owner email
     supabase
       .from("properties")
-      .select("rentalsunited_property_id, rentalsunited_building_id")
+      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
         setRuPropertyId(data?.rentalsunited_property_id ?? null);
         setBuildingId(data?.rentalsunited_building_id ?? null);
+
+        // Load RU owner account if owner_email exists
+        if (data?.owner_email) {
+          supabase
+            .from("ru_owner_accounts" as any)
+            .select("ru_user_id, ru_owner_id, ru_login_email, ru_login_url, company_details_sent")
+            .eq("owner_email", data.owner_email)
+            .maybeSingle()
+            .then(({ data: acct }) => {
+              if (acct) setRuOwnerAccount(acct as unknown as RuOwnerAccount);
+            });
+        }
       });
   }, [propertyId]);
 
@@ -489,6 +514,44 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
 
           {lastChecked && (
             <p className="text-[10px] text-muted-foreground text-right">Last checked: {lastChecked}</p>
+          )}
+
+          {/* RU Sub-Account Details */}
+          {ruOwnerAccount && (
+            <div className="border rounded px-3 py-2 space-y-1 bg-muted/20">
+              <div className="flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-primary" />
+                <span className="text-xs font-medium">Rentals United Sub-Account</span>
+                {ruOwnerAccount.ru_owner_id && (
+                  <Badge variant="secondary" className="text-[10px] h-4 px-1">Owner: {ruOwnerAccount.ru_owner_id}</Badge>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px]">
+                {ruOwnerAccount.ru_login_email && (
+                  <div>
+                    <span className="text-muted-foreground">Login Email:</span>{" "}
+                    <span className="font-mono">{ruOwnerAccount.ru_login_email}</span>
+                  </div>
+                )}
+                {ruOwnerAccount.ru_user_id && (
+                  <div>
+                    <span className="text-muted-foreground">Account ID:</span>{" "}
+                    <span className="font-mono">{ruOwnerAccount.ru_user_id}</span>
+                  </div>
+                )}
+              </div>
+              {ruOwnerAccount.ru_login_url && (
+                <a
+                  href={ruOwnerAccount.ru_login_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Open Rentals United Portal
+                </a>
+              )}
+            </div>
           )}
         </CardContent>
       )}

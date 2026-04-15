@@ -11,6 +11,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - get_prices: Pull_ListPropertyPrices_RQ
  * - list_reservations: Pull_ListReservations_RQ
  * - get_leads: Pull_GetLeads_RQ
+ * - list_users: Pull_ListMyUsers_RQ
  * 
  * Push (write) actions:
  * - push_property: Push_PutProperty_RQ
@@ -19,6 +20,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - subscribe_notifications: LNM_PutHandlerUrl_RQ
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
+ * - create_user: Push_CreateUser_RQ
+ * - fill_company_details: Push_FillCompanyDetails_RQ
  */
 
 const corsHeaders = {
@@ -156,6 +159,9 @@ interface RequestBody {
   building_id?: number;
   unit_types?: RUBuildingUnitType[];
   property_ids?: number[];
+  // User management payloads
+  user?: { first_name: string; last_name: string; email: string; password: string };
+  company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
@@ -574,6 +580,67 @@ function extractBuildings(xml: string): { id: string; name: string }[] {
   return results;
 }
 
+// ── User Management XML Builders ─────────────────────────────
+
+function buildCreateUserXml(creds: RUCredentials, user: { first_name: string; last_name: string; email: string; password: string }): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_CreateUser_RQ>
+  ${buildAuthXml(creds)}
+  <User>
+    <FirstName>${escapeXml(user.first_name)}</FirstName>
+    <LastName>${escapeXml(user.last_name)}</LastName>
+    <Email>${escapeXml(user.email)}</Email>
+    <Password>${escapeXml(user.password)}</Password>
+  </User>
+</Push_CreateUser_RQ>`;
+}
+
+function buildListUsersXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListMyUsers_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListMyUsers_RQ>`;
+}
+
+function buildFillCompanyDetailsXml(creds: RUCredentials, userId: number, company: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string }): string {
+  const optNode = (tag: string, val?: string) => val ? `<${tag}>${escapeXml(val)}</${tag}>` : '';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_FillCompanyDetails_RQ>
+  ${buildAuthXml(creds)}
+  <UserAccountId>${userId}</UserAccountId>
+  <CompanyDetails>
+    <CompanyName>${escapeXml(company.name)}</CompanyName>
+    ${optNode('Address', company.address)}
+    ${optNode('City', company.city)}
+    ${optNode('Country', company.country)}
+    ${optNode('Phone', company.phone)}
+    ${optNode('Email', company.email)}
+    ${optNode('VATNumber', company.vat_number)}
+  </CompanyDetails>
+</Push_FillCompanyDetails_RQ>`;
+}
+
+function extractUserAccountId(xml: string): string | null {
+  const match = xml.match(/<UserAccountId>(\d+)<\/UserAccountId>/);
+  return match?.[1] || null;
+}
+
+function extractUsers(xml: string): { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] {
+  const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
+  const results: { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] = [];
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    results.push({
+      user_account_id: match[1],
+      first_name: match[2]?.trim() || '',
+      last_name: match[3]?.trim() || '',
+      email: match[4]?.trim() || '',
+      owner_id: match[5] || '',
+    });
+  }
+  return results;
+}
+
 // ── Action Handlers ──────────────────────────────────────────
 
 function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
@@ -663,6 +730,9 @@ Deno.serve(async (req) => {
             subscribe_notifications: true,
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
+            create_user: true,
+            list_users: true,
+            fill_company_details: true,
           },
           metadata: { ...metadata, checked_at: new Date().toISOString() },
         });
@@ -919,6 +989,43 @@ Deno.serve(async (req) => {
 
     // assign_building_properties removed — not a valid RU API method.
     // Units are assigned to buildings via <BuildingID> in each unit's property push XML.
+
+    // ── create_user ──
+    if (action === 'create_user') {
+      if (!body.user) return errorResponse('MISSING_PARAM', 'user payload is required (first_name, last_name, email, password)');
+      const { first_name, last_name, email, password } = body.user;
+      if (!first_name || !last_name || !email || !password) return errorResponse('VALIDATION', 'user must include first_name, last_name, email, and password');
+      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password });
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const userAccountId = extractUserAccountId(response);
+      return jsonResponse({ success: true, user_account_id: userAccountId, message: 'User created successfully', raw_xml: response });
+    }
+
+    // ── list_users ──
+    if (action === 'list_users') {
+      const xml = buildListUsersXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      const users = extractUsers(response);
+      return jsonResponse({ success: true, users, count: users.length, raw_xml: response });
+    }
+
+    // ── fill_company_details ──
+    if (action === 'fill_company_details') {
+      if (!body.ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id (UserAccountId) is required');
+      if (!body.company) return errorResponse('MISSING_PARAM', 'company payload is required');
+      if (!body.company.name) return errorResponse('VALIDATION', 'company.name is required');
+      const xml = buildFillCompanyDetailsXml(creds, body.ru_property_id, body.company);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] FillCompanyDetails response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
+    }
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
