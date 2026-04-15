@@ -580,6 +580,67 @@ function extractBuildings(xml: string): { id: string; name: string }[] {
   return results;
 }
 
+// ── User Management XML Builders ─────────────────────────────
+
+function buildCreateUserXml(creds: RUCredentials, user: { first_name: string; last_name: string; email: string; password: string }): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_CreateUser_RQ>
+  ${buildAuthXml(creds)}
+  <User>
+    <FirstName>${escapeXml(user.first_name)}</FirstName>
+    <LastName>${escapeXml(user.last_name)}</LastName>
+    <Email>${escapeXml(user.email)}</Email>
+    <Password>${escapeXml(user.password)}</Password>
+  </User>
+</Push_CreateUser_RQ>`;
+}
+
+function buildListUsersXml(creds: RUCredentials): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListMyUsers_RQ>
+  ${buildAuthXml(creds)}
+</Pull_ListMyUsers_RQ>`;
+}
+
+function buildFillCompanyDetailsXml(creds: RUCredentials, userId: number, company: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string }): string {
+  const optNode = (tag: string, val?: string) => val ? `<${tag}>${escapeXml(val)}</${tag}>` : '';
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_FillCompanyDetails_RQ>
+  ${buildAuthXml(creds)}
+  <UserAccountId>${userId}</UserAccountId>
+  <CompanyDetails>
+    <CompanyName>${escapeXml(company.name)}</CompanyName>
+    ${optNode('Address', company.address)}
+    ${optNode('City', company.city)}
+    ${optNode('Country', company.country)}
+    ${optNode('Phone', company.phone)}
+    ${optNode('Email', company.email)}
+    ${optNode('VATNumber', company.vat_number)}
+  </CompanyDetails>
+</Push_FillCompanyDetails_RQ>`;
+}
+
+function extractUserAccountId(xml: string): string | null {
+  const match = xml.match(/<UserAccountId>(\d+)<\/UserAccountId>/);
+  return match?.[1] || null;
+}
+
+function extractUsers(xml: string): { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] {
+  const regex = /<User>[\s\S]*?<UserAccountId>(\d+)<\/UserAccountId>[\s\S]*?<FirstName>(.*?)<\/FirstName>[\s\S]*?<LastName>(.*?)<\/LastName>[\s\S]*?<Email>(.*?)<\/Email>[\s\S]*?(?:<OwnerID>(\d+)<\/OwnerID>)?[\s\S]*?<\/User>/g;
+  const results: { user_account_id: string; email: string; first_name: string; last_name: string; owner_id: string }[] = [];
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    results.push({
+      user_account_id: match[1],
+      first_name: match[2]?.trim() || '',
+      last_name: match[3]?.trim() || '',
+      email: match[4]?.trim() || '',
+      owner_id: match[5] || '',
+    });
+  }
+  return results;
+}
+
 // ── Action Handlers ──────────────────────────────────────────
 
 function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
