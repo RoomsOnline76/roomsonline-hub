@@ -952,6 +952,7 @@ Deno.serve(async (req) => {
       for (const unit of activeRoomTypes) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
+        unitPayload.owner_id = ruOwnerId;
 
         console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId})`);
 
