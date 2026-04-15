@@ -18,11 +18,21 @@ import {
   Save,
   X,
   Building2,
+  ExternalLink,
+  User,
 } from "lucide-react";
 
 interface PushToRentalsUnitedProps {
   propertyId: string;
   propertyName: string;
+}
+
+interface RuOwnerAccount {
+  ru_user_id: string | null;
+  ru_owner_id: string | null;
+  ru_login_email: string | null;
+  ru_login_url: string | null;
+  company_details_sent: boolean;
 }
 
 interface UnitValidation {
