@@ -1034,6 +1034,7 @@ Deno.serve(async (req) => {
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId);
+    ruPayload.owner_id = ruOwnerId;
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
     if (dry_run) {
