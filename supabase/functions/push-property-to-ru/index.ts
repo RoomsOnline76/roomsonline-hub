@@ -983,9 +983,11 @@ Deno.serve(async (req) => {
     }
 
     const finalRuId = parseInt(ruPropertyId || '0', 10);
-    let pushExtras = {};
+    let pushExtras: Record<string, any> = {};
     if (finalRuId > 0) {
       pushExtras = await pushARI(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1);
+      const discountResult = await pushDiscounts(supabase, property_id, [{ ruId: finalRuId }]);
+      pushExtras = { ...pushExtras, ...discountResult };
     }
 
     return new Response(
