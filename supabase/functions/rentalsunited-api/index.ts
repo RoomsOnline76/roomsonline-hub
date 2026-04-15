@@ -730,6 +730,9 @@ Deno.serve(async (req) => {
             subscribe_notifications: true,
             push_long_stay_discounts: true,
             push_last_minute_discounts: true,
+            create_user: true,
+            list_users: true,
+            fill_company_details: true,
           },
           metadata: { ...metadata, checked_at: new Date().toISOString() },
         });
