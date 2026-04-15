@@ -11,6 +11,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - get_prices: Pull_ListPropertyPrices_RQ
  * - list_reservations: Pull_ListReservations_RQ
  * - get_leads: Pull_GetLeads_RQ
+ * - list_users: Pull_ListMyUsers_RQ
  * 
  * Push (write) actions:
  * - push_property: Push_PutProperty_RQ
@@ -19,6 +20,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * - subscribe_notifications: LNM_PutHandlerUrl_RQ
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
+ * - create_user: Push_CreateUser_RQ
+ * - fill_company_details: Push_FillCompanyDetails_RQ
  */
 
 const corsHeaders = {
@@ -156,6 +159,9 @@ interface RequestBody {
   building_id?: number;
   unit_types?: RUBuildingUnitType[];
   property_ids?: number[];
+  // User management payloads
+  user?: { first_name: string; last_name: string; email: string; password: string };
+  company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
 }
 
 // ── XML Helpers ──────────────────────────────────────────────
