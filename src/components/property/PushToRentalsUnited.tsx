@@ -111,15 +111,30 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
   const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
 
+  const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
+
   useEffect(() => {
+    // Load property RU IDs and owner email
     supabase
       .from("properties")
-      .select("rentalsunited_property_id, rentalsunited_building_id")
+      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
         setRuPropertyId(data?.rentalsunited_property_id ?? null);
         setBuildingId(data?.rentalsunited_building_id ?? null);
+
+        // Load RU owner account if owner_email exists
+        if (data?.owner_email) {
+          supabase
+            .from("ru_owner_accounts" as any)
+            .select("ru_user_id, ru_owner_id, ru_login_email, ru_login_url, company_details_sent")
+            .eq("owner_email", data.owner_email)
+            .maybeSingle()
+            .then(({ data: acct }) => {
+              if (acct) setRuOwnerAccount(acct as unknown as RuOwnerAccount);
+            });
+        }
       });
   }, [propertyId]);
 
