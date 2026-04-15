@@ -1,41 +1,73 @@
 
 
-## Push ROL'OS Specials as RU Long Stay & Last Minute Discounts
+## RU Sub-Account (User) Management Per Owner
 
-### Mapping Logic
+### Problem
+Currently all properties push to RU under a single hardcoded `owner_id: 738925` on the ROL master account. Each property owner (e.g., the owner of Seesig + Tidalpools + Fonteinhutte + Dassiesingel) needs their own RU sub-account so they can log into RU independently and see only their properties.
 
-ROL'OS `property_specials` → RU discount types:
+### How RU Sub-Accounts Work
+- `Push_CreateUser_RQ` creates a sub-account under ROL's master account. Returns a `UserAccountId`.
+- `Pull_ListMyUsers_RQ` lists all sub-accounts created under the master.
+- `Push_FillCompanyDetails_RQ` fills company info for channel onboarding.
+- Properties are associated with a sub-account via the `OwnerID` field in `Push_PutProperty_RQ`.
 
-- **Long Stay Discounts**: Specials with `special_type = 'discount'` and `min_stay > 0` — these are percentage discounts triggered by length of stay. Maps `min_stay` → `NightsFrom`, `max_stay` → `NightsTo`, `discount_percent` → `Percentage`.
+### Design
 
-- **Last Minute Discounts**: Specials with `special_type = 'discount'` and `book_from`/`book_until` set (booking window specials with no min_stay requirement, or where the booking window implies urgency). The days-to-arrival is calculated from the booking window dates. Maps to `DaysToArrivalFrom`/`DaysToArrivalTo` and `Percentage`.
+**1. New database table: `ru_owner_accounts`**
 
-Both types require `valid_from`/`valid_to` for the `DateFrom`/`DateTo` attributes. Only active, percentage-based specials are synced (RU only supports percentage discounts for these APIs).
+Tracks which ROL owner email maps to which RU sub-account:
 
-### Changes
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| owner_email | text UNIQUE NOT NULL | The ROL property owner email |
+| ru_user_id | text | RU UserAccountId returned by Push_CreateUser_RQ |
+| ru_owner_id | text | RU OwnerID (for use in Push_PutProperty_RQ) |
+| ru_login_email | text | The email used for the RU sub-account |
+| ru_login_url | text | Static: `https://new.rentalsunited.com` |
+| company_details_sent | boolean DEFAULT false | Whether Push_FillCompanyDetails_RQ was sent |
+| created_at / updated_at | timestamps | |
 
-**1. `supabase/functions/push-property-to-ru/index.ts` — Add `pushDiscounts` function**
+RLS: Admins/devs full access; property owners can SELECT their own row.
 
-After `pushARI` completes, add a new `pushDiscounts` step:
-- Query `property_specials` for the property where `is_active = true`, `special_type = 'discount'`, and `discount_percent > 0`
-- Classify each special:
-  - Has `min_stay > 0` → Long Stay discount
-  - Has `book_from`/`book_until` but no `min_stay` → Last Minute discount (calculate days-to-arrival from today relative to `valid_from`)
-- Build discount entry arrays and call `rentalsunited-api` with `push_long_stay_discounts` and `push_last_minute_discounts`
-- Add `long_stay_discounts_pushed` and `last_minute_discounts_pushed` to the response
+**2. Add XML builders + action handlers to `rentalsunited-api/index.ts`**
 
-For multi-unit properties, push discounts per RU property ID (each room type has its own RU property).
+New actions:
+- `create_user` — `Push_CreateUser_RQ` with FirstName, LastName, Email, Password
+- `list_users` — `Pull_ListMyUsers_RQ` to list all sub-accounts
+- `fill_company_details` — `Push_FillCompanyDetails_RQ`
 
-**2. `supabase/functions/cron-push-all-properties-to-ru/index.ts` — Already covered**
+**3. Update `push-property-to-ru/index.ts` — auto-create sub-account**
 
-No changes needed — the cron calls `push-property-to-ru` which will now include discounts automatically.
+Before pushing a building/property:
+1. Look up `properties.owner_email` for the property being pushed
+2. Check `ru_owner_accounts` for that `owner_email`
+3. If no record exists:
+   - Call `create_user` action with owner's name/email and a generated secure password
+   - Store the returned `UserAccountId` in `ru_owner_accounts`
+   - Call `list_users` or derive owner_id from the response
+4. Use the stored `ru_owner_id` in the `<OwnerID>` field of the property XML instead of hardcoded `738925`
+
+**4. UI: Show RU account details to owners**
+
+Update the "Push to Rentals United" panel (`src/components/property/PushToRentalsUnited.tsx`):
+- Query `ru_owner_accounts` for the property's `owner_email`
+- If a sub-account exists, show a card with:
+  - RU Login URL (link to `https://new.rentalsunited.com`)
+  - RU Login Email
+  - A note that password was set during account creation
+- Visible to property owners and admins
+
+### Files to Create
+- Migration: `ru_owner_accounts` table + RLS policies
 
 ### Files to Update
-- `supabase/functions/push-property-to-ru/index.ts` — add specials → RU discounts mapping and push calls
+- `supabase/functions/rentalsunited-api/index.ts` — add `create_user`, `list_users`, `fill_company_details` XML builders and action handlers
+- `supabase/functions/push-property-to-ru/index.ts` — auto-resolve/create RU sub-account before property push, pass correct `owner_id`
+- `src/components/property/PushToRentalsUnited.tsx` — display RU sub-account login details
 
 ### What Does NOT Change
-- `rentalsunited-api/index.ts` — XML builders and action handlers already exist
-- `property_specials` table — no schema changes
-- No UI changes — syncing happens automatically on push
-- Cron schedule unchanged
+- Cron jobs — they call `push-property-to-ru` which will now handle sub-accounts automatically
+- Existing RU property/building IDs — the `OwnerID` change is transparent to RU
+- No changes to reservation handling
 
