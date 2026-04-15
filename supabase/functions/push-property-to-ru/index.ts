@@ -571,6 +571,137 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   return result;
 }
 
+// ── Discount Push Helper ─────────────────────────────────────
+
+interface SpecialRow {
+  id: string;
+  name: string;
+  special_type: string;
+  discount_percent: number | null;
+  min_stay: number | null;
+  max_stay: number | null;
+  book_from: string | null;
+  book_until: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  is_active: boolean | null;
+  applicable_room_ids: string[] | null;
+}
+
+async function pushDiscounts(
+  supabase: any,
+  propertyId: string,
+  ruPropertyIds: { ruId: number; roomTypeId?: string }[],
+) {
+  const result: { long_stay_discounts_pushed: number; last_minute_discounts_pushed: number; discount_errors: string[] } = {
+    long_stay_discounts_pushed: 0,
+    last_minute_discounts_pushed: 0,
+    discount_errors: [],
+  };
+
+  const { data: specials, error: specErr } = await supabase
+    .from('property_specials')
+    .select('id, name, special_type, discount_percent, min_stay, max_stay, book_from, book_until, valid_from, valid_to, is_active, applicable_room_ids')
+    .eq('property_id', propertyId)
+    .eq('is_active', true)
+    .eq('special_type', 'discount')
+    .gt('discount_percent', 0);
+
+  if (specErr || !specials || specials.length === 0) {
+    if (specErr) result.discount_errors.push(`Failed to load specials: ${specErr.message}`);
+    return result;
+  }
+
+  console.log(`[push-property-to-ru] Found ${specials.length} active percentage discounts for property ${propertyId}`);
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const oneYearStr = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().slice(0, 10);
+
+  for (const { ruId, roomTypeId } of ruPropertyIds) {
+    if (ruId <= 0) continue;
+
+    // Filter specials applicable to this room type (if room-level filtering exists)
+    const applicableSpecials = specials.filter((s: SpecialRow) => {
+      if (!s.applicable_room_ids || s.applicable_room_ids.length === 0) return true;
+      if (!roomTypeId) return true;
+      return s.applicable_room_ids.includes(roomTypeId);
+    });
+
+    // Classify specials
+    const longStayDiscounts: { date_from: string; date_to: string; nights_from: number; nights_to: number; percentage: number }[] = [];
+    const lastMinuteDiscounts: { date_from: string; date_to: string; days_to_arrival_from: number; days_to_arrival_to: number; percentage: number }[] = [];
+
+    for (const special of applicableSpecials as SpecialRow[]) {
+      const dateFrom = special.valid_from || todayStr;
+      const dateTo = special.valid_to || oneYearStr;
+      const pct = special.discount_percent!;
+
+      if ((special.min_stay || 0) > 0) {
+        // Long Stay discount
+        longStayDiscounts.push({
+          date_from: dateFrom,
+          date_to: dateTo,
+          nights_from: special.min_stay!,
+          nights_to: special.max_stay || 999,
+          percentage: pct,
+        });
+      } else if (special.book_from || special.book_until) {
+        // Last Minute discount — calculate days to arrival
+        const bookFrom = special.book_from ? new Date(special.book_from) : today;
+        const bookUntil = special.book_until ? new Date(special.book_until) : new Date(dateTo);
+        const arrivalDate = new Date(dateFrom);
+        const daysToArrivalFrom = Math.max(0, Math.floor((arrivalDate.getTime() - bookUntil.getTime()) / 86400000));
+        const daysToArrivalTo = Math.max(daysToArrivalFrom + 1, Math.floor((arrivalDate.getTime() - bookFrom.getTime()) / 86400000));
+
+        lastMinuteDiscounts.push({
+          date_from: dateFrom,
+          date_to: dateTo,
+          days_to_arrival_from: daysToArrivalFrom,
+          days_to_arrival_to: Math.min(daysToArrivalTo, 365),
+          percentage: pct,
+        });
+      }
+    }
+
+    // Push long stay discounts
+    if (longStayDiscounts.length > 0) {
+      try {
+        const { data: lsResult, error: lsErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'push_long_stay_discounts', ru_property_id: ruId, discounts: longStayDiscounts },
+        });
+        if (lsErr || !lsResult?.success) {
+          result.discount_errors.push(`Long stay (RU ${ruId}): ${lsErr?.message || lsResult?.error?.message || 'Unknown error'}`);
+        } else {
+          result.long_stay_discounts_pushed += longStayDiscounts.length;
+          console.log(`[push-property-to-ru] Pushed ${longStayDiscounts.length} long stay discounts to RU ${ruId}`);
+        }
+      } catch (e) {
+        result.discount_errors.push(`Long stay (RU ${ruId}): ${e instanceof Error ? e.message : 'Unknown'}`);
+      }
+    }
+
+    // Push last minute discounts
+    if (lastMinuteDiscounts.length > 0) {
+      try {
+        const { data: lmResult, error: lmErr } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: 'push_last_minute_discounts', ru_property_id: ruId, discounts: lastMinuteDiscounts },
+        });
+        if (lmErr || !lmResult?.success) {
+          result.discount_errors.push(`Last minute (RU ${ruId}): ${lmErr?.message || lmResult?.error?.message || 'Unknown error'}`);
+        } else {
+          result.last_minute_discounts_pushed += lastMinuteDiscounts.length;
+          console.log(`[push-property-to-ru] Pushed ${lastMinuteDiscounts.length} last minute discounts to RU ${ruId}`);
+        }
+      } catch (e) {
+        result.discount_errors.push(`Last minute (RU ${ruId}): ${e instanceof Error ? e.message : 'Unknown'}`);
+      }
+    }
+  }
+
+  return result;
+}
+
 // ── Main Handler ─────────────────────────────────────────────
 
 Deno.serve(async (req) => {
