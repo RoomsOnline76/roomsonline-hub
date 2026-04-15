@@ -910,6 +910,12 @@ Deno.serve(async (req) => {
 
       // Building assignment is handled via <BuildingID> in each unit's property push XML — no separate API call needed.
 
+      // Step 5: Push discounts for each unit with a valid RU ID
+      const discountRuIds = unitResults
+        .filter((u: any) => u.success && u.rentalsunited_property_id)
+        .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
+      const discountResult = await pushDiscounts(supabase, property_id, discountRuIds);
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -919,6 +925,7 @@ Deno.serve(async (req) => {
           building_diagnostics: buildingResult?.diagnostics || null,
           units: unitResults,
           building_assignment: { success: true, note: 'Units assigned via BuildingID in property XML' },
+          ...discountResult,
           message: `Building "${property.name}" + ${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} units pushed to Rentals United`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
