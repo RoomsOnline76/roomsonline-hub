@@ -545,16 +545,25 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
 
   console.log(`[resolveUnitRateKey] Unit "${unit.name}" candidate keys: [${candidateKeys.join(', ')}] for season ${seasonId}`);
 
-  for (const [, rateData] of Object.entries(seasonRates)) {
+  // season_rates schema: { [roomTypeId]: { "[seasonId]-[rateTypeId]": { roomAmount, adultAmount, ... } } }
+  // OUTER key = room id, INNER key = `${seasonId}-${rateTypeId}`. Match outer first.
+  for (const [outerKey, rateData] of Object.entries(seasonRates)) {
     if (typeof rateData !== 'object' || rateData === null) continue;
-    for (const roomKey of candidateKeys) {
-      const compositeKey = `${seasonId}-${roomKey}`;
-      const entry = (rateData as Record<string, any>)[compositeKey];
-      if (entry && typeof entry === 'object' && typeof (entry as any).roomAmount === 'number' && (entry as any).roomAmount > 0) {
-        const adultAmt = typeof (entry as any).adultAmount === 'number' && (entry as any).adultAmount > 0 ? (entry as any).adultAmount : undefined;
-        console.log(`[resolveUnitRateKey] Found rate ${(entry as any).roomAmount} (extra guest: ${adultAmt ?? 'none'}) via key "${compositeKey}"`);
-        return { price: (entry as any).roomAmount, extra_guest_price: adultAmt };
+    if (!candidateKeys.includes(String(outerKey))) continue;
+    let bestPrice = 0;
+    let bestExtra: number | undefined;
+    for (const [subKey, subData] of Object.entries(rateData as Record<string, any>)) {
+      if (!subKey.startsWith(seasonId + '-')) continue;
+      const amount = (subData as any)?.roomAmount;
+      if (typeof amount === 'number' && amount > bestPrice) {
+        bestPrice = amount;
+        const adultAmt = (subData as any)?.adultAmount;
+        bestExtra = typeof adultAmt === 'number' && adultAmt > 0 ? adultAmt : undefined;
       }
+    }
+    if (bestPrice > 0) {
+      console.log(`[resolveUnitRateKey] Found rate ${bestPrice} (extra: ${bestExtra ?? 'none'}) for room "${outerKey}" season ${seasonId}`);
+      return { price: bestPrice, extra_guest_price: bestExtra };
     }
   }
 
@@ -1008,11 +1017,22 @@ Deno.serve(async (req) => {
             console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"`);
           }
 
+          // Push ARI (availability + prices) for this standalone unit
+          let ariResult: Record<string, any> = {};
+          const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
+          if (ruIdNum > 0) {
+            console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+            if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
+            if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
+          }
+
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
             success: true,
             rentalsunited_property_id: unitRuId,
+            ari: ariResult,
             diagnostics: pushResult?.diagnostics,
           });
         }
