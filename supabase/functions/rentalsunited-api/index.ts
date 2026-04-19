@@ -411,7 +411,18 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = prop.security_deposit != null
     ? `\n    <SecurityDeposit DepositTypeID="${prop.security_deposit > 0 ? 5 : 0}">${Number(prop.security_deposit).toFixed(2)}</SecurityDeposit>` : '';
 
-  // Strict XSD element order per RU documentation
+  // Strict XSD element order per RU documentation:
+  // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived > CleaningPrice > Space >
+  // StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID > NoOfUnits > Floor > BuildingID >
+  // Street > ZipCode > Longitude > Latitude > ArrivalInstructions > Amenities > Images > CheckInOut >
+  // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit > CompositionRoomsAmenities
+  //
+  // NOTE: <NumberOfBeds> at root was removed from the RU XSD. Bed counts are expressed via
+  //   <CompositionRoomsAmenities> bed amenities (97-101) per CompositionRoom (81=Bedroom1, 82=Bedroom2, …).
+  // <ObjectTypeID> is REQUIRED when <BuildingID> is set (identifies the unit type in the building's Composition).
+  const objectTypeIdXml = prop.object_type_id && prop.object_type_id > 0
+    ? `\n    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>` : '';
+
   return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
   <Property>
@@ -425,8 +436,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
-    <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
-    <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
+    <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>${objectTypeIdXml}
     <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
     <Floor>${prop.floor}</Floor>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
     <Street>${escapeXml(prop.street)}</Street>
