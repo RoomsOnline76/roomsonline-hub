@@ -1076,15 +1076,18 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'push_building', response));
       const buildingId = extractBuildingId(response);
+      const unitTypeObjectIds = extractUnitTypeObjectIds(response);
       return jsonResponse({
         success: true,
         building_id: buildingId ? parseInt(buildingId, 10) : null,
+        unit_type_object_ids: unitTypeObjectIds,
         message: 'Building pushed successfully',
         raw_xml: response,
         diagnostics: {
           request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
           request_xml: sanitizeXmlForLogs(compactRequestXml),
           response_preview: previewXml(response, 600),
+          unit_type_count: unitTypeObjectIds.length,
         },
       });
     }
