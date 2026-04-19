@@ -470,8 +470,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
   const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
   const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
-  const rooms = roomTypes.map((rt, i) => ({ room_id: i + 1, amenities: mapAmenities(rt.amenities).slice(0, 5) }));
-  if (rooms.length === 0) rooms.push({ room_id: 1, amenities: [{ id: 2, count: 1 }] });
+  // Building-level rooms: emit one Bedroom (257) per room type — these are RU's only valid IDs.
+  const rooms = roomTypes.map(() => ({ room_id: 257, amenities: [{ id: 98, count: 1 }] }));
+  if (rooms.length === 0) rooms.push({ room_id: 257, amenities: [{ id: 98, count: 1 }] });
   let allImages = mapImages(property.images as unknown[] | null);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
   const seenUrls = new Set<string>();
