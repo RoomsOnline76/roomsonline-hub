@@ -1,56 +1,46 @@
 
 
-## Plan: Step 10 — Reservation Polling
+## Plan: Step 11 — Lead Polling
 
 ### Context
-- `cron-pull-ru-reservations` already exists and handles full poll flow: queries last 7 days via `list_reservations`, parses `<Reservation>` blocks, creates/updates/cancels bookings, resolves PropID → property/room_type, dedupes leads, logs to `ru_notifications`.
-- `rentalsunited-api` adapter needs verification that `list_reservations` and `get_leads` actions exist and emit correct XML (`Pull_ListReservations_RQ` / `Pull_ListLeads_RQ`).
-- This step is a live test pass against ALBATROS + cron observability — no major new code expected.
+- `cron-pull-ru-reservations` already runs a Phase 2 leads block: calls `get_leads` action, parses `<Lead>` blocks, dedupes on `ru_reservation_id` + `event_type='poll_lead'`, resolves PropID → property, logs to `ru_notifications`.
+- Step 10 fixed the date format issue (`normalizeRUDateTime` now produces `YYYY-MM-DD HH:MM:SS`) — this same helper is used by `buildGetLeadsXml`, so leads should already be functional.
+- Step 11 is a verification pass — confirm direct API works and cron correctly includes leads in its summary.
 
-### What Step 10 needs
+### What Step 11 needs
 
-**10.1 — Direct Reservation List**
-- Verify `rentalsunited-api` exposes `list_reservations` action with `date_from` / `date_to` params → returns raw RU XML.
-- If missing or malformed: add/fix the action to emit `Pull_ListReservations_RQ` per RU XSD ordering.
-- Test by invoking with a 7-day window and asserting valid `<Pull_ListReservations_RS>` shape (status, reservation count).
+**11.1 — Direct Leads Pull**
+- Invoke `rentalsunited-api` with `action='get_leads'` + 7-day window.
+- Assert response shape: `{ success: true, raw_xml: '<Pull_GetLeadsList_RS>...' }` (or `Pull_ListLeads_RS` — confirm by reading current builder).
+- Count `<Lead>` blocks in returned XML.
+- Persist result to `sync_logs` (`sync_type='leads_direct_pull'`) for support ticket trail.
 
-**10.2 — Trigger Cron Pull**
-- Manually invoke `cron-pull-ru-reservations` end-to-end.
-- Assert response shape: `{ success, summary: { total, created, updated, cancelled, skipped, failed, unmatched, leads_found, leads_logged } }`.
-- Verify `ru_notifications` rows written for matched + unmatched cases.
-- Verify `bookings` table reflects any new/updated reservations.
-- Confirm pg_cron schedule exists (every 30 min) — add if missing.
-
-**10.3 — Check Edge Function Logs**
-- Pull `cron-pull-ru-reservations` logs and confirm:
-  - Date window logged
-  - Per-reservation processing logged (success/skip/fail)
-  - Leads polling phase ran
-  - Summary line at end
-- Surface any errors / unmatched warnings for follow-up.
+**11.2 — Verify Cron Includes Leads**
+- Re-invoke `cron-pull-ru-reservations` and inspect summary fields `leads_found` and `leads_logged`.
+- Query `ru_notifications` for recent rows where `event_type='poll_lead'` to confirm dedup logic works (re-running cron should not double-insert).
+- Pull edge function logs and verify the "Polling leads from..." log line + per-lead processing logs appear.
 
 ### Implementation steps
 
-1. **Verify adapter actions** — read `rentalsunited-api/index.ts` to confirm `list_reservations` + `get_leads` builders exist and produce correct XML.
-2. **Patch adapter if needed** — add missing action(s) following XSD ordering rules.
-3. **Ensure pg_cron schedule** — query `cron.job` table; if no schedule for `cron-pull-ru-reservations`, create one (every 30 min) using project URL + anon key.
-4. **Trigger test run** — invoke the cron function manually, capture summary.
-5. **Log review** — pull recent edge function logs, verify expected output.
-6. **Persist summary** — insert a `sync_logs` row with `sync_type='reservation_poll'` capturing the test summary for the support ticket trail.
+1. **Read current adapter** — confirm `get_leads` action name + XML builder shape (`Pull_GetLeads_RQ` vs `Pull_ListLeads_RQ`).
+2. **Direct invoke** — call `rentalsunited-api` with `get_leads` for last 7 days, capture raw XML, log to `sync_logs`.
+3. **Cron invoke** — trigger `cron-pull-ru-reservations`, capture summary.
+4. **Database verification** — query `ru_notifications` for `poll_lead` rows; verify dedup by re-running cron and checking row count stays stable.
+5. **Log review** — pull `cron-pull-ru-reservations` logs, confirm leads phase executed cleanly.
+6. **Persist evidence** — insert `sync_logs` row with consolidated leads test results.
 
 ### Files potentially modified
-- `supabase/functions/rentalsunited-api/index.ts` — only if `list_reservations`/`get_leads` actions are missing or broken.
-- `supabase/functions/cron-pull-ru-reservations/index.ts` — only if log-polling reveals bugs.
-- New SQL via insert tool — pg_cron schedule (only if not already present).
+- `supabase/functions/rentalsunited-api/index.ts` — only if `get_leads` action is missing or XML builder is malformed.
+- `supabase/functions/cron-pull-ru-reservations/index.ts` — only if log review reveals bugs in leads phase.
 
 ### Pass criteria
-- `list_reservations` returns valid RU XML for a 7-day window.
-- Cron function invocation returns success with structured summary.
-- Logs show expected per-reservation processing.
-- pg_cron job confirmed running every 30 minutes.
+- Direct `get_leads` call returns valid RU XML (HTTP 200, parseable).
+- Cron summary includes `leads_found` and `leads_logged` counters with sensible values.
+- Re-running cron does not duplicate `poll_lead` rows in `ru_notifications`.
+- Edge function logs show full leads polling phase.
 
 ### Assumptions
-- 7-day rolling window remains the right size (matches RU best practice for catching missed RLNM pushes).
-- ALBATROS may have zero recent reservations — that's a valid pass case (summary all zeros + clean logs).
-- Master account credentials in secrets are sufficient for `Pull_ListReservations_RQ` (this is read-only and not gated by the "not the owner" Status 24 issue blocking ARI pushes).
+- ALBATROS likely has zero recent leads — empty result is a valid pass case (counters at 0, no errors).
+- Master account credentials are sufficient for `Pull_GetLeads_RQ` (read-only, not gated by Status 24 ownership block).
+- No new endpoints needed — leads logic is already wired into the cron from Step 10.
 
