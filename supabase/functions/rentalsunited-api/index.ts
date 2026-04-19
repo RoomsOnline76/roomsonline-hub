@@ -584,6 +584,26 @@ function extractBuildingId(xml: string): string | null {
   return match?.[1] || null;
 }
 
+/**
+ * Parse the UnitsComposition block from a Push_PutBuilding_RS response.
+ * RU returns: <UnitsComposition><UnitType><UnitTypeName>STUDIO</UnitTypeName><UnitTypeID>123</UnitTypeID>...</UnitType>...</UnitsComposition>
+ * The UnitTypeID is the ObjectTypeID required when pushing units that reference this building.
+ */
+function extractUnitTypeObjectIds(xml: string): { name: string; object_type_id: number }[] {
+  const results: { name: string; object_type_id: number }[] = [];
+  const blockRegex = /<UnitType\b[^>]*>([\s\S]*?)<\/UnitType>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = blockRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const nameMatch = block.match(/<UnitTypeName>([\s\S]*?)<\/UnitTypeName>/i);
+    const idMatch = block.match(/<UnitTypeID>(\d+)<\/UnitTypeID>/i);
+    if (nameMatch && idMatch) {
+      results.push({ name: nameMatch[1].trim(), object_type_id: parseInt(idMatch[1], 10) });
+    }
+  }
+  return results;
+}
+
 function extractBuildings(xml: string): { id: string; name: string }[] {
   const results: { id: string; name: string }[] = [];
   // RU returns buildings as self-closing or open tags with attributes:
