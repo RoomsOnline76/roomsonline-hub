@@ -454,7 +454,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
     </Coordinates>${roomsXml ? `\n    ${roomsXml}` : ''}
-    ${arrivalInstructionsXml}
     <Amenities>
       ${amenitiesXml}
     </Amenities>
@@ -471,7 +470,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}
+    </Descriptions>
+    ${arrivalInstructionsXml}${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
