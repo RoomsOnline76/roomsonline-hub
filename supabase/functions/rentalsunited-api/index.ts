@@ -354,10 +354,11 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
   };
 
-  // Build rooms/composition rooms XML with bed amenities
+  // Build CompositionRoomsAmenities. Per RU spec the attribute name is `CompositionRoomID`
+  // (NOT `RoomID`). Wrong attribute name → RU silently parses 0 → "Wrong composition room id:0".
   const roomsXml = prop.rooms && prop.rooms.length > 0
     ? `<CompositionRoomsAmenities>
-      ${prop.rooms.map(r => `<CompositionRoomAmenities RoomID="${r.room_id}">
+      ${prop.rooms.map(r => `<CompositionRoomAmenities CompositionRoomID="${r.room_id}">
         <Amenities>
           ${r.amenities.map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`).join('\n          ')}
         </Amenities>
@@ -423,8 +424,11 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   //    "invalid child element 'NoOfUnits'. List of possible elements expected: 'Floor'."
   //  - <Coordinates> wrapper is MANDATORY — loose <Longitude>/<Latitude> siblings produce
   //    "Missing mandatory element: Coordinates."
-  //  - <NumberOfBeds> at root removed — bed counts go in <CompositionRoomsAmenities> bed amenities (97-101)
-  //    per CompositionRoom (81=Bedroom1, 82=Bedroom2, …).
+  //  - <NumberOfBeds> at root removed — bed counts go inside <CompositionRoomsAmenities> as
+  //    bed amenities (97-101) within Bedroom blocks (RoomID=257). Per Pull_ListCompositionRooms_RQ
+  //    the only valid IDs are: 53(WC), 81(Bathroom), 94(Kitchen+Living), 101(Kitchen),
+  //    249(LivingRoom), 257(Bedroom), 372(LivingRoom/Bedroom), 517(Bedroom/LR/Kitchen).
+  //    There is NO 81/82/83 per-bedroom variant — all bedrooms repeat RoomID=257.
   //  - <ObjectTypeID> is REQUIRED when <BuildingID> is set. Falls back to PropertyTypeID at
   //    the orchestrator layer when RU's building composition lookup is unavailable.
   //  - <ArrivalInstructions> MUST come AFTER <CompositionRoomsAmenities>. Placing it directly

@@ -274,35 +274,50 @@ function buildUnitPayload(
   if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
 
-  // Combine regular amenities + bed amenities for Room block
-  // Build per-bedroom CompositionRoom entries using RU's CompositionRoomID catalog:
-  //   81=Bedroom 1, 82=Bedroom 2, 83=Bedroom 3, 84=Bedroom 4, 85=Bedroom 5, 86=Bedroom 6
-  // Each bedroom gets its own block with its bed amenities. Falls back to a single Bedroom1 block
-  // when no bed_configuration is available.
-  const COMPOSITION_BEDROOM_IDS = [81, 82, 83, 84, 85, 86, 87, 88];
-  const sharedRoomAmenities = unitAmenities.slice(0, 5); // capped to keep payload small per room
+  // Build CompositionRoomsAmenities using RU's REAL global dictionary
+  // (fetched via Pull_ListCompositionRooms_RQ — only 8 IDs are valid for this account):
+  //   53  = WC
+  //   81  = Bathroom
+  //   94  = Kitchen in the living/dining room
+  //   101 = Kitchen
+  //   249 = Living room
+  //   257 = Bedroom              ← repeat per bedroom (no 81/82/83 variants exist)
+  //   372 = Livingroom/Bedroom
+  //   517 = Bedroom/Living room with kitchen corner
+  // Strategy: one <CompositionRoomAmenities RoomID="257"> per bedroom (with its bed amenity),
+  // plus one RoomID="81" per bathroom, plus one RoomID="101" for the kitchen.
+  // Bed amenities only belong inside a Bedroom (257) block.
+  const RU_BEDROOM_ID = 257;
+  const RU_BATHROOM_ID = 81;
+  const RU_KITCHEN_ID = 101;
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
 
+  // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
-    // One CompositionRoom per bed_configuration entry (= one bedroom)
-    unit.bed_configuration.forEach((bedEntry: any, idx: number) => {
-      const roomId = COMPOSITION_BEDROOM_IDS[idx] ?? COMPOSITION_BEDROOM_IDS[COMPOSITION_BEDROOM_IDS.length - 1];
+    unit.bed_configuration.forEach((bedEntry: any) => {
       const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
       const ruBedId = BED_AMENITY_MAP[bedType] || 98; // default = double bed
-      const roomAmens = [
-        ...sharedRoomAmenities,
-        { id: ruBedId, count: bedEntry.count || 1 },
-      ];
-      rooms.push({ room_id: roomId, amenities: roomAmens });
+      rooms.push({
+        room_id: RU_BEDROOM_ID,
+        amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
+      });
     });
   } else {
-    // Fallback: single Bedroom 1 block aggregating all bed amenities
-    const roomAmens = [
-      ...sharedRoomAmenities,
-      ...(bedAmenities.length > 0 ? bedAmenities : [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / 2)) }]),
-    ];
-    rooms.push({ room_id: 81, amenities: roomAmens });
+    // Fallback: emit `bedrooms` count of generic 257 blocks (default double bed)
+    const bedroomCount = Math.max(1, Number(unit.bedrooms) || 1);
+    for (let i = 0; i < bedroomCount; i++) {
+      rooms.push({
+        room_id: RU_BEDROOM_ID,
+        amenities: [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
+      });
+    }
   }
+
+  // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
+  // RU's parser interprets <Amenities/> with no children as amenity id:0 and rejects with
+  // "Wrong composition room id:0". Since RU has no required amenities for those rooms in
+  // our data model, we list them only via the root <Amenities> block (item ids 11=Kitchen,
+  // 6=Bathroom etc.) — the CompositionRoomsAmenities block is bedroom-only.
 
   return {
     name: unit.name,
@@ -452,8 +467,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
   const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
   const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
-  const rooms = roomTypes.map((rt, i) => ({ room_id: i + 1, amenities: mapAmenities(rt.amenities).slice(0, 5) }));
-  if (rooms.length === 0) rooms.push({ room_id: 1, amenities: [{ id: 2, count: 1 }] });
+  // Building-level rooms: emit one Bedroom (257) per room type — these are RU's only valid IDs.
+  const rooms = roomTypes.map(() => ({ room_id: 257, amenities: [{ id: 98, count: 1 }] }));
+  if (rooms.length === 0) rooms.push({ room_id: 257, amenities: [{ id: 98, count: 1 }] });
   let allImages = mapImages(property.images as unknown[] | null);
   for (const rt of roomTypes) allImages = allImages.concat(mapImages(rt.images as unknown[] | null));
   const seenUrls = new Set<string>();
@@ -827,7 +843,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { property_id, dry_run, subscribe_rlnm, standalone_units } = await req.json();
+    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids } = await req.json();
 
     // Optional: subscribe RLNM before pushing
     if (subscribe_rlnm) {
@@ -947,10 +963,14 @@ Deno.serve(async (req) => {
       // Each room type is pushed as an independent RU property without a BuildingID.
       // ObjectTypeID falls back to property_type_id (Chalet=12, Apartment=1, etc.).
       if (standalone_units) {
-        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${activeRoomTypes.length} units without building`);
+        // Optional filter: only_unit_ids restricts the push to specific room_type ids
+        const filteredUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
+          ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
+          : activeRoomTypes;
+        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${filteredUnits.length}/${activeRoomTypes.length} units without building`);
         const unitResults: any[] = [];
 
-        for (const unit of activeRoomTypes) {
+        for (const unit of filteredUnits) {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0);
