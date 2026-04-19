@@ -1,46 +1,73 @@
 
 
-## Plan: Step 11 — Lead Polling
+Let me explore the orchestrator and related code to design Step 12.
+
+I need to understand:
+1. `push-property-to-ru` orchestrator structure
+2. How RLNM subscription is wired in
+3. pms_mappings / cache table writes
+4. Image handling caps
+5. Available test properties (single vs multi-unit RU-connected)
+
+Key context from prior steps:
+- ALBATROS (RU PropID 4707563) — known single property used in Steps 5-11
+- RU returns Status 24 "not the owner" for ARI pushes (push still executes & logs XML — that's the evidence we need)
+- RLNM subscription action exists from Step 9 (`subscribe_notifications`)
+- `cron-push-all-properties-to-ru` already calls subscribe + push loop
+
+Step 12 is largely a verification pass — most code exists. I'll outline what needs adding (partial failure tracking, large image guard if missing, data authority assertions) and what's pure test invocation.
+
+## Plan: Step 12 — Full Orchestration Verification
 
 ### Context
-- `cron-pull-ru-reservations` already runs a Phase 2 leads block: calls `get_leads` action, parses `<Lead>` blocks, dedupes on `ru_reservation_id` + `event_type='poll_lead'`, resolves PropID → property, logs to `ru_notifications`.
-- Step 10 fixed the date format issue (`normalizeRUDateTime` now produces `YYYY-MM-DD HH:MM:SS`) — this same helper is used by `buildGetLeadsXml`, so leads should already be functional.
-- Step 11 is a verification pass — confirm direct API works and cron correctly includes leads in its summary.
+- `push-property-to-ru` orchestrates: location resolve → property metadata → composition rooms → images → amenities → ARI (avail/min_stay/changeover) → prices → discounts → RLNM ping.
+- Steps 5-11 verified individual ARI/RLNM/poll endpoints. Step 12 = end-to-end orchestration pass for both single- and multi-unit shapes plus edge cases.
+- Need a multi-unit RU-connected property to test 12.2; will query `properties` for any with `rentalsunited_property_id IS NOT NULL` and multi-unit shape (room_types > 1).
 
-### What Step 11 needs
+### Test matrix
 
-**11.1 — Direct Leads Pull**
-- Invoke `rentalsunited-api` with `action='get_leads'` + 7-day window.
-- Assert response shape: `{ success: true, raw_xml: '<Pull_GetLeadsList_RS>...' }` (or `Pull_ListLeads_RS` — confirm by reading current builder).
-- Count `<Lead>` blocks in returned XML.
-- Persist result to `sync_logs` (`sync_type='leads_direct_pull'`) for support ticket trail.
-
-**11.2 — Verify Cron Includes Leads**
-- Re-invoke `cron-pull-ru-reservations` and inspect summary fields `leads_found` and `leads_logged`.
-- Query `ru_notifications` for recent rows where `event_type='poll_lead'` to confirm dedup logic works (re-running cron should not double-insert).
-- Pull edge function logs and verify the "Polling leads from..." log line + per-lead processing logs appear.
+| # | Scenario | Target | Expected |
+|---|----------|--------|----------|
+| 12.1 | Single-unit full push | ALBATROS | All phases execute; structured summary `{location, property, rooms, images, amenities, ari, prices, discounts, rlnm}` per phase; XML logged to `sync_logs` |
+| 12.2 | Multi-unit full push | Pick first multi-unit RU property (or skip with note) | Composition rooms loop runs; per-unit ARI/prices logged; summary includes `units_pushed: N` |
+| 12.3 | Idempotent re-push | ALBATROS, second invocation | Same RU PropertyID returned; no duplicate `pms_mappings` rows; cache rows updated (not inserted) |
+| 12.4 | Push with RLNM | ALBATROS + `?subscribe_rlnm=true` | Push completes + RLNM `subscribe_notifications` called; both logged |
+| 12.5 | Partial failure | Inject one bad room (e.g. missing required field) | Orchestrator continues, marks failed unit in summary, overall `success: true, partial: true` |
+| 12.6 | Large image set | Property with 60+ images | All images submitted in batches; no truncation; image count in response matches DB |
+| 12.7 | Data authority | Post-push DB inspection | `pms_mappings` has rentalsunited rows; `pms_availability_cache` populated; ALL JSON keys in `sync_logs.response_data` are snake_case |
 
 ### Implementation steps
 
-1. **Read current adapter** — confirm `get_leads` action name + XML builder shape (`Pull_GetLeads_RQ` vs `Pull_ListLeads_RQ`).
-2. **Direct invoke** — call `rentalsunited-api` with `get_leads` for last 7 days, capture raw XML, log to `sync_logs`.
-3. **Cron invoke** — trigger `cron-pull-ru-reservations`, capture summary.
-4. **Database verification** — query `ru_notifications` for `poll_lead` rows; verify dedup by re-running cron and checking row count stays stable.
-5. **Log review** — pull `cron-pull-ru-reservations` logs, confirm leads phase executed cleanly.
-6. **Persist evidence** — insert `sync_logs` row with consolidated leads test results.
+1. **Read orchestrator** (`push-property-to-ru/index.ts`) — confirm current phase summary shape, partial-failure handling, image batching, RLNM hook.
+2. **Patch if needed**:
+   - If summary doesn't have `partial` flag or per-phase status → add structured per-phase result accumulator.
+   - If image batching missing for >50 images → add chunked submission.
+   - If no `?subscribe_rlnm=true` flag → add optional behavior.
+3. **Identify test fixtures** — query DB for: (a) ALBATROS, (b) any RU-connected multi-unit property, (c) any RU property with 60+ images. If (b)/(c) don't exist, document as N/A with rationale.
+4. **Run test suite**:
+   - 12.1: invoke push for ALBATROS, capture summary + sync_logs row.
+   - 12.2: invoke for multi-unit (or skip with documented reason).
+   - 12.3: invoke ALBATROS twice in sequence, diff `pms_mappings` row count.
+   - 12.4: invoke with `subscribe_rlnm: true`, verify RLNM call in logs.
+   - 12.5: temporarily inject bad room data via test property OR simulate via partial failure path in code; assert `partial: true`.
+   - 12.6: pick property with most images; verify all submitted.
+   - 12.7: query `pms_mappings`, `pms_availability_cache`, scan `sync_logs.response_data` for camelCase keys (should be zero).
+5. **Persist evidence** — single consolidated `sync_logs` row (`sync_type='full_orchestration_step_12'`) with all 7 sub-results + pass/fail per scenario.
 
 ### Files potentially modified
-- `supabase/functions/rentalsunited-api/index.ts` — only if `get_leads` action is missing or XML builder is malformed.
-- `supabase/functions/cron-pull-ru-reservations/index.ts` — only if log review reveals bugs in leads phase.
+- `supabase/functions/push-property-to-ru/index.ts` — only if partial-failure tracking, image batching, or RLNM flag missing.
+- No DB schema changes expected.
 
 ### Pass criteria
-- Direct `get_leads` call returns valid RU XML (HTTP 200, parseable).
-- Cron summary includes `leads_found` and `leads_logged` counters with sensible values.
-- Re-running cron does not duplicate `poll_lead` rows in `ru_notifications`.
-- Edge function logs show full leads polling phase.
+- All 7 scenarios produce expected outcomes (or are documented N/A with reason).
+- `pms_mappings` rows are idempotent across re-pushes.
+- `pms_availability_cache` reflects pushed data.
+- All `sync_logs.response_data` keys are snake_case (per project memory `wire-format-and-validation-policy`).
+- RU "not the owner" Status 24 on ARI is acceptable per support-ticket trail (pre-existing blocker, not a Step 12 failure).
 
 ### Assumptions
-- ALBATROS likely has zero recent leads — empty result is a valid pass case (counters at 0, no errors).
-- Master account credentials are sufficient for `Pull_GetLeads_RQ` (read-only, not gated by Status 24 ownership block).
-- No new endpoints needed — leads logic is already wired into the cron from Step 10.
+- Multi-unit RU property may not exist in current DB — will document as N/A and validate the multi-unit code path via static analysis if so.
+- "Partial failure" can be triggered without breaking real data by passing a synthetic bad-room override OR by reading the existing failure-handling branch and simulating it. Will prefer non-destructive simulation.
+- Large image set: if no property has 60+ images, will validate batching logic statically rather than create test data.
+- No frontend, calendar, or booking engine touched — pure backend orchestration verification.
 
