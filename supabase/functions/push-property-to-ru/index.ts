@@ -638,6 +638,105 @@ interface AvailabilityVerification {
   error?: string;
 }
 
+interface PriceVerification {
+  checked: boolean;
+  total_seasons: number;
+  matches: number;
+  mismatches: { date_from: string; date_to: string; field: 'price' | 'extra_guest_price' | 'missing'; requested: number | null; returned: number | null }[];
+  missing_dates: string[];
+  error?: string;
+}
+
+async function verifyPrices(
+  supabase: any,
+  ruPropertyId: number,
+  requested: { date_from: string; date_to: string; price: number; extra_guest_price?: number }[],
+  windowFrom: string,
+  windowTo: string
+): Promise<PriceVerification> {
+  const report: PriceVerification = { checked: false, total_seasons: requested.length, matches: 0, mismatches: [], missing_dates: [] };
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+    });
+    if (error || !data?.success || !data?.raw_xml) {
+      report.error = error?.message || data?.error?.message || 'No XML returned';
+      return report;
+    }
+    const xml = String(data.raw_xml);
+    // RU returns: <Season DateFrom="..." DateTo="..."><Price>X</Price><ExtraGuestPrice>Y</ExtraGuestPrice></Season>
+    // Some variants use child elements: <Season><DateFrom>...</DateFrom><DateTo>...</DateTo>...</Season>
+    const returnedSeasons: { date_from: string; date_to: string; price: number | null; extra_guest_price: number | null }[] = [];
+    const seasonBlockRegex = /<Season\b([^>]*)>([\s\S]*?)<\/Season>/gi;
+    const attr = (s: string, name: string): string | null => {
+      const m = new RegExp(`${name}="([^"]*)"`, 'i').exec(s);
+      return m ? m[1] : null;
+    };
+    let m: RegExpExecArray | null;
+    while ((m = seasonBlockRegex.exec(xml)) !== null) {
+      const attrs = m[1];
+      const inner = m[2];
+      const df = attr(attrs, 'DateFrom') || (inner.match(/<DateFrom>([\s\S]*?)<\/DateFrom>/i)?.[1]?.trim() ?? null);
+      const dt = attr(attrs, 'DateTo') || (inner.match(/<DateTo>([\s\S]*?)<\/DateTo>/i)?.[1]?.trim() ?? null);
+      if (!df || !dt) continue;
+      const priceMatch = inner.match(/<Price>([\s\S]*?)<\/Price>/i);
+      const extraMatch = inner.match(/<ExtraGuestPrice>([\s\S]*?)<\/ExtraGuestPrice>/i);
+      returnedSeasons.push({
+        date_from: df,
+        date_to: dt,
+        price: priceMatch ? Number(priceMatch[1].trim()) : null,
+        extra_guest_price: extraMatch ? Number(extraMatch[1].trim()) : null,
+      });
+    }
+
+    report.checked = true;
+
+    // Build per-day price map from returned data
+    const returnedPerDay = new Map<string, { price: number | null; extra: number | null }>();
+    for (const r of returnedSeasons) {
+      const start = new Date(r.date_from + 'T00:00:00Z');
+      const end = new Date(r.date_to + 'T00:00:00Z');
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        returnedPerDay.set(d.toISOString().slice(0, 10), { price: r.price, extra: r.extra_guest_price });
+      }
+    }
+
+    // Diff each requested season against returned per-day prices (sample first day of each season)
+    for (const req of requested) {
+      const sampleDay = req.date_from;
+      const got = returnedPerDay.get(sampleDay);
+      if (!got) {
+        report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'missing', requested: req.price, returned: null });
+        report.missing_dates.push(sampleDay);
+        continue;
+      }
+      let ok = true;
+      if (got.price != null && Math.abs(got.price - req.price) > 0.01) {
+        report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'price', requested: req.price, returned: got.price });
+        ok = false;
+      }
+      if (req.extra_guest_price != null && got.extra != null && Math.abs(got.extra - req.extra_guest_price) > 0.01) {
+        report.mismatches.push({ date_from: req.date_from, date_to: req.date_to, field: 'extra_guest_price', requested: req.extra_guest_price, returned: got.extra });
+        ok = false;
+      }
+      if (ok) report.matches++;
+    }
+
+    // Coverage gap detection: walk window day-by-day, collect dates with no returned price
+    const windowStart = new Date(windowFrom + 'T00:00:00Z');
+    const windowEnd = new Date(windowTo + 'T00:00:00Z');
+    for (let d = new Date(windowStart); d <= windowEnd; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      if (!returnedPerDay.has(iso)) {
+        if (!report.missing_dates.includes(iso)) report.missing_dates.push(iso);
+      }
+    }
+  } catch (e) {
+    report.error = e instanceof Error ? e.message : 'Unknown verification error';
+  }
+  return report;
+}
+
 async function verifyAvailability(
   supabase: any,
   ruPropertyId: number,
