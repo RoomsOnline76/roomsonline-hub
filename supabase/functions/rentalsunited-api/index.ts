@@ -594,6 +594,46 @@ function buildGetBuildingXml(creds: RUCredentials, buildingId: number): string {
   return `<Pull_GetBuilding_RQ>${buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
 }
 
+/**
+ * Pull_ListCompositionRooms_RQ — fetch the global RU dictionary of valid
+ * CompositionRoom IDs (e.g. bedroom variants like "1 single bed", "1 double bed").
+ * These IDs are required when populating <CompositionRoomsAmenities> in property pushes.
+ * Status 6 ("Wrong composition room id") is raised when an unknown ID is sent, so we
+ * use this dictionary to resolve a valid ID per room rather than guessing.
+ */
+function buildListCompositionRoomsXml(creds: RUCredentials): string {
+  return `<Pull_ListCompositionRooms_RQ>${buildAuthXml(creds)}</Pull_ListCompositionRooms_RQ>`;
+}
+
+/**
+ * Parse the response of Pull_ListCompositionRooms_RQ.
+ * RU returns: <CompositionRooms><CompositionRoom CompositionRoomID="1">Single bed</CompositionRoom>...</CompositionRooms>
+ * Some accounts return child elements: <CompositionRoom><CompositionRoomID>1</CompositionRoomID><CompositionRoomName>...</CompositionRoomName></CompositionRoom>
+ */
+function extractCompositionRooms(xml: string): { id: number; name: string }[] {
+  const results: { id: number; name: string }[] = [];
+
+  // Format A: attribute + text content
+  const attrRegex = /<CompositionRoom\b[^>]*\bCompositionRoomID\s*=\s*"(\d+)"[^>]*>([\s\S]*?)<\/CompositionRoom>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = attrRegex.exec(xml)) !== null) {
+    const inner = m[2].trim();
+    // strip any nested tags, fall back to inner text
+    const name = inner.replace(/<[^>]+>/g, '').trim();
+    results.push({ id: parseInt(m[1], 10), name });
+  }
+
+  // Format B: child elements
+  if (results.length === 0) {
+    const childRegex = /<CompositionRoom>[\s\S]*?<CompositionRoomID>(\d+)<\/CompositionRoomID>[\s\S]*?<CompositionRoomName>([\s\S]*?)<\/CompositionRoomName>[\s\S]*?<\/CompositionRoom>/gi;
+    while ((m = childRegex.exec(xml)) !== null) {
+      results.push({ id: parseInt(m[1], 10), name: m[2].trim() });
+    }
+  }
+
+  return results;
+}
+
 function extractBuildingId(xml: string): string | null {
   const match = xml.match(/<BuildingID>(\d+)<\/BuildingID>/);
   return match?.[1] || null;
@@ -1115,6 +1155,23 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       const buildings = extractBuildings(response);
       return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+    }
+
+    // ── list_composition_rooms ──
+    // Fetch the global RU dictionary of valid CompositionRoomIDs so we can
+    // populate <CompositionRoomsAmenities> with real IDs (avoids Status 6).
+    if (action === 'list_composition_rooms') {
+      const xml = buildListCompositionRoomsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_composition_rooms', response));
+      const rooms = extractCompositionRooms(response);
+      return jsonResponse({
+        success: true,
+        composition_rooms: rooms,
+        count: rooms.length,
+        raw_xml: response,
+      });
     }
 
     // ── get_building ──
