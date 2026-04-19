@@ -1017,15 +1017,19 @@ Deno.serve(async (req) => {
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
         unitPayload.owner_id = ruOwnerId;
 
-        // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set)
-        const objTypeId = objectTypeIdByName.get(unit.name.trim().toUpperCase());
-        if (objTypeId) {
-          unitPayload.object_type_id = objTypeId;
-        } else {
-          console.warn(`[push-property-to-ru] No ObjectTypeID found for unit "${unit.name}" in building composition — RU will likely reject this unit`);
+        // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set).
+        // RU's Push_PutBuilding_RS does NOT return UnitsComposition IDs and Pull_GetBuilding_RQ is
+        // not implemented on most accounts — so composition-based lookup will frequently miss.
+        // Fallback: reuse the unit's resolved property_type_id (e.g. 12=Chalet, 1=Apartment) as
+        // the ObjectTypeID. RU accepts this when the building has no enforced composition.
+        const compObjTypeId = objectTypeIdByName.get(unit.name.trim().toUpperCase());
+        const objTypeId = compObjTypeId ?? unitPayload.property_type_id;
+        unitPayload.object_type_id = objTypeId;
+        if (!compObjTypeId) {
+          console.log(`[push-property-to-ru] No composition match for "${unit.name}" — falling back to property_type_id=${objTypeId}`);
         }
 
-        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId ?? 'NONE'})`);
+        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId})`);
 
         const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
