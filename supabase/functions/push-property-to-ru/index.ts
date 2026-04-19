@@ -274,35 +274,53 @@ function buildUnitPayload(
   if (!beds) beds = unit.beds || unit.bedrooms || Math.max(1, maxGuests);
   const descText = unit.description || property.description || unit.name;
 
-  // Combine regular amenities + bed amenities for Room block
-  // Build per-bedroom CompositionRoom entries using RU's CompositionRoomID catalog:
-  //   81=Bedroom 1, 82=Bedroom 2, 83=Bedroom 3, 84=Bedroom 4, 85=Bedroom 5, 86=Bedroom 6
-  // Each bedroom gets its own block with its bed amenities. Falls back to a single Bedroom1 block
-  // when no bed_configuration is available.
-  const COMPOSITION_BEDROOM_IDS = [81, 82, 83, 84, 85, 86, 87, 88];
-  const sharedRoomAmenities = unitAmenities.slice(0, 5); // capped to keep payload small per room
+  // Build CompositionRoomsAmenities using RU's REAL global dictionary
+  // (fetched via Pull_ListCompositionRooms_RQ — only 8 IDs are valid for this account):
+  //   53  = WC
+  //   81  = Bathroom
+  //   94  = Kitchen in the living/dining room
+  //   101 = Kitchen
+  //   249 = Living room
+  //   257 = Bedroom              ← repeat per bedroom (no 81/82/83 variants exist)
+  //   372 = Livingroom/Bedroom
+  //   517 = Bedroom/Living room with kitchen corner
+  // Strategy: one <CompositionRoomAmenities RoomID="257"> per bedroom (with its bed amenity),
+  // plus one RoomID="81" per bathroom, plus one RoomID="101" for the kitchen.
+  // Bed amenities only belong inside a Bedroom (257) block.
+  const RU_BEDROOM_ID = 257;
+  const RU_BATHROOM_ID = 81;
+  const RU_KITCHEN_ID = 101;
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
 
+  // Bedrooms: one block per bed_configuration entry (= one physical bedroom)
   if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
-    // One CompositionRoom per bed_configuration entry (= one bedroom)
-    unit.bed_configuration.forEach((bedEntry: any, idx: number) => {
-      const roomId = COMPOSITION_BEDROOM_IDS[idx] ?? COMPOSITION_BEDROOM_IDS[COMPOSITION_BEDROOM_IDS.length - 1];
+    unit.bed_configuration.forEach((bedEntry: any) => {
       const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
       const ruBedId = BED_AMENITY_MAP[bedType] || 98; // default = double bed
-      const roomAmens = [
-        ...sharedRoomAmenities,
-        { id: ruBedId, count: bedEntry.count || 1 },
-      ];
-      rooms.push({ room_id: roomId, amenities: roomAmens });
+      rooms.push({
+        room_id: RU_BEDROOM_ID,
+        amenities: [{ id: ruBedId, count: bedEntry.count || 1 }],
+      });
     });
   } else {
-    // Fallback: single Bedroom 1 block aggregating all bed amenities
-    const roomAmens = [
-      ...sharedRoomAmenities,
-      ...(bedAmenities.length > 0 ? bedAmenities : [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / 2)) }]),
-    ];
-    rooms.push({ room_id: 81, amenities: roomAmens });
+    // Fallback: emit `bedrooms` count of generic 257 blocks (default double bed)
+    const bedroomCount = Math.max(1, Number(unit.bedrooms) || 1);
+    for (let i = 0; i < bedroomCount; i++) {
+      rooms.push({
+        room_id: RU_BEDROOM_ID,
+        amenities: [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / bedroomCount / 2)) }],
+      });
+    }
   }
+
+  // Bathrooms: one block per bathroom (no amenities required)
+  const bathroomCount = Math.max(1, Number(unit.bathrooms) || 1);
+  for (let i = 0; i < bathroomCount; i++) {
+    rooms.push({ room_id: RU_BATHROOM_ID, amenities: [] });
+  }
+
+  // Kitchen: one block (assume present for self-catering units)
+  rooms.push({ room_id: RU_KITCHEN_ID, amenities: [] });
 
   return {
     name: unit.name,
