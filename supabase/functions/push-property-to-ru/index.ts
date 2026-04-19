@@ -516,6 +516,7 @@ interface UnitContext {
   id: string;
   name: string;
   linked_rolos_id?: string | null;
+  amenities?: Record<string, any> | null;
 }
 
 interface ResolvedRate {
@@ -586,11 +587,156 @@ function resolveUnitRateKey(seasonRates: Record<string, any>, seasonId: string, 
   return lowest < Infinity ? { price: lowest, extra_guest_price: lowestExtraGuest } : null;
 }
 
+// ── Step 6: Per-night availability expansion ─────────────────
+// Maps day-of-week → RU changeover code (0=none, 1=check-in only, 2=check-out only, 3=both)
+const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+function resolveChangeoverRules(unit: UnitContext | undefined, propertyAmenities: Record<string, any>): { perDow: Record<number, number> | null; defaultCode: number } {
+  const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
+  const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
+  const defaultCode = Number(unitAmenities.changeover ?? propertyAmenities.changeover ?? 3);
+  if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
+    const perDow: Record<number, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const v = rules[DOW_KEYS[i]];
+      if (v != null && !isNaN(Number(v))) perDow[i] = Number(v);
+    }
+    if (Object.keys(perDow).length > 0) return { perDow, defaultCode };
+  }
+  return { perDow: null, defaultCode };
+}
+
+function expandAvailability(
+  periods: { from: string; to: string; minStay: number }[],
+  units: number,
+  changeover: { perDow: Record<number, number> | null; defaultCode: number }
+): { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] {
+  const out: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] = [];
+  if (!changeover.perDow) {
+    // No per-day rules — keep ranges (efficient)
+    return periods.map(p => ({ date_from: p.from, date_to: p.to, units, min_stay: p.minStay, changeover: changeover.defaultCode }));
+  }
+  // Per-day rules — emit one entry per night
+  for (const p of periods) {
+    const start = new Date(p.from + 'T00:00:00Z');
+    const end = new Date(p.to + 'T00:00:00Z');
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const iso = d.toISOString().slice(0, 10);
+      const dow = d.getUTCDay();
+      const code = changeover.perDow[dow] ?? changeover.defaultCode;
+      out.push({ date_from: iso, date_to: iso, units, min_stay: p.minStay, changeover: code });
+    }
+  }
+  return out;
+}
+
+interface AvailabilityVerification {
+  checked: boolean;
+  total_days: number;
+  matches: number;
+  mismatches: { date: string; field: 'min_stay' | 'changeover' | 'units'; requested: number; returned: number | null }[];
+  error?: string;
+}
+
+async function verifyAvailability(
+  supabase: any,
+  ruPropertyId: number,
+  requested: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[],
+  windowFrom: string,
+  windowTo: string
+): Promise<AvailabilityVerification> {
+  const report: AvailabilityVerification = { checked: false, total_days: 0, matches: 0, mismatches: [] };
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo },
+    });
+    if (error || !data?.success || !data?.raw_xml) {
+      report.error = error?.message || data?.error?.message || 'No XML returned';
+      return report;
+    }
+    // Build expected per-day map from requested ranges
+    const expected = new Map<string, { min_stay: number; changeover: number; units: number }>();
+    for (const r of requested) {
+      const start = new Date(r.date_from + 'T00:00:00Z');
+      const end = new Date(r.date_to + 'T00:00:00Z');
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const iso = d.toISOString().slice(0, 10);
+        expected.set(iso, { min_stay: r.min_stay, changeover: r.changeover, units: r.units });
+      }
+    }
+    // Parse RU response. Format varies; try common patterns:
+    //   <CalendarDay Date="YYYY-MM-DD" IsAvailable="true" MinStay="2" Changeover="3" />
+    //   <DateRange DateFrom="..." DateTo="..." MinStay="..." Changeover="..." />
+    const xml = String(data.raw_xml);
+    const dayRegex = /<CalendarDay\b([^/>]*)\/?>(?:\s*<\/CalendarDay>)?/gi;
+    const rangeRegex = /<DateRange\b([^/>]*)\/?>(?:\s*<\/DateRange>)?/gi;
+    const attr = (s: string, name: string): string | null => {
+      const m = new RegExp(`${name}="([^"]*)"`, 'i').exec(s);
+      return m ? m[1] : null;
+    };
+    const returnedDays = new Map<string, { min_stay: number | null; changeover: number | null; units: number | null }>();
+    let m: RegExpExecArray | null;
+    while ((m = dayRegex.exec(xml)) !== null) {
+      const a = m[1];
+      const date = attr(a, 'Date');
+      if (!date) continue;
+      returnedDays.set(date, {
+        min_stay: attr(a, 'MinStay') != null ? Number(attr(a, 'MinStay')) : null,
+        changeover: attr(a, 'Changeover') != null ? Number(attr(a, 'Changeover')) : null,
+        units: attr(a, 'Units') != null ? Number(attr(a, 'Units')) : (attr(a, 'IsAvailable') === 'true' ? 1 : 0),
+      });
+    }
+    if (returnedDays.size === 0) {
+      // Try DateRange format
+      while ((m = rangeRegex.exec(xml)) !== null) {
+        const a = m[1];
+        const df = attr(a, 'DateFrom'); const dt = attr(a, 'DateTo');
+        if (!df || !dt) continue;
+        const ms = attr(a, 'MinStay') != null ? Number(attr(a, 'MinStay')) : null;
+        const co = attr(a, 'Changeover') != null ? Number(attr(a, 'Changeover')) : null;
+        const u = attr(a, 'Units') != null ? Number(attr(a, 'Units')) : null;
+        const start = new Date(df + 'T00:00:00Z');
+        const end = new Date(dt + 'T00:00:00Z');
+        for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+          returnedDays.set(d.toISOString().slice(0, 10), { min_stay: ms, changeover: co, units: u });
+        }
+      }
+    }
+
+    report.checked = true;
+    report.total_days = expected.size;
+    for (const [date, exp] of expected) {
+      const got = returnedDays.get(date);
+      if (!got) {
+        report.mismatches.push({ date, field: 'units', requested: exp.units, returned: null });
+        continue;
+      }
+      let dayOk = true;
+      if (got.min_stay != null && got.min_stay !== exp.min_stay) {
+        report.mismatches.push({ date, field: 'min_stay', requested: exp.min_stay, returned: got.min_stay });
+        dayOk = false;
+      }
+      if (got.changeover != null && got.changeover !== exp.changeover) {
+        report.mismatches.push({ date, field: 'changeover', requested: exp.changeover, returned: got.changeover });
+        dayOk = false;
+      }
+      if (got.units != null && got.units !== exp.units) {
+        report.mismatches.push({ date, field: 'units', requested: exp.units, returned: got.units });
+        dayOk = false;
+      }
+      if (dayOk) report.matches++;
+    }
+  } catch (e) {
+    report.error = e instanceof Error ? e.message : 'Unknown verification error';
+  }
+  return report;
+}
+
 async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string } = {};
+  const result: { availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_verification?: AvailabilityVerification } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -618,8 +764,8 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
   }
 
-  // Resolve changeover preference: property-level override or default 3 (Both)
-  const changeoverPref = (amenities as any)?.changeover ?? 3;
+  // Resolve changeover rules (per-day-of-week or default)
+  const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
   // Ensure at least 1 available day over the next 365 days
   if (allPeriods.length === 0) {
@@ -629,7 +775,8 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
   {
     try {
-      const availEntries = allPeriods.map(p => ({ date_from: p.from, date_to: p.to, units: unitUnits, min_stay: p.minStay, changeover: changeoverPref }));
+      const availEntries = expandAvailability(allPeriods, unitUnits, changeoverConfig);
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode})`);
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
       });
@@ -637,6 +784,25 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
       } else {
         result.availability_pushed = true;
+        // 6.2 + 6.3 — Verify
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr);
+        result.availability_verification = verification;
+        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
+        try {
+          await supabase.from('sync_logs').insert({
+            property_id: property.id,
+            external_system: 'rentals_united',
+            sync_type: 'availability_verification',
+            status: verification.error ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
+            message: verification.error
+              ? `Verification error: ${verification.error}`
+              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches`,
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, entries: availEntries.length, changeover_default: changeoverConfig.defaultCode, per_dow: changeoverConfig.perDow },
+            response_data: { verification },
+          });
+        } catch (logErr) {
+          console.warn(`[pushARI] Failed to persist verification log:`, logErr);
+        }
       }
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
@@ -1014,7 +1180,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -1158,7 +1324,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
