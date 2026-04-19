@@ -571,11 +571,27 @@ function extractBuildingId(xml: string): string | null {
 }
 
 function extractBuildings(xml: string): { id: string; name: string }[] {
-  const regex = /<Building>[\s\S]*?<BuildingID>(\d+)<\/BuildingID>[\s\S]*?<BuildingName>(.*?)<\/BuildingName>[\s\S]*?<\/Building>/g;
   const results: { id: string; name: string }[] = [];
+  // RU returns buildings as self-closing or open tags with attributes:
+  // <Building BuildingID="123" BuildingName="Foo" /> or <Building BuildingID="123" BuildingName="Foo">...</Building>
+  const attrRegex = /<Building\b[^>]*\bBuildingID\s*=\s*"(\d+)"[^>]*\bBuildingName\s*=\s*"([^"]*)"[^>]*\/?>/g;
   let match;
-  while ((match = regex.exec(xml)) !== null) {
+  while ((match = attrRegex.exec(xml)) !== null) {
     results.push({ id: match[1], name: match[2].trim() });
+  }
+  // Fallback: handle attribute order reversed (BuildingName before BuildingID)
+  if (results.length === 0) {
+    const reverseRegex = /<Building\b[^>]*\bBuildingName\s*=\s*"([^"]*)"[^>]*\bBuildingID\s*=\s*"(\d+)"[^>]*\/?>/g;
+    while ((match = reverseRegex.exec(xml)) !== null) {
+      results.push({ id: match[2], name: match[1].trim() });
+    }
+  }
+  // Fallback: legacy child-element format
+  if (results.length === 0) {
+    const childRegex = /<Building>[\s\S]*?<BuildingID>(\d+)<\/BuildingID>[\s\S]*?<BuildingName>(.*?)<\/BuildingName>[\s\S]*?<\/Building>/g;
+    while ((match = childRegex.exec(xml)) !== null) {
+      results.push({ id: match[1], name: match[2].trim() });
+    }
   }
   return results;
 }
