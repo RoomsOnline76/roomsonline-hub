@@ -25,18 +25,21 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get Google Maps API key from api_keys table
-    const { data: apiKeyData, error: apiKeyError } = await supabase
-      .from("api_keys")
-      .select("key_value")
-      .eq("key_name", "google_maps_api_key")
-      .maybeSingle();
+    // Prefer server-side unrestricted geocoding key; fall back to api_keys table
+    let googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_GEOCODING_KEY") ?? "";
 
-    if (apiKeyError || !apiKeyData?.key_value) {
-      throw new Error("Google Maps API key not configured");
+    if (!googleMapsApiKey) {
+      const { data: apiKeyData, error: apiKeyError } = await supabase
+        .from("api_keys")
+        .select("key_value")
+        .eq("key_name", "google_maps_api_key")
+        .maybeSingle();
+
+      if (apiKeyError || !apiKeyData?.key_value) {
+        throw new Error("Google Maps API key not configured");
+      }
+      googleMapsApiKey = apiKeyData.key_value;
     }
-
-    const googleMapsApiKey = apiKeyData.key_value;
 
     const body: GeocodeRequest = await req.json();
     const { property_id, address, city, country, suburb } = body;
