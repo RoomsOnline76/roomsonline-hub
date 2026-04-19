@@ -1,35 +1,139 @@
+## Step 2: Building Creation — Testing Regime (Jongensfontein Portfolio)
 
+### Context Discovered
 
-## Generate RU Integration Testing Regime Document
-
-I have thoroughly reviewed all RU integration components:
-
-- **`rentalsunited-api/index.ts`** (1043 lines) — 18 actions: health_check, list_properties, get_property, get_availability, get_prices, list_reservations, get_leads, push_property, push_availability, push_prices, subscribe_notifications, push_long_stay_discounts, push_last_minute_discounts, set_property_status, get_location_by_coordinates, push_building, list_buildings, create_user, list_users, fill_company_details
-- **`push-property-to-ru/index.ts`** (1106 lines) — Full push orchestrator with multi-unit building support, ARI, discounts, sub-account auto-provisioning
-- **`ru-reservation-handler/index.ts`** (217 lines) — RLNM push handler for confirmed/cancelled reservations and leads
-- **`cron-pull-ru-reservations/index.ts`** (331 lines) — 30-minute polling for reservations and leads
-- **`cron-push-all-properties-to-ru/index.ts`** — Weekly full sync with RLNM refresh
-- **`PushToRentalsUnited.tsx`** — UI component showing RU sub-account details
-
-RU certification requirements from their docs confirm a PMS integration needs: property creation, calendar management, pricing, RLNM, reservation polling, and status management.
+- **Portfolio:** Jongensfontein.com (`22a7d374-7e2e-4194-8d32-aa870813359e`)
+- **4 Properties:** Dassiesingel, Fonteinhutte, SEESIG, Tidal Pools
+- **Existing RU buildings (from earlier push has been deletedin RU. Clean Slate**
+- **Edge function action:** `push_building` (creates if `building_id=0`, updates if non-zero)
+- **RU XML:** `Push_PutBuilding_RQ` with `<BuildingName>` (auto-truncated to 20 chars in code, line 558) and optional `<BuildingComposition>` from `unit_types`
+- **Listing:** `list_buildings` → `Pull_ListBuildings_RQ`
 
 ### Plan
 
-**Single deliverable**: Write a comprehensive `.md` testing regime to `/mnt/documents/ru-integration-testing-regime.md` covering:
+Execute four test sub-steps via `supabase--curl_edge_functions` against `/rentalsunited-api`. Each test logs the request payload, raw RU XML response, RU status code, and pass/fail verdict.
 
-1. Pre-flight checks (credentials, health check)
-2. Sub-account management (create_user, list_users, fill_company_details)
-3. Building creation (single + multi-unit)
-4. Property push (new property with ID=0, then update)
-5. ARI push (availability, pricing, min stay, changeover)
-6. Discount push (long stay + last minute)
-7. RLNM subscription and handler verification
-8. Reservation polling (Pull_ListReservations_RQ)
-9. Lead polling (Pull_GetLeads_RQ)
-10. Full orchestration (push-property-to-ru end-to-end)
-11. Cron job validation
-12. UI verification (sub-account details display)
-13. Error handling and edge cases
+---
 
-Each step will include: objective, edge function call with exact payload, expected response, pass/fail criteria, and milestone.
+### 3.1 Create New Building — "SEESIG"
 
+**Objective:** Create a brand-new RU building for SEESIG Self Catering Chalets.
+
+**Payload:**
+
+```json
+{
+  "action": "push_building",
+  "building_name": "SEESIG Chalets",
+  "building_id": 0,
+  "unit_types": [{ "name": "Standard Chalet", "quantity": 4 }]
+}
+```
+
+**Pass criteria:**
+
+- `success: true`
+- `building_id` returned as integer (new ID > 46850)
+- RU status `0` (Success)
+
+**Milestone:** New building registered in RU master account.
+
+---
+
+### 3.2 Update Existing Building — "Tidal Pools" (ID 46847)
+
+**Objective:** Confirm idempotent update path by re-pushing an existing building with revised composition.
+
+**Payload:**
+
+```json
+{
+  "action": "push_building",
+  "building_name": "Tidal Pools",
+  "building_id": 46847,
+  "unit_types": [{ "name": "Apartment", "quantity": 6 }]
+}
+```
+
+**Pass criteria:**
+
+- `success: true`
+- `building_id` returned equals `46847` (no new ID created)
+- RU status `0`
+
+**Milestone:** Update path confirmed non-destructive.
+
+---
+
+### 3.3 List Buildings — Verify
+
+**Objective:** Confirm the newly created SEESIG building appears alongside existing buildings.
+
+**Payload:**
+
+```json
+{ "action": "list_buildings" }
+```
+
+**Pass criteria:**
+
+- `success: true`
+- `count` ≥ 5 (4 prior + 1 new SEESIG)
+- New SEESIG building ID from 3.1 present in `buildings[]`
+- Tidal Pools (46847) name reflects 3.2 update
+
+**Milestone:** Round-trip read-after-write verified.
+
+---
+
+### 3.4 Building Name Truncation (20-char limit)
+
+**Objective:** Verify the code-side truncation in `buildPushBuildingXml` (line 558) prevents RU rejection of long names.
+
+**Payload:**
+
+```json
+{
+  "action": "push_building",
+  "building_name": "Dassiesingel Self-catering Units Premium Collection",
+  "building_id": 0,
+  "unit_types": [{ "name": "Studio", "quantity": 3 }]
+}
+```
+
+*(52 chars → must be truncated to first 20: `"Dassiesingel Self-ca"`)*
+
+**Pass criteria:**
+
+- `success: true`
+- RU status `0` (no rejection for length)
+- `raw_xml` request sent contains `<BuildingName>Dassiesingel Self-ca</BuildingName>`
+- `list_buildings` follow-up shows the truncated name exactly
+
+**Milestone:** Truncation guard confirmed; no RU 400-class errors on long input.
+
+---
+
+### Final Verification Query
+
+After all 4 sub-steps, re-run `list_buildings` and produce a summary table:
+
+
+| RU Building ID | Name                 | Created/Updated     | Step |
+| -------------- | -------------------- | ------------------- | ---- |
+| (new)          | SEESIG Chalets       | Created             | 3.1  |
+| 46847          | Tidal Pools          | Updated             | 3.2  |
+| (new)          | Dassiesingel Self-ca | Created (truncated) | 3.4  |
+
+
+### Failure Handling
+
+If any test returns RU status ≠ 0:
+
+- Capture full `diagnostics` block (compact request XML + parsed status)
+- Report status code with RU's documented meaning
+- Halt subsequent steps until resolved (do not pollute RU master account with duplicate/broken records)
+
+### Output
+
+A markdown report appended to `/mnt/documents/ru-testing-regime-step2-results.md` containing per-test payload, response, status, and verdict.
