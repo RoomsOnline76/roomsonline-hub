@@ -1157,6 +1157,23 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
     }
 
+    // ── list_composition_rooms ──
+    // Fetch the global RU dictionary of valid CompositionRoomIDs so we can
+    // populate <CompositionRoomsAmenities> with real IDs (avoids Status 6).
+    if (action === 'list_composition_rooms') {
+      const xml = buildListCompositionRoomsXml(creds);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_composition_rooms', response));
+      const rooms = extractCompositionRooms(response);
+      return jsonResponse({
+        success: true,
+        composition_rooms: rooms,
+        count: rooms.length,
+        raw_xml: response,
+      });
+    }
+
     // ── get_building ──
     // Read-only: fetch a building's composition (UnitsComposition) so we can backfill
     // unit_type_object_ids in pms_mappings without re-pushing the building.
