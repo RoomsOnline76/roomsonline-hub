@@ -1,61 +1,59 @@
 
 
-Let me explore the cron function and check the current state.
-
-The `cron-push-all-properties-to-ru` source is already in context. Key observations:
-1. Step 0: Refreshes RLNM by invoking `rentalsunited-api` with `subscribe_notifications`
-2. Step 1: Queries all properties with `rentalsunited_property_id IS NOT NULL`
-3. Sequential push with 1-second delay between calls (rate limiting safety)
-4. Returns structured summary with per-property results
-
-After Step 12, we now have 9 SEESIG units + ALBATROS with `rentalsunited_property_id` set. So the cron should pick up at least 9-10 properties from `properties` table... wait — these are `hostfully_room_types` rows, not `properties` rows. Let me verify by checking the query target.
-
-The cron queries the `properties` table for `rentalsunited_property_id`. ALBATROS RU ID 4707563 was originally on `pms_mappings` and the `properties` table for SEESIG building. Need to verify what's in the `properties.rentalsunited_property_id` column post Step 12.
-
-Need to check:
-- pg_cron schedule exists for `cron-push-all-properties-to-ru`
-- Count of properties with `rentalsunited_property_id` set in `properties` table (vs room_types)
-
-## Plan: Step 13 — Cron Job Validation
+## Plan: Step 15 — Error Handling & Edge Cases
 
 ### Context
-- `cron-push-all-properties-to-ru` is already implemented: refreshes RLNM subscription → queries `properties.rentalsunited_property_id IS NOT NULL` → loops sequentially with 1s delay → returns structured summary with per-property results.
-- Step 9 verified RLNM subscription works; Step 12 verified per-property push orchestration.
-- Step 13 = end-to-end validation of the weekly batch cron + scheduling check.
+Step 14 (Owner Workspace) appears to have been skipped/jumped — user is moving to Step 15. Prior milestones confirmed orchestrator (Step 12), cron (Step 13), RLNM handler (Step 9), polling (Steps 10-11) all functional. Step 15 is a defensive verification pass: confirm every error path returns gracefully, logs to `sync_logs`, never crashes the handler, and RLNM webhook always returns HTTP 200 to RU (mandatory per RU spec — non-200 triggers exponential retry storms).
+
+Per project policy: **rate limiting will NOT be added to backend code**. 15.8 will be a pure observation test (rapid sequential calls, verify no crashes / no shared-state corruption) rather than implementing throttling.
 
 ### Test matrix
 
 | # | Scenario | Method | Expected |
 |---|----------|--------|----------|
-| 13.1 | Trigger weekly cron | Manually invoke `cron-push-all-properties-to-ru` | Returns `{success, pushed, total, rlnm, results[]}`; logs show RLNM refresh + per-property push |
-| 13.2 | RLNM refresh verification | Inspect response `rlnm` field + edge logs | `rlnm: 'ok'`; `rentalsunited-api` shows `subscribe_notifications` call within cron window |
-| 13.3 | Sequential + rate-limit safety | Inspect timestamps in logs | Each property push starts ≥1s after previous; no parallel HTTP bursts to RU |
+| 15.1 | Invalid property ID | Invoke `push-property-to-ru` with bogus UUID `00000000-0000-0000-0000-000000000000` | `{success: false, error: "Property not found"}`, HTTP 4xx, sync_logs row written |
+| 15.2 | Missing property ID | Invoke `push-property-to-ru` with empty body / no `property_id` | `{success: false, error: "property_id required"}`, HTTP 400 |
+| 15.3 | Property with <10 images | Re-test Tidal Pools (0 images) per-unit failure path | Per-unit `success: false, error: "Needs ≥10 images"`; orchestrator returns `success: true, partial: true` |
+| 15.4 | Unknown action | Invoke `rentalsunited-api` with `action: "nonexistent_action"` | `{success: false, error: "Unknown action"}`, HTTP 400 |
+| 15.5 | Set property status | Invoke `rentalsunited-api` with `action: "set_property_status"` for ALBATROS (toggle active/inactive) | Returns RU response; XML logged |
+| 15.6 | Location resolution | Invoke push for property with sparse/ambiguous address | Location resolver falls back to default city or returns clear error; no crash |
+| 15.7 | RLNM malformed/empty | POST to `ru-reservation-handler` with: (a) empty body, (b) malformed XML, (c) valid envelope but unknown event type | All return **HTTP 200**; errors logged to `ru_notifications` with `processing_status='error'` |
+| 15.8 | Rapid successive calls | Fire 5 parallel invocations of `push-property-to-ru` for ALBATROS | All complete without crash; no DB constraint violations; logs intact (no rate-limiting added — observation only) |
 
 ### Implementation steps
 
-1. **Verify pg_cron schedule** — query `cron.job` for any entry pointing to `cron-push-all-properties-to-ru`. If missing, insert a weekly schedule (e.g. `0 3 * * 1` — Mondays 03:00 UTC) using project URL + anon key via the insert tool.
-2. **Confirm fixture set** — query `properties` (not room_types) for `rentalsunited_property_id IS NOT NULL`. If only the SEESIG building row qualifies, that's the test set; document accordingly. (Per-unit RU IDs live on `hostfully_room_types`, so the cron iterates buildings and the orchestrator handles the multi-unit fan-out.)
-3. **Manual invocation** — POST to `cron-push-all-properties-to-ru`, capture full response.
-4. **Log review** — pull `cron-push-all-properties-to-ru` and `rentalsunited-api` logs; confirm:
-   - `[cron-push-all] Subscribing RLNM handler` line
-   - `[cron-push-all] RLNM subscription refreshed successfully`
-   - Per-property `[cron-push-all] OK: {name}` or warning lines
-   - Timestamps between properties show ≥1000ms gap
-5. **Persist evidence** — insert a `sync_logs` row (`sync_type='weekly_cron_step_13'`) with the consolidated summary, RLNM status, and inter-property delay observation.
+1. **Read current error paths**:
+   - `push-property-to-ru/index.ts` — confirm property-lookup error handling, `property_id` validation, partial-failure return shape.
+   - `rentalsunited-api/index.ts` — confirm unknown-action default branch + `set_property_status` action exists.
+   - `ru-reservation-handler/index.ts` — confirm always returns 200, has try/catch around XML parse, logs errors to `ru_notifications`.
+2. **Patch only if gaps found**:
+   - If unknown-action doesn't return JSON error → add default branch.
+   - If RLNM handler can throw before reaching `return new Response(200)` → wrap in outer try/catch that always returns 200.
+   - If `property_id` missing isn't caught early → add Zod validation at entry.
+3. **Run test suite** via `supabase--curl_edge_functions`:
+   - 15.1, 15.2, 15.4: direct invocations, capture status + body.
+   - 15.3: re-run Tidal Pools push, confirm partial-failure shape unchanged.
+   - 15.5: invoke `set_property_status` for ALBATROS (non-destructive — current status preserved or toggled & restored).
+   - 15.6: identify a property with minimal address data; invoke push, observe location phase.
+   - 15.7: 3 separate POSTs to RLNM handler (empty / malformed / unknown event); assert all return 200.
+   - 15.8: fire 5 parallel pushes via `Promise.all`-style invocation; verify no crashes, no duplicate `pms_mappings` rows.
+4. **DB verification** — query `sync_logs` and `ru_notifications` for new rows from each test; confirm error context captured.
+5. **Persist evidence** — single consolidated `sync_logs` row (`sync_type='error_handling_step_15'`) with all 8 sub-results.
 
 ### Files potentially modified
-- None expected (orchestrator + RLNM hook + delay loop already implemented).
-- If `pg_cron` schedule is absent, a one-off SQL insert (not a migration) to register the weekly cron.
+- `supabase/functions/push-property-to-ru/index.ts` — only if entry-validation or partial-failure path needs hardening.
+- `supabase/functions/rentalsunited-api/index.ts` — only if unknown-action branch is missing JSON error.
+- `supabase/functions/ru-reservation-handler/index.ts` — only if HTTP 200 isn't guaranteed under all failure modes.
 
 ### Pass criteria
-- Cron invocation returns `success: true` with structured `pushed/total` counts.
-- `rlnm` field reads `ok`.
-- Logs confirm sequential processing with ≥1s gaps.
-- pg_cron schedule for the weekly job exists and is active.
+- All 8 scenarios handled gracefully (no 5xx crashes from our code; RU upstream errors are acceptable as long as we log + respond cleanly).
+- RLNM handler returns HTTP 200 in 100% of test cases.
+- Every error path writes to `sync_logs` or `ru_notifications` with diagnostic context.
+- No DB constraint violations or duplicate rows from 15.8 parallel test.
 
 ### Assumptions
-- "Weekly" cadence = every Monday at 03:00 UTC (off-peak, low-risk window). Adjustable on user request.
-- ARI-stage Status 24 ("not the owner") in nested push results is acceptable — that's the documented RU support-ticket blocker, not a Step 13 failure.
-- The cron uses `rentalsunited_property_id` on the `properties` table only; per-unit fan-out is handled by `push-property-to-ru` itself.
-- No code changes expected — purely a verification + scheduling pass.
+- **No rate limiting will be implemented** — backend lacks proper primitives (per project policy). 15.8 verifies graceful concurrent behavior only.
+- "Set property status" uses RU's `Push_PutPropertyStatus_RQ`; if action is missing from adapter, will add as a small read-only XML builder.
+- Location resolution failures are non-fatal — orchestrator should skip the location phase and proceed with defaults rather than abort.
+- ALBATROS Status 24 ("not the owner") on ARI remains a documented external blocker, not a Step 15 failure.
 
