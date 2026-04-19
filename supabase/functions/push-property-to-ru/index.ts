@@ -943,6 +943,74 @@ Deno.serve(async (req) => {
         );
       }
 
+      // ── STANDALONE UNITS FLOW (no building) ───────────────
+      // Each room type is pushed as an independent RU property without a BuildingID.
+      // ObjectTypeID falls back to property_type_id (Chalet=12, Apartment=1, etc.).
+      if (standalone_units) {
+        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${activeRoomTypes.length} units without building`);
+        const unitResults: any[] = [];
+
+        for (const unit of activeRoomTypes) {
+          const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
+          // buildingId=0 → adapter omits <BuildingID> entirely
+          const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0);
+          unitPayload.owner_id = ruOwnerId;
+          // ObjectTypeID = property_type_id (no composition lookup)
+          unitPayload.object_type_id = unitPayload.property_type_id;
+
+          if (existingUnitRuId === 0 && unitPayload.images.length < 10) {
+            console.warn(`[push-property-to-ru] Unit "${unit.name}" skipped: only ${unitPayload.images.length} images (<10)`);
+            unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: `Needs ≥10 images (has ${unitPayload.images.length})` });
+            continue;
+          }
+
+          console.log(`[push-property-to-ru] Pushing standalone unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, object_type_id: ${unitPayload.object_type_id})`);
+
+          const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
+          });
+
+          if (pushErr || !pushResult?.success) {
+            const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
+            console.error(`[push-property-to-ru] Unit "${unit.name}" push failed:`, errMsg);
+            unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: errMsg, diagnostics: pushResult?.diagnostics });
+            continue;
+          }
+
+          let unitRuId = existingUnitRuId > 0 ? String(existingUnitRuId) : null;
+          if (pushResult.raw_xml) {
+            const extracted = extractRUPropertyId(pushResult.raw_xml);
+            if (extracted) unitRuId = extracted;
+          }
+
+          if (unitRuId) {
+            await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: unitRuId }).eq('id', unit.id);
+            console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"`);
+          }
+
+          unitResults.push({
+            name: unit.name,
+            room_type_id: unit.id,
+            success: true,
+            rentalsunited_property_id: unitRuId,
+            diagnostics: pushResult?.diagnostics,
+          });
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            multi_unit: true,
+            standalone_units: true,
+            property_id,
+            units: unitResults,
+            message: `${unitResults.filter(u => u.success).length}/${activeRoomTypes.length} standalone units pushed to Rentals United`,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ── DEFAULT MULTI-UNIT BUILDING FLOW ─────────────────────
       // Step 1: Create/update RU Building
       let buildingId = property.rentalsunited_building_id ? parseInt(property.rentalsunited_building_id, 10) : 0;
       // Truncate building name to 20 chars (RU API limit)
