@@ -579,6 +579,10 @@ function buildListBuildingsXml(creds: RUCredentials): string {
   return `<Pull_ListBuildings_RQ>${buildAuthXml(creds)}</Pull_ListBuildings_RQ>`;
 }
 
+function buildGetBuildingXml(creds: RUCredentials, buildingId: number): string {
+  return `<Pull_GetBuilding_RQ>${buildAuthXml(creds)}<BuildingID>${buildingId}</BuildingID></Pull_GetBuilding_RQ>`;
+}
+
 function extractBuildingId(xml: string): string | null {
   const match = xml.match(/<BuildingID>(\d+)<\/BuildingID>/);
   return match?.[1] || null;
@@ -1100,6 +1104,30 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       const buildings = extractBuildings(response);
       return jsonResponse({ success: true, buildings, count: buildings.length, raw_xml: response });
+    }
+
+    // ── get_building ──
+    // Read-only: fetch a building's composition (UnitsComposition) so we can backfill
+    // unit_type_object_ids in pms_mappings without re-pushing the building.
+    if (action === 'get_building') {
+      const bId = body.building_id;
+      if (!bId) return errorResponse('MISSING_PARAM', 'building_id is required');
+      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10));
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] get_building response: ${response.substring(0, 800)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
+      const buildingId = extractBuildingId(response);
+      const nameMatch = response.match(/<BuildingName>([\s\S]*?)<\/BuildingName>/i);
+      const unitTypeObjectIds = extractUnitTypeObjectIds(response);
+      return jsonResponse({
+        success: true,
+        building_id: buildingId ? parseInt(buildingId, 10) : parseInt(String(bId), 10),
+        building_name: nameMatch ? nameMatch[1].trim() : null,
+        unit_type_object_ids: unitTypeObjectIds,
+        unit_type_count: unitTypeObjectIds.length,
+        raw_xml: response,
+      });
     }
 
     // assign_building_properties removed — not a valid RU API method.
