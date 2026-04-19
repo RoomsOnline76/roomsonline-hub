@@ -407,9 +407,9 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Place>${escapeXml(prop.check_in_place || 'at_the_apartment')}</Place>
     </CheckInOut>`;
 
-  // SecurityDeposit is REQUIRED by RU XSD (must be the final element). Default 0 with type 1.
-  const secVal = prop.security_deposit != null ? Number(prop.security_deposit) : 0;
-  const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal.toFixed(2)}</SecurityDeposit>`;
+  // SecurityDeposit is REQUIRED by RU XSD (must be the final element). Int32 only — no decimals.
+  const secVal = prop.security_deposit != null ? Math.trunc(Number(prop.security_deposit)) : 0;
+  const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal}</SecurityDeposit>`;
 
   // Strict XSD element order per RU schema (validated against live RS errors):
   // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived > CleaningPrice > Space >
