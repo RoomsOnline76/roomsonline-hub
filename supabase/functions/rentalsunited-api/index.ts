@@ -407,15 +407,16 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Place>${escapeXml(prop.check_in_place || 'at_the_apartment')}</Place>
     </CheckInOut>`;
 
-  // SecurityDeposit with required DepositTypeID attribute
-  const securityDepositXml = prop.security_deposit != null
-    ? `\n    <SecurityDeposit DepositTypeID="${prop.security_deposit > 0 ? 5 : 0}">${Number(prop.security_deposit).toFixed(2)}</SecurityDeposit>` : '';
+  // SecurityDeposit is REQUIRED by RU XSD (must be the final element). Int32 only — no decimals.
+  const secVal = prop.security_deposit != null ? Math.trunc(Number(prop.security_deposit)) : 0;
+  const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal}</SecurityDeposit>`;
 
   // Strict XSD element order per RU schema (validated against live RS errors):
   // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived > CleaningPrice > Space >
   // StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID > Floor > BuildingID >
-  // Street > ZipCode > Coordinates(Longitude+Latitude) > ArrivalInstructions > Amenities > Images > CheckInOut >
-  // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit > CompositionRoomsAmenities
+  // Street > ZipCode > Coordinates(Longitude+Latitude) >
+  // CompositionRoomsAmenities > ArrivalInstructions > Amenities > Images > CheckInOut >
+  // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit
   //
   // NOTES:
   //  - <NoOfUnits> was REMOVED — RU's XSD rejects it at this position with
@@ -426,6 +427,9 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   //    per CompositionRoom (81=Bedroom1, 82=Bedroom2, …).
   //  - <ObjectTypeID> is REQUIRED when <BuildingID> is set. Falls back to PropertyTypeID at
   //    the orchestrator layer when RU's building composition lookup is unavailable.
+  //  - <ArrivalInstructions> MUST come AFTER <CompositionRoomsAmenities>. Placing it directly
+  //    after Coordinates triggers schema error: "List of possible elements expected:
+  //    'Distances, CompositionRooms, CompositionRoomsAmenities'."
   const objectTypeIdXml = prop.object_type_id && prop.object_type_id > 0
     ? `\n    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>` : '';
 
@@ -449,14 +453,14 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Coordinates>
       <Longitude>${prop.longitude}</Longitude>
       <Latitude>${prop.latitude}</Latitude>
-    </Coordinates>
-    ${arrivalInstructionsXml}
+    </Coordinates>${roomsXml ? `\n    ${roomsXml}` : ''}
     <Amenities>
       ${amenitiesXml}
     </Amenities>
     <Images>
       ${imagesXml}
     </Images>
+    ${arrivalInstructionsXml}
     ${checkInOutXml}
     <PaymentMethods>
       ${paymentMethodsXml}
@@ -467,7 +471,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}${roomsXml ? `\n    ${roomsXml}` : ''}
+    </Descriptions>${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
