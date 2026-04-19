@@ -516,6 +516,7 @@ interface UnitContext {
   id: string;
   name: string;
   linked_rolos_id?: string | null;
+  amenities?: Record<string, any> | null;
 }
 
 interface ResolvedRate {
