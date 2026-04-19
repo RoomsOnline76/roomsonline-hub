@@ -275,8 +275,35 @@ function buildUnitPayload(
   const descText = unit.description || property.description || unit.name;
 
   // Combine regular amenities + bed amenities for Room block
-  const roomAmenities = [...unitAmenities.slice(0, 5), ...bedAmenities];
-  
+  // Build per-bedroom CompositionRoom entries using RU's CompositionRoomID catalog:
+  //   81=Bedroom 1, 82=Bedroom 2, 83=Bedroom 3, 84=Bedroom 4, 85=Bedroom 5, 86=Bedroom 6
+  // Each bedroom gets its own block with its bed amenities. Falls back to a single Bedroom1 block
+  // when no bed_configuration is available.
+  const COMPOSITION_BEDROOM_IDS = [81, 82, 83, 84, 85, 86, 87, 88];
+  const sharedRoomAmenities = unitAmenities.slice(0, 5); // capped to keep payload small per room
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+
+  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
+    // One CompositionRoom per bed_configuration entry (= one bedroom)
+    unit.bed_configuration.forEach((bedEntry: any, idx: number) => {
+      const roomId = COMPOSITION_BEDROOM_IDS[idx] ?? COMPOSITION_BEDROOM_IDS[COMPOSITION_BEDROOM_IDS.length - 1];
+      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
+      const ruBedId = BED_AMENITY_MAP[bedType] || 98; // default = double bed
+      const roomAmens = [
+        ...sharedRoomAmenities,
+        { id: ruBedId, count: bedEntry.count || 1 },
+      ];
+      rooms.push({ room_id: roomId, amenities: roomAmens });
+    });
+  } else {
+    // Fallback: single Bedroom 1 block aggregating all bed amenities
+    const roomAmens = [
+      ...sharedRoomAmenities,
+      ...(bedAmenities.length > 0 ? bedAmenities : [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / 2)) }]),
+    ];
+    rooms.push({ room_id: 81, amenities: roomAmens });
+  }
+
   return {
     name: unit.name,
     property_type_id: objectTypeId,
@@ -293,7 +320,7 @@ function buildUnitPayload(
     latitude: lat,
     longitude: lng,
     amenities: unitAmenities,
-    rooms: [{ room_id: 1, amenities: roomAmenities }],
+    rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
     payment_methods: mapPaymentMethods(property.amenities),
@@ -312,6 +339,7 @@ function buildUnitPayload(
     check_out_until: checkOutUntil,
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
+    object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
   };
 }
 
@@ -947,6 +975,41 @@ Deno.serve(async (req) => {
         console.log(`[push-property-to-ru] Building ID saved: ${buildingId}`);
       }
 
+      // Capture per-unit-type ObjectTypeIDs returned by RU's UnitsComposition.
+      // These are required as <ObjectTypeID> on each unit's Push_PutProperty_RQ when <BuildingID> is set.
+      const unitTypeObjectIds: { name: string; object_type_id: number }[] = Array.isArray(buildingResult?.unit_type_object_ids)
+        ? buildingResult.unit_type_object_ids
+        : [];
+      const objectTypeIdByName = new Map<string, number>();
+      for (const ut of unitTypeObjectIds) {
+        if (ut?.name && Number.isFinite(ut.object_type_id)) {
+          objectTypeIdByName.set(ut.name.trim().toUpperCase(), ut.object_type_id);
+        }
+      }
+      console.log(`[push-property-to-ru] Captured ${objectTypeIdByName.size} ObjectTypeIDs from building composition: ${JSON.stringify(Array.from(objectTypeIdByName.entries()))}`);
+
+      // Persist building + ObjectTypeID mapping to pms_mappings for re-use and audit
+      if (buildingId > 0) {
+        try {
+          await supabase.from('pms_mappings').upsert({
+            property_id,
+            mapping_type: 'field_mappings',
+            external_system: 'rentalsunited',
+            external_id: String(buildingId),
+            metadata: {
+              mapping_kind: 'building',
+              authority: 'rentals_united',
+              building_id: buildingId,
+              building_name: buildingName,
+              unit_type_object_ids: unitTypeObjectIds,
+              updated_at: new Date().toISOString(),
+            },
+          }, { onConflict: 'property_id,mapping_type,external_system' });
+        } catch (mapErr) {
+          console.warn('[push-property-to-ru] Failed to persist pms_mappings:', mapErr instanceof Error ? mapErr.message : mapErr);
+        }
+      }
+
       // Step 2: Push each unit as an individual RU property
       const unitResults: any[] = [];
       for (const unit of activeRoomTypes) {
@@ -954,7 +1017,15 @@ Deno.serve(async (req) => {
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
         unitPayload.owner_id = ruOwnerId;
 
-        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId})`);
+        // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set)
+        const objTypeId = objectTypeIdByName.get(unit.name.trim().toUpperCase());
+        if (objTypeId) {
+          unitPayload.object_type_id = objTypeId;
+        } else {
+          console.warn(`[push-property-to-ru] No ObjectTypeID found for unit "${unit.name}" in building composition — RU will likely reject this unit`);
+        }
+
+        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId ?? 'NONE'})`);
 
         const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },

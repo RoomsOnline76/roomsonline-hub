@@ -72,9 +72,10 @@ interface RUBuildingUnitType {
 interface RUPropertyPayload {
   name: string;
   property_type_id: number;
+  object_type_id?: number; // Required when BuildingID is set; identifies the unit type within the building's Composition
   can_sleep_max: number;
   standard_guests: number;
-  number_of_beds?: number;
+  number_of_beds?: number; // No longer emitted at Property root (RU XSD removed it); kept for back-compat / fallback bed count
   floor: number;
   space: number;
   street: string;
@@ -410,7 +411,18 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = prop.security_deposit != null
     ? `\n    <SecurityDeposit DepositTypeID="${prop.security_deposit > 0 ? 5 : 0}">${Number(prop.security_deposit).toFixed(2)}</SecurityDeposit>` : '';
 
-  // Strict XSD element order per RU documentation
+  // Strict XSD element order per RU documentation:
+  // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived > CleaningPrice > Space >
+  // StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID > NoOfUnits > Floor > BuildingID >
+  // Street > ZipCode > Longitude > Latitude > ArrivalInstructions > Amenities > Images > CheckInOut >
+  // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit > CompositionRoomsAmenities
+  //
+  // NOTE: <NumberOfBeds> at root was removed from the RU XSD. Bed counts are expressed via
+  //   <CompositionRoomsAmenities> bed amenities (97-101) per CompositionRoom (81=Bedroom1, 82=Bedroom2, …).
+  // <ObjectTypeID> is REQUIRED when <BuildingID> is set (identifies the unit type in the building's Composition).
+  const objectTypeIdXml = prop.object_type_id && prop.object_type_id > 0
+    ? `\n    <ObjectTypeID>${prop.object_type_id}</ObjectTypeID>` : '';
+
   return `<Push_PutProperty_RQ>
   ${buildAuthXml(creds)}
   <Property>
@@ -424,8 +436,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Space>${prop.space}</Space>
     <StandardGuests>${Math.min(prop.standard_guests, prop.can_sleep_max)}</StandardGuests>
     <CanSleepMax>${prop.can_sleep_max}</CanSleepMax>
-    <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>
-    <NumberOfBeds>${prop.number_of_beds || Math.max(1, prop.can_sleep_max)}</NumberOfBeds>
+    <PropertyTypeID>${prop.property_type_id}</PropertyTypeID>${objectTypeIdXml}
     <NoOfUnits>${prop.no_of_units || 1}</NoOfUnits>
     <Floor>${prop.floor}</Floor>${prop.building_id ? `\n    <BuildingID>${prop.building_id}</BuildingID>` : ''}
     <Street>${escapeXml(prop.street)}</Street>
@@ -571,6 +582,26 @@ function buildListBuildingsXml(creds: RUCredentials): string {
 function extractBuildingId(xml: string): string | null {
   const match = xml.match(/<BuildingID>(\d+)<\/BuildingID>/);
   return match?.[1] || null;
+}
+
+/**
+ * Parse the UnitsComposition block from a Push_PutBuilding_RS response.
+ * RU returns: <UnitsComposition><UnitType><UnitTypeName>STUDIO</UnitTypeName><UnitTypeID>123</UnitTypeID>...</UnitType>...</UnitsComposition>
+ * The UnitTypeID is the ObjectTypeID required when pushing units that reference this building.
+ */
+function extractUnitTypeObjectIds(xml: string): { name: string; object_type_id: number }[] {
+  const results: { name: string; object_type_id: number }[] = [];
+  const blockRegex = /<UnitType\b[^>]*>([\s\S]*?)<\/UnitType>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = blockRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const nameMatch = block.match(/<UnitTypeName>([\s\S]*?)<\/UnitTypeName>/i);
+    const idMatch = block.match(/<UnitTypeID>(\d+)<\/UnitTypeID>/i);
+    if (nameMatch && idMatch) {
+      results.push({ name: nameMatch[1].trim(), object_type_id: parseInt(idMatch[1], 10) });
+    }
+  }
+  return results;
 }
 
 function extractBuildings(xml: string): { id: string; name: string }[] {
@@ -1045,15 +1076,18 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'push_building', response));
       const buildingId = extractBuildingId(response);
+      const unitTypeObjectIds = extractUnitTypeObjectIds(response);
       return jsonResponse({
         success: true,
         building_id: buildingId ? parseInt(buildingId, 10) : null,
+        unit_type_object_ids: unitTypeObjectIds,
         message: 'Building pushed successfully',
         raw_xml: response,
         diagnostics: {
           request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
           request_xml: sanitizeXmlForLogs(compactRequestXml),
           response_preview: previewXml(response, 600),
+          unit_type_count: unitTypeObjectIds.length,
         },
       });
     }
