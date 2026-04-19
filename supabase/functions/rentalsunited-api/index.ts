@@ -159,6 +159,9 @@ interface RequestBody {
   building_id?: number;
   unit_types?: RUBuildingUnitType[];
   property_ids?: number[];
+  // Dry-run / mapping persistence
+  dry_run?: boolean;
+  property_uuid?: string;
   // User management payloads
   user?: { first_name: string; last_name: string; email: string; password: string };
   company?: { name: string; address?: string; city?: string; country?: string; phone?: string; email?: string; vat_number?: string };
