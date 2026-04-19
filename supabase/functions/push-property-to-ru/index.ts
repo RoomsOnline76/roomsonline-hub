@@ -827,7 +827,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { property_id, dry_run, subscribe_rlnm } = await req.json();
+    const { property_id, dry_run, subscribe_rlnm, standalone_units } = await req.json();
 
     // Optional: subscribe RLNM before pushing
     if (subscribe_rlnm) {
