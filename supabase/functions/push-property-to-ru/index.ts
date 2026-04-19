@@ -1008,11 +1008,22 @@ Deno.serve(async (req) => {
             console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"`);
           }
 
+          // Push ARI (availability + prices) for this standalone unit
+          let ariResult: Record<string, any> = {};
+          const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
+          if (ruIdNum > 0) {
+            console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+            if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
+            if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
+          }
+
           unitResults.push({
             name: unit.name,
             room_type_id: unit.id,
             success: true,
             rentalsunited_property_id: unitRuId,
+            ari: ariResult,
             diagnostics: pushResult?.diagnostics,
           });
         }
