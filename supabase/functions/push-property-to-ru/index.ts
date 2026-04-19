@@ -1062,7 +1062,7 @@ Deno.serve(async (req) => {
           await supabase.from('pms_mappings').upsert({
             property_id,
             mapping_type: 'field_mappings',
-            external_system: 'rentalsunited',
+            system_type: 'rentals_united',
             external_id: String(buildingId),
             metadata: {
               mapping_kind: 'building',
@@ -1072,7 +1072,7 @@ Deno.serve(async (req) => {
               unit_type_object_ids: unitTypeObjectIds,
               updated_at: new Date().toISOString(),
             },
-          }, { onConflict: 'property_id,mapping_type,external_system' });
+          }, { onConflict: 'property_id,system_type,mapping_type,external_id' });
         } catch (mapErr) {
           console.warn('[push-property-to-ru] Failed to persist pms_mappings:', mapErr instanceof Error ? mapErr.message : mapErr);
         }
