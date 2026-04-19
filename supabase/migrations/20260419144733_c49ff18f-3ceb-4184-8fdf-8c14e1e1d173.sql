@@ -1,0 +1,1 @@
+UPDATE properties SET rentalsunited_building_id = NULL WHERE id IN ('a22384f0-749f-4c48-add5-efd6103caf25','00015d06-a9cb-4e82-a62e-a7685e5d7c33','76f524f3-8229-4097-b45d-18489f897195','af57b357-9c95-47f5-b7d5-43d3b2f05bb7');
