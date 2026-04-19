@@ -275,8 +275,35 @@ function buildUnitPayload(
   const descText = unit.description || property.description || unit.name;
 
   // Combine regular amenities + bed amenities for Room block
-  const roomAmenities = [...unitAmenities.slice(0, 5), ...bedAmenities];
-  
+  // Build per-bedroom CompositionRoom entries using RU's CompositionRoomID catalog:
+  //   81=Bedroom 1, 82=Bedroom 2, 83=Bedroom 3, 84=Bedroom 4, 85=Bedroom 5, 86=Bedroom 6
+  // Each bedroom gets its own block with its bed amenities. Falls back to a single Bedroom1 block
+  // when no bed_configuration is available.
+  const COMPOSITION_BEDROOM_IDS = [81, 82, 83, 84, 85, 86, 87, 88];
+  const sharedRoomAmenities = unitAmenities.slice(0, 5); // capped to keep payload small per room
+  const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+
+  if (Array.isArray(unit.bed_configuration) && unit.bed_configuration.length > 0) {
+    // One CompositionRoom per bed_configuration entry (= one bedroom)
+    unit.bed_configuration.forEach((bedEntry: any, idx: number) => {
+      const roomId = COMPOSITION_BEDROOM_IDS[idx] ?? COMPOSITION_BEDROOM_IDS[COMPOSITION_BEDROOM_IDS.length - 1];
+      const bedType = (bedEntry.type || '').toLowerCase().replace(/[\s]+/g, '-');
+      const ruBedId = BED_AMENITY_MAP[bedType] || 98; // default = double bed
+      const roomAmens = [
+        ...sharedRoomAmenities,
+        { id: ruBedId, count: bedEntry.count || 1 },
+      ];
+      rooms.push({ room_id: roomId, amenities: roomAmens });
+    });
+  } else {
+    // Fallback: single Bedroom 1 block aggregating all bed amenities
+    const roomAmens = [
+      ...sharedRoomAmenities,
+      ...(bedAmenities.length > 0 ? bedAmenities : [{ id: 98, count: Math.max(1, Math.ceil(maxGuests / 2)) }]),
+    ];
+    rooms.push({ room_id: 81, amenities: roomAmens });
+  }
+
   return {
     name: unit.name,
     property_type_id: objectTypeId,
@@ -293,7 +320,7 @@ function buildUnitPayload(
     latitude: lat,
     longitude: lng,
     amenities: unitAmenities,
-    rooms: [{ room_id: 1, amenities: roomAmenities }],
+    rooms,
     descriptions: [{ language_id: 1, text: descText }],
     images,
     payment_methods: mapPaymentMethods(property.amenities),
@@ -312,6 +339,7 @@ function buildUnitPayload(
     check_out_until: checkOutUntil,
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
+    object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
   };
 }
 
