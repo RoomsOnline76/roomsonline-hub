@@ -523,6 +523,22 @@ function buildPushPricesXml(creds: RUCredentials, propertyId: number, prices: RU
 </Push_PutPrices_RQ>`;
 }
 
+function buildGetLongStayDiscountsXml(creds: RUCredentials, propertyId: number): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListPropertyLongStayDiscounts_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+</Pull_ListPropertyLongStayDiscounts_RQ>`;
+}
+
+function buildGetLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Pull_ListPropertyLastMinuteDiscounts_RQ>
+  ${buildAuthXml(creds)}
+  <PropertyID>${propertyId}</PropertyID>
+</Pull_ListPropertyLastMinuteDiscounts_RQ>`;
+}
+
 function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <LNM_PutHandlerUrl_RQ>
@@ -1069,6 +1085,26 @@ Deno.serve(async (req) => {
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, message: 'Notification handler registered successfully', raw_xml: response });
+    }
+
+    // ── get_long_stay_discounts (verification) ──
+    if (action === 'get_long_stay_discounts') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const xml = buildGetLongStayDiscountsXml(creds, ru_property_id);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
+    }
+
+    // ── get_last_minute_discounts (verification) ──
+    if (action === 'get_last_minute_discounts') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      const xml = buildGetLastMinuteDiscountsXml(creds, ru_property_id);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({ success: true, raw_xml: response });
     }
 
     // ── push_long_stay_discounts (optional) ──
