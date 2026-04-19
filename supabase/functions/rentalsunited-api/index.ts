@@ -328,12 +328,24 @@ function buildGetPricesXml(creds: RUCredentials, propertyId: number, dateFrom: s
 </Pull_ListPropertyPrices_RQ>`;
 }
 
+// RU's Pull_ListReservations_RQ / Pull_GetLeads_RQ require full datetime
+// (`YYYY-MM-DD HH:MM:SS`). A bare `YYYY-MM-DD` triggers RU status -3
+// "String was not recognized as a valid DateTime". Normalize defensively.
+function normalizeRUDateTime(value: string, endOfDay = false): string {
+  const trimmed = (value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${trimmed} ${endOfDay ? '23:59:59' : '00:00:00'}`;
+  }
+  // Already datetime-ish — pass through.
+  return trimmed;
+}
+
 function buildListReservationsXml(creds: RUCredentials, dateFrom: string, dateTo: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListReservations_RQ>
   ${buildAuthXml(creds)}
-  <DateFrom>${dateFrom}</DateFrom>
-  <DateTo>${dateTo}</DateTo>
+  <DateFrom>${normalizeRUDateTime(dateFrom)}</DateFrom>
+  <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
 </Pull_ListReservations_RQ>`;
 }
 
@@ -341,8 +353,8 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_GetLeads_RQ>
   ${buildAuthXml(creds)}
-  <DateFrom>${dateFrom}</DateFrom>
-  <DateTo>${dateTo}</DateTo>
+  <DateFrom>${normalizeRUDateTime(dateFrom)}</DateFrom>
+  <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
 </Pull_GetLeads_RQ>`;
 }
 
