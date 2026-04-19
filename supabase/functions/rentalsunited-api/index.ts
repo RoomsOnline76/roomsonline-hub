@@ -354,10 +354,11 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
   };
 
-  // Build rooms/composition rooms XML with bed amenities
+  // Build CompositionRoomsAmenities. Per RU spec the attribute name is `CompositionRoomID`
+  // (NOT `RoomID`). Wrong attribute name → RU silently parses 0 → "Wrong composition room id:0".
   const roomsXml = prop.rooms && prop.rooms.length > 0
     ? `<CompositionRoomsAmenities>
-      ${prop.rooms.map(r => `<CompositionRoomAmenities RoomID="${r.room_id}">
+      ${prop.rooms.map(r => `<CompositionRoomAmenities CompositionRoomID="${r.room_id}">
         <Amenities>
           ${r.amenities.map(a => `<Amenity Count="${a.count || 1}">${a.id}</Amenity>`).join('\n          ')}
         </Amenities>
