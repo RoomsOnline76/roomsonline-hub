@@ -460,6 +460,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <Images>
       ${imagesXml}
     </Images>
+    ${arrivalInstructionsXml}
     ${checkInOutXml}
     <PaymentMethods>
       ${paymentMethodsXml}
@@ -470,8 +471,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>
-    ${arrivalInstructionsXml}${securityDepositXml}
+    </Descriptions>${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
