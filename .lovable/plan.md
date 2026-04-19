@@ -1,73 +1,61 @@
 
 
-Let me explore the orchestrator and related code to design Step 12.
+Let me explore the cron function and check the current state.
 
-I need to understand:
-1. `push-property-to-ru` orchestrator structure
-2. How RLNM subscription is wired in
-3. pms_mappings / cache table writes
-4. Image handling caps
-5. Available test properties (single vs multi-unit RU-connected)
+The `cron-push-all-properties-to-ru` source is already in context. Key observations:
+1. Step 0: Refreshes RLNM by invoking `rentalsunited-api` with `subscribe_notifications`
+2. Step 1: Queries all properties with `rentalsunited_property_id IS NOT NULL`
+3. Sequential push with 1-second delay between calls (rate limiting safety)
+4. Returns structured summary with per-property results
 
-Key context from prior steps:
-- ALBATROS (RU PropID 4707563) — known single property used in Steps 5-11
-- RU returns Status 24 "not the owner" for ARI pushes (push still executes & logs XML — that's the evidence we need)
-- RLNM subscription action exists from Step 9 (`subscribe_notifications`)
-- `cron-push-all-properties-to-ru` already calls subscribe + push loop
+After Step 12, we now have 9 SEESIG units + ALBATROS with `rentalsunited_property_id` set. So the cron should pick up at least 9-10 properties from `properties` table... wait — these are `hostfully_room_types` rows, not `properties` rows. Let me verify by checking the query target.
 
-Step 12 is largely a verification pass — most code exists. I'll outline what needs adding (partial failure tracking, large image guard if missing, data authority assertions) and what's pure test invocation.
+The cron queries the `properties` table for `rentalsunited_property_id`. ALBATROS RU ID 4707563 was originally on `pms_mappings` and the `properties` table for SEESIG building. Need to verify what's in the `properties.rentalsunited_property_id` column post Step 12.
 
-## Plan: Step 12 — Full Orchestration Verification
+Need to check:
+- pg_cron schedule exists for `cron-push-all-properties-to-ru`
+- Count of properties with `rentalsunited_property_id` set in `properties` table (vs room_types)
+
+## Plan: Step 13 — Cron Job Validation
 
 ### Context
-- `push-property-to-ru` orchestrates: location resolve → property metadata → composition rooms → images → amenities → ARI (avail/min_stay/changeover) → prices → discounts → RLNM ping.
-- Steps 5-11 verified individual ARI/RLNM/poll endpoints. Step 12 = end-to-end orchestration pass for both single- and multi-unit shapes plus edge cases.
-- Need a multi-unit RU-connected property to test 12.2; will query `properties` for any with `rentalsunited_property_id IS NOT NULL` and multi-unit shape (room_types > 1).
+- `cron-push-all-properties-to-ru` is already implemented: refreshes RLNM subscription → queries `properties.rentalsunited_property_id IS NOT NULL` → loops sequentially with 1s delay → returns structured summary with per-property results.
+- Step 9 verified RLNM subscription works; Step 12 verified per-property push orchestration.
+- Step 13 = end-to-end validation of the weekly batch cron + scheduling check.
 
 ### Test matrix
 
-| # | Scenario | Target | Expected |
+| # | Scenario | Method | Expected |
 |---|----------|--------|----------|
-| 12.1 | Single-unit full push | ALBATROS | All phases execute; structured summary `{location, property, rooms, images, amenities, ari, prices, discounts, rlnm}` per phase; XML logged to `sync_logs` |
-| 12.2 | Multi-unit full push | Pick first multi-unit RU property (or skip with note) | Composition rooms loop runs; per-unit ARI/prices logged; summary includes `units_pushed: N` |
-| 12.3 | Idempotent re-push | ALBATROS, second invocation | Same RU PropertyID returned; no duplicate `pms_mappings` rows; cache rows updated (not inserted) |
-| 12.4 | Push with RLNM | ALBATROS + `?subscribe_rlnm=true` | Push completes + RLNM `subscribe_notifications` called; both logged |
-| 12.5 | Partial failure | Inject one bad room (e.g. missing required field) | Orchestrator continues, marks failed unit in summary, overall `success: true, partial: true` |
-| 12.6 | Large image set | Property with 60+ images | All images submitted in batches; no truncation; image count in response matches DB |
-| 12.7 | Data authority | Post-push DB inspection | `pms_mappings` has rentalsunited rows; `pms_availability_cache` populated; ALL JSON keys in `sync_logs.response_data` are snake_case |
+| 13.1 | Trigger weekly cron | Manually invoke `cron-push-all-properties-to-ru` | Returns `{success, pushed, total, rlnm, results[]}`; logs show RLNM refresh + per-property push |
+| 13.2 | RLNM refresh verification | Inspect response `rlnm` field + edge logs | `rlnm: 'ok'`; `rentalsunited-api` shows `subscribe_notifications` call within cron window |
+| 13.3 | Sequential + rate-limit safety | Inspect timestamps in logs | Each property push starts ≥1s after previous; no parallel HTTP bursts to RU |
 
 ### Implementation steps
 
-1. **Read orchestrator** (`push-property-to-ru/index.ts`) — confirm current phase summary shape, partial-failure handling, image batching, RLNM hook.
-2. **Patch if needed**:
-   - If summary doesn't have `partial` flag or per-phase status → add structured per-phase result accumulator.
-   - If image batching missing for >50 images → add chunked submission.
-   - If no `?subscribe_rlnm=true` flag → add optional behavior.
-3. **Identify test fixtures** — query DB for: (a) ALBATROS, (b) any RU-connected multi-unit property, (c) any RU property with 60+ images. If (b)/(c) don't exist, document as N/A with rationale.
-4. **Run test suite**:
-   - 12.1: invoke push for ALBATROS, capture summary + sync_logs row.
-   - 12.2: invoke for multi-unit (or skip with documented reason).
-   - 12.3: invoke ALBATROS twice in sequence, diff `pms_mappings` row count.
-   - 12.4: invoke with `subscribe_rlnm: true`, verify RLNM call in logs.
-   - 12.5: temporarily inject bad room data via test property OR simulate via partial failure path in code; assert `partial: true`.
-   - 12.6: pick property with most images; verify all submitted.
-   - 12.7: query `pms_mappings`, `pms_availability_cache`, scan `sync_logs.response_data` for camelCase keys (should be zero).
-5. **Persist evidence** — single consolidated `sync_logs` row (`sync_type='full_orchestration_step_12'`) with all 7 sub-results + pass/fail per scenario.
+1. **Verify pg_cron schedule** — query `cron.job` for any entry pointing to `cron-push-all-properties-to-ru`. If missing, insert a weekly schedule (e.g. `0 3 * * 1` — Mondays 03:00 UTC) using project URL + anon key via the insert tool.
+2. **Confirm fixture set** — query `properties` (not room_types) for `rentalsunited_property_id IS NOT NULL`. If only the SEESIG building row qualifies, that's the test set; document accordingly. (Per-unit RU IDs live on `hostfully_room_types`, so the cron iterates buildings and the orchestrator handles the multi-unit fan-out.)
+3. **Manual invocation** — POST to `cron-push-all-properties-to-ru`, capture full response.
+4. **Log review** — pull `cron-push-all-properties-to-ru` and `rentalsunited-api` logs; confirm:
+   - `[cron-push-all] Subscribing RLNM handler` line
+   - `[cron-push-all] RLNM subscription refreshed successfully`
+   - Per-property `[cron-push-all] OK: {name}` or warning lines
+   - Timestamps between properties show ≥1000ms gap
+5. **Persist evidence** — insert a `sync_logs` row (`sync_type='weekly_cron_step_13'`) with the consolidated summary, RLNM status, and inter-property delay observation.
 
 ### Files potentially modified
-- `supabase/functions/push-property-to-ru/index.ts` — only if partial-failure tracking, image batching, or RLNM flag missing.
-- No DB schema changes expected.
+- None expected (orchestrator + RLNM hook + delay loop already implemented).
+- If `pg_cron` schedule is absent, a one-off SQL insert (not a migration) to register the weekly cron.
 
 ### Pass criteria
-- All 7 scenarios produce expected outcomes (or are documented N/A with reason).
-- `pms_mappings` rows are idempotent across re-pushes.
-- `pms_availability_cache` reflects pushed data.
-- All `sync_logs.response_data` keys are snake_case (per project memory `wire-format-and-validation-policy`).
-- RU "not the owner" Status 24 on ARI is acceptable per support-ticket trail (pre-existing blocker, not a Step 12 failure).
+- Cron invocation returns `success: true` with structured `pushed/total` counts.
+- `rlnm` field reads `ok`.
+- Logs confirm sequential processing with ≥1s gaps.
+- pg_cron schedule for the weekly job exists and is active.
 
 ### Assumptions
-- Multi-unit RU property may not exist in current DB — will document as N/A and validate the multi-unit code path via static analysis if so.
-- "Partial failure" can be triggered without breaking real data by passing a synthetic bad-room override OR by reading the existing failure-handling branch and simulating it. Will prefer non-destructive simulation.
-- Large image set: if no property has 60+ images, will validate batching logic statically rather than create test data.
-- No frontend, calendar, or booking engine touched — pure backend orchestration verification.
+- "Weekly" cadence = every Monday at 03:00 UTC (off-peak, low-risk window). Adjustable on user request.
+- ARI-stage Status 24 ("not the owner") in nested push results is acceptable — that's the documented RU support-ticket blocker, not a Step 13 failure.
+- The cron uses `rentalsunited_property_id` on the `properties` table only; per-unit fan-out is handled by `push-property-to-ru` itself.
+- No code changes expected — purely a verification + scheduling pass.
 
