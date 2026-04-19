@@ -763,8 +763,8 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
     if (fillerFrom <= oneYearStr) allPeriods.push({ from: fillerFrom, to: oneYearStr, minStay: 1, seasonId: '__filler__' });
   }
 
-  // Resolve changeover preference: property-level override or default 3 (Both)
-  const changeoverPref = (amenities as any)?.changeover ?? 3;
+  // Resolve changeover rules (per-day-of-week or default)
+  const changeoverConfig = resolveChangeoverRules(unit, amenities);
 
   // Ensure at least 1 available day over the next 365 days
   if (allPeriods.length === 0) {
@@ -774,7 +774,8 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
   {
     try {
-      const availEntries = allPeriods.map(p => ({ date_from: p.from, date_to: p.to, units: unitUnits, min_stay: p.minStay, changeover: changeoverPref }));
+      const availEntries = expandAvailability(allPeriods, unitUnits, changeoverConfig);
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode})`);
       const { data: availResult, error: availErr } = await supabase.functions.invoke('rentalsunited-api', {
         body: { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries },
       });
@@ -782,6 +783,25 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         result.availability_error = availErr?.message || availResult?.error?.message || 'Unknown error';
       } else {
         result.availability_pushed = true;
+        // 6.2 + 6.3 — Verify
+        const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr);
+        result.availability_verification = verification;
+        console.log(`[pushARI] Verification: ${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches${verification.error ? ` (error: ${verification.error})` : ''}`);
+        try {
+          await supabase.from('sync_logs').insert({
+            property_id: property.id,
+            external_system: 'rentals_united',
+            sync_type: 'availability_verification',
+            status: verification.error ? 'error' : (verification.mismatches.length === 0 ? 'success' : 'partial'),
+            message: verification.error
+              ? `Verification error: ${verification.error}`
+              : `${verification.matches}/${verification.total_days} days matched, ${verification.mismatches.length} mismatches`,
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, entries: availEntries.length, changeover_default: changeoverConfig.defaultCode, per_dow: changeoverConfig.perDow },
+            response_data: { verification },
+          });
+        } catch (logErr) {
+          console.warn(`[pushARI] Failed to persist verification log:`, logErr);
+        }
       }
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
