@@ -1,53 +1,56 @@
 
 
-## Plan: Step 9 — RLNM Subscription & Handler Testing
+## Plan: Step 10 — Reservation Polling
 
 ### Context
-- RLNM handler already exists at `supabase/functions/ru-reservation-handler/index.ts` (Phase 2 complete).
-- Current behavior: parses RU XML, matches property, creates/cancels bookings, logs to `ru_notifications`, always returns HTTP 200.
-- Need to: (a) register the handler URL with RU, (b) run end-to-end simulations covering all 5 notification scenarios.
+- `cron-pull-ru-reservations` already exists and handles full poll flow: queries last 7 days via `list_reservations`, parses `<Reservation>` blocks, creates/updates/cancels bookings, resolves PropID → property/room_type, dedupes leads, logs to `ru_notifications`.
+- `rentalsunited-api` adapter needs verification that `list_reservations` and `get_leads` actions exist and emit correct XML (`Pull_ListReservations_RQ` / `Pull_ListLeads_RQ`).
+- This step is a live test pass against ALBATROS + cron observability — no major new code expected.
 
-### What Step 9 needs
+### What Step 10 needs
 
-**9.1 — Subscribe RLNM Handler**
-- Handler URL: `https://qmprswbgkpzcvexmmcbf.supabase.co/functions/v1/ru-reservation-handler`
-- Add `subscribe_rlnm` action to `rentalsunited-api` adapter → calls `Push_PutHandler_RQ` with our handler URL.
-- Add `get_rlnm_handler` action → `Pull_GetHandler_RQ` to verify subscription.
-- Build a one-shot orchestrator function `ru-rlnm-subscribe` that subscribes + verifies + persists result to `sync_logs` (`sync_type='rlnm_subscription'`).
+**10.1 — Direct Reservation List**
+- Verify `rentalsunited-api` exposes `list_reservations` action with `date_from` / `date_to` params → returns raw RU XML.
+- If missing or malformed: add/fix the action to emit `Pull_ListReservations_RQ` per RU XSD ordering.
+- Test by invoking with a 7-day window and asserting valid `<Pull_ListReservations_RS>` shape (status, reservation count).
 
-**9.2–9.6 — Simulation Test Suite**
-Build a Deno test file `supabase/functions/ru-reservation-handler/index.test.ts` that POSTs canned RU XML payloads to the deployed handler and asserts:
+**10.2 — Trigger Cron Pull**
+- Manually invoke `cron-pull-ru-reservations` end-to-end.
+- Assert response shape: `{ success, summary: { total, created, updated, cancelled, skipped, failed, unmatched, leads_found, leads_logged } }`.
+- Verify `ru_notifications` rows written for matched + unmatched cases.
+- Verify `bookings` table reflects any new/updated reservations.
+- Confirm pg_cron schedule exists (every 30 min) — add if missing.
 
-| # | Scenario | XML fixture | Expected outcome |
-|---|----------|-------------|------------------|
-| 9.2 | Confirmed reservation | matched ALBATROS PropID 4707563, new ReservationID | HTTP 200, `ru_notifications` row (`processed=true`), new `bookings` row (`integration_type='rentalsunited'`, `status='confirmed'`) |
-| 9.3 | Duplicate reservation | same XML re-posted | HTTP 200, second `ru_notifications` row, **no second booking** (dedup on `external_reservation_id`) |
-| 9.4 | Cancellation | `<IsCancel>true</IsCancel>` for same ReservationID | HTTP 200, booking flipped to `status='cancelled'` with cancellation_reason set |
-| 9.5 | Lead | `<IsLead>true</IsLead>` payload | HTTP 200, notification logged as `event_type='lead'`, no booking created |
-| 9.6 | Unmatched property | unknown PropID `9999999` | HTTP 200, notification logged with `property_id=null`, no booking created |
+**10.3 — Check Edge Function Logs**
+- Pull `cron-pull-ru-reservations` logs and confirm:
+  - Date window logged
+  - Per-reservation processing logged (success/skip/fail)
+  - Leads polling phase ran
+  - Summary line at end
+- Surface any errors / unmatched warnings for follow-up.
 
-Each test cleans up its own rows via service role client (delete by `external_reservation_id`).
+### Implementation steps
 
-### Implementation
+1. **Verify adapter actions** — read `rentalsunited-api/index.ts` to confirm `list_reservations` + `get_leads` builders exist and produce correct XML.
+2. **Patch adapter if needed** — add missing action(s) following XSD ordering rules.
+3. **Ensure pg_cron schedule** — query `cron.job` table; if no schedule for `cron-pull-ru-reservations`, create one (every 30 min) using project URL + anon key.
+4. **Trigger test run** — invoke the cron function manually, capture summary.
+5. **Log review** — pull recent edge function logs, verify expected output.
+6. **Persist summary** — insert a `sync_logs` row with `sync_type='reservation_poll'` capturing the test summary for the support ticket trail.
 
-**`supabase/functions/rentalsunited-api/index.ts`**
-- Add `subscribe_rlnm` action — emits `Push_PutHandler_RQ` with our handler URL.
-- Add `get_rlnm_handler` action — emits `Pull_GetHandler_RQ`.
+### Files potentially modified
+- `supabase/functions/rentalsunited-api/index.ts` — only if `list_reservations`/`get_leads` actions are missing or broken.
+- `supabase/functions/cron-pull-ru-reservations/index.ts` — only if log-polling reveals bugs.
+- New SQL via insert tool — pg_cron schedule (only if not already present).
 
-**`supabase/functions/ru-rlnm-subscribe/index.ts`** (new)
-- Calls `subscribe_rlnm`, then `get_rlnm_handler` to verify, persists subscription state to `sync_logs`.
-- Returns `{ subscribed, registered_url, verified }`.
-
-**`supabase/functions/ru-reservation-handler/index.test.ts`** (new)
-- 5 Deno tests, one per scenario, using canned XML strings.
-- Loads `VITE_SUPABASE_URL` + service role key via dotenv.
-- Cleans up DB rows after each test.
-
-### Final Step — Comprehensive RU Support Ticket
-After Step 9, compile the full ticket containing all 4 ARI failures (availability/prices/long stay/last minute) plus confirmation that property metadata + RLNM subscription succeeded.
+### Pass criteria
+- `list_reservations` returns valid RU XML for a 7-day window.
+- Cron function invocation returns success with structured summary.
+- Logs show expected per-reservation processing.
+- pg_cron job confirmed running every 30 minutes.
 
 ### Assumptions
-- RU's `Push_PutHandler_RQ` accepts our public Supabase Edge Function URL with no auth header (handler reads raw XML, no JWT required — confirm `verify_jwt = false` for `ru-reservation-handler`).
-- Tests run against the deployed handler (live URL), not a local mock — matches the edge-function-testing pattern.
-- ALBATROS RU PropertyID `4707563` is already mapped to a ROL'OS property row, so confirmed/cancellation tests will match.
+- 7-day rolling window remains the right size (matches RU best practice for catching missed RLNM pushes).
+- ALBATROS may have zero recent reservations — that's a valid pass case (summary all zeros + clean logs).
+- Master account credentials in secrets are sufficient for `Pull_ListReservations_RQ` (this is read-only and not gated by the "not the owner" Status 24 issue blocking ARI pushes).
 
