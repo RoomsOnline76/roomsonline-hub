@@ -1180,7 +1180,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+            ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -1324,7 +1324,7 @@ Deno.serve(async (req) => {
         const ruIdNum = parseInt(unitRuId || '0', 10);
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
-          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id });
+          const ariResult = await pushARI(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null });
           if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
           if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           unitResults.push({
