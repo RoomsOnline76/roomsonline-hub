@@ -40,11 +40,29 @@ Deno.serve(async (req) => {
       console.error(`[cron-push-all] RLNM subscription error:`, err);
     }
 
-    // ── Step 1: Get all properties with an RU property ID ──────
-    const { data: properties, error } = await supabase
-      .from('properties')
-      .select('id, name, rentalsunited_property_id')
-      .not('rentalsunited_property_id', 'is', null);
+    // ── Step 1: Get all properties with an RU connection ──────
+    // A property qualifies if EITHER:
+    //   (a) properties.rentalsunited_property_id is set (single-unit / building-level push), OR
+    //   (b) any of its hostfully_room_types rows have rentalsunited_property_id set (multi-unit fan-out)
+    const [{ data: buildingProps, error: buildingErr }, { data: unitRows, error: unitErr }] = await Promise.all([
+      supabase
+        .from('properties')
+        .select('id, name, rentalsunited_property_id')
+        .not('rentalsunited_property_id', 'is', null),
+      supabase
+        .from('hostfully_room_types')
+        .select('property_id, properties!inner(id, name, rentalsunited_property_id)')
+        .not('rentalsunited_property_id', 'is', null),
+    ]);
+
+    const error = buildingErr || unitErr;
+    const propMap = new Map<string, { id: string; name: string; rentalsunited_property_id: string | null }>();
+    for (const p of buildingProps ?? []) propMap.set(p.id, p);
+    for (const row of (unitRows ?? []) as any[]) {
+      const p = row.properties;
+      if (p && !propMap.has(p.id)) propMap.set(p.id, p);
+    }
+    const properties = Array.from(propMap.values());
 
     if (error) {
       console.error('[cron-push-all] Query error:', error.message);
