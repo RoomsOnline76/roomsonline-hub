@@ -864,7 +864,29 @@ Deno.serve(async (req) => {
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
       const compactRequestXml = compactXml(xml);
-      console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}`);
+      console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}, dry_run: ${body.dry_run === true}`);
+
+      // ── Dry-run short-circuit: compose XML, validate, do NOT POST to RU ──
+      if (body.dry_run === true) {
+        return jsonResponse({
+          success: true,
+          dry_run: true,
+          message: 'Dry-run: XML composed and validated; no HTTP POST sent to Rentals United',
+          validation: {
+            ru_property_id,
+            building_id: p.building_id ?? null,
+            name: p.name,
+            amenities_count: p.amenities?.length ?? 0,
+            images_count: p.images?.length ?? 0,
+            rooms_count: p.rooms?.length ?? 0,
+            payment_methods_count: p.payment_methods?.length ?? 0,
+            cancellation_policies_count: p.cancellation_policies?.length ?? 0,
+            xml_length: compactRequestXml.length,
+          },
+          compact_xml: sanitizeXmlForLogs(compactRequestXml),
+        });
+      }
+
       console.log(`[rentalsunited-api] XML first 300 chars: ${previewXml(sanitizeXmlForLogs(compactRequestXml), 300)}`);
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
@@ -875,9 +897,49 @@ Deno.serve(async (req) => {
         console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
         return ruErrorResponse(status, diag);
       }
+
+      // Extract returned PropertyID from RU response (e.g. <PropertyID>12345</PropertyID>)
+      const pidMatch = response.match(/<PropertyID[^>]*>(\d+)<\/PropertyID>/i);
+      const returnedPropertyId = pidMatch ? parseInt(pidMatch[1], 10) : null;
+
+      // ── Persist authoritative snake_case mapping on properties row ──
+      let mapping_persisted = false;
+      let mapping_error: string | null = null;
+      if (returnedPropertyId && body.property_uuid) {
+        try {
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          const { error: upErr } = await supabase
+            .from('properties')
+            .update({
+              rentalsunited_property_id: String(returnedPropertyId),
+              rentalsunited_building_id: p.building_id != null ? String(p.building_id) : null,
+            })
+            .eq('id', body.property_uuid);
+          if (upErr) {
+            mapping_error = upErr.message;
+          } else {
+            mapping_persisted = true;
+          }
+        } catch (e) {
+          mapping_error = e instanceof Error ? e.message : String(e);
+        }
+      }
+
       return jsonResponse({
         success: true,
         message: 'Property pushed successfully',
+        ru_property_id: returnedPropertyId,
+        building_id: p.building_id ?? null,
+        mapping: {
+          persisted: mapping_persisted,
+          property_uuid: body.property_uuid ?? null,
+          system_type: 'rentalsunited',
+          rentalsunited_property_id: returnedPropertyId,
+          rentalsunited_building_id: p.building_id ?? null,
+          error: mapping_error,
+        },
         raw_xml: response,
         diagnostics: {
           request_preview: previewXml(sanitizeXmlForLogs(compactRequestXml), 600),
