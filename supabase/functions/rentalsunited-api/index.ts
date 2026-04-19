@@ -72,9 +72,10 @@ interface RUBuildingUnitType {
 interface RUPropertyPayload {
   name: string;
   property_type_id: number;
+  object_type_id?: number; // Required when BuildingID is set; identifies the unit type within the building's Composition
   can_sleep_max: number;
   standard_guests: number;
-  number_of_beds?: number;
+  number_of_beds?: number; // No longer emitted at Property root (RU XSD removed it); kept for back-compat / fallback bed count
   floor: number;
   space: number;
   street: string;
