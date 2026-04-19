@@ -967,7 +967,28 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       });
       if (priceErr || !priceResult?.success) {
         result.prices_error = priceErr?.message || priceResult?.error?.message || 'Unknown error';
-      } else { result.prices_pushed = true; }
+      } else {
+        result.prices_pushed = true;
+        // 7.2 — Verify prices post-push
+        const priceVerification = await verifyPrices(supabase, ruPropertyId, priceEntries, todayStr, oneYearStr);
+        result.prices_verification = priceVerification;
+        console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
+        try {
+          await supabase.from('sync_logs').insert({
+            property_id: property.id,
+            external_system: 'rentals_united',
+            sync_type: 'prices_verification',
+            status: priceVerification.error ? 'error' : (priceVerification.mismatches.length === 0 && priceVerification.missing_dates.length === 0 ? 'success' : 'partial'),
+            message: priceVerification.error
+              ? `Price verification error: ${priceVerification.error}`
+              : `${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates`,
+            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3) },
+            response_data: { verification: { ...priceVerification, missing_dates: priceVerification.missing_dates.slice(0, 50) } },
+          });
+        } catch (logErr) {
+          console.warn(`[pushARI] Failed to persist price verification log:`, logErr);
+        }
+      }
     } catch (e) { result.prices_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
 
