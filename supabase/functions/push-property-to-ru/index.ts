@@ -843,7 +843,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { property_id, dry_run, subscribe_rlnm, standalone_units } = await req.json();
+    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids } = await req.json();
 
     // Optional: subscribe RLNM before pushing
     if (subscribe_rlnm) {
@@ -963,10 +963,14 @@ Deno.serve(async (req) => {
       // Each room type is pushed as an independent RU property without a BuildingID.
       // ObjectTypeID falls back to property_type_id (Chalet=12, Apartment=1, etc.).
       if (standalone_units) {
-        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${activeRoomTypes.length} units without building`);
+        // Optional filter: only_unit_ids restricts the push to specific room_type ids
+        const filteredUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
+          ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
+          : activeRoomTypes;
+        console.log(`[push-property-to-ru] Standalone-units mode: pushing ${filteredUnits.length}/${activeRoomTypes.length} units without building`);
         const unitResults: any[] = [];
 
-        for (const unit of activeRoomTypes) {
+        for (const unit of filteredUnits) {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0);
