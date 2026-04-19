@@ -975,6 +975,41 @@ Deno.serve(async (req) => {
         console.log(`[push-property-to-ru] Building ID saved: ${buildingId}`);
       }
 
+      // Capture per-unit-type ObjectTypeIDs returned by RU's UnitsComposition.
+      // These are required as <ObjectTypeID> on each unit's Push_PutProperty_RQ when <BuildingID> is set.
+      const unitTypeObjectIds: { name: string; object_type_id: number }[] = Array.isArray(buildingResult?.unit_type_object_ids)
+        ? buildingResult.unit_type_object_ids
+        : [];
+      const objectTypeIdByName = new Map<string, number>();
+      for (const ut of unitTypeObjectIds) {
+        if (ut?.name && Number.isFinite(ut.object_type_id)) {
+          objectTypeIdByName.set(ut.name.trim().toUpperCase(), ut.object_type_id);
+        }
+      }
+      console.log(`[push-property-to-ru] Captured ${objectTypeIdByName.size} ObjectTypeIDs from building composition: ${JSON.stringify(Array.from(objectTypeIdByName.entries()))}`);
+
+      // Persist building + ObjectTypeID mapping to pms_mappings for re-use and audit
+      if (buildingId > 0) {
+        try {
+          await supabase.from('pms_mappings').upsert({
+            property_id,
+            mapping_type: 'field_mappings',
+            external_system: 'rentalsunited',
+            external_id: String(buildingId),
+            metadata: {
+              mapping_kind: 'building',
+              authority: 'rentals_united',
+              building_id: buildingId,
+              building_name: buildingName,
+              unit_type_object_ids: unitTypeObjectIds,
+              updated_at: new Date().toISOString(),
+            },
+          }, { onConflict: 'property_id,mapping_type,external_system' });
+        } catch (mapErr) {
+          console.warn('[push-property-to-ru] Failed to persist pms_mappings:', mapErr instanceof Error ? mapErr.message : mapErr);
+        }
+      }
+
       // Step 2: Push each unit as an individual RU property
       const unitResults: any[] = [];
       for (const unit of activeRoomTypes) {
@@ -982,7 +1017,15 @@ Deno.serve(async (req) => {
         const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
         unitPayload.owner_id = ruOwnerId;
 
-        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId})`);
+        // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set)
+        const objTypeId = objectTypeIdByName.get(unit.name.trim().toUpperCase());
+        if (objTypeId) {
+          unitPayload.object_type_id = objTypeId;
+        } else {
+          console.warn(`[push-property-to-ru] No ObjectTypeID found for unit "${unit.name}" in building composition — RU will likely reject this unit`);
+        }
+
+        console.log(`[push-property-to-ru] Step 2: Pushing unit "${unit.name}" (existing RU ID: ${existingUnitRuId}, building: ${buildingId}, object_type_id: ${objTypeId ?? 'NONE'})`);
 
         const { data: pushResult, error: pushErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'push_property', ru_property_id: existingUnitRuId, property: unitPayload },
