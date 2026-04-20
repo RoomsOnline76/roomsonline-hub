@@ -1589,7 +1589,7 @@ Deno.serve(async (req) => {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
     } else {
-      locationId = await resolveLocationId(supabase, lat, lng, country);
+      locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
 
     if (!locationId || locationId <= 1) {
