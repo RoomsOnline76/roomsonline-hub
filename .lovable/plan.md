@@ -1,75 +1,63 @@
 
 
-## Plan: Add `Push_PutLongStayDiscounts_RQ` & `Push_PutLastMinuteDiscounts_RQ` to RU Adapter
+## Plan: Enhance `Push_PutPrices_RQ` to Full RU Spec (LOSS, EGPS, FSP)
 
 ### Context
-RU docs provide two additional discount-push endpoints we don't currently implement:
-- **Long Stay Discounts** — % off based on stay length (e.g. 10% off for 2–20 night stays)
-- **Last Minute Discounts** — % off based on days-to-arrival (e.g. 20% off when booking 1–4 days out)
+RU docs reveal our current `Push_PutPrices_RQ` builder only sends the basic `<Season><Price/><Extra/></Season>` shape. We're missing three optional-but-supported pricing constructs:
 
-Both follow the same attribute-on-wrapper pattern we just fixed for prices/availability, so the schema risk is low.
+1. **EGPS** — Extra Guest Pricing per season (`<EGP ExtraGuests="N"><Price/></EGP>`)
+2. **LOSS** — Length-of-Stay pricing per season (`<LOS Nights="N"><Price/><LOSPS><LOSP NrOfGuests="N"><Price/></LOSP></LOSPS></LOS>`)
+3. **FSPSeasons** — Full-Stay Pricing matrix (alternative to seasons; per-day grid by guests × nights)
 
-### Canonical Schemas (per RU docs)
+We also need to harden the **Notifs** parser — RU returns per-range failures (StatusID 5, 6, etc.) with `DateFrom`/`DateTo` we should log granularly.
 
-**Long Stay:**
-```xml
-<Push_PutLongStayDiscounts_RQ>
-  <Authentication>...</Authentication>
-  <LongStays PropertyID="X">
-    <LongStay DateFrom="YYYY-MM-DD" DateTo="YYYY-MM-DD" Bigger="2" Smaller="20">10</LongStay>
-  </LongStays>
-</Push_PutLongStayDiscounts_RQ>
-```
-- `Bigger` = min nights (inclusive lower bound)
-- `Smaller` = max nights (inclusive upper bound)
-- Inner text = discount %
-
-**Last Minute:**
-```xml
-<Push_PutLastMinuteDiscounts_RQ>
-  <Authentication>...</Authentication>
-  <LastMinutes PropertyID="X">
-    <LastMinute DateFrom="YYYY-MM-DD" DateTo="YYYY-MM-DD" DaysToArrivalFrom="2" DaysToArrivalTo="5">10</LastMinute>
-  </LastMinutes>
-</Push_PutLastMinuteDiscounts_RQ>
-```
-
-### Investigation needed before coding
-1. Read `supabase/functions/rentalsunited-api/index.ts` — confirm where to add the two new XML builders and action handlers (next to existing `Push_PutPrices_RQ` / `Push_PutAvbUnits_RQ`).
-2. Check `specials` table / `dynamic-policy-engine` memory — figure out which existing internal records map to "long stay" and "last minute" discount types so the orchestrator can source data from one place rather than inventing new tables.
-3. Check `mem://features/property-management/specials-management-system` for our internal discount taxonomy.
+### Investigation needed
+1. Read `buildPushPricesXml` in `supabase/functions/rentalsunited-api/index.ts` — confirm current structure and where to add LOSS/EGPS/FSP branches.
+2. Check internal pricing model — `seasons`, `rate_types`, `extra_guest_charges`, LOS rules — to map our data → RU constructs:
+   - Memory: `mem://architecture/revenue/pricing-calculation-engine-logic`
+   - Memory: `mem://features/property-management/seasons-and-rates-calendar-system`
+   - Memory: `mem://features/charges/property-level-charges-system`
+3. Decide: do we emit standard (`<Season>`) or FSP (`<FSPSeasons>`) — these are mutually exclusive within a single `<Prices>` payload per RU example.
 
 ### Tasks
 
 | # | Task | File | Severity |
 |---|------|------|----------|
-| T1 | Add `buildPushLongStayDiscountsXml(propertyId, discounts[])` builder using `<LongStays PropertyID="X"><LongStay DateFrom DateTo Bigger Smaller>%</LongStay></LongStays>` | `supabase/functions/rentalsunited-api/index.ts` | 🔴 Blocker |
-| T2 | Add `buildPushLastMinuteDiscountsXml(propertyId, discounts[])` builder using `<LastMinutes PropertyID="X"><LastMinute DateFrom DateTo DaysToArrivalFrom DaysToArrivalTo>%</LastMinute></LastMinutes>` | same file | 🔴 Blocker |
-| T3 | Add two new action handlers (`push_long_stay_discounts`, `push_last_minute_discounts`) wired into the action router; both parse RU response for `Status ID` + per-range `<Notifs><Notif>` errors | same file | 🔴 Blocker |
-| T4 | Add typed interfaces `RULongStayDiscount` and `RULastMinuteDiscount` mirroring RU attribute names (camelCase internally) with field validators (Bigger ≤ Smaller, DateFrom ≤ DateTo, percent 0–100) | same file | 🟡 Medium |
-| T5 | Map our internal `specials` records (long-stay-% and last-minute-% types) → RU discount payloads in the orchestrator that triggers RU pushes | RU push orchestrator (TBD via investigation) | 🟡 Medium |
-| T6 | Deploy `rentalsunited-api`; test both endpoints against Steenbok (RUID 4707752) with a sample 30-day window; confirm Status 0 (or Status 5 with no `<Notifs>` failures) | edge function deploy + curl | 🔴 Verification |
-| T7 | Update `/mnt/documents/RU-Response-QA.md` — add new Section D "Discount endpoints" recording the two endpoints, sample requests, and ResponseIDs from successful pushes | doc artifact | 🟢 Hygiene |
-| T8 | Update `mem://integrations/pms/rentals-united-xml-adapter` with the canonical `<LongStays>` / `<LastMinutes>` patterns | memory | 🟢 Hygiene |
+| T1 | Extend `RUPriceSeason` interface with optional `extraGuestPrices?: {extraGuests, price}[]` and `losPricing?: {nights, price, losps?: {nrOfGuests, price}[]}[]` | `supabase/functions/rentalsunited-api/index.ts` | 🟡 Medium |
+| T2 | Update `buildPushPricesXml` to emit `<EGPS>` block when `extraGuestPrices` present and `<LOSS>` block (with optional nested `<LOSPS>`) when `losPricing` present, in canonical order: `Price → Extra → LOSS → EGPS` | same file | 🔴 Blocker |
+| T3 | Add `buildPushFspPricesXml(propertyId, fspSeasons[])` for Full-Stay Pricing matrix using `<FSPSeasons><FSPSeason Date DefaultPrice><FSPRows><FSPRow NrOfGuests><Prices><Price NrOfNights>...` | same file | 🟡 Medium |
+| T4 | Add `push_prices_fsp` action handler routing to FSP builder (keep existing `push_prices` for standard pricing) | same file | 🟡 Medium |
+| T5 | Harden `parseRUNotifs` to capture per-range `StatusID` codes (5=internal, 6=dates mishmash, etc.) and log each `<Notif>` separately to `sync_logs` with date range context | same file | 🟡 Medium |
+| T6 | Map our internal pricing → RU payloads in the orchestrator: extra-guest charges → `EGPS`, LOS rate rules → `LOSS`. FSP only when explicitly enabled per property (new `pms_settings.use_fsp_pricing` flag, default false) | RU push orchestrator | 🟡 Medium |
+| T7 | Deploy `rentalsunited-api`; test enhanced `push_prices` against Steenbok (RUID 4707752) with one season including both EGPS and LOSS; confirm Status 0 | edge function deploy + curl | 🔴 Verification |
+| T8 | Update `/mnt/documents/RU-Response-QA.md` Section A — replace minimal price example with full canonical schema (EGPS + LOSS + Notifs handling); add FSP as Section A.alt | doc artifact | 🟢 Hygiene |
+| T9 | Update `mem://integrations/pms/rentals-united-xml-adapter` with full `<Prices>` element ordering rules and FSP alternative | memory | 🟢 Hygiene |
 
-### Response handling note
-Both endpoints can return **Status 5** ("An error occurred for some of the ranges") with a partial-success `<Notifs>` block. Handler must:
-- Treat Status 0 as full success
-- Treat Status 5 as **partial success** — log each `<Notif>` range to `sync_logs` but don't fail the whole push
-- Treat any other Status ID as full failure
+### Element ordering (per RU XSD inference from example)
+Within each `<Season>`:
+```
+Price → Extra → LOSS → EGPS
+```
+LOSS-vs-FSP: mutually exclusive at the `<Prices>` level (use either `<Season>` or `<FSPSeasons>`, not both).
+
+### Notif status codes observed
+| StatusID | Meaning |
+|---|---|
+| 5 | Internal error (transient — retry candidate) |
+| 6 | Dates mishmash (DateFrom > DateTo or overlapping) |
 
 ### Out of scope
-- Not building UI for managing long-stay / last-minute discounts (assume they already exist in `specials`)
-- Not changing prices/availability builders (working ✅)
-- Not addressing building→property linkage (awaiting RU)
+- No UI changes for managing LOS/extra-guest pricing (assumed already in `seasons`/`extra_guest_charges`)
+- Not changing availability/discounts builders (working ✅)
+- Not implementing FSP UI — backend-only support; orchestrator decides which path
 
 ### Verification
-After T6, expected response for both endpoints:
+After T7, expected response:
 ```xml
-<Push_Put{LongStay|LastMinute}Discounts_RS>
+<Push_PutPrices_RS>
   <Status ID="0">Success</Status>
   <ResponseID>...</ResponseID>
-</...>
+</Push_PutPrices_RS>
 ```
-or Status 5 with empty `<Notifs>` — both acceptable.
+or Status 5 with empty/handled `<Notifs>` block.
 
