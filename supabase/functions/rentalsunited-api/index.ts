@@ -624,9 +624,8 @@ function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: numbe
 <Push_PutLastMinuteDiscounts_RQ>
   ${buildAuthXml(creds)}
   <LastMinutes PropertyID="${propertyId}">
-  <LastMinuteDiscounts>
-    ${discountsXml}
-  </LastMinuteDiscounts>
+    ${lastMinutesXml}
+  </LastMinutes>
 </Push_PutLastMinuteDiscounts_RQ>`;
 }
 
