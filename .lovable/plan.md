@@ -1,59 +1,77 @@
 
 
-The user wants a comprehensive RU technical support ticket compiled as a markdown file, with samples and extracts. This is for the Rentals United "Status 24 - not the owner" issue that's been blocking ARI pushes throughout Steps 5-13.
+## Plan: RU Response Triage — Remediation Tasks + Q&A Document
 
-Since this is artifact generation (a downloadable .md file with collected evidence), I should use exec mode. Let me plan what needs to be in the ticket and what data to gather.
+### Context
+RU support replied to our ticket and **identified the root cause of Status 24**: it's not an ownership issue — it's an **XML schema violation**. Our `Push_PutPrices_RQ` puts `PropertyID` as a child element, but RU's schema requires it as an **attribute** of `<Prices>`. Same structural issue for `Push_PutAvbUnits_RQ`. Also: `Push_PutChangeoverDays_RQ` and `Push_PutMinStay_RQ` don't exist — they're folded into `Push_PutAvbUnits_RQ`. Date format also wrong.
 
-## Plan: Compile RU Technical Support Ticket
+This unblocks Steps 5–13. Major win.
 
-### Goal
-Generate `/mnt/documents/RU-Technical-Ticket.md` — a comprehensive support ticket for Rentals United covering the Status 24 ("not the owner") blocker plus full integration evidence.
+### Two deliverables
 
-### Ticket structure
+**1. Remediation Plan (code changes — for default mode after approval)**
+**2. Q&A Document (markdown artifact — chronological RU questions + our answers with source URLs)**
 
-1. **Header** — Account ref, master credentials user, integration partner (RoomsOnline / ROL'OS), date, contact.
-2. **Executive Summary** — One-paragraph problem statement: ARI pushes (availability, prices, min-stay, changeover) return Status 24 "not the owner" for properties we successfully created and own via the same master account.
-3. **Affected Properties** — Table from DB:
-   - ALBATROS (RU PropID 4707563) — single-unit
-   - SEESIG building (RU PropID + 9 unit children: 4707636-4707643) — multi-unit
-4. **Reproduction Steps** — Numbered, copy-pasteable curl/XML examples.
-5. **Sample Request/Response Pairs** — Pull from `sync_logs.response_data` where status=24:
-   - `Push_PutAvbls_RQ` request XML + RU response with Status 24
-   - `Push_PutPrices_RQ` request XML + RU response
-   - Same for `Push_PutMinStay_RQ` and `Push_PutChangeoverDays_RQ`
-6. **What Works (proving auth & ownership)** — Evidence that master creds ARE valid:
-   - `Push_PutProperty_RQ` succeeds (we created the properties)
-   - `Push_PutPropertyImages_RQ` succeeds
-   - `Push_PutPropertyAmenities_RQ` succeeds
-   - `Pull_ListReservations_RQ` succeeds (read access works)
-   - `Pull_GetLeads_RQ` succeeds
-   - RLNM `Push_SetPropertyNotificationCallback_RQ` succeeds
-7. **What Fails** — Only ARI endpoints, all with Status 24.
-8. **Hypothesis** — Property ownership flag at RU side may be set to a different account/role despite being created by master; ARI endpoints check a different ownership table than property metadata endpoints.
-9. **Requested Action** — Audit ownership flags on listed PropIDs; advise on required RU-side configuration; confirm whether ARI requires a separate sub-account / channel-manager role.
-10. **Appendix** — Full XML samples (truncated where appropriate), sync_logs row IDs for traceability.
+---
 
-### Data sources
-- `sync_logs` rows where `sync_type` includes 'rentals_united' and response contains 'Status' code 24 → extract request_data + response_data
-- `properties` + `hostfully_room_types` for the affected RU PropIDs and names
-- `pms_mappings` for master account confirmation
+### Part 1 — Remediation Tasks (Code Changes)
 
-### Implementation steps (to run after approval)
+Investigate `supabase/functions/rentals-united-adapter/` (or equivalent) to locate the XML builders, then fix:
 
-1. Query DB to gather:
-   - All RU-connected properties with their RU PropIDs
-   - Recent `sync_logs` rows with successful pushes (property/images/amenities/RLNM) — extract one sample of each
-   - Recent `sync_logs` rows with Status 24 failures (ARI ops) — extract one sample of each
-2. Build the markdown document with clean formatting, code-fenced XML samples, tables for affected properties.
-3. Save to `/mnt/documents/RU-Technical-Ticket.md`.
-4. Emit `<lov-artifact>` tag for download.
+| # | Task | File(s) | Severity |
+|---|------|---------|----------|
+| T1 | Fix `Push_PutPrices_RQ` — move `PropertyID` from child element to attribute of `<Prices>` | RU adapter price builder | 🔴 Blocker |
+| T2 | Fix `Push_PutPrices_RQ` season format — use `<Season DateFrom="..." DateTo="...">` as attributes (not child elements), add `<Extra>` if required | RU adapter price builder | 🔴 Blocker |
+| T3 | Fix `Push_PutAvbUnits_RQ` structure — verify against RU schema (PropertyID as attribute, correct AvailabilityDay format) | RU adapter availability builder | 🔴 Blocker |
+| T4 | **Remove** standalone `Push_PutChangeoverDays_RQ` and `Push_PutMinStay_RQ` calls — fold MinStay/MaxStay/Changeover into `Push_PutAvbUnits_RQ` `<AvailabilityDay>` attributes | RU adapter, orchestrator | 🔴 Blocker |
+| T5 | Add EGPS (extra guest pricing) block to `Push_PutPrices_RQ` if per-person rates exist | RU adapter price builder | 🟡 Medium |
+| T6 | Add a unit test fixture comparing our generated XML against RU's documented schema example | `*.test.ts` for adapter | 🟢 Hygiene |
+| T7 | Re-run end-to-end ARI push for one test PropertyID (e.g. 4707636 / Steenbok) and confirm Status 0 | Manual via curl_edge_functions | 🔴 Verification |
 
-### Output
-- `/mnt/documents/RU-Technical-Ticket.md` — single self-contained ticket, ready to paste into RU support portal or attach to email.
+**Investigation steps before coding:**
+- Read the current RU adapter file(s) — locate XML builders for Prices, AvbUnits, MinStay, ChangeoverDays
+- Read recent `sync_logs` rows for `Push_PutPrices_RQ` to confirm exact malformed structure
+- Cross-reference with `mem://integrations/pms/rentals-united-xml-adapter` for any documented XSD ordering rules already captured
 
-### Assumptions
-- The ticket is written for RU's technical support team (assumes they know their own API endpoints and Status codes).
-- Will redact any sensitive credentials (username/password) — refer only to "master account credentials on file".
-- Will use real RU PropIDs (these are not secret — they're shared with RU already).
-- If a particular sample isn't in `sync_logs` (e.g. no recent failed run captured), will note "sample not available, can be reproduced on request" rather than fabricate.
+---
+
+### Part 2 — Q&A Markdown Artifact
+
+Generate `/mnt/documents/RU-Response-QA.md` containing:
+
+**Section A — Chronological list of RU's questions/corrections to us** (5 items):
+1. Structural error: `PropertyID` placement in `Push_PutPrices_RQ` (attribute vs element)
+2. Seasonal date range syntax in `Push_PutPrices_RQ`
+3. `Push_PutAvbUnits_RQ` request syntax not followed
+4. Source/origin of `Push_PutChangeoverDays_RQ` and `Push_PutMinStay_RQ` (undocumented methods — where did we get them?)
+5. Context/examples needed for `Push_PutBuilding_RS` missing `UnitTypeID`s
+6. Clarification needed: `Pull_GetBuilding_RQ` doesn't exist — did we mean `Pull_ListBuildings_RQ`?
+
+**For each question**, provide:
+- **RU's exact question** (verbatim)
+- **Our answer** with concrete evidence
+- **Source URL** where the method/format was originally referenced (RU dev portal, internal sync_log ID, our adapter file path)
+- **Corrective action** (links to T1–T7 above)
+
+**Section B — Acknowledged RU concessions:**
+- RU confirmed Status 24 message is misleading and is being improved internally
+- RU confirmed `Push_PutAvbUnits_RQ` is the unified endpoint for avail+min/max stay+changeovers
+
+**Section C — Outstanding clarifications we still need from RU:**
+- Confirm exact XSD URL/version we should validate against
+- Confirm whether `Pull_ListBuildings_RQ` returns `UnitTypeID`s in composition
+- Confirm building→property linkage mechanism (our prior Section 5 questions)
+
+---
+
+### Technical notes
+- Investigation will use `code--search_files` for "Push_PutPrices" and "Push_PutAvbUnits" to find builders
+- Will query `sync_logs` for the exact 2026-04-20 02:00:12 entry RU referenced to confirm what we sent
+- Q&A doc will be written to `/mnt/documents/RU-Response-QA.md` (new file, not appended to ticket — keeps it focused)
+- After Q&A is generated, the remediation tasks become the next implementation pass
+
+### Out of scope
+- Not modifying `RU-Technical-Ticket.md` (it served its purpose; reply is the resolution)
+- Not addressing building-linkage gap in this pass — RU asked for more context first; we'll respond via Q&A doc, then loop back if they confirm a real issue
+- Not touching reservation polling, RLNM, or cron — all confirmed working
 
