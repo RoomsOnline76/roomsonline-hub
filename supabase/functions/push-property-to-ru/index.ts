@@ -1781,7 +1781,10 @@ Deno.serve(async (req) => {
     const cached = await loadRuPropertyMapping(supabase, property_id);
     const coordsHash = hashCoords(lat, lng);
     let locationId = 0;
-    if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
+    if (forceLocationId) {
+      locationId = forceLocationId;
+      console.log(`[push-property-to-ru] FORCE override: using LocationID ${locationId} (bypasses coord/cache resolution)`);
+    } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
     } else {
