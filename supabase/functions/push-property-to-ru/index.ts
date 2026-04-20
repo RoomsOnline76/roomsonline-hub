@@ -1460,6 +1460,10 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    const forceLocationIdRaw = reqBody.force_location_id;
+    const forceLocationId = Number.isFinite(Number(forceLocationIdRaw)) && Number(forceLocationIdRaw) > 1
+      ? Number(forceLocationIdRaw)
+      : null;
 
     // ── Seed: pull RU's master list of cities + currencies into public.ru_locations ──
     // One-shot (or periodic) cache primer. Without this, name lookups can't be country-scoped
@@ -1777,7 +1781,10 @@ Deno.serve(async (req) => {
     const cached = await loadRuPropertyMapping(supabase, property_id);
     const coordsHash = hashCoords(lat, lng);
     let locationId = 0;
-    if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
+    if (forceLocationId) {
+      locationId = forceLocationId;
+      console.log(`[push-property-to-ru] FORCE override: using LocationID ${locationId} (bypasses coord/cache resolution)`);
+    } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
     } else {
