@@ -1406,7 +1406,72 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids } = await req.json();
+    const reqBody = await req.json();
+    const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+
+    // ── Back-fill: reconcile country + currency for all RU-connected properties ──
+    // One-shot remediation for properties pushed before the CurrencyID/LocationID fix.
+    // Re-resolves geo + currency from local data and re-pushes them to RU so channels
+    // (LekkeSlaap etc.) see the correct CurrencyID and DetailedLocationID.
+    if (action === 'reconcile_ru_country_currency') {
+      const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
+      const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
+        supabase
+          .from('properties')
+          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities')
+          .not('rentalsunited_property_id', 'is', null),
+        supabase
+          .from('hostfully_room_types')
+          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities)')
+          .not('rentalsunited_property_id', 'is', null),
+      ]);
+
+      const propMap = new Map<string, any>();
+      for (const p of buildingProps ?? []) propMap.set(p.id, p);
+      for (const row of (unitRows ?? []) as any[]) {
+        const p = row.properties;
+        if (p && !propMap.has(p.id)) propMap.set(p.id, p);
+      }
+      const targets = Array.from(propMap.values()).filter(p => !targetIds || targetIds.includes(p.id));
+
+      const results: any[] = [];
+      for (const p of targets) {
+        const lat = Number(p.latitude) || 0;
+        const lng = Number(p.longitude) || 0;
+        const ccy = mapCurrencyToRUId(p.amenities, p.country);
+        const loc = await resolveLocationId(supabase, lat, lng, p.country);
+        if (!loc || loc <= 1) {
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'location_unresolvable', country: p.country });
+          continue;
+        }
+        await persistRuPropertyMapping(supabase, p.id, {
+          ru_location_id: loc,
+          ru_currency_id: ccy,
+          ru_country: p.country ?? null,
+          coords_hash: hashCoords(lat, lng),
+        });
+        // Re-push so RU records pick up the new values
+        const { data: pushResult, error: pushErr } = await supabase.functions.invoke('push-property-to-ru', {
+          body: { property_id: p.id },
+        });
+        results.push({
+          property_id: p.id,
+          name: p.name,
+          success: !pushErr && pushResult?.success === true,
+          ru_location_id: loc,
+          ru_currency_id: ccy,
+          error: pushErr?.message || pushResult?.error?.message || null,
+        });
+        await new Promise(r => setTimeout(r, 750));
+      }
+
+      const okCount = results.filter(r => r.success).length;
+      return new Response(
+        JSON.stringify({ success: true, message: `Reconciled ${okCount}/${results.length} RU properties`, results }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
 
     // Optional: subscribe RLNM before pushing
     if (subscribe_rlnm) {
