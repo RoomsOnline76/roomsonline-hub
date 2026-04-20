@@ -574,30 +574,56 @@ function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string
 </LNM_PutHandlerUrl_RQ>`;
 }
 
+function validateDiscountEntry(d: RUDiscountEntry): string | null {
+  if (!d.date_from || !d.date_to) return 'date_from and date_to are required';
+  if (d.date_from > d.date_to) return `DateFrom (${d.date_from}) must be <= DateTo (${d.date_to})`;
+  if (d.nights_from == null || d.nights_from < 0) return 'nights_from must be >= 0';
+  if (d.nights_to != null && d.nights_to < d.nights_from) return `nights_to (${d.nights_to}) must be >= nights_from (${d.nights_from})`;
+  if (d.discount_percentage == null || d.discount_percentage < 0 || d.discount_percentage > 100) return 'discount_percentage must be 0-100';
+  return null;
+}
+
 function buildPushLongStayDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
-  const discountsXml = discounts
-    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" NightsFrom="${d.nights_from}"${d.nights_to != null ? ` NightsTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+  // Push_PutLongStayDiscounts_RQ — canonical RU schema:
+  //   https://developer.rentalsunited.com/#put-long-stay-discounts
+  //   <LongStays PropertyID="X">
+  //     <LongStay DateFrom="..." DateTo="..." Bigger="N" Smaller="N">PERCENT</LongStay>
+  //   </LongStays>
+  // Bigger = min nights (inclusive), Smaller = max nights (inclusive), inner text = % off.
+  const longStaysXml = discounts
+    .map(d => {
+      const smaller = d.nights_to != null ? ` Smaller="${d.nights_to}"` : '';
+      return `<LongStay DateFrom="${d.date_from}" DateTo="${d.date_to}" Bigger="${d.nights_from}"${smaller}>${d.discount_percentage}</LongStay>`;
+    })
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutLongStayDiscounts_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-  <LongStayDiscounts>
-    ${discountsXml}
-  </LongStayDiscounts>
+  <LongStays PropertyID="${propertyId}">
+    ${longStaysXml}
+  </LongStays>
 </Push_PutLongStayDiscounts_RQ>`;
 }
 
 function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
-  const discountsXml = discounts
-    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" DaysToArrivalFrom="${d.nights_from}"${d.nights_to != null ? ` DaysToArrivalTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+  // Push_PutLastMinuteDiscounts_RQ — canonical RU schema:
+  //   https://developer.rentalsunited.com/#put-last-minute-discounts
+  //   <LastMinutes PropertyID="X">
+  //     <LastMinute DateFrom="..." DateTo="..." DaysToArrivalFrom="N" DaysToArrivalTo="N">PERCENT</LastMinute>
+  //   </LastMinutes>
+  // For last-minute: nights_from -> DaysToArrivalFrom, nights_to -> DaysToArrivalTo, inner text = % off.
+  const lastMinutesXml = discounts
+    .map(d => {
+      const to = d.nights_to != null ? ` DaysToArrivalTo="${d.nights_to}"` : '';
+      return `<LastMinute DateFrom="${d.date_from}" DateTo="${d.date_to}" DaysToArrivalFrom="${d.nights_from}"${to}>${d.discount_percentage}</LastMinute>`;
+    })
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutLastMinuteDiscounts_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
+  <LastMinutes PropertyID="${propertyId}">
   <LastMinuteDiscounts>
     ${discountsXml}
   </LastMinuteDiscounts>
