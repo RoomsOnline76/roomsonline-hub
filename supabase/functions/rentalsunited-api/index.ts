@@ -74,6 +74,12 @@ interface RUPropertyPayload {
   name: string;
   property_type_id: number;
   object_type_id?: number; // Required when BuildingID is set; identifies the unit type within the building's Composition
+  /**
+   * RU CurrencyID (mandatory). Examples: ZAR=48, USD=144, NAD=91, EUR=47, GBP=49, BWP=24.
+   * Without this RU silently falls back to the master account default currency, which is
+   * why downstream channel checks (e.g. LekkeSlaap "ZAR currency not met") fail.
+   */
+  currency_id: number;
   can_sleep_max: number;
   standard_guests: number;
   number_of_beds?: number; // No longer emitted at Property root (RU XSD removed it); kept for back-compat / fallback bed count
@@ -465,11 +471,15 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal}</SecurityDeposit>`;
 
   // Strict XSD element order per RU schema (validated against live RS errors):
-  // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived > CleaningPrice > Space >
-  // StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID > Floor > BuildingID >
-  // Street > ZipCode > Coordinates(Longitude+Latitude) >
+  // ID > Name > OwnerID > CurrencyID > DetailedLocationID > IsActive > IsArchived >
+  // CleaningPrice > Space > StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID >
+  // Floor > BuildingID > Street > ZipCode > Coordinates(Longitude+Latitude) >
   // CompositionRoomsAmenities > ArrivalInstructions > Amenities > Images > CheckInOut >
   // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit
+  //
+  // CurrencyID positioning: RU's XSD accepts <CurrencyID> immediately after <OwnerID>.
+  // Without it RU silently inherits the master account's default currency — this is the
+  // root cause of LekkeSlaap "ZAR currency not met" errors for South African properties.
   //
   // NOTES:
   //  - <NoOfUnits> was REMOVED — RU's XSD rejects it at this position with
@@ -495,6 +505,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <ID>${propertyId}</ID>
     <Name>${escapeXml(prop.name)}</Name>
     <OwnerID>${prop.owner_id || 1}</OwnerID>
+    <CurrencyID>${prop.currency_id}</CurrencyID>
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
     <IsArchived>false</IsArchived>
@@ -1182,6 +1193,13 @@ Deno.serve(async (req) => {
       }
       if (!p.cancellation_policies || p.cancellation_policies.length === 0) {
         return errorResponse('VALIDATION', 'Property must include at least 1 cancellation policy');
+      }
+      if (!Number.isFinite(p.currency_id) || (p.currency_id as number) <= 0) {
+        return errorResponse('VALIDATION', 'Property must include a valid RU currency_id (e.g. 48=ZAR, 144=USD, 91=NAD)');
+      }
+      if (!Number.isFinite(p.detailed_location_id) || (p.detailed_location_id as number) <= 1) {
+        // RU LocationID 1 = Andorra/test sentinel. Reject so we never accidentally tag SA/NA properties as Andorra.
+        return errorResponse('VALIDATION', 'Property must include a resolvable detailed_location_id (>1). Got: ' + p.detailed_location_id);
       }
 
       const xml = buildPushPropertyXml(creds, ru_property_id, p);
