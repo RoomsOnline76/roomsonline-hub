@@ -190,6 +190,7 @@ interface RequestBody {
   property?: RUPropertyPayload;
   availability?: RUAvailabilityEntry[];
   prices?: RUPriceEntry[];
+  fsp_seasons?: RUFspSeason[];
   handler_url?: string;
   discounts?: RUDiscountEntry[];
   search_terms?: string;
