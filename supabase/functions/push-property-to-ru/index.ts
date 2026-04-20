@@ -1460,6 +1460,10 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
+    const forceLocationIdRaw = reqBody.force_location_id;
+    const forceLocationId = Number.isFinite(Number(forceLocationIdRaw)) && Number(forceLocationIdRaw) > 1
+      ? Number(forceLocationIdRaw)
+      : null;
 
     // ── Seed: pull RU's master list of cities + currencies into public.ru_locations ──
     // One-shot (or periodic) cache primer. Without this, name lookups can't be country-scoped
