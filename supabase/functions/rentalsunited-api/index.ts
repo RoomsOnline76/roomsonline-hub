@@ -1565,6 +1565,86 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, message: 'Company details filled successfully', raw_xml: response });
     }
 
+    // ── get_location_by_name ──
+    // Pull_GetLocationByName_RQ — find a LocationID by free-text name. Better than coords for
+    // ambiguous spots (e.g. "Stilbaai" returns the actual locality LocationID).
+    if (action === 'get_location_by_name') {
+      const name = (body.location_name || (metadata as any)?.location_name || '').toString().trim();
+      if (!name) return errorResponse('MISSING_PARAM', 'location_name is required');
+      const xml = `<Pull_GetLocationByName_RQ>${buildAuthXml(creds)}<LocationName>${escapeXml(name)}</LocationName></Pull_GetLocationByName_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] get_location_by_name response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_location_by_name', response));
+      const idMatch = response.match(/<LocationID[^>]*>(\d+)<\/LocationID>/i);
+      const locationId = idMatch ? parseInt(idMatch[1], 10) : null;
+      return jsonResponse({ success: true, location_id: locationId, raw_xml: response });
+    }
+
+    // ── list_cities_and_currencies ──
+    // Pull_ListCitiesAndCurrencies_RQ — list every RU city with its country + assigned currency.
+    // Used to seed the public.ru_locations cache. Optionally filtered by country IDs in body.country_ids.
+    if (action === 'list_cities_and_currencies') {
+      const xml = `<Pull_ListCitiesProps_RQ>${buildAuthXml(creds)}</Pull_ListCitiesProps_RQ>`;
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] list_cities_and_currencies response (first 500): ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_cities_and_currencies', response));
+      // Parse <Location IsActive="..." Type="4" ParentLocationID="..." CurrencyCode="ZAR" Code="...">NAME</Location>
+      const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
+      const re = /<Location\b([^>]*)>([\s\S]*?)<\/Location>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(response)) !== null) {
+        const attrs = m[1];
+        const inner = m[2];
+        const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
+        // Some RU dumps put ID inside the body
+        const idInner = !idAttr ? /<ID[^>]*>(\d+)<\/ID>/i.exec(inner) : null;
+        const id = idAttr ? parseInt(idAttr[1], 10) : (idInner ? parseInt(idInner[1], 10) : NaN);
+        if (!Number.isFinite(id)) continue;
+        const ccyAttr = /\bCurrencyCode="([A-Z]{3})"/i.exec(attrs);
+        const typeAttr = /\bType="(\d+)"/i.exec(attrs);
+        const parentAttr = /\bParentLocationID="(\d+)"/i.exec(attrs);
+        const nameInner = /<Name[^>]*>([\s\S]*?)<\/Name>/i.exec(inner);
+        const name = nameInner ? nameInner[1].trim() : inner.replace(/<[^>]+>/g, '').trim();
+        locs.push({
+          id,
+          name,
+          parent_id: parentAttr ? parseInt(parentAttr[1], 10) : null,
+          currency_iso: ccyAttr ? ccyAttr[1].toUpperCase() : null,
+          type: typeAttr ? parseInt(typeAttr[1], 10) : null,
+        });
+      }
+      return jsonResponse({ success: true, locations: locs, count: locs.length, raw_xml: response.length > 8000 ? response.substring(0, 8000) + '…[truncated]' : response });
+    }
+
+    // ── push_change_currency ──
+    // Push_ChangeCurrency_RQ — set the currency for an entire RU location. Currency in RU
+    // is owned by the LocationID, not by the property; this is the only way to make
+    // <CurrencyID> on a property push actually stick on read.
+    if (action === 'push_change_currency') {
+      const locationId = body.location_id ?? (metadata as any)?.location_id;
+      const currencyIso = (body.currency_iso || (metadata as any)?.currency_iso || '').toString().trim().toUpperCase();
+      if (!locationId) return errorResponse('MISSING_PARAM', 'location_id is required');
+      if (!currencyIso || !/^[A-Z]{3}$/.test(currencyIso)) return errorResponse('VALIDATION', 'currency_iso must be a 3-letter ISO code');
+      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(creds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
+      const compactRequestXml = compactXml(xml);
+      const response = await callRentalsUnited(creds, xml);
+      console.log(`[rentalsunited-api] push_change_currency response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      // Status 339 = "Location already has the requested currency set" — treat as success.
+      if (!ok && status.id !== '339') {
+        return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'push_change_currency', response));
+      }
+      return jsonResponse({
+        success: true,
+        already_set: status.id === '339',
+        location_id: parseInt(String(locationId), 10),
+        currency_iso: currencyIso,
+        raw_xml: response,
+      });
+    }
+
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
 

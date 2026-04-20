@@ -8923,6 +8923,33 @@ export type Database = {
           },
         ]
       }
+      ru_locations: {
+        Row: {
+          country: string
+          currency_iso: string | null
+          currency_ru_id: number | null
+          id: number
+          last_synced_at: string
+          name: string
+        }
+        Insert: {
+          country: string
+          currency_iso?: string | null
+          currency_ru_id?: number | null
+          id: number
+          last_synced_at?: string
+          name: string
+        }
+        Update: {
+          country?: string
+          currency_iso?: string | null
+          currency_ru_id?: number | null
+          id?: number
+          last_synced_at?: string
+          name?: string
+        }
+        Relationships: []
+      }
       ru_notifications: {
         Row: {
           created_at: string | null

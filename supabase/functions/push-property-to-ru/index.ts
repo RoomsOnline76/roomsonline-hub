@@ -231,6 +231,7 @@ async function resolveLocationId(
   lat: number,
   lng: number,
   country?: string | null,
+  cityName?: string | null,
 ): Promise<number> {
   // 1. Try RU coordinate lookup
   if (lat && lng) {
@@ -243,22 +244,73 @@ async function resolveLocationId(
         console.log(`[push-property-to-ru] Resolved LocationID via coords: ${id}`);
         return id;
       }
-      console.warn(`[push-property-to-ru] Coord lookup unusable (id=${data?.location_id}, err=${error?.message ?? 'none'}) — trying country fallback`);
+      console.warn(`[push-property-to-ru] Coord lookup unusable (id=${data?.location_id}, err=${error?.message ?? 'none'}) — trying name lookup`);
     } catch (e) {
-      console.warn(`[push-property-to-ru] Coord lookup threw — trying country fallback:`, e instanceof Error ? e.message : e);
+      console.warn(`[push-property-to-ru] Coord lookup threw — trying name lookup:`, e instanceof Error ? e.message : e);
     }
   }
-  // 2. Country fallback
+  // 2. Name lookup — try ru_locations cache first (scoped to country), then RU live API.
+  const candidates = [cityName, country].map(s => (s || '').trim()).filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    try {
+      const { data: cached } = await supabase
+        .from('ru_locations')
+        .select('id, country, currency_iso')
+        .ilike('name', candidate)
+        .limit(5);
+      const countryUpper = (country || '').trim().toUpperCase();
+      const match = (cached || []).find((r: any) => !countryUpper || (r.country || '').toUpperCase().includes(countryUpper));
+      if (match?.id) {
+        console.log(`[push-property-to-ru] Resolved LocationID via ru_locations cache for "${candidate}": ${match.id}`);
+        return Number(match.id);
+      }
+    } catch { /* cache miss is fine */ }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'get_location_by_name', location_name: candidate },
+      });
+      const id = Number(data?.location_id);
+      if (!error && data?.success && Number.isFinite(id) && id > 1) {
+        console.log(`[push-property-to-ru] Resolved LocationID via name lookup "${candidate}": ${id}`);
+        return id;
+      }
+    } catch (e) {
+      console.warn(`[push-property-to-ru] Name lookup "${candidate}" threw:`, e instanceof Error ? e.message : e);
+    }
+  }
+  // 3. Country fallback
   const key = String(country || '').trim().toUpperCase();
   if (key && RU_DEFAULT_CITY_BY_COUNTRY[key]) {
     const fallback = RU_DEFAULT_CITY_BY_COUNTRY[key];
     console.log(`[push-property-to-ru] Using country-default LocationID for "${key}": ${fallback}`);
     return fallback;
   }
-  // 3. Hard fail — never silently return 1 (= Andorra / test sentinel).
-  console.error(`[push-property-to-ru] LocationID unresolvable (lat=${lat}, lng=${lng}, country=${country}) — refusing to default to 1`);
+  // 4. Hard fail — never silently return 1 (= Andorra / test sentinel).
+  console.error(`[push-property-to-ru] LocationID unresolvable (lat=${lat}, lng=${lng}, country=${country}, city=${cityName}) — refusing to default to 1`);
   return 0;
 }
+
+// Look up the currency ISO RU has assigned to a given LocationID (from ru_locations cache).
+async function getRuLocationCurrency(supabase: any, locationId: number): Promise<{ iso: string | null; country: string | null } | null> {
+  if (!locationId) return null;
+  try {
+    const { data } = await supabase
+      .from('ru_locations')
+      .select('currency_iso, country')
+      .eq('id', locationId)
+      .maybeSingle();
+    if (!data) return null;
+    return { iso: data.currency_iso || null, country: data.country || null };
+  } catch { return null; }
+}
+
+const ISO_BY_RU_CURRENCY_ID: Record<number, string> = {
+  48: 'ZAR', 144: 'USD', 47: 'EUR', 49: 'GBP',
+  91: 'NAD', 24: 'BWP', 6: 'AUD', 32: 'CAD',
+  39: 'CHF', 76: 'JPY', 94: 'NZD', 1: 'AED',
+  88: 'MZN', 175: 'ZMW',
+};
 
 // ── pms_mappings persistence helpers ─────────────────────────
 
@@ -1409,6 +1461,198 @@ Deno.serve(async (req) => {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action } = reqBody;
 
+    // ── Seed: pull RU's master list of cities + currencies into public.ru_locations ──
+    // One-shot (or periodic) cache primer. Without this, name lookups can't be country-scoped
+    // and we can't detect when an RU LocationID is configured to the wrong currency.
+    if (action === 'seed_ru_locations') {
+      const filter: string[] = Array.isArray(reqBody.countries) && reqBody.countries.length
+        ? reqBody.countries.map((s: any) => String(s).trim().toUpperCase())
+        : ['SOUTH AFRICA', 'ZA', 'NAMIBIA', 'NA', 'BOTSWANA', 'BW'];
+      console.log(`[push-property-to-ru] seed_ru_locations — country filter:`, filter);
+
+      const { data: listData, error: listErr } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'list_cities_and_currencies' },
+      });
+      if (listErr || !listData?.success) {
+        return new Response(
+          JSON.stringify({ success: false, error: { code: 'LIST_FAILED', message: listErr?.message || listData?.error?.message || 'Failed to list cities' } }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const all: any[] = listData.locations || [];
+      // RU's Pull_ListCitiesProps_RQ doesn't return country names directly — it returns parent
+      // location IDs. For our southern-Africa scope we infer country from currency:
+      //   ZAR → South Africa, NAD → Namibia, BWP → Botswana.
+      const ISO_TO_COUNTRY: Record<string, string> = { ZAR: 'South Africa', NAD: 'Namibia', BWP: 'Botswana' };
+      const wantedIsos = new Set(filter.flatMap(f => {
+        if (f === 'SOUTH AFRICA' || f === 'ZA' || f === 'RSA') return ['ZAR'];
+        if (f === 'NAMIBIA' || f === 'NA') return ['NAD'];
+        if (f === 'BOTSWANA' || f === 'BW') return ['BWP'];
+        return [];
+      }));
+
+      const rows = all
+        .filter((l) => l.currency_iso && (wantedIsos.size === 0 || wantedIsos.has(l.currency_iso)))
+        .map((l) => ({
+          id: l.id,
+          name: l.name || `Location ${l.id}`,
+          country: ISO_TO_COUNTRY[l.currency_iso] || l.currency_iso,
+          currency_iso: l.currency_iso,
+          currency_ru_id: ({ ZAR: 48, USD: 144, EUR: 47, GBP: 49, NAD: 91, BWP: 24 } as Record<string, number>)[l.currency_iso] || null,
+          last_synced_at: new Date().toISOString(),
+        }));
+
+      // Upsert in chunks of 500 to avoid payload limits.
+      let upserted = 0;
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500);
+        const { error: upErr } = await supabase.from('ru_locations').upsert(chunk, { onConflict: 'id' });
+        if (upErr) {
+          console.error(`[push-property-to-ru] seed_ru_locations upsert failed at offset ${i}:`, upErr.message);
+          return new Response(
+            JSON.stringify({ success: false, error: { code: 'UPSERT_FAILED', message: upErr.message }, upserted }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        upserted += chunk.length;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: `Seeded ${upserted} RU locations`, total_returned_by_ru: all.length, upserted }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Reconcile: fix RU location currency, then re-push affected properties ──
+    // Implements the location-owns-currency rule: RU stores currency on the LocationID
+    // (not on the property). Steps per property:
+    //   (a) resolve the correct LocationID (coords → name → cached → country default)
+    //   (b) compare ru_locations.currency_iso to the property's expected ISO
+    //   (c) if mismatched → Push_ChangeCurrency_RQ to flip the location
+    //   (d) re-push the property so the new currency takes effect on the property record
+    if (action === 'reconcile_ru_location_currency') {
+      const targetIds: string[] | undefined = Array.isArray(reqBody.property_ids) ? reqBody.property_ids : undefined;
+      const dryRun = reqBody.dry_run === true;
+
+      const [{ data: buildingProps }, { data: unitRows }] = await Promise.all([
+        supabase
+          .from('properties')
+          .select('id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city')
+          .not('rentalsunited_property_id', 'is', null),
+        supabase
+          .from('hostfully_room_types')
+          .select('property_id, properties!inner(id, name, rentalsunited_property_id, country, latitude, longitude, amenities, city)')
+          .not('rentalsunited_property_id', 'is', null),
+      ]);
+
+      const propMap = new Map<string, any>();
+      for (const p of buildingProps ?? []) propMap.set(p.id, p);
+      for (const row of (unitRows ?? []) as any[]) {
+        const p = row.properties;
+        if (p && !propMap.has(p.id)) propMap.set(p.id, p);
+      }
+      const targets = Array.from(propMap.values()).filter(p => !targetIds || targetIds.includes(p.id));
+
+      const results: any[] = [];
+      const flippedLocations = new Set<number>(); // per-location lock — don't double-flip
+
+      for (const p of targets) {
+        const lat = Number(p.latitude) || 0;
+        const lng = Number(p.longitude) || 0;
+        const expectedCcyId = mapCurrencyToRUId(p.amenities, p.country);
+        const expectedIso = ISO_BY_RU_CURRENCY_ID[expectedCcyId] || null;
+        const loc = await resolveLocationId(supabase, lat, lng, p.country, p.city);
+
+        if (!loc || loc <= 1) {
+          results.push({ property_id: p.id, name: p.name, success: false, reason: 'location_unresolvable', country: p.country });
+          continue;
+        }
+
+        const cached = await getRuLocationCurrency(supabase, loc);
+        const currentIso = cached?.iso || null;
+        let flipped: 'skipped' | 'already_set' | 'flipped' | 'failed' = 'skipped';
+        let flipError: string | null = null;
+
+        if (expectedIso && currentIso && currentIso !== expectedIso && !flippedLocations.has(loc)) {
+          if (dryRun) {
+            flipped = 'skipped';
+          } else {
+            try {
+              const { data: flipRes, error: flipErr } = await supabase.functions.invoke('rentalsunited-api', {
+                body: { action: 'push_change_currency', location_id: loc, currency_iso: expectedIso },
+              });
+              if (flipErr || !flipRes?.success) {
+                flipped = 'failed';
+                flipError = flipErr?.message || flipRes?.error?.message || 'Unknown';
+              } else {
+                flipped = flipRes.already_set ? 'already_set' : 'flipped';
+                flippedLocations.add(loc);
+                // Refresh ru_locations cache row
+                await supabase.from('ru_locations').upsert({
+                  id: loc,
+                  name: cached?.iso ? `Location ${loc}` : `Location ${loc}`,
+                  country: p.country || cached?.country || 'Unknown',
+                  currency_iso: expectedIso,
+                  currency_ru_id: expectedCcyId,
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: 'id' });
+              }
+            } catch (e) {
+              flipped = 'failed';
+              flipError = e instanceof Error ? e.message : 'Unknown';
+            }
+          }
+        } else if (expectedIso && currentIso && currentIso === expectedIso) {
+          flipped = 'already_set';
+        }
+
+        await persistRuPropertyMapping(supabase, p.id, {
+          ru_location_id: loc,
+          ru_currency_id: expectedCcyId,
+          ru_country: p.country ?? null,
+          coords_hash: hashCoords(lat, lng),
+        });
+
+        let pushOk = false;
+        let pushError: string | null = null;
+        if (!dryRun && flipped !== 'failed') {
+          const { data: pushResult, error: pushErr } = await supabase.functions.invoke('push-property-to-ru', {
+            body: { property_id: p.id },
+          });
+          pushOk = !pushErr && pushResult?.success === true;
+          pushError = pushErr?.message || pushResult?.error?.message || null;
+        }
+
+        results.push({
+          property_id: p.id,
+          name: p.name,
+          ru_location_id: loc,
+          expected_currency_iso: expectedIso,
+          current_location_currency_iso: currentIso,
+          location_flip: flipped,
+          flip_error: flipError,
+          push_ok: pushOk,
+          push_error: pushError,
+          success: !dryRun ? (pushOk && flipped !== 'failed') : true,
+        });
+
+        await new Promise(r => setTimeout(r, 750));
+      }
+
+      const okCount = results.filter(r => r.success).length;
+      return new Response(
+        JSON.stringify({
+          success: true,
+          dry_run: dryRun,
+          message: `Reconciled ${okCount}/${results.length} RU properties`,
+          results,
+          flipped_locations: Array.from(flippedLocations),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // ── Back-fill: reconcile country + currency for all RU-connected properties ──
     // One-shot remediation for properties pushed before the CurrencyID/LocationID fix.
     // Re-resolves geo + currency from local data and re-pushes them to RU so channels
@@ -1537,7 +1781,7 @@ Deno.serve(async (req) => {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
     } else {
-      locationId = await resolveLocationId(supabase, lat, lng, country);
+      locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
 
     if (!locationId || locationId <= 1) {
