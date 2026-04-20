@@ -493,6 +493,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
 }
 
 function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, availability: RUAvailabilityEntry[]): string {
+  // RU schema: PropertyID is an ATTRIBUTE on <PropertyPrices>/<Availability>, NOT a child element.
+  // Status 24 ("not the owner") was being returned for malformed structure — see RU support reply 2026-04-21.
   const daysXml = availability
     .map(a => {
       let attrs = `DateFrom="${a.date_from}" DateTo="${a.date_to}" Units="${a.units}"`;
@@ -506,31 +508,38 @@ function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, avai
 <Push_PutAvbUnits_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-  <Availability>
-    ${daysXml}
-  </Availability>
+  <Availabilities>
+    <Availability PropertyID="${propertyId}">
+      ${daysXml}
+    </Availability>
+  </Availabilities>
 </Push_PutAvbUnits_RQ>`;
 }
 
 function buildPushPricesXml(creds: RUCredentials, propertyId: number, prices: RUPriceEntry[]): string {
-  const pricesXml = prices
+  // RU schema fix (per RU support 2026-04-21):
+  //   1. PropertyID must be an ATTRIBUTE on <Prices>, not a child element.
+  //   2. <Season> must use DateFrom/DateTo as ATTRIBUTES, not child elements.
+  //   3. <Price> stays as a child of <Season>; ExtraGuestPrice maps to <Extra>.
+  const seasonsXml = prices
     .map(p => {
-      let inner = `<DateFrom>${p.date_from}</DateFrom>
-      <DateTo>${p.date_to}</DateTo>
-      <Price>${p.price}</Price>`;
+      let inner = `<Price>${p.price}</Price>`;
       if (p.extra_guest_price != null) {
-        inner += `\n      <ExtraGuestPrice>${p.extra_guest_price}</ExtraGuestPrice>`;
+        inner += `\n        <Extra>${p.extra_guest_price}</Extra>`;
       }
-      return `<Season>\n      ${inner}\n    </Season>`;
+      return `<Season DateFrom="${p.date_from}" DateTo="${p.date_to}">\n        ${inner}\n      </Season>`;
     })
-    .join('\n    ');
+    .join('\n      ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutPrices_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
   <Prices>
-    ${pricesXml}
+    <Property PropertyID="${propertyId}">
+      <Seasons>
+        ${seasonsXml}
+      </Seasons>
+    </Property>
   </Prices>
 </Push_PutPrices_RQ>`;
 }
