@@ -1,71 +1,39 @@
 
 
-## Plan: Seed RU Locations + Force-Set Currency at Location Level
+## Plan: Execute RU Sub-Account Management Test Suite (Milestone 2)
 
-### Why the previous fix didn't move the needle
+Run the 5-step sub-account test sequence against the live `rentalsunited-api` edge function, capture pass/fail per criterion, and produce a markdown test report artifact.
 
-RU's data model: **currency is owned by the LocationID, not by the property.** A property's `<CurrencyID>` is only honoured when the parent location's currency matches. Fonteinhutte's coords resolved to RU LocationID `83272` (a real Stilbaai locality) — but that location is configured as **USD** in RU. So our push succeeds, RU stores `CurrencyID=48` against the property, then silently overrides it back to the location's USD on read. That's also why `Pull_GetProperty` keeps returning USD even after Status 0 pushes.
+### Test sequence
 
-We never used the three RU endpoints that actually solve this:
-- `Pull_GetLocationByName_RQ` — find the right LocationID by name (better than coords for ambiguous spots).
-- `Pull_ListCitiesAndCurrencies_RQ` — see which currency RU has for each city.
-- `Push_ChangeCurrency_RQ` — flip a location's currency (one-time per location).
+Each step uses `curl_edge_functions` against `/rentalsunited-api`. Results are validated against the documented pass criteria, and a unique timestamp-suffixed email avoids collisions with prior test runs.
 
-### Fix path
+| Step | Action | What we verify |
+|------|--------|----------------|
+| 2.1 | `create_user` with fresh `test-owner-{ts}@example.com` | `success=true`, numeric `user_account_id` captured as `$USER_ACCOUNT_ID` |
+| 2.2 | `list_users` | New user appears in list; capture `owner_id` as `$OWNER_ID` |
+| 2.3 | `fill_company_details` with `ru_property_id=$USER_ACCOUNT_ID` | `success=true`, no RU error |
+| 2.4 | `create_user` again with same email | Document RU's actual idempotency behaviour (error vs same ID returned); ensure no 500 |
+| 2.5 | `create_user` with empty `last_name`/`email`/`password` | Local rejection with `error.code = "VALIDATION"` (no RU round-trip) |
 
-| # | Task | File |
-|---|------|------|
-| L1 | Add three new actions to `rentalsunited-api`: `get_location_by_name`, `list_cities_and_currencies`, `push_change_currency`. Each is a thin XML wrapper. | `rentalsunited-api/index.ts` |
-| L2 | Add a one-shot **seed script** action `seed_ru_locations` in `push-property-to-ru`: pulls `Pull_ListCitiesAndCurrencies_RQ` (filtered to ZA / NA / BW country IDs), upserts results into a new lightweight table `ru_locations (id PK, name, country, currency_iso, currency_ru_id, last_synced_at)`. Used as the source of truth for resolution and as a cache to avoid re-pulling. | `push-property-to-ru/index.ts` + migration |
-| L3 | Upgrade `resolveLocationId` to a 4-step chain: (1) cached `pms_mappings.metadata.ru_location_id` if coords stable → (2) coords lookup → (3) **name lookup** via `Pull_GetLocationByName_RQ` using `property.city`/`property.suburb` filtered to the property's country → (4) country-default city. Each successful resolution checks `ru_locations.currency_iso` and warns if mismatched. | `push-property-to-ru/index.ts` |
-| L4 | Add `reconcile_ru_location_currency` (replaces / extends `reconcile_ru_country_currency`). For each property: (a) resolve the *correct* LocationID via L3, (b) compare `ru_locations.currency_iso` to the property's expected ISO (ZAR/NAD/BWP), (c) if mismatched call `Push_ChangeCurrency_RQ` to flip that location, then (d) re-push the property. Sequential, with a per-location lock so we don't double-flip. | `push-property-to-ru/index.ts` |
-| L5 | Targeted Fonteinhutte fix: run `reconcile_ru_location_currency` for property `00015d06-…`. Expected effect: location `83272` (or whichever ZA locality its coords/name resolve to) gets currency flipped from USD → ZAR; all 9 units re-push and `Pull_GetProperty` then returns `Currency="ZAR"`. | runtime invocation |
-| L6 | Surface a new readiness blocker in `check-activation-readiness`: if `ru_locations` row for the resolved LocationID has `currency_iso !== expected`, block distribution with a clear "RU location currency mismatch — reconcile required" message. | `check-activation-readiness/index.ts` |
-| L7 | Update `RU-Response-QA.md` Section E with: the three new endpoint examples, the discovered platform behaviour (location-owns-currency), and the verification ResponseIDs from L5. | doc |
-| L8 | Update memory `mem://integrations/pms/rentals-united-xml-adapter` with the location-owns-currency rule and the new resolution chain. | memory |
+### Deliverable
 
-### New table (L2)
+A markdown report written to `/mnt/documents/ru-subaccount-test-results.md` containing, for each step:
+- Request payload sent
+- Raw edge function response (truncated to first 1KB if XML is huge)
+- Pass/fail checkbox per criterion from the test spec
+- Captured IDs (`$USER_ACCOUNT_ID`, `$OWNER_ID`) for downstream milestones
+- Final milestone verdict (PASS / PARTIAL / FAIL) with rationale
 
-```sql
-CREATE TABLE public.ru_locations (
-  id           integer PRIMARY KEY,           -- RU LocationID
-  name         text NOT NULL,
-  country      text NOT NULL,
-  currency_iso text,                          -- 'ZAR' | 'USD' | 'NAD' | …
-  currency_ru_id integer,                     -- 48 / 144 / 91 …
-  last_synced_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX ON public.ru_locations (country);
-CREATE INDEX ON public.ru_locations (lower(name));
--- RLS: read for authenticated, write only via service role.
-```
+### Failure handling
 
-### XML snippets to add (L1)
-
-```xml
-<!-- get_location_by_name -->
-<Pull_GetLocationByName_RQ>
-  {auth}
-  <LocationName>{name}</LocationName>
-</Pull_GetLocationByName_RQ>
-
-<!-- push_change_currency -->
-<Push_ChangeCurrency_RQ>
-  {auth}
-  <Location>{ru_location_id}</Location>
-  <Currency>{ISO}</Currency>
-</Push_ChangeCurrency_RQ>
-```
-
-### Verification (success criteria)
-
-After L5 for Fonteinhutte:
-1. `Push_ChangeCurrency_RS` returns Status 0 (or 339 "already set" — both acceptable).
-2. `Pull_GetProperty` for all 9 RUIDs returns `Property Currency="ZAR"`.
-3. LekkeSlaap eligibility flips to ready.
+- If 2.1 fails → halt and report; 2.2/2.3/2.4 depend on it.
+- If 2.2 succeeds but `owner_id` is missing → flag as PARTIAL and inspect raw XML to determine whether RU's `Pull_ListMyUsers_RS` shape includes `OwnerID` under a different tag.
+- If 2.4 returns 500 → mark FAIL and capture full response for debugging `extractUserAccountId` / `handleRUStatus`.
+- If 2.5 hits RU instead of failing locally → flag as code bug (validation order issue at line 1535).
 
 ### Out of scope
-- No UI for browsing RU locations (admin-only edge action).
-- Not flipping currencies for non-ZA/NA/BW locations.
-- Building/UnitTypeID linkage (still pending RU on Q5/C2/C3).
+- No edge function code changes unless a bug is discovered during 2.5 validation.
+- No DB writes — sub-account IDs returned by RU are reported but not persisted to any owner record yet (that's a later milestone).
+- No cleanup of created RU sub-accounts (RU has no delete-user API; test emails are timestamped to avoid pollution).
 
