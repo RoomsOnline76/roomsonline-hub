@@ -494,24 +494,31 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
 }
 
 function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, availability: RUAvailabilityEntry[]): string {
-  // Push_PutAvbUnits_RQ — single-property endpoint; PropertyID stays as a child element.
-  // (RU's PropertyID-as-attribute correction only applied to Push_PutPrices_RQ which is multi-property.)
-  const daysXml = availability
+  // Push_PutAvbUnits_RQ — canonical schema per RU docs:
+  //   https://developer.rentalsunited.com/#upload-available-units
+  // Wrapper is <MuCalendar PropertyID="X"> with <Date From="..." To="..." MSMXTypeID="1">
+  // child elements: <U> units, <MS> min stay, <MX> max stay, <C> changeover.
+  const datesXml = availability
     .map(a => {
-      let attrs = `DateFrom="${a.date_from}" DateTo="${a.date_to}" Units="${a.units}"`;
-      if (a.min_stay != null) attrs += ` MinStay="${a.min_stay}"`;
-      if (a.changeover != null) attrs += ` Changeover="${a.changeover}"`;
-      return `<AvailabilityDay ${attrs} />`;
+      const u = a.units ?? 0;
+      const ms = a.min_stay ?? 1;
+      const mx = a.max_stay ?? 30;
+      const c = a.changeover ?? 1;
+      return `<Date From="${a.date_from}" To="${a.date_to}" MSMXTypeID="1">
+      <U>${u}</U>
+      <MS>${ms}</MS>
+      <MX>${mx}</MX>
+      <C>${c}</C>
+    </Date>`;
     })
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutAvbUnits_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-  <Availability>
-    ${daysXml}
-  </Availability>
+  <MuCalendar PropertyID="${propertyId}">
+    ${datesXml}
+  </MuCalendar>
 </Push_PutAvbUnits_RQ>`;
 }
 
