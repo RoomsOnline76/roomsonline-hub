@@ -493,8 +493,8 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
 }
 
 function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, availability: RUAvailabilityEntry[]): string {
-  // RU schema: PropertyID is an ATTRIBUTE on <PropertyPrices>/<Availability>, NOT a child element.
-  // Status 24 ("not the owner") was being returned for malformed structure — see RU support reply 2026-04-21.
+  // Push_PutAvbUnits_RQ — single-property endpoint; PropertyID stays as a child element.
+  // (RU's PropertyID-as-attribute correction only applied to Push_PutPrices_RQ which is multi-property.)
   const daysXml = availability
     .map(a => {
       let attrs = `DateFrom="${a.date_from}" DateTo="${a.date_to}" Units="${a.units}"`;
@@ -508,11 +508,9 @@ function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, avai
 <Push_PutAvbUnits_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-  <Availabilities>
-    <Availability PropertyID="${propertyId}">
-      ${daysXml}
-    </Availability>
-  </Availabilities>
+  <Availability>
+    ${daysXml}
+  </Availability>
 </Push_PutAvbUnits_RQ>`;
 }
 
