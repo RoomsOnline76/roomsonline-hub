@@ -1585,36 +1585,70 @@ Deno.serve(async (req) => {
     // Pull_ListCitiesAndCurrencies_RQ — list every RU city with its country + assigned currency.
     // Used to seed the public.ru_locations cache. Optionally filtered by country IDs in body.country_ids.
     if (action === 'list_cities_and_currencies') {
-      const xml = `<Pull_ListCitiesProps_RQ>${buildAuthXml(creds)}</Pull_ListCitiesProps_RQ>`;
+      // Pull_ListCitiesAndCurrencies_RQ — returns every RU city with its assigned currency.
+      // Shape: <City CurrencyCode="ZAR" LocationID="1611" Name="Cape Town">...</City>
+      // (NOTE: Pull_ListCitiesProps_RQ is a different endpoint — it only lists cities where
+      // THIS account already has active props. We need the master list to detect currency drift
+      // on locations we haven't pushed yet.)
+      const xml = `<Pull_ListCitiesAndCurrencies_RQ>${buildAuthXml(creds)}</Pull_ListCitiesAndCurrencies_RQ>`;
       const response = await callRentalsUnited(creds, xml);
-      console.log(`[rentalsunited-api] list_cities_and_currencies response (first 500): ${response.substring(0, 500)}`);
+      console.log(`[rentalsunited-api] list_cities_and_currencies response (first 800): ${response.substring(0, 800)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'list_cities_and_currencies', response));
-      // Parse <Location IsActive="..." Type="4" ParentLocationID="..." CurrencyCode="ZAR" Code="...">NAME</Location>
+
       const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
-      const re = /<Location\b([^>]*)>([\s\S]*?)<\/Location>/gi;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(response)) !== null) {
-        const attrs = m[1];
-        const inner = m[2];
+
+      // Try <City ...> first (the correct Pull_ListCitiesAndCurrencies_RQ shape).
+      const cityRe = /<City\b([^>]*)(?:\/>|>([\s\S]*?)<\/City>)/gi;
+      let cm: RegExpExecArray | null;
+      while ((cm = cityRe.exec(response)) !== null) {
+        const attrs = cm[1] || '';
+        const inner = cm[2] || '';
         const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
-        // Some RU dumps put ID inside the body
         const idInner = !idAttr ? /<ID[^>]*>(\d+)<\/ID>/i.exec(inner) : null;
         const id = idAttr ? parseInt(idAttr[1], 10) : (idInner ? parseInt(idInner[1], 10) : NaN);
         if (!Number.isFinite(id)) continue;
         const ccyAttr = /\bCurrencyCode="([A-Z]{3})"/i.exec(attrs);
-        const typeAttr = /\bType="(\d+)"/i.exec(attrs);
+        const nameAttr = /\bName="([^"]+)"/i.exec(attrs);
+        const nameInner = !nameAttr ? /<Name[^>]*>([\s\S]*?)<\/Name>/i.exec(inner) : null;
         const parentAttr = /\bParentLocationID="(\d+)"/i.exec(attrs);
-        const nameInner = /<Name[^>]*>([\s\S]*?)<\/Name>/i.exec(inner);
-        const name = nameInner ? nameInner[1].trim() : inner.replace(/<[^>]+>/g, '').trim();
+        const typeAttr = /\bType="(\d+)"/i.exec(attrs);
+        const rawName = nameAttr ? nameAttr[1] : (nameInner ? nameInner[1].trim() : inner.replace(/<[^>]+>/g, '').trim());
         locs.push({
           id,
-          name,
+          name: rawName || `Location ${id}`,
           parent_id: parentAttr ? parseInt(parentAttr[1], 10) : null,
           currency_iso: ccyAttr ? ccyAttr[1].toUpperCase() : null,
           type: typeAttr ? parseInt(typeAttr[1], 10) : null,
         });
       }
+
+      // Fallback: some deployments wrap in <Location ...> instead.
+      if (locs.length === 0) {
+        const locRe = /<Location\b([^>]*)(?:\/>|>([\s\S]*?)<\/Location>)/gi;
+        let lm: RegExpExecArray | null;
+        while ((lm = locRe.exec(response)) !== null) {
+          const attrs = lm[1] || '';
+          const inner = lm[2] || '';
+          const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
+          const idInner = !idAttr ? /<ID[^>]*>(\d+)<\/ID>/i.exec(inner) : null;
+          const id = idAttr ? parseInt(idAttr[1], 10) : (idInner ? parseInt(idInner[1], 10) : NaN);
+          if (!Number.isFinite(id)) continue;
+          const ccyAttr = /\bCurrencyCode="([A-Z]{3})"/i.exec(attrs);
+          const typeAttr = /\bType="(\d+)"/i.exec(attrs);
+          const parentAttr = /\bParentLocationID="(\d+)"/i.exec(attrs);
+          const nameInner = /<Name[^>]*>([\s\S]*?)<\/Name>/i.exec(inner);
+          const name = nameInner ? nameInner[1].trim() : inner.replace(/<[^>]+>/g, '').trim();
+          locs.push({
+            id,
+            name: name || `Location ${id}`,
+            parent_id: parentAttr ? parseInt(parentAttr[1], 10) : null,
+            currency_iso: ccyAttr ? ccyAttr[1].toUpperCase() : null,
+            type: typeAttr ? parseInt(typeAttr[1], 10) : null,
+          });
+        }
+      }
+
       return jsonResponse({ success: true, locations: locs, count: locs.length, raw_xml: response.length > 8000 ? response.substring(0, 8000) + '…[truncated]' : response });
     }
 
