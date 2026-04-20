@@ -126,11 +126,48 @@ interface RUAvailabilityEntry {
   changeover?: number; // RU <C>: 1=both (default), 2=checkin-only, 3=checkout-only, 4=none
 }
 
+interface RUExtraGuestPrice {
+  extra_guests: number; // ExtraGuests attribute (1, 2, …)
+  price: number;
+}
+
+interface RULosNightlyByGuests {
+  nr_of_guests: number;
+  price: number;
+}
+
+interface RULosPricing {
+  nights: number; // <LOS Nights="N">
+  price: number; // base nightly price for that LOS
+  losps?: RULosNightlyByGuests[]; // optional per-guest overrides
+}
+
 interface RUPriceEntry {
   date_from: string;
   date_to: string;
   price: number;
   extra_guest_price?: number;
+  /** Optional <EGPS> block — extra guest pricing per # of extra guests */
+  extra_guest_prices?: RUExtraGuestPrice[];
+  /** Optional <LOSS> block — length-of-stay nightly pricing */
+  los_pricing?: RULosPricing[];
+}
+
+// Full Stay Pricing matrix (alternative to <Season>)
+interface RUFspPriceCell {
+  nr_of_nights: number;
+  price: number;
+}
+
+interface RUFspRow {
+  nr_of_guests: number;
+  prices: RUFspPriceCell[];
+}
+
+interface RUFspSeason {
+  date: string; // YYYY-MM-DD
+  default_price: number;
+  rows: RUFspRow[];
 }
 
 interface RUDiscountEntry {
