@@ -122,7 +122,8 @@ interface RUAvailabilityEntry {
   date_to: string;
   units: number;
   min_stay?: number;
-  changeover?: number; // 1=CheckInOnly, 2=CheckOutOnly, 3=Both, 4=NoActivity
+  max_stay?: number;
+  changeover?: number; // RU <C>: 1=both (default), 2=checkin-only, 3=checkout-only, 4=none
 }
 
 interface RUPriceEntry {
