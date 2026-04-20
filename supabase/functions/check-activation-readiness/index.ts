@@ -100,6 +100,14 @@ Deno.serve(async (req) => {
     const policiesCheck = checkPoliciesComplete(amenities);
     checks.push(policiesCheck);
 
+    // ============= CHECK 10: Rentals United distribution (country + currency) =============
+    // Only relevant for properties distributed to RU. Validates that we can resolve a
+    // valid RU LocationID (country) and a known RU CurrencyID — failure to do so causes
+    // channel partners (LekkeSlaap, Booking.com, etc.) to silently reject the listing.
+    if (property.rentalsunited_property_id || property.rentalsunited_building_id) {
+      checks.push(checkRentalsUnitedReadiness(property, amenities));
+    }
+
     // Calculate results
     const blockers = checks.filter(c => !c.passed && c.severity === 'blocker');
     const warnings = checks.filter(c => !c.passed && c.severity === 'warning');
@@ -449,6 +457,48 @@ async function checkPMSConflicts(supabase: any, property: any, amenities: Record
     passed: true,
     message: `Connected to ${externalSystem} (${codeLabel}: ${propertyCode})`,
     severity: 'info'
+  };
+}
+
+function checkRentalsUnitedReadiness(property: any, amenities: Record<string, unknown>): QualityCheckResult {
+  const SUPPORTED_COUNTRIES = ['ZA', 'RSA', 'SOUTH AFRICA', 'NA', 'NAMIBIA', 'BW', 'BOTSWANA'];
+  const KNOWN_CURRENCIES = new Set(['ZAR', 'USD', 'EUR', 'GBP', 'NAD', 'BWP', 'AUD', 'CAD', 'CHF', 'JPY', 'NZD', 'AED', 'MZN', 'ZMW']);
+
+  const country = String(property.country || '').trim().toUpperCase();
+  const hasCoords = Number.isFinite(Number(property.latitude)) && Number.isFinite(Number(property.longitude)) && Number(property.latitude) !== 0 && Number(property.longitude) !== 0;
+  const banking = ((amenities as any)?.banking || {}) as Record<string, unknown>;
+  const currencyIso = String(banking.currency || (amenities as any)?.currency || '').trim().toUpperCase();
+  const currencyOk = KNOWN_CURRENCIES.has(currencyIso);
+  const countryOk = !!country && (SUPPORTED_COUNTRIES.includes(country) || hasCoords);
+
+  if (!countryOk) {
+    return {
+      id: 'rentalsunited_geo',
+      name: 'Rentals United distribution',
+      passed: false,
+      message: 'Cannot resolve a Rentals United LocationID — set valid coordinates or a supported country (ZA / NA / BW).',
+      fix: 'Open the General tab → set Country and re-pin the map marker so latitude/longitude are populated.',
+      field: 'country',
+      severity: 'blocker',
+    };
+  }
+  if (!currencyOk) {
+    return {
+      id: 'rentalsunited_geo',
+      name: 'Rentals United distribution',
+      passed: false,
+      message: `Currency "${currencyIso || 'unset'}" is not mapped to a Rentals United CurrencyID — channels (e.g. LekkeSlaap) will reject the listing.`,
+      fix: 'Open the General tab → Banking Details and pick a supported currency (ZAR, USD, EUR, GBP, NAD, BWP).',
+      field: 'amenities.banking.currency',
+      severity: 'warning',
+    };
+  }
+  return {
+    id: 'rentalsunited_geo',
+    name: 'Rentals United distribution',
+    passed: true,
+    message: `Country "${country}" + currency ${currencyIso} ready for Rentals United.`,
+    severity: 'info',
   };
 }
 
