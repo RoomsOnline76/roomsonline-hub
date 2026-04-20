@@ -106,6 +106,41 @@ Deno.serve(async (req) => {
     // channel partners (LekkeSlaap, Booking.com, etc.) to silently reject the listing.
     if (property.rentalsunited_property_id || property.rentalsunited_building_id) {
       checks.push(checkRentalsUnitedReadiness(property, amenities));
+      // Location-owns-currency check: RU stores currency on the LocationID, not the property.
+      // If our cached ru_locations row for this property's resolved location has a different
+      // currency than what we expect, channels will silently use the wrong one.
+      try {
+        const { data: mapping } = await supabase
+          .from('pms_mappings')
+          .select('metadata')
+          .eq('property_id', property_id)
+          .eq('system_type', 'rentals_united')
+          .eq('mapping_type', 'field_mappings')
+          .eq('external_id', '__property__')
+          .maybeSingle();
+        const ruLocId = Number((mapping?.metadata as any)?.ru_location_id);
+        const expectedIso = String(((amenities as any)?.banking?.currency || (amenities as any)?.currency || '')).trim().toUpperCase();
+        if (ruLocId && expectedIso) {
+          const { data: ruLoc } = await supabase
+            .from('ru_locations')
+            .select('currency_iso, name')
+            .eq('id', ruLocId)
+            .maybeSingle();
+          if (ruLoc && ruLoc.currency_iso && ruLoc.currency_iso !== expectedIso) {
+            checks.push({
+              id: 'rentalsunited_location_currency',
+              name: 'Rentals United location currency',
+              passed: false,
+              message: `RU location "${ruLoc.name}" (ID ${ruLocId}) is set to ${ruLoc.currency_iso} but this property expects ${expectedIso}.`,
+              fix: 'Run reconcile_ru_location_currency to flip the location currency, then re-push the property.',
+              field: 'amenities.banking.currency',
+              severity: 'blocker',
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[check-activation-readiness] ru_locations check failed:', e instanceof Error ? e.message : e);
+      }
     }
 
     // Calculate results
