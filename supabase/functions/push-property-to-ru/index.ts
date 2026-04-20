@@ -1459,13 +1459,45 @@ Deno.serve(async (req) => {
 
     const lat = property.latitude || activeRoomTypes[0]?.latitude || 0;
     const lng = property.longitude || activeRoomTypes[0]?.longitude || 0;
-    const locationId = await resolveLocationId(supabase, lat, lng);
+    const country = property.country;
+
+    // Resolve currency once for the whole push so every unit uses the same value.
+    const currencyId = mapCurrencyToRUId(property.amenities as Record<string, unknown> | null, country);
+
+    // Prefer cached RU location/currency if coords haven't drifted (T5).
+    const cached = await loadRuPropertyMapping(supabase, property_id);
+    const coordsHash = hashCoords(lat, lng);
+    let locationId = 0;
+    if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
+      locationId = Number(cached.ru_location_id);
+      console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
+    } else {
+      locationId = await resolveLocationId(supabase, lat, lng, country);
+    }
+
+    if (!locationId || locationId <= 1) {
+      return new Response(
+        JSON.stringify({ success: false, error: { code: 'LOCATION_UNRESOLVED', message: `Could not resolve a Rentals United LocationID for this property. Coordinates: (${lat}, ${lng}), country: "${country || 'unset'}". Set valid coordinates or a supported country (ZA/NA/BW) before pushing.` } }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Persist resolved geo+currency for re-use & audit (skip on dry runs).
+    if (!dry_run) {
+      await persistRuPropertyMapping(supabase, property_id, {
+        ru_location_id: locationId,
+        ru_currency_id: currencyId,
+        ru_country: country ?? null,
+        coords_hash: coordsHash,
+      });
+    }
+
     // ── RU OwnerID: ALWAYS use master account ─────────────────
     // Sub-account creation is not yet approved/active by RU. Until further
     // notice, all properties (create + update + ARI) run under the master
     // account so credentials match ownership and ARI pushes succeed.
     const ruOwnerId = 738925; // master account
-    console.log(`[push-property-to-ru] Using master RU OwnerID ${ruOwnerId} (sub-accounts disabled)`);
+    console.log(`[push-property-to-ru] Using master RU OwnerID ${ruOwnerId} (sub-accounts disabled), CurrencyID=${currencyId}, LocationID=${locationId}`);
 
     // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
     if (isMultiUnit) {
