@@ -561,31 +561,123 @@ function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, avai
 }
 
 function buildPushPricesXml(creds: RUCredentials, propertyId: number, prices: RUPriceEntry[]): string {
-  // RU schema fix (per RU support 2026-04-21):
-  //   1. PropertyID must be an ATTRIBUTE on <Prices>, not a child element.
-  //   2. <Season> must use DateFrom/DateTo as ATTRIBUTES, not child elements.
-  //   3. <Price> stays as a child of <Season>; ExtraGuestPrice maps to <Extra>.
+  // Canonical RU schema (https://developer.rentalsunited.com/#put-prices):
+  //   <Prices PropertyID="X">
+  //     <Season DateFrom="..." DateTo="...">
+  //       <Price>...</Price>
+  //       <Extra>...</Extra>           <!-- optional -->
+  //       <LOSS>...</LOSS>             <!-- optional, length-of-stay nightly pricing -->
+  //       <EGPS>...</EGPS>             <!-- optional, extra-guest pricing -->
+  //     </Season>
+  //   </Prices>
+  // Element ordering inside <Season>: Price → Extra → LOSS → EGPS.
   const seasonsXml = prices
     .map(p => {
-      let inner = `<Price>${p.price}</Price>`;
+      const parts: string[] = [`<Price>${p.price}</Price>`];
       if (p.extra_guest_price != null) {
-        inner += `\n        <Extra>${p.extra_guest_price}</Extra>`;
+        parts.push(`<Extra>${p.extra_guest_price}</Extra>`);
       }
-      return `<Season DateFrom="${p.date_from}" DateTo="${p.date_to}">\n        ${inner}\n      </Season>`;
+      if (p.los_pricing && p.los_pricing.length > 0) {
+        const losXml = p.los_pricing
+          .map(los => {
+            const lospsXml = los.losps && los.losps.length > 0
+              ? `\n          <LOSPS>${los.losps.map(lp => `\n            <LOSP NrOfGuests="${lp.nr_of_guests}"><Price>${lp.price}</Price></LOSP>`).join('')}\n          </LOSPS>`
+              : '';
+            return `<LOS Nights="${los.nights}"><Price>${los.price}</Price>${lospsXml}</LOS>`;
+          })
+          .join('\n        ');
+        parts.push(`<LOSS>\n        ${losXml}\n      </LOSS>`);
+      }
+      if (p.extra_guest_prices && p.extra_guest_prices.length > 0) {
+        const egpsXml = p.extra_guest_prices
+          .map(eg => `<EGP ExtraGuests="${eg.extra_guests}"><Price>${eg.price}</Price></EGP>`)
+          .join('\n        ');
+        parts.push(`<EGPS>\n        ${egpsXml}\n      </EGPS>`);
+      }
+      return `<Season DateFrom="${p.date_from}" DateTo="${p.date_to}">\n      ${parts.join('\n      ')}\n    </Season>`;
+    })
+    .join('\n    ');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutPrices_RQ>
+  ${buildAuthXml(creds)}
+  <Prices PropertyID="${propertyId}">
+    ${seasonsXml}
+  </Prices>
+</Push_PutPrices_RQ>`;
+}
+
+function buildPushFspPricesXml(creds: RUCredentials, propertyId: number, fspSeasons: RUFspSeason[]): string {
+  // Full Stay Pricing matrix (https://developer.rentalsunited.com/#put-prices, Example 2):
+  //   <Prices PropertyID><FSPSeasons><FSPSeason Date DefaultPrice>
+  //     <FSPRows><FSPRow NrOfGuests><Prices><Price NrOfNights>...</Price></Prices></FSPRow></FSPRows>
+  //   </FSPSeason></FSPSeasons></Prices>
+  // Mutually exclusive with the standard <Season> form.
+  const seasonsXml = fspSeasons
+    .map(s => {
+      const rowsXml = s.rows
+        .map(r => {
+          const pricesXml = r.prices
+            .map(c => `<Price NrOfNights="${c.nr_of_nights}">${c.price}</Price>`)
+            .join('\n              ');
+          return `<FSPRow NrOfGuests="${r.nr_of_guests}">
+            <Prices>
+              ${pricesXml}
+            </Prices>
+          </FSPRow>`;
+        })
+        .join('\n          ');
+      return `<FSPSeason Date="${s.date}" DefaultPrice="${s.default_price}">
+        <FSPRows>
+          ${rowsXml}
+        </FSPRows>
+      </FSPSeason>`;
     })
     .join('\n      ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutPrices_RQ>
   ${buildAuthXml(creds)}
-  <Prices>
-    <Property PropertyID="${propertyId}">
-      <Seasons>
-        ${seasonsXml}
-      </Seasons>
-    </Property>
+  <Prices PropertyID="${propertyId}">
+    <FSPSeasons>
+      ${seasonsXml}
+    </FSPSeasons>
   </Prices>
 </Push_PutPrices_RQ>`;
+}
+
+function validatePriceEntry(p: RUPriceEntry): string | null {
+  if (!p.date_from || !p.date_to) return 'date_from and date_to are required';
+  if (p.date_from > p.date_to) return `DateFrom (${p.date_from}) must be <= DateTo (${p.date_to})`;
+  if (p.price == null || p.price < 0) return 'price must be >= 0';
+  if (p.los_pricing) {
+    for (const los of p.los_pricing) {
+      if (los.nights == null || los.nights <= 0) return 'LOS nights must be > 0';
+      if (los.price == null || los.price < 0) return 'LOS price must be >= 0';
+    }
+  }
+  if (p.extra_guest_prices) {
+    for (const eg of p.extra_guest_prices) {
+      if (eg.extra_guests == null || eg.extra_guests <= 0) return 'EGP extra_guests must be > 0';
+      if (eg.price == null || eg.price < 0) return 'EGP price must be >= 0';
+    }
+  }
+  return null;
+}
+
+function validateFspSeason(s: RUFspSeason): string | null {
+  if (!s.date) return 'FSP date is required';
+  if (s.default_price == null || s.default_price < 0) return 'FSP default_price must be >= 0';
+  if (!s.rows || s.rows.length === 0) return 'FSP rows are required';
+  for (const r of s.rows) {
+    if (r.nr_of_guests == null || r.nr_of_guests <= 0) return 'FSP nr_of_guests must be > 0';
+    if (!r.prices || r.prices.length === 0) return 'FSP row prices required';
+    for (const c of r.prices) {
+      if (c.nr_of_nights == null || c.nr_of_nights <= 0) return 'FSP nr_of_nights must be > 0';
+      if (c.price == null || c.price < 0) return 'FSP price must be >= 0';
+    }
+  }
+  return null;
 }
 
 function buildGetLongStayDiscountsXml(creds: RUCredentials, propertyId: number): string {
