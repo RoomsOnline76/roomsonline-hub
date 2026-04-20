@@ -16,7 +16,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
  * Push (write) actions:
  * - push_property: Push_PutProperty_RQ
  * - push_availability: Push_PutAvbUnits_RQ
- * - push_prices: Push_PutPrices_RQ
+ * - push_prices: Push_PutPrices_RQ (standard <Season> with optional EGPS/LOSS)
+ * - push_prices_fsp: Push_PutPrices_RQ (Full Stay Pricing matrix)
  * - subscribe_notifications: LNM_PutHandlerUrl_RQ
  * - push_long_stay_discounts: Push_PutLongStayDiscounts_RQ
  * - push_last_minute_discounts: Push_PutLastMinuteDiscounts_RQ
