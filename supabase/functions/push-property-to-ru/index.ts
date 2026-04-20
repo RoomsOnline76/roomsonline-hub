@@ -558,7 +558,7 @@ async function resolveRuOwnerAccount(
 }
 
 // Legacy single-property payload builder (kept for properties with no room types)
-function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number) {
+function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number) {
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
   const objectTypeId = PROPERTY_TYPE_MAP[
@@ -597,6 +597,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: numberOfBeds,
+    currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
     owner_id: 738925, no_of_units: 1, floor: 0, space, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
