@@ -1282,14 +1282,47 @@ Deno.serve(async (req) => {
     }
 
     // ── push_prices (mandatory) ──
+    // RU returns Status 0 (full success) or Status 5 (partial — see <Notifs>) per
+    // https://developer.rentalsunited.com/#put-prices. Treat 5 as partial-success.
     if (action === 'push_prices') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.prices || body.prices.length === 0) return errorResponse('MISSING_PARAM', 'prices array is required');
+      for (const p of body.prices) {
+        const err = validatePriceEntry(p);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid price entry: ${err}`);
+      }
       const xml = buildPushPricesXml(creds, ru_property_id, body.prices);
       const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Prices pushed successfully', raw_xml: response });
+      const { ok, partial, status, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'Prices pushed with partial errors' : 'Prices pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
+    }
+
+    // ── push_prices_fsp (Full Stay Pricing matrix — alternative to push_prices) ──
+    if (action === 'push_prices_fsp') {
+      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
+      if (!body.fsp_seasons || body.fsp_seasons.length === 0) return errorResponse('MISSING_PARAM', 'fsp_seasons array is required');
+      for (const s of body.fsp_seasons) {
+        const err = validateFspSeason(s);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid FSP season: ${err}`);
+      }
+      const xml = buildPushFspPricesXml(creds, ru_property_id, body.fsp_seasons);
+      const response = await callRentalsUnited(creds, xml);
+      const { ok, partial, status, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'FSP prices pushed with partial errors' : 'FSP prices pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
     }
 
     // ── subscribe_notifications (mandatory RNLM) ──
