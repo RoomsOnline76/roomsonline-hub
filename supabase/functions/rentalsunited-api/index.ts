@@ -1163,22 +1163,42 @@ Deno.serve(async (req) => {
     if (action === 'push_long_stay_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      for (const d of body.discounts) {
+        const err = validateDiscountEntry(d);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid long stay discount: ${err}`);
+      }
       const xml = buildPushLongStayDiscountsXml(creds, ru_property_id, body.discounts);
       const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Long stay discounts pushed successfully', raw_xml: response });
+      const { ok, status, partial, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'Long stay discounts pushed with partial errors' : 'Long stay discounts pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
     }
 
     // ── push_last_minute_discounts (optional) ──
     if (action === 'push_last_minute_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      for (const d of body.discounts) {
+        const err = validateDiscountEntry(d);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid last minute discount: ${err}`);
+      }
       const xml = buildPushLastMinuteDiscountsXml(creds, ru_property_id, body.discounts);
       const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Last minute discounts pushed successfully', raw_xml: response });
+      const { ok, status, partial, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'Last minute discounts pushed with partial errors' : 'Last minute discounts pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
     }
 
     // ── set_property_status ──
