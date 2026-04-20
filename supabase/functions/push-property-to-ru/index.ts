@@ -316,6 +316,7 @@ function buildUnitPayload(
   unit: RoomTypeRow,
   locationId: number,
   buildingId?: number,
+  currencyId?: number,
 ) {
   const amenities = property.amenities || {};
   const unitType = (unit.property_type || property.property_type || 'apartment').toLowerCase().replace(/[\s-]+/g, '_');
@@ -437,6 +438,7 @@ function buildUnitPayload(
     can_sleep_max: maxGuests,
     standard_guests: Math.ceil(maxGuests * 0.7),
     number_of_beds: beds,
+    currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
     owner_id: 738925, // Will be overridden by resolveRuOwnerAccount
     no_of_units: 1,
     floor: 0,
