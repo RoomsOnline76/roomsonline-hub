@@ -1,68 +1,52 @@
 
 
-## Plan: Fix RU Country & Currency Resolution
+## Plan: Force-Re-Push Fonteinhutte (Jongensfontein) Units to RU + Verify
 
-### Root Causes
+### Diagnosis (already confirmed)
 
-**Issue 1 — Currency is never sent to RU.**
-`buildPushPropertyXml` in `supabase/functions/rentalsunited-api/index.ts` emits no `<CurrencyID>` element. RU's property schema requires it (e.g. ZAR = `48`, USD = `144`, NAD = `91`). Without it, RU falls back to the **master account's default currency**, which is why LekkeSlaap reports "ZAR currency not met" — the property silently inherits the wrong currency regardless of what we configured locally.
+Direct query to RU `Pull_GetProperty` for two Fonteinhutte units returned:
 
-**Issue 2 — Country derives from `DetailedLocationID`, which falls back to `1`.**
-RU has no `<CountryID>` field — country is implied by `DetailedLocationID`. Today:
-- `resolveLocationId(lat, lng)` calls `Pull_GetLocationByCoordinates_RQ`.
-- On any failure (missing coordinates, RU silent miss, network error) it returns **`1`** — that is RU's "Andorra/test" location, not South Africa.
-- Properties pushed with `DetailedLocationID=1` are tagged as the wrong country → fail LekkeSlaap's "ZA or NA" eligibility check.
+| RUID | Name | RU `Currency` | RU `DetailedLocationID` | Last Mod |
+|------|------|---------------|------------------------|----------|
+| 4692658 | GALJOEN | **USD** ❌ | 83272 | 2026-04-19 19:02 |
+| 4692654 | BLAASOPPIE | **USD** ❌ | 83272 | 2026-04-19 19:02 |
 
-**Issue 3 — No persistence of the resolved LocationID.**
-Every push re-resolves location at runtime. If RU's coord lookup is flaky we silently regress to `1` even on properties we previously pushed correctly.
+- All 9 units (`GALJOEN`, `BLAASOPPIE`, `KAREL GROOTOOG`, `MOSSELKRAKER`, `KABELJOU`, `KAAPSE NOOINTJIE`, `ROMAN`, `PEREKIL`, `STEENBRAS`) belong to building **Fonteinhutte Self-Catering Chalets** (`00015d06-…`), owner `julius@polka.co.za`, country **South Africa**, coords `-34.43, 21.34`.
+- DB has correct `country = 'South Africa'`, `amenities.currency = 'ZAR'`.
+- Code fix (CurrencyID + LocationID) is **deployed**, but the units were **last pushed before the fix** — they still carry the old USD inheritance and stale `DetailedLocationID=83272` (which is why LekkeSlaap rejects them).
 
-### Fixes
+### Fix path
 
-| # | Task | File |
-|---|------|------|
-| T1 | Add `<CurrencyID>` element to `Push_PutProperty_RQ`, positioned per RU XSD (after `OwnerID`, before `DetailedLocationID`). Update memory's strict element order accordingly. | `rentalsunited-api/index.ts` (`buildPushPropertyXml`) |
-| T2 | Extend `RUPropertyPayload` interface with `currency_id: number` (mandatory, non-zero). Add `validatePropertyPayload` guard rejecting `currency_id <= 0`. | same |
-| T3 | Build `mapCurrencyToRUId()` helper with the RU currency dictionary (ZAR=48, USD=144, NAD=91, EUR=47, GBP=49, BWP=24, plus common fallbacks). Source from `amenities.banking.currency` first, then `amenities.currency`, defaulting to `48` (ZAR) for ZA/NA properties. | `push-property-to-ru/index.ts` |
-| T4 | Harden `resolveLocationId`: never return `1`. If RU lookup fails or coords missing → fall back to a per-country **default city LocationID lookup table** (ZA→Cape Town, NA→Windhoek, etc.) keyed by `property.country`. If that also fails, **abort the push with a clear validation error** rather than tagging the property with the wrong country. | `push-property-to-ru/index.ts` |
-| T5 | Persist resolved `detailed_location_id` and `currency_id` to a new `pms_mappings.metadata` JSON block (keys: `ru_location_id`, `ru_currency_id`, `ru_country`). On subsequent pushes, prefer the stored value over re-resolving — re-resolve only when coordinates change or `metadata.ru_location_id` is missing. | `push-property-to-ru/index.ts` + new migration if needed (likely just JSON, no schema change) |
-| T6 | Add a one-shot **back-fill action** (`reconcile_ru_country_currency`) that iterates all properties with `rentalsunited_property_id`, re-resolves their location + currency from local data, and re-pushes them so RU records are corrected for LekkeSlaap and other channel checks. | `push-property-to-ru/index.ts` |
-| T7 | Add a small validation banner in the property activation readiness check (`check-activation-readiness`) for RU-distributed properties: blocker if no resolvable RU LocationID, warning if currency is unmapped. | `check-activation-readiness/index.ts` |
-| T8 | Update `mem://integrations/pms/rentals-united-xml-adapter` — append CurrencyID requirement, the country-default city fallback table, and the persistence rule. | memory |
-| T9 | Verification: push Steenbok end-to-end → call RU `Pull_GetProperty` → confirm `CurrencyID=48` and `DetailedLocationID` resolves to a ZA city. Document the new `Push_PutProperty_RS` ResponseID in `RU-Response-QA.md`. | edge function curl + doc |
+Only one operation is required — invoke the `reconcile_ru_country_currency` action that already exists in `push-property-to-ru`, scoped to this property's id. The function will:
+1. Re-resolve `currency_id` → **48 (ZAR)** via `mapCurrencyToRUId(amenities, 'South Africa')`.
+2. Re-resolve `DetailedLocationID` via coords → fall back to ZA default city (Cape Town `1611`) if coord lookup fails.
+3. Re-push every RU unit under Fonteinhutte (multi-unit fan-out: all 9 RUIDs).
+4. Persist resolved values into `pms_mappings.metadata` (`ru_currency_id`, `ru_location_id`, `ru_country`, `coords_hash`) so subsequent pushes don't drift.
 
-### Currency dictionary (T3 reference)
+### Steps
 
-| ISO | RU CurrencyID |
-|-----|--------------|
-| ZAR | 48 |
-| USD | 144 |
-| EUR | 47 |
-| GBP | 49 |
-| NAD | 91 |
-| BWP | 24 |
-
-### Country → default city LocationID fallback (T4 reference)
-
-| Country | RU LocationID (city) |
-|---------|---------------------|
-| South Africa | TBD via `Pull_ListLocations_RQ` (Cape Town) |
-| Namibia | TBD (Windhoek) |
-| Botswana | TBD (Gaborone) |
-
-These IDs will be fetched once via `list_locations` and hard-coded in a tiny dictionary; coordinates remain the primary source.
+| # | Action |
+|---|--------|
+| S1 | Invoke `push-property-to-ru` with `{ "action": "reconcile_ru_country_currency", "property_ids": ["00015d06-a9cb-4e82-a62e-a7685e5d7c33"] }` |
+| S2 | Capture per-unit push response IDs and any failures |
+| S3 | Re-pull `Pull_GetProperty` for **all 9 RUIDs** and assert `Property Currency="ZAR"` and `DetailedLocationID` resolves to a ZA city (≠ 83272 if 83272 is non-ZA, or stays 83272 if it is in fact a Jongensfontein/Stilbaai locality and only currency was wrong) |
+| S4 | If S3 still shows `Currency="USD"` for any unit, dump the request XML (`buildPushPropertyXml` output) into the logs and confirm `<CurrencyID>48</CurrencyID>` is being emitted — if missing, hot-fix the adapter; if emitted, escalate to RU support with the ResponseID |
+| S5 | Update `RU-Response-QA.md` with verification ResponseIDs (Section E) |
+| S6 | Re-trigger LekkeSlaap eligibility check on the property (no code change — RU pushes the update on next channel sync) |
 
 ### Out of scope
-- No UI for picking RU CurrencyID — derived from existing `amenities.banking.currency` set in the General tab (Banking Details → Currency, already in place per memory `mem://features/property-management/banking-details-currency`).
-- No changes to availability / pricing / discount builders — all confirmed Status 0.
-- Not touching `building_id` / `unit_type_object_id` linkage.
+- No code changes (fix is already deployed).
+- Not touching other properties — scoped strictly to Fonteinhutte's 9 units.
+- `cron-push-all-properties-to-ru` will eventually catch any sibling drift; no need to wait for it.
 
-### Verification
-After T9, expected:
+### Verification (success criteria)
+
 ```xml
-<Push_PutProperty_RS>
-  <Status ID="0">Success</Status>
-  <PropertyID>4707752</PropertyID>
-</Push_PutProperty_RS>
+<Property Currency="ZAR">
+  <ID …>4692658</ID>
+  <DetailedLocationID TypeID="4">…ZA city ID…</DetailedLocationID>
+</Property>
 ```
-+ subsequent `Pull_GetProperty_RQ` confirms `CurrencyID=48` and `DetailedLocationID` resolves to a South African city. LekkeSlaap eligibility check should then flip to "1/1 properties ready".
+
+For all 9 RUIDs. If any remains USD after S1–S2 succeed, S4 escalates with concrete request/response evidence.
 
