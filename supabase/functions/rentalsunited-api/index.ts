@@ -825,6 +825,39 @@ function handleRUStatus(response: string): { ok: boolean; status: { id: string; 
   return { ok: status.id === '0', status };
 }
 
+interface RUNotif {
+  status_id: string;
+  date_from?: string;
+  date_to?: string;
+  message: string;
+}
+
+function parseRUNotifs(xml: string): RUNotif[] {
+  const notifs: RUNotif[] = [];
+  const regex = /<Notif\s+([^>]*)>([\s\S]*?)<\/Notif>/g;
+  let m;
+  while ((m = regex.exec(xml)) !== null) {
+    const attrs = m[1];
+    const message = m[2].trim();
+    const sid = attrs.match(/StatusID="([^"]*)"/)?.[1] ?? '';
+    const df = attrs.match(/DateFrom="([^"]*)"/)?.[1];
+    const dt = attrs.match(/DateTo="([^"]*)"/)?.[1];
+    notifs.push({ status_id: sid, date_from: df, date_to: dt, message });
+  }
+  return notifs;
+}
+
+// For Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ:
+//   Status ID 0 = full success, Status ID 5 = partial (some ranges failed, see <Notifs>),
+//   anything else = full failure.
+function parseDiscountResponse(response: string): { ok: boolean; partial: boolean; status: { id: string; message: string }; notifs: RUNotif[] } {
+  const status = extractStatusId(response);
+  const notifs = parseRUNotifs(response);
+  const ok = status.id === '0';
+  const partial = status.id === '5';
+  return { ok, partial, status, notifs };
+}
+
 function ruErrorResponse(status: { id: string; message: string }, diagnostics?: Record<string, unknown>): Response {
   return jsonResponse({
     success: false,
