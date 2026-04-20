@@ -185,16 +185,128 @@ function mapCancellationPolicies(amenities: Record<string, unknown> | null): { v
   return rules;
 }
 
-async function resolveLocationId(supabase: any, lat: number, lng: number): Promise<number> {
-  if (!lat || !lng) return 1;
+// ── Currency mapping (RU CurrencyID dictionary) ──────────────
+// Sourced from Pull_ListCurrencies_RQ. ZAR/NAD/BWP added explicitly because they're our
+// primary southern-African markets and were silently falling back to the master default.
+const RU_CURRENCY_BY_ISO: Record<string, number> = {
+  ZAR: 48, USD: 144, EUR: 47, GBP: 49,
+  NAD: 91, BWP: 24, AUD: 6, CAD: 32,
+  CHF: 39, JPY: 76, NZD: 94, AED: 1,
+  MZN: 88, ZMW: 175,
+};
+
+function mapCurrencyToRUId(amenities: Record<string, unknown> | null, country?: string | null): number {
+  const banking = ((amenities as any)?.banking || {}) as Record<string, unknown>;
+  const isoRaw =
+    (banking.currency as string) ||
+    ((amenities as any)?.currency as string) ||
+    '';
+  const iso = String(isoRaw || '').trim().toUpperCase();
+  if (iso && RU_CURRENCY_BY_ISO[iso]) return RU_CURRENCY_BY_ISO[iso];
+  // Country-based defaults for southern Africa where channel partners enforce currency.
+  const c = String(country || '').trim().toUpperCase();
+  if (c === 'SOUTH AFRICA' || c === 'ZA' || c === 'RSA') return 48;
+  if (c === 'NAMIBIA' || c === 'NA') return 91;
+  if (c === 'BOTSWANA' || c === 'BW') return 24;
+  // Final fallback — ZAR (matches our primary market). Validation in adapter still rejects 0/null.
+  return 48;
+}
+
+// ── Country → default city LocationID fallback ───────────────
+// Used when Pull_GetLocationByCoordinates_RQ returns nothing usable. These IDs are real
+// RU LocationIDs harvested via Pull_ListLocations_RQ. Better to tag a property "Cape Town"
+// than fall through to LocationID=1 (Andorra/test) which fails channel eligibility checks.
+const RU_DEFAULT_CITY_BY_COUNTRY: Record<string, number> = {
+  'SOUTH AFRICA': 1611, // Cape Town
+  ZA: 1611,
+  RSA: 1611,
+  NAMIBIA: 7867,        // Windhoek
+  NA: 7867,
+  BOTSWANA: 1495,       // Gaborone
+  BW: 1495,
+};
+
+async function resolveLocationId(
+  supabase: any,
+  lat: number,
+  lng: number,
+  country?: string | null,
+): Promise<number> {
+  // 1. Try RU coordinate lookup
+  if (lat && lng) {
+    try {
+      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+        body: { action: 'get_location_by_coordinates', metadata: { latitude: lat, longitude: lng } },
+      });
+      const id = Number(data?.location_id);
+      if (!error && data?.success && Number.isFinite(id) && id > 1) {
+        console.log(`[push-property-to-ru] Resolved LocationID via coords: ${id}`);
+        return id;
+      }
+      console.warn(`[push-property-to-ru] Coord lookup unusable (id=${data?.location_id}, err=${error?.message ?? 'none'}) — trying country fallback`);
+    } catch (e) {
+      console.warn(`[push-property-to-ru] Coord lookup threw — trying country fallback:`, e instanceof Error ? e.message : e);
+    }
+  }
+  // 2. Country fallback
+  const key = String(country || '').trim().toUpperCase();
+  if (key && RU_DEFAULT_CITY_BY_COUNTRY[key]) {
+    const fallback = RU_DEFAULT_CITY_BY_COUNTRY[key];
+    console.log(`[push-property-to-ru] Using country-default LocationID for "${key}": ${fallback}`);
+    return fallback;
+  }
+  // 3. Hard fail — never silently return 1 (= Andorra / test sentinel).
+  console.error(`[push-property-to-ru] LocationID unresolvable (lat=${lat}, lng=${lng}, country=${country}) — refusing to default to 1`);
+  return 0;
+}
+
+// ── pms_mappings persistence helpers ─────────────────────────
+
+async function loadRuPropertyMapping(
+  supabase: any,
+  propertyId: string,
+): Promise<{ ru_location_id?: number; ru_currency_id?: number; ru_country?: string; coords_hash?: string } | null> {
   try {
-    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'get_location_by_coordinates', metadata: { latitude: lat, longitude: lng } },
-    });
-    if (error || !data?.success || !data?.location_id) return 1;
-    console.log(`[push-property-to-ru] Resolved LocationID: ${data.location_id}`);
-    return data.location_id;
-  } catch { return 1; }
+    const { data } = await supabase
+      .from('pms_mappings')
+      .select('metadata')
+      .eq('property_id', propertyId)
+      .eq('system_type', 'rentals_united')
+      .eq('mapping_type', 'field_mappings')
+      .eq('external_id', '__property__')
+      .maybeSingle();
+    return (data?.metadata as any) || null;
+  } catch { return null; }
+}
+
+async function persistRuPropertyMapping(
+  supabase: any,
+  propertyId: string,
+  data: { ru_location_id: number; ru_currency_id: number; ru_country: string | null; coords_hash: string },
+): Promise<void> {
+  try {
+    await supabase.from('pms_mappings').upsert({
+      property_id: propertyId,
+      mapping_type: 'field_mappings',
+      system_type: 'rentals_united',
+      external_id: '__property__',
+      metadata: {
+        mapping_kind: 'property_geo_currency',
+        authority: 'rentals_united',
+        ru_location_id: data.ru_location_id,
+        ru_currency_id: data.ru_currency_id,
+        ru_country: data.ru_country,
+        coords_hash: data.coords_hash,
+        updated_at: new Date().toISOString(),
+      },
+    }, { onConflict: 'property_id,system_type,mapping_type,external_id' });
+  } catch (e) {
+    console.warn('[push-property-to-ru] Failed to persist geo/currency mapping:', e instanceof Error ? e.message : e);
+  }
+}
+
+function hashCoords(lat: number, lng: number): string {
+  return `${(Number(lat) || 0).toFixed(5)},${(Number(lng) || 0).toFixed(5)}`;
 }
 
 // ── Build RU payload for a single unit ───────────────────────
