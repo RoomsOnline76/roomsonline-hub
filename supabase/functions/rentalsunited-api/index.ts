@@ -574,33 +574,58 @@ function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string
 </LNM_PutHandlerUrl_RQ>`;
 }
 
+function validateDiscountEntry(d: RUDiscountEntry): string | null {
+  if (!d.date_from || !d.date_to) return 'date_from and date_to are required';
+  if (d.date_from > d.date_to) return `DateFrom (${d.date_from}) must be <= DateTo (${d.date_to})`;
+  if (d.nights_from == null || d.nights_from < 0) return 'nights_from must be >= 0';
+  if (d.nights_to != null && d.nights_to < d.nights_from) return `nights_to (${d.nights_to}) must be >= nights_from (${d.nights_from})`;
+  if (d.discount_percentage == null || d.discount_percentage < 0 || d.discount_percentage > 100) return 'discount_percentage must be 0-100';
+  return null;
+}
+
 function buildPushLongStayDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
-  const discountsXml = discounts
-    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" NightsFrom="${d.nights_from}"${d.nights_to != null ? ` NightsTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+  // Push_PutLongStayDiscounts_RQ — canonical RU schema:
+  //   https://developer.rentalsunited.com/#put-long-stay-discounts
+  //   <LongStays PropertyID="X">
+  //     <LongStay DateFrom="..." DateTo="..." Bigger="N" Smaller="N">PERCENT</LongStay>
+  //   </LongStays>
+  // Bigger = min nights (inclusive), Smaller = max nights (inclusive), inner text = % off.
+  const longStaysXml = discounts
+    .map(d => {
+      const smaller = d.nights_to != null ? ` Smaller="${d.nights_to}"` : '';
+      return `<LongStay DateFrom="${d.date_from}" DateTo="${d.date_to}" Bigger="${d.nights_from}"${smaller}>${d.discount_percentage}</LongStay>`;
+    })
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutLongStayDiscounts_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-  <LongStayDiscounts>
-    ${discountsXml}
-  </LongStayDiscounts>
+  <LongStays PropertyID="${propertyId}">
+    ${longStaysXml}
+  </LongStays>
 </Push_PutLongStayDiscounts_RQ>`;
 }
 
 function buildPushLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number, discounts: RUDiscountEntry[]): string {
-  const discountsXml = discounts
-    .map(d => `<Discount DateFrom="${d.date_from}" DateTo="${d.date_to}" DaysToArrivalFrom="${d.nights_from}"${d.nights_to != null ? ` DaysToArrivalTo="${d.nights_to}"` : ''} Percentage="${d.discount_percentage}" />`)
+  // Push_PutLastMinuteDiscounts_RQ — canonical RU schema:
+  //   https://developer.rentalsunited.com/#put-last-minute-discounts
+  //   <LastMinutes PropertyID="X">
+  //     <LastMinute DateFrom="..." DateTo="..." DaysToArrivalFrom="N" DaysToArrivalTo="N">PERCENT</LastMinute>
+  //   </LastMinutes>
+  // For last-minute: nights_from -> DaysToArrivalFrom, nights_to -> DaysToArrivalTo, inner text = % off.
+  const lastMinutesXml = discounts
+    .map(d => {
+      const to = d.nights_to != null ? ` DaysToArrivalTo="${d.nights_to}"` : '';
+      return `<LastMinute DateFrom="${d.date_from}" DateTo="${d.date_to}" DaysToArrivalFrom="${d.nights_from}"${to}>${d.discount_percentage}</LastMinute>`;
+    })
     .join('\n    ');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_PutLastMinuteDiscounts_RQ>
   ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-  <LastMinuteDiscounts>
-    ${discountsXml}
-  </LastMinuteDiscounts>
+  <LastMinutes PropertyID="${propertyId}">
+    ${lastMinutesXml}
+  </LastMinutes>
 </Push_PutLastMinuteDiscounts_RQ>`;
 }
 
@@ -798,6 +823,39 @@ function extractUsers(xml: string): { user_account_id: string; email: string; fi
 function handleRUStatus(response: string): { ok: boolean; status: { id: string; message: string } } {
   const status = extractStatusId(response);
   return { ok: status.id === '0', status };
+}
+
+interface RUNotif {
+  status_id: string;
+  date_from?: string;
+  date_to?: string;
+  message: string;
+}
+
+function parseRUNotifs(xml: string): RUNotif[] {
+  const notifs: RUNotif[] = [];
+  const regex = /<Notif\s+([^>]*)>([\s\S]*?)<\/Notif>/g;
+  let m;
+  while ((m = regex.exec(xml)) !== null) {
+    const attrs = m[1];
+    const message = m[2].trim();
+    const sid = attrs.match(/StatusID="([^"]*)"/)?.[1] ?? '';
+    const df = attrs.match(/DateFrom="([^"]*)"/)?.[1];
+    const dt = attrs.match(/DateTo="([^"]*)"/)?.[1];
+    notifs.push({ status_id: sid, date_from: df, date_to: dt, message });
+  }
+  return notifs;
+}
+
+// For Push_PutLongStayDiscounts_RQ / Push_PutLastMinuteDiscounts_RQ:
+//   Status ID 0 = full success, Status ID 5 = partial (some ranges failed, see <Notifs>),
+//   anything else = full failure.
+function parseDiscountResponse(response: string): { ok: boolean; partial: boolean; status: { id: string; message: string }; notifs: RUNotif[] } {
+  const status = extractStatusId(response);
+  const notifs = parseRUNotifs(response);
+  const ok = status.id === '0';
+  const partial = status.id === '5';
+  return { ok, partial, status, notifs };
 }
 
 function ruErrorResponse(status: { id: string; message: string }, diagnostics?: Record<string, unknown>): Response {
@@ -1138,22 +1196,42 @@ Deno.serve(async (req) => {
     if (action === 'push_long_stay_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      for (const d of body.discounts) {
+        const err = validateDiscountEntry(d);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid long stay discount: ${err}`);
+      }
       const xml = buildPushLongStayDiscountsXml(creds, ru_property_id, body.discounts);
       const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Long stay discounts pushed successfully', raw_xml: response });
+      const { ok, status, partial, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'Long stay discounts pushed with partial errors' : 'Long stay discounts pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
     }
 
     // ── push_last_minute_discounts (optional) ──
     if (action === 'push_last_minute_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.discounts || body.discounts.length === 0) return errorResponse('MISSING_PARAM', 'discounts array is required');
+      for (const d of body.discounts) {
+        const err = validateDiscountEntry(d);
+        if (err) return errorResponse('INVALID_PARAM', `Invalid last minute discount: ${err}`);
+      }
       const xml = buildPushLastMinuteDiscountsXml(creds, ru_property_id, body.discounts);
       const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, message: 'Last minute discounts pushed successfully', raw_xml: response });
+      const { ok, status, partial, notifs } = parseDiscountResponse(response);
+      if (!ok && !partial) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        partial,
+        message: partial ? 'Last minute discounts pushed with partial errors' : 'Last minute discounts pushed successfully',
+        notifs,
+        raw_xml: response,
+      });
     }
 
     // ── set_property_status ──
