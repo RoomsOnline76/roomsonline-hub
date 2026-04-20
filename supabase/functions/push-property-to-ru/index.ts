@@ -1506,7 +1506,7 @@ Deno.serve(async (req) => {
       // Dry run: validate each unit
       if (dry_run) {
         const units = activeRoomTypes.map(rt => {
-          const payload = buildUnitPayload(property as PropertyRow, rt, locationId);
+          const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
           return {
             room_type_id: rt.id,
             name: rt.name,
@@ -1560,7 +1560,7 @@ Deno.serve(async (req) => {
         for (const unit of filteredUnits) {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
-          const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0);
+          const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId);
           unitPayload.owner_id = ruOwnerId;
           // ObjectTypeID = property_type_id (no composition lookup)
           unitPayload.object_type_id = unitPayload.property_type_id;
@@ -1700,7 +1700,7 @@ Deno.serve(async (req) => {
       const unitResults: any[] = [];
       for (const unit of activeRoomTypes) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
-        const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId);
+        const unitPayload = buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId);
         unitPayload.owner_id = ruOwnerId;
 
         // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set).
@@ -1794,7 +1794,7 @@ Deno.serve(async (req) => {
     }
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
-    const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId);
+    const ruPayload = buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId);
     ruPayload.owner_id = ruOwnerId;
     const existingRuId = property.rentalsunited_property_id ? parseInt(property.rentalsunited_property_id, 10) : 0;
 
