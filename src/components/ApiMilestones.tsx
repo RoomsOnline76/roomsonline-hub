@@ -148,6 +148,21 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: false,
     liveMonitor: false,
   },
+  hyperguest: {
+    // 🟠 Bearer-token auth implemented in hyperguest-api edge function
+    // ❌ NO CREDENTIALS PROVISIONED — no api_keys row exists for system_type='hyperguest'
+    auth: 'pending',
+    // 🟠 health_check action implemented (GET /health) — PENDING: credentials to test
+    healthCheck: 'pending',
+    // 🟠 fetch_static_data, live_availability, rate_plans, room_types, restrictions implemented — PENDING: credentials
+    pullAvailability: 'pending',
+    // 🟠 Static data sync to pms_room_types_cache / pms_rate_types_cache implemented — PENDING: credentials
+    syncIn: 'pending',
+    // 🟠 prebook, create_reservation, modify_reservation, cancel_reservation implemented — PENDING: credentials
+    pushBooking: 'pending',
+    // ❌ Not yet live — awaiting HyperGuest account provisioning
+    liveMonitor: false,
+  },
 };
 
 // Get count of completed milestones for a PMS
