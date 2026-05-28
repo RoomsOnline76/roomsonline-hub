@@ -1270,6 +1270,10 @@ export function usePMSSync({
     setHotelbedsHotelCode,
     hostfullyPropertyUid,
     setHostfullyPropertyUid,
+    hyperguestHotelId,
+    setHyperguestHotelId,
+    existingHyperguestHotelId,
+    setExistingHyperguestHotelId,
 
     // Sync state
     isSyncingPms,
