@@ -115,6 +115,7 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     contact_email: z.string().email("Invalid email address"),
     telephone: z.string().optional(),
     property_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+    wetu_id: z.string().optional().or(z.literal("")),
     currency: z.string().min(1, "Currency is required"),
     owner_name: z.string().optional(),
     owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -580,6 +581,7 @@ export default function PropertyForm() {
     contact_email: "",
     telephone: "",
     property_url: "",
+    wetu_id: "",
     currency: "ZAR",
     owner_name: "",
     owner_email: "",
@@ -1930,6 +1932,7 @@ export default function PropertyForm() {
             // Telephone - check root level first (contract data), then nested
             telephone: amenities?.telephone || amenities?.contact?.telephone || "",
             property_url: data.property_url || "",
+            wetu_id: (data as any).wetu_id || "",
             currency: amenities?.currency || "ZAR",
             owner_name: data.owner_name || "",
             owner_email: data.owner_email || "",
@@ -2816,6 +2819,7 @@ export default function PropertyForm() {
         // Preserve existing hotelbeds_hotel_code if PMS changed, only update if hotelbeds is selected
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
+        wetu_id: formData.wetu_id?.trim() || null,
         is_rol_property: isRolProperty,
         is_test_property: isTestProperty,
         is_active: true,

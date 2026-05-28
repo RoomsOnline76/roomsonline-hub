@@ -163,6 +163,19 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     // ❌ Not yet live — awaiting HyperGuest account provisioning
     liveMonitor: false,
   },
+  wetu: {
+    // ✅ WETU_API_KEY configured project-wide
+    auth: true,
+    // ✅ health_check action implemented in wetu-api edge function
+    healthCheck: true,
+    // ➖ N/A — WETU is a content/marketing source, not an availability provider
+    pullAvailability: 'pending',
+    // 🟠 import_to_property action wired — pulls description, images, amenities, geo from WETU Pin
+    syncIn: 'pending',
+    // ➖ N/A — WETU is read-only content; bookings never push to WETU
+    pushBooking: false,
+    liveMonitor: false,
+  },
 };
 
 // Get count of completed milestones for a PMS
