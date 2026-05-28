@@ -185,6 +185,15 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: false,
     liveMonitor: false,
   },
+  beds24: {
+    // ❌ No account yet — API v2 docs: https://api.beds24.com/v2/
+    auth: false,
+    healthCheck: false,
+    pullAvailability: false,
+    syncIn: false,
+    pushBooking: false,
+    liveMonitor: false,
+  },
 };
 
 // Get count of completed milestones for a PMS

@@ -55,6 +55,13 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     category: 'channel_manager',
     deploymentStatus: 'in_development',
   },
+  {
+    key: 'beds24',
+    name: 'Beds24',
+    description: 'Cloud-based PMS and channel manager — REST API v2 (api.beds24.com/v2)',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   // B
   {
     key: 'booking_com',
