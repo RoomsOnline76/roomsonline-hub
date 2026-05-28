@@ -1,57 +1,31 @@
 ## Goal
-Add a new "TourPlan" channel manager card to the Admin Integrations (/integrations) page with milestone trackers. TourPlan is a travel technology platform (PHP API library at `shineklbm/tourplan`). No account or API docs exist yet, so the card is a placeholder with all milestones incomplete.
+Add a new "Beds24" channel manager card to `/integrations` with milestone trackers. Beds24 has a documented API (https://api.beds24.com/v2/) but no account/credentials yet — card is a placeholder with all milestones off until credentials are provisioned. Edge function adapter is out of scope for this turn.
 
 ## Files to Modify
 
 ### 1. `src/lib/pmsSystemsConfig.ts`
-- Add `tourplan` entry to `ALL_PMS_SYSTEMS` array:
-  - `key: 'tourplan'`
-  - `name: 'TourPlan'`
-  - `description: 'Tour operator and travel technology platform'`
-  - `category: 'channel_manager'`
-  - `deploymentStatus: 'planned'`
-  - `hasCustomCard: true` (so it renders in AdminKeys)
+Add Beds24 entry to `ALL_PMS_SYSTEMS`:
+- `key: 'beds24'`
+- `name: 'Beds24'`
+- `description: 'Cloud-based property management and channel manager — REST API v2 (api.beds24.com/v2)'`
+- `category: 'channel_manager'`
+- `deploymentStatus: 'planned'`
 
 ### 2. `src/components/pms/channels/ChannelLogo.tsx`
-- Add `tourplan` to `CHANNEL_CONFIG`:
-  - `label: "TourPlan"`
-  - `color: "bg-sky-600"` (distinct from existing channels)
-  - `initials: "TP"`
+Add to `CHANNEL_CONFIG`:
+- `beds24: { label: "Beds24", color: "bg-fuchsia-600", initials: "B24" }`
 
 ### 3. `src/components/ApiMilestones.tsx`
-- Add `tourplan` to `pmsIntegrationStatus` record with all milestones set to `false`:
-  - `auth: false` — no account or credentials yet
-  - `healthCheck: false`
-  - `pullAvailability: false`
-  - `syncIn: false`
-  - `pushBooking: false`
-  - `liveMonitor: false`
+Add `beds24` entry to `pmsIntegrationStatus` with all six milestones `false` (no account yet).
 
 ### 4. `src/pages/AdminKeys.tsx`
-- Add a TourPlan management card in the Channel Manager section (after Rentals United or ProfitRoom). Since there is no account yet, the card is a **placeholder/coming-soon** design:
-  - Card title: "TourPlan" with ChannelLogo
-  - Badge: "Planned"
-  - Description: brief note about TourPlan being a tour operator platform
-  - **ApiMilestones** component rendered with `systemType="tourplan"`
-  - A note block: "No API account or documentation available yet. TourPlan integration is on the roadmap. GitHub reference: shineklbm/tourplan."
-  - No credential form fields (since no account exists)
-  - Optional: "Request Early Access" button (visual only, no-op for now)
-
-### 5. `src/pages/connect/ConnectIntegrations.tsx` (optional — include if it fits the distribution model)
-- Add TourPlan to `DISTRIBUTION_CHANNELS` array:
-  - `name: "TourPlan"`
-  - `flow: "ROL'OS → TourPlan → Tour Operator Network"`
-  - Desc and features based on what a tour operator platform typically offers
+Add `{renderPlaceholderPMSCard("Beds24", "beds24", "Cloud PMS + channel manager with REST API v2. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.beds24.com/v2/")}` next to the other channel-manager placeholder cards (after the HyperGuest/TourPlan group).
 
 ## Technical Notes
-- No database migration needed (pms_tracker_status is queried dynamically; the row will auto-create when toggled)
-- No edge function needed (user explicitly said build later)
-- No secrets needed
-- Card follows the exact same pattern as existing channel manager cards (e.g., ProfitRoom, Rentals United)
-- Milestone tracker uses the existing `ApiMilestones` component — zero new UI primitives
+- Reuses existing `renderPlaceholderPMSCard` helper — same pattern as TourPlan card just added.
+- No database migration (pms_tracker_status row auto-creates when toggled).
+- No secrets, no edge function in this turn.
 
 ## Out of Scope
-- Edge function for TourPlan API (user explicitly deferred)
-- Credential forms (no account exists)
-- Database schema changes
-- pms_tracker_status row seeding (will populate on first render if missing)
+- `beds24-api` edge function (token auth, refresh-token rotation, getProperties, getInventory, postBookings) — build later when credentials arrive.
+- Credential form fields.
