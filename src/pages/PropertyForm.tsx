@@ -580,6 +580,7 @@ export default function PropertyForm() {
     contact_email: "",
     telephone: "",
     property_url: "",
+    wetu_id: "",
     currency: "ZAR",
     owner_name: "",
     owner_email: "",
