@@ -25,6 +25,7 @@ import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListing
 import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
+import { HyperGuestDetails } from "@/components/pms/HyperGuestDetails";
 import { BankExportConfigCard } from "@/components/bank-export";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
