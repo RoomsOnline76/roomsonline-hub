@@ -3835,6 +3835,56 @@ export default function PropertyForm() {
                           </div>
                         )}
 
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                          <Label htmlFor="wetu_id" className="text-xs whitespace-nowrap">
+                            WETU Pin ID
+                          </Label>
+                          <Input
+                            id="wetu_id"
+                            value={formData.wetu_id ?? ""}
+                            onChange={(e) => handleInputChange("wetu_id", e.target.value)}
+                            placeholder="e.g. 12345"
+                            className="h-7 text-xs max-w-[200px]"
+                          />
+                          {formData.wetu_id && propertyId && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 text-xs"
+                              onClick={async () => {
+                                try {
+                                  const { data, error } = await supabase.functions.invoke("wetu-api", {
+                                    body: {
+                                      action: "import_to_property",
+                                      property_id: propertyId,
+                                      wetu_id: String(formData.wetu_id).trim(),
+                                    },
+                                  });
+                                  if (error) throw error;
+                                  if (!data?.success) throw new Error(data?.error || "Import failed");
+                                  toast({
+                                    title: "WETU content imported",
+                                    description: `Updated: ${(data.updated_fields || []).join(", ") || "no new fields"}${data.image_count ? ` · ${data.image_count} images` : ""}`,
+                                  });
+                                } catch (err: unknown) {
+                                  toast({
+                                    title: "WETU import failed",
+                                    description: err instanceof Error ? err.message : "Could not import from WETU",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                            >
+                              <Cloud className="h-3 w-3" />
+                              Import from WETU
+                            </Button>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            Pulls description, images, amenities &amp; geo from WETU.
+                          </span>
+                        </div>
+
                         <Separator className="my-3" />
                       </>
                     )}
