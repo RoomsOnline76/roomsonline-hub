@@ -175,6 +175,16 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: false,
     liveMonitor: false,
   },
+  tourplan: {
+    // ❌ No account or API documentation yet — edge function deferred
+    // Reference repo: https://github.com/shineklbm/tourplan (PHP wrapper)
+    auth: false,
+    healthCheck: false,
+    pullAvailability: false,
+    syncIn: false,
+    pushBooking: false,
+    liveMonitor: false,
+  },
 };
 
 // Get count of completed milestones for a PMS
