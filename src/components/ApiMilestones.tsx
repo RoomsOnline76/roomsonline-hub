@@ -162,6 +162,7 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: 'pending',
     // ❌ Not yet live — awaiting HyperGuest account provisioning
     liveMonitor: false,
+  },
   wetu: {
     // ✅ WETU_API_KEY configured project-wide
     auth: true,
