@@ -52,11 +52,18 @@ const CAPABILITIES = {
   supports_bar_net_rates: true,
 };
 
-// Base URLs
-const BASE_URLS = {
-  sandbox: 'https://sandbox-api.hyperguest.com/v1',
-  production: 'https://api.hyperguest.com/v1',
+// HyperGuest certified endpoints (same hosts for sandbox/production;
+// the sandbox is scoped by the auth token).
+const HG_ENDPOINTS = {
+  static: 'https://hg-static.hyperguest.com',
+  search: 'https://search-api.hyperguest.io/2.0',
+  book:   'https://book-api.hyperguest.com/2.0',
 };
+
+// Booking requests may take up to 300s per HG spec.
+const BOOKING_TIMEOUT_MS = 300_000;
+const STANDARD_TIMEOUT_MS = 60_000;
+const CERTIFICATION_HOTEL_ID = '19912';
 
 // Standardized response wrapper
 interface AdapterResponse<T = unknown> {
