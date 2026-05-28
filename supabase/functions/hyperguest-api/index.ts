@@ -312,8 +312,9 @@ async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } =
 // ============================================================================
 
 async function healthCheck(creds: HyperGuestCredentials): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
-  const response = await fetch(`${baseUrl}/health`, {
+  // Static endpoint is the canonical liveness check; it returns the hotel
+  // catalogue and verifies our token + connectivity in one call.
+  const response = await hgFetch(`${HG_ENDPOINTS.static}/hotels.json`, {
     headers: getAuthHeaders(creds.api_key),
   });
 
@@ -321,10 +322,22 @@ async function healthCheck(creds: HyperGuestCredentials): Promise<any> {
     throw new Error(`HyperGuest health check failed: ${response.status}`);
   }
 
+  // Confirm we can see the certification property in sandbox
+  let hotelVisible: boolean | null = null;
+  try {
+    const data = await response.json();
+    const hotels = Array.isArray(data) ? data : (data.hotels || []);
+    hotelVisible = hotels.some((h: any) => String(h.id ?? h.hotel_id) === String(creds.hotel_code));
+  } catch {
+    // gzip stream not parsed — health still ok if 200
+  }
+
   return {
     status: "connected",
     environment: creds.environment,
     hotel_code: creds.hotel_code,
+    hotel_visible_in_static_feed: hotelVisible,
+    certification_hotel_id: CERTIFICATION_HOTEL_ID,
     timestamp: new Date().toISOString(),
   };
 }
