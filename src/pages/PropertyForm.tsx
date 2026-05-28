@@ -2819,6 +2819,7 @@ export default function PropertyForm() {
         // Preserve existing hotelbeds_hotel_code if PMS changed, only update if hotelbeds is selected
         hotelbeds_hotel_code: selectedPMS === "hotelbeds" ? hotelbedsHotelCode : existingHotelbedsHotelCode,
         property_url: formData.property_url || null,
+        wetu_id: formData.wetu_id?.trim() || null,
         is_rol_property: isRolProperty,
         is_test_property: isTestProperty,
         is_active: true,
