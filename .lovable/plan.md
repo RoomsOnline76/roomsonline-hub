@@ -1,70 +1,68 @@
-## Plan: WETU Content Adapter Integration
+# HyperGuest Sandbox Integration Plan
 
-### 1. Database — add WETU ID field to properties
-Migration adding a single nullable column so every property can store its WETU pin ID:
-- `properties.wetu_id` — `text`, nullable, indexed (partial `WHERE wetu_id IS NOT NULL`)
-- No RLS changes (inherits existing properties policies)
+## 1. Store sandbox auth token as a secret
+Add `HYPERGUEST_AUTH_TOKEN` via the secrets tool (prompting you to paste `1c0eeaa6d13b44eeb657403ac8f239fe`). The adapter will read this when `active_environment = sandbox`. A second secret `HYPERGUEST_AUTH_TOKEN_PROD` will be reserved (added later when prod credentials arrive).
 
-### 2. Channel Manager card (PMS → Channels)
-The "Channel Manager" cards are driven by `CHANNEL_CONFIG` / `ALL_CHANNELS` in `src/components/pms/channels/ChannelLogo.tsx`.
-- Add `wetu` entry with brand color, label "WETU", category "Content Distribution"
-- It will automatically appear as a card on `/pms/channels` via the existing `ALL_CHANNELS.map` loop in `PMSChannels.tsx`
-- Connect dialog needs a WETU-specific credential field set: `api_key` (already provisioned project-wide via `WETU_API_KEY` secret, but per-property override allowed) and `wetu_id` (pin ID)
+## 2. Update HyperGuest adapter (`supabase/functions/hyperguest-api/index.ts`)
+Current adapter points at `sandbox-api.hyperguest.com/v1`. Replace with the certified endpoints:
 
-### 3. Milestone tracker entry
-In `src/components/ApiMilestones.tsx`, add a `wetu` block mirroring the `hyperguest` shape:
-- `auth: 'complete'` (WETU_API_KEY already configured)
-- `healthCheck: 'complete'` (wetu-api `health_check` action exists)
-- `pullAvailability: 'pending'` (content-only, N/A — mark as `n/a` if supported, else `pending` with note)
-- `syncIn: 'in_progress'` (this plan wires it)
-- `pushBooking: 'n/a'` (WETU is read-only content)
-- `liveMonitor: false`
+- Static data: `https://hg-static.hyperguest.com/hotels.json`
+- Search (availability/prebook): `https://search-api.hyperguest.io/2.0/`
+- Book (create/modify/cancel/list): `https://book-api.hyperguest.com/2.0/`
 
-### 4. WETU ID field on Property Edit → General tab
-`src/components/property/GeneralTab.tsx` — add a new field block:
-- Labelled "WETU Pin ID" with helper text "Used to auto-import marketing content from WETU"
-- Input + "Import from WETU" button next to it
-- Button disabled until `wetu_id` is saved
-- Available to all properties (no PMS gating)
-- On click → invokes new orchestrator action `import_wetu_content` (see step 5), shows toast with imported field counts, refreshes property cache
+Changes:
+- Replace `BASE_URLS` map with per-purpose host map (`static`, `search`, `book`); same URLs for sandbox and production (HG uses a single host with a sandbox-scoped token).
+- Inject `Accept-Encoding: gzip, deflate` on every fetch.
+- Set booking request `fetch` timeout to **300 s** via `AbortController`; on timeout, fall back to **Booking List API** to reconcile status before returning.
+- Read auth token from `HYPERGUEST_AUTH_TOKEN` (sandbox) or `HYPERGUEST_AUTH_TOKEN_PROD` (production) based on `active_environment` instead of from the credentials row (still allow override if a credential row is set).
+- Respect BAR rate flag when parsing rate plans (don't silently downgrade to net/sell).
+- Add `action: "health_check"` hitting the static endpoint for hotel 19912.
 
-### 5. WETU Content Adapter — extend `supabase/functions/wetu-api/index.ts`
-Add a new action `import_to_property`:
-- Input: `{ action: "import_to_property", property_id, wetu_id, mode: "preview" | "apply" }`
-- Calls existing `get_property` against WETU API
-- Maps WETU response → ROL'OS property fields:
-  - `description`, `short_description` (from WETU description / teaser)
-  - `images` (WETU gallery → JSONB array, only ≥1024×683 per image-size rule)
-  - `amenities` (WETU facilities → existing amenity schema via `lib/hostfullyAmenityCorrelation.ts`-style mapper, new `lib/wetuFieldMapper.ts`)
-  - `latitude`, `longitude` (if present and property has none)
-  - `address`, `city`, `country` (only if currently null)
-- Writes via service-role Supabase client; respects `pms_managed_fields` (never overwrite a field listed there)
-- Updates `external_metadata.wetu_last_import_at`, returns summary of fields written + skipped
+## 3. Add sandbox/production toggle on the HyperGuest card
+`src/pages/AdminKeys.tsx` currently renders HG via `renderPlaceholderPMSCard`. Replace that single line with a dedicated `renderHyperguestCard()` modeled on the Cloudbeds/Hostfully cards:
 
-### 6. Front-end glue
-- New tiny hook `src/hooks/useWetuImport.ts` wrapping `supabase.functions.invoke('wetu-api', { body: { action: 'import_to_property', ... } })` with React Query mutation + toast
-- Used by the GeneralTab button
+- Header with `ChannelLogo` + status badge
+- `<EnvironmentToggle systemType="hyperguest" currentEnvironment={trackerData.hyperguest?.active_environment || 'sandbox'} onEnvironmentChange={handleEnvironmentChange} />`
+- Embed existing `<HyperGuestDetails />` component below the toggle (cache metrics + capability matrix + health check)
+- "Test connection" button → calls `hyperguest-api` `health_check`
+- Note line: "Certification property: 19912"
 
-### Technical details
-- Field mapper kept in client-side `src/lib/wetuFieldMapper.ts` for reuse by edge function (Deno-friendly — pure functions, no DOM)
-- All payloads snake_case at the wire boundary (per API contract memory)
-- Strict TS, no `any`
-- Edge function returns `{ success, updated_fields, skipped_fields, image_count }`
-- Migration includes `GRANT` block per public-schema rules
+The existing `handleEnvironmentChange` already persists `active_environment` to `pms_tracker_status`, so no new handler needed.
 
-### Out of scope
-- WETU push (read-only)
-- Auto-scheduled re-imports (manual button only this round)
-- Mapping rooms/units (content-only — rooms stay on existing PMS)
-- Removing existing `WETU` entry from `pmsSystemsConfig.ts` (kept as-is)
+## 4. Register demo property 19912
+Insert a row in `pms_tracker_status` (and `channel_credentials` if needed) so the adapter has a property to target during certification:
 
-### Files touched
-- `supabase/migrations/<new>.sql` (add column)
-- `src/components/pms/channels/ChannelLogo.tsx`
-- `src/components/pms/channels/ConnectChannelDialog.tsx` (add wetu credential schema)
-- `src/components/ApiMilestones.tsx`
-- `src/components/property/GeneralTab.tsx`
-- `src/components/onboarding/steps/types.ts` (add `wetu_id` to `PropertyData`)
-- `src/hooks/useWetuImport.ts` (new)
-- `src/lib/wetuFieldMapper.ts` (new, shared with edge function)
-- `supabase/functions/wetu-api/index.ts` (extend with `import_to_property`)
+- `system_type = 'hyperguest'`
+- `active_environment = 'sandbox'`
+- `additional_info.demo_property_id = '19912'`
+- `credentials.hotel_id = '19912'`
+
+Done via the insert tool (no schema change required — tables already exist).
+
+## 5. Milestone tracker update (`src/components/ApiMilestones.tsx`)
+Add/flip HyperGuest milestones to reflect new state:
+
+- ✅ Sandbox credentials received
+- ✅ Demo property 19912 registered
+- ✅ Sandbox/Production toggle live
+- ⏳ Search-API certification (availability + prebook)
+- ⏳ Book-API certification (create / modify / cancel / list)
+- ⏳ 300 s timeout + Booking List fallback verified
+- ⏳ Production credentials & go-live
+
+## 6. Verify
+- Deploy `hyperguest-api`
+- `curl_edge_functions` → `health_check` against property 19912; confirm 200 + gzip
+- Confirm toggle persists by flipping it in the UI and re-reading `pms_tracker_status`
+
+## Technical notes
+- Single token for the sandbox tenant means the existing `ChannelCredentialEditor` UI stays as-is (optional override).
+- Production endpoints are identical hosts; only the token differentiates environments, matching HG's documented model.
+- No DB schema changes — `pms_tracker_status.active_environment` and `additional_info` JSONB already exist.
+
+Files touched:
+- `supabase/functions/hyperguest-api/index.ts` (endpoint + timeout + fallback)
+- `src/pages/AdminKeys.tsx` (new `renderHyperguestCard`)
+- `src/components/ApiMilestones.tsx` (milestone updates)
+- One `pms_tracker_status` row insert
+- Secret: `HYPERGUEST_AUTH_TOKEN`
