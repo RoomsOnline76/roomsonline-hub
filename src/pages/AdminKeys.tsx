@@ -4890,11 +4890,7 @@ export default function AdminKeys() {
           {renderNightsbridgeCard()}
           {renderRentalsunitedCard()}
           {renderProfitroomCard()}
-          {renderPlaceholderPMSCard(
-            "HyperGuest",
-            "hyperguest",
-            "Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs",
-          )}
+          {renderHyperguestCard()}
         </Accordion>
         </CollapsibleContent>
       </Collapsible>
