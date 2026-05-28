@@ -12,6 +12,7 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
   hyperguest: { label: "HyperGuest", color: "bg-cyan-600", initials: "HG" },
   hotelbeds: { label: "HotelBeds", color: "bg-amber-600", initials: "HB" },
+  wetu: { label: "WETU", color: "bg-lime-600", initials: "W" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
 };
 
