@@ -25,6 +25,7 @@ import { PMSListingSelector, type PMSListing } from "@/components/pms/PMSListing
 import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
+import { HyperGuestDetails } from "@/components/pms/HyperGuestDetails";
 import { BankExportConfigCard } from "@/components/bank-export";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -4226,6 +4227,103 @@ export default function AdminKeys() {
   };
 
   // Placeholder card for upcoming PMS integrations
+  const renderHyperguestCard = () => {
+    const systemType = "hyperguest";
+    const Icon = getPMSIcon(systemType);
+    const tracker = trackerData[systemType];
+    const demoId = (tracker?.additional_info as any)?.demo_property_id || "19912";
+    const env = tracker?.active_environment || "sandbox";
+    return (
+      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4">
+        <AccordionTrigger className="hover:no-underline">
+          <div className="flex items-center justify-between w-full pr-4">
+            <div className="flex items-center gap-3">
+              <Icon className="h-5 w-5 text-indigo-500" />
+              <span className="font-semibold">HyperGuest</span>
+              <Badge variant="outline" className="text-[10px]">
+                Cert hotel {demoId}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div onClick={(e) => e.stopPropagation()}>
+                <IntegrationStatusDropdown
+                  systemType={systemType}
+                  currentStatus={tracker?.integration_status || null}
+                  onStatusChange={() => fetchTrackerData()}
+                  compact
+                />
+              </div>
+              {tracker && <PMSTrackerStatusDisplay tracker={tracker} compact />}
+              <Badge
+                variant="outline"
+                className={
+                  env === "production"
+                    ? "bg-green-500/10 text-green-600 border-green-500/30"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                }
+              >
+                {env}
+              </Badge>
+            </div>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Distribution channel connectivity — enables ROL'OS → HyperGuest → Booking.com and other OTAs.
+              All certification tests run against demo property <code>{demoId}</code>.
+            </p>
+
+            <EnvironmentToggle
+              systemType="hyperguest"
+              currentEnvironment={env as "sandbox" | "production"}
+              onEnvironmentChange={(newEnv) => handleUnifiedEnvironmentChange("hyperguest", newEnv)}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px]">
+              <div className="rounded-md border bg-muted/30 p-2">
+                <div className="font-semibold text-muted-foreground">Static</div>
+                <code className="break-all">hg-static.hyperguest.com/hotels.json</code>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-2">
+                <div className="font-semibold text-muted-foreground">Search 2.0</div>
+                <code className="break-all">search-api.hyperguest.io/2.0/</code>
+              </div>
+              <div className="rounded-md border bg-muted/30 p-2">
+                <div className="font-semibold text-muted-foreground">Book 2.0</div>
+                <code className="break-all">book-api.hyperguest.com/2.0/</code>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              Booking timeout: 300s with Booking-List fallback. All requests include
+              <code className="ml-1">Accept-Encoding: gzip, deflate</code>. BAR / Net / Sell rates respected.
+            </p>
+
+            <HyperGuestDetails />
+
+            <PMSTrackerStatusDisplay tracker={tracker} />
+            <PMSProgressToggles
+              systemType={systemType}
+              trackerData={tracker}
+              onUpdated={() => fetchTrackerData()}
+            />
+            <PMSContactDetails
+              systemType={systemType}
+              initialData={{
+                contact_name: tracker?.contact_name,
+                contact_tel: tracker?.contact_tel,
+                contact_email: tracker?.contact_email,
+              }}
+              onUpdated={() => fetchTrackerData()}
+            />
+            <PMSDevNotes systemType={systemType} />
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    );
+  };
+
   const renderPlaceholderPMSCard = (name: string, systemType: string, description: string) => {
     const Icon = getPMSIcon(systemType);
     const tracker = trackerData[systemType];
@@ -4792,11 +4890,7 @@ export default function AdminKeys() {
           {renderNightsbridgeCard()}
           {renderRentalsunitedCard()}
           {renderProfitroomCard()}
-          {renderPlaceholderPMSCard(
-            "HyperGuest",
-            "hyperguest",
-            "Distribution channel connectivity — enables ROLOS → HG → Booking.com and other OTAs",
-          )}
+          {renderHyperguestCard()}
         </Accordion>
         </CollapsibleContent>
       </Collapsible>

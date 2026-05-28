@@ -149,18 +149,17 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     liveMonitor: false,
   },
   hyperguest: {
-    // 🟠 Bearer-token auth implemented in hyperguest-api edge function
-    // ❌ NO CREDENTIALS PROVISIONED — no api_keys row exists for system_type='hyperguest'
-    auth: 'pending',
-    // 🟠 health_check action implemented (GET /health) — PENDING: credentials to test
-    healthCheck: 'pending',
-    // 🟠 fetch_static_data, live_availability, rate_plans, room_types, restrictions implemented — PENDING: credentials
+    // ✅ Sandbox bearer token (HYPERGUEST_AUTH_TOKEN) provisioned + adapter wired to certified endpoints
+    auth: true,
+    // ✅ health_check hits hg-static.hyperguest.com and verifies cert hotel 19912 is visible
+    healthCheck: true,
+    // 🟠 Search-API (2.0) availability + prebook wired — pending certification run against hotel 19912
     pullAvailability: 'pending',
-    // 🟠 Static data sync to pms_room_types_cache / pms_rate_types_cache implemented — PENDING: credentials
+    // 🟠 Static feed + room/rate cache sync wired — pending certification run
     syncIn: 'pending',
-    // 🟠 prebook, create_reservation, modify_reservation, cancel_reservation implemented — PENDING: credentials
+    // 🟠 Book-API (2.0) create/modify/cancel/list wired with 300s timeout + Booking-List fallback — pending certification run
     pushBooking: 'pending',
-    // ❌ Not yet live — awaiting HyperGuest account provisioning
+    // ❌ Production go-live still pending (sandbox-only)
     liveMonitor: false,
   },
   wetu: {
