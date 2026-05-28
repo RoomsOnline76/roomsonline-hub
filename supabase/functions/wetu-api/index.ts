@@ -137,7 +137,8 @@ serve(async (req: Request) => {
       );
     }
 
-    const { action, property_id, search_terms, page_number } = await req.json();
+    const body = await req.json();
+    const { action, property_id, search_terms, page_number, wetu_id } = body;
 
     if (!action || typeof action !== "string") {
       return new Response(
