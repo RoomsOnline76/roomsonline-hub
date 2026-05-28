@@ -115,6 +115,7 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     contact_email: z.string().email("Invalid email address"),
     telephone: z.string().optional(),
     property_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+    wetu_id: z.string().optional().or(z.literal("")),
     currency: z.string().min(1, "Currency is required"),
     owner_name: z.string().optional(),
     owner_email: z.string().email("Invalid email address").optional().or(z.literal("")),
