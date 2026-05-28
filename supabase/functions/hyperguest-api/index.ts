@@ -350,7 +350,7 @@ async function fetchAvailability(
   nationality?: string,
   currency?: string
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.search;
 
   const searchPayload: any = {
     hotel_code: creds.hotel_code,
@@ -375,7 +375,7 @@ async function fetchAvailability(
 
   console.log(`[hyperguest] Searching availability: ${JSON.stringify(searchPayload)}`);
 
-  const response = await fetch(`${baseUrl}/hotels/availability`, {
+  const response = await hgFetch(`${baseUrl}/hotels/availability`, {
     method: "POST",
     headers: getAuthHeaders(creds.api_key),
     body: JSON.stringify(searchPayload),
@@ -459,7 +459,7 @@ async function prebook(
   rateKey: string,
   rooms: any[]
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.book;
 
   const payload = {
     rate_key: rateKey,
@@ -476,7 +476,7 @@ async function prebook(
 
   console.log(`[hyperguest] Prebook request: ${JSON.stringify(payload)}`);
 
-  const response = await fetch(`${baseUrl}/bookings/prebook`, {
+  const response = await hgFetch(`${baseUrl}/bookings/prebook`, {
     method: "POST",
     headers: getAuthHeaders(creds.api_key),
     body: JSON.stringify(payload),
@@ -509,7 +509,7 @@ async function createReservation(
   creds: HyperGuestCredentials,
   reservationData: any
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.book;
 
   const payload = {
     rate_key: reservationData.rate_key,
@@ -536,13 +536,34 @@ async function createReservation(
 
   console.log(`[hyperguest] Creating reservation: ${JSON.stringify({ ...payload, holder: { ...payload.holder, email: '***' } })}`);
 
-  const response = await fetch(`${baseUrl}/bookings`, {
-    method: "POST",
-    headers: getAuthHeaders(creds.api_key),
-    body: JSON.stringify(payload),
-  });
-
-  const responseText = await response.text();
+  let response: Response;
+  let responseText: string;
+  try {
+    response = await hgFetch(`${baseUrl}/bookings`, {
+      method: "POST",
+      headers: getAuthHeaders(creds.api_key),
+      body: JSON.stringify(payload),
+      timeoutMs: BOOKING_TIMEOUT_MS,
+    });
+    responseText = await response.text();
+  } catch (err: any) {
+    // 300s spec fallback: if our request times out, reconcile via Booking List
+    if (err?.name === "AbortError") {
+      console.warn(`[hyperguest] Booking timed out after ${BOOKING_TIMEOUT_MS}ms — reconciling via Booking List`);
+      const list = await getReservations(creds, { reservation_id: payload.client_reference });
+      const match = list?.reservations?.[0];
+      if (match) {
+        return {
+          reservation_id: match.reservation_id,
+          status: match.status || "pending",
+          reconciled_via: "booking_list_timeout_fallback",
+          hotel_code: creds.hotel_code,
+          created_at: new Date().toISOString(),
+        };
+      }
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     if (response.status === 409) {
@@ -577,12 +598,12 @@ async function cancelReservation(
   reservationId: string,
   reason?: string
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.book;
 
   const payload: any = {};
   if (reason) payload.cancellation_reason = reason;
 
-  const response = await fetch(`${baseUrl}/bookings/${reservationId}/cancel`, {
+  const response = await hgFetch(`${baseUrl}/bookings/${reservationId}/cancel`, {
     method: "POST",
     headers: getAuthHeaders(creds.api_key),
     body: JSON.stringify(payload),
@@ -613,7 +634,7 @@ async function getReservations(
   creds: HyperGuestCredentials,
   params: { start_date?: string; end_date?: string; reservation_id?: string }
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.book;
 
   let url = `${baseUrl}/bookings?hotel_code=${creds.hotel_code}`;
   if (params.reservation_id) {
@@ -623,7 +644,7 @@ async function getReservations(
     if (params.end_date) url += `&to=${params.end_date}`;
   }
 
-  const response = await fetch(url, {
+  const response = await hgFetch(url, {
     headers: getAuthHeaders(creds.api_key),
   });
 
@@ -658,12 +679,12 @@ async function fetchStaticData(
   supabase: any,
   propertyId: string
 ): Promise<any> {
-  const baseUrl = getBaseUrl(creds.environment);
+  const baseUrl = HG_ENDPOINTS.book;
   const results: any = {};
 
   // Fetch room types
   if (dataType === "rooms" || dataType === "all") {
-    const roomsResponse = await fetch(`${baseUrl}/hotels/${creds.hotel_code}/rooms`, {
+    const roomsResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rooms`, {
       headers: getAuthHeaders(creds.api_key),
     });
 
@@ -705,7 +726,7 @@ async function fetchStaticData(
 
   // Fetch rate types
   if (dataType === "rates" || dataType === "all") {
-    const ratesResponse = await fetch(`${baseUrl}/hotels/${creds.hotel_code}/rates`, {
+    const ratesResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rates`, {
       headers: getAuthHeaders(creds.api_key),
     });
 
