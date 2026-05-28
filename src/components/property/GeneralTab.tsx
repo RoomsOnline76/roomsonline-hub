@@ -178,7 +178,7 @@ export function GeneralTab(props: GeneralTabProps) {
     setSelectedPMS, availablePMSSystems, bensonPropertyCode, setBensonPropertyCode,
     cloudbedsPropertyId, setCloudbedsPropertyId, littlehotelierChannelCode,
     setLittlehotelierChannelCode, littlehotelierRegion, setLittlehotelierRegion,
-    hotelbedsHotelCode, setHotelbedsHotelCode, isSyncingPms, syncFromBenson,
+    hotelbedsHotelCode, setHotelbedsHotelCode, hyperguestHotelId, setHyperguestHotelId, isSyncingPms, syncFromBenson,
     handleFullHostfullySync, handleImportHostfullyRooms, importingHostfullyRooms,
     ownerPmsCredentialId, hostfullyRoomCount, showHostfullyWarning,
     setShowHostfullyWarning, previousPMS, setPreviousPMS, fullSyncingHostfully,
