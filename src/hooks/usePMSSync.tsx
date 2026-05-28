@@ -1232,6 +1232,8 @@ export function usePMSSync({
 
       // ROL'OS is the native system — always selectable
       activeSystemTypes.add("roomsonline");
+      // HyperGuest sandbox token is project-wide (HYPERGUEST_AUTH_TOKEN), so always selectable
+      activeSystemTypes.add("hyperguest");
 
       if (selectedPMS) {
         activeSystemTypes.add(selectedPMS);
