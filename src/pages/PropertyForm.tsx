@@ -1176,6 +1176,8 @@ export default function PropertyForm() {
     littlehotelierChannelCode, setLittlehotelierChannelCode,
     littlehotelierRegion, setLittlehotelierRegion,
     hotelbedsHotelCode, setHotelbedsHotelCode,
+    hyperguestHotelId, setHyperguestHotelId,
+    existingHyperguestHotelId, setExistingHyperguestHotelId,
     hostfullyPropertyUid, setHostfullyPropertyUid,
     isSyncingPms, lastPmsSync,
     isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
