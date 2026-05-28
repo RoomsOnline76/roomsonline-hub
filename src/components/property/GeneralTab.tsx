@@ -629,57 +629,6 @@ export function GeneralTab(props: GeneralTabProps) {
                   <p className="text-[10px] text-muted-foreground">Scan the website to auto-fill empty fields</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1 flex-1">
-                  <Label htmlFor="wetu_id" className="text-xs">WETU Pin ID</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="wetu_id"
-                      value={formData.wetu_id ?? ""}
-                      onChange={(e) => handleInputChange("wetu_id", e.target.value)}
-                      placeholder="e.g. 12345"
-                      className="h-7 text-xs flex-1"
-                    />
-                    {formData.wetu_id && propertyId && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 gap-1 text-xs"
-                        onClick={async () => {
-                          try {
-                            const { data, error } = await supabase.functions.invoke("wetu-api", {
-                              body: {
-                                action: "import_to_property",
-                                property_id: propertyId,
-                                wetu_id: String(formData.wetu_id).trim(),
-                              },
-                            });
-                            if (error) throw error;
-                            if (!data?.success) throw new Error(data?.error || "Import failed");
-                            toast({
-                              title: "WETU content imported",
-                              description: `Updated: ${(data.updated_fields || []).join(", ") || "no new fields"}${data.image_count ? ` · ${data.image_count} images` : ""}`,
-                            });
-                          } catch (err: any) {
-                            toast({
-                              title: "WETU import failed",
-                              description: err.message || "Could not import from WETU",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                      >
-                        <Cloud className="h-3 w-3" />
-                        Import from WETU
-                      </Button>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Pulls description, images, amenities and geo from your WETU pin. Existing PMS-managed fields are preserved.
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
 
