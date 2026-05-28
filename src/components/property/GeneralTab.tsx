@@ -78,6 +78,8 @@ interface GeneralTabProps {
   setLittlehotelierRegion: (v: any) => void;
   hotelbedsHotelCode: string;
   setHotelbedsHotelCode: (v: string) => void;
+  hyperguestHotelId: string;
+  setHyperguestHotelId: (v: string) => void;
   hostfullyPropertyUid: string;
   isSyncingPms: boolean;
   syncFromBenson: () => void;
