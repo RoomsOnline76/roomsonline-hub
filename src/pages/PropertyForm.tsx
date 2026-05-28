@@ -2057,6 +2057,12 @@ export default function PropertyForm() {
           }
           setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
 
+          // Set HyperGuest hotel ID (stored on properties.external_id when external_system='hyperguest')
+          if ((data as any).external_system === "hyperguest" && (data as any).external_id) {
+            setHyperguestHotelId(String((data as any).external_id));
+            setExistingHyperguestHotelId(String((data as any).external_id));
+          }
+
           // Set Hostfully property UID
           if ((data as any).hostfully_property_uid) {
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
