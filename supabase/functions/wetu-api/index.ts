@@ -151,6 +151,26 @@ serve(async (req: Request) => {
     let response: Response;
 
     switch (action) {
+      case "import_to_property": {
+        if (!property_id || typeof property_id !== "string") {
+          return new Response(
+            JSON.stringify({ success: false, error: "Missing 'property_id'" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (!wetu_id || (typeof wetu_id !== "string" && typeof wetu_id !== "number")) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Missing 'wetu_id'" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const result = await importToProperty(property_id, String(wetu_id).trim());
+        return new Response(
+          JSON.stringify(result),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       case "health_check":
         url = `${WETU_BASE}/${WETU_API_KEY}/List?suppliers=y`;
         response = await fetch(url);
