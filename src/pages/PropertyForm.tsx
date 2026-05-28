@@ -1932,6 +1932,7 @@ export default function PropertyForm() {
             // Telephone - check root level first (contract data), then nested
             telephone: amenities?.telephone || amenities?.contact?.telephone || "",
             property_url: data.property_url || "",
+            wetu_id: (data as any).wetu_id || "",
             currency: amenities?.currency || "ZAR",
             owner_name: data.owner_name || "",
             owner_email: data.owner_email || "",
