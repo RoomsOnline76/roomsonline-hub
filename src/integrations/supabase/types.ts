@@ -3491,6 +3491,7 @@ export type Database = {
           slug: string | null
           timezone: string
           updated_at: string | null
+          wetu_id: string | null
           what_its_really_like: string | null
           who_its_not_for: string | null
           who_this_suits: string | null
@@ -3574,6 +3575,7 @@ export type Database = {
           slug?: string | null
           timezone?: string
           updated_at?: string | null
+          wetu_id?: string | null
           what_its_really_like?: string | null
           who_its_not_for?: string | null
           who_this_suits?: string | null
@@ -3657,6 +3659,7 @@ export type Database = {
           slug?: string | null
           timezone?: string
           updated_at?: string | null
+          wetu_id?: string | null
           what_its_really_like?: string | null
           who_its_not_for?: string | null
           who_this_suits?: string | null
