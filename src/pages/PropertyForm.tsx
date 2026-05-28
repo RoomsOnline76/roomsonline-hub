@@ -3397,6 +3397,8 @@ export default function PropertyForm() {
         return !!littlehotelierChannelCode;
       case "hotelbeds":
         return !!hotelbedsHotelCode;
+      case "hyperguest":
+        return !!hyperguestHotelId;
       case "nightsbridge":
         return !!formData.bb_id;
       default:
