@@ -4891,6 +4891,11 @@ export default function AdminKeys() {
           {renderRentalsunitedCard()}
           {renderProfitroomCard()}
           {renderHyperguestCard()}
+          {renderPlaceholderPMSCard(
+            "TourPlan",
+            "tourplan",
+            "Tour operator and travel reservation platform. API account and documentation pending — edge function adapter will be built once credentials are available. Reference: github.com/shineklbm/tourplan",
+          )}
         </Accordion>
         </CollapsibleContent>
       </Collapsible>
