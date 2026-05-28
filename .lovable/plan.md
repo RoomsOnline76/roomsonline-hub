@@ -1,68 +1,57 @@
-# HyperGuest Sandbox Integration Plan
+## Goal
+Add a new "TourPlan" channel manager card to the Admin Integrations (/integrations) page with milestone trackers. TourPlan is a travel technology platform (PHP API library at `shineklbm/tourplan`). No account or API docs exist yet, so the card is a placeholder with all milestones incomplete.
 
-## 1. Store sandbox auth token as a secret
-Add `HYPERGUEST_AUTH_TOKEN` via the secrets tool (prompting you to paste `1c0eeaa6d13b44eeb657403ac8f239fe`). The adapter will read this when `active_environment = sandbox`. A second secret `HYPERGUEST_AUTH_TOKEN_PROD` will be reserved (added later when prod credentials arrive).
+## Files to Modify
 
-## 2. Update HyperGuest adapter (`supabase/functions/hyperguest-api/index.ts`)
-Current adapter points at `sandbox-api.hyperguest.com/v1`. Replace with the certified endpoints:
+### 1. `src/lib/pmsSystemsConfig.ts`
+- Add `tourplan` entry to `ALL_PMS_SYSTEMS` array:
+  - `key: 'tourplan'`
+  - `name: 'TourPlan'`
+  - `description: 'Tour operator and travel technology platform'`
+  - `category: 'channel_manager'`
+  - `deploymentStatus: 'planned'`
+  - `hasCustomCard: true` (so it renders in AdminKeys)
 
-- Static data: `https://hg-static.hyperguest.com/hotels.json`
-- Search (availability/prebook): `https://search-api.hyperguest.io/2.0/`
-- Book (create/modify/cancel/list): `https://book-api.hyperguest.com/2.0/`
+### 2. `src/components/pms/channels/ChannelLogo.tsx`
+- Add `tourplan` to `CHANNEL_CONFIG`:
+  - `label: "TourPlan"`
+  - `color: "bg-sky-600"` (distinct from existing channels)
+  - `initials: "TP"`
 
-Changes:
-- Replace `BASE_URLS` map with per-purpose host map (`static`, `search`, `book`); same URLs for sandbox and production (HG uses a single host with a sandbox-scoped token).
-- Inject `Accept-Encoding: gzip, deflate` on every fetch.
-- Set booking request `fetch` timeout to **300 s** via `AbortController`; on timeout, fall back to **Booking List API** to reconcile status before returning.
-- Read auth token from `HYPERGUEST_AUTH_TOKEN` (sandbox) or `HYPERGUEST_AUTH_TOKEN_PROD` (production) based on `active_environment` instead of from the credentials row (still allow override if a credential row is set).
-- Respect BAR rate flag when parsing rate plans (don't silently downgrade to net/sell).
-- Add `action: "health_check"` hitting the static endpoint for hotel 19912.
+### 3. `src/components/ApiMilestones.tsx`
+- Add `tourplan` to `pmsIntegrationStatus` record with all milestones set to `false`:
+  - `auth: false` — no account or credentials yet
+  - `healthCheck: false`
+  - `pullAvailability: false`
+  - `syncIn: false`
+  - `pushBooking: false`
+  - `liveMonitor: false`
 
-## 3. Add sandbox/production toggle on the HyperGuest card
-`src/pages/AdminKeys.tsx` currently renders HG via `renderPlaceholderPMSCard`. Replace that single line with a dedicated `renderHyperguestCard()` modeled on the Cloudbeds/Hostfully cards:
+### 4. `src/pages/AdminKeys.tsx`
+- Add a TourPlan management card in the Channel Manager section (after Rentals United or ProfitRoom). Since there is no account yet, the card is a **placeholder/coming-soon** design:
+  - Card title: "TourPlan" with ChannelLogo
+  - Badge: "Planned"
+  - Description: brief note about TourPlan being a tour operator platform
+  - **ApiMilestones** component rendered with `systemType="tourplan"`
+  - A note block: "No API account or documentation available yet. TourPlan integration is on the roadmap. GitHub reference: shineklbm/tourplan."
+  - No credential form fields (since no account exists)
+  - Optional: "Request Early Access" button (visual only, no-op for now)
 
-- Header with `ChannelLogo` + status badge
-- `<EnvironmentToggle systemType="hyperguest" currentEnvironment={trackerData.hyperguest?.active_environment || 'sandbox'} onEnvironmentChange={handleEnvironmentChange} />`
-- Embed existing `<HyperGuestDetails />` component below the toggle (cache metrics + capability matrix + health check)
-- "Test connection" button → calls `hyperguest-api` `health_check`
-- Note line: "Certification property: 19912"
+### 5. `src/pages/connect/ConnectIntegrations.tsx` (optional — include if it fits the distribution model)
+- Add TourPlan to `DISTRIBUTION_CHANNELS` array:
+  - `name: "TourPlan"`
+  - `flow: "ROL'OS → TourPlan → Tour Operator Network"`
+  - Desc and features based on what a tour operator platform typically offers
 
-The existing `handleEnvironmentChange` already persists `active_environment` to `pms_tracker_status`, so no new handler needed.
+## Technical Notes
+- No database migration needed (pms_tracker_status is queried dynamically; the row will auto-create when toggled)
+- No edge function needed (user explicitly said build later)
+- No secrets needed
+- Card follows the exact same pattern as existing channel manager cards (e.g., ProfitRoom, Rentals United)
+- Milestone tracker uses the existing `ApiMilestones` component — zero new UI primitives
 
-## 4. Register demo property 19912
-Insert a row in `pms_tracker_status` (and `channel_credentials` if needed) so the adapter has a property to target during certification:
-
-- `system_type = 'hyperguest'`
-- `active_environment = 'sandbox'`
-- `additional_info.demo_property_id = '19912'`
-- `credentials.hotel_id = '19912'`
-
-Done via the insert tool (no schema change required — tables already exist).
-
-## 5. Milestone tracker update (`src/components/ApiMilestones.tsx`)
-Add/flip HyperGuest milestones to reflect new state:
-
-- ✅ Sandbox credentials received
-- ✅ Demo property 19912 registered
-- ✅ Sandbox/Production toggle live
-- ⏳ Search-API certification (availability + prebook)
-- ⏳ Book-API certification (create / modify / cancel / list)
-- ⏳ 300 s timeout + Booking List fallback verified
-- ⏳ Production credentials & go-live
-
-## 6. Verify
-- Deploy `hyperguest-api`
-- `curl_edge_functions` → `health_check` against property 19912; confirm 200 + gzip
-- Confirm toggle persists by flipping it in the UI and re-reading `pms_tracker_status`
-
-## Technical notes
-- Single token for the sandbox tenant means the existing `ChannelCredentialEditor` UI stays as-is (optional override).
-- Production endpoints are identical hosts; only the token differentiates environments, matching HG's documented model.
-- No DB schema changes — `pms_tracker_status.active_environment` and `additional_info` JSONB already exist.
-
-Files touched:
-- `supabase/functions/hyperguest-api/index.ts` (endpoint + timeout + fallback)
-- `src/pages/AdminKeys.tsx` (new `renderHyperguestCard`)
-- `src/components/ApiMilestones.tsx` (milestone updates)
-- One `pms_tracker_status` row insert
-- Secret: `HYPERGUEST_AUTH_TOKEN`
+## Out of Scope
+- Edge function for TourPlan API (user explicitly deferred)
+- Credential forms (no account exists)
+- Database schema changes
+- pms_tracker_status row seeding (will populate on first render if missing)
