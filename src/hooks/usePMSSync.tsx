@@ -107,6 +107,8 @@ export function usePMSSync({
   const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
   const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
+  const [hyperguestHotelId, setHyperguestHotelId] = useState<string>("");
+  const [existingHyperguestHotelId, setExistingHyperguestHotelId] = useState<string | null>(null);
   const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
