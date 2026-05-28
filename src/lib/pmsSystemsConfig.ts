@@ -211,6 +211,14 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
+  // T
+  {
+    key: 'tourplan',
+    name: 'TourPlan',
+    description: 'Tour operator and travel reservation platform — inventory, rates, and booking distribution (API integration planned)',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   // S
   // W
   {
