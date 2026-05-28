@@ -1176,6 +1176,8 @@ export default function PropertyForm() {
     littlehotelierChannelCode, setLittlehotelierChannelCode,
     littlehotelierRegion, setLittlehotelierRegion,
     hotelbedsHotelCode, setHotelbedsHotelCode,
+    hyperguestHotelId, setHyperguestHotelId,
+    existingHyperguestHotelId, setExistingHyperguestHotelId,
     hostfullyPropertyUid, setHostfullyPropertyUid,
     isSyncingPms, lastPmsSync,
     isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
@@ -2055,6 +2057,12 @@ export default function PropertyForm() {
           }
           setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
 
+          // Set HyperGuest hotel ID (stored on properties.external_id when external_system='hyperguest')
+          if ((data as any).external_system === "hyperguest" && (data as any).external_id) {
+            setHyperguestHotelId(String((data as any).external_id));
+            setExistingHyperguestHotelId(String((data as any).external_id));
+          }
+
           // Set Hostfully property UID
           if ((data as any).hostfully_property_uid) {
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
@@ -2806,7 +2814,9 @@ export default function PropertyForm() {
         owner_name: formData.owner_name || null,
         owner_email: formData.owner_email || null,
         external_system: selectedPMS || null,
-        external_id: formData.bb_id || formData.venue_id || null,
+        external_id: selectedPMS === "hyperguest"
+          ? (hyperguestHotelId?.trim() || existingHyperguestHotelId || null)
+          : (formData.bb_id || formData.venue_id || null),
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
         benson_environment: selectedPMS === "benson" ? "production" : null,
@@ -3387,6 +3397,8 @@ export default function PropertyForm() {
         return !!littlehotelierChannelCode;
       case "hotelbeds":
         return !!hotelbedsHotelCode;
+      case "hyperguest":
+        return !!hyperguestHotelId;
       case "nightsbridge":
         return !!formData.bb_id;
       default:
@@ -4137,6 +4149,27 @@ export default function PropertyForm() {
                           />
                         </div>
                       )}
+
+                      {selectedPMS === "hyperguest" && (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
+                            HyperGuest Hotel ID *
+                          </Label>
+                          <Input
+                            id="hyperguest_hotel_id"
+                            value={hyperguestHotelId}
+                            onChange={(e) => {
+                              setHyperguestHotelId(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g. 19912"
+                            className="h-7 text-xs w-40"
+                            required
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            Sandbox certification hotel: 19912
+                          </span>
+                        </div>)}
 
                       {/* Hostfully connection for owners */}
                       {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (

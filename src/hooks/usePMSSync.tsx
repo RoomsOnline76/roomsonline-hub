@@ -107,6 +107,8 @@ export function usePMSSync({
   const [littlehotelierChannelCode, setLittlehotelierChannelCode] = useState<string>("");
   const [littlehotelierRegion, setLittlehotelierRegion] = useState<"apac" | "emea">("apac");
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
+  const [hyperguestHotelId, setHyperguestHotelId] = useState<string>("");
+  const [existingHyperguestHotelId, setExistingHyperguestHotelId] = useState<string | null>(null);
   const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
@@ -1230,6 +1232,8 @@ export function usePMSSync({
 
       // ROL'OS is the native system — always selectable
       activeSystemTypes.add("roomsonline");
+      // HyperGuest sandbox token is project-wide (HYPERGUEST_AUTH_TOKEN), so always selectable
+      activeSystemTypes.add("hyperguest");
 
       if (selectedPMS) {
         activeSystemTypes.add(selectedPMS);
@@ -1266,6 +1270,10 @@ export function usePMSSync({
     setHotelbedsHotelCode,
     hostfullyPropertyUid,
     setHostfullyPropertyUid,
+    hyperguestHotelId,
+    setHyperguestHotelId,
+    existingHyperguestHotelId,
+    setExistingHyperguestHotelId,
 
     // Sync state
     isSyncingPms,

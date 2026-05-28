@@ -78,6 +78,8 @@ interface GeneralTabProps {
   setLittlehotelierRegion: (v: any) => void;
   hotelbedsHotelCode: string;
   setHotelbedsHotelCode: (v: string) => void;
+  hyperguestHotelId: string;
+  setHyperguestHotelId: (v: string) => void;
   hostfullyPropertyUid: string;
   isSyncingPms: boolean;
   syncFromBenson: () => void;
@@ -176,7 +178,7 @@ export function GeneralTab(props: GeneralTabProps) {
     setSelectedPMS, availablePMSSystems, bensonPropertyCode, setBensonPropertyCode,
     cloudbedsPropertyId, setCloudbedsPropertyId, littlehotelierChannelCode,
     setLittlehotelierChannelCode, littlehotelierRegion, setLittlehotelierRegion,
-    hotelbedsHotelCode, setHotelbedsHotelCode, isSyncingPms, syncFromBenson,
+    hotelbedsHotelCode, setHotelbedsHotelCode, hyperguestHotelId, setHyperguestHotelId, isSyncingPms, syncFromBenson,
     handleFullHostfullySync, handleImportHostfullyRooms, importingHostfullyRooms,
     ownerPmsCredentialId, hostfullyRoomCount, showHostfullyWarning,
     setShowHostfullyWarning, previousPMS, setPreviousPMS, fullSyncingHostfully,
@@ -413,6 +415,21 @@ export function GeneralTab(props: GeneralTabProps) {
               <div className="flex items-center gap-2">
                 <Label htmlFor="hotelbeds_hotel_code" className="text-xs whitespace-nowrap">Hotel Code *</Label>
                 <Input id="hotelbeds_hotel_code" value={hotelbedsHotelCode} onChange={(e) => { setHotelbedsHotelCode(e.target.value); setIsDirty(true); }} placeholder="HotelBeds hotel code" className="h-7 text-xs w-40" required />
+              </div>
+            )}
+
+            {selectedPMS === "hyperguest" && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">HyperGuest Hotel ID *</Label>
+                <Input
+                  id="hyperguest_hotel_id"
+                  value={hyperguestHotelId}
+                  onChange={(e) => { setHyperguestHotelId(e.target.value); setIsDirty(true); }}
+                  placeholder="e.g. 19912"
+                  className="h-7 text-xs w-40"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
               </div>
             )}
 
