@@ -216,25 +216,39 @@ async function getCredentials(
   // Check pms_tracker_status for environment
   const { data: tracker } = await supabase
     .from("pms_tracker_status")
-    .select("active_environment, credentials")
+    .select("active_environment, credentials, additional_info")
     .eq("system_type", "hyperguest")
     .maybeSingle();
 
   const environment = tracker?.active_environment === "production" ? "production" : "sandbox";
 
-  // Get API key from api_keys table
-  const { data: apiKeyRow } = await supabase
-    .from("api_keys")
-    .select("key_value")
-    .eq("system_type", "hyperguest")
-    .eq("key_name", "api_key")
-    .maybeSingle();
+  // Prefer environment-scoped secret (HyperGuest issues tenant-scoped tokens)
+  const envSecret = environment === "production"
+    ? Deno.env.get("HYPERGUEST_AUTH_TOKEN_PROD")
+    : Deno.env.get("HYPERGUEST_AUTH_TOKEN");
 
-  if (!apiKeyRow?.key_value) {
-    throw new Error("HyperGuest API key not configured. Add it in Settings > Integrations.");
+  let apiKey = envSecret || null;
+
+  // Fallback to api_keys table for manual overrides
+  if (!apiKey) {
+    const { data: apiKeyRow } = await supabase
+      .from("api_keys")
+      .select("key_value")
+      .eq("system_type", "hyperguest")
+      .eq("key_name", "api_key")
+      .maybeSingle();
+    apiKey = apiKeyRow?.key_value ?? null;
   }
 
-  // Get hotel code from integration_configs or properties
+  if (!apiKey) {
+    throw new Error(
+      `HyperGuest auth token not configured for ${environment}. ` +
+      `Add HYPERGUEST_AUTH_TOKEN${environment === 'production' ? '_PROD' : ''} secret.`
+    );
+  }
+
+  // Get hotel code from integration_configs or properties; fall back to
+  // the certification property for sandbox testing.
   const { data: config } = await supabase
     .from("integration_configs")
     .select("config")
@@ -242,29 +256,55 @@ async function getCredentials(
     .eq("integration_type", "hyperguest")
     .maybeSingle();
 
-  const hotelCode = config?.config?.hotel_code;
+  const hotelCode = config?.config?.hotel_code
+    || tracker?.additional_info?.demo_property_id
+    || (environment === 'sandbox' ? CERTIFICATION_HOTEL_ID : null);
+
   if (!hotelCode) {
     throw new Error(`HyperGuest hotel code not configured for property ${propertyId}`);
   }
 
   return {
-    api_key: apiKeyRow.key_value,
-    hotel_code: hotelCode,
+    api_key: apiKey,
+    hotel_code: String(hotelCode),
     environment,
   };
 }
 
-function getBaseUrl(env: "sandbox" | "production"): string {
-  return BASE_URLS[env];
+function getBaseUrl(_env: "sandbox" | "production"): string {
+  // Legacy callers; default to the search-api host. New code should use
+  // HG_ENDPOINTS.{static|search|book} directly.
+  return HG_ENDPOINTS.search;
 }
 
 function getAuthHeaders(apiKey: string): Record<string, string> {
   return {
+    "Authorization": `Bearer ${apiKey}`,
     "X-Api-Key": apiKey,
     "Content-Type": "application/json",
     "Accept": "application/json",
+    "Accept-Encoding": "gzip, deflate",
     "User-Agent": "RoomsOnline/1.0",
   };
+}
+
+// fetch wrapper that enforces Accept-Encoding + per-call timeout.
+async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
+  const { timeoutMs = STANDARD_TIMEOUT_MS, ...rest } = init;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...rest,
+      signal: controller.signal,
+      headers: {
+        "Accept-Encoding": "gzip, deflate",
+        ...(rest.headers as Record<string, string> | undefined),
+      },
+    });
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // ============================================================================
