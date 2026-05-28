@@ -1228,9 +1228,8 @@ export function usePMSSync({
 
       const activeSystemTypes = new Set(activeCredentials?.map((c) => c.system_type) || []);
 
-      if (roomsonlineActive) {
-        activeSystemTypes.add("roomsonline");
-      }
+      // ROL'OS is the native system — always selectable
+      activeSystemTypes.add("roomsonline");
 
       if (selectedPMS) {
         activeSystemTypes.add(selectedPMS);
