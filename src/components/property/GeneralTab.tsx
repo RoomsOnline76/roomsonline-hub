@@ -418,6 +418,21 @@ export function GeneralTab(props: GeneralTabProps) {
               </div>
             )}
 
+            {selectedPMS === "hyperguest" && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">HyperGuest Hotel ID *</Label>
+                <Input
+                  id="hyperguest_hotel_id"
+                  value={hyperguestHotelId}
+                  onChange={(e) => { setHyperguestHotelId(e.target.value); setIsDirty(true); }}
+                  placeholder="e.g. 19912"
+                  className="h-7 text-xs w-40"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
+              </div>
+            )}
+
             {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
               <div className="w-full mt-2">
                 <OwnerPMSConnectionCard ownerId={user?.id || ""} ownerName={profile?.full_name || profile?.email || ""} ownerEmail={profile?.email || user?.email || ""} existingCredential={ownerHostfullyCredential} onCredentialChange={handleOwnerCredentialChange} />
