@@ -4896,6 +4896,11 @@ export default function AdminKeys() {
             "tourplan",
             "Tour operator and travel reservation platform. API account and documentation pending — edge function adapter will be built once credentials are available. Reference: github.com/shineklbm/tourplan",
           )}
+          {renderPlaceholderPMSCard(
+            "Beds24",
+            "beds24",
+            "Cloud PMS and channel manager with REST API v2. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.beds24.com/v2/",
+          )}
         </Accordion>
         </CollapsibleContent>
       </Collapsible>
