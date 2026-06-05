@@ -1030,9 +1030,10 @@ const CalendarAccommodation = () => {
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, is_rol_property, listing_status");
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, is_rol_property, listing_status")
+        .is("permanently_deleted_at", null);
 
-      // Admins/devs/fearless leaders see EVERY property (active, inactive, draft) for ARI debugging.
+      // Admins/devs/fearless leaders see EVERY non-deleted property (active, inactive, draft) for ARI debugging.
       // Owners only see their own active, listed properties.
       if (!adminStatus) {
         query = query.eq("is_active", true).neq("listing_status", "inactive");
