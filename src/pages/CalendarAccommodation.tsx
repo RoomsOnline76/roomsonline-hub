@@ -277,8 +277,13 @@ const CalendarAccommodation = () => {
   useEffect(() => {
     if (roomTypes.length > 0) {
       setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
+      return;
     }
-  }, [roomTypes]);
+
+    if (pmsData.roomTypes.length > 0) {
+      setSelectedRoomTypes(pmsData.roomTypes.map((room) => room.roomTypeName));
+    }
+  }, [roomTypes, pmsData.roomTypes]);
 
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
     if (!property?.external_system) return null;
@@ -1284,7 +1289,7 @@ const CalendarAccommodation = () => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
     const seenNames = new Set<string>();
     
-    // Only use property's saved pms_rate_types to match Property Form
+    // Only use property's saved pms_rate_types to match Property Form when they map to actual PMS data.
     if (selectedPropertyData?.amenities?.pms_rate_types) {
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
@@ -1321,8 +1326,8 @@ const CalendarAccommodation = () => {
       });
     }
     
-    // Fallback: if no saved pms_rate_types, build from PMS response data
-    if (rateTypes.length === 0 && pmsData.roomTypes.length > 0) {
+    // Fallback: if no usable saved pms_rate_types, build from PMS response data.
+    if ((rateTypes.length === 0 || !rateTypes.some((rateType) => rateType.hasRates)) && pmsData.roomTypes.length > 0) {
       const seenRateTypes = new Set<string>();
       pmsData.roomTypes.forEach(room => {
         Object.values(room.ratesByDate).forEach(dateRates => {
