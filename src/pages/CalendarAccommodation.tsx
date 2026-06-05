@@ -1043,7 +1043,9 @@ const CalendarAccommodation = () => {
       if (error) throw error;
 
       const accommodationProperties = (data || []).filter((property: any) => {
-        // Exclude NightsBridge properties (they use iframe-based booking, not calendar sync)
+        // Admins/devs/fearless leaders see ALL active properties (for ARI testing across the system)
+        if (adminStatus) return true;
+        // Exclude NightsBridge properties for owners (they use iframe-based booking, not calendar sync)
         if (property.external_system === 'nightsbridge') return false;
         // Include any PMS/channel-connected property regardless of offerings flag
         if (property.external_system || property.hostfully_property_uid || property.benson_property_code || property.checkfront_property_code || property.siteminder_property_code || property.hotelbeds_hotel_code) return true;
