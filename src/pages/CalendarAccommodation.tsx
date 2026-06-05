@@ -1877,18 +1877,48 @@ const CalendarAccommodation = () => {
           <CardContent className="p-3">
             {/* Filters and Actions */}
             <div className="flex flex-wrap gap-2 mb-3">
-              <Select value={selectedProperty} onValueChange={handlePropertyChange} disabled={loading}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
-                  <SelectValue placeholder="Select Property" />
-                </SelectTrigger>
-                <SelectContent>
-                  {properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>
-                      {property.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    disabled={loading}
+                    className="w-[220px] h-8 text-xs justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {selectedPropertyData?.name || "Select Property"}
+                    </span>
+                    <ChevronsUpDown className="h-3 w-3 ml-1 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[260px] p-0 bg-popover" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search properties…" className="h-8 text-xs" />
+                    <CommandList>
+                      <CommandEmpty>No properties found.</CommandEmpty>
+                      <CommandGroup>
+                        {properties.map((property) => (
+                          <CommandItem
+                            key={property.id}
+                            value={property.name}
+                            onSelect={() => handlePropertyChange(property.id)}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={cn(
+                                "h-3 w-3 mr-2",
+                                selectedProperty === property.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {property.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
 
 
               {/* Room Types Dropdown */}
