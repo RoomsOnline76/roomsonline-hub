@@ -63,6 +63,13 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     deploymentStatus: 'planned',
   },
   {
+    key: 'ebeds',
+    name: 'eBeds',
+    description: 'Channel manager and distribution platform — API credentials pending',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  {
     key: 'easyota',
     name: 'EasyOTA',
     description: 'Channel manager connecting properties to multiple OTAs — API credentials pending',
