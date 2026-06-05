@@ -442,6 +442,8 @@ const CalendarAccommodation = () => {
     }
 
     const isBenson = selectedPropertyData.external_system === "benson";
+    const isHostfully = selectedPropertyData.external_system === "hostfully";
+    const prefersCachedCalendarData = isBenson || isHostfully;
 
     // Benson calendar sync should only fetch the visible window (+ small buffer)
     // to avoid orchestrator timeouts on large 13-month requests.
@@ -485,8 +487,8 @@ const CalendarAccommodation = () => {
       }
     }
 
-    // Keep Benson calendar usable while a live refresh runs.
-    if (forceRefresh && isBenson) {
+    // Keep long-range calendar views usable while a live refresh runs.
+    if (forceRefresh && prefersCachedCalendarData) {
       const staleCachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr, { allowStale: true });
       if (staleCachedData && staleCachedData.length > 0) {
         setPmsData({
@@ -539,15 +541,16 @@ const CalendarAccommodation = () => {
           if (Array.isArray(availPerNight)) {
             for (const avail of availPerNight) {
               const dateStr = avail.date;
+              const restrictionSource = avail.restrictions ?? avail;
               roomData.availabilityByDate[dateStr] = avail.available_units ?? avail.numberOfRoomsAvailable ?? 0;
               roomData.restrictionsByDate[dateStr] = {
-                stopSell: avail.stop_sell ?? avail.stopSell ?? false,
-                minStay: avail.min_stay ?? avail.minimumStay ?? avail.minStay,
-                maxStay: avail.max_stay ?? avail.maximumStay ?? avail.maxStay,
-                leadDaysAdvance: avail.lead_days_advance ?? avail.leadDaysAdvance,
-                leadDaysPost: avail.lead_days_post ?? avail.leadDaysPost,
-                closedToArrival: avail.closed_to_arrival ?? avail.closedToArrival ?? false,
-                closedToDeparture: avail.closed_to_departure ?? avail.closedToDeparture ?? false,
+                stopSell: restrictionSource.stop_sell ?? restrictionSource.stopSell ?? false,
+                minStay: restrictionSource.min_stay ?? restrictionSource.minimumStay ?? restrictionSource.minStay,
+                maxStay: restrictionSource.max_stay ?? restrictionSource.maximumStay ?? restrictionSource.maxStay,
+                leadDaysAdvance: restrictionSource.lead_days_advance ?? restrictionSource.leadDaysAdvance,
+                leadDaysPost: restrictionSource.lead_days_post ?? restrictionSource.leadDaysPost,
+                closedToArrival: restrictionSource.closed_to_arrival ?? restrictionSource.closedToArrival ?? false,
+                closedToDeparture: restrictionSource.closed_to_departure ?? restrictionSource.closedToDeparture ?? false,
               };
             }
           }
@@ -618,6 +621,61 @@ const CalendarAccommodation = () => {
       setLastSyncTime(new Date());
     };
 
+    const transformedRoomsHaveRates = (rooms: PMSRoomTypeData[]) =>
+      rooms.some((room) =>
+        Object.values(room.ratesByDate).some((dateRates) =>
+          dateRates.some((rate) =>
+            (rate.roomAmount != null && rate.roomAmount > 0) ||
+            (rate.adultAmounts && Object.values(rate.adultAmounts).some((value) => value != null && value > 0)) ||
+            (rate.teenAmount != null && rate.teenAmount > 0) ||
+            (rate.childAmount != null && rate.childAmount > 0) ||
+            (rate.infantAmount != null && rate.infantAmount > 0)
+          )
+        )
+      );
+
+    const rawPayloadHasRates = (roomTypesPayload: any[]) =>
+      roomTypesPayload.some((roomType) => {
+        const rateTypesArray = roomType.rate_types ?? roomType.rateTypes ?? [];
+        return Array.isArray(rateTypesArray) && rateTypesArray.some((rateType) => {
+          const ratesArray = rateType.rates ?? [];
+          return Array.isArray(ratesArray) && ratesArray.some((rate) =>
+            (rate.room_amount != null && rate.room_amount > 0) ||
+            (rate.roomAmount != null && rate.roomAmount > 0) ||
+            (rate.adult_amounts && Object.values(rate.adult_amounts).some((value: any) => value != null && value > 0))
+          );
+        });
+      });
+
+    const recoverFromCachedCalendarData = async (attempts = 1, delayMs = 0) => {
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const recoveredCache = await loadCachedAvailability(
+          selectedPropertyData.id,
+          startDateStr,
+          endDateStr,
+          { allowStale: true }
+        );
+
+        if (recoveredCache && recoveredCache.length > 0 && transformedRoomsHaveRates(recoveredCache)) {
+          setPmsData({
+            roomTypes: recoveredCache,
+            lastSynced: new Date(),
+            systemType: selectedPropertyData.external_system,
+          });
+          setPmsSyncStatus("success");
+          setLastSyncTime(new Date());
+          setPmsSyncError("");
+          return true;
+        }
+
+        if (attempt < attempts - 1 && delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+
+      return false;
+    };
+
     try {
       const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
         body: {
@@ -658,6 +716,17 @@ const CalendarAccommodation = () => {
 
       const responseData = data?.data || data;
       const roomTypesPayload = responseData?.room_types || responseData?.roomTypes || [];
+      if (isHostfully && (roomTypesPayload.length <= 1 || !rawPayloadHasRates(roomTypesPayload))) {
+        const recovered = await recoverFromCachedCalendarData(10, 2000);
+        if (recovered) {
+          toast({
+            title: "Availability Synced",
+            description: "Loaded Hostfully rates and availability from the refreshed calendar cache.",
+          });
+          return;
+        }
+      }
+
       applyCalendarData(roomTypesPayload);
 
       toast({
@@ -667,34 +736,14 @@ const CalendarAccommodation = () => {
     } catch (err: any) {
       console.error(`Error fetching ${selectedPropertyData?.external_system} availability:`, err);
 
-      if (isBenson) {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const recoveredCache = await loadCachedAvailability(
-            selectedPropertyData.id,
-            startDateStr,
-            endDateStr,
-            { allowStale: true }
-          );
-
-          if (recoveredCache && recoveredCache.length > 0) {
-            setPmsData({
-              roomTypes: recoveredCache,
-              lastSynced: new Date(),
-              systemType: selectedPropertyData.external_system,
-            });
-            setPmsSyncStatus("success");
-            setLastSyncTime(new Date());
-            setPmsSyncError("");
-            toast({
-              title: "Availability Synced",
-              description: "Loaded Benson calendar data from refreshed cache.",
-            });
-            return;
-          }
-
-          if (attempt < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-          }
+      if (prefersCachedCalendarData) {
+        const recovered = await recoverFromCachedCalendarData(3, 1500);
+        if (recovered) {
+          toast({
+            title: "Availability Synced",
+            description: `Loaded ${selectedPropertyData.external_system} calendar data from refreshed cache.`,
+          });
+          return;
         }
       }
 
