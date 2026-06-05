@@ -275,10 +275,15 @@ const CalendarAccommodation = () => {
   }, [selectedProperty, properties]);
 
   useEffect(() => {
+    if (pmsData.roomTypes.length > 0) {
+      setSelectedRoomTypes(pmsData.roomTypes.map((room) => room.roomTypeName));
+      return;
+    }
+
     if (roomTypes.length > 0) {
       setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
     }
-  }, [roomTypes]);
+  }, [roomTypes, pmsData.roomTypes]);
 
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
     if (!property?.external_system) return null;
@@ -442,6 +447,8 @@ const CalendarAccommodation = () => {
     }
 
     const isBenson = selectedPropertyData.external_system === "benson";
+    const isHostfully = selectedPropertyData.external_system === "hostfully";
+    const prefersCachedCalendarData = isBenson || isHostfully;
 
     // Benson calendar sync should only fetch the visible window (+ small buffer)
     // to avoid orchestrator timeouts on large 13-month requests.
@@ -485,8 +492,23 @@ const CalendarAccommodation = () => {
       }
     }
 
-    // Keep Benson calendar usable while a live refresh runs.
-    if (forceRefresh && isBenson) {
+    const transformedRoomsHaveRates = (rooms: PMSRoomTypeData[]) =>
+      rooms.some((room) =>
+        Object.values(room.ratesByDate).some((dateRates) =>
+          dateRates.some((rate) =>
+            (rate.roomAmount != null && rate.roomAmount > 0) ||
+            (rate.adultAmounts && Object.values(rate.adultAmounts).some((value) => value != null && value > 0)) ||
+            (rate.teenAmount != null && rate.teenAmount > 0) ||
+            (rate.childAmount != null && rate.childAmount > 0) ||
+            (rate.infantAmount != null && rate.infantAmount > 0)
+          )
+        )
+      );
+
+    // Keep long-range calendar views usable while a live refresh runs.
+    let staleFallbackApplied = false;
+
+    if (forceRefresh && prefersCachedCalendarData) {
       const staleCachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr, { allowStale: true });
       if (staleCachedData && staleCachedData.length > 0) {
         setPmsData({
@@ -494,6 +516,7 @@ const CalendarAccommodation = () => {
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
         });
+        staleFallbackApplied = transformedRoomsHaveRates(staleCachedData);
       }
     }
 
@@ -539,15 +562,16 @@ const CalendarAccommodation = () => {
           if (Array.isArray(availPerNight)) {
             for (const avail of availPerNight) {
               const dateStr = avail.date;
+              const restrictionSource = avail.restrictions ?? avail;
               roomData.availabilityByDate[dateStr] = avail.available_units ?? avail.numberOfRoomsAvailable ?? 0;
               roomData.restrictionsByDate[dateStr] = {
-                stopSell: avail.stop_sell ?? avail.stopSell ?? false,
-                minStay: avail.min_stay ?? avail.minimumStay ?? avail.minStay,
-                maxStay: avail.max_stay ?? avail.maximumStay ?? avail.maxStay,
-                leadDaysAdvance: avail.lead_days_advance ?? avail.leadDaysAdvance,
-                leadDaysPost: avail.lead_days_post ?? avail.leadDaysPost,
-                closedToArrival: avail.closed_to_arrival ?? avail.closedToArrival ?? false,
-                closedToDeparture: avail.closed_to_departure ?? avail.closedToDeparture ?? false,
+                stopSell: restrictionSource.stop_sell ?? restrictionSource.stopSell ?? false,
+                minStay: restrictionSource.min_stay ?? restrictionSource.minimumStay ?? restrictionSource.minStay,
+                maxStay: restrictionSource.max_stay ?? restrictionSource.maximumStay ?? restrictionSource.maxStay,
+                leadDaysAdvance: restrictionSource.lead_days_advance ?? restrictionSource.leadDaysAdvance,
+                leadDaysPost: restrictionSource.lead_days_post ?? restrictionSource.leadDaysPost,
+                closedToArrival: restrictionSource.closed_to_arrival ?? restrictionSource.closedToArrival ?? false,
+                closedToDeparture: restrictionSource.closed_to_departure ?? restrictionSource.closedToDeparture ?? false,
               };
             }
           }
@@ -618,6 +642,51 @@ const CalendarAccommodation = () => {
       setLastSyncTime(new Date());
     };
 
+    const rawPayloadHasRates = (roomTypesPayload: unknown[]) =>
+      roomTypesPayload.some((roomType) => {
+        const roomRecord = roomType as Record<string, unknown>;
+        const rateTypesArray = roomRecord.rate_types ?? roomRecord.rateTypes ?? [];
+        return Array.isArray(rateTypesArray) && rateTypesArray.some((rateType) => {
+          const rateTypeRecord = rateType as Record<string, unknown>;
+          const ratesArray = rateTypeRecord.rates ?? [];
+          return Array.isArray(ratesArray) && ratesArray.some((rate) =>
+            Number((rate as Record<string, unknown>).room_amount ?? 0) > 0 ||
+            Number((rate as Record<string, unknown>).roomAmount ?? 0) > 0 ||
+            (Array.isArray((rate as Record<string, unknown>).adult_amounts) &&
+              ((rate as Record<string, unknown>).adult_amounts as unknown[]).some((value) => Number(value) > 0))
+          );
+        });
+      });
+
+    const recoverFromCachedCalendarData = async (attempts = 1, delayMs = 0) => {
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        const recoveredCache = await loadCachedAvailability(
+          selectedPropertyData.id,
+          startDateStr,
+          endDateStr,
+          { allowStale: true }
+        );
+
+        if (recoveredCache && recoveredCache.length > 0 && transformedRoomsHaveRates(recoveredCache)) {
+          setPmsData({
+            roomTypes: recoveredCache,
+            lastSynced: new Date(),
+            systemType: selectedPropertyData.external_system,
+          });
+          setPmsSyncStatus("success");
+          setLastSyncTime(new Date());
+          setPmsSyncError("");
+          return true;
+        }
+
+        if (attempt < attempts - 1 && delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+
+      return false;
+    };
+
     try {
       const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
         body: {
@@ -658,6 +727,18 @@ const CalendarAccommodation = () => {
 
       const responseData = data?.data || data;
       const roomTypesPayload = responseData?.room_types || responseData?.roomTypes || [];
+      if (isHostfully && (roomTypesPayload.length <= 1 || !rawPayloadHasRates(roomTypesPayload))) {
+        const recovered = await recoverFromCachedCalendarData(10, 2000);
+        if (recovered) {
+          toast({
+            title: "Availability Synced",
+            description: "Loaded Hostfully rates and availability from the refreshed calendar cache.",
+          });
+          return;
+        }
+        if (staleFallbackApplied) return;
+      }
+
       applyCalendarData(roomTypesPayload);
 
       toast({
@@ -667,34 +748,14 @@ const CalendarAccommodation = () => {
     } catch (err: any) {
       console.error(`Error fetching ${selectedPropertyData?.external_system} availability:`, err);
 
-      if (isBenson) {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const recoveredCache = await loadCachedAvailability(
-            selectedPropertyData.id,
-            startDateStr,
-            endDateStr,
-            { allowStale: true }
-          );
-
-          if (recoveredCache && recoveredCache.length > 0) {
-            setPmsData({
-              roomTypes: recoveredCache,
-              lastSynced: new Date(),
-              systemType: selectedPropertyData.external_system,
-            });
-            setPmsSyncStatus("success");
-            setLastSyncTime(new Date());
-            setPmsSyncError("");
-            toast({
-              title: "Availability Synced",
-              description: "Loaded Benson calendar data from refreshed cache.",
-            });
-            return;
-          }
-
-          if (attempt < 2) {
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-          }
+      if (prefersCachedCalendarData) {
+        const recovered = await recoverFromCachedCalendarData(3, 1500);
+        if (recovered) {
+          toast({
+            title: "Availability Synced",
+            description: `Loaded ${selectedPropertyData.external_system} calendar data from refreshed cache.`,
+          });
+          return;
         }
       }
 
@@ -1235,7 +1296,7 @@ const CalendarAccommodation = () => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
     const seenNames = new Set<string>();
     
-    // Only use property's saved pms_rate_types to match Property Form
+    // Only use property's saved pms_rate_types to match Property Form when they map to actual PMS data.
     if (selectedPropertyData?.amenities?.pms_rate_types) {
       const savedRateTypes = selectedPropertyData.amenities.pms_rate_types as any[];
       savedRateTypes.forEach(rt => {
@@ -1272,8 +1333,8 @@ const CalendarAccommodation = () => {
       });
     }
     
-    // Fallback: if no saved pms_rate_types, build from PMS response data
-    if (rateTypes.length === 0 && pmsData.roomTypes.length > 0) {
+    // Fallback: if no usable saved pms_rate_types, build from PMS response data.
+    if ((rateTypes.length === 0 || !rateTypes.some((rateType) => rateType.hasRates)) && pmsData.roomTypes.length > 0) {
       const seenRateTypes = new Set<string>();
       pmsData.roomTypes.forEach(room => {
         Object.values(room.ratesByDate).forEach(dateRates => {
@@ -1931,13 +1992,13 @@ const CalendarAccommodation = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-[160px] h-8 text-xs justify-between" disabled={!selectedProperty}>
-                    Room Types ({getSelectedCount(selectedRoomTypes, roomTypes.length)})
+                    Room Types ({getSelectedCount(selectedRoomTypes, pmsData.roomTypes.length || roomTypes.length)})
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
                   <div className="space-y-2">
-                    {roomTypes.map((room, index) => {
+                    {(pmsData.roomTypes.length > 0 ? pmsData.roomTypes.map((room) => ({ name: room.roomTypeName })) : roomTypes).map((room, index) => {
                       const roomName = room.name || room;
                       return (
                         <div key={index} className="flex items-center space-x-2">
