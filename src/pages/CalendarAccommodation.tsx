@@ -493,6 +493,8 @@ const CalendarAccommodation = () => {
     }
 
     // Keep long-range calendar views usable while a live refresh runs.
+    let staleFallbackApplied = false;
+
     if (forceRefresh && prefersCachedCalendarData) {
       const staleCachedData = await loadCachedAvailability(selectedPropertyData.id, startDateStr, endDateStr, { allowStale: true });
       if (staleCachedData && staleCachedData.length > 0) {
@@ -501,6 +503,7 @@ const CalendarAccommodation = () => {
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
         });
+        staleFallbackApplied = transformedRoomsHaveRates(staleCachedData);
       }
     }
 
@@ -639,15 +642,18 @@ const CalendarAccommodation = () => {
         )
       );
 
-    const rawPayloadHasRates = (roomTypesPayload: any[]) =>
+    const rawPayloadHasRates = (roomTypesPayload: unknown[]) =>
       roomTypesPayload.some((roomType) => {
-        const rateTypesArray = roomType.rate_types ?? roomType.rateTypes ?? [];
+        const roomRecord = roomType as Record<string, unknown>;
+        const rateTypesArray = roomRecord.rate_types ?? roomRecord.rateTypes ?? [];
         return Array.isArray(rateTypesArray) && rateTypesArray.some((rateType) => {
-          const ratesArray = rateType.rates ?? [];
+          const rateTypeRecord = rateType as Record<string, unknown>;
+          const ratesArray = rateTypeRecord.rates ?? [];
           return Array.isArray(ratesArray) && ratesArray.some((rate) =>
-            (rate.room_amount != null && rate.room_amount > 0) ||
-            (rate.roomAmount != null && rate.roomAmount > 0) ||
-            (rate.adult_amounts && Object.values(rate.adult_amounts).some((value: any) => value != null && value > 0))
+            Number((rate as Record<string, unknown>).room_amount ?? 0) > 0 ||
+            Number((rate as Record<string, unknown>).roomAmount ?? 0) > 0 ||
+            (Array.isArray((rate as Record<string, unknown>).adult_amounts) &&
+              ((rate as Record<string, unknown>).adult_amounts as unknown[]).some((value) => Number(value) > 0))
           );
         });
       });
@@ -730,6 +736,7 @@ const CalendarAccommodation = () => {
           });
           return;
         }
+        if (staleFallbackApplied) return;
       }
 
       applyCalendarData(roomTypesPayload);
