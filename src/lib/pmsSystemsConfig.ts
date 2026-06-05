@@ -62,6 +62,13 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     category: 'channel_manager',
     deploymentStatus: 'planned',
   },
+  {
+    key: 'easyota',
+    name: 'EasyOTA',
+    description: 'Channel manager connecting properties to multiple OTAs — API credentials pending',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
   // B
   {
     key: 'booking_com',
