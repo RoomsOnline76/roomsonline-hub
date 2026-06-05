@@ -275,13 +275,13 @@ const CalendarAccommodation = () => {
   }, [selectedProperty, properties]);
 
   useEffect(() => {
-    if (roomTypes.length > 0) {
-      setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
+    if (pmsData.roomTypes.length > 0) {
+      setSelectedRoomTypes(pmsData.roomTypes.map((room) => room.roomTypeName));
       return;
     }
 
-    if (pmsData.roomTypes.length > 0) {
-      setSelectedRoomTypes(pmsData.roomTypes.map((room) => room.roomTypeName));
+    if (roomTypes.length > 0) {
+      setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
     }
   }, [roomTypes, pmsData.roomTypes]);
 
@@ -1985,13 +1985,13 @@ const CalendarAccommodation = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-[160px] h-8 text-xs justify-between" disabled={!selectedProperty}>
-                    Room Types ({getSelectedCount(selectedRoomTypes, roomTypes.length || pmsData.roomTypes.length)})
+                    Room Types ({getSelectedCount(selectedRoomTypes, pmsData.roomTypes.length || roomTypes.length)})
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
                   <div className="space-y-2">
-                    {(roomTypes.length > 0 ? roomTypes : pmsData.roomTypes.map((room) => ({ name: room.roomTypeName }))).map((room, index) => {
+                    {(pmsData.roomTypes.length > 0 ? pmsData.roomTypes.map((room) => ({ name: room.roomTypeName })) : roomTypes).map((room, index) => {
                       const roomName = room.name || room;
                       return (
                         <div key={index} className="flex items-center space-x-2">
