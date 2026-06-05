@@ -492,6 +492,19 @@ const CalendarAccommodation = () => {
       }
     }
 
+    const transformedRoomsHaveRates = (rooms: PMSRoomTypeData[]) =>
+      rooms.some((room) =>
+        Object.values(room.ratesByDate).some((dateRates) =>
+          dateRates.some((rate) =>
+            (rate.roomAmount != null && rate.roomAmount > 0) ||
+            (rate.adultAmounts && Object.values(rate.adultAmounts).some((value) => value != null && value > 0)) ||
+            (rate.teenAmount != null && rate.teenAmount > 0) ||
+            (rate.childAmount != null && rate.childAmount > 0) ||
+            (rate.infantAmount != null && rate.infantAmount > 0)
+          )
+        )
+      );
+
     // Keep long-range calendar views usable while a live refresh runs.
     let staleFallbackApplied = false;
 
@@ -628,19 +641,6 @@ const CalendarAccommodation = () => {
       setPmsSyncStatus("success");
       setLastSyncTime(new Date());
     };
-
-    const transformedRoomsHaveRates = (rooms: PMSRoomTypeData[]) =>
-      rooms.some((room) =>
-        Object.values(room.ratesByDate).some((dateRates) =>
-          dateRates.some((rate) =>
-            (rate.roomAmount != null && rate.roomAmount > 0) ||
-            (rate.adultAmounts && Object.values(rate.adultAmounts).some((value) => value != null && value > 0)) ||
-            (rate.teenAmount != null && rate.teenAmount > 0) ||
-            (rate.childAmount != null && rate.childAmount > 0) ||
-            (rate.infantAmount != null && rate.infantAmount > 0)
-          )
-        )
-      );
 
     const rawPayloadHasRates = (roomTypesPayload: unknown[]) =>
       roomTypesPayload.some((roomType) => {
