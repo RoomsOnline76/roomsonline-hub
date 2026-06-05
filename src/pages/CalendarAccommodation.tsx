@@ -1042,9 +1042,10 @@ const CalendarAccommodation = () => {
       const accommodationProperties = (data || []).filter((property: any) => {
         // Exclude NightsBridge properties (they use iframe-based booking, not calendar sync)
         if (property.external_system === 'nightsbridge') return false;
-        // Include Hostfully properties even if accommodation flag isn't set
-        if (property.external_system === 'hostfully' || property.hostfully_property_uid) return true;
-        return property.amenities?.offerings?.accommodation === true;
+        // Include any PMS/channel-connected property regardless of offerings flag
+        if (property.external_system || property.hostfully_property_uid || property.benson_property_code || property.checkfront_property_code || property.siteminder_property_code || property.hotelbeds_hotel_code) return true;
+        // Native/manual properties — include unless accommodation is explicitly false
+        return property.amenities?.offerings?.accommodation !== false;
       });
 
       setProperties(accommodationProperties);
