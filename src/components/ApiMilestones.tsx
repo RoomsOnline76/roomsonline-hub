@@ -203,6 +203,15 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: false,
     liveMonitor: false,
   },
+  ebeds: {
+    // ❌ No account or API documentation yet — edge function deferred
+    auth: false,
+    healthCheck: false,
+    pullAvailability: false,
+    syncIn: false,
+    pushBooking: false,
+    liveMonitor: false,
+  },
 };
 
 // Get count of completed milestones for a PMS

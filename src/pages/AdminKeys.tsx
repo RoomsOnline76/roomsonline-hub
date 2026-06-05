@@ -4906,6 +4906,11 @@ export default function AdminKeys() {
             "easyota",
             "Channel manager bridging properties to multiple OTAs. API account and documentation pending — edge function adapter will be wired once credentials are available.",
           )}
+          {renderPlaceholderPMSCard(
+            "eBeds",
+            "ebeds",
+            "Channel manager and distribution platform. API account and documentation pending — edge function adapter will be wired once credentials are available.",
+          )}
         </Accordion>
         </CollapsibleContent>
       </Collapsible>
