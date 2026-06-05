@@ -1030,12 +1030,15 @@ const CalendarAccommodation = () => {
     try {
       let query = supabase
         .from("properties")
-        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, is_rol_property, listing_status")
-        .eq("is_active", true)
-        .neq("listing_status", "inactive");
+        .select("id, name, amenities, owner_email, external_system, external_id, benson_property_code, checkfront_property_code, siteminder_property_code, hotelbeds_hotel_code, hostfully_property_uid, is_rol_property, listing_status");
 
-      if (!adminStatus && email) {
-        query = query.eq("owner_email", email);
+      // Admins/devs/fearless leaders see EVERY property (active, inactive, draft) for ARI debugging.
+      // Owners only see their own active, listed properties.
+      if (!adminStatus) {
+        query = query.eq("is_active", true).neq("listing_status", "inactive");
+        if (email) {
+          query = query.eq("owner_email", email);
+        }
       }
 
       const { data, error } = await query.order("name");
