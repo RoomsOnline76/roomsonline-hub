@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
+import { fetchLiveRates, type LivePropertyRates, type LiveRoomRate } from "@/lib/pmsLiveAvailability";
 import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
 import { useItinerary } from "@/contexts/ItineraryContext";
 
