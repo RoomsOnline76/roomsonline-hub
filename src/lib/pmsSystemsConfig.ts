@@ -196,6 +196,13 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
   },
   // P
   {
+    key: 'pricelabs',
+    name: 'PriceLabs',
+    description: 'Dynamic pricing and revenue management — REST API (https://api.pricelabs.co)',
+    category: 'channel_manager',
+    deploymentStatus: 'planned',
+  },
+  {
     key: 'profitroom',
     name: 'ProfitRoom',
     description: 'Hotel management platform with booking engine, channel manager, and CRS',
@@ -203,6 +210,7 @@ export const ALL_PMS_SYSTEMS: PMSSystemConfig[] = [
     hasCustomCard: true,
     deploymentStatus: 'in_development',
   },
+
   // R
   {
     key: 'rentalsunited',
