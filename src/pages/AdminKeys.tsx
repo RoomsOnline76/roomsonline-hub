@@ -4902,6 +4902,11 @@ export default function AdminKeys() {
             "Cloud PMS and channel manager with REST API v2. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.beds24.com/v2/",
           )}
           {renderPlaceholderPMSCard(
+            "PriceLabs",
+            "pricelabs",
+            "Dynamic pricing and revenue management platform. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.pricelabs.co",
+          )}
+          {renderPlaceholderPMSCard(
             "EasyOTA",
             "easyota",
             "Channel manager bridging properties to multiple OTAs. API account and documentation pending — edge function adapter will be wired once credentials are available.",

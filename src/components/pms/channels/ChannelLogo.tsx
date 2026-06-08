@@ -15,6 +15,7 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   wetu: { label: "WETU", color: "bg-lime-600", initials: "W" },
   tourplan: { label: "TourPlan", color: "bg-sky-600", initials: "TP" },
   beds24: { label: "Beds24", color: "bg-fuchsia-600", initials: "B24" },
+  pricelabs: { label: "PriceLabs", color: "bg-purple-600", initials: "PL" },
   easyota: { label: "EasyOTA", color: "bg-emerald-600", initials: "EO" },
   ebeds: { label: "eBeds", color: "bg-amber-600", initials: "eB" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },

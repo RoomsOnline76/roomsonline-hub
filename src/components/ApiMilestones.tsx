@@ -194,6 +194,15 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     pushBooking: false,
     liveMonitor: false,
   },
+  pricelabs: {
+    // ❌ No account yet — REST API docs: https://api.pricelabs.co
+    auth: false,
+    healthCheck: false,
+    pullAvailability: false,
+    syncIn: false,
+    pushBooking: false,
+    liveMonitor: false,
+  },
   easyota: {
     // ❌ No account or API documentation yet — edge function deferred
     auth: false,
