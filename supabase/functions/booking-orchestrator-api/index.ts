@@ -466,34 +466,69 @@ Deno.serve(async (req) => {
         );
 
         // Cache-first window: 30 min for short ranges (checkout), 24 h for long ranges (calendar view).
-        // Hostfully especially benefits — the live single-unit fallback only returns 1 row,
-        // whereas the cache has every unit cached by the multi-unit sync job.
         const maxCacheAgeMin = requestedDays <= 31 ? 30 : 24 * 60;
 
+        // Inspect cache: how old is the oldest row in the window, and is coverage full?
+        const { data: cacheMeta } = await supabase
+          .from("pms_availability_cache")
+          .select("fetched_at, date")
+          .eq("property_id", property_id)
+          .gte("date", start_date)
+          .lt("date", end_date)
+          .order("fetched_at", { ascending: false });
+
         const cached = await resolveFromCache(supabase, property_id, start_date, end_date, roomTypes);
-        if (cached && cached.room_types?.length > 0) {
-          const { data: freshCheck } = await supabase
-            .from("pms_availability_cache")
-            .select("fetched_at")
-            .eq("property_id", property_id)
-            .gte("date", start_date)
-            .lt("date", end_date)
-            .order("fetched_at", { ascending: false })
-            .limit(1);
+        const hasCacheData = !!(cached && cached.room_types?.length > 0);
+        const newestAgeMin = cacheMeta?.[0]?.fetched_at
+          ? (Date.now() - new Date(cacheMeta[0].fetched_at).getTime()) / 60000
+          : Infinity;
+        const oldestAgeMin = cacheMeta?.length
+          ? (Date.now() - new Date(cacheMeta[cacheMeta.length - 1].fetched_at).getTime()) / 60000
+          : Infinity;
+        const isStale = oldestAgeMin >= maxCacheAgeMin;
 
-          const cacheAge = freshCheck?.[0]?.fetched_at
-            ? (Date.now() - new Date(freshCheck[0].fetched_at).getTime()) / 60000
-            : 999999;
+        // Distinct dates covered in window
+        const distinctDates = new Set((cacheMeta || []).map((r: any) => r.date));
+        const fullCoverage = distinctDates.size >= requestedDays;
 
-          if (cacheAge < maxCacheAgeMin) {
-            console.log(`[orchestrator] Cache hit for ${ext} (${requestedDays}d, ${Math.round(cacheAge)}min old, ${cached.room_types.length} room types)`);
-            return ok(cached);
+        // If we have any cached data and it covers the window, serve it.
+        // If stale, fire a background refresh so next view is fresh.
+        if (hasCacheData && fullCoverage) {
+          if (isStale) {
+            console.log(`[orchestrator] Serving stale cache for ${ext} (oldest ${Math.round(oldestAgeMin)}min) + background refresh`);
+            // Refresh a broader window so subsequent views (calendar) also benefit
+            const refreshEnd = new Date(end_date);
+            refreshEnd.setDate(refreshEnd.getDate() + 90);
+            const refreshEndStr = refreshEnd.toISOString().split("T")[0];
+            const refreshPromise = callPmsAdapter(supabaseUrl, serviceKey, ext, property_id, start_date, refreshEndStr)
+              .catch((e) => console.warn(`[orchestrator] Background refresh failed:`, e));
+            // @ts-ignore EdgeRuntime available in Supabase Edge
+            if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+              // @ts-ignore
+              EdgeRuntime.waitUntil(refreshPromise);
+            }
+          } else {
+            console.log(`[orchestrator] Cache hit for ${ext} (${requestedDays}d, newest ${Math.round(newestAgeMin)}min old, ${cached!.room_types.length} room types)`);
           }
+          return ok(cached);
         }
 
-        // Live PMS adapter call (cache miss or stale)
-        const availability = await callPmsAdapter(supabaseUrl, serviceKey, ext, property_id, start_date, end_date);
-        return ok(availability);
+        // Cache empty or doesn't cover the window → live call (also re-hydrates cache)
+        try {
+          const availability = await callPmsAdapter(supabaseUrl, serviceKey, ext, property_id, start_date, end_date);
+          // If live returned thin data but cache has richer multi-room data, prefer cache
+          const liveRoomCount = availability?.room_types?.length || 0;
+          const cachedRoomCount = cached?.room_types?.length || 0;
+          if (hasCacheData && cachedRoomCount > liveRoomCount) {
+            console.log(`[orchestrator] Live returned ${liveRoomCount} rooms, cache has ${cachedRoomCount} — preferring cache`);
+            return ok(cached);
+          }
+          return ok(availability);
+        } catch (liveErr) {
+          console.warn(`[orchestrator] Live call failed, falling back to cache:`, liveErr);
+          if (hasCacheData) return ok(cached);
+          throw liveErr;
+        }
       }
 
 
