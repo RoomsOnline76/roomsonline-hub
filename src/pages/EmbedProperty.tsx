@@ -453,7 +453,7 @@ export default function EmbedProperty() {
               const merged = { ...existing };
               for (const [dateStr, units] of Object.entries(liveRoom.availableByDate)) {
                 const liveRate = liveRoom.ratesByDate[dateStr] ?? merged[dateStr]?.rate ?? liveRoom.minRate;
-                merged[dateStr] = { available_units: units, rate: liveRate };
+                merged[dateStr] = { available_units: Number(units), rate: liveRate };
               }
               updated[matchedRoom.id] = merged;
             }
