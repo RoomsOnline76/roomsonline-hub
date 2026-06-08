@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchLiveRates, type LivePropertyRates } from "@/lib/pmsLiveAvailability";
+import { fetchLiveRates, type LivePropertyRates, type LiveRoomRate } from "@/lib/pmsLiveAvailability";
 import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
 import { useItinerary } from "@/contexts/ItineraryContext";
 
@@ -316,68 +316,159 @@ export default function EmbedProperty() {
   }, [property?.id, roomTypes, checkIn]);
 
   // Live ARI refresh for PMS-backed properties (background, non-blocking)
+  // Uses a 30-day window matching the grid so the orchestrator returns rich
+  // per-day data (and triggers background cache refresh if stale).
   const [liveRates, setLiveRates] = useState<LivePropertyRates | null>(null);
   useEffect(() => {
     if (!property?.id || !property?.external_system) return;
     if (property.external_system === "manual" || property.external_system === "roomsonline") return;
-    
+
+    let cancelled = false;
+    const refetchCache = async () => {
+      const start = new Date(checkIn);
+      const endDate = addDays(start, 30);
+      const externalIds = roomTypes.flatMap(r => [r.id, r.hostfully_room_id].filter(Boolean) as string[]);
+      if (externalIds.length === 0) return;
+      const { data } = await supabase
+        .from("pms_availability_cache")
+        .select("external_room_type_id, date, available_units, rates")
+        .eq("property_id", property.id)
+        .in("external_room_type_id", externalIds)
+        .gte("date", format(start, "yyyy-MM-dd"))
+        .lte("date", format(endDate, "yyyy-MM-dd"));
+      if (cancelled || !data) return;
+      const directIdSet = new Set(roomTypes.map(r => r.id));
+      const externalIdToRoomId: Record<string, string> = {};
+      for (const room of roomTypes) {
+        externalIdToRoomId[room.id] = room.id;
+        if (room.hostfully_room_id) externalIdToRoomId[room.hostfully_room_id] = room.id;
+      }
+      const map: Record<string, Record<string, { available_units: number; rate: number | null }>> = {};
+      const directHits = new Set<string>();
+      const sorted = [...data].sort((a, b) =>
+        (directIdSet.has(a.external_room_type_id) ? 0 : 1) - (directIdSet.has(b.external_room_type_id) ? 0 : 1));
+      for (const row of sorted) {
+        const roomId = externalIdToRoomId[row.external_room_type_id];
+        if (!roomId) continue;
+        const hitKey = `${roomId}:${row.date}`;
+        const isDirect = directIdSet.has(row.external_room_type_id);
+        if (!isDirect && directHits.has(hitKey)) continue;
+        if (isDirect) directHits.add(hitKey);
+        if (!map[roomId]) map[roomId] = {};
+        const ratesArr = row.rates as any[];
+        const dayRate = Array.isArray(ratesArr) && ratesArr.length > 0 ? (ratesArr[0]?.room_amount ?? null) : null;
+        map[roomId][row.date] = {
+          available_units: row.available_units ?? 0,
+          rate: dayRate != null ? Number(dayRate) : null,
+        };
+      }
+      setPmsCacheMap(prev => {
+        // Merge: prefer fresh map values, fall back to prev for missing dates
+        const merged = { ...prev };
+        for (const [roomId, byDate] of Object.entries(map)) {
+          merged[roomId] = { ...(merged[roomId] || {}), ...byDate };
+        }
+        return merged;
+      });
+    };
+
     const resolve = async () => {
-      const result = await fetchLiveRates(property.id, property.external_system, checkIn, checkOut);
-      setLiveRates(result);
-      
-      // Also update pmsCacheMap from live data if we got rooms
-      if (result.rooms.length > 0) {
-        // Merge live per-day data over stale cache — always override
+      // Use 30-day window so orchestrator returns full grid data (and
+      // refreshes stale cache in background for next view).
+      const start = new Date(checkIn);
+      const gridEnd = format(addDays(start, 30), "yyyy-MM-dd");
+      const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
+        body: {
+          action: "fetch_availability",
+          property_id: property.id,
+          start_date: checkIn,
+          end_date: gridEnd,
+        },
+      });
+
+      if (cancelled) return;
+      if (error || !data?.success) {
+        // Re-query cache anyway in case background refresh populated it
+        setTimeout(() => { if (!cancelled) refetchCache(); }, 4000);
+        return;
+      }
+
+      const responseData = data.data || data;
+      const roomTypesResp = responseData?.room_types || responseData?.roomTypes || [];
+      const liveRooms: LiveRoomRate[] = [];
+      let lowestRate: number | null = null;
+
+      for (const rt of roomTypesResp) {
+        const id = rt.room_type_id || rt.roomTypeId || rt.id || "";
+        const name = rt.room_type_name || rt.roomTypeName || rt.name || "";
+        const rateTypes = rt.rate_types || rt.rateTypes || [];
+        const availableByDate: Record<string, number> = {};
+        const ratesByDate: Record<string, number> = {};
+        let minRate: number | null = null;
+        let hasAvailability = false;
+
+        const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || rt.availability_per_night || rt.availabilityPerNight || [];
+        for (const day of avail) {
+          const units = day.available_units ?? day.numberOfRoomsAvailable ?? (day.available ? 1 : 0);
+          const stopSell = day.stop_sell ?? day.stopSell ?? day.isClosed ?? day.closed ?? false;
+          const dateStr = day.date || day.night_date || "";
+          const effectiveUnits = (units > 0 && !stopSell) ? units : 0;
+          if (dateStr) availableByDate[dateStr] = effectiveUnits;
+          if (effectiveUnits > 0) hasAvailability = true;
+        }
+        for (const rateType of rateTypes) {
+          for (const r of (rateType.rates || [])) {
+            const amt = r.room_amount ?? r.roomAmount ?? 0;
+            const dateStr = r.date || r.night_date || "";
+            if (amt > 0) {
+              if (dateStr) ratesByDate[dateStr] = amt;
+              if (minRate === null || amt < minRate) minRate = amt;
+            }
+          }
+        }
+        liveRooms.push({ roomTypeId: String(id), roomName: name, minRate, available: hasAvailability, availableByDate, ratesByDate });
+        if (minRate !== null && (lowestRate === null || minRate < lowestRate)) lowestRate = minRate;
+      }
+
+      setLiveRates({ propertyId: property.id, rooms: liveRooms, lowestRate, fetched: true });
+
+      // Detect "thin" response: single Property-level row with no per-day data.
+      // In that case, don't overwrite the cached multi-room grid — let
+      // refetchCache() pick up the orchestrator's background refresh.
+      const isThin = liveRooms.length <= 1 && liveRooms.every(r => Object.keys(r.availableByDate).length === 0);
+
+      if (!isThin && liveRooms.length > 0) {
         setPmsCacheMap(prev => {
           const updated = { ...prev };
-          for (const liveRoom of result.rooms) {
-            // Try to match live room to our room types by ID or name
-            const matchedRoom = roomTypes.find(rt => 
-              rt.hostfully_room_id === liveRoom.roomTypeId || 
+          for (const liveRoom of liveRooms) {
+            const matchedRoom = roomTypes.find(rt =>
+              rt.hostfully_room_id === liveRoom.roomTypeId ||
               rt.id === liveRoom.roomTypeId ||
               rt.name === liveRoom.roomName
             );
             if (!matchedRoom) continue;
-
             const hasPerDayData = Object.keys(liveRoom.availableByDate).length > 0;
-            
             if (hasPerDayData) {
-              // Merge per-day live data over existing cache
               const existing = updated[matchedRoom.id] || {};
               const merged = { ...existing };
               for (const [dateStr, units] of Object.entries(liveRoom.availableByDate)) {
                 const liveRate = liveRoom.ratesByDate[dateStr] ?? merged[dateStr]?.rate ?? liveRoom.minRate;
-                merged[dateStr] = {
-                  available_units: units,
-                  rate: liveRate,
-                };
+                merged[dateStr] = { available_units: Number(units), rate: liveRate };
               }
-              updated[matchedRoom.id] = merged;
-            } else if (liveRoom.minRate != null) {
-              // Fallback: no per-day data, use boolean available + rate
-              const start = new Date(checkIn);
-              const dates = eachDayOfInterval({ start, end: addDays(start, 13) });
-              const existing = updated[matchedRoom.id] || {};
-              const merged = { ...existing };
-              dates.forEach(d => {
-                const ds = format(d, "yyyy-MM-dd");
-                // Override stale zeros when live says available
-                if (liveRoom.available || !merged[ds]) {
-                  merged[ds] = {
-                    available_units: liveRoom.available ? 1 : 0,
-                    rate: liveRoom.minRate,
-                  };
-                }
-              });
               updated[matchedRoom.id] = merged;
             }
           }
           return updated;
         });
       }
+
+      // Always re-query cache after a delay — orchestrator may have
+      // fired a background refresh that populates richer data.
+      setTimeout(() => { if (!cancelled) refetchCache(); }, 5000);
     };
     resolve();
-  }, [property?.id, property?.external_system, checkIn, checkOut]);
+    return () => { cancelled = true; };
+  }, [property?.id, property?.external_system, checkIn, checkOut, roomTypes]);
 
   // ── Season rate resolver ──
   // Resolves the correct rate for a given room + date using amenities.season_rates
