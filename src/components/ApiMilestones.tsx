@@ -195,13 +195,13 @@ export const pmsIntegrationStatus: Record<string, MilestoneStatus> = {
     liveMonitor: false,
   },
   pricelabs: {
-    // ❌ No account yet — REST API docs: https://api.pricelabs.co
-    auth: false,
-    healthCheck: false,
-    pullAvailability: false,
-    syncIn: false,
-    pushBooking: false,
-    liveMonitor: false,
+    // ✅ Dynamic pricing IAPI v2 — token + name headers, callback URLs registered via /integration
+    auth: true,
+    healthCheck: 'pending',
+    pullAvailability: 'pending', // /get_prices fetches dynamic prices after sync trigger
+    syncIn: 'pending',           // outbound /calendar push (rates + availability)
+    pushBooking: 'pending',      // /reservations push for portfolio analytics
+    liveMonitor: 'pending',      // /sync_status polling
   },
   easyota: {
     // ❌ No account or API documentation yet — edge function deferred
