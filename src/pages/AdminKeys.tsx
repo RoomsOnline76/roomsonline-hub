@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
+import { PriceLabsCard } from "@/components/integrations/PriceLabsCard";
 import { RolosChannelApiCards } from "@/components/integrations/RolosChannelApiCards";
 import { WordPressPushUpdateButton } from "@/components/integrations/WordPressPushUpdateButton";
 import { useNavigate } from "react-router-dom";
