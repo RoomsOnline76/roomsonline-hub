@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { SupportingSystemsTab } from "@/components/system/SupportingSystemsTab";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
+import { PriceLabsCard } from "@/components/integrations/PriceLabsCard";
 import { RolosChannelApiCards } from "@/components/integrations/RolosChannelApiCards";
 import { WordPressPushUpdateButton } from "@/components/integrations/WordPressPushUpdateButton";
 import { useNavigate } from "react-router-dom";
@@ -4901,11 +4902,8 @@ export default function AdminKeys() {
             "beds24",
             "Cloud PMS and channel manager with REST API v2. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.beds24.com/v2/",
           )}
-          {renderPlaceholderPMSCard(
-            "PriceLabs",
-            "pricelabs",
-            "Dynamic pricing and revenue management platform. API account and token-based auth pending — edge function adapter will be wired once credentials are available. Docs: https://api.pricelabs.co",
-          )}
+          <PriceLabsCard />
+
           {renderPlaceholderPMSCard(
             "EasyOTA",
             "easyota",
