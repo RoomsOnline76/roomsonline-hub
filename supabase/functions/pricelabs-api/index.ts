@@ -87,23 +87,20 @@ Deno.serve(async (req) => {
 
       case "set_integration": {
         // Configure sync_url, calendar_trigger_url, hook_url, features, optional regenerate_token.
-        const body: Json = {};
-        for (const k of [
-          "sync_url",
-          "calendar_trigger_url",
-          "hook_url",
-          "features",
-          "regenerate_token",
-        ]) {
-          if (payload[k] !== undefined) body[k] = payload[k];
+        const integration: Json = {};
+        for (const k of ["sync_url", "calendar_trigger_url", "hook_url", "features", "regenerate_token"]) {
+          if (payload[k] !== undefined) integration[k] = payload[k];
         }
-        const r = await pl("POST", "/integration", name, token, body);
-        if (r.ok && body.regenerate_token === true) {
-          const newToken = (r.body as Json | null)?.["integration_token"] as string | undefined;
+        const r = await pl("POST", "/integration", name, token, { integration });
+        if (r.ok && integration.regenerate_token === true) {
+          const body = (r.body as Json | null) ?? {};
+          const inner = (body.integration as Json | undefined) ?? body;
+          const newToken = (inner?.["integration_token"] ?? inner?.["token"]) as string | undefined;
           if (newToken) await persistToken(supabase, name, newToken);
         }
         return json({ success: r.ok, status: r.status, data: r.body });
       }
+
 
       case "push_listings": {
         // payload.listings: array per Swagger schema

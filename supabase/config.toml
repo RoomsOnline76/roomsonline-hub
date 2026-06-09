@@ -194,3 +194,9 @@ verify_jwt = false
 
 [functions.data-access-api]
 verify_jwt = false
+
+[functions.pricelabs-webhook]
+verify_jwt = false
+
+[functions.pricelabs-api]
+verify_jwt = false
