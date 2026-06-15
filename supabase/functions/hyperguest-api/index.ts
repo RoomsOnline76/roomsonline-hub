@@ -110,6 +110,7 @@ const baseRequestSchema = z.object({
   action: z.enum([
     "get_capabilities",
     "health_check",
+    "run_certification",
     "fetch_availability",
     "prebook",
     "create_reservation",
