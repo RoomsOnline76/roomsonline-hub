@@ -917,6 +917,18 @@ export function RateManagerTab({
             {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
           </TabsContent>
 
+          {/* ── Payment Providers Sub-tab ────────────────────────────────── */}
+          <TabsContent value="payment-providers" className="p-0">
+            <PaymentProvidersTab
+              propertyId={propertyId}
+              isAdmin={!!isAdmin}
+              isDev={!!isDev}
+              isFearlessLeader={!!isFearlessLeader}
+            />
+          </TabsContent>
+
+
+
           {/* ── Overview Sub-tab ──────────────────────────────────────────── */}
           <TabsContent value="overview" className="p-6 space-y-6">
             {(() => {
