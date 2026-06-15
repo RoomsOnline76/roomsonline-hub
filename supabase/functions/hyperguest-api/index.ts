@@ -56,7 +56,7 @@ const CAPABILITIES = {
 // the sandbox is scoped by the auth token).
 const HG_ENDPOINTS = {
   static: 'https://hg-static.hyperguest.com',
-  search: 'https://search-api.hyperguest.io/2.0',
+  search: 'https://search-api.hyperguest.io',
   book:   'https://book-api.hyperguest.com/2.0',
 };
 
@@ -398,7 +398,8 @@ async function fetchAvailability(
     searchPayload.currency = currency;
   }
 
-  // HG search-api expects GET /hotels/{hotel_id}/availability with query params
+  // HG search-api expects GET /hotels/{hotel_id}/availability with query params.
+  // Do not prefix /2.0 here: the certified availability path is root-relative.
   const qs = new URLSearchParams({
     check_in: startDate,
     check_out: endDate,
@@ -901,11 +902,14 @@ async function runCertification(
       creds,
       fmt(checkIn),
       fmt(checkOut),
-      [{ adults: 2, children: 0, infants: 0 }],
+      { rooms: 1, adults: 2, children: 0 },
       undefined,
       "USD",
     );
-    const offers = availability?.rooms?.length ?? availability?.offers?.length ?? 0;
+    const offers = availability?.room_types?.reduce((sum: number, room: any) => sum + (room.rate_types?.length ?? 0), 0)
+      ?? availability?.rooms?.length
+      ?? availability?.offers?.length
+      ?? 0;
     if (offers === 0) throw new Error("No availability returned");
     return `${offers} offers ${fmt(checkIn)}→${fmt(checkOut)}`;
   });
