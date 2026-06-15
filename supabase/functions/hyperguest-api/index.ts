@@ -701,7 +701,7 @@ async function fetchStaticData(
   creds: HyperGuestCredentials,
   dataType: "rooms" | "rates" | "all",
   supabase: any,
-  propertyId: string
+  propertyId: string | null
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
   const results: any = {};
@@ -730,21 +730,24 @@ async function fetchStaticData(
       }));
       results.rooms = rooms;
 
-      // Upsert into pms_room_types_cache
-      for (const room of rooms) {
-        await supabase.from("pms_room_types_cache").upsert({
-          property_id: propertyId,
-          system_type: "hyperguest",
-          external_room_type_id: room.external_room_type_id,
-          room_name: room.room_name,
-          max_occupancy: room.max_occupancy,
-          description: room.description,
-          raw_data: room,
-          last_synced_at: new Date().toISOString(),
-        }, { onConflict: "property_id,system_type,external_room_type_id" });
+      // Upsert into pms_room_types_cache (skipped when there is no property context)
+      if (propertyId) {
+        for (const room of rooms) {
+          await supabase.from("pms_room_types_cache").upsert({
+            property_id: propertyId,
+            system_type: "hyperguest",
+            external_room_type_id: room.external_room_type_id,
+            room_name: room.room_name,
+            max_occupancy: room.max_occupancy,
+            description: room.description,
+            raw_data: room,
+            last_synced_at: new Date().toISOString(),
+          }, { onConflict: "property_id,system_type,external_room_type_id" });
+        }
+        console.log(`[hyperguest] Cached ${rooms.length} room types for property ${propertyId}`);
+      } else {
+        console.log(`[hyperguest] Cert mode — fetched ${rooms.length} room types (cache skipped)`);
       }
-
-      console.log(`[hyperguest] Cached ${rooms.length} room types for property ${propertyId}`);
     }
   }
 
