@@ -908,7 +908,7 @@ export function RateManagerTab({
           {/* ── Billing Sub-tab ────────────────────────────────────────────── */}
           {(isAdmin || isDev || isFearlessLeader) && (
             <TabsContent value="billing">
-              <BillingConfigTab propertyId={propertyId} />
+              <BillingConfigTab propertyId={propertyId} onSwitchTab={setActiveTab} />
               <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
             </TabsContent>
           )}
