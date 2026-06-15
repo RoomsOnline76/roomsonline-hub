@@ -332,6 +332,24 @@ async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } =
   }
 }
 
+async function hgFetchFirstOk(
+  label: string,
+  urls: string[],
+  init: RequestInit & { timeoutMs?: number } = {},
+): Promise<{ url: string; text: string }> {
+  const failures: string[] = [];
+  for (const url of urls) {
+    console.log(`[hyperguest] ${label}: ${init.method || "GET"} ${url}`);
+    const response = await hgFetch(url, init);
+    const text = await response.text();
+    if (response.ok) return { url, text };
+    failures.push(`${response.status} ${text.substring(0, 180)}`);
+    console.warn(`[hyperguest] ${label} failed: ${response.status} ${text.substring(0, 300)}`);
+    if (![404, 405].includes(response.status)) break;
+  }
+  throw new Error(`${label} failed: ${failures.join(" | ")}`);
+}
+
 // ============================================================================
 // API METHODS
 // ============================================================================
