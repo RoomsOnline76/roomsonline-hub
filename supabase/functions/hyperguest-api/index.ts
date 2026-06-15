@@ -398,12 +398,24 @@ async function fetchAvailability(
     searchPayload.currency = currency;
   }
 
-  console.log(`[hyperguest] Searching availability: ${JSON.stringify(searchPayload)}`);
+  // HG search-api expects GET /hotels/{hotel_id}/availability with query params
+  const qs = new URLSearchParams({
+    check_in: startDate,
+    check_out: endDate,
+    adults: String(occupancy?.adults ?? 2),
+    children: String(occupancy?.children ?? 0),
+    rooms: String(occupancy?.rooms ?? 1),
+  });
+  if (occupancy?.children_ages?.length) qs.set("children_ages", occupancy.children_ages.join(","));
+  if (nationality) qs.set("nationality", nationality);
+  if (currency) qs.set("currency", currency);
 
-  const response = await hgFetch(`${baseUrl}/hotels/availability`, {
-    method: "POST",
+  const url = `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${qs.toString()}`;
+  console.log(`[hyperguest] Searching availability: GET ${url}`);
+
+  const response = await hgFetch(url, {
+    method: "GET",
     headers: getAuthHeaders(creds.api_key),
-    body: JSON.stringify(searchPayload),
   });
 
   const responseText = await response.text();
