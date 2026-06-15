@@ -901,44 +901,44 @@ async function runCertification(
   await time("prebook", async () => {
     const firstOffer = availability?.rooms?.[0] || availability?.offers?.[0];
     if (!firstOffer) throw new Error("No offer to prebook");
-    prebookResult = await prebook(creds, {
-      check_in: fmt(checkIn),
-      check_out: fmt(checkOut),
+    const rateKey = firstOffer.rate_key || firstOffer.rateKey || firstOffer.key;
+    if (!rateKey) throw new Error("Offer has no rate_key");
+    prebookResult = await prebook(creds, rateKey, [{
       room_code: firstOffer.room_code || firstOffer.code || firstOffer.roomCode,
       rate_code: firstOffer.rate_code || firstOffer.rateCode,
-      occupancy: [{ adults: 2, children: 0, infants: 0 }],
-      currency: "USD",
-    } as any);
-    return `prebook_token=${(prebookResult?.token || prebookResult?.prebook_token || "").slice(0, 16)}…`;
+      adults: 2,
+      children: 0,
+    }]);
+    return `prebook_id=${(prebookResult?.prebook_id || "").toString().slice(0, 24)}`;
   });
 
   let reservationId: string | null = null;
   await time("create_reservation", async () => {
-    if (!prebookResult?.token && !prebookResult?.prebook_token) {
-      throw new Error("Skipped — no prebook token");
-    }
+    if (!prebookResult?.prebook_id) throw new Error("Skipped — no prebook_id");
     const res = await createReservation(creds, {
-      prebook_token: prebookResult.token || prebookResult.prebook_token,
-      guest: { first_name: "Cert", last_name: "Test", email: "cert@roomsonline.test", phone: "+27000000000", nationality: "ZA" },
-      payment: { method: "test", card_token: "TEST" },
-    } as any);
-    reservationId = res?.reservation_id || res?.confirmation || null;
+      rate_key: prebookResult.rate_key,
+      holder: { name: "Cert", surname: "Test", email: "cert@roomsonline.test", phone: "+27000000000", nationality: "ZA" },
+      rooms: prebookResult.rooms || [],
+      client_reference: `ROL-CERT-${Date.now()}`,
+    });
+    reservationId = res?.reservation_id || res?.bookingId || res?.reference || null;
     return `reservation_id=${reservationId ?? "n/a"}`;
   });
 
   await time("get_reservations", async () => {
     if (!reservationId) throw new Error("Skipped — no reservation_id");
-    const list = await getReservations(creds, { reservation_id: reservationId } as any);
-    const found = (list?.reservations || []).some((r: any) => (r.id || r.reservation_id) === reservationId);
+    const list = await getReservations(creds, { reservation_id: reservationId });
+    const found = (list?.reservations || []).some((r: any) => r.reservation_id === reservationId);
     if (!found) throw new Error("Reservation not visible");
     return "reservation visible";
   });
 
   await time("cancel_reservation", async () => {
     if (!reservationId) throw new Error("Skipped — no reservation_id");
-    await cancelReservation(creds, reservationId);
+    await cancelReservation(creds, reservationId, "cert run");
     return "cancelled";
   });
+
 
   await time("health_check_final", async () => {
     const r = await healthCheck(creds);
