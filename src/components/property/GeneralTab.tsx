@@ -296,6 +296,35 @@ export function GeneralTab(props: GeneralTabProps) {
                     });
                     if (error) throw error;
                     if (!data?.success) throw new Error(data?.error || "Import failed");
+
+                    // Re-hydrate local form state from DB so the imported
+                    // description/images/amenities are visible immediately and
+                    // a subsequent Save doesn't overwrite the freshly-imported
+                    // values with the stale formData snapshot.
+                    const { data: fresh, error: refetchErr } = await supabase
+                      .from("properties")
+                      .select("description, short_description, images, amenities, latitude, longitude, address, city, country, external_metadata")
+                      .eq("id", propertyId)
+                      .single();
+                    if (refetchErr) {
+                      console.warn("[WETU] could not refresh form after import:", refetchErr.message);
+                    } else if (fresh) {
+                      setFormData((prev: any) => ({
+                        ...prev,
+                        description: fresh.description ?? prev.description,
+                        short_description: fresh.short_description ?? prev.short_description,
+                        images: fresh.images ?? prev.images,
+                        amenities: fresh.amenities ?? prev.amenities,
+                        latitude: fresh.latitude ?? prev.latitude,
+                        longitude: fresh.longitude ?? prev.longitude,
+                        address: fresh.address ?? prev.address,
+                        city: fresh.city ?? prev.city,
+                        country: fresh.country ?? prev.country,
+                        external_metadata: fresh.external_metadata ?? prev.external_metadata,
+                      }));
+                      setIsDirty(false);
+                    }
+
                     toast({
                       title: "WETU content imported",
                       description: `Updated: ${(data.updated_fields || []).join(", ") || "no new fields"}${data.image_count ? ` · ${data.image_count} images` : ""}`,
