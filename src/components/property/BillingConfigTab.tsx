@@ -47,6 +47,22 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [commissionOpen, setCommissionOpen] = useState(false);
   const { getDefaultsForStrategy } = useBillingDefaults();
 
+  const { data: propertyFlag } = useQuery({
+    queryKey: ["property-allow-custom-payment", propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("allow_custom_payment_provider")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { allow_custom_payment_provider?: boolean } | null;
+    },
+    enabled: !!propertyId,
+  });
+  const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
+  const facilitatorActive = !customProviderEnabled;
+
   const [strategy, setStrategy] = useState("default");
   const [commissionRate, setCommissionRate] = useState("");
   const [subscriptionFee, setSubscriptionFee] = useState("");
