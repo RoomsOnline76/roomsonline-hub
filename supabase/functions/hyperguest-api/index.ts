@@ -211,25 +211,41 @@ interface HyperGuestCredentials {
 
 async function getCredentials(
   supabase: any,
-  propertyId: string
+  propertyId: string | null,
+  overrides?: { hotel_id?: string; environment?: "sandbox" | "production" }
 ): Promise<HyperGuestCredentials> {
-  // Check pms_tracker_status for environment
-  const { data: tracker } = await supabase
-    .from("pms_tracker_status")
-    .select("active_environment, credentials, additional_info")
-    .eq("system_type", "hyperguest")
-    .maybeSingle();
+  // 1. Resolve environment — explicit override > property column > tracker > default sandbox
+  let environment: "sandbox" | "production" = "sandbox";
+  let propRow: any = null;
 
-  const environment = tracker?.active_environment === "production" ? "production" : "sandbox";
+  if (propertyId) {
+    const { data } = await supabase
+      .from("properties")
+      .select("hyperguest_hotel_id, hyperguest_environment, hyperguest_enabled")
+      .eq("id", propertyId)
+      .maybeSingle();
+    propRow = data;
+    if (data?.hyperguest_environment === "production") environment = "production";
+  }
 
-  // Prefer environment-scoped secret (HyperGuest issues tenant-scoped tokens)
+  if (!propRow) {
+    const { data: tracker } = await supabase
+      .from("pms_tracker_status")
+      .select("active_environment, additional_info")
+      .eq("system_type", "hyperguest")
+      .maybeSingle();
+    if (tracker?.active_environment === "production") environment = "production";
+    propRow = propRow || { _tracker: tracker };
+  }
+
+  if (overrides?.environment) environment = overrides.environment;
+
+  // 2. Token (env-scoped)
   const envSecret = environment === "production"
     ? Deno.env.get("HYPERGUEST_AUTH_TOKEN_PROD")
     : Deno.env.get("HYPERGUEST_AUTH_TOKEN");
-
   let apiKey = envSecret || null;
 
-  // Fallback to api_keys table for manual overrides
   if (!apiKey) {
     const { data: apiKeyRow } = await supabase
       .from("api_keys")
@@ -247,21 +263,29 @@ async function getCredentials(
     );
   }
 
-  // Get hotel code from integration_configs or properties; fall back to
-  // the certification property for sandbox testing.
-  const { data: config } = await supabase
-    .from("integration_configs")
-    .select("config")
-    .eq("property_id", propertyId)
-    .eq("integration_type", "hyperguest")
-    .maybeSingle();
+  // 3. Hotel code — overrides > property column > integration_configs > tracker demo > cert hotel (sandbox only)
+  let hotelCode: string | null = overrides?.hotel_id || propRow?.hyperguest_hotel_id || null;
 
-  const hotelCode = config?.config?.hotel_code
-    || tracker?.additional_info?.demo_property_id
-    || (environment === 'sandbox' ? CERTIFICATION_HOTEL_ID : null);
+  if (!hotelCode && propertyId) {
+    const { data: config } = await supabase
+      .from("integration_configs")
+      .select("config")
+      .eq("property_id", propertyId)
+      .eq("integration_type", "hyperguest")
+      .maybeSingle();
+    hotelCode = config?.config?.hotel_code ?? null;
+  }
 
   if (!hotelCode) {
-    throw new Error(`HyperGuest hotel code not configured for property ${propertyId}`);
+    hotelCode = propRow?._tracker?.additional_info?.demo_property_id
+      || (environment === "sandbox" ? CERTIFICATION_HOTEL_ID : null);
+  }
+
+  if (!hotelCode) {
+    throw new Error(
+      `HyperGuest hotel code not configured${propertyId ? ` for property ${propertyId}` : ""}. ` +
+      `Set properties.hyperguest_hotel_id or pass hotel_id in the request.`
+    );
   }
 
   return {
@@ -798,35 +822,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── All other actions require property_id ──
-    const baseValidation = baseRequestSchema.safeParse(body);
-    if (!baseValidation.success) {
-      return new Response(
-        JSON.stringify(createErrorResponse(
-          ERROR_CODES.INVALID_REQUEST,
-          baseValidation.error.errors.map(e => e.message).join(", "),
-          action
-        )),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // ── Resolve property + override context (property_id optional for health_check & run_certification) ──
+    const propertyId: string | null = body.property_id ?? null;
+    const overrides = {
+      hotel_id: body.hotel_id ? String(body.hotel_id) : undefined,
+      environment: (body.environment === "production" || body.environment === "sandbox")
+        ? body.environment as "sandbox" | "production"
+        : undefined,
+    };
 
-    const propertyId = body.property_id;
-    if (!propertyId && action !== "get_capabilities") {
+    const ANONYMOUS_ACTIONS = new Set(["health_check", "run_certification"]);
+
+    if (!propertyId && !ANONYMOUS_ACTIONS.has(action)) {
       return new Response(
         JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "property_id is required", action)),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Get credentials
     let creds: HyperGuestCredentials;
     try {
-      creds = await getCredentials(supabase, propertyId);
+      creds = await getCredentials(supabase, propertyId, overrides);
     } catch (credError: any) {
       return new Response(
         JSON.stringify(createErrorResponse(ERROR_CODES.AUTH_FAILED, credError.message, action)),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Certification Runner (no property_id required; uses cert hotel by default) ──
+    if (action === "run_certification") {
+      const result = await runCertification(supabase, creds, propertyId);
+      return new Response(
+        JSON.stringify(createSuccessResponse(result, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
