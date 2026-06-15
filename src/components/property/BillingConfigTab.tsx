@@ -105,7 +105,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       commission_rate: commissionRate ? parseFloat(commissionRate) : null,
       subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
       transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
-      payment_facilitator_enabled: paymentFacilitator,
+      payment_facilitator_enabled: facilitatorActive,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       volume_tier_json: volumeTierJson,
