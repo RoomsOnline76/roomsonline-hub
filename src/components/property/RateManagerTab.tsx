@@ -19,6 +19,7 @@ import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { SyncRatesDialog } from "@/components/property/SyncRatesDialog";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
+import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
 import { useToast } from "@/hooks/use-toast";
 
