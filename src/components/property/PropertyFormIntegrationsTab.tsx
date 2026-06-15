@@ -15,7 +15,7 @@ import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
-import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
+import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPaymentProviderSelect";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface PropertyFormIntegrationsTabProps {
@@ -36,7 +36,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
       <PushToRentalsUnited propertyId={property.id} propertyName={property.name} />
 
       {/* Payment Provider */}
-      <PropertyPaymentProviderSelect propertyId={property.id} />
+      <GatedPaymentProviderSelect propertyId={property.id} />
 
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">

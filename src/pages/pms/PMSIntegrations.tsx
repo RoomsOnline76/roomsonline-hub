@@ -16,7 +16,7 @@ import { ElementorTab } from "@/components/integrations/ElementorTab";
 import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
-import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
+import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPaymentProviderSelect";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -290,7 +290,7 @@ export default function PMSIntegrations() {
                           <Building2 className="h-3 w-3 text-muted-foreground" />
                           {pp.name}
                         </h4>
-                        <PropertyPaymentProviderSelect propertyId={pp.id} />
+                        <GatedPaymentProviderSelect propertyId={pp.id} />
                       </div>
                     ))}
                   </CardContent>
@@ -315,7 +315,7 @@ export default function PMSIntegrations() {
               </CardContent>
             </Card>
 
-            <PropertyPaymentProviderSelect propertyId={propertyId} />
+            <GatedPaymentProviderSelect propertyId={propertyId} />
 
             <Tabs defaultValue="smart_button" className="space-y-4">
               <TabsList className="grid grid-cols-9 w-full max-w-5xl">

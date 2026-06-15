@@ -3419,6 +3419,7 @@ export type Database = {
           activated_by: string | null
           address: string
           ai_confidence_metadata: Json | null
+          allow_custom_payment_provider: boolean
           amenities: Json | null
           bathrooms: number | null
           bedrooms: number | null
@@ -3509,6 +3510,7 @@ export type Database = {
           activated_by?: string | null
           address: string
           ai_confidence_metadata?: Json | null
+          allow_custom_payment_provider?: boolean
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
@@ -3599,6 +3601,7 @@ export type Database = {
           activated_by?: string | null
           address?: string
           ai_confidence_metadata?: Json | null
+          allow_custom_payment_provider?: boolean
           amenities?: Json | null
           bathrooms?: number | null
           bedrooms?: number | null
