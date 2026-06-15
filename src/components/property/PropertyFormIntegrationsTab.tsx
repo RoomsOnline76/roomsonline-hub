@@ -15,7 +15,7 @@ import { ApiTab } from "@/components/integrations/ApiTab";
 import { IntegrationDocumentation } from "@/components/integrations/IntegrationDocumentation";
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
-import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
+import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPaymentProviderSelect";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 
 interface PropertyFormIntegrationsTabProps {
