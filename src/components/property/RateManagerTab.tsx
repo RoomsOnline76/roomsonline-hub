@@ -261,7 +261,7 @@ export function RateManagerTab({
 
       {/* Main Content - Rate Breakdown Details */}
       <div className="flex-1 overflow-auto">
-        <Tabs defaultValue="rate-types" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
             <TabsTrigger value="season">Seasons</TabsTrigger>
