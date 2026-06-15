@@ -1,48 +1,51 @@
-# Admin-Gated Custom Payment Provider per Property
+# Consolidate Payment Facilitator + Custom Payment Provider
 
-## Goal
-Property owners get the platform default (PayFast RL) for bookings. An admin can flip a per-property toggle that unlocks the personalised payment provider configurator in the ROLOS Integrations page, where the owner enters provider-specific credentials.
+## Why
+`BillingConfigTab` exposes a **Payment Facilitator** switch (= Rooms Online processes payments via PayFast and charges a transaction fee). The new **Payment Providers** sub‑tab exposes the inverse — `allow_custom_payment_provider` (= the property uses its own gateway). These two flags describe the same decision and can drift out of sync.
 
-## 1. Database
-Add one column to `properties`:
+## Single source of truth
+`properties.allow_custom_payment_provider` (admin-controlled, default `false`).
 
-- `allow_custom_payment_provider boolean NOT NULL DEFAULT false`
+Derived rule everywhere:
+```
+payment_facilitator_enabled = !allow_custom_payment_provider
+```
+Default state: **Payment Facilitator ON**. It flips off only when an admin toggles "Allow custom payment provider" in the Payment Providers tab.
 
-No RLS changes — existing property policies cover it. Admins (`admin`, `fearless_leader`) can update; owners can read but not update this column (enforce in the UI; trigger-level enforcement optional, deferred unless requested).
+## Changes
 
-## 2. Admin toggle — Edit Property → Rates → Payment Providers
-Inside `src/components/property/RateManagerTab.tsx`:
+### 1. `PaymentProvidersTab.tsx` (existing)
+- On save, in addition to updating `properties.allow_custom_payment_provider`, also upsert `property_billing_configs.payment_facilitator_enabled = !next` so the billing engine stays in sync (no behavioural change for billing calculations).
+- Add an inline note: "Turning this on disables the Rooms Online Payment Facilitator fee for this property."
 
-- Add a new tab trigger **Payment Providers** (visible to everyone; content gated by role).
-- Tab content:
-  - **Admin/dev/fearless_leader view:** a `Switch` bound to `properties.allow_custom_payment_provider`. Label: "Allow this property to use its own payment provider". Helper text explains: when off, bookings use the Rooms Online PayFast gateway; when on, the owner can configure their own provider in ROLOS → Integrations.
-  - **Owner view:** read-only status card ("Using Rooms Online PayFast" or "Custom provider enabled — configure in Integrations" with a link to `/rolos/integrations`).
-- Persist via `supabase.from('properties').update(...)`, invalidate the property query.
+### 2. `BillingConfigTab.tsx`
+- Replace the editable **Payment Facilitator** `<Switch>` with a read-only status row:
+  - Shows `ON (default)` / `OFF (custom provider enabled)`.
+  - One-liner explainer + button **"Manage in Payment Providers"** that switches the Rates tab to `payment-providers`.
+- Remove `paymentFacilitator` local state's setter from the UI (still read from `useBillingConfig` to render status; still persisted, but derived from the property flag on save).
+- Keep the "This property will be charged X% per transaction" warning, but key it off the property flag (shown only when facilitator is ON and a fee is configured).
 
-## 3. Gate the configurator — ROLOS Integrations
-Wrap `PropertyPaymentProviderSelect` usage in `src/pages/pms/PMSIntegrations.tsx` (both single-property and portfolio views) and `src/components/property/PropertyFormIntegrationsTab.tsx`:
+### 3. Tab navigation hook-up
+`RateManagerTab` already controls the Tabs. Lift its tab state to a controlled value (`value`/`onValueChange`) and pass an `onSwitchTab` callback into `BillingConfigTab` so the new button can jump to `payment-providers`.
 
-- Fetch `allow_custom_payment_provider` for the property.
-- If `false`: render a locked card — title "Custom payment provider (locked)", body explains the property currently uses the Rooms Online PayFast gateway and that an admin must enable custom providers. CTA "Request access" (mailto/admin contact) — no form fields rendered.
-- If `true`: render the existing `PropertyPaymentProviderSelect` (already collects per-provider credentials via its `CredentialField` registry — PayFast, PayGate, Peach, Yoco, Ozow, DPO, Stripe, PayPal, Flutterwave, Klarna, Affirm, etc.).
+### 4. Sync existing rows (one-off)
+Backfill `property_billing_configs.payment_facilitator_enabled` from `properties.allow_custom_payment_provider` so legacy records match the new derivation:
+```sql
+UPDATE public.property_billing_configs pbc
+   SET payment_facilitator_enabled = NOT COALESCE(p.allow_custom_payment_provider, false)
+  FROM public.properties p
+ WHERE pbc.property_id = p.id;
+```
 
-`AdminIntegrations.tsx` keeps the configurator always visible (admins bypass the gate).
-
-## 4. Booking flow
-No changes required. `useActivePaymentGateway` already falls back to the global `supporting_systems` payment entry (PayFast) when a property has no `payment_provider` / `payment_providers` set. We additionally short-circuit it: if `allow_custom_payment_provider === false`, ignore any stored per-property providers and always return the global default. This protects against stale data if an admin disables the flag after a provider was configured.
-
-## 5. Per-provider credential UX
-Already implemented in `PropertyPaymentProviderSelect` — each provider has its own `credentials: CredentialField[]` schema (merchant IDs, secret keys, passphrases, webhook secrets, etc.) with `sensitive` masking and provider docs links. No new work needed beyond surfacing it behind the gate.
+### 5. No booking-flow change
+`useActivePaymentGateway` already returns the RL default when the flag is off — that path matches "facilitator on", so guests keep checking out through the RL PayFast gateway exactly as today.
 
 ## Files touched
-- `supabase/migrations/<new>.sql` — add column.
-- `src/components/property/RateManagerTab.tsx` — new "Payment Providers" sub-tab.
-- `src/components/property/PaymentProvidersTab.tsx` *(new)* — toggle + status UI.
-- `src/pages/pms/PMSIntegrations.tsx` — gate the configurator.
-- `src/components/property/PropertyFormIntegrationsTab.tsx` — gate the configurator.
-- `src/hooks/useActivePaymentGateway.tsx` — respect the flag (force default when off).
-- `src/integrations/supabase/types.ts` — regenerated by migration.
+- `src/components/property/BillingConfigTab.tsx` — switch → read-only status + deep-link button; drop setter wiring.
+- `src/components/property/PaymentProvidersTab.tsx` — also write `payment_facilitator_enabled`.
+- `src/components/property/RateManagerTab.tsx` — controlled Tabs + pass `onSwitchTab` to `BillingConfigTab`.
+- one migration to backfill `property_billing_configs.payment_facilitator_enabled`.
 
 ## Out of scope
-- Adding new payment providers beyond the existing registry.
-- Server-side enforcement trigger (UI + RLS already restrict admin writes; can add later if needed).
+- Removing the `payment_facilitator_enabled` column (kept for billing engine compatibility).
+- Per-strategy fee configuration UI changes.
