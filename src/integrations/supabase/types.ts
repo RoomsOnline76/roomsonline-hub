@@ -3453,6 +3453,12 @@ export type Database = {
           hero_video_url: string | null
           hostfully_property_uid: string | null
           hotelbeds_hotel_code: string | null
+          hyperguest_enabled: boolean
+          hyperguest_environment: string
+          hyperguest_hotel_id: string | null
+          hyperguest_last_pull_at: string | null
+          hyperguest_last_push_at: string | null
+          hyperguest_last_static_sync_at: string | null
           id: string
           images: Json | null
           is_active: boolean | null
@@ -3537,6 +3543,12 @@ export type Database = {
           hero_video_url?: string | null
           hostfully_property_uid?: string | null
           hotelbeds_hotel_code?: string | null
+          hyperguest_enabled?: boolean
+          hyperguest_environment?: string
+          hyperguest_hotel_id?: string | null
+          hyperguest_last_pull_at?: string | null
+          hyperguest_last_push_at?: string | null
+          hyperguest_last_static_sync_at?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null
@@ -3621,6 +3633,12 @@ export type Database = {
           hero_video_url?: string | null
           hostfully_property_uid?: string | null
           hotelbeds_hotel_code?: string | null
+          hyperguest_enabled?: boolean
+          hyperguest_environment?: string
+          hyperguest_hotel_id?: string | null
+          hyperguest_last_pull_at?: string | null
+          hyperguest_last_push_at?: string | null
+          hyperguest_last_static_sync_at?: string | null
           id?: string
           images?: Json | null
           is_active?: boolean | null

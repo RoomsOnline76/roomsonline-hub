@@ -27,6 +27,7 @@ import { SyncStatusIndicator } from "@/components/pms/SyncStatusIndicator";
 import { IntegrationStatusDropdown, type PmsIntegrationStatus } from "@/components/pms/IntegrationStatusDropdown";
 import { EnvironmentToggle } from "@/components/pms/EnvironmentToggle";
 import { HyperGuestDetails } from "@/components/pms/HyperGuestDetails";
+import { HyperGuestCertificationRunner } from "@/components/integrations/HyperGuestCertificationRunner";
 import { BankExportConfigCard } from "@/components/bank-export";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -4302,6 +4303,7 @@ export default function AdminKeys() {
             </p>
 
             <HyperGuestDetails />
+            <HyperGuestCertificationRunner />
 
             <PMSTrackerStatusDisplay tracker={tracker} />
             <PMSProgressToggles
