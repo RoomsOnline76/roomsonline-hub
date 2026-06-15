@@ -36,7 +36,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
       <PushToRentalsUnited propertyId={property.id} propertyName={property.name} />
 
       {/* Payment Provider */}
-      <PropertyPaymentProviderSelect propertyId={property.id} />
+      <GatedPaymentProviderSelect propertyId={property.id} />
 
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">
