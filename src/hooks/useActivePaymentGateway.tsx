@@ -55,14 +55,14 @@ function isValidGateway(v: string): v is PaymentGateway {
 export function useActivePaymentGateways(propertyId?: string): ActiveGatewaysResult {
   const isUuid = !!propertyId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
 
-  // Per-property providers (array + legacy single)
+  // Per-property providers (array + legacy single) + custom-provider gate
   const { data: propertyData, isLoading: propLoading } = useQuery({
     queryKey: ["property-payment-providers-hook", propertyId],
     queryFn: async () => {
       if (!propertyId || !isUuid) return null;
       const { data, error } = await supabase
         .from("properties")
-        .select("payment_provider, payment_providers")
+        .select("payment_provider, payment_providers, allow_custom_payment_provider")
         .eq("id", propertyId)
         .single();
       if (error) return null;
