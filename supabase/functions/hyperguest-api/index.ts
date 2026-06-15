@@ -56,7 +56,7 @@ const CAPABILITIES = {
 // the sandbox is scoped by the auth token).
 const HG_ENDPOINTS = {
   static: 'https://hg-static.hyperguest.com',
-  search: 'https://search-api.hyperguest.io/2.0',
+  search: 'https://search-api.hyperguest.io',
   book:   'https://book-api.hyperguest.com/2.0',
 };
 
@@ -332,6 +332,24 @@ async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } =
   }
 }
 
+async function hgFetchFirstOk(
+  label: string,
+  urls: string[],
+  init: RequestInit & { timeoutMs?: number } = {},
+): Promise<{ url: string; text: string }> {
+  const failures: string[] = [];
+  for (const url of urls) {
+    console.log(`[hyperguest] ${label}: ${init.method || "GET"} ${url}`);
+    const response = await hgFetch(url, init);
+    const text = await response.text();
+    if (response.ok) return { url, text };
+    failures.push(`${response.status} ${text.substring(0, 180)}`);
+    console.warn(`[hyperguest] ${label} failed: ${response.status} ${text.substring(0, 300)}`);
+    if (![404, 405].includes(response.status)) break;
+  }
+  throw new Error(`${label} failed: ${failures.join(" | ")}`);
+}
+
 // ============================================================================
 // API METHODS
 // ============================================================================
@@ -398,7 +416,8 @@ async function fetchAvailability(
     searchPayload.currency = currency;
   }
 
-  // HG search-api expects GET /hotels/{hotel_id}/availability with query params
+  // HG search-api expects GET /hotels/{hotel_id}/availability with query params.
+  // Do not prefix /2.0 here: the certified availability path is root-relative.
   const qs = new URLSearchParams({
     check_in: startDate,
     check_out: endDate,
@@ -413,17 +432,32 @@ async function fetchAvailability(
   const url = `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${qs.toString()}`;
   console.log(`[hyperguest] Searching availability: GET ${url}`);
 
-  const response = await hgFetch(url, {
-    method: "GET",
-    headers: getAuthHeaders(creds.api_key),
-  });
+  const availabilityUrls = [
+    url,
+    `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${new URLSearchParams({
+      checkIn: startDate,
+      checkOut: endDate,
+      adults: String(occupancy?.adults ?? 2),
+      children: String(occupancy?.children ?? 0),
+      rooms: String(occupancy?.rooms ?? 1),
+      ...(currency ? { currency } : {}),
+      ...(nationality ? { nationality } : {}),
+    }).toString()}`,
+    `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/checkrates/`,
+  ];
 
-  const responseText = await response.text();
-  console.log(`[hyperguest] Availability response status: ${response.status}`);
-
-  if (!response.ok) {
-    console.error(`[hyperguest] Availability error: ${responseText.substring(0, 500)}`);
-    throw new Error(`HyperGuest availability error: ${response.status}`);
+  let responseText: string;
+  try {
+    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls.slice(0, 2), {
+      method: "GET",
+      headers: getAuthHeaders(creds.api_key),
+    }));
+  } catch (_getError) {
+    ({ text: responseText } = await hgFetchFirstOk("Availability legacy", [availabilityUrls[2]], {
+      method: "POST",
+      headers: getAuthHeaders(creds.api_key),
+      body: JSON.stringify(searchPayload),
+    }));
   }
 
   const data = JSON.parse(responseText);
@@ -721,13 +755,18 @@ async function fetchStaticData(
 
   // Fetch room types
   if (dataType === "rooms" || dataType === "all") {
-    const roomsResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rooms`, {
+    const { text: roomsText } = await hgFetchFirstOk("Rooms", [
+      `${baseUrl}/hotels/${creds.hotel_code}/rooms`,
+      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rooms`,
+      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
+      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
+      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rooms`,
+    ], {
       headers: getAuthHeaders(creds.api_key),
     });
-
-    if (roomsResponse.ok) {
-      const roomsData = await roomsResponse.json();
-      const rooms = (roomsData.rooms || []).map((r: any) => ({
+    const roomsData = JSON.parse(roomsText);
+    const roomsSource = roomsData.rooms || roomsData.roomTypes || roomsData.data?.rooms || roomsData.hotel?.rooms || [];
+    const rooms = roomsSource.map((r: any) => ({
         external_room_type_id: r.code,
         room_name: r.name,
         room_type: r.type,
@@ -761,18 +800,22 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rooms.length} room types (cache skipped)`);
       }
-    }
   }
 
   // Fetch rate types
   if (dataType === "rates" || dataType === "all") {
-    const ratesResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rates`, {
+    const { text: ratesText } = await hgFetchFirstOk("Rates", [
+      `${baseUrl}/hotels/${creds.hotel_code}/rates`,
+      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rates`,
+      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
+      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
+      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rates`,
+    ], {
       headers: getAuthHeaders(creds.api_key),
     });
-
-    if (ratesResponse.ok) {
-      const ratesData = await ratesResponse.json();
-      const rates = (ratesData.rates || []).map((r: any) => ({
+    const ratesData = JSON.parse(ratesText);
+    const ratesSource = ratesData.rates || ratesData.rateTypes || ratesData.data?.rates || ratesData.hotel?.rates || [];
+    const rates = ratesSource.map((r: any) => ({
         external_rate_type_id: r.code,
         rate_name: r.name,
         rate_type: r.rateType, // BAR, NET
@@ -801,7 +844,6 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rates.length} rate types (cache skipped)`);
       }
-    }
   }
 
   return {
@@ -901,11 +943,14 @@ async function runCertification(
       creds,
       fmt(checkIn),
       fmt(checkOut),
-      [{ adults: 2, children: 0, infants: 0 }],
+      { rooms: 1, adults: 2, children: 0 },
       undefined,
       "USD",
     );
-    const offers = availability?.rooms?.length ?? availability?.offers?.length ?? 0;
+    const offers = availability?.room_types?.reduce((sum: number, room: any) => sum + (room.rate_types?.length ?? 0), 0)
+      ?? availability?.rooms?.length
+      ?? availability?.offers?.length
+      ?? 0;
     if (offers === 0) throw new Error("No availability returned");
     return `${offers} offers ${fmt(checkIn)}→${fmt(checkOut)}`;
   });
