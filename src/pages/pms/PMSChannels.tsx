@@ -98,38 +98,15 @@ export default function PMSChannels() {
 
           {/* Tab 1: Connections */}
           <TabsContent value="connections">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {ALL_CHANNELS.map((channelName) => {
-                  const conn = connectionMap.get(channelName) as any;
-                  const isConnected = !!conn && conn.status !== "disconnected";
-                  return (
-                    <ChannelCard
-                      key={channelName}
-                      channelName={channelName}
-                      connection={
-                        conn
-                          ? {
-                              ...conn,
-                              room_mapping_count: roomCountByConn.get(conn.id) ?? 0,
-                              rate_mapping_count: rateCountByConn.get(conn.id) ?? 0,
-                            }
-                          : undefined
-                      }
-                      isConnected={isConnected}
-                      readOnly={readOnly}
-                      onConnect={() => setConnectDialog(channelName)}
-                      onPause={() => conn && updateStatus.mutate({ connectionId: conn.id, status: "paused" })}
-                      onResume={() => conn && updateStatus.mutate({ connectionId: conn.id, status: "active" })}
-                      onDisconnect={() => conn && updateStatus.mutate({ connectionId: conn.id, status: "disconnected" })}
-                      onSync={() => conn && triggerSync.mutate({ connectionId: conn.id })}
-                    />
-                  );
-                })}
-              </div>
-            )}
+            {/* Channel cards hidden — each will be restored individually as it becomes connectable & configurable. */}
+            <div className="flex flex-col items-center justify-center py-16 px-6 border border-dashed rounded-lg text-center">
+              <Radio className="h-10 w-10 text-muted-foreground mb-3" />
+              <h3 className="text-lg font-semibold text-foreground">Channel connections coming soon</h3>
+              <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                Channel integrations are being prepared. Each OTA will appear here once it is fully connectable
+                and configurable from ROL'OS.
+              </p>
+            </div>
           </TabsContent>
 
           {/* Tab 2: Mappings */}
