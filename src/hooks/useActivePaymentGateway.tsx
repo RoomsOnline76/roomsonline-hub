@@ -89,19 +89,24 @@ export function useActivePaymentGateways(propertyId?: string): ActiveGatewaysRes
 
   const isLoading = (!!propertyId && propLoading) || globalLoading;
 
-  // 1. Check payment_providers array first
-  const arr = (propertyData as any)?.payment_providers as string[] | null;
-  if (arr && arr.length > 0) {
-    const valid = arr.filter(isValidGateway) as PaymentGateway[];
-    if (valid.length > 0) {
-      return { gateways: valid, systemName: valid.join(", "), isLoading };
-    }
-  }
+  // Only honour per-property providers when the admin has unlocked custom providers.
+  const allowCustom = !!(propertyData as any)?.allow_custom_payment_provider;
 
-  // 2. Legacy single payment_provider
-  const single = propertyData?.payment_provider;
-  if (single && single !== "default" && isValidGateway(single)) {
-    return { gateways: [single], systemName: single, isLoading };
+  if (allowCustom) {
+    // 1. Check payment_providers array first
+    const arr = (propertyData as any)?.payment_providers as string[] | null;
+    if (arr && arr.length > 0) {
+      const valid = arr.filter(isValidGateway) as PaymentGateway[];
+      if (valid.length > 0) {
+        return { gateways: valid, systemName: valid.join(", "), isLoading };
+      }
+    }
+
+    // 2. Legacy single payment_provider
+    const single = propertyData?.payment_provider;
+    if (single && single !== "default" && isValidGateway(single)) {
+      return { gateways: [single], systemName: single, isLoading };
+    }
   }
 
   // 3. Global fallback
