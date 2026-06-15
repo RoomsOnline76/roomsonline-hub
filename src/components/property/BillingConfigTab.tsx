@@ -7,11 +7,14 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Save, ChevronDown, AlertTriangle } from "lucide-react";
+import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
 import { useBillingDefaults } from "@/hooks/useBillingDefaults";
 import { CommissionTab } from "./CommissionTab";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
@@ -25,6 +28,7 @@ const STRATEGY_OPTIONS = [
 
 interface BillingConfigTabProps {
   propertyId: string;
+  onSwitchTab?: (tab: string) => void;
 }
 
 function GlobalHint({ value, label }: { value: number | null | undefined; label: string }) {
@@ -36,12 +40,28 @@ function GlobalHint({ value, label }: { value: number | null | undefined; label:
   );
 }
 
-export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
+export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabProps) {
   const { config, isLoading, upsert } = useBillingConfig(propertyId);
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
   const [commissionOpen, setCommissionOpen] = useState(false);
   const { getDefaultsForStrategy } = useBillingDefaults();
+
+  const { data: propertyFlag } = useQuery({
+    queryKey: ["property-allow-custom-payment", propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("allow_custom_payment_provider")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { allow_custom_payment_provider?: boolean } | null;
+    },
+    enabled: !!propertyId,
+  });
+  const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
+  const facilitatorActive = !customProviderEnabled;
 
   const [strategy, setStrategy] = useState("default");
   const [commissionRate, setCommissionRate] = useState("");
@@ -85,7 +105,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
       commission_rate: commissionRate ? parseFloat(commissionRate) : null,
       subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
       transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
-      payment_facilitator_enabled: paymentFacilitator,
+      payment_facilitator_enabled: facilitatorActive,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       volume_tier_json: volumeTierJson,
@@ -203,22 +223,43 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
           </div>
         )}
 
-        {/* Toggles */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={paymentFacilitator}
-              onCheckedChange={setPaymentFacilitator}
-            />
-            <Label className="text-xs cursor-pointer">Payment Facilitator</Label>
+        {/* Payment Facilitator status (linked to Payment Providers tab) */}
+        <div className="rounded-md border p-3 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Payment Facilitator</Label>
+                {facilitatorActive ? (
+                  <Badge className="gap-1 h-5 text-[10px]"><ShieldCheck className="h-3 w-3" />ON (default)</Badge>
+                ) : (
+                  <Badge variant="secondary" className="gap-1 h-5 text-[10px]"><Lock className="h-3 w-3" />OFF — custom provider</Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {facilitatorActive
+                  ? "Rooms Online processes guest payments via PayFast and charges a transaction fee."
+                  : "This property uses its own payment provider — no facilitator fee applies."}
+              </p>
+            </div>
+            {onSwitchTab && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0"
+                onClick={() => onSwitchTab("payment-providers")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Manage in Payment Providers
+              </Button>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={whiteLabel}
-              onCheckedChange={setWhiteLabel}
-            />
-            <Label className="text-xs cursor-pointer">White-label Allowed</Label>
-          </div>
+        </div>
+
+        {/* White-label toggle */}
+        <div className="flex items-center gap-2">
+          <Switch checked={whiteLabel} onCheckedChange={setWhiteLabel} />
+          <Label className="text-xs cursor-pointer">White-label Allowed</Label>
         </div>
 
         {/* White-label Fee + charge warning */}
@@ -226,7 +267,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
           <div className="space-y-2">
             <div className="space-y-1">
               <Label>White-Label Monthly Fee (ZAR)</Label>
-            <Input
+              <Input
                 type="number"
                 step="50"
                 min="0"
@@ -247,7 +288,7 @@ export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
         )}
 
         {/* Payment Facilitator charge warning */}
-        {paymentFacilitator && (
+        {facilitatorActive && (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-800 dark:text-amber-300">

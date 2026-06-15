@@ -104,6 +104,7 @@ export function RateManagerTab({
   const { toast } = useToast();
 
   // ── Local state ────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<string>("rate-types");
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
@@ -260,7 +261,7 @@ export function RateManagerTab({
 
       {/* Main Content - Rate Breakdown Details */}
       <div className="flex-1 overflow-auto">
-        <Tabs defaultValue="rate-types" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList>
             <TabsTrigger value="rate-types">Rate Types</TabsTrigger>
             <TabsTrigger value="season">Seasons</TabsTrigger>
@@ -907,7 +908,7 @@ export function RateManagerTab({
           {/* ── Billing Sub-tab ────────────────────────────────────────────── */}
           {(isAdmin || isDev || isFearlessLeader) && (
             <TabsContent value="billing">
-              <BillingConfigTab propertyId={propertyId} />
+              <BillingConfigTab propertyId={propertyId} onSwitchTab={setActiveTab} />
               <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
             </TabsContent>
           )}

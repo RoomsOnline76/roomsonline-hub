@@ -53,17 +53,29 @@ export function PaymentProvidersTab({
       .from("properties")
       .update({ allow_custom_payment_provider: next })
       .eq("id", propertyId);
+
+    // Keep billing config in sync: facilitator is the inverse of custom provider
+    const { error: billingErr } = await supabase
+      .from("property_billing_configs")
+      .upsert(
+        { property_id: propertyId, payment_facilitator_enabled: !next },
+        { onConflict: "property_id" }
+      );
+
     setSaving(false);
-    if (error) {
-      toast.error("Failed to update payment provider access", { description: error.message });
+    if (error || billingErr) {
+      toast.error("Failed to update payment provider access", {
+        description: (error || billingErr)?.message,
+      });
       return;
     }
     toast.success(
       next
-        ? "Custom payment provider enabled for this property"
-        : "Reverted to Rooms Online PayFast gateway"
+        ? "Custom payment provider enabled — facilitator fee disabled"
+        : "Reverted to Rooms Online PayFast gateway — facilitator fee active"
     );
     queryClient.invalidateQueries({ queryKey: ["property-allow-custom-payment", propertyId] });
+    queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
   };
 
   if (!propertyId) {
@@ -86,9 +98,11 @@ export function PaymentProvidersTab({
           </div>
           <CardDescription>
             By default every property processes guest payments through the{" "}
-            <span className="font-medium">Rooms Online PayFast</span> gateway. An administrator can
-            allow this property to connect its own payment provider — once enabled, the owner can
-            configure provider credentials in <span className="font-medium">ROL'OS → Integrations</span>.
+            <span className="font-medium">Rooms Online PayFast</span> gateway and is charged the
+            Payment Facilitator transaction fee. An administrator can allow this property to connect
+            its own payment provider — once enabled, the facilitator fee is disabled and the owner
+            can configure provider credentials in{" "}
+            <span className="font-medium">ROL'OS → Integrations</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
