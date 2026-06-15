@@ -762,6 +762,9 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rooms.length} room types (cache skipped)`);
       }
+    } else {
+      const body = await roomsResponse.text();
+      console.warn(`[hyperguest] Rooms endpoint failed: ${roomsResponse.status} ${body.substring(0, 300)}`);
     }
   }
 
@@ -802,6 +805,9 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rates.length} rate types (cache skipped)`);
       }
+    } else {
+      const body = await ratesResponse.text();
+      console.warn(`[hyperguest] Rates endpoint failed: ${ratesResponse.status} ${body.substring(0, 300)}`);
     }
   }
 
