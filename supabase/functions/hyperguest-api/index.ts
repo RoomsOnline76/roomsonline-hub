@@ -771,20 +771,23 @@ async function fetchStaticData(
       }));
       results.rates = rates;
 
-      // Upsert into pms_rate_types_cache
-      for (const rate of rates) {
-        await supabase.from("pms_rate_types_cache").upsert({
-          property_id: propertyId,
-          system_type: "hyperguest",
-          external_rate_type_id: rate.external_rate_type_id,
-          rate_name: rate.rate_name,
-          rate_type: rate.rate_type,
-          raw_data: rate,
-          last_synced_at: new Date().toISOString(),
-        }, { onConflict: "property_id,system_type,external_rate_type_id" });
+      // Upsert into pms_rate_types_cache (skipped when there is no property context)
+      if (propertyId) {
+        for (const rate of rates) {
+          await supabase.from("pms_rate_types_cache").upsert({
+            property_id: propertyId,
+            system_type: "hyperguest",
+            external_rate_type_id: rate.external_rate_type_id,
+            rate_name: rate.rate_name,
+            rate_type: rate.rate_type,
+            raw_data: rate,
+            last_synced_at: new Date().toISOString(),
+          }, { onConflict: "property_id,system_type,external_rate_type_id" });
+        }
+        console.log(`[hyperguest] Cached ${rates.length} rate types for property ${propertyId}`);
+      } else {
+        console.log(`[hyperguest] Cert mode — fetched ${rates.length} rate types (cache skipped)`);
       }
-
-      console.log(`[hyperguest] Cached ${rates.length} rate types for property ${propertyId}`);
     }
   }
 
@@ -792,6 +795,165 @@ async function fetchStaticData(
     hotel_code: creds.hotel_code,
     synced_at: new Date().toISOString(),
     ...results,
+  };
+}
+
+// ============================================================================
+// CERTIFICATION RUNNER
+// ============================================================================
+
+interface CertStep {
+  step: number;
+  name: string;
+  status: "pass" | "fail" | "skip";
+  duration_ms: number;
+  summary?: string;
+  error?: string;
+}
+
+async function logIntegrationStep(
+  supabase: any,
+  propertyId: string | null,
+  step: CertStep,
+) {
+  try {
+    await supabase.from("integration_logs").insert({
+      integration_type: "hyperguest",
+      property_id: propertyId,
+      event_type: `cert_step_${step.step}_${step.name}`,
+      status: step.status === "pass" ? "success" : "error",
+      payload: step,
+    });
+  } catch (_e) {
+    // log table may not accept this shape — never block cert run on logging
+  }
+}
+
+async function runCertification(
+  supabase: any,
+  creds: HyperGuestCredentials,
+  propertyId: string | null,
+): Promise<{ hotel_code: string; environment: string; steps: CertStep[]; passed: number; failed: number }> {
+  const steps: CertStep[] = [];
+  const time = async (name: string, fn: () => Promise<string>) => {
+    const t0 = Date.now();
+    const step: CertStep = { step: steps.length + 1, name, status: "pass", duration_ms: 0 };
+    try {
+      step.summary = await fn();
+      step.duration_ms = Date.now() - t0;
+    } catch (e: any) {
+      step.status = "fail";
+      step.error = e?.message || String(e);
+      step.duration_ms = Date.now() - t0;
+    }
+    steps.push(step);
+    await logIntegrationStep(supabase, propertyId, step);
+    return step;
+  };
+
+  await time("health_check", async () => {
+    const r = await healthCheck(creds);
+    return `hotel_visible=${r?.hotel_visible ?? "unknown"}`;
+  });
+
+  let staticResult: any = null;
+  await time("fetch_static_data", async () => {
+    staticResult = await fetchStaticData(creds, "all", supabase, propertyId);
+    const r = staticResult?.rooms?.length ?? 0;
+    const p = staticResult?.rates?.length ?? 0;
+    if (r === 0 && p === 0) throw new Error("No rooms or rates returned");
+    return `rooms=${r}, rates=${p}`;
+  });
+
+  await time("get_room_types", async () => {
+    const n = staticResult?.rooms?.length ?? 0;
+    if (n === 0) throw new Error("No room types cached");
+    return `${n} room types`;
+  });
+
+  await time("get_rate_types", async () => {
+    const n = staticResult?.rates?.length ?? 0;
+    if (n === 0) throw new Error("No rate types cached");
+    return `${n} rate types`;
+  });
+
+  const today = new Date();
+  const checkIn = new Date(today); checkIn.setDate(today.getDate() + 7);
+  const checkOut = new Date(today); checkOut.setDate(today.getDate() + 10);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  let availability: any = null;
+  await time("fetch_availability", async () => {
+    availability = await fetchAvailability(
+      creds,
+      fmt(checkIn),
+      fmt(checkOut),
+      [{ adults: 2, children: 0, infants: 0 }],
+      undefined,
+      "USD",
+    );
+    const offers = availability?.rooms?.length ?? availability?.offers?.length ?? 0;
+    if (offers === 0) throw new Error("No availability returned");
+    return `${offers} offers ${fmt(checkIn)}→${fmt(checkOut)}`;
+  });
+
+  let prebookResult: any = null;
+  await time("prebook", async () => {
+    const firstOffer = availability?.rooms?.[0] || availability?.offers?.[0];
+    if (!firstOffer) throw new Error("No offer to prebook");
+    prebookResult = await prebook(creds, {
+      check_in: fmt(checkIn),
+      check_out: fmt(checkOut),
+      room_code: firstOffer.room_code || firstOffer.code || firstOffer.roomCode,
+      rate_code: firstOffer.rate_code || firstOffer.rateCode,
+      occupancy: [{ adults: 2, children: 0, infants: 0 }],
+      currency: "USD",
+    } as any);
+    return `prebook_token=${(prebookResult?.token || prebookResult?.prebook_token || "").slice(0, 16)}…`;
+  });
+
+  let reservationId: string | null = null;
+  await time("create_reservation", async () => {
+    if (!prebookResult?.token && !prebookResult?.prebook_token) {
+      throw new Error("Skipped — no prebook token");
+    }
+    const res = await createReservation(creds, {
+      prebook_token: prebookResult.token || prebookResult.prebook_token,
+      guest: { first_name: "Cert", last_name: "Test", email: "cert@roomsonline.test", phone: "+27000000000", nationality: "ZA" },
+      payment: { method: "test", card_token: "TEST" },
+    } as any);
+    reservationId = res?.reservation_id || res?.confirmation || null;
+    return `reservation_id=${reservationId ?? "n/a"}`;
+  });
+
+  await time("get_reservations", async () => {
+    if (!reservationId) throw new Error("Skipped — no reservation_id");
+    const list = await getReservations(creds, { reservation_id: reservationId } as any);
+    const found = (list?.reservations || []).some((r: any) => (r.id || r.reservation_id) === reservationId);
+    if (!found) throw new Error("Reservation not visible");
+    return "reservation visible";
+  });
+
+  await time("cancel_reservation", async () => {
+    if (!reservationId) throw new Error("Skipped — no reservation_id");
+    await cancelReservation(creds, reservationId);
+    return "cancelled";
+  });
+
+  await time("health_check_final", async () => {
+    const r = await healthCheck(creds);
+    return `hotel_visible=${r?.hotel_visible ?? "unknown"}`;
+  });
+
+  const passed = steps.filter(s => s.status === "pass").length;
+  const failed = steps.filter(s => s.status === "fail").length;
+
+  return {
+    hotel_code: creds.hotel_code,
+    environment: creds.environment,
+    steps,
+    passed,
+    failed,
   };
 }
 
