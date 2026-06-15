@@ -40,7 +40,7 @@ function GlobalHint({ value, label }: { value: number | null | undefined; label:
   );
 }
 
-export function BillingConfigTab({ propertyId }: BillingConfigTabProps) {
+export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabProps) {
   const { config, isLoading, upsert } = useBillingConfig(propertyId);
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
