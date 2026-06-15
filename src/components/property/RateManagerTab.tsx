@@ -104,6 +104,7 @@ export function RateManagerTab({
   const { toast } = useToast();
 
   // ── Local state ────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<string>("rate-types");
   const [isSeasonDialogOpen, setIsSeasonDialogOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<any>(null);
   const [expandedSeasons, setExpandedSeasons] = useState<Record<string, boolean>>({});
