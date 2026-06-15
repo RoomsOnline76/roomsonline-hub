@@ -755,13 +755,18 @@ async function fetchStaticData(
 
   // Fetch room types
   if (dataType === "rooms" || dataType === "all") {
-    const roomsResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rooms`, {
+    const { text: roomsText } = await hgFetchFirstOk("Rooms", [
+      `${baseUrl}/hotels/${creds.hotel_code}/rooms`,
+      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rooms`,
+      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
+      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
+      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rooms`,
+    ], {
       headers: getAuthHeaders(creds.api_key),
     });
-
-    if (roomsResponse.ok) {
-      const roomsData = await roomsResponse.json();
-      const rooms = (roomsData.rooms || []).map((r: any) => ({
+    const roomsData = JSON.parse(roomsText);
+    const roomsSource = roomsData.rooms || roomsData.roomTypes || roomsData.data?.rooms || roomsData.hotel?.rooms || [];
+    const rooms = roomsSource.map((r: any) => ({
         external_room_type_id: r.code,
         room_name: r.name,
         room_type: r.type,
@@ -795,21 +800,22 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rooms.length} room types (cache skipped)`);
       }
-    } else {
-      const body = await roomsResponse.text();
-      console.warn(`[hyperguest] Rooms endpoint failed: ${roomsResponse.status} ${body.substring(0, 300)}`);
-    }
   }
 
   // Fetch rate types
   if (dataType === "rates" || dataType === "all") {
-    const ratesResponse = await hgFetch(`${baseUrl}/hotels/${creds.hotel_code}/rates`, {
+    const { text: ratesText } = await hgFetchFirstOk("Rates", [
+      `${baseUrl}/hotels/${creds.hotel_code}/rates`,
+      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rates`,
+      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
+      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
+      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rates`,
+    ], {
       headers: getAuthHeaders(creds.api_key),
     });
-
-    if (ratesResponse.ok) {
-      const ratesData = await ratesResponse.json();
-      const rates = (ratesData.rates || []).map((r: any) => ({
+    const ratesData = JSON.parse(ratesText);
+    const ratesSource = ratesData.rates || ratesData.rateTypes || ratesData.data?.rates || ratesData.hotel?.rates || [];
+    const rates = ratesSource.map((r: any) => ({
         external_rate_type_id: r.code,
         rate_name: r.name,
         rate_type: r.rateType, // BAR, NET
@@ -838,10 +844,6 @@ async function fetchStaticData(
       } else {
         console.log(`[hyperguest] Cert mode — fetched ${rates.length} rate types (cache skipped)`);
       }
-    } else {
-      const body = await ratesResponse.text();
-      console.warn(`[hyperguest] Rates endpoint failed: ${ratesResponse.status} ${body.substring(0, 300)}`);
-    }
   }
 
   return {
