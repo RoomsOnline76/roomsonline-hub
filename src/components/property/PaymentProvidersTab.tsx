@@ -98,9 +98,11 @@ export function PaymentProvidersTab({
           </div>
           <CardDescription>
             By default every property processes guest payments through the{" "}
-            <span className="font-medium">Rooms Online PayFast</span> gateway. An administrator can
-            allow this property to connect its own payment provider — once enabled, the owner can
-            configure provider credentials in <span className="font-medium">ROL'OS → Integrations</span>.
+            <span className="font-medium">Rooms Online PayFast</span> gateway and is charged the
+            Payment Facilitator transaction fee. An administrator can allow this property to connect
+            its own payment provider — once enabled, the facilitator fee is disabled and the owner
+            can configure provider credentials in{" "}
+            <span className="font-medium">ROL'OS → Integrations</span>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
