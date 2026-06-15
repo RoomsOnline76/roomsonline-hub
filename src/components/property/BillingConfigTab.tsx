@@ -28,6 +28,7 @@ const STRATEGY_OPTIONS = [
 
 interface BillingConfigTabProps {
   propertyId: string;
+  onSwitchTab?: (tab: string) => void;
 }
 
 function GlobalHint({ value, label }: { value: number | null | undefined; label: string }) {
