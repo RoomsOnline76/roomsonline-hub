@@ -432,17 +432,32 @@ async function fetchAvailability(
   const url = `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${qs.toString()}`;
   console.log(`[hyperguest] Searching availability: GET ${url}`);
 
-  const response = await hgFetch(url, {
-    method: "GET",
-    headers: getAuthHeaders(creds.api_key),
-  });
+  const availabilityUrls = [
+    url,
+    `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${new URLSearchParams({
+      checkIn: startDate,
+      checkOut: endDate,
+      adults: String(occupancy?.adults ?? 2),
+      children: String(occupancy?.children ?? 0),
+      rooms: String(occupancy?.rooms ?? 1),
+      ...(currency ? { currency } : {}),
+      ...(nationality ? { nationality } : {}),
+    }).toString()}`,
+    `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/checkrates/`,
+  ];
 
-  const responseText = await response.text();
-  console.log(`[hyperguest] Availability response status: ${response.status}`);
-
-  if (!response.ok) {
-    console.error(`[hyperguest] Availability error: ${responseText.substring(0, 500)}`);
-    throw new Error(`HyperGuest availability error: ${response.status}`);
+  let responseText: string;
+  try {
+    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls.slice(0, 2), {
+      method: "GET",
+      headers: getAuthHeaders(creds.api_key),
+    }));
+  } catch (_getError) {
+    ({ text: responseText } = await hgFetchFirstOk("Availability legacy", [availabilityUrls[2]], {
+      method: "POST",
+      headers: getAuthHeaders(creds.api_key),
+      body: JSON.stringify(searchPayload),
+    }));
   }
 
   const data = JSON.parse(responseText);
