@@ -62,6 +62,22 @@ export function HyperGuestCertificationRunner() {
     }
   };
 
+  const pullStaticData = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("hyperguest-api", {
+        body: { action: "fetch_static_data", hotel_id: hotelId.trim() || undefined, environment, data_type: "all" },
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data?.error?.message || "Pull failed");
+      toast.success(`Pulled ${data?.data?.rooms?.length ?? 0} rooms, ${data?.data?.rates?.length ?? 0} rates — re-running…`);
+      await run();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to pull static data");
+    }
+  };
+
+  const needsStaticPull = !!result?.steps?.some(s => s.status === "fail" && /STATIC_CATALOGUE_EMPTY|No rooms or rates/i.test(s.error || ""));
+
   return (
     <Card className="border-indigo-500/20">
       <CardHeader className="pb-3">
@@ -122,6 +138,17 @@ export function HyperGuestCertificationRunner() {
                 <Badge className="bg-destructive/10 text-destructive border-destructive/20">{result.failed} failed</Badge>
               )}
             </div>
+
+            {needsStaticPull && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs flex items-center justify-between gap-2">
+                <span className="text-amber-700 dark:text-amber-400">
+                  Static catalogue empty — HyperGuest requires rooms + rates to be cached before ARI queries.
+                </span>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={pullStaticData}>
+                  Pull static data &amp; retry
+                </Button>
+              </div>
+            )}
 
             <div className="rounded-md border divide-y">
               {result.steps.map((s) => (

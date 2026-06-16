@@ -31,7 +31,12 @@ const ERROR_CODES = {
   CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
   INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
   PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+  STATIC_CATALOGUE_EMPTY: 'STATIC_CATALOGUE_EMPTY',
 } as const;
+
+// Pre-flight: HG availability is meaningless without the property's room/rate
+// catalogue cached locally. Re-pull when older than this threshold.
+const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // ============================================================================
 // CAPABILITY DECLARATION
@@ -345,7 +350,7 @@ async function hgFetchFirstOk(
     if (response.ok) return { url, text };
     failures.push(`${response.status} ${text.substring(0, 180)}`);
     console.warn(`[hyperguest] ${label} failed: ${response.status} ${text.substring(0, 300)}`);
-    if (![404, 405].includes(response.status)) break;
+    if (![401, 404, 405].includes(response.status)) break;
   }
   throw new Error(`${label} failed: ${failures.join(" | ")}`);
 }
@@ -416,44 +421,53 @@ async function fetchAvailability(
     searchPayload.currency = currency;
   }
 
-  // HG search-api expects GET /hotels/{hotel_id}/availability with query params.
-  // Do not prefix /2.0 here: the certified availability path is root-relative.
-  const qs = new URLSearchParams({
+  // HG search-api ARI lookups. Tracker config (`pms_tracker_status.additional_info.endpoints.search`)
+  // declares the canonical host as `https://search-api.hyperguest.io/2.0/`, so the `/2.0/` variant
+  // is attempted first. Some sandbox tokens only resolve on the un-versioned path, so we retain it
+  // as a fallback. Both casing conventions of the query keys are tried before the legacy POST.
+  const qsSnake = new URLSearchParams({
     check_in: startDate,
     check_out: endDate,
     adults: String(occupancy?.adults ?? 2),
     children: String(occupancy?.children ?? 0),
     rooms: String(occupancy?.rooms ?? 1),
   });
-  if (occupancy?.children_ages?.length) qs.set("children_ages", occupancy.children_ages.join(","));
-  if (nationality) qs.set("nationality", nationality);
-  if (currency) qs.set("currency", currency);
+  const qsCamel = new URLSearchParams({
+    checkIn: startDate,
+    checkOut: endDate,
+    adults: String(occupancy?.adults ?? 2),
+    children: String(occupancy?.children ?? 0),
+    rooms: String(occupancy?.rooms ?? 1),
+  });
+  if (occupancy?.children_ages?.length) {
+    qsSnake.set("children_ages", occupancy.children_ages.join(","));
+    qsCamel.set("childrenAges", occupancy.children_ages.join(","));
+  }
+  if (nationality) { qsSnake.set("nationality", nationality); qsCamel.set("nationality", nationality); }
+  if (currency)    { qsSnake.set("currency", currency);       qsCamel.set("currency", currency); }
 
-  const url = `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${qs.toString()}`;
-  console.log(`[hyperguest] Searching availability: GET ${url}`);
-
+  const hid = encodeURIComponent(creds.hotel_code);
   const availabilityUrls = [
-    url,
-    `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${new URLSearchParams({
-      checkIn: startDate,
-      checkOut: endDate,
-      adults: String(occupancy?.adults ?? 2),
-      children: String(occupancy?.children ?? 0),
-      rooms: String(occupancy?.rooms ?? 1),
-      ...(currency ? { currency } : {}),
-      ...(nationality ? { nationality } : {}),
-    }).toString()}`,
-    `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/checkrates/`,
+    `${baseUrl}/2.0/hotels/${hid}/availability?${qsCamel.toString()}`,
+    `${baseUrl}/2.0/hotels/${hid}/availability?${qsSnake.toString()}`,
+    `${baseUrl}/hotels/${hid}/availability?${qsCamel.toString()}`,
+    `${baseUrl}/hotels/${hid}/availability?${qsSnake.toString()}`,
   ];
+  console.log(`[hyperguest] Searching availability (${availabilityUrls.length} candidates) for hotel ${creds.hotel_code}`);
 
   let responseText: string;
   try {
-    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls.slice(0, 2), {
+    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls, {
       method: "GET",
       headers: getAuthHeaders(creds.api_key),
     }));
-  } catch (_getError) {
-    ({ text: responseText } = await hgFetchFirstOk("Availability legacy", [availabilityUrls[2]], {
+  } catch (getError: any) {
+    // Final fallback: POST /2.0/search (newer HG contract)
+    console.warn(`[hyperguest] GET availability failed across ${availabilityUrls.length} candidates: ${getError?.message?.substring(0, 200)}`);
+    ({ text: responseText } = await hgFetchFirstOk("Availability POST", [
+      `${baseUrl}/2.0/search`,
+      `${baseUrl}/search`,
+    ], {
       method: "POST",
       headers: getAuthHeaders(creds.api_key),
       body: JSON.stringify(searchPayload),
@@ -853,6 +867,70 @@ async function fetchStaticData(
   };
 }
 
+// ----------------------------------------------------------------------------
+// Pre-flight: guarantee the property's room+rate catalogue is cached before
+// any ARI call. Throws STATIC_CATALOGUE_EMPTY when no propertyId / no data
+// can be obtained so callers (calendar, certification) can surface a
+// "Pull rooms & rates first" CTA instead of a generic 4xx.
+// ----------------------------------------------------------------------------
+async function ensureStaticCatalogue(
+  supabase: any,
+  creds: HyperGuestCredentials,
+  propertyId: string | null,
+): Promise<{ rooms: number; rates: number; refreshed: boolean }> {
+  if (!propertyId) {
+    // Certification mode — pull directly, do not require cache rows.
+    const r = await fetchStaticData(creds, "all", supabase, null);
+    const rooms = r?.rooms?.length ?? 0;
+    const rates = r?.rates?.length ?? 0;
+    if (rooms === 0 && rates === 0) {
+      throw { code: ERROR_CODES.STATIC_CATALOGUE_EMPTY, message: "HyperGuest returned no rooms or rates for the certification hotel" };
+    }
+    return { rooms, rates, refreshed: true };
+  }
+
+  const cutoff = new Date(Date.now() - STATIC_CACHE_TTL_MS).toISOString();
+  const [{ count: roomCount }, { count: rateCount }, { data: freshRoom }] = await Promise.all([
+    supabase.from("pms_room_types_cache")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
+    supabase.from("pms_rate_types_cache")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
+    supabase.from("pms_room_types_cache")
+      .select("last_synced_at")
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest")
+      .gte("last_synced_at", cutoff)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const rooms = roomCount ?? 0;
+  const rates = rateCount ?? 0;
+  const fresh = !!freshRoom;
+
+  if (rooms > 0 && rates > 0 && fresh) {
+    console.log(`[hyperguest] Static catalogue OK (rooms=${rooms} rates=${rates}, fresh<24h)`);
+    return { rooms, rates, refreshed: false };
+  }
+
+  console.log(`[hyperguest] Static catalogue pre-flight: rooms=${rooms} rates=${rates} fresh=${fresh} — refreshing`);
+  const r = await fetchStaticData(creds, "all", supabase, propertyId);
+  const newRooms = r?.rooms?.length ?? 0;
+  const newRates = r?.rates?.length ?? 0;
+  if (newRooms === 0 && newRates === 0) {
+    throw {
+      code: ERROR_CODES.STATIC_CATALOGUE_EMPTY,
+      message: `HyperGuest returned no room or rate types for hotel ${creds.hotel_code}. Confirm the hotel_code and that the property is published on HyperGuest.`,
+    };
+  }
+  return { rooms: newRooms, rates: newRates, refreshed: true };
+}
+
+
 // ============================================================================
 // CERTIFICATION RUNNER
 // ============================================================================
@@ -913,11 +991,13 @@ async function runCertification(
 
   let staticResult: any = null;
   await time("fetch_static_data", async () => {
+    // Use the shared pre-flight helper so cert and runtime ARI cannot diverge.
+    const pre = await ensureStaticCatalogue(supabase, creds, propertyId);
     staticResult = await fetchStaticData(creds, "all", supabase, propertyId);
     const r = staticResult?.rooms?.length ?? 0;
     const p = staticResult?.rates?.length ?? 0;
     if (r === 0 && p === 0) throw new Error("No rooms or rates returned");
-    return `rooms=${r}, rates=${p}`;
+    return `rooms=${r}, rates=${p} (cache_refreshed=${pre.refreshed})`;
   });
 
   await time("get_room_types", async () => {
@@ -1101,14 +1181,50 @@ Deno.serve(async (req) => {
         );
       }
 
-      const rawResult = await fetchAvailability(
-        creds,
-        validation.data.start_date,
-        validation.data.end_date,
-        validation.data.occupancy,
-        validation.data.nationality,
-        validation.data.currency
-      );
+      // Hard pre-flight: ensure rooms+rates catalogue is cached before ARI.
+      // Surfaces a typed STATIC_CATALOGUE_EMPTY error so UI can prompt the
+      // user to pull the catalogue instead of showing a generic 4xx.
+      try {
+        await ensureStaticCatalogue(supabase, creds, propertyId);
+      } catch (preErr: any) {
+        if (preErr?.code === ERROR_CODES.STATIC_CATALOGUE_EMPTY) {
+          return new Response(
+            JSON.stringify(createErrorResponse(
+              ERROR_CODES.STATIC_CATALOGUE_EMPTY,
+              preErr.message,
+              action,
+              { hint: "Run action: fetch_static_data (data_type: 'all') first." },
+            )),
+            { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        throw preErr;
+      }
+
+      let rawResult: any;
+      try {
+        rawResult = await fetchAvailability(
+          creds,
+          validation.data.start_date,
+          validation.data.end_date,
+          validation.data.occupancy,
+          validation.data.nationality,
+          validation.data.currency
+        );
+      } catch (avErr: any) {
+        const msg = String(avErr?.message || avErr);
+        const status = /401|Invalid authorization/i.test(msg) ? 401
+                    : /404|Url not found/i.test(msg) ? 502
+                    : 502;
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            status === 401 ? ERROR_CODES.AUTH_FAILED : ERROR_CODES.PMS_UNAVAILABLE,
+            `HyperGuest availability failed: ${msg.substring(0, 400)}`,
+            action,
+          )),
+          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Map PMS-native room codes to DB UUIDs (adapter contract enforcement)
       const { data: dbRooms } = await supabase
