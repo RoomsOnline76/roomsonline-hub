@@ -150,18 +150,21 @@ const hgPaxSchema = z.object({
   children: z.array(z.number().int().min(0)).optional(),
 });
 
-const hgRoomRefSchema = z.object({
+const hgRoomRefBase = z.object({
   room_code: z.union([z.string(), z.number()]).optional(),
   room_id: z.union([z.string(), z.number()]).optional(),
   rate_code: z.union([z.string(), z.number()]).optional(),
   rate_plan_id: z.union([z.string(), z.number()]).optional(),
   expected_amount: z.number(),
   expected_currency: z.string().length(3),
-}).refine(r => r.room_code !== undefined || r.room_id !== undefined, {
-  message: "room_code or room_id required",
-}).refine(r => r.rate_code !== undefined || r.rate_plan_id !== undefined, {
-  message: "rate_code or rate_plan_id required",
 });
+const hgRoomRefSchema = hgRoomRefBase
+  .refine(r => r.room_code !== undefined || r.room_id !== undefined, {
+    message: "room_code or room_id required",
+  })
+  .refine(r => r.rate_code !== undefined || r.rate_plan_id !== undefined, {
+    message: "rate_code or rate_plan_id required",
+  });
 
 const hgMetaSchema = z.array(z.object({
   key: z.string().max(40),
