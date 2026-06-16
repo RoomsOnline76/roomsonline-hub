@@ -928,6 +928,8 @@ async function ensureStaticCatalogue(
     };
   }
   return { rooms: newRooms, rates: newRates, refreshed: true };
+}
+
 
 // ============================================================================
 // CERTIFICATION RUNNER
