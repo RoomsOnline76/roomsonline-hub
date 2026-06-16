@@ -1,102 +1,51 @@
+## Problem (from edge logs)
 
-# Portfolio Cross-Property Revenue Share
+`/admin/calendar` ARI fetch and `/admin-keys/hyperguest` Run Certification both die at the `fetch_availability` step:
 
-Owners in the same portfolio agree on a referral split. When a booking for Property B originates from Property A's site (or from the portfolio landing page), Property B owes Property A its agreed share. Splits are configurable per portfolio, per pair, and aggregated into a monthly invoice.
+```
+GET https://search-api.hyperguest.io/hotels/19912/availability?check_in=... → 404 SN.404 Url not found
+GET https://search-api.hyperguest.io/hotels/19912/availability?checkIn=...  → 404 SN.404 Url not found
+POST https://api.hyperguest.com/hg-apitude/hotel-api/1.0/checkrates/        → 401 SN.401 Invalid authorization
+```
 
-## 1. Data model (new tables)
+Root causes:
+1. `supabase/functions/hyperguest-api/index.ts` strips the `/2.0/` version prefix that HG's tracker config (`pms_tracker_status.additional_info.endpoints.search = https://search-api.hyperguest.io/2.0/`) declares as canonical. That is the most likely source of the 404s.
+2. The legacy fallback uses a different auth scheme (`hg-apitude` API), which is why our Bearer token returns 401.
+3. There is no guarantee the property's static room/rate catalogue has been pulled into `pms_room_types_cache` / `pms_rate_types_cache` before ARI is attempted — so even after fixing the URL, calendar callers have nothing to map availability rows against.
 
-**`portfolio_revenue_share_config`** (one row per portfolio)
-- `portfolio_id` (FK), `share_basis` enum: `gross_total | net_accommodation | net_after_rl_fees`
-- `include_portfolio_origin` bool (default true) — bookings from `/portfolio/<slug>` count
-- `include_cross_property_origin` bool (default true) — bookings from another property's site count
-- `notes`, `updated_by`
+## Plan
 
-**`portfolio_revenue_share_pairs`** (symmetric matrix; one row per ordered pair `from → to`)
-- `portfolio_id`, `from_property_id` (referrer/origin), `to_property_id` (booked), `share_percent` numeric(5,2)
-- `set_by_user_id`, `set_by_role` (`owner_from | owner_to | admin`), `updated_at`
-- Unique on (portfolio_id, from_property_id, to_property_id)
-- Both owners + admin can edit; every change written to `audit_logs`
+### Step 1 — Confirm correct HG search-api contract (no code yet)
+- Pull `pms_tracker_status.additional_info` for `hyperguest` to read the authoritative endpoint set (already shows `/2.0/`).
+- Probe sandbox hotel `19912` directly from a one-off curl in the edge function logs panel:
+  - `GET https://search-api.hyperguest.io/2.0/hotels/19912/availability?checkIn=…&checkOut=…&adults=2&rooms=1` with `Authorization: Bearer <HYPERGUEST_AUTH_TOKEN>`.
+  - `POST https://search-api.hyperguest.io/2.0/search` with the `searchPayload`.
+- Whichever returns 200 becomes the canonical call. Update `HG_ENDPOINTS.search` to include `/2.0/` and rewrite `fetchAvailability` to call only that path; remove the silent `hg-apitude/checkrates` fallback (it leaks 401 noise).
 
-**`booking_revenue_attributions`** (one row per qualifying booking)
-- `booking_id`, `portfolio_id`, `from_property_id`, `to_property_id`
-- `origin_type` enum: `portfolio_link | cross_property_site`
-- `origin_url`, `basis_amount`, `share_percent`, `share_amount`, `currency`
-- `status` enum: `pending | invoiced | paid | waived | disputed`
-- `invoice_id` nullable (FK to next table), `created_at`
+### Step 2 — Hard pre-flight: static catalogue must exist before ARI
+In `supabase/functions/hyperguest-api/index.ts`:
+- Add `ensureStaticCatalogue(supabase, creds, propertyId)`:
+  1. Query `pms_room_types_cache` and `pms_rate_types_cache` for `(property_id, source = 'hyperguest')`.
+  2. If either is empty **or** `last_synced_at` older than 24 h, call existing `fetchStaticData(creds, "all", supabase, propertyId)` and persist rows (the persistence path already exists for the cert flow — refactor so the same writer is used by both cert and runtime).
+  3. Return `{ rooms, rates }` so callers can use the cached IDs.
+- Wire this into:
+  - `fetch_availability` action — call `ensureStaticCatalogue` first; if it returns 0 rooms, throw a typed `STATIC_CATALOGUE_EMPTY` error so the calendar surfaces "Pull rooms/rates first" instead of a generic 4xx.
+  - `runCertification` — replace the inline `fetch_static_data` block with the same helper so the cert and runtime paths cannot diverge.
 
-**`portfolio_share_invoices`** (monthly batch, one per from→to pair per period)
-- `portfolio_id`, `from_property_id` (issuer/payee), `to_property_id` (payer), `period_start`, `period_end`
-- `subtotal`, `tax`, `total`, `currency`, `status` (`draft | sent | paid | overdue | cancelled`)
-- `invoice_number` (uses issuer property stationary numbering), `pdf_url`, `sent_at`, `paid_at`
+### Step 3 — Surface the requirement in admin UI
+- `src/components/integrations/HyperGuestCertificationRunner.tsx`: when a step fails with `STATIC_CATALOGUE_EMPTY`, render an inline "Pull static data" button that calls `hyperguest-api` with `action: "fetch_static_data"` and re-runs certification.
+- `src/components/pms/HyperGuestDetails.tsx`: add a "Static catalogue" status row showing room/rate counts and `last_synced_at` from the two cache tables, with a manual "Refresh" button. This is also what the calendar header should link to when ARI returns the typed error.
+- `/admin/calendar` (existing HyperGuest property card): on `STATIC_CATALOGUE_EMPTY`, replace the red error with a CTA card "Pull rooms & rates from HyperGuest" → calls the same action and retries on success.
 
-All tables get standard GRANTs + RLS: admins/fearless_leader full; property owners + linked owners can read/write rows where they own `from_property_id` or `to_property_id`.
+### Step 4 — Document the requirement
+- Add `docs/hyperguest-integration.md` with: env tokens, endpoint set (from tracker), required pre-flight (static → ARI), and the cert flow's 10 steps. Link it from `HyperGuestCertificationRunner` help icon.
 
-## 2. Origin attribution
+### Out of scope
+- Touching `booking-orchestrator-api` or the public booking path. This change is admin/cert only; ARI orchestration already routes through the orchestrator and will simply benefit once `hyperguest-api` succeeds.
+- Production token (`HYPERGUEST_AUTH_TOKEN_PROD`) work — sandbox cert must pass first.
 
-- Extend booking flow to capture `origin_property_id` and `origin_type` already partially supported via referrer / embed parent. Persist on `bookings` table (new columns `origin_property_id uuid`, `origin_portfolio_id uuid`, `origin_type text`).
-- Embed/iframe widget passes parent property slug via existing `rol-embed.js` postMessage; portfolio landing page injects `?ref_portfolio=<id>` which checkout reads.
-- On `booking.status = confirmed`, a trigger calls `attribute_portfolio_share(booking_id)` which:
-  1. Resolves portfolio(s) containing both origin and booked property
-  2. Looks up the pair % and basis
-  3. Computes `basis_amount` per portfolio config
-  4. Inserts `booking_revenue_attributions` row(s)
-  5. Fires notification (owner email + in-app) to the earning property's owner
-
-## 3. Admin UI — `/admin/portfolios/:id`
-
-New tab **Revenue Share**:
-- Basis selector + origin toggles (portfolio config)
-- N×N matrix grid: rows = booked property, cols = origin property, cells = editable % (skip diagonal)
-- Each cell shows who last edited (owner/admin) and timestamp
-- "Copy symmetric" helper, validation 0–100
-- Audit log drawer
-
-## 4. Owner UI — PMS dashboard
-
-- New section **Portfolio Share** under property settings: lists each portfolio the property belongs to, shows agreed % for each direction, owner can edit own property's outgoing share (i.e. what they pay to referrers) — admin/owner edits both. Inline confirmation that the counterparty owner is notified by email.
-- **Pipeline/Leads dashboard** card "Cross-Property Bookings": configurable period (week/month/quarter/YTD), shows count + total `share_amount` earned and owed, drilldown table per booking with status.
-
-## 5. Monthly invoice generation
-
-- Scheduled edge function `generate-portfolio-share-invoices` runs 1st of month via pg_cron:
-  - Aggregates all `pending` attributions per `from→to` pair for previous month
-  - Creates `portfolio_share_invoices` row (status `draft`)
-  - Renders PDF using the **issuing (from) property's branded stationary template** (reuses existing invoice/email white-label system per memory `branded-email-white-labeling-v2`)
-  - Sets attributions `status = invoiced`, links `invoice_id`
-- Owner can review draft, then click **Send** → emails the payer property owner with PDF attached; status → `sent`
-- Mark-paid action (admin or issuing owner) → status `paid`, attributions `paid`
-- Manual "Generate now" button for current period (admin only)
-
-## 6. Notifications
-
-- Per booking: instant email to earning owner using existing unified email system, subject "New cross-property booking — R{amount} share earned"
-- Monthly: invoice email to paying owner from earning owner's branded address
-
-## 7. Files to add/modify
-
-**Migrations**
-- `xxxx_portfolio_revenue_share.sql` — 4 tables + GRANTs + RLS + indexes + trigger function + cron schedule
-
-**Edge functions**
-- `supabase/functions/attribute-portfolio-share/index.ts` — called by trigger or booking webhook
-- `supabase/functions/generate-portfolio-share-invoices/index.ts` — monthly batch + PDF render
-- `supabase/functions/send-portfolio-share-invoice/index.ts` — sends a single invoice
-
-**Frontend**
-- `src/pages/AdminPortfolios.tsx` (extend) — add Revenue Share tab/section
-- `src/components/portfolio/RevenueShareConfig.tsx` — basis + toggles
-- `src/components/portfolio/RevenueShareMatrix.tsx` — N×N grid editor
-- `src/components/portfolio/PortfolioShareInvoiceList.tsx` — drafts/sent/paid
-- `src/components/pms/PortfolioShareWidget.tsx` — owner dashboard widget
-- `src/components/pms/CrossPropertyPipelineCard.tsx` — leads/pipeline metric
-- `src/hooks/usePortfolioRevenueShare.ts`
-- `src/hooks/usePortfolioShareInvoices.ts`
-- Booking checkout: capture origin (small edit to checkout submit + `rol-embed.js` referrer plumbing)
-
-## 8. Out of scope (this iteration)
-
-- Auto-deduction from RL payouts (invoices are settled property-to-property; can layer later)
-- Multi-currency conversion (use booked-property currency; flag mismatched currencies)
-- Three-way splits (only pairwise; portfolio-origin is treated as a "virtual" referrer where the agreed % defaults to a portfolio-wide rate set in config)
-
-Ready to build on approval.
+### Technical notes
+- Edge function file: `supabase/functions/hyperguest-api/index.ts` (1325 lines, no split needed).
+- Caches: `pms_room_types_cache`, `pms_rate_types_cache` (existing columns already match HG normalized shape).
+- Typed error contract: `{ success: false, error: { code: "STATIC_CATALOGUE_EMPTY", message, hint } }` — extend the existing zod-validated response envelope.
+- No DB migration required.
