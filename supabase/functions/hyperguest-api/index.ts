@@ -1696,7 +1696,18 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const result = await createReservation(creds, validation.data.reservation_data);
+        const v = validation.data;
+        const result = await createReservation(creds, {
+          check_in: v.check_in,
+          check_out: v.check_out,
+          nationality: v.nationality,
+          pax: v.pax,
+          lead_guest: v.lead_guest,
+          payment: v.payment,
+          rooms: v.rooms,
+          client_reference: v.client_reference,
+          meta: v.meta,
+        });
         return new Response(
           JSON.stringify(createSuccessResponse(result, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
