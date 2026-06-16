@@ -360,35 +360,58 @@ async function hgFetchFirstOk(
 // ============================================================================
 
 async function healthCheck(creds: HyperGuestCredentials): Promise<any> {
-  // Static endpoint is the canonical liveness check; it returns the hotel
-  // catalogue and verifies our token + connectivity in one call.
-  const response = await hgFetch(`${HG_ENDPOINTS.static}/hotels.json`, {
-    headers: getAuthHeaders(creds.api_key),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HyperGuest health check failed: ${response.status}`);
-  }
-
-  // Confirm we can see the certification property in sandbox
+  // Preferred liveness probe: a minimal /search call. This works for partner
+  // (distributor) tokens which don't have access to the supplier-side static
+  // hotels.json feed. We try the static feed first as a bonus; if it 401/404s
+  // we fall back to the search probe and still return "connected" so the
+  // calendar surfaces a useful status.
   let hotelVisible: boolean | null = null;
   try {
-    const data = await response.json();
-    const hotels = Array.isArray(data) ? data : (data.hotels || []);
-    hotelVisible = hotels.some((h: any) => String(h.id ?? h.hotel_id) === String(creds.hotel_code));
-  } catch {
-    // gzip stream not parsed — health still ok if 200
+    const staticResp = await hgFetch(`${HG_ENDPOINTS.static}/hotels.json`, {
+      headers: getAuthHeaders(creds.api_key),
+    });
+    if (staticResp.ok) {
+      try {
+        const data = await staticResp.json();
+        const hotels = Array.isArray(data) ? data : (data.hotels || []);
+        hotelVisible = hotels.some((h: any) => String(h.id ?? h.hotel_id) === String(creds.hotel_code));
+      } catch { /* gzip stream not parsed */ }
+    } else {
+      await staticResp.text(); // drain
+      console.warn(`[hyperguest] static hotels.json ${staticResp.status} — falling back to search probe`);
+    }
+  } catch (e) {
+    console.warn(`[hyperguest] static probe failed: ${(e as Error).message}`);
+  }
+
+  // Search probe — confirms token + hotelId are accepted by the live search API.
+  const today = new Date();
+  const ci = new Date(today); ci.setDate(today.getDate() + 7);
+  const co = new Date(ci); co.setDate(ci.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  let searchOk = false;
+  try {
+    const probe = await fetchAvailability(creds, fmt(ci), fmt(co),
+      { rooms: 1, adults: 2, children: 0 }, undefined, "USD");
+    searchOk = true;
+    if (hotelVisible === null) {
+      hotelVisible = (probe.room_types?.length ?? 0) > 0;
+    }
+  } catch (e) {
+    console.warn(`[hyperguest] search probe failed: ${(e as Error).message}`);
   }
 
   return {
-    status: "connected",
+    status: searchOk || hotelVisible ? "connected" : "degraded",
     environment: creds.environment,
     hotel_code: creds.hotel_code,
     hotel_visible_in_static_feed: hotelVisible,
+    search_probe_ok: searchOk,
     certification_hotel_id: CERTIFICATION_HOTEL_ID,
     timestamp: new Date().toISOString(),
   };
 }
+
 
 async function fetchAvailability(
   creds: HyperGuestCredentials,
