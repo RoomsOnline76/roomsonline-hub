@@ -14,9 +14,15 @@ interface ConnectChannelDialogProps {
   loading?: boolean;
 }
 
-const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string }[]> = {
+const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string; optional?: boolean; help?: string }[]> = {
   booking_com: [
-    { key: "hotel_id", label: "Hotel ID" },
+    { key: "hotel_id", label: "Booking.com Hotel ID" },
+    {
+      key: "hyperguest_property_id",
+      label: "HyperGuest Property ID (optional)",
+      optional: true,
+      help: "If this property is also distributed via HyperGuest, paste the HG property ID here. ROL'OS will tunnel live ARI through HyperGuest instead of polling Booking.com directly.",
+    },
   ],
   airbnb: [
     { key: "listing_id", label: "Listing ID" },
