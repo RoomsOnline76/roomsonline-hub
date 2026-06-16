@@ -145,45 +145,80 @@ const fetchAvailabilitySchema = baseRequestSchema.extend({
   currency: z.string().length(3).optional(), // ISO 4217
 });
 
+const hgPaxSchema = z.object({
+  adults: z.number().int().min(1),
+  children: z.array(z.number().int().min(0)).optional(),
+});
+
+const hgRoomRefSchema = z.object({
+  room_code: z.union([z.string(), z.number()]).optional(),
+  room_id: z.union([z.string(), z.number()]).optional(),
+  rate_code: z.union([z.string(), z.number()]).optional(),
+  rate_plan_id: z.union([z.string(), z.number()]).optional(),
+  expected_amount: z.number(),
+  expected_currency: z.string().length(3),
+}).refine(r => r.room_code !== undefined || r.room_id !== undefined, {
+  message: "room_code or room_id required",
+}).refine(r => r.rate_code !== undefined || r.rate_plan_id !== undefined, {
+  message: "rate_code or rate_plan_id required",
+});
+
+const hgMetaSchema = z.array(z.object({
+  key: z.string().max(40),
+  value: z.string(),
+})).optional();
+
 const prebookSchema = baseRequestSchema.extend({
   action: z.literal("prebook"),
   property_id: z.string().uuid(),
-  rate_key: z.string().min(1, "Rate key from availability search required"),
-  rooms: z.array(z.object({
-    room_code: z.string(),
-    rate_code: z.string(),
-    adults: z.number().min(1),
-    children: z.number().min(0).default(0),
-    children_ages: z.array(z.number()).optional(),
-  })),
+  check_in: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  check_out: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  nationality: z.string().length(2).optional(),
+  pax: z.array(hgPaxSchema).min(1),
+  rooms: z.array(hgRoomRefSchema).min(1),
+  meta: hgMetaSchema,
+});
+
+const hgGuestSchema = z.object({
+  first_name: z.string().min(1).max(32),
+  last_name: z.string().min(1).max(32),
+  title: z.enum(["MR", "MS", "MRS", "C"]).optional(),
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
 });
 
 const createReservationSchema = baseRequestSchema.extend({
   action: z.literal("create_reservation"),
   property_id: z.string().uuid(),
-  reservation_data: z.object({
-    rate_key: z.string().min(1, "Rate key from prebook required"),
-    holder: z.object({
-      name: z.string().min(1),
-      surname: z.string().min(1),
-      email: z.string().email(),
-      phone: z.string().optional(),
-      nationality: z.string().length(2).optional(),
-    }),
-    rooms: z.array(z.object({
-      room_code: z.string(),
-      rate_code: z.string(),
-      paxes: z.array(z.object({
-        type: z.enum(["AD", "CH"]),
-        name: z.string().optional(),
-        surname: z.string().optional(),
-        age: z.number().optional(),
-      })),
-      special_requests: z.string().optional(),
-    })),
-    client_reference: z.string().optional(),
-    remarks: z.string().optional(),
+  check_in: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  check_out: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  nationality: z.string().length(2).optional(),
+  pax: z.array(hgPaxSchema).min(1),
+  lead_guest: hgGuestSchema.extend({ email: z.string().email() }),
+  payment: z.object({
+    type: z.enum(["credit_card", "credit_balance", "bank_transfer", "external", "enett", "paypal", "stripe"]),
+    credit_card: z.object({
+      number: z.string(),
+      cvv: z.string(),
+      expiry_month: z.union([z.string(), z.number()]),
+      expiry_year: z.union([z.string(), z.number()]),
+      first_name: z.string(),
+      last_name: z.string(),
+      charge: z.boolean().optional(),
+    }).optional(),
   }),
+  rooms: z.array(hgRoomRefSchema.innerType().innerType().extend({
+    guests: z.array(hgGuestSchema).min(1),
+    special_requests: z.array(z.string().max(256)).optional(),
+  })).min(1),
+  client_reference: z.string().max(64).optional(),
+  meta: hgMetaSchema,
 });
 
 const cancelReservationSchema = baseRequestSchema.extend({
