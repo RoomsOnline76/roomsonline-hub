@@ -1179,14 +1179,50 @@ Deno.serve(async (req) => {
         );
       }
 
-      const rawResult = await fetchAvailability(
-        creds,
-        validation.data.start_date,
-        validation.data.end_date,
-        validation.data.occupancy,
-        validation.data.nationality,
-        validation.data.currency
-      );
+      // Hard pre-flight: ensure rooms+rates catalogue is cached before ARI.
+      // Surfaces a typed STATIC_CATALOGUE_EMPTY error so UI can prompt the
+      // user to pull the catalogue instead of showing a generic 4xx.
+      try {
+        await ensureStaticCatalogue(supabase, creds, propertyId);
+      } catch (preErr: any) {
+        if (preErr?.code === ERROR_CODES.STATIC_CATALOGUE_EMPTY) {
+          return new Response(
+            JSON.stringify(createErrorResponse(
+              ERROR_CODES.STATIC_CATALOGUE_EMPTY,
+              preErr.message,
+              action,
+              { hint: "Run action: fetch_static_data (data_type: 'all') first." },
+            )),
+            { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        throw preErr;
+      }
+
+      let rawResult: any;
+      try {
+        rawResult = await fetchAvailability(
+          creds,
+          validation.data.start_date,
+          validation.data.end_date,
+          validation.data.occupancy,
+          validation.data.nationality,
+          validation.data.currency
+        );
+      } catch (avErr: any) {
+        const msg = String(avErr?.message || avErr);
+        const status = /401|Invalid authorization/i.test(msg) ? 401
+                    : /404|Url not found/i.test(msg) ? 502
+                    : 502;
+        return new Response(
+          JSON.stringify(createErrorResponse(
+            status === 401 ? ERROR_CODES.AUTH_FAILED : ERROR_CODES.PMS_UNAVAILABLE,
+            `HyperGuest availability failed: ${msg.substring(0, 400)}`,
+            action,
+          )),
+          { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Map PMS-native room codes to DB UUIDs (adapter contract enforcement)
       const { data: dbRooms } = await supabase
