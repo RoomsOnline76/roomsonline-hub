@@ -441,19 +441,40 @@ async function fetchAvailability(
     return ages.length ? `${adultsPerRoom}-${ages.join(",")}` : `${adultsPerRoom}`;
   }).join(".");
 
-  // Compute nights from date range
-  const ci = new Date(startDate);
+  // HG rejects historical check-ins (SN.400 "Check in date cannot be sooner
+  // then today"). Calendar callers regularly request past months — clamp the
+  // window forward so we always send a valid request, and short-circuit when
+  // the entire range is in the past.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const effectiveStart = startDate < todayStr ? todayStr : startDate;
+  const ci = new Date(effectiveStart);
   const co = new Date(endDate);
+  if (co.getTime() <= ci.getTime()) {
+    console.log(`[hyperguest] Range entirely in the past (${startDate}→${endDate}); returning empty availability.`);
+    return {
+      hotel_code: creds.hotel_code,
+      check_in: startDate,
+      check_out: endDate,
+      nationality: nationality || null,
+      currency: currency || null,
+      remarks: [],
+      property_info: null,
+      room_types: [],
+      total_rooms_found: 0,
+      note: "range_in_past",
+    };
+  }
   const nights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / 86_400_000));
 
   const qs = new URLSearchParams({
-    checkIn: startDate,
+    checkIn: effectiveStart,
     nights: String(nights),
     guests: guestsSpec,
     hotelIds: String(creds.hotel_code),
   });
   if (nationality) qs.set("customerNationality", nationality);
   if (currency) qs.set("currency", currency);
+
 
   const url = `${baseUrl}/2.0/?${qs.toString()}`;
   console.log(`[hyperguest] GET ${url}`);
