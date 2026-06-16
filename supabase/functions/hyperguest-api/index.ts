@@ -413,13 +413,16 @@ function getAuthHeaders(apiKey: string): Record<string, string> {
   };
 }
 
-// fetch wrapper that enforces Accept-Encoding + per-call timeout.
+// fetch wrapper that enforces Accept-Encoding + per-call timeout, and taps
+// into the active trace context (when set) to record request/response bodies
+// for the certification export bundle.
 async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = STANDARD_TIMEOUT_MS, ...rest } = init;
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
+  const t0 = Date.now();
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...rest,
       signal: controller.signal,
       headers: {
@@ -427,6 +430,27 @@ async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } =
         ...(rest.headers as Record<string, string> | undefined),
       },
     });
+    if (currentTrace) {
+      const reqBody = typeof rest.body === "string"
+        ? (tryJson(rest.body) ?? rest.body)
+        : null;
+      const entry: TraceEntry = {
+        url,
+        method: (rest.method ?? "GET") as string,
+        request_body: redact(reqBody),
+        status: response.status,
+        duration_ms: Date.now() - t0,
+        response_body: null,
+        timestamp: new Date().toISOString(),
+      };
+      currentTrace.entries.push(entry);
+      const cloned = response.clone();
+      const p = cloned.text()
+        .then(txt => { entry.response_body = redact(tryJson(txt)) ?? (txt ? txt.slice(0, 16000) : null); })
+        .catch(() => { /* ignore — never fail call on trace flush */ });
+      currentTrace.pending.push(p);
+    }
+    return response;
   } finally {
     clearTimeout(t);
   }
