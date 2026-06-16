@@ -1475,20 +1475,50 @@ async function runCertification(
       })),
       meta: baseMeta,
     });
-    const res = await createReservation(creds, {
+    const pbRooms = Array.isArray(pb?.rooms) ? pb.rooms : [];
+    const pickRoomPrice = (i: number, fallback: number) => {
+      const room = pbRooms[i];
+      const price = room?.prices?.sell?.price ?? room?.prices?.sell?.amount
+        ?? room?.paymentAmount?.amount ?? room?.totalPrice?.amount;
+      const n = Number(price);
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
+    const pickRoomCurrency = (i: number, fallback: string) =>
+      pbRooms[i]?.prices?.sell?.currency ?? pbRooms[i]?.paymentAmount?.currency ?? fallback;
+    const buildRoomsPayload = (overrides: Record<number, number> = {}) =>
+      opts.rooms.map((r, i) => ({
+        room_id: r.room_id, rate_plan_id: r.rate_plan_id,
+        expected_amount: overrides[i] ?? pickRoomPrice(i, r.expected_amount),
+        expected_currency: pickRoomCurrency(i, r.expected_currency),
+        guests: r.guests,
+        special_requests: [],
+      }));
+    const attemptCreate = async (overrides: Record<number, number> = {}) => createReservation(creds, {
       ...searchArgs,
       lead_guest: baseLead,
       payment: basePayment,
-      rooms: opts.rooms.map(r => ({
-        room_id: r.room_id, rate_plan_id: r.rate_plan_id,
-        expected_amount: pb?.payment_amount?.amount ?? r.expected_amount,
-        expected_currency: pb?.currency ?? r.expected_currency,
-        guests: r.guests,
-        special_requests: [],
-      })),
+      rooms: buildRoomsPayload(overrides),
       client_reference: `ROL-CERT-${opts.label}-${Date.now()}`,
       meta: baseMeta,
     });
+    let res: any;
+    try {
+      res = await attemptCreate();
+    } catch (e: any) {
+      // Self-heal on HG price-mismatch validation: extract corrected per-room rates and retry once
+      const msg = String(e?.message ?? "");
+      const rx = /Expected price sent on booking request \(([\d.]+) \w+\) does not match booking rate: ([\d.]+) \w+ \[Room: (\d+), RatePlan: (\d+)\]/g;
+      const overrides: Record<number, number> = {};
+      let m: RegExpExecArray | null;
+      while ((m = rx.exec(msg)) !== null) {
+        const correctedPrice = Number(m[2]);
+        const roomId = m[3]; const rateId = m[4];
+        const idx = opts.rooms.findIndex(r => String(r.room_id) === roomId && String(r.rate_plan_id) === rateId);
+        if (idx >= 0 && Number.isFinite(correctedPrice)) overrides[idx] = correctedPrice;
+      }
+      if (Object.keys(overrides).length === 0) throw e;
+      res = await attemptCreate(overrides);
+    }
     if (!res?.reservation_id) throw new Error("No reservation_id returned");
     return { reservation_id: String(res.reservation_id), status: res.status };
   };
@@ -1520,16 +1550,34 @@ async function runCertification(
   await runStep("test", 3, "Booking — 1 room, 2 adults + 1 child + 1 infant", async () => {
     const pax: HgPax[] = [{ adults: 2, children: [8, 1] }];
     const avail = await search({ pax });
-    const offer = pickOffer(avail);
     const yr = new Date().getFullYear();
     const guests = [
       guestFor("Adult", 1), guestFor("Adult", 2),
       guestFor("Child", 1, "C", yr - 8),
       guestFor("Infant", 1, "C", yr - 1),
     ];
-    const r = await doBooking({ label: "T3", pax, rooms: [buildRoom(offer, guests)] });
-    bookedReservations.push({ id: r.reservation_id, test: 3 });
-    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+    // Walk all room/rate combos until one prebooks successfully (occupancy support varies by plan)
+    const roomTypes = avail?.room_types ?? [];
+    let lastErr: any = null;
+    for (const rt of roomTypes) {
+      for (const rate of (rt.rate_types ?? [])) {
+        const offer = {
+          roomTypeId: String(rt.room_type_id),
+          rateId: String(rate.rate_type_id),
+          price: Number(rate.selling_rate ?? rate.net_total ?? 0),
+          currency: rate.rates?.[0]?.currency ?? "USD",
+        };
+        try {
+          const r = await doBooking({ label: "T3", pax, rooms: [buildRoom(offer, guests)] });
+          bookedReservations.push({ id: r.reservation_id, test: 3 });
+          return { summary: `reservation=${r.reservation_id} (room=${offer.roomTypeId} rate=${offer.rateId})`, extra: { reservation_id: r.reservation_id } };
+        } catch (e: any) {
+          lastErr = e;
+          if (!/no longer available|occupancy|unavailable/i.test(String(e?.message ?? ""))) throw e;
+        }
+      }
+    }
+    throw new Error(`No rate plan supports 2A+1C+1I occupancy in a single room (last: ${lastErr?.message ?? "unknown"})`);
   });
 
   // ===== Test #4 — 2 rooms: 2A / 1A =====================================
@@ -1680,11 +1728,15 @@ async function runCertification(
     const rt = avail?.room_types?.[0];
     if (!rt) throw new Error("No room type available");
     const nrf = (rt.rate_types || []).find((r: any) => {
+      const name = String(r.rate_type_name ?? "").toLowerCase();
+      const flag = r.ratePlanInfo?.isNonRefundable ?? r.is_non_refundable ?? r.non_refundable;
+      if (flag === true) return true;
+      if (/non[\s-]?refundable|nrf|no[\s-]?refund/.test(name)) return true;
       const policies = r.cancellation_policies ?? [];
-      if (policies.length === 0) return true; // no policy → likely NRF
+      if (policies.length === 0) return false; // empty != NRF; skip rather than misclassify
       return policies.every((p: any) => Number(p?.penalty?.percentage ?? p?.percentage ?? 0) >= 100);
-    }) ?? rt.rate_types?.[rt.rate_types.length - 1];
-    if (!nrf) throw new Error("No rate available for NRF test");
+    });
+    if (!nrf) throw new Error("No non-refundable rate available for NRF test (property exposes no NRF plan)");
     const offer = {
       roomTypeId: String(rt.room_type_id),
       rateId: String(nrf.rate_type_id),
@@ -1715,11 +1767,16 @@ async function runCertification(
     const rt = avail?.room_types?.[0];
     if (!rt) throw new Error("No room type available");
     const pkg = (rt.rate_types || []).find((r: any) => {
-      const name = (r.rate_type_name ?? "").toLowerCase();
+      const name = String(r.rate_type_name ?? "").toLowerCase();
+      const code = String(r.rate_type_code ?? "").toLowerCase();
       const board = String(r.board_code ?? r.board_name ?? "").toLowerCase();
-      return /package|pkg/.test(name) || ["fb", "ai", "hb"].includes(board);
-    }) ?? rt.rate_types?.[0];
-    if (!pkg) throw new Error("No rate available for package test");
+      const flag = r.ratePlanInfo?.isPackage ?? r.is_package ?? r.package;
+      if (flag === true) return true;
+      if (/package|pkg|bundle|inclusive/.test(name) || /package|pkg/.test(code)) return true;
+      // Board-inclusive plans (Full Board, All Inclusive, Half Board) qualify as packages
+      return ["fb", "ai", "hb", "full board", "all inclusive", "half board"].includes(board);
+    });
+    if (!pkg) throw new Error("No package/board-inclusive rate available for package test");
     const offer = {
       roomTypeId: String(rt.room_type_id),
       rateId: String(pkg.rate_type_id),
