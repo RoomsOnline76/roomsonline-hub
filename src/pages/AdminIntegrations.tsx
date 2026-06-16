@@ -22,6 +22,7 @@ import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { PropertyPaymentProviderSelect } from "@/components/integrations/PropertyPaymentProviderSelect";
 import { PayFastEnvironmentToggle } from "@/components/integrations/PayFastEnvironmentToggle";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
+import { HyperGuestPortalAdminCard } from "@/components/integrations/HyperGuestPortalAdminCard";
 
 interface Property {
   id: string;
@@ -137,6 +138,9 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
+            {/* HyperGuest Certification Portal (admin-only, global) */}
+            {isInternalUser && <HyperGuestPortalAdminCard />}
+
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
 

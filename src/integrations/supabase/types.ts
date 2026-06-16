@@ -1754,6 +1754,78 @@ export type Database = {
           },
         ]
       }
+      hyperguest_cert_runs: {
+        Row: {
+          created_at: string
+          exported_at: string | null
+          finished_at: string | null
+          full_log: Json | null
+          id: string
+          property_id: string | null
+          sandbox_hotel_id: string | null
+          started_at: string
+          status: string
+          steps: Json
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          exported_at?: string | null
+          finished_at?: string | null
+          full_log?: Json | null
+          id?: string
+          property_id?: string | null
+          sandbox_hotel_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          exported_at?: string | null
+          finished_at?: string | null
+          full_log?: Json | null
+          id?: string
+          property_id?: string | null
+          sandbox_hotel_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          token_hash?: string
+        }
+        Relationships: []
+      }
+      hyperguest_portal_config: {
+        Row: {
+          enabled: boolean
+          id: boolean
+          notes: string | null
+          rotated_at: string
+          rotated_by: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: boolean
+          notes?: string | null
+          rotated_at?: string
+          rotated_by?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: boolean
+          notes?: string | null
+          rotated_at?: string
+          rotated_by?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       integration_configs: {
         Row: {
           allowed_domains: string[] | null

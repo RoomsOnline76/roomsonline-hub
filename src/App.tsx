@@ -78,6 +78,8 @@ const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const ApiDocsViewer = lazy(() => import("./pages/ApiDocsViewer"));
+const HyperGuestCertificationPortal = lazy(() => import("./pages/HyperGuestCertificationPortal"));
+const HyperGuestReflectionInspector = lazy(() => import("./pages/HyperGuestReflectionInspector"));
 
 // ─── Lazy — dashboard pages ─────────────────────────────────────
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -246,6 +248,10 @@ const App = () => (
                         <Route path="/staff-login" element={<StaffLogin />} />
                         <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
                         <Route path="/my-booking" element={<GuestPortal />} />
+
+                        {/* ═══ HyperGuest certification portal (token-gated, public) ═══ */}
+                        <Route path="/hyperguest/certification" element={<HyperGuestCertificationPortal />} />
+                        <Route path="/hyperguest/certification/reflection" element={<HyperGuestReflectionInspector />} />
 
                         {/* ═══ Embed routes (public) ═════════════════════ */}
                         <Route path="/embed/property/:slug" element={<EmbedProperty />} />
