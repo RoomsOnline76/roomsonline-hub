@@ -998,7 +998,6 @@ async function getReservations(
   }
   if (!data) throw new Error(`Get reservations failed: ${lastStatus} - ${lastBody.substring(0, 200)}`);
 
-  const data = await response.json();
   const content = data.content ?? data;
   const raw = params.reservation_id
     ? [content]
