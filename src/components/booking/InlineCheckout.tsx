@@ -11,6 +11,7 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { captureBookingOrigin } from "@/lib/bookingOrigin";
 import { PayFastOnsiteModal } from "./PayFastOnsiteModal";
 import {
   Accordion,
@@ -100,6 +101,7 @@ export function InlineCheckout({
         .limit(1)
         .maybeSingle();
 
+      const origin = captureBookingOrigin(firstStay.property_id);
       const bookingPayload = {
         property_id: firstStay.property_id,
         room_type_id: firstStay.rooms[0]?.room_type_id || null,
@@ -116,6 +118,7 @@ export function InlineCheckout({
         payment_status: 'pending',
         booking_channel: 'rol-website',
         special_requests: specialRequests || null,
+        ...origin,
       };
 
       let booking;
