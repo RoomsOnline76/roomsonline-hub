@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt } from "lucide-react";
 import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
+import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
