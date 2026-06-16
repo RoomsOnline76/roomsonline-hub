@@ -732,108 +732,108 @@ async function fetchStaticData(
   supabase: any,
   propertyId: string | null
 ): Promise<any> {
-  const baseUrl = HG_ENDPOINTS.book;
+  // HyperGuest's distributor model has no standalone /rooms or /rates endpoint
+  // for partners — rooms + rate plans are returned inline by the /2.0/ search
+  // call. We probe with a short 1-night, 2-adult search ~7 days out, then
+  // derive the catalogue from the response.
+  const today = new Date();
+  const ci = new Date(today); ci.setDate(today.getDate() + 7);
+  const co = new Date(ci); co.setDate(ci.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  const probe = await fetchAvailability(
+    creds,
+    fmt(ci),
+    fmt(co),
+    { rooms: 1, adults: 2, children: 0 },
+    undefined,
+    "USD",
+  );
+
   const results: any = {};
 
-  // Fetch room types
   if (dataType === "rooms" || dataType === "all") {
-    const { text: roomsText } = await hgFetchFirstOk("Rooms", [
-      `${baseUrl}/hotels/${creds.hotel_code}/rooms`,
-      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rooms`,
-      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
-      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rooms`,
-      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rooms`,
-    ], {
-      headers: getAuthHeaders(creds.api_key),
-    });
-    const roomsData = JSON.parse(roomsText);
-    const roomsSource = roomsData.rooms || roomsData.roomTypes || roomsData.data?.rooms || roomsData.hotel?.rooms || [];
-    const rooms = roomsSource.map((r: any) => ({
-        external_room_type_id: r.code,
-        room_name: r.name,
-        room_type: r.type,
-        description: r.description,
-        max_occupancy: r.maxPax,
-        max_adults: r.maxAdults,
-        max_children: r.maxChildren,
-        min_occupancy: r.minPax,
-        bed_type: r.bedType,
-        size_sqm: r.size,
-        images: r.images,
-        facilities: r.facilities,
-      }));
-      results.rooms = rooms;
-
-      // Upsert into pms_room_types_cache (skipped when there is no property context)
-      if (propertyId) {
-        for (const room of rooms) {
-          await supabase.from("pms_room_types_cache").upsert({
-            property_id: propertyId,
-            system_type: "hyperguest",
-            external_room_type_id: room.external_room_type_id,
-            room_name: room.room_name,
-            max_occupancy: room.max_occupancy,
-            description: room.description,
-            raw_data: room,
-            last_synced_at: new Date().toISOString(),
-          }, { onConflict: "property_id,system_type,external_room_type_id" });
-        }
-        console.log(`[hyperguest] Cached ${rooms.length} room types for property ${propertyId}`);
-      } else {
-        console.log(`[hyperguest] Cert mode — fetched ${rooms.length} room types (cache skipped)`);
+    const seen = new Map<string, any>();
+    for (const rt of probe.room_types || []) {
+      const code = String(rt.room_type_id);
+      if (!seen.has(code)) {
+        seen.set(code, {
+          external_room_type_id: code,
+          room_name: rt.room_type_name,
+          max_occupancy: rt.max_guests,
+          description: null,
+          raw_data: rt,
+        });
       }
+    }
+    const rooms = Array.from(seen.values());
+    results.rooms = rooms;
+
+    if (propertyId && rooms.length) {
+      for (const room of rooms) {
+        await supabase.from("pms_room_types_cache").upsert({
+          property_id: propertyId,
+          system_type: "hyperguest",
+          external_room_type_id: room.external_room_type_id,
+          room_name: room.room_name,
+          max_occupancy: room.max_occupancy,
+          description: room.description,
+          raw_data: room.raw_data,
+          last_synced_at: new Date().toISOString(),
+        }, { onConflict: "property_id,system_type,external_room_type_id" });
+      }
+      console.log(`[hyperguest] Cached ${rooms.length} room types (derived from search) for property ${propertyId}`);
+    } else {
+      console.log(`[hyperguest] Derived ${rooms.length} room types from search probe (cache skipped)`);
+    }
   }
 
-  // Fetch rate types
   if (dataType === "rates" || dataType === "all") {
-    const { text: ratesText } = await hgFetchFirstOk("Rates", [
-      `${baseUrl}/hotels/${creds.hotel_code}/rates`,
-      `https://book-api.hyperguest.com/hotels/${creds.hotel_code}/rates`,
-      `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
-      `https://api.hyperguest.io/hg-apitude/hotel-api/1.0/hotels/${creds.hotel_code}/rates`,
-      `${HG_ENDPOINTS.search}/hotels/${creds.hotel_code}/rates`,
-    ], {
-      headers: getAuthHeaders(creds.api_key),
-    });
-    const ratesData = JSON.parse(ratesText);
-    const ratesSource = ratesData.rates || ratesData.rateTypes || ratesData.data?.rates || ratesData.hotel?.rates || [];
-    const rates = ratesSource.map((r: any) => ({
-        external_rate_type_id: r.code,
-        rate_name: r.name,
-        rate_type: r.rateType, // BAR, NET
-        board_code: r.boardCode,
-        board_name: r.boardName,
-        currency: r.currency,
-        cancellation_policy: r.cancellationPolicy,
-        packaging: r.packaging || false,
-      }));
-      results.rates = rates;
-
-      // Upsert into pms_rate_types_cache (skipped when there is no property context)
-      if (propertyId) {
-        for (const rate of rates) {
-          await supabase.from("pms_rate_types_cache").upsert({
-            property_id: propertyId,
-            system_type: "hyperguest",
-            external_rate_type_id: rate.external_rate_type_id,
-            rate_name: rate.rate_name,
-            rate_type: rate.rate_type,
-            raw_data: rate,
-            last_synced_at: new Date().toISOString(),
-          }, { onConflict: "property_id,system_type,external_rate_type_id" });
+    const seen = new Map<string, any>();
+    for (const rt of probe.room_types || []) {
+      for (const plan of rt.rate_types || []) {
+        const code = String(plan.rate_type_id);
+        if (!seen.has(code)) {
+          seen.set(code, {
+            external_rate_type_id: code,
+            rate_name: plan.rate_type_name,
+            rate_type: plan.rate_type || "BAR",
+            board_code: plan.board_code,
+            board_name: plan.board_name,
+            raw_data: plan,
+          });
         }
-        console.log(`[hyperguest] Cached ${rates.length} rate types for property ${propertyId}`);
-      } else {
-        console.log(`[hyperguest] Cert mode — fetched ${rates.length} rate types (cache skipped)`);
       }
+    }
+    const rates = Array.from(seen.values());
+    results.rates = rates;
+
+    if (propertyId && rates.length) {
+      for (const rate of rates) {
+        await supabase.from("pms_rate_types_cache").upsert({
+          property_id: propertyId,
+          system_type: "hyperguest",
+          external_rate_type_id: rate.external_rate_type_id,
+          rate_name: rate.rate_name,
+          rate_type: rate.rate_type,
+          raw_data: rate.raw_data,
+          last_synced_at: new Date().toISOString(),
+        }, { onConflict: "property_id,system_type,external_rate_type_id" });
+      }
+      console.log(`[hyperguest] Cached ${rates.length} rate types (derived from search) for property ${propertyId}`);
+    } else {
+      console.log(`[hyperguest] Derived ${rates.length} rate types from search probe (cache skipped)`);
+    }
   }
 
   return {
     hotel_code: creds.hotel_code,
     synced_at: new Date().toISOString(),
+    source: "search_probe",
     ...results,
   };
 }
+
 
 // ----------------------------------------------------------------------------
 // Pre-flight: guarantee the property's room+rate catalogue is cached before
