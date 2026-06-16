@@ -1263,28 +1263,44 @@ async function runCertification(
   const firstRate = firstRoom?.rate_types?.[0];
   const seededReservationId = `SEED-${creds.hotel_code}-${Date.now()}`;
 
+  // Build HG-spec ref for the offer we want to prebook/book
+  const firstRoomId = firstRoom?.room_type_id;
+  const firstRateId = firstRate?.rate_type_id;
+  const firstRateCurrency = (firstRate?.rates?.[0]?.currency) || availability?.currency || "USD";
+  const firstExpectedAmount = Number(firstRate?.selling_rate ?? firstRate?.net_total ?? 0);
+  const certSearchArgs = {
+    check_in: fmt(checkIn),
+    check_out: fmt(checkOut),
+    nationality: "ZA",
+    pax: [{ adults: 2, children: [] as number[] }],
+  };
+  const certMeta = [{ key: "Source", value: "RoomsOnline HG Certification" }];
+
   let prebookResult: any = null;
   await timeOrSeed(
     "prebook",
     async () => {
-      if (!firstRate?.rate_key) throw new Error("No rate_key in availability");
-      prebookResult = await prebook(creds, firstRate.rate_key, [{
-        room_code: firstRoom.external_room_type_id || firstRoom.room_type_id,
-        rate_code: firstRate.rate_type_id,
-        adults: 2,
-        children: 0,
-      }]);
-      return `prebook_id=${(prebookResult?.prebook_id || "").toString().slice(0, 24)}`;
+      if (!firstRateId) throw new Error("No rate id in availability");
+      prebookResult = await prebook(creds, {
+        ...certSearchArgs,
+        rooms: [{
+          room_id: firstRoomId,
+          rate_plan_id: firstRateId,
+          expected_amount: firstExpectedAmount,
+          expected_currency: firstRateCurrency,
+        }],
+        meta: certMeta,
+      });
+      const amount = prebookResult?.payment_amount?.amount ?? prebookResult?.rooms?.[0]?.prices?.sell?.price;
+      return `pre-book ok, amount=${amount} ${prebookResult?.currency ?? firstRateCurrency}`;
     },
     () => {
       prebookResult = {
-        prebook_id: `SEED-PRE-${Date.now()}`,
-        rate_key: firstRate?.rate_key ?? "SEED-RATE",
-        total_amount: firstRate?.net_total ?? 0,
-        currency: "USD",
-        rooms: [{ room_code: firstRoom?.external_room_type_id, rate_code: firstRate?.rate_type_id }],
+        payment_amount: { amount: firstExpectedAmount, currency: firstRateCurrency },
+        rooms: [{ roomId: firstRoomId, ratePlanId: firstRateId }],
+        currency: firstRateCurrency,
       };
-      return `prebook_id=${prebookResult.prebook_id}`;
+      return `pre-book seeded (${firstExpectedAmount} ${firstRateCurrency})`;
     },
   );
 
@@ -1292,18 +1308,50 @@ async function runCertification(
   await timeOrSeed(
     "create_reservation",
     async () => {
-      if (!prebookResult?.prebook_id || prebookResult.prebook_id.startsWith("SEED-")) {
-        throw new Error("Prebook was seeded — skipping live create");
-      }
       const res = await createReservation(creds, {
-        rate_key: prebookResult.rate_key,
-        holder: { name: "Cert", surname: "Test", email: "cert@roomsonline.test", phone: "+27000000000", nationality: "ZA" },
-        rooms: prebookResult.rooms || [],
+        ...certSearchArgs,
+        lead_guest: {
+          first_name: "Cert",
+          last_name: "Test",
+          title: "MR",
+          birth_date: "1990-01-01",
+          email: "cert@roomsonline.test",
+          phone: "+27000000000",
+          address: "1 Test Lane",
+          city: "Cape Town",
+          country: "ZA",
+          state: "WC",
+          zip: "8001",
+        },
+        payment: {
+          type: "credit_card",
+          credit_card: {
+            number: "4111111111111111",
+            cvv: "123",
+            expiry_month: "12",
+            expiry_year: "2030",
+            first_name: "Cert",
+            last_name: "Test",
+            charge: false,
+          },
+        },
+        rooms: [{
+          room_id: firstRoomId,
+          rate_plan_id: firstRateId,
+          expected_amount: prebookResult?.payment_amount?.amount ?? firstExpectedAmount,
+          expected_currency: prebookResult?.currency ?? firstRateCurrency,
+          guests: [
+            { first_name: "Cert", last_name: "Test", title: "MR", birth_date: "1990-01-01", email: "cert@roomsonline.test" },
+            { first_name: "Guest", last_name: "Two", title: "MR", birth_date: "1990-01-01" },
+          ],
+          special_requests: ["Non-smoking room preferred"],
+        }],
         client_reference: `ROL-CERT-${Date.now()}`,
+        meta: certMeta,
       });
-      reservationId = res?.reservation_id || res?.bookingId || res?.reference || null;
+      reservationId = res?.reservation_id || null;
       if (!reservationId) throw new Error("No reservation_id returned");
-      return `reservation_id=${reservationId}`;
+      return `reservation_id=${reservationId} status=${res?.status}`;
     },
     () => {
       reservationId = seededReservationId;
