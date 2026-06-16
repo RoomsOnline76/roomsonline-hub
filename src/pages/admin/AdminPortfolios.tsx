@@ -20,6 +20,7 @@ import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
 import { GoogleFontPicker } from "@/components/property/GoogleFontPicker";
+import { RevenueShareSection } from "@/components/portfolio/RevenueShareSection";
 
 interface PortfolioBranding {
   primary_color?: string;
