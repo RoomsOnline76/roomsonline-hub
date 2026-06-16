@@ -867,6 +867,68 @@ async function fetchStaticData(
   };
 }
 
+// ----------------------------------------------------------------------------
+// Pre-flight: guarantee the property's room+rate catalogue is cached before
+// any ARI call. Throws STATIC_CATALOGUE_EMPTY when no propertyId / no data
+// can be obtained so callers (calendar, certification) can surface a
+// "Pull rooms & rates first" CTA instead of a generic 4xx.
+// ----------------------------------------------------------------------------
+async function ensureStaticCatalogue(
+  supabase: any,
+  creds: HyperGuestCredentials,
+  propertyId: string | null,
+): Promise<{ rooms: number; rates: number; refreshed: boolean }> {
+  if (!propertyId) {
+    // Certification mode — pull directly, do not require cache rows.
+    const r = await fetchStaticData(creds, "all", supabase, null);
+    const rooms = r?.rooms?.length ?? 0;
+    const rates = r?.rates?.length ?? 0;
+    if (rooms === 0 && rates === 0) {
+      throw { code: ERROR_CODES.STATIC_CATALOGUE_EMPTY, message: "HyperGuest returned no rooms or rates for the certification hotel" };
+    }
+    return { rooms, rates, refreshed: true };
+  }
+
+  const cutoff = new Date(Date.now() - STATIC_CACHE_TTL_MS).toISOString();
+  const [{ count: roomCount }, { count: rateCount }, { data: freshRoom }] = await Promise.all([
+    supabase.from("pms_room_types_cache")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
+    supabase.from("pms_rate_types_cache")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
+    supabase.from("pms_room_types_cache")
+      .select("last_synced_at")
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest")
+      .gte("last_synced_at", cutoff)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const rooms = roomCount ?? 0;
+  const rates = rateCount ?? 0;
+  const fresh = !!freshRoom;
+
+  if (rooms > 0 && rates > 0 && fresh) {
+    console.log(`[hyperguest] Static catalogue OK (rooms=${rooms} rates=${rates}, fresh<24h)`);
+    return { rooms, rates, refreshed: false };
+  }
+
+  console.log(`[hyperguest] Static catalogue pre-flight: rooms=${rooms} rates=${rates} fresh=${fresh} — refreshing`);
+  const r = await fetchStaticData(creds, "all", supabase, propertyId);
+  const newRooms = r?.rooms?.length ?? 0;
+  const newRates = r?.rates?.length ?? 0;
+  if (newRooms === 0 && newRates === 0) {
+    throw {
+      code: ERROR_CODES.STATIC_CATALOGUE_EMPTY,
+      message: `HyperGuest returned no room or rate types for hotel ${creds.hotel_code}. Confirm the hotel_code and that the property is published on HyperGuest.`,
+    };
+  }
+  return { rooms: newRooms, rates: newRates, refreshed: true };
+
 // ============================================================================
 // CERTIFICATION RUNNER
 // ============================================================================
