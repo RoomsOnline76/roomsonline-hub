@@ -421,44 +421,53 @@ async function fetchAvailability(
     searchPayload.currency = currency;
   }
 
-  // HG search-api expects GET /hotels/{hotel_id}/availability with query params.
-  // Do not prefix /2.0 here: the certified availability path is root-relative.
-  const qs = new URLSearchParams({
+  // HG search-api ARI lookups. Tracker config (`pms_tracker_status.additional_info.endpoints.search`)
+  // declares the canonical host as `https://search-api.hyperguest.io/2.0/`, so the `/2.0/` variant
+  // is attempted first. Some sandbox tokens only resolve on the un-versioned path, so we retain it
+  // as a fallback. Both casing conventions of the query keys are tried before the legacy POST.
+  const qsSnake = new URLSearchParams({
     check_in: startDate,
     check_out: endDate,
     adults: String(occupancy?.adults ?? 2),
     children: String(occupancy?.children ?? 0),
     rooms: String(occupancy?.rooms ?? 1),
   });
-  if (occupancy?.children_ages?.length) qs.set("children_ages", occupancy.children_ages.join(","));
-  if (nationality) qs.set("nationality", nationality);
-  if (currency) qs.set("currency", currency);
+  const qsCamel = new URLSearchParams({
+    checkIn: startDate,
+    checkOut: endDate,
+    adults: String(occupancy?.adults ?? 2),
+    children: String(occupancy?.children ?? 0),
+    rooms: String(occupancy?.rooms ?? 1),
+  });
+  if (occupancy?.children_ages?.length) {
+    qsSnake.set("children_ages", occupancy.children_ages.join(","));
+    qsCamel.set("childrenAges", occupancy.children_ages.join(","));
+  }
+  if (nationality) { qsSnake.set("nationality", nationality); qsCamel.set("nationality", nationality); }
+  if (currency)    { qsSnake.set("currency", currency);       qsCamel.set("currency", currency); }
 
-  const url = `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${qs.toString()}`;
-  console.log(`[hyperguest] Searching availability: GET ${url}`);
-
+  const hid = encodeURIComponent(creds.hotel_code);
   const availabilityUrls = [
-    url,
-    `${baseUrl}/hotels/${encodeURIComponent(creds.hotel_code)}/availability?${new URLSearchParams({
-      checkIn: startDate,
-      checkOut: endDate,
-      adults: String(occupancy?.adults ?? 2),
-      children: String(occupancy?.children ?? 0),
-      rooms: String(occupancy?.rooms ?? 1),
-      ...(currency ? { currency } : {}),
-      ...(nationality ? { nationality } : {}),
-    }).toString()}`,
-    `https://api.hyperguest.com/hg-apitude/hotel-api/1.0/checkrates/`,
+    `${baseUrl}/2.0/hotels/${hid}/availability?${qsCamel.toString()}`,
+    `${baseUrl}/2.0/hotels/${hid}/availability?${qsSnake.toString()}`,
+    `${baseUrl}/hotels/${hid}/availability?${qsCamel.toString()}`,
+    `${baseUrl}/hotels/${hid}/availability?${qsSnake.toString()}`,
   ];
+  console.log(`[hyperguest] Searching availability (${availabilityUrls.length} candidates) for hotel ${creds.hotel_code}`);
 
   let responseText: string;
   try {
-    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls.slice(0, 2), {
+    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls, {
       method: "GET",
       headers: getAuthHeaders(creds.api_key),
     }));
-  } catch (_getError) {
-    ({ text: responseText } = await hgFetchFirstOk("Availability legacy", [availabilityUrls[2]], {
+  } catch (getError: any) {
+    // Final fallback: POST /2.0/search (newer HG contract)
+    console.warn(`[hyperguest] GET availability failed across ${availabilityUrls.length} candidates: ${getError?.message?.substring(0, 200)}`);
+    ({ text: responseText } = await hgFetchFirstOk("Availability POST", [
+      `${baseUrl}/2.0/search`,
+      `${baseUrl}/search`,
+    ], {
       method: "POST",
       headers: getAuthHeaders(creds.api_key),
       body: JSON.stringify(searchPayload),
