@@ -506,6 +506,131 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_revenue_attributions: {
+        Row: {
+          basis_amount: number
+          booking_id: string
+          created_at: string
+          currency: string
+          from_property_id: string
+          id: string
+          invoice_id: string | null
+          origin_type: Database["public"]["Enums"]["portfolio_share_origin"]
+          origin_url: string | null
+          portfolio_id: string
+          share_amount: number
+          share_percent: number
+          status: Database["public"]["Enums"]["portfolio_share_attr_status"]
+          to_property_id: string
+          updated_at: string
+        }
+        Insert: {
+          basis_amount?: number
+          booking_id: string
+          created_at?: string
+          currency?: string
+          from_property_id: string
+          id?: string
+          invoice_id?: string | null
+          origin_type: Database["public"]["Enums"]["portfolio_share_origin"]
+          origin_url?: string | null
+          portfolio_id: string
+          share_amount?: number
+          share_percent?: number
+          status?: Database["public"]["Enums"]["portfolio_share_attr_status"]
+          to_property_id: string
+          updated_at?: string
+        }
+        Update: {
+          basis_amount?: number
+          booking_id?: string
+          created_at?: string
+          currency?: string
+          from_property_id?: string
+          id?: string
+          invoice_id?: string | null
+          origin_type?: Database["public"]["Enums"]["portfolio_share_origin"]
+          origin_url?: string | null
+          portfolio_id?: string
+          share_amount?: number
+          share_percent?: number
+          status?: Database["public"]["Enums"]["portfolio_share_attr_status"]
+          to_property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_revenue_attributions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "portfolio_share_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_revenue_attributions_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_sync_status: {
         Row: {
           booking_id: string
@@ -601,6 +726,10 @@ export type Database = {
           last_modified_at: string | null
           modification_notes: Json | null
           modified_by: string | null
+          origin_portfolio_id: string | null
+          origin_property_id: string | null
+          origin_type: string | null
+          origin_url: string | null
           paid_at: string | null
           payment_intent_id: string | null
           payment_method: string | null
@@ -656,6 +785,10 @@ export type Database = {
           last_modified_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
+          origin_portfolio_id?: string | null
+          origin_property_id?: string | null
+          origin_type?: string | null
+          origin_url?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null
@@ -711,6 +844,10 @@ export type Database = {
           last_modified_at?: string | null
           modification_notes?: Json | null
           modified_by?: string | null
+          origin_portfolio_id?: string | null
+          origin_property_id?: string | null
+          origin_type?: string | null
+          origin_url?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null
@@ -739,6 +876,34 @@ export type Database = {
           voucher?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_origin_portfolio_id_fkey"
+            columns: ["origin_portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_origin_property_id_fkey"
+            columns: ["origin_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "bookings_origin_property_id_fkey"
+            columns: ["origin_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_origin_property_id_fkey"
+            columns: ["origin_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_property_id_fkey"
             columns: ["property_id"]
@@ -3309,6 +3474,252 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      portfolio_revenue_share_config: {
+        Row: {
+          created_at: string
+          id: string
+          include_cross_property_origin: boolean
+          include_portfolio_origin: boolean
+          notes: string | null
+          portfolio_id: string
+          portfolio_origin_default_percent: number
+          share_basis: Database["public"]["Enums"]["portfolio_share_basis"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          include_cross_property_origin?: boolean
+          include_portfolio_origin?: boolean
+          notes?: string | null
+          portfolio_id: string
+          portfolio_origin_default_percent?: number
+          share_basis?: Database["public"]["Enums"]["portfolio_share_basis"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          include_cross_property_origin?: boolean
+          include_portfolio_origin?: boolean
+          notes?: string | null
+          portfolio_id?: string
+          portfolio_origin_default_percent?: number
+          share_basis?: Database["public"]["Enums"]["portfolio_share_basis"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_revenue_share_config_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_revenue_share_pairs: {
+        Row: {
+          created_at: string
+          from_property_id: string
+          id: string
+          portfolio_id: string
+          set_by_role: string | null
+          set_by_user_id: string | null
+          share_percent: number
+          to_property_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_property_id: string
+          id?: string
+          portfolio_id: string
+          set_by_role?: string | null
+          set_by_user_id?: string | null
+          share_percent?: number
+          to_property_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_property_id?: string
+          id?: string
+          portfolio_id?: string
+          set_by_role?: string | null
+          set_by_user_id?: string | null
+          share_percent?: number
+          to_property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_revenue_share_pairs_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_share_invoices: {
+        Row: {
+          created_at: string
+          currency: string
+          from_property_id: string
+          id: string
+          invoice_number: string | null
+          notes: string | null
+          paid_at: string | null
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          portfolio_id: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["portfolio_share_invoice_status"]
+          subtotal: number
+          tax: number
+          to_property_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          from_property_id: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          period_end: string
+          period_start: string
+          portfolio_id: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["portfolio_share_invoice_status"]
+          subtotal?: number
+          tax?: number
+          to_property_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          from_property_id?: string
+          id?: string
+          invoice_number?: string | null
+          notes?: string | null
+          paid_at?: string | null
+          pdf_url?: string | null
+          period_end?: string
+          period_start?: string
+          portfolio_id?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["portfolio_share_invoice_status"]
+          subtotal?: number
+          tax?: number
+          to_property_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_share_invoices_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_from_property_id_fkey"
+            columns: ["from_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_share_invoices_to_property_id_fkey"
+            columns: ["to_property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -10140,6 +10551,10 @@ export type Database = {
       }
     }
     Functions: {
+      attribute_portfolio_share: {
+        Args: { _booking_id: string }
+        Returns: undefined
+      }
       can_access_channel_property: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
@@ -10363,6 +10778,23 @@ export type Database = {
         | "accountant"
         | "auditor"
         | "agent"
+      portfolio_share_attr_status:
+        | "pending"
+        | "invoiced"
+        | "paid"
+        | "waived"
+        | "disputed"
+      portfolio_share_basis:
+        | "gross_total"
+        | "net_accommodation"
+        | "net_after_rl_fees"
+      portfolio_share_invoice_status:
+        | "draft"
+        | "sent"
+        | "paid"
+        | "overdue"
+        | "cancelled"
+      portfolio_share_origin: "portfolio_link" | "cross_property_site"
       pricing_rule_type:
         | "occupancy_based"
         | "lead_time"
@@ -10635,6 +11067,26 @@ export const Constants = {
         "auditor",
         "agent",
       ],
+      portfolio_share_attr_status: [
+        "pending",
+        "invoiced",
+        "paid",
+        "waived",
+        "disputed",
+      ],
+      portfolio_share_basis: [
+        "gross_total",
+        "net_accommodation",
+        "net_after_rl_fees",
+      ],
+      portfolio_share_invoice_status: [
+        "draft",
+        "sent",
+        "paid",
+        "overdue",
+        "cancelled",
+      ],
+      portfolio_share_origin: ["portfolio_link", "cross_property_site"],
       pricing_rule_type: [
         "occupancy_based",
         "lead_time",
