@@ -135,7 +135,7 @@ const BookingConfirmation = () => {
     );
   }
 
-  const property = booking.properties as { name: string; city: string; country: string; slug: string } | null;
+  const property = (booking.properties as unknown) as { name: string; city: string; country: string; slug: string } | null;
   const rooms = (Array.isArray(booking.rooms) ? booking.rooms : []) as unknown as RoomBooking[];
   const totalGuests = booking.adults + (booking.children || 0) + (booking.teens || 0) + (booking.infants || 0);
   const nights = differenceInCalendarDays(parseISO(booking.check_out_date), parseISO(booking.check_in_date));
