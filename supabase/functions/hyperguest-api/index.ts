@@ -1475,14 +1475,24 @@ async function runCertification(
       })),
       meta: baseMeta,
     });
+    const pbRooms = Array.isArray(pb?.rooms) ? pb.rooms : [];
+    const pickRoomPrice = (i: number, fallback: number) => {
+      const room = pbRooms[i];
+      const price = room?.prices?.sell?.price ?? room?.prices?.sell?.amount
+        ?? room?.paymentAmount?.amount ?? room?.totalPrice?.amount;
+      const n = Number(price);
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
+    const pickRoomCurrency = (i: number, fallback: string) =>
+      pbRooms[i]?.prices?.sell?.currency ?? pbRooms[i]?.paymentAmount?.currency ?? fallback;
     const res = await createReservation(creds, {
       ...searchArgs,
       lead_guest: baseLead,
       payment: basePayment,
-      rooms: opts.rooms.map(r => ({
+      rooms: opts.rooms.map((r, i) => ({
         room_id: r.room_id, rate_plan_id: r.rate_plan_id,
-        expected_amount: pb?.payment_amount?.amount ?? r.expected_amount,
-        expected_currency: pb?.currency ?? r.expected_currency,
+        expected_amount: pickRoomPrice(i, r.expected_amount),
+        expected_currency: pickRoomCurrency(i, r.expected_currency),
         guests: r.guests,
         special_requests: [],
       })),
