@@ -1754,6 +1754,48 @@ export type Database = {
           },
         ]
       }
+      hyperguest_cert_runs: {
+        Row: {
+          created_at: string
+          exported_at: string | null
+          finished_at: string | null
+          full_log: Json | null
+          id: string
+          property_id: string | null
+          sandbox_hotel_id: string | null
+          started_at: string
+          status: string
+          steps: Json
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          exported_at?: string | null
+          finished_at?: string | null
+          full_log?: Json | null
+          id?: string
+          property_id?: string | null
+          sandbox_hotel_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          exported_at?: string | null
+          finished_at?: string | null
+          full_log?: Json | null
+          id?: string
+          property_id?: string | null
+          sandbox_hotel_id?: string | null
+          started_at?: string
+          status?: string
+          steps?: Json
+          token_hash?: string
+        }
+        Relationships: []
+      }
       integration_configs: {
         Row: {
           allowed_domains: string[] | null
