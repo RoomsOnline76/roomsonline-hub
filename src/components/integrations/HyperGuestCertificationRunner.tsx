@@ -139,6 +139,17 @@ export function HyperGuestCertificationRunner() {
               )}
             </div>
 
+            {needsStaticPull && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-xs flex items-center justify-between gap-2">
+                <span className="text-amber-700 dark:text-amber-400">
+                  Static catalogue empty — HyperGuest requires rooms + rates to be cached before ARI queries.
+                </span>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={pullStaticData}>
+                  Pull static data &amp; retry
+                </Button>
+              </div>
+            )}
+
             <div className="rounded-md border divide-y">
               {result.steps.map((s) => (
                 <div key={s.step} className="flex items-start gap-2 p-2 text-xs">
