@@ -1350,23 +1350,54 @@ Deno.serve(async (req) => {
         })),
       };
 
-      // Cache availability data
+      // Cache availability data. Keep one row per room/date with all rate plans
+      // attached; per-rate upserts make long calendar ranges too slow and can
+      // trigger client-side 2xx/context-cancelled errors.
       if (result.room_types?.length) {
+        const cacheRowsByKey = new Map<string, any>();
         for (const rt of result.room_types) {
+          const availabilityByDate = new Map(
+            (rt.rooms_available_per_night || []).map((day: any) => [day.date, day])
+          );
           for (const rateType of rt.rate_types || []) {
             for (const dailyRate of rateType.rates || []) {
-              await supabase.from("pms_availability_cache").upsert({
+              const externalRoomTypeId = rt.external_room_type_id || rt.room_type_id;
+              const key = `${externalRoomTypeId}:${dailyRate.date}`;
+              const availabilityDay = availabilityByDate.get(dailyRate.date) as any;
+              const existing = cacheRowsByKey.get(key) || {
                 property_id: propertyId,
                 system_type: "hyperguest",
-                external_room_type_id: rt.external_room_type_id || rt.room_type_id,
+                external_room_type_id: externalRoomTypeId,
                 date: dailyRate.date,
-                available_units: dailyRate.available ?? 1,
-                rates: { net: rateType.net_total, selling: rateType.selling_rate, currency: dailyRate.currency },
-                raw_data: { room_name: rt.room_type_name, rate_key: rateType.rate_key, rate_name: rateType.rate_type_name },
+                available_units: availabilityDay?.available_units ?? dailyRate.available ?? 1,
+                rates: [],
+                raw_data: { roomTypeName: rt.room_type_name, room_name: rt.room_type_name },
                 last_synced_at: new Date().toISOString(),
-              }, { onConflict: "property_id,system_type,external_room_type_id,date" });
+              };
+              existing.rates.push({
+                rate_type_id: rateType.rate_type_id,
+                rate_type_name: rateType.rate_type_name,
+                price_type: rateType.price_type,
+                rate_key: rateType.rate_key,
+                room_amount: dailyRate.room_amount,
+                adult_amounts: dailyRate.adult_amounts,
+                teen_amount: dailyRate.teen_amount,
+                child_amount: dailyRate.child_amount,
+                infant_amount: dailyRate.infant_amount,
+                currency: dailyRate.currency,
+                net: rateType.net_total,
+                selling: rateType.selling_rate,
+              });
+              cacheRowsByKey.set(key, existing);
             }
           }
+        }
+        const cacheRows = Array.from(cacheRowsByKey.values());
+        for (let i = 0; i < cacheRows.length; i += 500) {
+          const { error: cacheErr } = await supabase
+            .from("pms_availability_cache")
+            .upsert(cacheRows.slice(i, i + 500), { onConflict: "property_id,system_type,external_room_type_id,date" });
+          if (cacheErr) console.warn(`[hyperguest] Availability cache upsert warning: ${cacheErr.message}`);
         }
       }
 
