@@ -1719,11 +1719,16 @@ async function runCertification(
     const rt = avail?.room_types?.[0];
     if (!rt) throw new Error("No room type available");
     const pkg = (rt.rate_types || []).find((r: any) => {
-      const name = (r.rate_type_name ?? "").toLowerCase();
+      const name = String(r.rate_type_name ?? "").toLowerCase();
+      const code = String(r.rate_type_code ?? "").toLowerCase();
       const board = String(r.board_code ?? r.board_name ?? "").toLowerCase();
-      return /package|pkg/.test(name) || ["fb", "ai", "hb"].includes(board);
-    }) ?? rt.rate_types?.[0];
-    if (!pkg) throw new Error("No rate available for package test");
+      const flag = r.ratePlanInfo?.isPackage ?? r.is_package ?? r.package;
+      if (flag === true) return true;
+      if (/package|pkg|bundle|inclusive/.test(name) || /package|pkg/.test(code)) return true;
+      // Board-inclusive plans (Full Board, All Inclusive, Half Board) qualify as packages
+      return ["fb", "ai", "hb", "full board", "all inclusive", "half board"].includes(board);
+    });
+    if (!pkg) throw new Error("No package/board-inclusive rate available for package test");
     const offer = {
       roomTypeId: String(rt.room_type_id),
       rateId: String(pkg.rate_type_id),
