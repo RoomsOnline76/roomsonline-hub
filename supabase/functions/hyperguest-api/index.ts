@@ -916,24 +916,30 @@ async function cancelReservation(
   reason?: string,
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
-  const payload: any = {};
-  if (reason) payload.reason = reason;
 
-  // HG documents create/pre-book but not cancel/get explicitly; try the
-  // common variants and accept the first 2xx.
-  const candidates = [
-    `${baseUrl}/booking/${encodeURIComponent(reservationId)}/cancel`,
-    `${baseUrl}/booking/cancel/${encodeURIComponent(reservationId)}`,
-    `${baseUrl}/booking/${encodeURIComponent(reservationId)}`, // DELETE-style server may still respond
+  // Try the common HG cancel variants. HG docs don't publish the exact path,
+  // so we attempt method/path combos and accept the first 2xx.
+  type Attempt = { url: string; method: "POST" | "DELETE"; body?: any };
+  const id = encodeURIComponent(reservationId);
+  const baseBody: any = { bookingId: Number(reservationId) || reservationId };
+  if (reason) baseBody.reason = reason;
+
+  const attempts: Attempt[] = [
+    { url: `${baseUrl}/booking/${id}/cancel`, method: "POST", body: { reason } },
+    { url: `${baseUrl}/booking/cancel/${id}`, method: "POST", body: { reason } },
+    { url: `${baseUrl}/booking/cancel`, method: "POST", body: baseBody },
+    { url: `${baseUrl}/booking/${id}`, method: "DELETE" },
+    { url: `${baseUrl}/reservation/${id}/cancel`, method: "POST", body: { reason } },
   ];
 
   let lastStatus = 0;
   let lastBody = "";
-  for (const url of candidates) {
-    const res = await hgFetch(url, {
-      method: "POST",
+  for (const a of attempts) {
+    console.log(`[hyperguest] ${a.method} ${a.url}`);
+    const res = await hgFetch(a.url, {
+      method: a.method,
       headers: getAuthHeaders(creds.api_key),
-      body: JSON.stringify(payload),
+      body: a.body !== undefined ? JSON.stringify(a.body) : undefined,
     });
     const txt = await res.text();
     if (res.ok) {
@@ -951,8 +957,7 @@ async function cancelReservation(
     }
     lastStatus = res.status;
     lastBody = txt;
-    if (res.status === 404 || res.status === 405) continue;
-    break;
+    if (![404, 405, 400].includes(res.status)) break;
   }
   if (lastStatus === 404) {
     throw { code: ERROR_CODES.NOT_FOUND, message: `Reservation ${reservationId} not found` };
