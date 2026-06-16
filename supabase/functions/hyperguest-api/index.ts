@@ -989,11 +989,13 @@ async function runCertification(
 
   let staticResult: any = null;
   await time("fetch_static_data", async () => {
+    // Use the shared pre-flight helper so cert and runtime ARI cannot diverge.
+    const pre = await ensureStaticCatalogue(supabase, creds, propertyId);
     staticResult = await fetchStaticData(creds, "all", supabase, propertyId);
     const r = staticResult?.rooms?.length ?? 0;
     const p = staticResult?.rates?.length ?? 0;
     if (r === 0 && p === 0) throw new Error("No rooms or rates returned");
-    return `rooms=${r}, rates=${p}`;
+    return `rooms=${r}, rates=${p} (cache_refreshed=${pre.refreshed})`;
   });
 
   await time("get_room_types", async () => {
