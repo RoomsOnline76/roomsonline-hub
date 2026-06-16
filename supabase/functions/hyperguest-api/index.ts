@@ -1680,11 +1680,15 @@ async function runCertification(
     const rt = avail?.room_types?.[0];
     if (!rt) throw new Error("No room type available");
     const nrf = (rt.rate_types || []).find((r: any) => {
+      const name = String(r.rate_type_name ?? "").toLowerCase();
+      const flag = r.ratePlanInfo?.isNonRefundable ?? r.is_non_refundable ?? r.non_refundable;
+      if (flag === true) return true;
+      if (/non[\s-]?refundable|nrf|no[\s-]?refund/.test(name)) return true;
       const policies = r.cancellation_policies ?? [];
-      if (policies.length === 0) return true; // no policy → likely NRF
+      if (policies.length === 0) return false; // empty != NRF; skip rather than misclassify
       return policies.every((p: any) => Number(p?.penalty?.percentage ?? p?.percentage ?? 0) >= 100);
-    }) ?? rt.rate_types?.[rt.rate_types.length - 1];
-    if (!nrf) throw new Error("No rate available for NRF test");
+    });
+    if (!nrf) throw new Error("No non-refundable rate available for NRF test (property exposes no NRF plan)");
     const offer = {
       roomTypeId: String(rt.room_type_id),
       rateId: String(nrf.rate_type_id),
