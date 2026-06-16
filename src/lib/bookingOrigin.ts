@@ -27,6 +27,30 @@ export function setOriginPortfolio(portfolioId: string | null): void {
   }
 }
 
+/**
+ * Hydrate portfolio origin from URL query params on app startup.
+ * Supports `?ref_portfolio=<uuid>` (and optional `?ref_url=<encoded>`)
+ * so external portfolio landing pages can attribute bookings via a plain link.
+ */
+export function hydrateOriginFromUrl(): void {
+  try {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const portfolioId = params.get("ref_portfolio");
+    if (portfolioId) {
+      sessionStorage.setItem(ORIGIN_PORTFOLIO_KEY, portfolioId);
+      const refUrl = params.get("ref_url");
+      sessionStorage.setItem(
+        ORIGIN_URL_KEY,
+        refUrl || document.referrer || window.location.href,
+      );
+    }
+  } catch {
+    /* noop */
+  }
+}
+
+
 /** Capture origin context to attach to a booking payload. */
 export function captureBookingOrigin(targetPropertyId?: string | null): BookingOriginPayload {
   let origin_property_id: string | null = null;

@@ -316,6 +316,115 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Portfolio Origin Tracking */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            Portfolio Origin Tracking
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Drop this tag on your portfolio landing page so any booking made afterwards is
+            attributed to the portfolio for cross-property revenue share.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {relevantPortfolios.length === 0 ? (
+            <div className="text-center py-6 text-xs text-muted-foreground space-y-2">
+              <p>This property isn't part of any portfolio yet.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => navigate("/admin/portfolios")}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Join a portfolio
+              </Button>
+            </div>
+          ) : (
+            relevantPortfolios.map((p: any) => {
+              const scriptTag = `<!-- ROL'OS Portfolio Origin Tag -->\n<script>\n  (function () {\n    try {\n      sessionStorage.setItem('rol_origin_portfolio_id', '${p.id}');\n      sessionStorage.setItem('rol_origin_url', window.location.href);\n    } catch (e) {}\n  })();\n</script>`;
+              const linkDecorator = `${BASE}/embed/portfolio/${p.slug}?ref_portfolio=${p.id}`;
+              const moduleCall = `import { setOriginPortfolio } from '@rolos/origin';\nsetOriginPortfolio('${p.id}');`;
+
+              return (
+                <div key={p.id} className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">{p.name}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono">{p.id}</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Drop-in Script Tag</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs gap-1"
+                        onClick={() => copyToClipboard(scriptTag)}
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Paste into the <code className="font-mono">&lt;head&gt;</code> of your portfolio landing page.
+                    </p>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {scriptTag}
+                    </pre>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Link Decorator</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs gap-1"
+                        onClick={() => copyToClipboard(linkDecorator)}
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Append <code className="font-mono">?ref_portfolio=…</code> to any booking link
+                      so origin survives new tabs/sessions.
+                    </p>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {linkDecorator}
+                    </pre>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Module Call (React / TS)</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs gap-1"
+                        onClick={() => copyToClipboard(moduleCall)}
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {moduleCall}
+                    </pre>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
