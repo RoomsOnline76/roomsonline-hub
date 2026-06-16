@@ -350,7 +350,7 @@ async function hgFetchFirstOk(
     if (response.ok) return { url, text };
     failures.push(`${response.status} ${text.substring(0, 180)}`);
     console.warn(`[hyperguest] ${label} failed: ${response.status} ${text.substring(0, 300)}`);
-    if (![404, 405].includes(response.status)) break;
+    if (![401, 404, 405].includes(response.status)) break;
   }
   throw new Error(`${label} failed: ${failures.join(" | ")}`);
 }
