@@ -786,6 +786,13 @@ export default function AdminPortfolios() {
                               ))}
                             </div>
                           )}
+                          <div className="mt-4">
+                            <RevenueShareSection
+                              portfolioId={p.id}
+                              properties={memberProps.map((mp) => ({ id: mp.id, name: mp.name }))}
+                              isAdmin
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
