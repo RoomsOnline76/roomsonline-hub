@@ -31,7 +31,12 @@ const ERROR_CODES = {
   CANCELLATION_NOT_SUPPORTED: 'CANCELLATION_NOT_SUPPORTED',
   INTERNAL_ADAPTER_ERROR: 'INTERNAL_ADAPTER_ERROR',
   PMS_UNAVAILABLE: 'PMS_UNAVAILABLE',
+  STATIC_CATALOGUE_EMPTY: 'STATIC_CATALOGUE_EMPTY',
 } as const;
+
+// Pre-flight: HG availability is meaningless without the property's room/rate
+// catalogue cached locally. Re-pull when older than this threshold.
+const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 // ============================================================================
 // CAPABILITY DECLARATION
