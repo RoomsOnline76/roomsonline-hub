@@ -400,129 +400,95 @@ async function fetchAvailability(
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.search;
 
-  const searchPayload: any = {
-    hotel_code: creds.hotel_code,
-    check_in: startDate,
-    check_out: endDate,
-    occupancies: [{
-      rooms: occupancy?.rooms ?? 1,
-      adults: occupancy?.adults ?? 2,
-      children: occupancy?.children ?? 0,
-      children_ages: occupancy?.children_ages ?? [],
-    }],
-  };
-
-  // Add nationality for rate filtering (HyperGuest feature)
-  if (nationality) {
-    searchPayload.nationality = nationality;
-  }
-
-  if (currency) {
-    searchPayload.currency = currency;
-  }
-
-  // HG search-api ARI lookups. Tracker config (`pms_tracker_status.additional_info.endpoints.search`)
-  // declares the canonical host as `https://search-api.hyperguest.io/2.0/`, so the `/2.0/` variant
-  // is attempted first. Some sandbox tokens only resolve on the un-versioned path, so we retain it
-  // as a fallback. Both casing conventions of the query keys are tried before the legacy POST.
-  const qsSnake = new URLSearchParams({
-    check_in: startDate,
-    check_out: endDate,
-    adults: String(occupancy?.adults ?? 2),
-    children: String(occupancy?.children ?? 0),
-    rooms: String(occupancy?.rooms ?? 1),
+  // HyperGuest 2.0 search contract (per official docs):
+  //   GET https://search-api.hyperguest.io/2.0/?checkIn=YYYY-MM-DD&nights=N&guests=<spec>&hotelIds=<csv>
+  // guests spec: "<adults>[-<childAge>,<childAge>]" per room, rooms separated by "."
+  //   e.g. 1 room 2 adults => "2"
+  //        1 room 2 adults + 2 children (11,12) => "2-11,12"
+  //        2 rooms => "2.2"
+  const rooms = Math.max(1, occupancy?.rooms ?? 1);
+  const adultsPerRoom = Math.max(1, Math.floor((occupancy?.adults ?? 2) / rooms));
+  const childAges = occupancy?.children_ages ?? [];
+  const childrenPerRoom: number[][] = Array.from({ length: rooms }, (_, i) => {
+    // Even-split child ages across rooms
+    return childAges.filter((_a, idx) => idx % rooms === i);
   });
-  const qsCamel = new URLSearchParams({
+  const guestsSpec = Array.from({ length: rooms }, (_, i) => {
+    const ages = childrenPerRoom[i];
+    return ages.length ? `${adultsPerRoom}-${ages.join(",")}` : `${adultsPerRoom}`;
+  }).join(".");
+
+  // Compute nights from date range
+  const ci = new Date(startDate);
+  const co = new Date(endDate);
+  const nights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / 86_400_000));
+
+  const qs = new URLSearchParams({
     checkIn: startDate,
-    checkOut: endDate,
-    adults: String(occupancy?.adults ?? 2),
-    children: String(occupancy?.children ?? 0),
-    rooms: String(occupancy?.rooms ?? 1),
+    nights: String(nights),
+    guests: guestsSpec,
+    hotelIds: String(creds.hotel_code),
   });
-  if (occupancy?.children_ages?.length) {
-    qsSnake.set("children_ages", occupancy.children_ages.join(","));
-    qsCamel.set("childrenAges", occupancy.children_ages.join(","));
-  }
-  if (nationality) { qsSnake.set("nationality", nationality); qsCamel.set("nationality", nationality); }
-  if (currency)    { qsSnake.set("currency", currency);       qsCamel.set("currency", currency); }
+  if (nationality) qs.set("customerNationality", nationality);
+  if (currency) qs.set("currency", currency);
 
-  const hid = encodeURIComponent(creds.hotel_code);
-  const availabilityUrls = [
-    `${baseUrl}/2.0/hotels/${hid}/availability?${qsCamel.toString()}`,
-    `${baseUrl}/2.0/hotels/${hid}/availability?${qsSnake.toString()}`,
-    `${baseUrl}/hotels/${hid}/availability?${qsCamel.toString()}`,
-    `${baseUrl}/hotels/${hid}/availability?${qsSnake.toString()}`,
-  ];
-  console.log(`[hyperguest] Searching availability (${availabilityUrls.length} candidates) for hotel ${creds.hotel_code}`);
+  const url = `${baseUrl}/2.0/?${qs.toString()}`;
+  console.log(`[hyperguest] GET ${url}`);
 
-  let responseText: string;
-  try {
-    ({ text: responseText } = await hgFetchFirstOk("Availability", availabilityUrls, {
-      method: "GET",
-      headers: getAuthHeaders(creds.api_key),
-    }));
-  } catch (getError: any) {
-    // Final fallback: POST /2.0/search (newer HG contract)
-    console.warn(`[hyperguest] GET availability failed across ${availabilityUrls.length} candidates: ${getError?.message?.substring(0, 200)}`);
-    ({ text: responseText } = await hgFetchFirstOk("Availability POST", [
-      `${baseUrl}/2.0/search`,
-      `${baseUrl}/search`,
-    ], {
-      method: "POST",
-      headers: getAuthHeaders(creds.api_key),
-      body: JSON.stringify(searchPayload),
-    }));
-  }
+  const { text: responseText } = await hgFetchFirstOk("Availability", [url], {
+    method: "GET",
+    headers: { ...getAuthHeaders(creds.api_key), "Accept-Encoding": "gzip, deflate" },
+  });
 
   const data = JSON.parse(responseText);
 
-  // Normalize to standard adapter format (room_types[] with rooms_available_per_night and rate_types)
-  const hotel = data.hotels?.[0];
-  const room_types = (hotel?.rooms || []).map((room: any) => {
-    // Build rooms_available_per_night from daily rates
-    const allDailyRates = (room.rates || []).flatMap((rate: any) => rate.dailyRates || []);
-    const dateSet = new Set<string>();
-    const roomsAvailPerNight: any[] = [];
-    for (const dr of allDailyRates) {
-      if (dr.date && !dateSet.has(dr.date)) {
-        dateSet.add(dr.date);
-        roomsAvailPerNight.push({
-          date: dr.date,
-          available_units: dr.available ?? 1,
-          stop_sell: false,
-        });
-      }
-    }
+  // Normalize HG 2.0 search response (results[].rooms[].ratePlans[]) → adapter shape
+  const hotel = (data.results || []).find((r: any) => String(r.propertyId) === String(creds.hotel_code))
+    ?? data.results?.[0];
 
-    // Build rate_types from rates
-    const rate_types = (room.rates || []).map((rate: any) => ({
-      rate_type_id: rate.rateCode || rate.rateKey,
-      rate_type_name: rate.rateName || rate.boardName || "Standard",
+  const room_types = (hotel?.rooms || []).map((room: any) => {
+    // Build a synthetic per-night availability list from the rate plan's nightly breakdown
+    const firstPlan = room.ratePlans?.[0];
+    const nightlyDates: string[] = (firstPlan?.nightlyBreakdown || []).map((n: any) => n.date);
+    const roomsAvailPerNight = nightlyDates.map((d: string) => ({
+      date: d,
+      available_units: room.numberOfAvailableRooms ?? 1,
+      stop_sell: false,
+    }));
+
+    const rate_types = (room.ratePlans || []).map((plan: any) => ({
+      rate_type_id: String(plan.ratePlanId ?? plan.ratePlanCode),
+      rate_type_name: plan.ratePlanName || plan.ratePlanCode || "Standard",
       price_type: "UnitRate",
-      rate_key: rate.rateKey,
-      board_code: rate.boardCode,
-      board_name: rate.boardName,
-      rate_type: rate.rateType, // BAR, NET
-      net_total: rate.net,
-      selling_rate: rate.sellingRate,
-      commission: rate.commission,
-      cancellation_policies: rate.cancellationPolicies,
-      rates: (rate.dailyRates || []).map((dr: any) => ({
-        date: dr.date,
-        room_amount: dr.amount || dr.net || 0,
-        adult_amounts: { adult_amount_1: dr.amount || dr.net || 0, adult_amount_2: dr.amount || dr.net || 0 },
-        teen_amount: 0,
-        child_amount: 0,
-        infant_amount: 0,
-        currency: rate.currency || currency || "EUR",
-      })),
+      rate_key: String(plan.ratePlanId ?? plan.ratePlanCode),
+      board_code: plan.board,
+      board_name: plan.board,
+      rate_type: plan.ratePlanInfo?.isPromotion ? "PROMO" : "BAR",
+      net_total: plan.prices?.net?.price ?? 0,
+      selling_rate: plan.prices?.sell?.price ?? plan.prices?.net?.price ?? 0,
+      commission: plan.prices?.commission?.price ?? 0,
+      cancellation_policies: plan.cancellationPolicies ?? [],
+      is_immediate: plan.isImmediate !== false,
+      payment_charge: plan.payment?.charge ?? null,
+      rates: (plan.nightlyBreakdown || []).map((n: any) => {
+        const nightAmount = n.prices?.sell?.price ?? n.prices?.net?.price ?? 0;
+        return {
+          date: n.date,
+          room_amount: nightAmount,
+          adult_amounts: { adult_amount_1: nightAmount, adult_amount_2: nightAmount },
+          teen_amount: 0,
+          child_amount: 0,
+          infant_amount: 0,
+          currency: n.prices?.sell?.currency ?? n.prices?.net?.currency ?? currency ?? "EUR",
+        };
+      }),
     }));
 
     return {
-      room_type_id: room.code,
-      room_type_name: room.name,
-      name: room.name,
-      max_guests: room.maxPax,
+      room_type_id: String(room.roomId ?? room.roomTypeCode),
+      room_type_name: room.roomName,
+      name: room.roomName,
+      max_guests: room.settings?.maxOccupancy ?? room.settings?.maxAdultsNumber ?? 2,
       rooms_available_per_night: roomsAvailPerNight,
       rate_types,
     };
@@ -533,7 +499,9 @@ async function fetchAvailability(
     check_in: startDate,
     check_out: endDate,
     nationality: nationality || null,
-    currency: currency || data.currency,
+    currency: currency || hotel?.rooms?.[0]?.ratePlans?.[0]?.prices?.sell?.currency,
+    remarks: hotel?.remarks ?? [],
+    property_info: hotel?.propertyInfo ?? null,
     room_types,
     total_rooms_found: room_types.length,
   };
