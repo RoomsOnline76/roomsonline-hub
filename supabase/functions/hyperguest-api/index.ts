@@ -1149,25 +1149,16 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Hard pre-flight: ensure rooms+rates catalogue is cached before ARI.
-      // Surfaces a typed STATIC_CATALOGUE_EMPTY error so UI can prompt the
-      // user to pull the catalogue instead of showing a generic 4xx.
+      // Soft pre-flight: HG returns rooms+rates inline on every /search call,
+      // so we don't block ARI on the static catalogue. We still trigger a
+      // best-effort background refresh when the cache is stale/empty so other
+      // surfaces (room mapping, rate mapping) have catalogue data to render.
       try {
         await ensureStaticCatalogue(supabase, creds, propertyId);
       } catch (preErr: any) {
-        if (preErr?.code === ERROR_CODES.STATIC_CATALOGUE_EMPTY) {
-          return new Response(
-            JSON.stringify(createErrorResponse(
-              ERROR_CODES.STATIC_CATALOGUE_EMPTY,
-              preErr.message,
-              action,
-              { hint: "Run action: fetch_static_data (data_type: 'all') first." },
-            )),
-            { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        throw preErr;
+        console.warn(`[hyperguest] Static catalogue pre-flight skipped: ${preErr?.message || preErr}`);
       }
+
 
       let rawResult: any;
       try {
