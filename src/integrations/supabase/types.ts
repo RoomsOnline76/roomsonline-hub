@@ -1796,6 +1796,36 @@ export type Database = {
         }
         Relationships: []
       }
+      hyperguest_portal_config: {
+        Row: {
+          enabled: boolean
+          id: boolean
+          notes: string | null
+          rotated_at: string
+          rotated_by: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          enabled?: boolean
+          id?: boolean
+          notes?: string | null
+          rotated_at?: string
+          rotated_by?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          enabled?: boolean
+          id?: boolean
+          notes?: string | null
+          rotated_at?: string
+          rotated_by?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       integration_configs: {
         Row: {
           allowed_domains: string[] | null
