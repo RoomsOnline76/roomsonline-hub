@@ -70,6 +70,61 @@ const HG_ENDPOINTS = {
 // Booking requests may take up to 300s per HG spec.
 const BOOKING_TIMEOUT_MS = 300_000;
 const STANDARD_TIMEOUT_MS = 60_000;
+
+// ----------------------------------------------------------------------------
+// Request tracing — used by the certification runner to capture full HG
+// request/response payloads per booking step for the export bundle.
+// ----------------------------------------------------------------------------
+interface TraceEntry {
+  url: string;
+  method: string;
+  request_body: any;
+  status: number;
+  duration_ms: number;
+  response_body: any;
+  timestamp: string;
+}
+
+interface TraceContext {
+  entries: TraceEntry[];
+  pending: Promise<void>[];
+}
+
+let currentTrace: TraceContext | null = null;
+
+function startTrace(): TraceContext {
+  const ctx: TraceContext = { entries: [], pending: [] };
+  currentTrace = ctx;
+  return ctx;
+}
+
+async function endTrace(ctx: TraceContext): Promise<TraceEntry[]> {
+  if (currentTrace === ctx) currentTrace = null;
+  try { await Promise.all(ctx.pending); } catch (_e) { /* never fail step on trace flush */ }
+  return ctx.entries;
+}
+
+const REDACT_KEYS = new Set([
+  "number", "cvv", "expiry", "email", "phone", "authorization", "x-api-key",
+  "api_key", "password", "token", "secret",
+]);
+
+function redact(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(redact);
+  if (typeof obj !== "object") return obj;
+  const out: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACT_KEYS.has(k.toLowerCase())) out[k] = "***REDACTED***";
+    else out[k] = redact(v);
+  }
+  return out;
+}
+
+function tryJson(s: string | undefined | null): any {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+}
 const CERTIFICATION_HOTEL_ID = '19912';
 
 // Standardized response wrapper
