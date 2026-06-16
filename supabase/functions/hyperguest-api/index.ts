@@ -145,45 +145,83 @@ const fetchAvailabilitySchema = baseRequestSchema.extend({
   currency: z.string().length(3).optional(), // ISO 4217
 });
 
+const hgPaxSchema = z.object({
+  adults: z.number().int().min(1),
+  children: z.array(z.number().int().min(0)).optional(),
+});
+
+const hgRoomRefBase = z.object({
+  room_code: z.union([z.string(), z.number()]).optional(),
+  room_id: z.union([z.string(), z.number()]).optional(),
+  rate_code: z.union([z.string(), z.number()]).optional(),
+  rate_plan_id: z.union([z.string(), z.number()]).optional(),
+  expected_amount: z.number(),
+  expected_currency: z.string().length(3),
+});
+const hgRoomRefSchema = hgRoomRefBase
+  .refine(r => r.room_code !== undefined || r.room_id !== undefined, {
+    message: "room_code or room_id required",
+  })
+  .refine(r => r.rate_code !== undefined || r.rate_plan_id !== undefined, {
+    message: "rate_code or rate_plan_id required",
+  });
+
+const hgMetaSchema = z.array(z.object({
+  key: z.string().max(40),
+  value: z.string(),
+})).optional();
+
 const prebookSchema = baseRequestSchema.extend({
   action: z.literal("prebook"),
   property_id: z.string().uuid(),
-  rate_key: z.string().min(1, "Rate key from availability search required"),
-  rooms: z.array(z.object({
-    room_code: z.string(),
-    rate_code: z.string(),
-    adults: z.number().min(1),
-    children: z.number().min(0).default(0),
-    children_ages: z.array(z.number()).optional(),
-  })),
+  check_in: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  check_out: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  nationality: z.string().length(2).optional(),
+  pax: z.array(hgPaxSchema).min(1),
+  rooms: z.array(hgRoomRefSchema).min(1),
+  meta: hgMetaSchema,
+});
+
+const hgGuestSchema = z.object({
+  first_name: z.string().min(1).max(32),
+  last_name: z.string().min(1).max(32),
+  title: z.enum(["MR", "MS", "MRS", "C"]).optional(),
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
 });
 
 const createReservationSchema = baseRequestSchema.extend({
   action: z.literal("create_reservation"),
   property_id: z.string().uuid(),
-  reservation_data: z.object({
-    rate_key: z.string().min(1, "Rate key from prebook required"),
-    holder: z.object({
-      name: z.string().min(1),
-      surname: z.string().min(1),
-      email: z.string().email(),
-      phone: z.string().optional(),
-      nationality: z.string().length(2).optional(),
-    }),
-    rooms: z.array(z.object({
-      room_code: z.string(),
-      rate_code: z.string(),
-      paxes: z.array(z.object({
-        type: z.enum(["AD", "CH"]),
-        name: z.string().optional(),
-        surname: z.string().optional(),
-        age: z.number().optional(),
-      })),
-      special_requests: z.string().optional(),
-    })),
-    client_reference: z.string().optional(),
-    remarks: z.string().optional(),
+  check_in: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  check_out: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  nationality: z.string().length(2).optional(),
+  pax: z.array(hgPaxSchema).min(1),
+  lead_guest: hgGuestSchema.extend({ email: z.string().email() }),
+  payment: z.object({
+    type: z.enum(["credit_card", "credit_balance", "bank_transfer", "external", "enett", "paypal", "stripe"]),
+    credit_card: z.object({
+      number: z.string(),
+      cvv: z.string(),
+      expiry_month: z.union([z.string(), z.number()]),
+      expiry_year: z.union([z.string(), z.number()]),
+      first_name: z.string(),
+      last_name: z.string(),
+      charge: z.boolean().optional(),
+    }).optional(),
   }),
+  rooms: z.array(hgRoomRefBase.extend({
+    guests: z.array(hgGuestSchema).min(1),
+    special_requests: z.array(z.string().max(256)).optional(),
+  })).min(1),
+  client_reference: z.string().max(64).optional(),
+  meta: hgMetaSchema,
 });
 
 const cancelReservationSchema = baseRequestSchema.extend({
@@ -585,29 +623,85 @@ async function fetchAvailability(
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// HyperGuest 2.0 booking helpers
+// Per HG docs:
+//   Pre-book:        POST {book}/booking/pre-book
+//   Create booking:  POST {book}/booking/create
+//   Get booking:     GET  {book}/booking/{bookingId}
+//   List bookings:   GET  {book}/booking?propertyId=&from=&to=
+//   Cancel booking:  POST {book}/booking/{bookingId}/cancel
+// All payloads use camelCase per HG spec (search.dates.from/to, propertyId,
+// nationality, pax[{adults, children[ages]}], rooms[{roomCode|roomId,
+// rateCode|ratePlanId, expectedPrice{amount,currency}}], meta[]).
+// ──────────────────────────────────────────────────────────────────────────
+
+type HgRoomRef = {
+  room_code?: string | number;
+  room_id?: string | number;
+  rate_code?: string | number;
+  rate_plan_id?: string | number;
+  expected_amount: number;
+  expected_currency: string;
+};
+type HgPax = { adults: number; children?: number[] };
+
+function buildSearchObject(
+  creds: HyperGuestCredentials,
+  args: { check_in: string; check_out: string; nationality?: string; pax: HgPax[] },
+) {
+  return {
+    dates: { from: args.check_in, to: args.check_out },
+    propertyId: Number(creds.hotel_code),
+    nationality: args.nationality || "ZA",
+    pax: args.pax.map(p => ({
+      adults: p.adults,
+      children: Array.isArray(p.children) ? p.children : [],
+    })),
+  };
+}
+
+function buildHgRoomsPayload(rooms: HgRoomRef[]) {
+  return rooms.map(r => {
+    const out: any = {
+      expectedPrice: { amount: r.expected_amount, currency: r.expected_currency },
+    };
+    if (r.room_id !== undefined && r.room_id !== null && r.room_id !== "") {
+      out.roomId = Number(r.room_id);
+    } else if (r.room_code) {
+      out.roomCode = String(r.room_code);
+    }
+    if (r.rate_plan_id !== undefined && r.rate_plan_id !== null && r.rate_plan_id !== "") {
+      out.ratePlanId = Number(r.rate_plan_id);
+    } else if (r.rate_code) {
+      out.rateCode = String(r.rate_code);
+    }
+    return out;
+  });
+}
+
 async function prebook(
   creds: HyperGuestCredentials,
-  rateKey: string,
-  rooms: any[]
+  args: {
+    check_in: string;
+    check_out: string;
+    nationality?: string;
+    pax: HgPax[];
+    rooms: HgRoomRef[];
+    meta?: Array<{ key: string; value: string }>;
+  },
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
 
-  const payload = {
-    rate_key: rateKey,
-    rooms: rooms.map(r => ({
-      room_code: r.room_code,
-      rate_code: r.rate_code,
-      paxes: {
-        adults: r.adults,
-        children: r.children || 0,
-        children_ages: r.children_ages || [],
-      },
-    })),
+  const payload: any = {
+    search: buildSearchObject(creds, args),
+    rooms: buildHgRoomsPayload(args.rooms),
   };
+  if (args.meta?.length) payload.meta = args.meta;
 
-  console.log(`[hyperguest] Prebook request: ${JSON.stringify(payload)}`);
+  console.log(`[hyperguest] Pre-book POST ${baseUrl}/booking/pre-book: ${JSON.stringify(payload)}`);
 
-  const response = await hgFetch(`${baseUrl}/bookings/prebook`, {
+  const response = await hgFetch(`${baseUrl}/booking/pre-book`, {
     method: "POST",
     headers: getAuthHeaders(creds.api_key),
     body: JSON.stringify(payload),
@@ -619,58 +713,148 @@ async function prebook(
     if (response.status === 409 || responseText.includes("not available")) {
       throw { code: ERROR_CODES.AVAILABILITY_CHANGED, message: "Rate or room no longer available" };
     }
-    throw new Error(`Prebook failed: ${response.status} - ${responseText.substring(0, 300)}`);
+    throw new Error(`Pre-book failed: ${response.status} - ${responseText.substring(0, 300)}`);
   }
 
   const data = JSON.parse(responseText);
+  const content = data.content ?? data;
+  const firstRoom = content?.rooms?.[0] ?? {};
+  const paymentOption = content?.paymentOptions?.[0] ?? {};
 
   return {
-    prebook_id: data.prebookId || data.id,
-    rate_key: rateKey,
-    status: data.status || "confirmed",
-    total_amount: data.totalAmount,
-    currency: data.currency,
-    cancellation_policies: data.cancellationPolicies,
-    expires_at: data.expiresAt,
-    rooms: data.rooms,
+    payment_options: content?.paymentOptions ?? [],
+    payment_amount: paymentOption?.paymentAmount ?? null,
+    rooms: content?.rooms ?? [],
+    price_change: firstRoom?.priceChange ?? null,
+    cancellation_policies: firstRoom?.cancellationPolicies ?? [],
+    currency: paymentOption?.paymentAmount?.currency ?? firstRoom?.prices?.sell?.currency,
+    raw: data,
   };
 }
 
 async function createReservation(
   creds: HyperGuestCredentials,
-  reservationData: any
+  args: {
+    check_in: string;
+    check_out: string;
+    nationality?: string;
+    pax: HgPax[];
+    lead_guest: {
+      first_name: string;
+      last_name: string;
+      title?: "MR" | "MS" | "MRS" | "C";
+      birth_date?: string;
+      email: string;
+      phone?: string;
+      address?: string;
+      city?: string;
+      country?: string;
+      state?: string;
+      zip?: string;
+    };
+    payment: {
+      type: "credit_card" | "credit_balance" | "bank_transfer" | "external" | "enett" | "paypal" | "stripe";
+      credit_card?: {
+        number: string;
+        cvv: string;
+        expiry_month: string | number;
+        expiry_year: string | number;
+        first_name: string;
+        last_name: string;
+        charge?: boolean;
+      };
+    };
+    rooms: Array<HgRoomRef & {
+      guests?: Array<{
+        first_name: string;
+        last_name: string;
+        title?: "MR" | "MS" | "MRS" | "C";
+        birth_date?: string;
+        email?: string;
+        phone?: string;
+        address?: string;
+        city?: string;
+        country?: string;
+        state?: string;
+        zip?: string;
+      }>;
+      special_requests?: string[];
+    }>;
+    client_reference?: string;
+    meta?: Array<{ key: string; value: string }>;
+  },
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
 
-  const payload = {
-    rate_key: reservationData.rate_key,
-    holder: {
-      name: reservationData.holder.name,
-      surname: reservationData.holder.surname,
-      email: reservationData.holder.email,
-      phone: reservationData.holder.phone,
-      nationality: reservationData.holder.nationality,
-    },
-    rooms: reservationData.rooms.map((r: any) => ({
-      room_code: r.room_code,
-      rate_code: r.rate_code,
-      paxes: r.paxes,
-      special_requests: r.special_requests,
-    })),
-    client_reference: reservationData.client_reference || `ROL-${Date.now()}`,
-    remarks: reservationData.remarks,
-    agency: {
-      name: "RoomsOnline",
-      reference: reservationData.client_reference,
-    },
+  const toContact = (g: any) => ({
+    address: g.address || "N/A",
+    city: g.city || "N/A",
+    country: g.country || (args.nationality ?? "ZA"),
+    email: g.email || args.lead_guest.email,
+    phone: g.phone || args.lead_guest.phone || "N/A",
+    state: g.state || "N/A",
+    zip: g.zip || "N/A",
+  });
+
+  const leadGuest = {
+    birthDate: args.lead_guest.birth_date || "1990-01-01",
+    contact: toContact(args.lead_guest),
+    name: { first: args.lead_guest.first_name, last: args.lead_guest.last_name },
+    title: args.lead_guest.title || "MR",
   };
 
-  console.log(`[hyperguest] Creating reservation: ${JSON.stringify({ ...payload, holder: { ...payload.holder, email: '***' } })}`);
+  let paymentDetails: any;
+  if (args.payment.type === "credit_card" && args.payment.credit_card) {
+    const cc = args.payment.credit_card;
+    paymentDetails = {
+      type: "credit_card",
+      details: {
+        number: cc.number,
+        cvv: cc.cvv,
+        expiry: { month: String(cc.expiry_month), year: String(cc.expiry_year) },
+        name: { first: cc.first_name, last: cc.last_name },
+        charge: cc.charge === true, // default false per HG spec
+      },
+    };
+  } else {
+    paymentDetails = { type: args.payment.type, details: {} };
+  }
+
+  const rooms = args.rooms.map(r => {
+    const base = buildHgRoomsPayload([r])[0];
+    return {
+      ...base,
+      guests: (r.guests ?? []).map(g => ({
+        birthDate: g.birth_date || "1990-01-01",
+        contact: toContact(g),
+        name: { first: g.first_name, last: g.last_name },
+        title: g.title || "MR",
+      })),
+      specialRequests: r.special_requests ?? [],
+    };
+  });
+
+  const payload: any = {
+    dates: { from: args.check_in, to: args.check_out },
+    propertyId: Number(creds.hotel_code),
+    leadGuest,
+    reference: { agency: (args.client_reference || `ROL-${Date.now()}`).slice(0, 64) },
+    paymentDetails,
+    rooms,
+  };
+  if (args.meta?.length) payload.meta = args.meta;
+
+  const logSafe = {
+    ...payload,
+    leadGuest: { ...leadGuest, contact: { ...leadGuest.contact, email: "***" } },
+    paymentDetails: { type: paymentDetails.type, details: paymentDetails.type === "credit_card" ? "***" : paymentDetails.details },
+  };
+  console.log(`[hyperguest] Create POST ${baseUrl}/booking/create: ${JSON.stringify(logSafe)}`);
 
   let response: Response;
   let responseText: string;
   try {
-    response = await hgFetch(`${baseUrl}/bookings`, {
+    response = await hgFetch(`${baseUrl}/booking/create`, {
       method: "POST",
       headers: getAuthHeaders(creds.api_key),
       body: JSON.stringify(payload),
@@ -678,10 +862,9 @@ async function createReservation(
     });
     responseText = await response.text();
   } catch (err: any) {
-    // 300s spec fallback: if our request times out, reconcile via Booking List
     if (err?.name === "AbortError") {
       console.warn(`[hyperguest] Booking timed out after ${BOOKING_TIMEOUT_MS}ms — reconciling via Booking List`);
-      const list = await getReservations(creds, { reservation_id: payload.client_reference });
+      const list = await getReservations(creds, { reservation_id: payload.reference.agency });
       const match = list?.reservations?.[0];
       if (match) {
         return {
@@ -703,104 +886,144 @@ async function createReservation(
     if (response.status === 422) {
       throw { code: ERROR_CODES.BOOKING_REJECTED, message: `Booking rejected: ${responseText.substring(0, 200)}` };
     }
-    throw new Error(`Create reservation failed: ${response.status}`);
+    throw new Error(`Create reservation failed: ${response.status} - ${responseText.substring(0, 300)}`);
   }
 
   const data = JSON.parse(responseText);
+  const content = data.content ?? data;
 
   return {
-    reservation_id: data.bookingId || data.reference,
-    external_reference: data.supplierReference,
-    status: data.status || "confirmed",
-    holder: data.holder,
+    reservation_id: String(content?.bookingId ?? content?.reference?.agency ?? ""),
+    external_reference: content?.rooms?.[0]?.reference?.property ?? null,
+    status: content?.status || "Confirmed",
+    lead_guest: content?.leadGuest,
     hotel_code: creds.hotel_code,
-    check_in: data.checkIn,
-    check_out: data.checkOut,
-    total_amount: data.totalAmount,
-    currency: data.currency,
-    rooms: data.rooms,
-    cancellation_policies: data.cancellationPolicies,
+    check_in: content?.dates?.from,
+    check_out: content?.dates?.to,
+    total_amount: content?.prices?.sell?.price ?? content?.payment?.chargeAmount?.price,
+    currency: content?.prices?.sell?.currency ?? content?.payment?.chargeAmount?.currency,
+    rooms: content?.rooms ?? [],
+    cancellation_policies: content?.rooms?.[0]?.cancellationPolicy ?? [],
+    meta: content?.meta ?? [],
     created_at: new Date().toISOString(),
+    raw: data,
   };
 }
 
 async function cancelReservation(
   creds: HyperGuestCredentials,
   reservationId: string,
-  reason?: string
+  reason?: string,
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
 
-  const payload: any = {};
-  if (reason) payload.cancellation_reason = reason;
+  // Try the common HG cancel variants. HG docs don't publish the exact path,
+  // so we attempt method/path combos and accept the first 2xx.
+  type Attempt = { url: string; method: "POST" | "DELETE"; body?: any };
+  const id = encodeURIComponent(reservationId);
+  const baseBody: any = { bookingId: Number(reservationId) || reservationId };
+  if (reason) baseBody.reason = reason;
 
-  const response = await hgFetch(`${baseUrl}/bookings/${reservationId}/cancel`, {
-    method: "POST",
-    headers: getAuthHeaders(creds.api_key),
-    body: JSON.stringify(payload),
-  });
+  const attempts: Attempt[] = [
+    { url: `${baseUrl}/booking/${id}/cancel`, method: "POST", body: { reason } },
+    { url: `${baseUrl}/booking/cancel/${id}`, method: "POST", body: { reason } },
+    { url: `${baseUrl}/booking/cancel`, method: "POST", body: baseBody },
+    { url: `${baseUrl}/booking/${id}`, method: "DELETE" },
+    { url: `${baseUrl}/reservation/${id}/cancel`, method: "POST", body: { reason } },
+  ];
 
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw { code: ERROR_CODES.NOT_FOUND, message: `Reservation ${reservationId} not found` };
+  let lastStatus = 0;
+  let lastBody = "";
+  for (const a of attempts) {
+    console.log(`[hyperguest] ${a.method} ${a.url}`);
+    const res = await hgFetch(a.url, {
+      method: a.method,
+      headers: getAuthHeaders(creds.api_key),
+      body: a.body !== undefined ? JSON.stringify(a.body) : undefined,
+    });
+    const txt = await res.text();
+    if (res.ok) {
+      const data = txt ? JSON.parse(txt) : {};
+      const content = data.content ?? data;
+      return {
+        reservation_id: reservationId,
+        status: content?.status || "Cancelled",
+        cancellation_reference: content?.cancellationReference ?? null,
+        cancellation_cost: content?.cancellationCost ?? content?.penalty ?? null,
+        currency: content?.currency,
+        cancelled_at: new Date().toISOString(),
+        raw: data,
+      };
     }
-    throw new Error(`Cancel failed: ${response.status} - ${responseText.substring(0, 300)}`);
+    lastStatus = res.status;
+    lastBody = txt;
+    if (![404, 405, 400].includes(res.status)) break;
   }
-
-  const data = JSON.parse(responseText);
-
-  return {
-    reservation_id: reservationId,
-    status: "cancelled",
-    cancellation_reference: data.cancellationReference,
-    cancellation_cost: data.cancellationCost,
-    currency: data.currency,
-    cancelled_at: new Date().toISOString(),
-  };
+  if (lastStatus === 404) {
+    throw { code: ERROR_CODES.NOT_FOUND, message: `Reservation ${reservationId} not found` };
+  }
+  throw new Error(`Cancel failed: ${lastStatus} - ${lastBody.substring(0, 300)}`);
 }
 
 async function getReservations(
   creds: HyperGuestCredentials,
-  params: { start_date?: string; end_date?: string; reservation_id?: string }
+  params: { start_date?: string; end_date?: string; reservation_id?: string },
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
 
-  let url = `${baseUrl}/bookings?hotel_code=${creds.hotel_code}`;
+  const candidates: string[] = [];
   if (params.reservation_id) {
-    url = `${baseUrl}/bookings/${params.reservation_id}`;
+    const id = encodeURIComponent(params.reservation_id);
+    candidates.push(
+      `${baseUrl}/booking/${id}`,
+      `${baseUrl}/booking/${id}/info`,
+      `${baseUrl}/booking/get/${id}`,
+      `${baseUrl}/booking/info/${id}`,
+    );
   } else {
-    if (params.start_date) url += `&from=${params.start_date}`;
-    if (params.end_date) url += `&to=${params.end_date}`;
+    const qs = new URLSearchParams({ propertyId: String(creds.hotel_code) });
+    if (params.start_date) qs.set("from", params.start_date);
+    if (params.end_date) qs.set("to", params.end_date);
+    candidates.push(
+      `${baseUrl}/booking?${qs.toString()}`,
+      `${baseUrl}/booking/list?${qs.toString()}`,
+    );
   }
 
-  const response = await hgFetch(url, {
-    headers: getAuthHeaders(creds.api_key),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Get reservations failed: ${response.status}`);
+  let lastStatus = 0;
+  let lastBody = "";
+  let data: any = null;
+  for (const url of candidates) {
+    console.log(`[hyperguest] GET ${url}`);
+    const res = await hgFetch(url, { headers: getAuthHeaders(creds.api_key) });
+    const txt = await res.text();
+    if (res.ok) { data = txt ? JSON.parse(txt) : {}; break; }
+    lastStatus = res.status;
+    lastBody = txt;
   }
+  if (!data) throw new Error(`Get reservations failed: ${lastStatus} - ${lastBody.substring(0, 200)}`);
 
-  const data = await response.json();
-  const bookings = params.reservation_id ? [data] : (data.bookings || []);
+  const content = data.content ?? data;
+  const raw = params.reservation_id
+    ? [content]
+    : (content?.bookings ?? content?.reservations ?? []);
 
   return {
-    reservations: bookings.map((b: any) => ({
-      reservation_id: b.bookingId || b.reference,
-      status: b.status,
-      holder_name: b.holder?.name ? `${b.holder.name} ${b.holder.surname}` : null,
-      holder_email: b.holder?.email,
-      check_in: b.checkIn,
-      check_out: b.checkOut,
-      total_amount: b.totalAmount,
-      currency: b.currency,
-      rooms: b.rooms,
-      created_at: b.createdAt,
-      client_reference: b.clientReference,
+    reservations: raw.map((b: any) => ({
+      reservation_id: String(b?.bookingId ?? b?.reference?.agency ?? b?.id ?? ""),
+      status: b?.status,
+      lead_guest_name: b?.leadGuest?.name ? `${b.leadGuest.name.first} ${b.leadGuest.name.last}` : null,
+      lead_guest_email: b?.leadGuest?.contact?.email,
+      check_in: b?.dates?.from,
+      check_out: b?.dates?.to,
+      total_amount: b?.prices?.sell?.price ?? b?.payment?.chargeAmount?.price,
+      currency: b?.prices?.sell?.currency ?? b?.payment?.chargeAmount?.currency,
+      rooms: b?.rooms ?? [],
+      client_reference: b?.reference?.agency,
+      meta: b?.meta ?? [],
     })),
-    total: bookings.length,
+    total: raw.length,
+    raw: data,
   };
 }
 
@@ -1106,28 +1329,44 @@ async function runCertification(
   const firstRate = firstRoom?.rate_types?.[0];
   const seededReservationId = `SEED-${creds.hotel_code}-${Date.now()}`;
 
+  // Build HG-spec ref for the offer we want to prebook/book
+  const firstRoomId = firstRoom?.room_type_id;
+  const firstRateId = firstRate?.rate_type_id;
+  const firstRateCurrency = (firstRate?.rates?.[0]?.currency) || availability?.currency || "USD";
+  const firstExpectedAmount = Number(firstRate?.selling_rate ?? firstRate?.net_total ?? 0);
+  const certSearchArgs = {
+    check_in: fmt(checkIn),
+    check_out: fmt(checkOut),
+    nationality: "ZA",
+    pax: [{ adults: 2, children: [] as number[] }],
+  };
+  const certMeta = [{ key: "Source", value: "RoomsOnline HG Certification" }];
+
   let prebookResult: any = null;
   await timeOrSeed(
     "prebook",
     async () => {
-      if (!firstRate?.rate_key) throw new Error("No rate_key in availability");
-      prebookResult = await prebook(creds, firstRate.rate_key, [{
-        room_code: firstRoom.external_room_type_id || firstRoom.room_type_id,
-        rate_code: firstRate.rate_type_id,
-        adults: 2,
-        children: 0,
-      }]);
-      return `prebook_id=${(prebookResult?.prebook_id || "").toString().slice(0, 24)}`;
+      if (!firstRateId) throw new Error("No rate id in availability");
+      prebookResult = await prebook(creds, {
+        ...certSearchArgs,
+        rooms: [{
+          room_id: firstRoomId,
+          rate_plan_id: firstRateId,
+          expected_amount: firstExpectedAmount,
+          expected_currency: firstRateCurrency,
+        }],
+        meta: certMeta,
+      });
+      const amount = prebookResult?.payment_amount?.amount ?? prebookResult?.rooms?.[0]?.prices?.sell?.price;
+      return `pre-book ok, amount=${amount} ${prebookResult?.currency ?? firstRateCurrency}`;
     },
     () => {
       prebookResult = {
-        prebook_id: `SEED-PRE-${Date.now()}`,
-        rate_key: firstRate?.rate_key ?? "SEED-RATE",
-        total_amount: firstRate?.net_total ?? 0,
-        currency: "USD",
-        rooms: [{ room_code: firstRoom?.external_room_type_id, rate_code: firstRate?.rate_type_id }],
+        payment_amount: { amount: firstExpectedAmount, currency: firstRateCurrency },
+        rooms: [{ roomId: firstRoomId, ratePlanId: firstRateId }],
+        currency: firstRateCurrency,
       };
-      return `prebook_id=${prebookResult.prebook_id}`;
+      return `pre-book seeded (${firstExpectedAmount} ${firstRateCurrency})`;
     },
   );
 
@@ -1135,18 +1374,50 @@ async function runCertification(
   await timeOrSeed(
     "create_reservation",
     async () => {
-      if (!prebookResult?.prebook_id || prebookResult.prebook_id.startsWith("SEED-")) {
-        throw new Error("Prebook was seeded — skipping live create");
-      }
       const res = await createReservation(creds, {
-        rate_key: prebookResult.rate_key,
-        holder: { name: "Cert", surname: "Test", email: "cert@roomsonline.test", phone: "+27000000000", nationality: "ZA" },
-        rooms: prebookResult.rooms || [],
+        ...certSearchArgs,
+        lead_guest: {
+          first_name: "Cert",
+          last_name: "Test",
+          title: "MR",
+          birth_date: "1990-01-01",
+          email: "cert@roomsonline.test",
+          phone: "+27000000000",
+          address: "1 Test Lane",
+          city: "Cape Town",
+          country: "ZA",
+          state: "WC",
+          zip: "8001",
+        },
+        payment: {
+          type: "credit_card",
+          credit_card: {
+            number: "4111111111111111",
+            cvv: "123",
+            expiry_month: "12",
+            expiry_year: "2030",
+            first_name: "Cert",
+            last_name: "Test",
+            charge: false,
+          },
+        },
+        rooms: [{
+          room_id: firstRoomId,
+          rate_plan_id: firstRateId,
+          expected_amount: prebookResult?.payment_amount?.amount ?? firstExpectedAmount,
+          expected_currency: prebookResult?.currency ?? firstRateCurrency,
+          guests: [
+            { first_name: "Cert", last_name: "Test", title: "MR", birth_date: "1990-01-01", email: "cert@roomsonline.test" },
+            { first_name: "Guest", last_name: "Two", title: "MR", birth_date: "1990-01-01" },
+          ],
+          special_requests: ["Non-smoking room preferred"],
+        }],
         client_reference: `ROL-CERT-${Date.now()}`,
+        meta: certMeta,
       });
-      reservationId = res?.reservation_id || res?.bookingId || res?.reference || null;
+      reservationId = res?.reservation_id || null;
       if (!reservationId) throw new Error("No reservation_id returned");
-      return `reservation_id=${reservationId}`;
+      return `reservation_id=${reservationId} status=${res?.status}`;
     },
     () => {
       reservationId = seededReservationId;
@@ -1418,7 +1689,15 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const result = await prebook(creds, validation.data.rate_key, validation.data.rooms);
+        const v = validation.data;
+        const result = await prebook(creds, {
+          check_in: v.check_in,
+          check_out: v.check_out,
+          nationality: v.nationality,
+          pax: v.pax,
+          rooms: v.rooms,
+          meta: v.meta,
+        });
         return new Response(
           JSON.stringify(createSuccessResponse(result, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1445,7 +1724,18 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const result = await createReservation(creds, validation.data.reservation_data);
+        const v = validation.data;
+        const result = await createReservation(creds, {
+          check_in: v.check_in,
+          check_out: v.check_out,
+          nationality: v.nationality,
+          pax: v.pax,
+          lead_guest: v.lead_guest,
+          payment: v.payment,
+          rooms: v.rooms,
+          client_reference: v.client_reference,
+          meta: v.meta,
+        });
         return new Response(
           JSON.stringify(createSuccessResponse(result, action)),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
