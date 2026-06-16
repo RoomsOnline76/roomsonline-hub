@@ -1520,16 +1520,34 @@ async function runCertification(
   await runStep("test", 3, "Booking — 1 room, 2 adults + 1 child + 1 infant", async () => {
     const pax: HgPax[] = [{ adults: 2, children: [8, 1] }];
     const avail = await search({ pax });
-    const offer = pickOffer(avail);
     const yr = new Date().getFullYear();
     const guests = [
       guestFor("Adult", 1), guestFor("Adult", 2),
       guestFor("Child", 1, "C", yr - 8),
       guestFor("Infant", 1, "C", yr - 1),
     ];
-    const r = await doBooking({ label: "T3", pax, rooms: [buildRoom(offer, guests)] });
-    bookedReservations.push({ id: r.reservation_id, test: 3 });
-    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+    // Walk all room/rate combos until one prebooks successfully (occupancy support varies by plan)
+    const roomTypes = avail?.room_types ?? [];
+    let lastErr: any = null;
+    for (const rt of roomTypes) {
+      for (const rate of (rt.rate_types ?? [])) {
+        const offer = {
+          roomTypeId: String(rt.room_type_id),
+          rateId: String(rate.rate_type_id),
+          price: Number(rate.selling_rate ?? rate.net_total ?? 0),
+          currency: rate.rates?.[0]?.currency ?? "USD",
+        };
+        try {
+          const r = await doBooking({ label: "T3", pax, rooms: [buildRoom(offer, guests)] });
+          bookedReservations.push({ id: r.reservation_id, test: 3 });
+          return { summary: `reservation=${r.reservation_id} (room=${offer.roomTypeId} rate=${offer.rateId})`, extra: { reservation_id: r.reservation_id } };
+        } catch (e: any) {
+          lastErr = e;
+          if (!/no longer available|occupancy|unavailable/i.test(String(e?.message ?? ""))) throw e;
+        }
+      }
+    }
+    throw new Error(`No rate plan supports 2A+1C+1I occupancy in a single room (last: ${lastErr?.message ?? "unknown"})`);
   });
 
   // ===== Test #4 — 2 rooms: 2A / 1A =====================================
