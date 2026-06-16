@@ -51,7 +51,7 @@ const BookingConfirmation = () => {
       if (!bookingId) throw new Error("No booking ID provided");
       const { data, error } = await supabase
         .from("bookings")
-        .select(`*, properties:property_id (name, city, country, slug, brand_override_enabled, brand_logo_url)`)
+        .select(`*, properties!bookings_property_id_fkey (name, city, country, slug, brand_override_enabled, brand_logo_url)`)
         .eq("id", bookingId)
         .single();
       if (error) throw error;
