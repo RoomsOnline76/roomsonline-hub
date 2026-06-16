@@ -216,7 +216,7 @@ const createReservationSchema = baseRequestSchema.extend({
       charge: z.boolean().optional(),
     }).optional(),
   }),
-  rooms: z.array(hgRoomRefSchema.innerType().innerType().extend({
+  rooms: z.array(hgRoomRefBase.extend({
     guests: z.array(hgGuestSchema).min(1),
     special_requests: z.array(z.string().max(256)).optional(),
   })).min(1),
