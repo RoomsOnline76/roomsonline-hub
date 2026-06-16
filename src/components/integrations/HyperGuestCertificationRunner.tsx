@@ -62,6 +62,22 @@ export function HyperGuestCertificationRunner() {
     }
   };
 
+  const pullStaticData = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("hyperguest-api", {
+        body: { action: "fetch_static_data", hotel_id: hotelId.trim() || undefined, environment, data_type: "all" },
+      });
+      if (error) throw error;
+      if (data?.success === false) throw new Error(data?.error?.message || "Pull failed");
+      toast.success(`Pulled ${data?.data?.rooms?.length ?? 0} rooms, ${data?.data?.rates?.length ?? 0} rates — re-running…`);
+      await run();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to pull static data");
+    }
+  };
+
+  const needsStaticPull = !!result?.steps?.some(s => s.status === "fail" && /STATIC_CATALOGUE_EMPTY|No rooms or rates/i.test(s.error || ""));
+
   return (
     <Card className="border-indigo-500/20">
       <CardHeader className="pb-3">
