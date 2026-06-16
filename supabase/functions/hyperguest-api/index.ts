@@ -937,23 +937,27 @@ async function getReservations(
   }
 
   const data = await response.json();
-  const bookings = params.reservation_id ? [data] : (data.bookings || []);
+  const content = data.content ?? data;
+  const raw = params.reservation_id
+    ? [content]
+    : (content?.bookings ?? content?.reservations ?? []);
 
   return {
-    reservations: bookings.map((b: any) => ({
-      reservation_id: b.bookingId || b.reference,
-      status: b.status,
-      holder_name: b.holder?.name ? `${b.holder.name} ${b.holder.surname}` : null,
-      holder_email: b.holder?.email,
-      check_in: b.checkIn,
-      check_out: b.checkOut,
-      total_amount: b.totalAmount,
-      currency: b.currency,
-      rooms: b.rooms,
-      created_at: b.createdAt,
-      client_reference: b.clientReference,
+    reservations: raw.map((b: any) => ({
+      reservation_id: String(b?.bookingId ?? b?.reference?.agency ?? b?.id ?? ""),
+      status: b?.status,
+      lead_guest_name: b?.leadGuest?.name ? `${b.leadGuest.name.first} ${b.leadGuest.name.last}` : null,
+      lead_guest_email: b?.leadGuest?.contact?.email,
+      check_in: b?.dates?.from,
+      check_out: b?.dates?.to,
+      total_amount: b?.prices?.sell?.price ?? b?.payment?.chargeAmount?.price,
+      currency: b?.prices?.sell?.currency ?? b?.payment?.chargeAmount?.currency,
+      rooms: b?.rooms ?? [],
+      client_reference: b?.reference?.agency,
+      meta: b?.meta ?? [],
     })),
-    total: bookings.length,
+    total: raw.length,
+    raw: data,
   };
 }
 
