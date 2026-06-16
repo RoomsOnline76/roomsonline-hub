@@ -851,6 +851,30 @@ async function createReservation(
   };
   console.log(`[hyperguest] Create POST ${baseUrl}/booking/create: ${JSON.stringify(logSafe)}`);
 
+  // Shared reconciler — HG warns: if the client gives up before HG responds,
+  // the booking may exist on their side while we mark it failed. On ANY
+  // failure path (timeout, network drop, 5xx) try Booking List by our agency
+  // reference before propagating the error.
+  const reconcileViaBookingList = async (reason: string): Promise<any | null> => {
+    try {
+      console.warn(`[hyperguest] /booking/create ${reason} — reconciling via Booking List (ref=${payload.reference.agency})`);
+      const list = await getReservations(creds, { reservation_id: payload.reference.agency });
+      const match = list?.reservations?.[0];
+      if (match) {
+        return {
+          reservation_id: match.reservation_id,
+          status: match.status || "pending",
+          reconciled_via: `booking_list_${reason}_fallback`,
+          hotel_code: creds.hotel_code,
+          created_at: new Date().toISOString(),
+        };
+      }
+    } catch (recErr: any) {
+      console.error(`[hyperguest] Reconciliation lookup itself failed: ${recErr?.message ?? recErr}`);
+    }
+    return null;
+  };
+
   let response: Response;
   let responseText: string;
   try {
@@ -862,20 +886,9 @@ async function createReservation(
     });
     responseText = await response.text();
   } catch (err: any) {
-    if (err?.name === "AbortError") {
-      console.warn(`[hyperguest] Booking timed out after ${BOOKING_TIMEOUT_MS}ms — reconciling via Booking List`);
-      const list = await getReservations(creds, { reservation_id: payload.reference.agency });
-      const match = list?.reservations?.[0];
-      if (match) {
-        return {
-          reservation_id: match.reservation_id,
-          status: match.status || "pending",
-          reconciled_via: "booking_list_timeout_fallback",
-          hotel_code: creds.hotel_code,
-          created_at: new Date().toISOString(),
-        };
-      }
-    }
+    const reason = err?.name === "AbortError" ? "timeout" : "network_error";
+    const reconciled = await reconcileViaBookingList(reason);
+    if (reconciled) return reconciled;
     throw err;
   }
 
@@ -886,8 +899,15 @@ async function createReservation(
     if (response.status === 422) {
       throw { code: ERROR_CODES.BOOKING_REJECTED, message: `Booking rejected: ${responseText.substring(0, 200)}` };
     }
+    // 5xx (or other unexpected status) — HG may still have persisted the
+    // booking. Try Booking List before failing the guest's transaction.
+    if (response.status >= 500) {
+      const reconciled = await reconcileViaBookingList(`http_${response.status}`);
+      if (reconciled) return reconciled;
+    }
     throw new Error(`Create reservation failed: ${response.status} - ${responseText.substring(0, 300)}`);
   }
+
 
   const data = JSON.parse(responseText);
   const content = data.content ?? data;

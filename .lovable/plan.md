@@ -1,62 +1,39 @@
-## Goal
+## HyperGuest Compliance Audit
 
-When a property is part of one or more portfolios, surface a copy-paste snippet on the **Integrations** page (just like the existing widget/embed snippets) that owners can drop into their external portfolio landing page. The snippet calls `setOriginPortfolio(portfolioId)` so any subsequent booking is tagged with `origin_portfolio_id` and feeds the cross-property revenue-share pipeline.
+I checked `supabase/functions/hyperguest-api/index.ts` against the four HG directives. **All four are already implemented.** I'm proposing two small hardenings to close edge cases.
 
-## Where it lives
+### Audit results
 
-Extend `src/components/integrations/PortfolioWidgetTab.tsx` (already rendered inside `PMSIntegrations`) with a new **"Origin Tracking Tag"** card directly under the existing portfolio embed snippets. Reuses the same `CodeSnippetBlock` + clipboard pattern, so the UX matches every other integration code block.
+| # | HG directive | Status | Evidence (`hyperguest-api/index.ts`) |
+|---|---|---|---|
+| 1 | `Accept-Encoding: gzip, deflate` on every request | ✅ Compliant | `getAuthHeaders()` (L350-358) and the `hgFetch` wrapper (L361-378) both inject the header; every call site goes through `hgFetch`, so it can't be bypassed. Also explicitly re-added on the availability call (L578). |
+| 2 | Wait the full 300 s for `/booking/create` | ✅ Compliant | `BOOKING_TIMEOUT_MS = 300_000` (L71) is passed as `timeoutMs` only on the create-reservation call (L861). Other endpoints use a 60 s standard timeout, which is fine and documented as such. |
+| 3 | Booking-List fallback to reconcile timeouts | ✅ Compliant | On `AbortError` we call `getReservations({ reservation_id: payload.reference.agency })` and return the canonical status as `reconciled_via: "booking_list_timeout_fallback"` (L864-880). |
+| 4 | Respect BAR rates | ✅ Compliant | Each rate plan is classified `BAR` vs `PROMO` from `ratePlanInfo.isPromotion` (L530) and the classification is preserved through the cache write (L1101). Net/Sell/BAR prices are stored as HG returns them — we never mark down or override a BAR price. |
 
-## What gets generated
+### Proposed small hardenings (the only gaps worth touching)
 
-For the portfolio selected in the existing dropdown (only portfolios this property belongs to), generate three copy-able variants:
+These are safety nets, not bug fixes. Skip them if you want a pure audit pass.
 
-1. **Drop-in script tag** — paste into the `<head>` or before `</body>` of the portfolio landing page:
-   ```html
-   <!-- ROL'OS Portfolio Origin Tag -->
-   <script>
-     (function () {
-       try {
-         sessionStorage.setItem('rol_origin_portfolio_id', '<PORTFOLIO_UUID>');
-         sessionStorage.setItem('rol_origin_url', window.location.href);
-       } catch (e) {}
-     })();
-   </script>
-   ```
+1. **Reconcile on non-Abort network errors too.** Today the Booking-List fallback only fires on `AbortError` (timeout). If HG returns a 502/504 or the TCP connection drops mid-response, the catch still re-throws without reconciling — same data-discrepancy risk HG warns about. Extend the catch block to call `getReservations` on any thrown error before re-throwing, and also when `/booking/create` returns 5xx.
 
-2. **Link decorator** — append to any outbound booking/embed link so origin survives a new tab/session:
-   ```
-   https://book.sleepinafrica.roomsonline.co.za/embed/portfolio/<slug>?ref_portfolio=<PORTFOLIO_UUID>
-   ```
+2. **Persist the `BAR` flag onto `pms_rate_types_cache.metadata`.** Right now `rate_type` is computed on read and survives in the response, but the cache row stores it inside a JSON blob only. Promoting it to an indexed/queryable column-style flag (`is_bar boolean`) makes it trivial for downstream surfaces (yield rules, channel manager, calendar) to assert "this is a BAR plan — don't undercut" without re-parsing.
 
-3. **NPM / module call** (for owners building their own React landing page):
-   ```ts
-   import { setOriginPortfolio } from '@rolos/origin';
-   setOriginPortfolio('<PORTFOLIO_UUID>');
-   ```
+### Technical notes
 
-Each variant gets its own labelled `CodeSnippetBlock` with a copy button and short "where to paste" helper text.
+- No new env vars, no schema migration required for hardening #1.
+- Hardening #2 is a 1-column `ALTER TABLE pms_rate_types_cache ADD COLUMN is_bar boolean` plus a write-side flag in the normalizer; it's backwards-compatible.
+- No frontend changes in either hardening.
 
-## Supporting wiring
+### Files that would be touched (if you greenlight the hardenings)
 
-To make variant 2 (`?ref_portfolio=`) actually work, add a tiny hydration step at app entry:
+- `supabase/functions/hyperguest-api/index.ts` — extend create-reservation catch + set `is_bar` on cache writes.
+- New migration adding `pms_rate_types_cache.is_bar` (only for hardening #2).
 
-- In `src/lib/bookingOrigin.ts`, add `hydrateOriginFromUrl()` that reads `ref_portfolio` (and optional `ref_url`) from `window.location.search` and calls `setOriginPortfolio(...)`.
-- Call it once from `src/main.tsx` (or the existing brand-override bootstrap) so any booking, embed, or portfolio route honours the query param.
+### What I will NOT touch
 
-No other behaviour changes — `captureBookingOrigin()` already reads the sessionStorage key the snippet writes.
+- The 60 s timeout on non-booking calls (search, prebook, cancel, list) — HG only mandates 300 s for `/booking/create`.
+- The BAR/PROMO classification rule — current logic matches the HG `ratePlanInfo.isPromotion` contract.
+- Header injection — already correct everywhere.
 
-## UI / UX details
-
-- Card title: "Portfolio Origin Tracking" with `Sparkles` icon, sub-copy explaining it powers cross-property revenue share.
-- Show one snippet card per portfolio the property is a member of (collapsed accordion when >1).
-- Disabled empty-state when the property isn't in any portfolio: "Join a portfolio in Admin → Portfolios to enable origin tagging." with a link.
-- Uses existing semantic tokens (no hardcoded colours), matches the look of `WidgetTab` / `BookingBarTab`.
-
-## Files
-
-- Edit: `src/components/integrations/PortfolioWidgetTab.tsx` — add the new "Origin Tracking Tag" section + snippet generators.
-- Edit: `src/lib/bookingOrigin.ts` — add `hydrateOriginFromUrl()`.
-- Edit: `src/main.tsx` — call `hydrateOriginFromUrl()` at startup.
-- (Optional) Edit: `src/components/integrations/IntegrationDocumentation.tsx` — add a short "Portfolio Origin Tag" doc entry mirroring the snippet.
-
-No DB migrations, no edge function changes.
+Tell me which path: **audit-only (close as compliant)**, **+ hardening 1**, **+ both hardenings**.
