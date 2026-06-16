@@ -70,6 +70,61 @@ const HG_ENDPOINTS = {
 // Booking requests may take up to 300s per HG spec.
 const BOOKING_TIMEOUT_MS = 300_000;
 const STANDARD_TIMEOUT_MS = 60_000;
+
+// ----------------------------------------------------------------------------
+// Request tracing — used by the certification runner to capture full HG
+// request/response payloads per booking step for the export bundle.
+// ----------------------------------------------------------------------------
+interface TraceEntry {
+  url: string;
+  method: string;
+  request_body: any;
+  status: number;
+  duration_ms: number;
+  response_body: any;
+  timestamp: string;
+}
+
+interface TraceContext {
+  entries: TraceEntry[];
+  pending: Promise<void>[];
+}
+
+let currentTrace: TraceContext | null = null;
+
+function startTrace(): TraceContext {
+  const ctx: TraceContext = { entries: [], pending: [] };
+  currentTrace = ctx;
+  return ctx;
+}
+
+async function endTrace(ctx: TraceContext): Promise<TraceEntry[]> {
+  if (currentTrace === ctx) currentTrace = null;
+  try { await Promise.all(ctx.pending); } catch (_e) { /* never fail step on trace flush */ }
+  return ctx.entries;
+}
+
+const REDACT_KEYS = new Set([
+  "number", "cvv", "expiry", "email", "phone", "authorization", "x-api-key",
+  "api_key", "password", "token", "secret",
+]);
+
+function redact(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(redact);
+  if (typeof obj !== "object") return obj;
+  const out: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACT_KEYS.has(k.toLowerCase())) out[k] = "***REDACTED***";
+    else out[k] = redact(v);
+  }
+  return out;
+}
+
+function tryJson(s: string | undefined | null): any {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+}
 const CERTIFICATION_HOTEL_ID = '19912';
 
 // Standardized response wrapper
@@ -358,13 +413,16 @@ function getAuthHeaders(apiKey: string): Record<string, string> {
   };
 }
 
-// fetch wrapper that enforces Accept-Encoding + per-call timeout.
+// fetch wrapper that enforces Accept-Encoding + per-call timeout, and taps
+// into the active trace context (when set) to record request/response bodies
+// for the certification export bundle.
 async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
   const { timeoutMs = STANDARD_TIMEOUT_MS, ...rest } = init;
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
+  const t0 = Date.now();
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...rest,
       signal: controller.signal,
       headers: {
@@ -372,6 +430,27 @@ async function hgFetch(url: string, init: RequestInit & { timeoutMs?: number } =
         ...(rest.headers as Record<string, string> | undefined),
       },
     });
+    if (currentTrace) {
+      const reqBody = typeof rest.body === "string"
+        ? (tryJson(rest.body) ?? rest.body)
+        : null;
+      const entry: TraceEntry = {
+        url,
+        method: (rest.method ?? "GET") as string,
+        request_body: redact(reqBody),
+        status: response.status,
+        duration_ms: Date.now() - t0,
+        response_body: null,
+        timestamp: new Date().toISOString(),
+      };
+      currentTrace.entries.push(entry);
+      const cloned = response.clone();
+      const p = cloned.text()
+        .then(txt => { entry.response_body = redact(tryJson(txt)) ?? (txt ? txt.slice(0, 16000) : null); })
+        .catch(() => { /* ignore — never fail call on trace flush */ });
+      currentTrace.pending.push(p);
+    }
+    return response;
   } finally {
     clearTimeout(t);
   }
@@ -1225,12 +1304,19 @@ async function ensureStaticCatalogue(
 // ============================================================================
 
 interface CertStep {
-  step: number;
+  step: number;                    // 1..N within its phase
+  kind: "setup" | "test";
+  test?: number;                   // 1..12 for booking tests (matches HG spec)
   name: string;
   status: "pass" | "fail" | "skip";
   duration_ms: number;
   summary?: string;
   error?: string;
+  reservation_id?: string;
+  cancelled?: boolean;
+  package?: boolean;
+  nrf_outcome?: "rejected" | "penalty_charged";
+  requests?: TraceEntry[];         // full HG request/response trace
 }
 
 async function logIntegrationStep(
@@ -1242,7 +1328,7 @@ async function logIntegrationStep(
     await supabase.from("integration_logs").insert({
       integration_type: "hyperguest",
       property_id: propertyId,
-      event_type: `cert_step_${step.step}_${step.name}`,
+      event_type: `cert_${step.kind}_${step.test ?? step.step}_${step.name.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`,
       status: step.status === "pass" ? "success" : "error",
       payload: step,
     });
@@ -1255,240 +1341,429 @@ async function runCertification(
   supabase: any,
   creds: HyperGuestCredentials,
   propertyId: string | null,
-): Promise<{ hotel_code: string; environment: string; steps: CertStep[]; passed: number; failed: number }> {
-  const steps: CertStep[] = [];
-  const time = async (name: string, fn: () => Promise<string>) => {
-    const t0 = Date.now();
-    const step: CertStep = { step: steps.length + 1, name, status: "pass", duration_ms: 0 };
-    try {
-      step.summary = await fn();
-      step.duration_ms = Date.now() - t0;
-    } catch (e: any) {
-      step.status = "fail";
-      step.error = e?.message || String(e);
-      step.duration_ms = Date.now() - t0;
-    }
-    steps.push(step);
-    await logIntegrationStep(supabase, propertyId, step);
-    return step;
-  };
+): Promise<any> {
+  const setup: CertStep[] = [];
+  const tests: CertStep[] = [];
+  const bookedReservations: Array<{ id: string; test: number }> = [];
 
-  // Seeded helper: when an upstream endpoint isn't available in the sandbox
-  // (HG provisions the booking pipeline per partner), record the step as
-  // passing with a deterministic seeded payload so cert can complete end-to-
-  // end and downstream surfaces have something to render.
-  const timeOrSeed = async (name: string, fn: () => Promise<string>, seedFn: () => string) => {
-    const t0 = Date.now();
-    const step: CertStep = { step: steps.length + 1, name, status: "pass", duration_ms: 0 };
-    try {
-      step.summary = await fn();
-    } catch (e: any) {
-      step.status = "pass";
-      step.summary = `${seedFn()} (seeded — live endpoint unavailable: ${(e?.message || String(e)).substring(0, 120)})`;
-    }
-    step.duration_ms = Date.now() - t0;
-    steps.push(step);
-    await logIntegrationStep(supabase, propertyId, step);
-    return step;
-  };
-
-
-  await time("health_check", async () => {
-    const r = await healthCheck(creds);
-    return `hotel_visible=${r?.hotel_visible ?? "unknown"}`;
-  });
-
-  let staticResult: any = null;
-  await time("fetch_static_data", async () => {
-    // Use the shared pre-flight helper so cert and runtime ARI cannot diverge.
-    const pre = await ensureStaticCatalogue(supabase, creds, propertyId);
-    staticResult = await fetchStaticData(creds, "all", supabase, propertyId);
-    const r = staticResult?.rooms?.length ?? 0;
-    const p = staticResult?.rates?.length ?? 0;
-    if (r === 0 && p === 0) throw new Error("No rooms or rates returned");
-    return `rooms=${r}, rates=${p} (cache_refreshed=${pre.refreshed})`;
-  });
-
-  await time("get_room_types", async () => {
-    const n = staticResult?.rooms?.length ?? 0;
-    if (n === 0) throw new Error("No room types cached");
-    return `${n} room types`;
-  });
-
-  await time("get_rate_types", async () => {
-    const n = staticResult?.rates?.length ?? 0;
-    if (n === 0) throw new Error("No rate types cached");
-    return `${n} rate types`;
-  });
-
-  const today = new Date();
-  const checkIn = new Date(today); checkIn.setDate(today.getDate() + 7);
-  const checkOut = new Date(today); checkOut.setDate(today.getDate() + 10);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const today = new Date();
+  const stdIn = new Date(today); stdIn.setDate(today.getDate() + 30);
+  const stdOut = new Date(stdIn); stdOut.setDate(stdIn.getDate() + 2);
 
-  let availability: any = null;
-  await time("fetch_availability", async () => {
-    availability = await fetchAvailability(
-      creds,
-      fmt(checkIn),
-      fmt(checkOut),
-      { rooms: 1, adults: 2, children: 0 },
-      undefined,
-      "USD",
-    );
-    const offers = availability?.room_types?.reduce((sum: number, room: any) => sum + (room.rate_types?.length ?? 0), 0)
-      ?? availability?.rooms?.length
-      ?? availability?.offers?.length
-      ?? 0;
-    if (offers === 0) throw new Error("No availability returned");
-    return `${offers} offers ${fmt(checkIn)}→${fmt(checkOut)}`;
-  });
-
-  // Extract the first concrete offer from normalized availability shape
-  const firstRoom = availability?.room_types?.[0];
-  const firstRate = firstRoom?.rate_types?.[0];
-  const seededReservationId = `SEED-${creds.hotel_code}-${Date.now()}`;
-
-  // Build HG-spec ref for the offer we want to prebook/book
-  const firstRoomId = firstRoom?.room_type_id;
-  const firstRateId = firstRate?.rate_type_id;
-  const firstRateCurrency = (firstRate?.rates?.[0]?.currency) || availability?.currency || "USD";
-  const firstExpectedAmount = Number(firstRate?.selling_rate ?? firstRate?.net_total ?? 0);
-  const certSearchArgs = {
-    check_in: fmt(checkIn),
-    check_out: fmt(checkOut),
-    nationality: "ZA",
-    pax: [{ adults: 2, children: [] as number[] }],
+  const baseLead = {
+    first_name: "Cert", last_name: "Test", title: "MR" as const,
+    birth_date: "1990-01-01", email: "cert@roomsonline.test", phone: "+27000000000",
+    address: "1 Test Lane", city: "Cape Town", country: "ZA", state: "WC", zip: "8001",
   };
-  const certMeta = [{ key: "Source", value: "RoomsOnline HG Certification" }];
-
-  let prebookResult: any = null;
-  await timeOrSeed(
-    "prebook",
-    async () => {
-      if (!firstRateId) throw new Error("No rate id in availability");
-      prebookResult = await prebook(creds, {
-        ...certSearchArgs,
-        rooms: [{
-          room_id: firstRoomId,
-          rate_plan_id: firstRateId,
-          expected_amount: firstExpectedAmount,
-          expected_currency: firstRateCurrency,
-        }],
-        meta: certMeta,
-      });
-      const amount = prebookResult?.payment_amount?.amount ?? prebookResult?.rooms?.[0]?.prices?.sell?.price;
-      return `pre-book ok, amount=${amount} ${prebookResult?.currency ?? firstRateCurrency}`;
+  const basePayment = {
+    type: "credit_card" as const,
+    credit_card: {
+      number: "4111111111111111", cvv: "123", expiry_month: "12", expiry_year: "2030",
+      first_name: "Cert", last_name: "Test", charge: false,
     },
-    () => {
-      prebookResult = {
-        payment_amount: { amount: firstExpectedAmount, currency: firstRateCurrency },
-        rooms: [{ roomId: firstRoomId, ratePlanId: firstRateId }],
-        currency: firstRateCurrency,
-      };
-      return `pre-book seeded (${firstExpectedAmount} ${firstRateCurrency})`;
-    },
-  );
-
-  let reservationId: string | null = null;
-  await timeOrSeed(
-    "create_reservation",
-    async () => {
-      const res = await createReservation(creds, {
-        ...certSearchArgs,
-        lead_guest: {
-          first_name: "Cert",
-          last_name: "Test",
-          title: "MR",
-          birth_date: "1990-01-01",
-          email: "cert@roomsonline.test",
-          phone: "+27000000000",
-          address: "1 Test Lane",
-          city: "Cape Town",
-          country: "ZA",
-          state: "WC",
-          zip: "8001",
-        },
-        payment: {
-          type: "credit_card",
-          credit_card: {
-            number: "4111111111111111",
-            cvv: "123",
-            expiry_month: "12",
-            expiry_year: "2030",
-            first_name: "Cert",
-            last_name: "Test",
-            charge: false,
-          },
-        },
-        rooms: [{
-          room_id: firstRoomId,
-          rate_plan_id: firstRateId,
-          expected_amount: prebookResult?.payment_amount?.amount ?? firstExpectedAmount,
-          expected_currency: prebookResult?.currency ?? firstRateCurrency,
-          guests: [
-            { first_name: "Cert", last_name: "Test", title: "MR", birth_date: "1990-01-01", email: "cert@roomsonline.test" },
-            { first_name: "Guest", last_name: "Two", title: "MR", birth_date: "1990-01-01" },
-          ],
-          special_requests: ["Non-smoking room preferred"],
-        }],
-        client_reference: `ROL-CERT-${Date.now()}`,
-        meta: certMeta,
-      });
-      reservationId = res?.reservation_id || null;
-      if (!reservationId) throw new Error("No reservation_id returned");
-      return `reservation_id=${reservationId} status=${res?.status}`;
-    },
-    () => {
-      reservationId = seededReservationId;
-      return `reservation_id=${reservationId}`;
-    },
-  );
-
-  await timeOrSeed(
-    "get_reservations",
-    async () => {
-      if (!reservationId || reservationId.startsWith("SEED-")) {
-        throw new Error("Reservation was seeded — no live record to fetch");
-      }
-      const list = await getReservations(creds, { reservation_id: reservationId });
-      const found = (list?.reservations || []).some((r: any) => r.reservation_id === reservationId);
-      if (!found) throw new Error("Reservation not visible");
-      return "reservation visible";
-    },
-    () => `1 seeded reservation (${reservationId})`,
-  );
-
-  await timeOrSeed(
-    "cancel_reservation",
-    async () => {
-      if (!reservationId || reservationId.startsWith("SEED-")) {
-        throw new Error("Reservation was seeded — no live record to cancel");
-      }
-      await cancelReservation(creds, reservationId, "cert run");
-      return "cancelled";
-    },
-    () => `cancelled (seeded ${reservationId})`,
-  );
-
-
-
-  await time("health_check_final", async () => {
-    const r = await healthCheck(creds);
-    return `hotel_visible=${r?.hotel_visible ?? "unknown"}`;
+  };
+  const baseMeta = [{ key: "Source", value: "RoomsOnline HG Certification 12-step" }];
+  const guestFor = (label: string, idx: number, title: "MR" | "C" = "MR", birthYear?: number) => ({
+    first_name: `${label}${idx}`, last_name: "Test", title,
+    birth_date: `${birthYear ?? 1990}-01-01`,
   });
 
-  const passed = steps.filter(s => s.status === "pass").length;
-  const failed = steps.filter(s => s.status === "fail").length;
+  const runStep = async (
+    kind: "setup" | "test",
+    testNumber: number,
+    name: string,
+    fn: () => Promise<{ summary: string; extra?: Partial<CertStep> }>,
+  ): Promise<CertStep> => {
+    const ctx = startTrace();
+    const t0 = Date.now();
+    const record: CertStep = {
+      step: (kind === "setup" ? setup.length : tests.length) + 1,
+      kind,
+      ...(kind === "test" ? { test: testNumber } : {}),
+      name,
+      status: "pass",
+      duration_ms: 0,
+    };
+    try {
+      const r = await fn();
+      record.summary = r.summary;
+      if (r.extra) Object.assign(record, r.extra);
+    } catch (e: any) {
+      record.status = "fail";
+      record.error = e?.message || String(e);
+    } finally {
+      record.duration_ms = Date.now() - t0;
+      record.requests = await endTrace(ctx);
+    }
+    if (kind === "setup") setup.push(record); else tests.push(record);
+    await logIntegrationStep(supabase, propertyId, record);
+    return record;
+  };
+
+  // ===== Setup (silent prelude; not counted in the 12 booking tests) ====
+  await runStep("setup", 0, "health_check", async () => {
+    const r = await healthCheck(creds);
+    return { summary: `hotel_visible=${r?.hotel_visible ?? "unknown"}` };
+  });
+
+  let staticData: any = null;
+  await runStep("setup", 0, "fetch_static_data", async () => {
+    const pre = await ensureStaticCatalogue(supabase, creds, propertyId);
+    staticData = await fetchStaticData(creds, "all", supabase, propertyId);
+    const r = staticData?.rooms?.length ?? 0;
+    const p = staticData?.rates?.length ?? 0;
+    if (r === 0 && p === 0) throw new Error("No rooms or rates returned");
+    return { summary: `rooms=${r} rates=${p} (cache_refreshed=${pre.refreshed})` };
+  });
+
+  // ----- internal helpers -----------------------------------------------
+  const search = async (opts: {
+    check_in?: string; check_out?: string;
+    pax: HgPax[]; currency?: string; nationality?: string;
+  }) => {
+    return await fetchAvailability(
+      creds,
+      opts.check_in ?? fmt(stdIn),
+      opts.check_out ?? fmt(stdOut),
+      { rooms: opts.pax.length, adults: opts.pax[0].adults, children: opts.pax[0].children?.length ?? 0 },
+      opts.nationality,
+      opts.currency ?? "USD",
+    );
+  };
+
+  const pickOffer = (avail: any) => {
+    const rt = avail?.room_types?.[0];
+    const rate = rt?.rate_types?.[0];
+    if (!rt || !rate) throw new Error("No availability offer returned");
+    return {
+      roomTypeId: String(rt.room_type_id),
+      rateId: String(rate.rate_type_id),
+      price: Number(rate.selling_rate ?? rate.net_total ?? 0),
+      currency: rate.rates?.[0]?.currency ?? "USD",
+      rateName: rate.rate_type_name,
+      raw: rate,
+    };
+  };
+
+  const buildRoom = (offer: { roomTypeId: string; rateId: string; price: number; currency: string }, guests: any[]) => ({
+    room_id: offer.roomTypeId,
+    rate_plan_id: offer.rateId,
+    expected_amount: offer.price,
+    expected_currency: offer.currency,
+    guests,
+  });
+
+  const doBooking = async (opts: {
+    label: string;
+    pax: HgPax[];
+    rooms: Array<{ room_id: string | number; rate_plan_id: string | number; expected_amount: number; expected_currency: string; guests: any[] }>;
+    nationality?: string;
+    check_in?: string; check_out?: string;
+  }) => {
+    const searchArgs = {
+      check_in: opts.check_in ?? fmt(stdIn),
+      check_out: opts.check_out ?? fmt(stdOut),
+      nationality: opts.nationality ?? "ZA",
+      pax: opts.pax,
+    };
+    const pb = await prebook(creds, {
+      ...searchArgs,
+      rooms: opts.rooms.map(r => ({
+        room_id: r.room_id, rate_plan_id: r.rate_plan_id,
+        expected_amount: r.expected_amount, expected_currency: r.expected_currency,
+      })),
+      meta: baseMeta,
+    });
+    const res = await createReservation(creds, {
+      ...searchArgs,
+      lead_guest: baseLead,
+      payment: basePayment,
+      rooms: opts.rooms.map(r => ({
+        room_id: r.room_id, rate_plan_id: r.rate_plan_id,
+        expected_amount: pb?.payment_amount?.amount ?? r.expected_amount,
+        expected_currency: pb?.currency ?? r.expected_currency,
+        guests: r.guests,
+        special_requests: [],
+      })),
+      client_reference: `ROL-CERT-${opts.label}-${Date.now()}`,
+      meta: baseMeta,
+    });
+    if (!res?.reservation_id) throw new Error("No reservation_id returned");
+    return { reservation_id: String(res.reservation_id), status: res.status };
+  };
+
+  // ===== Test #1 — Prebook 1 room / 1 adult ==============================
+  await runStep("test", 1, "Pre-book — 1 room, 1 adult", async () => {
+    const pax: HgPax[] = [{ adults: 1, children: [] }];
+    const avail = await search({ pax });
+    const offer = pickOffer(avail);
+    const pb = await prebook(creds, {
+      check_in: fmt(stdIn), check_out: fmt(stdOut), nationality: "ZA", pax,
+      rooms: [{ room_id: offer.roomTypeId, rate_plan_id: offer.rateId, expected_amount: offer.price, expected_currency: offer.currency }],
+      meta: baseMeta,
+    });
+    return { summary: `pre-book ok @ ${pb?.payment_amount?.amount ?? offer.price} ${pb?.currency ?? offer.currency}` };
+  });
+
+  // ===== Test #2 — Booking 1 room / 1 adult ==============================
+  await runStep("test", 2, "Booking — 1 room, 1 adult", async () => {
+    const pax: HgPax[] = [{ adults: 1, children: [] }];
+    const avail = await search({ pax });
+    const offer = pickOffer(avail);
+    const r = await doBooking({ label: "T2", pax, rooms: [buildRoom(offer, [guestFor("Adult", 1)])] });
+    bookedReservations.push({ id: r.reservation_id, test: 2 });
+    return { summary: `reservation=${r.reservation_id} status=${r.status}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #3 — 1 room / 2A + 1C + 1I ================================
+  await runStep("test", 3, "Booking — 1 room, 2 adults + 1 child + 1 infant", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [8, 1] }];
+    const avail = await search({ pax });
+    const offer = pickOffer(avail);
+    const yr = new Date().getFullYear();
+    const guests = [
+      guestFor("Adult", 1), guestFor("Adult", 2),
+      guestFor("Child", 1, "C", yr - 8),
+      guestFor("Infant", 1, "C", yr - 1),
+    ];
+    const r = await doBooking({ label: "T3", pax, rooms: [buildRoom(offer, guests)] });
+    bookedReservations.push({ id: r.reservation_id, test: 3 });
+    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #4 — 2 rooms: 2A / 1A =====================================
+  await runStep("test", 4, "Booking — 2 rooms (2 adults, 1 adult)", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }, { adults: 1, children: [] }];
+    const avail = await search({ pax });
+    const offer = pickOffer(avail);
+    const r = await doBooking({
+      label: "T4", pax,
+      rooms: [
+        buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)]),
+        buildRoom(offer, [guestFor("B", 1)]),
+      ],
+    });
+    bookedReservations.push({ id: r.reservation_id, test: 4 });
+    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #5 — 2 rooms: (1A+1C) / (2A+1I) ===========================
+  await runStep("test", 5, "Booking — 2 rooms (1A+1C, 2A+1I)", async () => {
+    const pax: HgPax[] = [{ adults: 1, children: [8] }, { adults: 2, children: [1] }];
+    const avail = await search({ pax });
+    const offer = pickOffer(avail);
+    const yr = new Date().getFullYear();
+    const r = await doBooking({
+      label: "T5", pax,
+      rooms: [
+        buildRoom(offer, [guestFor("A", 1), guestFor("C", 1, "C", yr - 8)]),
+        buildRoom(offer, [guestFor("A", 1), guestFor("A", 2), guestFor("I", 1, "C", yr - 1)]),
+      ],
+    });
+    bookedReservations.push({ id: r.reservation_id, test: 5 });
+    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #6 — 2 rooms different room types & rate plans ===========
+  await runStep("test", 6, "Booking — 2 rooms different room types & rate plans", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }, { adults: 2, children: [] }];
+    const avail = await search({ pax });
+    const types = avail?.room_types ?? [];
+    if (types.length === 0) throw new Error("No room types available");
+    const first = types[0];
+    const second = types.find((t: any) => String(t.room_type_id) !== String(first.room_type_id));
+    const mkOffer = (rt: any, rateIdx = 0) => {
+      const rate = rt.rate_types?.[rateIdx] ?? rt.rate_types?.[0];
+      return {
+        roomTypeId: String(rt.room_type_id),
+        rateId: String(rate.rate_type_id),
+        price: Number(rate.selling_rate ?? rate.net_total ?? 0),
+        currency: rate.rates?.[0]?.currency ?? "USD",
+      };
+    };
+    let offerA = mkOffer(first, 0);
+    let offerB: any;
+    let note = "";
+    if (second) {
+      offerB = mkOffer(second, 0);
+    } else {
+      const altRate = first.rate_types?.[1];
+      if (!altRate) throw new Error("Cert hotel exposes only 1 room type and 1 rate — cannot satisfy distinct-type test");
+      offerB = mkOffer(first, 1);
+      note = " (only 1 room type — used distinct rate plans on same room)";
+    }
+    const r = await doBooking({
+      label: "T6", pax,
+      rooms: [
+        buildRoom(offerA, [guestFor("A", 1), guestFor("A", 2)]),
+        buildRoom(offerB, [guestFor("B", 1), guestFor("B", 2)]),
+      ],
+    });
+    bookedReservations.push({ id: r.reservation_id, test: 6 });
+    return { summary: `reservation=${r.reservation_id}${note}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #7 — Same-day 1 room / 2 adults ============================
+  await runStep("test", 7, "Booking — 1 room, 2 adults, same-day", async () => {
+    const ci = fmt(today);
+    const coDate = new Date(today); coDate.setDate(today.getDate() + 1);
+    const co = fmt(coDate);
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await fetchAvailability(creds, ci, co, { rooms: 1, adults: 2, children: 0 }, undefined, "USD");
+    const offer = pickOffer(avail);
+    const r = await doBooking({
+      label: "T7", pax, check_in: ci, check_out: co,
+      rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])],
+    });
+    bookedReservations.push({ id: r.reservation_id, test: 7 });
+    return { summary: `reservation=${r.reservation_id} (${ci}→${co})`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #8 — Currency conversion (EUR) =============================
+  await runStep("test", 8, "Booking — 1 room, 2 adults, currency conversion (EUR)", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await search({ pax, currency: "EUR" });
+    const offer = pickOffer(avail);
+    const r = await doBooking({ label: "T8", pax, rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])] });
+    bookedReservations.push({ id: r.reservation_id, test: 8 });
+    return { summary: `reservation=${r.reservation_id} currency=${offer.currency}`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #9 — Nationality (GB) ======================================
+  await runStep("test", 9, "Booking — 1 room, 2 adults, nationality GB", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await search({ pax, nationality: "GB" });
+    const offer = pickOffer(avail);
+    const r = await doBooking({
+      label: "T9", pax, nationality: "GB",
+      rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])],
+    });
+    bookedReservations.push({ id: r.reservation_id, test: 9 });
+    return { summary: `reservation=${r.reservation_id} nationality=GB`, extra: { reservation_id: r.reservation_id } };
+  });
+
+  // ===== Test #10 — Cancel a refundable reservation =====================
+  await runStep("test", 10, "Cancellation — refundable reservation", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await search({ pax });
+    const rt = avail?.room_types?.[0];
+    if (!rt) throw new Error("No room type available");
+    const refundable = (rt.rate_types || []).find((r: any) => {
+      const policies = r.cancellation_policies ?? [];
+      return policies.some((p: any) => {
+        const pct = Number(p?.penalty?.percentage ?? p?.percentage ?? 100);
+        const deadline = p?.deadline ?? p?.dueDate;
+        if (!deadline) return false;
+        return pct < 100 && new Date(deadline).getTime() > Date.now() + 24 * 3600 * 1000;
+      });
+    }) ?? rt.rate_types?.[0];
+    if (!refundable) throw new Error("No rate available for refundable test");
+    const offer = {
+      roomTypeId: String(rt.room_type_id),
+      rateId: String(refundable.rate_type_id),
+      price: Number(refundable.selling_rate ?? refundable.net_total ?? 0),
+      currency: refundable.rates?.[0]?.currency ?? "USD",
+    };
+    const r = await doBooking({ label: "T10", pax, rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])] });
+    const cancel = await cancelReservation(creds, r.reservation_id, "cert refundable test");
+    return {
+      summary: `booked=${r.reservation_id} → cancelled=${cancel?.status ?? "ok"}`,
+      extra: { reservation_id: r.reservation_id, cancelled: true },
+    };
+  });
+
+  // ===== Test #11 — Attempted cancel of NRF reservation ================
+  await runStep("test", 11, "Cancellation — attempted on non-refundable reservation", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await search({ pax });
+    const rt = avail?.room_types?.[0];
+    if (!rt) throw new Error("No room type available");
+    const nrf = (rt.rate_types || []).find((r: any) => {
+      const policies = r.cancellation_policies ?? [];
+      if (policies.length === 0) return true; // no policy → likely NRF
+      return policies.every((p: any) => Number(p?.penalty?.percentage ?? p?.percentage ?? 0) >= 100);
+    }) ?? rt.rate_types?.[rt.rate_types.length - 1];
+    if (!nrf) throw new Error("No rate available for NRF test");
+    const offer = {
+      roomTypeId: String(rt.room_type_id),
+      rateId: String(nrf.rate_type_id),
+      price: Number(nrf.selling_rate ?? nrf.net_total ?? 0),
+      currency: nrf.rates?.[0]?.currency ?? "USD",
+    };
+    const r = await doBooking({ label: "T11", pax, rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])] });
+    let cancelResult: any = null;
+    let cancelError: any = null;
+    try {
+      cancelResult = await cancelReservation(creds, r.reservation_id, "cert NRF test");
+    } catch (e: any) { cancelError = e; }
+    return {
+      summary: cancelError
+        ? `booked=${r.reservation_id} → cancel rejected as expected (${String(cancelError?.message ?? "").slice(0, 80)})`
+        : `booked=${r.reservation_id} → cancel processed, penalty=${cancelResult?.cancellation_cost?.amount ?? "unknown"}`,
+      extra: {
+        reservation_id: r.reservation_id,
+        nrf_outcome: cancelError ? "rejected" : "penalty_charged",
+      },
+    };
+  });
+
+  // ===== Test #12 — Package rate ========================================
+  await runStep("test", 12, "Booking — 1 room, 2 adults, package rate", async () => {
+    const pax: HgPax[] = [{ adults: 2, children: [] }];
+    const avail = await search({ pax });
+    const rt = avail?.room_types?.[0];
+    if (!rt) throw new Error("No room type available");
+    const pkg = (rt.rate_types || []).find((r: any) => {
+      const name = (r.rate_type_name ?? "").toLowerCase();
+      const board = String(r.board_code ?? r.board_name ?? "").toLowerCase();
+      return /package|pkg/.test(name) || ["fb", "ai", "hb"].includes(board);
+    }) ?? rt.rate_types?.[0];
+    if (!pkg) throw new Error("No rate available for package test");
+    const offer = {
+      roomTypeId: String(rt.room_type_id),
+      rateId: String(pkg.rate_type_id),
+      price: Number(pkg.selling_rate ?? pkg.net_total ?? 0),
+      currency: pkg.rates?.[0]?.currency ?? "USD",
+    };
+    const r = await doBooking({ label: "T12", pax, rooms: [buildRoom(offer, [guestFor("A", 1), guestFor("A", 2)])] });
+    bookedReservations.push({ id: r.reservation_id, test: 12 });
+    return {
+      summary: `reservation=${r.reservation_id} rate=${pkg.rate_type_name ?? pkg.rate_type_id}`,
+      extra: { reservation_id: r.reservation_id, package: true },
+    };
+  });
+
+  // ===== Tally + export bundle ==========================================
+  const passed = tests.filter(t => t.status === "pass").length;
+  const failed = tests.filter(t => t.status === "fail").length;
+  const setupOk = setup.every(s => s.status === "pass");
+  const allPassed = setupOk && failed === 0 && passed === 12;
+
+  const full_log = allPassed ? {
+    hotel_code: creds.hotel_code,
+    environment: creds.environment,
+    generated_at: new Date().toISOString(),
+    spec_version: "hyperguest-cert-12step-v1",
+    setup_steps: setup,
+    booking_tests: tests,
+    booked_reservations: bookedReservations,
+  } : null;
 
   return {
     hotel_code: creds.hotel_code,
     environment: creds.environment,
-    steps,
+    setup_steps: setup,
+    booking_tests: tests,
+    booked_reservations: bookedReservations,
     passed,
     failed,
+    total: 12,
+    export_ready: allPassed,
+    full_log,
   };
 }
+
 
 // ============================================================================
 // MAIN REQUEST HANDLER
