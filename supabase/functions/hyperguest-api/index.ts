@@ -37,6 +37,8 @@ const ERROR_CODES = {
 // Pre-flight: HG availability is meaningless without the property's room/rate
 // catalogue cached locally. Re-pull when older than this threshold.
 const STATIC_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const HG_MAX_SEARCH_NIGHTS = 30;
+const DAY_MS = 86_400_000;
 
 // ============================================================================
 // CAPABILITY DECLARATION
@@ -464,33 +466,13 @@ async function fetchAvailability(
       note: "range_in_past",
     };
   }
-  const nights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / 86_400_000));
+  const requestedNights = Math.max(1, Math.round((co.getTime() - ci.getTime()) / DAY_MS));
+  const roomTypeById = new Map<string, any>();
+  let combinedCurrency: string | undefined = currency;
+  let remarks: any[] = [];
+  let propertyInfo: any = null;
 
-  const qs = new URLSearchParams({
-    checkIn: effectiveStart,
-    nights: String(nights),
-    guests: guestsSpec,
-    hotelIds: String(creds.hotel_code),
-  });
-  if (nationality) qs.set("customerNationality", nationality);
-  if (currency) qs.set("currency", currency);
-
-
-  const url = `${baseUrl}/2.0/?${qs.toString()}`;
-  console.log(`[hyperguest] GET ${url}`);
-
-  const { text: responseText } = await hgFetchFirstOk("Availability", [url], {
-    method: "GET",
-    headers: { ...getAuthHeaders(creds.api_key), "Accept-Encoding": "gzip, deflate" },
-  });
-
-  const data = JSON.parse(responseText);
-
-  // Normalize HG 2.0 search response (results[].rooms[].ratePlans[]) → adapter shape
-  const hotel = (data.results || []).find((r: any) => String(r.propertyId) === String(creds.hotel_code))
-    ?? data.results?.[0];
-
-  const room_types = (hotel?.rooms || []).map((room: any) => {
+  const normalizeRoomTypes = (hotel: any, segmentCurrency?: string) => (hotel?.rooms || []).map((room: any) => {
     // Build a synthetic per-night availability list from the rate plan's nightly breakdown
     const firstPlan = room.ratePlans?.[0];
     const nightlyDates: string[] = (firstPlan?.nightlyBreakdown || []).map((n: any) => n.date);
@@ -523,7 +505,7 @@ async function fetchAvailability(
           teen_amount: 0,
           child_amount: 0,
           infant_amount: 0,
-          currency: n.prices?.sell?.currency ?? n.prices?.net?.currency ?? currency ?? "EUR",
+        currency: n.prices?.sell?.currency ?? n.prices?.net?.currency ?? segmentCurrency ?? currency ?? "EUR",
         };
       }),
     }));
@@ -538,16 +520,68 @@ async function fetchAvailability(
     };
   });
 
+  for (let offset = 0; offset < requestedNights; offset += HG_MAX_SEARCH_NIGHTS) {
+    const segmentStart = new Date(ci.getTime() + offset * DAY_MS).toISOString().slice(0, 10);
+    const segmentNights = Math.min(HG_MAX_SEARCH_NIGHTS, requestedNights - offset);
+    const qs = new URLSearchParams({
+      checkIn: segmentStart,
+      nights: String(segmentNights),
+      guests: guestsSpec,
+      hotelIds: String(creds.hotel_code),
+    });
+    if (nationality) qs.set("customerNationality", nationality);
+    if (currency) qs.set("currency", currency);
+
+    const url = `${baseUrl}/2.0/?${qs.toString()}`;
+    console.log(`[hyperguest] GET ${url}`);
+
+    const { text: responseText } = await hgFetchFirstOk("Availability", [url], {
+      method: "GET",
+      headers: { ...getAuthHeaders(creds.api_key), "Accept-Encoding": "gzip, deflate" },
+    });
+
+    const data = JSON.parse(responseText);
+    const hotel = (data.results || []).find((r: any) => String(r.propertyId) === String(creds.hotel_code))
+      ?? data.results?.[0];
+    combinedCurrency ??= hotel?.rooms?.[0]?.ratePlans?.[0]?.prices?.sell?.currency;
+    if (!remarks.length) remarks = hotel?.remarks ?? [];
+    propertyInfo ??= hotel?.propertyInfo ?? null;
+
+    for (const roomType of normalizeRoomTypes(hotel, combinedCurrency)) {
+      const existingRoom = roomTypeById.get(roomType.room_type_id);
+      if (!existingRoom) {
+        roomTypeById.set(roomType.room_type_id, roomType);
+        continue;
+      }
+
+      existingRoom.rooms_available_per_night.push(...roomType.rooms_available_per_night);
+      for (const rateType of roomType.rate_types || []) {
+        const existingRate = (existingRoom.rate_types || []).find((r: any) => r.rate_type_id === rateType.rate_type_id);
+        if (!existingRate) {
+          existingRoom.rate_types.push(rateType);
+          continue;
+        }
+        existingRate.net_total += rateType.net_total ?? 0;
+        existingRate.selling_rate += rateType.selling_rate ?? 0;
+        existingRate.commission += rateType.commission ?? 0;
+        existingRate.rates.push(...(rateType.rates || []));
+      }
+    }
+  }
+
+  const room_types = Array.from(roomTypeById.values());
+
   return {
     hotel_code: creds.hotel_code,
     check_in: startDate,
     check_out: endDate,
     nationality: nationality || null,
-    currency: currency || hotel?.rooms?.[0]?.ratePlans?.[0]?.prices?.sell?.currency,
-    remarks: hotel?.remarks ?? [],
-    property_info: hotel?.propertyInfo ?? null,
+    currency: combinedCurrency,
+    remarks,
+    property_info: propertyInfo,
     room_types,
     total_rooms_found: room_types.length,
+    search_chunks: Math.ceil(requestedNights / HG_MAX_SEARCH_NIGHTS),
   };
 }
 
@@ -1316,23 +1350,54 @@ Deno.serve(async (req) => {
         })),
       };
 
-      // Cache availability data
+      // Cache availability data. Keep one row per room/date with all rate plans
+      // attached; per-rate upserts make long calendar ranges too slow and can
+      // trigger client-side 2xx/context-cancelled errors.
       if (result.room_types?.length) {
+        const cacheRowsByKey = new Map<string, any>();
         for (const rt of result.room_types) {
+          const availabilityByDate = new Map(
+            (rt.rooms_available_per_night || []).map((day: any) => [day.date, day])
+          );
           for (const rateType of rt.rate_types || []) {
             for (const dailyRate of rateType.rates || []) {
-              await supabase.from("pms_availability_cache").upsert({
+              const externalRoomTypeId = rt.external_room_type_id || rt.room_type_id;
+              const key = `${externalRoomTypeId}:${dailyRate.date}`;
+              const availabilityDay = availabilityByDate.get(dailyRate.date) as any;
+              const existing = cacheRowsByKey.get(key) || {
                 property_id: propertyId,
                 system_type: "hyperguest",
-                external_room_type_id: rt.external_room_type_id || rt.room_type_id,
+                external_room_type_id: externalRoomTypeId,
                 date: dailyRate.date,
-                available_units: dailyRate.available ?? 1,
-                rates: { net: rateType.net_total, selling: rateType.selling_rate, currency: dailyRate.currency },
-                raw_data: { room_name: rt.room_type_name, rate_key: rateType.rate_key, rate_name: rateType.rate_type_name },
+                available_units: availabilityDay?.available_units ?? dailyRate.available ?? 1,
+                rates: [],
+                raw_data: { roomTypeName: rt.room_type_name, room_name: rt.room_type_name },
                 last_synced_at: new Date().toISOString(),
-              }, { onConflict: "property_id,system_type,external_room_type_id,date" });
+              };
+              existing.rates.push({
+                rate_type_id: rateType.rate_type_id,
+                rate_type_name: rateType.rate_type_name,
+                price_type: rateType.price_type,
+                rate_key: rateType.rate_key,
+                room_amount: dailyRate.room_amount,
+                adult_amounts: dailyRate.adult_amounts,
+                teen_amount: dailyRate.teen_amount,
+                child_amount: dailyRate.child_amount,
+                infant_amount: dailyRate.infant_amount,
+                currency: dailyRate.currency,
+                net: rateType.net_total,
+                selling: rateType.selling_rate,
+              });
+              cacheRowsByKey.set(key, existing);
             }
           }
+        }
+        const cacheRows = Array.from(cacheRowsByKey.values());
+        for (let i = 0; i < cacheRows.length; i += 500) {
+          const { error: cacheErr } = await supabase
+            .from("pms_availability_cache")
+            .upsert(cacheRows.slice(i, i + 500), { onConflict: "property_id,system_type,external_room_type_id,date" });
+          if (cacheErr) console.warn(`[hyperguest] Availability cache upsert warning: ${cacheErr.message}`);
         }
       }
 
