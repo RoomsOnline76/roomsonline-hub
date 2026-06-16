@@ -91,6 +91,18 @@ const BookingConfirmation = () => {
     }
   }, [booking]);
 
+  // Fire portfolio-share notification once booking is confirmed (idempotent server-side)
+  useEffect(() => {
+    if (!booking) return;
+    const status = (booking as any).status;
+    const hasOrigin = (booking as any).origin_property_id || (booking as any).origin_portfolio_id;
+    if (!hasOrigin) return;
+    if (!["confirmed", "paid", "completed"].includes(status)) return;
+    supabase.functions
+      .invoke("notify-portfolio-share", { body: { booking_id: (booking as any).id } })
+      .catch((e) => console.warn("notify-portfolio-share failed", e));
+  }, [booking]);
+
   const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
   const propertyLogoUrl = booking?.properties ? (booking.properties as any).brand_logo_url : null;
   const isWhiteLabel = isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled);

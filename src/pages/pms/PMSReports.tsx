@@ -243,6 +243,7 @@ export default function PMSReports() {
           </TabsList>
 
           <TabsContent value="analytics" className="space-y-6">
+        {propertyId && <CrossPropertyPipelineCard propertyId={propertyId} />}
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="text-lg font-semibold">Performance Analytics</h2>
