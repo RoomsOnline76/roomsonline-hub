@@ -1485,20 +1485,40 @@ async function runCertification(
     };
     const pickRoomCurrency = (i: number, fallback: string) =>
       pbRooms[i]?.prices?.sell?.currency ?? pbRooms[i]?.paymentAmount?.currency ?? fallback;
-    const res = await createReservation(creds, {
-      ...searchArgs,
-      lead_guest: baseLead,
-      payment: basePayment,
-      rooms: opts.rooms.map((r, i) => ({
+    const buildRoomsPayload = (overrides: Record<number, number> = {}) =>
+      opts.rooms.map((r, i) => ({
         room_id: r.room_id, rate_plan_id: r.rate_plan_id,
-        expected_amount: pickRoomPrice(i, r.expected_amount),
+        expected_amount: overrides[i] ?? pickRoomPrice(i, r.expected_amount),
         expected_currency: pickRoomCurrency(i, r.expected_currency),
         guests: r.guests,
         special_requests: [],
-      })),
+      }));
+    const attemptCreate = async (overrides: Record<number, number> = {}) => createReservation(creds, {
+      ...searchArgs,
+      lead_guest: baseLead,
+      payment: basePayment,
+      rooms: buildRoomsPayload(overrides),
       client_reference: `ROL-CERT-${opts.label}-${Date.now()}`,
       meta: baseMeta,
     });
+    let res: any;
+    try {
+      res = await attemptCreate();
+    } catch (e: any) {
+      // Self-heal on HG price-mismatch validation: extract corrected per-room rates and retry once
+      const msg = String(e?.message ?? "");
+      const rx = /Expected price sent on booking request \(([\d.]+) \w+\) does not match booking rate: ([\d.]+) \w+ \[Room: (\d+), RatePlan: (\d+)\]/g;
+      const overrides: Record<number, number> = {};
+      let m: RegExpExecArray | null;
+      while ((m = rx.exec(msg)) !== null) {
+        const correctedPrice = Number(m[2]);
+        const roomId = m[3]; const rateId = m[4];
+        const idx = opts.rooms.findIndex(r => String(r.room_id) === roomId && String(r.rate_plan_id) === rateId);
+        if (idx >= 0 && Number.isFinite(correctedPrice)) overrides[idx] = correctedPrice;
+      }
+      if (Object.keys(overrides).length === 0) throw e;
+      res = await attemptCreate(overrides);
+    }
     if (!res?.reservation_id) throw new Error("No reservation_id returned");
     return { reservation_id: String(res.reservation_id), status: res.status };
   };
