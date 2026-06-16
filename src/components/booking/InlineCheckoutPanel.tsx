@@ -114,6 +114,7 @@ export function InlineCheckoutPanel({
         .limit(1)
         .maybeSingle();
 
+      const origin = captureBookingOrigin(firstStay.property_id);
       const payload = {
         property_id: firstStay.property_id,
         room_type_id: firstStay.rooms[0]?.room_type_id || null,
@@ -131,6 +132,7 @@ export function InlineCheckoutPanel({
         booking_channel: "rol-website",
         special_requests: specialRequests || null,
         user_id: user?.id || null,
+        ...origin,
         rooms: firstStay.rooms.map(r => ({
           roomTypeId: r.room_type_id,
           roomTypeName: r.room_type_name,
