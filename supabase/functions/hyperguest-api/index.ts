@@ -916,37 +916,48 @@ async function cancelReservation(
   reason?: string,
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
-
   const payload: any = {};
   if (reason) payload.reason = reason;
 
-  const response = await hgFetch(`${baseUrl}/booking/${encodeURIComponent(reservationId)}/cancel`, {
-    method: "POST",
-    headers: getAuthHeaders(creds.api_key),
-    body: JSON.stringify(payload),
-  });
+  // HG documents create/pre-book but not cancel/get explicitly; try the
+  // common variants and accept the first 2xx.
+  const candidates = [
+    `${baseUrl}/booking/${encodeURIComponent(reservationId)}/cancel`,
+    `${baseUrl}/booking/cancel/${encodeURIComponent(reservationId)}`,
+    `${baseUrl}/booking/${encodeURIComponent(reservationId)}`, // DELETE-style server may still respond
+  ];
 
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw { code: ERROR_CODES.NOT_FOUND, message: `Reservation ${reservationId} not found` };
+  let lastStatus = 0;
+  let lastBody = "";
+  for (const url of candidates) {
+    const res = await hgFetch(url, {
+      method: "POST",
+      headers: getAuthHeaders(creds.api_key),
+      body: JSON.stringify(payload),
+    });
+    const txt = await res.text();
+    if (res.ok) {
+      const data = txt ? JSON.parse(txt) : {};
+      const content = data.content ?? data;
+      return {
+        reservation_id: reservationId,
+        status: content?.status || "Cancelled",
+        cancellation_reference: content?.cancellationReference ?? null,
+        cancellation_cost: content?.cancellationCost ?? content?.penalty ?? null,
+        currency: content?.currency,
+        cancelled_at: new Date().toISOString(),
+        raw: data,
+      };
     }
-    throw new Error(`Cancel failed: ${response.status} - ${responseText.substring(0, 300)}`);
+    lastStatus = res.status;
+    lastBody = txt;
+    if (res.status === 404 || res.status === 405) continue;
+    break;
   }
-
-  const data = responseText ? JSON.parse(responseText) : {};
-  const content = data.content ?? data;
-
-  return {
-    reservation_id: reservationId,
-    status: content?.status || "Cancelled",
-    cancellation_reference: content?.cancellationReference ?? null,
-    cancellation_cost: content?.cancellationCost ?? content?.penalty ?? null,
-    currency: content?.currency,
-    cancelled_at: new Date().toISOString(),
-    raw: data,
-  };
+  if (lastStatus === 404) {
+    throw { code: ERROR_CODES.NOT_FOUND, message: `Reservation ${reservationId} not found` };
+  }
+  throw new Error(`Cancel failed: ${lastStatus} - ${lastBody.substring(0, 300)}`);
 }
 
 async function getReservations(
@@ -955,24 +966,37 @@ async function getReservations(
 ): Promise<any> {
   const baseUrl = HG_ENDPOINTS.book;
 
-  let url: string;
+  const candidates: string[] = [];
   if (params.reservation_id) {
-    url = `${baseUrl}/booking/${encodeURIComponent(params.reservation_id)}`;
+    const id = encodeURIComponent(params.reservation_id);
+    candidates.push(
+      `${baseUrl}/booking/${id}`,
+      `${baseUrl}/booking/${id}/info`,
+      `${baseUrl}/booking/get/${id}`,
+      `${baseUrl}/booking/info/${id}`,
+    );
   } else {
     const qs = new URLSearchParams({ propertyId: String(creds.hotel_code) });
     if (params.start_date) qs.set("from", params.start_date);
     if (params.end_date) qs.set("to", params.end_date);
-    url = `${baseUrl}/booking?${qs.toString()}`;
+    candidates.push(
+      `${baseUrl}/booking?${qs.toString()}`,
+      `${baseUrl}/booking/list?${qs.toString()}`,
+    );
   }
 
-  console.log(`[hyperguest] GET ${url}`);
-  const response = await hgFetch(url, {
-    headers: getAuthHeaders(creds.api_key),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Get reservations failed: ${response.status}`);
+  let lastStatus = 0;
+  let lastBody = "";
+  let data: any = null;
+  for (const url of candidates) {
+    console.log(`[hyperguest] GET ${url}`);
+    const res = await hgFetch(url, { headers: getAuthHeaders(creds.api_key) });
+    const txt = await res.text();
+    if (res.ok) { data = txt ? JSON.parse(txt) : {}; break; }
+    lastStatus = res.status;
+    lastBody = txt;
   }
+  if (!data) throw new Error(`Get reservations failed: ${lastStatus} - ${lastBody.substring(0, 200)}`);
 
   const data = await response.json();
   const content = data.content ?? data;
