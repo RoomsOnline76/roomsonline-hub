@@ -80,8 +80,11 @@ export function ConnectChannelDialog({ open, onOpenChange, channelName, onSubmit
                 type={field.type ?? "text"}
                 value={credentials[field.key] ?? ""}
                 onChange={(e) => setCredentials((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                required
+                required={!field.optional}
               />
+              {field.help && (
+                <p className="text-xs text-muted-foreground leading-snug">{field.help}</p>
+              )}
             </div>
           ))}
 
