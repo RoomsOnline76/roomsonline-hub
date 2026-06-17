@@ -17,6 +17,7 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { ContextualHelp } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
+import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { ContractManagementPanel } from "@/components/contract";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
@@ -452,7 +453,7 @@ export function GeneralTab(props: GeneralTabProps) {
             )}
 
             {selectedPMS === "hyperguest" && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">HyperGuest Hotel ID *</Label>
                 <Input
                   id="hyperguest_hotel_id"
@@ -463,6 +464,9 @@ export function GeneralTab(props: GeneralTabProps) {
                   required
                 />
                 <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
+                {propertyId && hyperguestHotelId && (
+                  <HyperGuestSyncReflectionButton propertyId={propertyId} />
+                )}
               </div>
             )}
 

@@ -181,6 +181,7 @@ const baseRequestSchema = z.object({
     "get_room_types",
     "get_rate_types",
     "fetch_static_data",
+    "sync_reflection",
   ]),
   property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
@@ -1823,6 +1824,211 @@ async function runCertification(
 
 
 // ============================================================================
+// REFLECTION SYNC — pull HyperGuest static + search data and persist a
+// reflection snapshot onto the linked property. Designed to run automatically
+// whenever a HyperGuest hotel ID is captured on a property so the QA portal
+// (and the in-app reflection inspector) show real data, not placeholders.
+// ============================================================================
+
+async function syncReflection(
+  supabase: any,
+  creds: HyperGuestCredentials,
+  propertyId: string,
+): Promise<any> {
+  const reasons: string[] = [];
+
+  // 1. Static hotels.json (photos / facilities / description) — best effort.
+  let staticHotel: any = null;
+  try {
+    const resp = await hgFetch(`${HG_ENDPOINTS.static}/hotels.json`, {
+      headers: getAuthHeaders(creds.api_key),
+      timeoutMs: 15000,
+    });
+    if (resp.ok) {
+      const txt = await resp.text();
+      try {
+        const data = JSON.parse(txt);
+        const hotels = Array.isArray(data) ? data : (data.hotels || []);
+        staticHotel = hotels.find((h: any) =>
+          String(h.id ?? h.hotel_id ?? h.propertyId) === String(creds.hotel_code)
+        ) ?? null;
+      } catch {
+        reasons.push("static_feed_unparsable");
+      }
+    } else {
+      reasons.push(`static_feed_${resp.status}`);
+      await resp.text();
+    }
+  } catch (e) {
+    reasons.push(`static_feed_error:${(e as Error).message}`);
+  }
+
+  // 2. Search probe (rate plans, cancellation policies, board, remarks, prices).
+  const today = new Date();
+  const ci = new Date(today); ci.setDate(today.getDate() + 14);
+  const co = new Date(ci); co.setDate(ci.getDate() + 1);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  let probe: any = null;
+  try {
+    probe = await fetchAvailability(creds, fmt(ci), fmt(co),
+      { rooms: 1, adults: 2, children: 0 }, undefined, "USD");
+  } catch (e) {
+    reasons.push(`search_probe_error:${(e as Error).message}`);
+  }
+
+  // 3. Aggregate the reflection payload (HG-side truth).
+  const ratePlans: any[] = [];
+  const cancelByRate: Record<string, any[]> = {};
+  const boardByRate: Record<string, { code: string | null; name: string | null }> = {};
+  for (const rt of (probe?.room_types ?? [])) {
+    for (const plan of (rt.rate_types ?? [])) {
+      const id = String(plan.rate_type_id);
+      if (!ratePlans.find(p => p.id === id)) {
+        ratePlans.push({
+          id,
+          name: plan.rate_type_name,
+          board_code: plan.board_code ?? null,
+          board_name: plan.board_name ?? null,
+          is_non_refundable: !(plan.cancellation_policies?.length > 0),
+          is_package: String(plan.rate_type ?? "").toUpperCase().includes("PKG")
+            || /package/i.test(String(plan.rate_type_name ?? "")),
+        });
+      }
+      if (plan.cancellation_policies?.length) {
+        cancelByRate[id] = plan.cancellation_policies;
+      }
+      boardByRate[id] = {
+        code: plan.board_code ?? null,
+        name: plan.board_name ?? null,
+      };
+    }
+  }
+
+  const photos: string[] = (() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    const push = (u?: string | null) => {
+      if (u && !seen.has(u)) { seen.add(u); out.push(u); }
+    };
+    const propInfo = probe?.property_info ?? {};
+    for (const i of (propInfo.images ?? propInfo.photos ?? [])) {
+      push(typeof i === "string" ? i : (i?.url ?? i?.href));
+    }
+    for (const i of (staticHotel?.images ?? staticHotel?.photos ?? [])) {
+      push(typeof i === "string" ? i : (i?.url ?? i?.href));
+    }
+    return out;
+  })();
+
+  const facilities: string[] = (() => {
+    const out = new Set<string>();
+    const collect = (v: any) => {
+      if (!v) return;
+      if (typeof v === "string") { out.add(v); return; }
+      if (Array.isArray(v)) { for (const x of v) collect(typeof x === "string" ? x : (x?.name ?? x?.label)); return; }
+      if (v.name) out.add(v.name);
+    };
+    collect((probe?.property_info as any)?.facilities);
+    collect((probe?.property_info as any)?.amenities);
+    collect(staticHotel?.facilities);
+    collect(staticHotel?.amenities);
+    return Array.from(out);
+  })();
+
+  const reflection = {
+    sandbox_hotel_id: creds.hotel_code,
+    fetched_at: new Date().toISOString(),
+    environment: creds.environment,
+    property_name: staticHotel?.name ?? probe?.property_info?.name ?? null,
+    description: staticHotel?.description ?? probe?.property_info?.description ?? null,
+    board_bases: ratePlans,
+    cancellation_policies: Object.entries(cancelByRate).map(([rate_id, policies]) => ({
+      rate_id,
+      rate_name: ratePlans.find(p => p.id === rate_id)?.name ?? null,
+      policies,
+    })),
+    remarks: probe?.remarks ?? [],
+    photos,
+    facilities,
+    notes: reasons,
+  };
+
+  // 4. Persist onto the property — merge with care; never clobber filled fields.
+  const { data: existing } = await supabase
+    .from("properties")
+    .select("external_metadata, amenities, images, description, short_description")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  const meta = (existing?.external_metadata && typeof existing.external_metadata === "object")
+    ? { ...existing.external_metadata } : {};
+  meta.hyperguest_reflection = reflection;
+
+  const patch: Record<string, any> = {
+    external_metadata: meta,
+    hyperguest_last_static_sync_at: new Date().toISOString(),
+  };
+
+  // Only fill empty fields — operator-edited content wins.
+  const existingImages = Array.isArray(existing?.images) ? existing.images : [];
+  if (!existingImages.length && photos.length) {
+    patch.images = photos;
+  }
+  const existingAmenities = Array.isArray(existing?.amenities) ? existing.amenities : [];
+  if (!existingAmenities.length && facilities.length) {
+    patch.amenities = facilities;
+  }
+  if (!existing?.description && reflection.description) {
+    patch.description = reflection.description;
+  }
+
+  const { error: updateErr } = await supabase
+    .from("properties")
+    .update(patch)
+    .eq("id", propertyId);
+  if (updateErr) {
+    reasons.push(`property_update_failed:${updateErr.message}`);
+  }
+
+  // 5. Mirror cancellation policy summary into rolos_policies (one row per property).
+  if (reflection.cancellation_policies.length) {
+    try {
+      await supabase
+        .from("rolos_policies")
+        .upsert({
+          property_id: propertyId,
+          policy_type: "cancellation",
+          rule: {
+            source: "hyperguest",
+            by_rate: reflection.cancellation_policies,
+            synced_at: reflection.fetched_at,
+          },
+          is_ai_generated: false,
+          last_evaluated_at: reflection.fetched_at,
+        }, { onConflict: "property_id,policy_type" });
+    } catch (e) {
+      reasons.push(`policies_upsert_failed:${(e as Error).message}`);
+    }
+  }
+
+  return {
+    property_id: propertyId,
+    hotel_code: creds.hotel_code,
+    written: {
+      images: !!patch.images,
+      amenities: !!patch.amenities,
+      description: !!patch.description,
+      external_metadata: true,
+      cancellation_policies: reflection.cancellation_policies.length > 0,
+    },
+    reflection,
+    diagnostics: reasons,
+  };
+}
+
+
+// ============================================================================
 // MAIN REQUEST HANDLER
 // ============================================================================
 
@@ -2186,6 +2392,22 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Sync Reflection (pull HG static + search and persist onto property) ──
+    if (action === "sync_reflection") {
+      if (!propertyId) {
+        return new Response(
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "property_id is required", action)),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const result = await syncReflection(supabase, creds, propertyId);
+      return new Response(
+        JSON.stringify(createSuccessResponse(result, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
 
     // ── Unknown Action ──
     return new Response(

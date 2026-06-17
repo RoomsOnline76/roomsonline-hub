@@ -50,120 +50,142 @@ async function hashToken(token: string): Promise<string> {
 // Reflection: surface read-only data for the sandbox property
 async function buildReflection(supabase: any) {
   // Resolve the ROLOS property linked to the sandbox hotel.
-  // HyperGuest properties store the hotel ID in either:
-  //   - properties.hyperguest_hotel_id, or
-  //   - properties.external_id (with external_system = 'hyperguest')
   let propertyId: string | null = null;
-  let propertyMatch: any = null;
+  let matchedVia: string | null = null;
 
   const { data: byHgCol } = await supabase
     .from("properties")
-    .select("id, name")
+    .select("id")
     .eq("hyperguest_hotel_id", SANDBOX_HOTEL_ID)
     .limit(1)
     .maybeSingle();
-  if (byHgCol?.id) {
-    propertyId = byHgCol.id;
-    propertyMatch = { via: "hyperguest_hotel_id", name: byHgCol.name };
-  }
+  if (byHgCol?.id) { propertyId = byHgCol.id; matchedVia = "hyperguest_hotel_id"; }
 
   if (!propertyId) {
     const { data: byExt } = await supabase
       .from("properties")
-      .select("id, name")
+      .select("id")
       .eq("external_system", "hyperguest")
       .eq("external_id", SANDBOX_HOTEL_ID)
       .limit(1)
       .maybeSingle();
-    if (byExt?.id) {
-      propertyId = byExt.id;
-      propertyMatch = { via: "external_id+external_system", name: byExt.name };
-    }
+    if (byExt?.id) { propertyId = byExt.id; matchedVia = "external_id+external_system"; }
   }
 
   const reflection: Record<string, unknown> = {
     sandbox_hotel_id: SANDBOX_HOTEL_ID,
     property_id: propertyId,
-    matched_via: propertyMatch?.via ?? null,
+    matched_via: matchedVia,
     sections: {} as Record<string, unknown>,
   };
 
   if (!propertyId) {
-    reflection.warning = "No ROLOS property is linked to sandbox hotel 19912. Set properties.hyperguest_hotel_id = '19912' (or external_system='hyperguest' + external_id='19912'). Showing structural placeholders only.";
+    reflection.warning = "No ROLOS property is linked to sandbox hotel 19912. Set properties.hyperguest_hotel_id = '19912' (or external_system='hyperguest' + external_id='19912').";
     reflection.sections = {
       cancellation_policies: [],
       board_bases: [],
       taxes_fees: [],
       remarks: [],
-      special_requests: [],
-      photos: [],
+      special_requests: { note: "No linked property — reflection unavailable." },
+      photos: { property_images: [], room_images: [], min_resolution: "1024x683" },
       facilities: [],
     };
     return reflection;
   }
 
-  const [
-    { data: property },
-    { data: rateTypes },
-    { data: charges },
-    { data: policies },
-    { data: roomTypes },
-  ] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("id, name, images, facilities, description, short_description, brand_primary_color")
-      .eq("id", propertyId)
-      .maybeSingle(),
-    supabase
-      .from("pms_rate_types_cache")
-      .select("native_code, name, board_code, description, is_non_refundable, is_package, raw")
-      .eq("property_id", propertyId),
+  // Auto-sync if reflection is missing or older than 24h.
+  const { data: prop } = await supabase
+    .from("properties")
+    .select("name, amenities, images, description, external_metadata, hyperguest_last_static_sync_at")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  const lastSync = prop?.hyperguest_last_static_sync_at
+    ? new Date(prop.hyperguest_last_static_sync_at).getTime()
+    : 0;
+  const stale = !lastSync || (Date.now() - lastSync) > 24 * 60 * 60 * 1000;
+
+  let syncError: string | null = null;
+  if (stale) {
+    const { error: syncErr } = await supabase.functions.invoke("hyperguest-api", {
+      body: { action: "sync_reflection", property_id: propertyId },
+    });
+    if (syncErr) {
+      syncError = syncErr.message;
+    } else {
+      const { data: refreshed } = await supabase
+        .from("properties")
+        .select("name, amenities, images, description, external_metadata, hyperguest_last_static_sync_at")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (refreshed) Object.assign(prop ?? {}, refreshed);
+    }
+  }
+
+  const hgRef = (prop?.external_metadata as any)?.hyperguest_reflection ?? null;
+
+  const [{ data: charges }, { data: policies }, { data: roomTypes }, { data: rateTypes }] = await Promise.all([
     supabase
       .from("property_charges")
-      .select("name, amount, charge_type, basis, inclusive, currency, mandatory")
+      .select("name, amount, category, calculation_method, currency, is_refundable")
       .eq("property_id", propertyId),
     supabase
       .from("rolos_policies")
-      .select("policy_type, label, terms, tiers")
+      .select("policy_type, rule")
       .eq("property_id", propertyId),
     supabase
       .from("pms_room_types_cache")
-      .select("native_code, name, description, images, max_occupancy, bed_config")
-      .eq("property_id", propertyId),
+      .select("external_room_type_id, name, description, max_guests, raw_data")
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
+    supabase
+      .from("pms_rate_types_cache")
+      .select("external_rate_type_id, name, description, raw_data")
+      .eq("property_id", propertyId)
+      .eq("system_type", "hyperguest"),
   ]);
 
-  reflection.property_name = property?.name ?? null;
-  reflection.sections = {
-    cancellation_policies: policies ?? [],
-    board_bases: (rateTypes ?? []).map((r: any) => ({
-      code: r.native_code,
-      name: r.name,
-      board: r.board_code ?? null,
-      non_refundable: !!r.is_non_refundable,
-      package: !!r.is_package,
+  reflection.property_name = prop?.name ?? null;
+  reflection.last_synced_at = prop?.hyperguest_last_static_sync_at ?? null;
+  if (syncError) reflection.sync_error = syncError;
+
+  const boardBases = hgRef?.board_bases ?? (rateTypes ?? []).map((r: any) => ({
+    id: r.external_rate_type_id,
+    name: r.name,
+    board_code: r.raw_data?.board ?? null,
+  }));
+
+  const cancellationPolicies = hgRef?.cancellation_policies
+    ?? (policies ?? []).filter((p: any) => p.policy_type === "cancellation").map((p: any) => p.rule);
+
+  const remarks = hgRef?.remarks ?? [];
+
+  const photos = {
+    property_images: (hgRef?.photos?.length ? hgRef.photos : (prop?.images as any[] | null)) ?? [],
+    room_images: (roomTypes ?? []).map((r: any) => ({
+      room: r.name,
+      images: r.raw_data?.images ?? r.raw_data?.photos ?? [],
     })),
+    min_resolution: "1024x683",
+  };
+
+  const facilities = hgRef?.facilities ?? prop?.amenities ?? [];
+
+  reflection.sections = {
+    cancellation_policies: cancellationPolicies,
+    board_bases: boardBases,
     taxes_fees: charges ?? [],
-    remarks: (rateTypes ?? [])
-      .filter((r: any) => r.description)
-      .map((r: any) => ({ rate: r.name, text: r.description })),
+    remarks,
     special_requests: {
       note:
         "Guest special requests are captured at checkout and forwarded to HyperGuest as part of the booking payload. Sample formats are visible in the certification run logs (Test #2 onward) — see fields special_requests / remarks.",
     },
-    photos: {
-      property_images: (property?.images as any[] | null) ?? [],
-      room_images: (roomTypes ?? []).map((r: any) => ({
-        room: r.name,
-        images: r.images ?? [],
-      })),
-      min_resolution: "1024x683",
-    },
-    facilities: property?.facilities ?? [],
+    photos,
+    facilities,
     rooms_summary: (roomTypes ?? []).map((r: any) => ({
-      code: r.native_code,
+      id: r.external_room_type_id,
       name: r.name,
-      max_occupancy: r.max_occupancy,
-      bed_config: r.bed_config,
+      max_guests: r.max_guests,
     })),
   };
 
