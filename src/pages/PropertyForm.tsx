@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
+import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -4198,6 +4199,9 @@ export default function PropertyForm() {
                           <span className="text-[10px] text-muted-foreground">
                             Sandbox certification hotel: 19912
                           </span>
+                          {propertyId && hyperguestHotelId && (
+                            <HyperGuestSyncReflectionButton propertyId={propertyId} />
+                          )}
                         </div>)}
 
                       {/* Hostfully connection for owners */}
