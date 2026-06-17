@@ -4199,6 +4199,9 @@ export default function PropertyForm() {
                           <span className="text-[10px] text-muted-foreground">
                             Sandbox certification hotel: 19912
                           </span>
+                          {propertyId && hyperguestHotelId && (
+                            <HyperGuestSyncReflectionButton propertyId={propertyId} />
+                          )}
                         </div>)}
 
                       {/* Hostfully connection for owners */}
