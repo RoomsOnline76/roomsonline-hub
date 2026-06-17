@@ -49,30 +49,47 @@ async function hashToken(token: string): Promise<string> {
 
 // Reflection: surface read-only data for the sandbox property
 async function buildReflection(supabase: any) {
-  // Try to find a property linked to the sandbox hotel; fall back to mock if absent.
-  const { data: cred } = await supabase
-    .from("pms_credentials")
-    .select("property_id, config")
-    .eq("pms_system", "hyperguest")
-    .limit(50);
-
+  // Resolve the ROLOS property linked to the sandbox hotel.
+  // HyperGuest properties store the hotel ID in either:
+  //   - properties.hyperguest_hotel_id, or
+  //   - properties.external_id (with external_system = 'hyperguest')
   let propertyId: string | null = null;
-  for (const c of cred ?? []) {
-    const cfg = (c as any).config ?? {};
-    if (String(cfg.hotel_id ?? cfg.hotelId ?? "") === SANDBOX_HOTEL_ID) {
-      propertyId = (c as any).property_id;
-      break;
+  let propertyMatch: any = null;
+
+  const { data: byHgCol } = await supabase
+    .from("properties")
+    .select("id, name")
+    .eq("hyperguest_hotel_id", SANDBOX_HOTEL_ID)
+    .limit(1)
+    .maybeSingle();
+  if (byHgCol?.id) {
+    propertyId = byHgCol.id;
+    propertyMatch = { via: "hyperguest_hotel_id", name: byHgCol.name };
+  }
+
+  if (!propertyId) {
+    const { data: byExt } = await supabase
+      .from("properties")
+      .select("id, name")
+      .eq("external_system", "hyperguest")
+      .eq("external_id", SANDBOX_HOTEL_ID)
+      .limit(1)
+      .maybeSingle();
+    if (byExt?.id) {
+      propertyId = byExt.id;
+      propertyMatch = { via: "external_id+external_system", name: byExt.name };
     }
   }
 
   const reflection: Record<string, unknown> = {
     sandbox_hotel_id: SANDBOX_HOTEL_ID,
     property_id: propertyId,
+    matched_via: propertyMatch?.via ?? null,
     sections: {} as Record<string, unknown>,
   };
 
   if (!propertyId) {
-    reflection.warning = "No ROLOS property is linked to sandbox hotel 19912. Showing structural placeholders only.";
+    reflection.warning = "No ROLOS property is linked to sandbox hotel 19912. Set properties.hyperguest_hotel_id = '19912' (or external_system='hyperguest' + external_id='19912'). Showing structural placeholders only.";
     reflection.sections = {
       cancellation_policies: [],
       board_bases: [],
