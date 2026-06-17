@@ -1601,17 +1601,34 @@ async function runCertification(
   await runStep("test", 5, "Booking — 2 rooms (1A+1C, 2A+1I)", async () => {
     const pax: HgPax[] = [{ adults: 1, children: [8] }, { adults: 2, children: [1] }];
     const avail = await search({ pax });
-    const offer = pickOffer(avail);
     const yr = new Date().getFullYear();
-    const r = await doBooking({
-      label: "T5", pax,
-      rooms: [
-        buildRoom(offer, [guestFor("A", 1), guestFor("C", 1, "C", yr - 8)]),
-        buildRoom(offer, [guestFor("A", 1), guestFor("A", 2), guestFor("I", 1, "C", yr - 1)]),
-      ],
-    });
-    bookedReservations.push({ id: r.reservation_id, test: 5 });
-    return { summary: `reservation=${r.reservation_id}`, extra: { reservation_id: r.reservation_id } };
+    const roomTypes = avail?.room_types ?? [];
+    let lastErr: any = null;
+    for (const rt of roomTypes) {
+      for (const rate of (rt.rate_types ?? [])) {
+        const offer = {
+          roomTypeId: String(rt.room_type_id),
+          rateId: String(rate.rate_type_id),
+          price: Number(rate.selling_rate ?? rate.net_total ?? 0),
+          currency: rate.rates?.[0]?.currency ?? "USD",
+        };
+        try {
+          const r = await doBooking({
+            label: "T5", pax,
+            rooms: [
+              buildRoom(offer, [guestFor("A", 1), guestFor("C", 1, "C", yr - 8)]),
+              buildRoom(offer, [guestFor("A", 1), guestFor("A", 2), guestFor("I", 1, "C", yr - 1)]),
+            ],
+          });
+          bookedReservations.push({ id: r.reservation_id, test: 5 });
+          return { summary: `reservation=${r.reservation_id} (room=${offer.roomTypeId} rate=${offer.rateId})`, extra: { reservation_id: r.reservation_id } };
+        } catch (e: any) {
+          lastErr = e;
+          if (!/no longer available|occupancy|unavailable/i.test(String(e?.message ?? ""))) throw e;
+        }
+      }
+    }
+    throw new Error(`No rate plan supports (1A+1C)+(2A+1I) across 2 rooms (last: ${lastErr?.message ?? "unknown"})`);
   });
 
   // ===== Test #6 — 2 rooms different room types & rate plans ===========
