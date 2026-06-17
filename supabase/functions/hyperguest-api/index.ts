@@ -2393,6 +2393,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Sync Reflection (pull HG static + search and persist onto property) ──
+    if (action === "sync_reflection") {
+      if (!propertyId) {
+        return new Response(
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "property_id is required", action)),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const result = await syncReflection(supabase, creds, propertyId);
+      return new Response(
+        JSON.stringify(createSuccessResponse(result, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
     // ── Unknown Action ──
     return new Response(
       JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action)),
