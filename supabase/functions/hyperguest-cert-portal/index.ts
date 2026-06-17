@@ -292,9 +292,36 @@ Deno.serve(async (req) => {
         ? { success: false, error: certErr.message }
         : certData;
 
-      const steps = payload?.data?.steps ?? [];
-      const fullLog = payload?.data?.full_log ?? null;
-      const passedAll = steps.length > 0 && steps.every((s: any) => s.status === "passed");
+      // hyperguest-api returns { setup_steps, booking_tests, passed, failed, total }
+      // with statuses "pass" | "fail" | "skip". Normalize for the portal UI.
+      const rawData = payload?.data ?? payload ?? {};
+      const normalizeStatus = (s: string) =>
+        s === "pass" ? "passed" : s === "fail" ? "failed" : "skipped";
+      const setupSteps = (rawData.setup_steps ?? []).map((s: any, i: number) => ({
+        step: i + 1,
+        name: `Setup: ${s.name}`,
+        status: normalizeStatus(s.status),
+        hg_calls: Array.isArray(s.requests) ? s.requests.length : undefined,
+        duration_ms: s.duration_ms,
+        detail: s.summary ?? s.error,
+      }));
+      const bookingSteps = (rawData.booking_tests ?? []).map((s: any) => ({
+        step: s.test ?? s.step,
+        name: s.name,
+        status: normalizeStatus(s.status),
+        hg_calls: Array.isArray(s.requests) ? s.requests.length : undefined,
+        duration_ms: s.duration_ms,
+        detail: s.summary ?? s.error,
+      }));
+      const steps = [...setupSteps, ...bookingSteps];
+      const fullLog = rawData.full_log ?? null;
+      const exportReady = rawData.export_ready === true;
+      const passedAll = exportReady || (steps.length > 0 && steps.every((s) => s.status === "passed"));
+
+      const enrichedPayload = {
+        ...payload,
+        data: { ...rawData, steps, export_ready: exportReady },
+      };
 
       await supabase
         .from("hyperguest_cert_runs")
@@ -307,7 +334,7 @@ Deno.serve(async (req) => {
         .eq("id", runRow.id);
 
       return new Response(
-        JSON.stringify({ success: true, run_id: runRow.id, result: payload }),
+        JSON.stringify({ success: true, run_id: runRow.id, result: enrichedPayload }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
