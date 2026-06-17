@@ -181,6 +181,7 @@ const baseRequestSchema = z.object({
     "get_room_types",
     "get_rate_types",
     "fetch_static_data",
+    "sync_reflection",
   ]),
   property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
 });
