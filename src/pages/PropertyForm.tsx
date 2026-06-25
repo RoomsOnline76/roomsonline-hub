@@ -220,11 +220,13 @@ export default function PropertyForm() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Helper to navigate with unsaved changes check
+  // Helper to navigate with unsaved changes check (uses a styled AlertDialog
+  // instead of window.confirm so the browser doesn't leak the embedded iframe URL).
+  const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
   const handleNavigate = (path: string) => {
     if (isDirty) {
-      const confirmed = window.confirm("You have unsaved changes. Are you sure you want to leave without saving?");
-      if (!confirmed) return;
+      setPendingNavPath(path);
+      return;
     }
     navigate(path);
   };
@@ -8284,6 +8286,30 @@ export default function PropertyForm() {
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setShowHostfullyWarning(false)}>
               Understood
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved Changes Confirmation */}
+      <AlertDialog open={pendingNavPath !== null} onOpenChange={(open) => { if (!open) setPendingNavPath(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes on this property. Are you sure you want to leave without saving?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingNavPath(null)}>Stay on page</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const path = pendingNavPath;
+                setPendingNavPath(null);
+                if (path) navigate(path);
+              }}
+            >
+              Leave without saving
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
