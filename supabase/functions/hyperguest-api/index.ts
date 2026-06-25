@@ -182,8 +182,15 @@ const baseRequestSchema = z.object({
     "get_rate_types",
     "fetch_static_data",
     "sync_reflection",
+    "list_hotels",
   ]),
   property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
+});
+
+const listHotelsSchema = baseRequestSchema.extend({
+  action: z.literal("list_hotels"),
+  query: z.string().max(120).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
@@ -2044,10 +2051,110 @@ async function syncReflection(
   };
 }
 
+// ============================================================================
+// HOTEL LOOKUP — fuzzy search HG static catalogue by property name
+// ============================================================================
+
+function normalizeName(s: string): string {
+  return String(s ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenScore(query: string, target: string): number {
+  const q = new Set(normalizeName(query).split(" ").filter(Boolean));
+  const t = new Set(normalizeName(target).split(" ").filter(Boolean));
+  if (!q.size || !t.size) return 0;
+  let inter = 0;
+  for (const tok of q) if (t.has(tok)) inter++;
+  const union = q.size + t.size - inter;
+  const jaccard = inter / union;
+  const sub = normalizeName(target).includes(normalizeName(query)) ? 0.2 : 0;
+  return jaccard + sub;
+}
+
+function normalizeHgHotel(raw: any): { id: string; name: string; city: string | null; country: string | null } | null {
+  if (!raw) return null;
+  const id = raw.id ?? raw.hotel_id ?? raw.propertyId ?? raw.hotelId;
+  if (id === undefined || id === null) return null;
+  const name = raw.name ?? raw.hotelName ?? raw.propertyName ?? raw.title ?? "";
+  const addr = raw.address ?? raw.location ?? raw.contact?.address ?? {};
+  const city = addr?.city ?? raw.city ?? null;
+  const country = addr?.country ?? addr?.countryCode ?? raw.country ?? null;
+  return { id: String(id), name: String(name || ""), city: city ? String(city) : null, country: country ? String(country) : null };
+}
+
+async function listHotels(
+  creds: HyperGuestCredentials,
+  opts: { query?: string; limit?: number }
+): Promise<any> {
+  const url = `${HG_ENDPOINTS.static}/hotels.json`;
+  const resp = await hgFetch(url, { headers: getAuthHeaders(creds.api_key) });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
+      return {
+        source: "unavailable",
+        reason: `HyperGuest static catalogue returned ${resp.status}. Partner/distributor tokens cannot list all hotels — paste the HyperGuest hotel ID manually.`,
+        status: resp.status,
+        hotels: [],
+        total: 0,
+      };
+    }
+    throw new Error(`HyperGuest hotels.json failed: ${resp.status} ${text.substring(0, 200)}`);
+  }
+
+  let payload: any;
+  try {
+    payload = await resp.json();
+  } catch {
+    return {
+      source: "unavailable",
+      reason: "HyperGuest static catalogue returned a non-JSON response (likely a gzip stream the runtime could not decode).",
+      hotels: [],
+      total: 0,
+    };
+  }
+
+  const raw = Array.isArray(payload) ? payload : (payload.hotels ?? payload.results ?? []);
+  const normalized = (raw as any[])
+    .map(normalizeHgHotel)
+    .filter((h): h is { id: string; name: string; city: string | null; country: string | null } => !!h);
+
+  const query = (opts.query ?? "").trim();
+  const limit = opts.limit ?? 25;
+
+  let hotels = normalized;
+  if (query) {
+    hotels = normalized
+      .map((h) => ({ ...h, score: tokenScore(query, h.name) }))
+      .filter((h) => h.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  } else {
+    hotels = normalized.slice(0, limit);
+  }
+
+  return {
+    source: "static",
+    total: normalized.length,
+    returned: hotels.length,
+    query: query || null,
+    hotels,
+  };
+}
+
 
 // ============================================================================
 // MAIN REQUEST HANDLER
 // ============================================================================
+
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -2084,7 +2191,7 @@ Deno.serve(async (req) => {
         : undefined,
     };
 
-    const ANONYMOUS_ACTIONS = new Set(["health_check", "run_certification"]);
+    const ANONYMOUS_ACTIONS = new Set(["health_check", "run_certification", "list_hotels"]);
 
     if (!propertyId && !ANONYMOUS_ACTIONS.has(action)) {
       return new Response(
@@ -2424,6 +2531,27 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── List Hotels (search HG static catalogue by property name) ──
+    if (action === "list_hotels") {
+      const validation = listHotelsSchema.safeParse(body);
+      if (!validation.success) {
+        return new Response(
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, validation.error.errors.map(e => e.message).join(", "), action)),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const result = await listHotels(creds, {
+        query: validation.data.query,
+        limit: validation.data.limit,
+      });
+      return new Response(
+        JSON.stringify(createSuccessResponse(result, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
 
 
     // ── Unknown Action ──

@@ -18,6 +18,7 @@ import { ContextualHelp } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
+import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { ContractManagementPanel } from "@/components/contract";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
@@ -462,6 +463,12 @@ export function GeneralTab(props: GeneralTabProps) {
                   placeholder="e.g. 19912"
                   className="h-7 text-xs w-40"
                   required
+                />
+                <HyperGuestPropertyLookup
+                  propertyId={propertyId}
+                  propertyName={formData?.name ?? ""}
+                  currentHotelId={hyperguestHotelId}
+                  onSelect={(id) => { setHyperguestHotelId(id); setIsDirty(true); }}
                 />
                 <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
                 {propertyId && hyperguestHotelId && (

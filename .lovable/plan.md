@@ -1,39 +1,74 @@
-## HyperGuest Compliance Audit
 
-I checked `supabase/functions/hyperguest-api/index.ts` against the four HG directives. **All four are already implemented.** I'm proposing two small hardenings to close edge cases.
+## Goal
 
-### Audit results
+When editing a ROLOS-PMS property's General tab, give the user a "Search by property name" affordance next to the **HyperGuest Hotel ID** field so they can locate the correct HG ID without having to know it up front.
 
-| # | HG directive | Status | Evidence (`hyperguest-api/index.ts`) |
-|---|---|---|---|
-| 1 | `Accept-Encoding: gzip, deflate` on every request | ✅ Compliant | `getAuthHeaders()` (L350-358) and the `hgFetch` wrapper (L361-378) both inject the header; every call site goes through `hgFetch`, so it can't be bypassed. Also explicitly re-added on the availability call (L578). |
-| 2 | Wait the full 300 s for `/booking/create` | ✅ Compliant | `BOOKING_TIMEOUT_MS = 300_000` (L71) is passed as `timeoutMs` only on the create-reservation call (L861). Other endpoints use a 60 s standard timeout, which is fine and documented as such. |
-| 3 | Booking-List fallback to reconcile timeouts | ✅ Compliant | On `AbortError` we call `getReservations({ reservation_id: payload.reference.agency })` and return the canonical status as `reconciled_via: "booking_list_timeout_fallback"` (L864-880). |
-| 4 | Respect BAR rates | ✅ Compliant | Each rate plan is classified `BAR` vs `PROMO` from `ratePlanInfo.isPromotion` (L530) and the classification is preserved through the cache write (L1101). Net/Sell/BAR prices are stored as HG returns them — we never mark down or override a BAR price. |
+## Feasibility (HyperGuest side)
 
-### Proposed small hardenings (the only gaps worth touching)
+HyperGuest does not expose a public "search hotels by name" endpoint, but it does publish the full **static catalogue feed**:
 
-These are safety nets, not bug fixes. Skip them if you want a pure audit pass.
+- `GET https://hg-static.hyperguest.com/hotels.json` (already referenced in `supabase/functions/hyperguest-api/index.ts` as `HG_ENDPOINTS.static`, used at lines 490 and 1860).
+- Returns the list of hotels visible to the authenticated token, including id, name, address.
+- Supplier-side / property-scoped tokens get the full set; pure partner/distributor tokens may receive `401/403` — we already handle that in `healthCheck`.
 
-1. **Reconcile on non-Abort network errors too.** Today the Booking-List fallback only fires on `AbortError` (timeout). If HG returns a 502/504 or the TCP connection drops mid-response, the catch still re-throws without reconciling — same data-discrepancy risk HG warns about. Extend the catch block to call `getReservations` on any thrown error before re-throwing, and also when `/booking/create` returns 5xx.
+For our flow this is enough: we fetch the feed once, fuzzy-match by name client-side, and let the user pick the row → the HG ID is written into the existing field.
 
-2. **Persist the `BAR` flag onto `pms_rate_types_cache.metadata`.** Right now `rate_type` is computed on read and survives in the response, but the cache row stores it inside a JSON blob only. Promoting it to an indexed/queryable column-style flag (`is_bar boolean`) makes it trivial for downstream surfaces (yield rules, channel manager, calendar) to assert "this is a BAR plan — don't undercut" without re-parsing.
+## Plan
 
-### Technical notes
+### 1. Backend: new action in `supabase/functions/hyperguest-api/index.ts`
 
-- No new env vars, no schema migration required for hardening #1.
-- Hardening #2 is a 1-column `ALTER TABLE pms_rate_types_cache ADD COLUMN is_bar boolean` plus a write-side flag in the normalizer; it's backwards-compatible.
-- No frontend changes in either hardening.
+`action: "list_hotels"`:
+- Inputs: `{ property_id?: string, query?: string }` (Zod-validated, snake_case at the wire).
+- Resolves credentials via existing `resolveCredentials`. Falls back to the configured sandbox key when the property has none — same path the cert portal uses.
+- `GET ${HG_ENDPOINTS.static}/hotels.json` with `getAuthHeaders`.
+- Normalizes each entry to `{ id, name, city, country }`.
+- If `query` is provided: server-side filter by case-insensitive substring + token Jaccard score, return top 25 sorted by score.
+- On `401/403/404`: return `{ source: "unavailable", reason, hotels: [] }` so the UI can show a helpful message instead of crashing.
+- Otherwise return `{ source: "static", total, hotels }`.
+- Logs the call through the existing `logIntegrationStep` helper.
 
-### Files that would be touched (if you greenlight the hardenings)
+No new tables — the feed is small and gzipped; we keep results in component state only.
 
-- `supabase/functions/hyperguest-api/index.ts` — extend create-reservation catch + set `is_bar` on cache writes.
-- New migration adding `pms_rate_types_cache.is_bar` (only for hardening #2).
+### 2. Frontend: new component `src/components/property/HyperGuestPropertyLookup.tsx`
 
-### What I will NOT touch
+- Props: `propertyId`, `propertyName`, `currentHotelId`, `onSelect(hotelId: string, hotelName: string)`.
+- A small popover/sheet triggered by a **Search by name** button next to the HG ID input.
+- On open: invokes `hyperguest-api` with `{ action: "list_hotels", query: propertyName }` (debounced 300 ms; user can edit the query).
+- Renders a result list: `name — city, country` plus the HG ID; each row has a **Use this ID** button.
+- Selecting a row calls `onSelect(...)`, which closes the popover and fills the input.
+- Empty / unavailable states:
+  - `source: "unavailable"` → "Your HyperGuest token can't list the full catalogue. Ask your HG account manager for the hotel ID, or paste it manually."
+  - No matches → "No HyperGuest hotels matched 'X'. Try a shorter query."
 
-- The 60 s timeout on non-booking calls (search, prebook, cancel, list) — HG only mandates 300 s for `/booking/create`.
-- The BAR/PROMO classification rule — current logic matches the HG `ratePlanInfo.isPromotion` contract.
-- Header injection — already correct everywhere.
+### 3. Wire it into `src/components/property/GeneralTab.tsx`
 
-Tell me which path: **audit-only (close as compliant)**, **+ hardening 1**, **+ both hardenings**.
+Inside the `selectedPMS === "hyperguest"` block (around lines 455–470), add the lookup button to the right of the existing `Input`:
+
+```tsx
+<HyperGuestPropertyLookup
+  propertyId={propertyId}
+  propertyName={propertyName}
+  currentHotelId={hyperguestHotelId}
+  onSelect={(id) => { setHyperguestHotelId(id); setIsDirty(true); }}
+/>
+```
+
+Visible only when `selectedPMS === "hyperguest"`. Disabled (with tooltip) when `propertyId` is empty (i.e. brand-new property not yet saved) since the backend needs a property to resolve credentials.
+
+### 4. No schema or migration changes
+
+The HG ID still lives in its existing column and is still saved through the normal General-tab save flow. The existing `HyperGuestSyncReflectionButton` continues to run once an ID is captured.
+
+## Technical notes
+
+- camelCase only on the HG wire; snake_case on our edge-function boundary (per project API contract memory).
+- Reuse `hgFetch`, `getAuthHeaders`, `resolveCredentials`, `logIntegrationStep` — no auth duplication.
+- Add a Zod schema to the existing `actionSchemas` block; keep error responses consistent with other actions.
+- Component uses existing shadcn `Popover`, `Command`, `Input` primitives — no new design tokens.
+
+## Out of scope
+
+- Auto-running the lookup on tab open (explicit click only — avoids unnecessary HG calls).
+- Bulk linking across all properties.
+- Storing the catalogue snapshot in a table.
+- Changes to the Reflection page (separate effort).
