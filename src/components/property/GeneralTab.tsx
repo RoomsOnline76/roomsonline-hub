@@ -463,6 +463,12 @@ export function GeneralTab(props: GeneralTabProps) {
                   className="h-7 text-xs w-40"
                   required
                 />
+                <HyperGuestPropertyLookup
+                  propertyId={propertyId}
+                  propertyName={formData?.name ?? ""}
+                  currentHotelId={hyperguestHotelId}
+                  onSelect={(id) => { setHyperguestHotelId(id); setIsDirty(true); }}
+                />
                 <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
                 {propertyId && hyperguestHotelId && (
                   <HyperGuestSyncReflectionButton propertyId={propertyId} />
