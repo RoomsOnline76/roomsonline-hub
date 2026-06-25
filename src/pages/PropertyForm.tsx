@@ -220,11 +220,13 @@ export default function PropertyForm() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Helper to navigate with unsaved changes check
+  // Helper to navigate with unsaved changes check (uses a styled AlertDialog
+  // instead of window.confirm so the browser doesn't leak the embedded iframe URL).
+  const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
   const handleNavigate = (path: string) => {
     if (isDirty) {
-      const confirmed = window.confirm("You have unsaved changes. Are you sure you want to leave without saving?");
-      if (!confirmed) return;
+      setPendingNavPath(path);
+      return;
     }
     navigate(path);
   };
