@@ -2091,7 +2091,7 @@ Deno.serve(async (req) => {
         : undefined,
     };
 
-    const ANONYMOUS_ACTIONS = new Set(["health_check", "run_certification"]);
+    const ANONYMOUS_ACTIONS = new Set(["health_check", "run_certification", "list_hotels"]);
 
     if (!propertyId && !ANONYMOUS_ACTIONS.has(action)) {
       return new Response(
