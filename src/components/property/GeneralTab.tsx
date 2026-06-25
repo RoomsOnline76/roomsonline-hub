@@ -18,6 +18,7 @@ import { ContextualHelp } from "@/components/help";
 import { OwnerPMSConnectionCard } from "@/components/pms/OwnerPMSConnectionCard";
 import { RatesOverviewPanel } from "@/components/property/RatesOverviewPanel";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
+import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { ContractManagementPanel } from "@/components/contract";
 import { COUNTRY_OPTIONS } from "@/lib/countries";
 import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
