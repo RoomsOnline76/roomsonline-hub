@@ -453,16 +453,18 @@ export function GeneralTab(props: GeneralTabProps) {
               </div>
             )}
 
-            {selectedPMS === "hyperguest" && (
+            {(selectedPMS === "hyperguest" || selectedPMS === "rolos") && (
               <div className="flex items-center gap-2 flex-wrap">
-                <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">HyperGuest Hotel ID *</Label>
+                <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
+                  HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}
+                </Label>
                 <Input
                   id="hyperguest_hotel_id"
                   value={hyperguestHotelId}
                   onChange={(e) => { setHyperguestHotelId(e.target.value); setIsDirty(true); }}
                   placeholder="e.g. 19912"
                   className="h-7 text-xs w-40"
-                  required
+                  required={selectedPMS === "hyperguest"}
                 />
                 <HyperGuestPropertyLookup
                   propertyId={propertyId}
@@ -470,7 +472,11 @@ export function GeneralTab(props: GeneralTabProps) {
                   currentHotelId={hyperguestHotelId}
                   onSelect={(id) => { setHyperguestHotelId(id); setIsDirty(true); }}
                 />
-                <span className="text-[10px] text-muted-foreground">Sandbox certification hotel: 19912</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {selectedPMS === "hyperguest"
+                    ? "Sandbox certification hotel: 19912"
+                    : "Optional — links this ROL'OS property to a HyperGuest hotel for distribution."}
+                </span>
                 {propertyId && hyperguestHotelId && (
                   <HyperGuestSyncReflectionButton propertyId={propertyId} />
                 )}
