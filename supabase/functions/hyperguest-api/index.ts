@@ -182,8 +182,15 @@ const baseRequestSchema = z.object({
     "get_rate_types",
     "fetch_static_data",
     "sync_reflection",
+    "list_hotels",
   ]),
   property_id: z.string().uuid({ message: "Invalid property ID format" }).optional(),
+});
+
+const listHotelsSchema = baseRequestSchema.extend({
+  action: z.literal("list_hotels"),
+  query: z.string().max(120).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
 });
 
 const fetchAvailabilitySchema = baseRequestSchema.extend({
