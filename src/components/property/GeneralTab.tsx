@@ -453,7 +453,7 @@ export function GeneralTab(props: GeneralTabProps) {
               </div>
             )}
 
-            {(selectedPMS === "hyperguest" || selectedPMS === "rolos") && (
+            {(selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
               <div className="flex items-center gap-2 flex-wrap">
                 <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
                   HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}

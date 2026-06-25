@@ -2060,10 +2060,14 @@ export default function PropertyForm() {
           }
           setExistingHotelbedsHotelCode((data as any).hotelbeds_hotel_code || null);
 
-          // Set HyperGuest hotel ID (stored on properties.external_id when external_system='hyperguest')
+          // Set HyperGuest hotel ID. For HyperGuest PMS it's stored on properties.external_id;
+          // for ROLOS/Roomsonline it's stored on amenities.external_ids.hyperguest_hotel_id.
           if ((data as any).external_system === "hyperguest" && (data as any).external_id) {
             setHyperguestHotelId(String((data as any).external_id));
             setExistingHyperguestHotelId(String((data as any).external_id));
+          } else if (amenities?.external_ids?.hyperguest_hotel_id) {
+            setHyperguestHotelId(String(amenities.external_ids.hyperguest_hotel_id));
+            setExistingHyperguestHotelId(String(amenities.external_ids.hyperguest_hotel_id));
           }
 
           // Set Hostfully property UID
@@ -2912,6 +2916,10 @@ export default function PropertyForm() {
             benson_id: selectedPMS === "benson" ? formData.bb_id : existingExternalIds.benson_id,
             tripadvisor_id: tripadvisorId || existingExternalIds.tripadvisor_id,
             google_place_id: googlePlaceId || existingExternalIds.google_place_id,
+            hyperguest_hotel_id:
+              (selectedPMS === "roomsonline" || selectedPMS === "rolos")
+                ? (hyperguestHotelId?.trim() || null)
+                : (existingExternalIds.hyperguest_hotel_id ?? null),
           },
           property_info: {
             restaurants_cafes: formData.restaurants_cafes,
