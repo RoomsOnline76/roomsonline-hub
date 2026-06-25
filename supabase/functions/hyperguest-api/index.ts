@@ -2532,6 +2532,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── List Hotels (search HG static catalogue by property name) ──
+    if (action === "list_hotels") {
+      const validation = listHotelsSchema.safeParse(body);
+      if (!validation.success) {
+        return new Response(
+          JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, validation.error.errors.map(e => e.message).join(", "), action)),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const result = await listHotels(creds, {
+        query: validation.data.query,
+        limit: validation.data.limit,
+      });
+      return new Response(
+        JSON.stringify(createSuccessResponse(result, action)),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+
+
 
     // ── Unknown Action ──
     return new Response(
