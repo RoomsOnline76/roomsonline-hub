@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2,
 } from "lucide-react";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 interface Room {
   id: string;
+  property_id: string;
   room_number: string;
   room_name: string | null;
   floor: number | null;
@@ -35,6 +36,7 @@ interface Room {
 interface RoomType {
   id: string;
   name: string;
+  property_id: string;
 }
 
 interface HKTask {
@@ -94,6 +96,21 @@ export default function PMSHousekeeping() {
     switchProperty(properties[next].id);
   };
 
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  useEffect(() => {
+    if (!autoDefaulted && properties.length > 1) {
+      setViewMode("portfolio");
+      setAutoDefaulted(true);
+    }
+  }, [properties.length, autoDefaulted]);
+
+  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, properties, propertyId]
+  );
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [hkTasks, setHkTasks] = useState<HKTask[]>([]);
@@ -119,13 +136,12 @@ export default function PMSHousekeeping() {
   const [usingFallback, setUsingFallback] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    if (!propertyId) return;
+    if (activePropertyIds.length === 0) return;
     setLoading(true);
-    // Use type assertions on .from() to avoid TS2589 with deeply nested Supabase generics
-    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
-    const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId);
-    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
-    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
+    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, property_id, room_number, room_name, floor, status, room_type_id").in("property_id", activePropertyIds);
+    const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
+    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").in("property_id", activePropertyIds);
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
@@ -134,10 +150,11 @@ export default function PMSHousekeeping() {
     setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
 
     const fetchedRooms = (roomsRes.data || []) as Room[];
-    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0) {
-      // Fallback: derive synthetic rooms from room types
-      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt, idx) => ({
+    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
+      // Fallback: derive synthetic rooms from room types (single-property only)
+      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt) => ({
         id: `fallback-${rt.id}`,
+        property_id: rt.property_id,
         room_number: rt.name,
         room_name: rt.name,
         floor: null,
@@ -151,7 +168,7 @@ export default function PMSHousekeeping() {
       setUsingFallback(false);
     }
     setLoading(false);
-  }, [propertyId]);
+  }, [activePropertyIds, isPortfolio]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -262,10 +279,6 @@ export default function PMSHousekeeping() {
 
   // ── Derived data ──────────────────────────────────────────────────────
 
-  const dirtyRooms = rooms.filter(r => r.status === "dirty");
-  const maintenanceRooms = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-  const cleanRooms = rooms.filter(r => r.status === "available");
-
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
     maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
@@ -273,7 +286,11 @@ export default function PMSHousekeeping() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+
+  const propertySections = isPortfolio
+    ? properties.map((p) => ({ id: p.id, name: p.name, rooms: rooms.filter((r) => r.property_id === p.id) }))
+    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", rooms }];
 
   return (
     <>
@@ -305,6 +322,17 @@ export default function PMSHousekeeping() {
                 </span>
               </div>
             )}
+            {properties.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+              >
+                {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                {viewMode === "portfolio" ? "Portfolio" : "Single"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh
             </Button>
@@ -324,7 +352,20 @@ export default function PMSHousekeeping() {
           </Card>
         )}
 
-        {/* 3-Column Board */}
+        {/* Per-property boards */}
+        {propertySections.map((section) => {
+          const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
+          const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
+          const cleanRooms = section.rooms.filter(r => r.status === "available");
+          return (
+        <div key={section.id} className="space-y-3">
+          {isPortfolio && (
+            <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 border-b">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">{section.name}</h2>
+              <Badge variant="outline" className="text-xs">{section.rooms.length} rooms</Badge>
+            </div>
+          )}
         <div className="grid md:grid-cols-3 gap-6">
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
@@ -548,6 +589,9 @@ export default function PMSHousekeeping() {
             })}
           </div>
         </div>
+        </div>
+          );
+        })}
       </div>
 
       {/* ─── Create Maintenance Docket Dialog ────────────────────────────── */}
