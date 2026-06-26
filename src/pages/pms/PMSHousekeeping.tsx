@@ -36,6 +36,7 @@ interface Room {
 interface RoomType {
   id: string;
   name: string;
+  property_id: string;
 }
 
 interface HKTask {
