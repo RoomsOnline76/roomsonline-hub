@@ -54,6 +54,29 @@ export function PriceLabsCard() {
   const [hookUrl, setHookUrl] = useState("");
   const [regenerate, setRegenerate] = useState(false);
 
+  // Goals + metrics (persisted locally — these are dev/admin tracking aids)
+  const [goals, setGoals] = useState<Goals>(() => {
+    try { return { ...(JSON.parse(localStorage.getItem(GOALS_STORAGE_KEY) || "{}")) }; } catch { return {}; }
+  });
+  const [metrics, setMetrics] = useState<Metrics>(() => {
+    try { return { ...DEFAULT_METRICS, ...(JSON.parse(localStorage.getItem(METRICS_STORAGE_KEY) || "{}")) }; } catch { return DEFAULT_METRICS; }
+  });
+
+  useEffect(() => { localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals)); }, [goals]);
+  useEffect(() => { localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(metrics)); }, [metrics]);
+
+  const goalProgress = useMemo(() => {
+    const done = DEFAULT_GOALS.filter(g => goals[g.id]).length;
+    return { done, total: DEFAULT_GOALS.length, pct: Math.round((done / DEFAULT_GOALS.length) * 100) };
+  }, [goals]);
+
+  const mappingPct = useMemo(() => {
+    const total = parseInt(metrics.listingsTotal) || 0;
+    const mapped = parseInt(metrics.listingsMapped) || 0;
+    if (!total) return 0;
+    return Math.min(100, Math.round((mapped / total) * 100));
+  }, [metrics]);
+
   const projectId = (import.meta.env.VITE_SUPABASE_PROJECT_ID as string) || "";
   const base = `https://${projectId}.functions.supabase.co`;
 
