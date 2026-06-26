@@ -217,6 +217,14 @@ export default function PMSDashboard() {
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
+  const [autoDefaultedView, setAutoDefaultedView] = useState(false);
+  // Default to portfolio view when a portfolio (>1 properties) exists
+  useEffect(() => {
+    if (!autoDefaultedView && (portfolioProperties?.length || 0) > 1) {
+      setDashboardView("portfolio");
+      setAutoDefaultedView(true);
+    }
+  }, [portfolioProperties, autoDefaultedView]);
   const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
   const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
 
