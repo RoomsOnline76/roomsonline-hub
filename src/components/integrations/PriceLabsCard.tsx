@@ -1,15 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, CheckCircle2, AlertCircle, RefreshCw, Send, KeyRound, TrendingUp } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, CheckCircle2, AlertCircle, RefreshCw, Send, KeyRound, TrendingUp, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pricelabs-api`;
+const GOALS_STORAGE_KEY = "pricelabs_integration_goals_v1";
+const METRICS_STORAGE_KEY = "pricelabs_integration_metrics_v1";
+
+const DEFAULT_GOALS: { id: string; label: string; description?: string }[] = [
+  { id: "credentials", label: "API credentials provisioned", description: "Integration name + token stored in secrets" },
+  { id: "webhooks_registered", label: "Callback URLs registered with PriceLabs", description: "Sync, calendar trigger, and hook endpoints saved" },
+  { id: "health_ok", label: "Health check passing", description: "PriceLabs IAPI v2 reachable" },
+  { id: "listings_mapped", label: "Listings mapped to ROL'OS properties", description: "Every PriceLabs listing has a matching property" },
+  { id: "calendar_sync", label: "Calendar sync verified", description: "Rates + availability pushed from PriceLabs" },
+  { id: "hook_events", label: "Hook events received", description: "PriceLabs successfully calls our hook URL" },
+  { id: "revenue_uplift", label: "Revenue uplift measured", description: "First month-on-month uplift report generated" },
+];
+
+type Goals = Record<string, boolean>;
+type Metrics = { listingsTotal: string; listingsMapped: string; lastSyncAt: string; upliftTarget: string };
+const DEFAULT_METRICS: Metrics = { listingsTotal: "", listingsMapped: "", lastSyncAt: "", upliftTarget: "10" };
 
 type ActionResult = {
   success?: boolean;
