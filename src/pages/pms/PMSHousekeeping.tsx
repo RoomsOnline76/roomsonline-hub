@@ -322,6 +322,17 @@ export default function PMSHousekeeping() {
                 </span>
               </div>
             )}
+            {properties.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+              >
+                {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                {viewMode === "portfolio" ? "Portfolio" : "Single"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh
             </Button>
