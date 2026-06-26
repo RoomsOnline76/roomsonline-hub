@@ -243,18 +243,23 @@ export default function PMSRooms() {
         </div>
 
         {/* Room type summary */}
-        {roomTypes.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {roomTypes.map(rt => {
-              const count = rooms.filter(r => r.room_type_id === rt.id).length;
-              return (
-                <Badge key={rt.id} variant="outline" className="text-xs">
-                  {rt.name}: {count} room{count !== 1 ? 's' : ''}
+        {roomTypes.length > 0 && (() => {
+          const grouped = new Map<string, number>();
+          for (const rt of roomTypes) {
+            const key = rt.name;
+            const count = rooms.filter(r => r.room_type_id === rt.id).length;
+            grouped.set(key, (grouped.get(key) || 0) + count);
+          }
+          return (
+            <div className="flex flex-wrap gap-2">
+              {Array.from(grouped.entries()).map(([name, count]) => (
+                <Badge key={name} variant="outline" className="text-xs">
+                  {name}: {count} room{count !== 1 ? 's' : ''}
                 </Badge>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
 
         {loading ? (
           <p className="text-muted-foreground">Loading rooms...</p>
