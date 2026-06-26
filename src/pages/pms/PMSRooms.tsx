@@ -39,7 +39,7 @@ type RoomForm = { room_number: string; room_name: string; floor: string; room_ty
 const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" };
 
 export default function PMSRooms() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
