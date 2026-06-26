@@ -246,37 +246,40 @@ export default function PMSRatePlans() {
   }, [propertyId]);
 
   const fetchData = useCallback(async () => {
-    if (!propertyId) return;
+    if (activePropertyIds.length === 0) return;
     setLoading(true);
 
-    // Auto-sync from amenities first
-    await syncFromAmenities();
+    // Auto-sync from amenities only in single-property mode (expensive per-property work)
+    if (!isPortfolio) {
+      await syncFromAmenities();
+    }
 
-    const [plansRes, roomTypesRes, linksRes] = await Promise.all([
-      supabase
-        .from("rolos_rate_plans")
-        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
-        .eq("property_id", propertyId)
-        .order("name"),
-      supabase
-        .from("rolos_room_types")
-        .select("id, name")
-        .eq("property_id", propertyId)
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("rolos_rate_plan_room_types")
-        .select("rate_plan_id, room_type_id")
-        .in("rate_plan_id",
-          (await supabase.from("rolos_rate_plans").select("id").eq("property_id", propertyId)).data?.map(p => p.id) || []
-        ),
-    ]);
+    const plansQ = supabase
+      .from("rolos_rate_plans")
+      .select("id, property_id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
+      .in("property_id", activePropertyIds)
+      .order("name");
+    const roomTypesQ = supabase
+      .from("rolos_room_types")
+      .select("id, property_id, name")
+      .in("property_id", activePropertyIds)
+      .eq("is_active", true)
+      .order("name");
+
+    const [plansRes, roomTypesRes] = await Promise.all([plansQ, roomTypesQ]);
+    const planIds = (plansRes.data || []).map((p: any) => p.id);
+    const linksRes = planIds.length
+      ? await supabase
+          .from("rolos_rate_plan_room_types")
+          .select("rate_plan_id, room_type_id")
+          .in("rate_plan_id", planIds)
+      : { data: [] as RatePlanRoomLink[] };
 
     setPlans((plansRes.data || []) as RatePlan[]);
     setRoomTypes((roomTypesRes.data || []) as RoomType[]);
     setLinks((linksRes.data || []) as RatePlanRoomLink[]);
     setLoading(false);
-  }, [propertyId, syncFromAmenities]);
+  }, [activePropertyIds, isPortfolio, syncFromAmenities]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
