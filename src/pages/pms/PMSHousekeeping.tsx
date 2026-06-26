@@ -96,6 +96,21 @@ export default function PMSHousekeeping() {
     switchProperty(properties[next].id);
   };
 
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  useEffect(() => {
+    if (!autoDefaulted && properties.length > 1) {
+      setViewMode("portfolio");
+      setAutoDefaulted(true);
+    }
+  }, [properties.length, autoDefaulted]);
+
+  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, properties, propertyId]
+  );
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [hkTasks, setHkTasks] = useState<HKTask[]>([]);
@@ -121,13 +136,12 @@ export default function PMSHousekeeping() {
   const [usingFallback, setUsingFallback] = useState(false);
 
   const fetchAll = useCallback(async () => {
-    if (!propertyId) return;
+    if (activePropertyIds.length === 0) return;
     setLoading(true);
-    // Use type assertions on .from() to avoid TS2589 with deeply nested Supabase generics
-    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, room_number, room_name, floor, status, room_type_id").eq("property_id", propertyId);
-    const typesQ = supabase.from("rolos_room_types").select("id, name").eq("property_id", propertyId);
-    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").eq("property_id", propertyId);
-    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").eq("property_id", propertyId);
+    const roomsQ = (supabase.from("rolos_rooms") as any).select("id, property_id, room_number, room_name, floor, status, room_type_id").in("property_id", activePropertyIds);
+    const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
+    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").in("property_id", activePropertyIds);
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
@@ -136,10 +150,11 @@ export default function PMSHousekeeping() {
     setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
 
     const fetchedRooms = (roomsRes.data || []) as Room[];
-    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0) {
-      // Fallback: derive synthetic rooms from room types
-      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt, idx) => ({
+    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
+      // Fallback: derive synthetic rooms from room types (single-property only)
+      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt) => ({
         id: `fallback-${rt.id}`,
+        property_id: rt.property_id,
         room_number: rt.name,
         room_name: rt.name,
         floor: null,
@@ -153,7 +168,7 @@ export default function PMSHousekeeping() {
       setUsingFallback(false);
     }
     setLoading(false);
-  }, [propertyId]);
+  }, [activePropertyIds, isPortfolio]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
