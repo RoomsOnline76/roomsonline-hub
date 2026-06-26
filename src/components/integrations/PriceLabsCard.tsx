@@ -201,6 +201,99 @@ export function PriceLabsCard() {
               {JSON.stringify(lastResponse, null, 2)}
             </pre>
           )}
+
+          {/* Goals & Metrics tracker */}
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-600" />
+                <h4 className="font-semibold text-sm">Integration Goals</h4>
+              </div>
+              <span className="text-xs text-muted-foreground">{goalProgress.done} of {goalProgress.total} complete</span>
+            </div>
+            <Progress value={goalProgress.pct} className="h-2" />
+
+            <div className="grid gap-2">
+              {DEFAULT_GOALS.map(g => (
+                <label key={g.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={!!goals[g.id]}
+                    onCheckedChange={(v) => setGoals(prev => ({ ...prev, [g.id]: !!v }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm ${goals[g.id] ? "line-through text-muted-foreground" : ""}`}>{g.label}</div>
+                    {g.description && (
+                      <div className="text-xs text-muted-foreground">{g.description}</div>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 pt-2">
+              <div>
+                <Label htmlFor="pl-listings-total" className="text-xs">Total PriceLabs listings</Label>
+                <Input
+                  id="pl-listings-total"
+                  type="number"
+                  min={0}
+                  value={metrics.listingsTotal}
+                  onChange={e => setMetrics(m => ({ ...m, listingsTotal: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pl-listings-mapped" className="text-xs">Mapped to ROL'OS properties</Label>
+                <Input
+                  id="pl-listings-mapped"
+                  type="number"
+                  min={0}
+                  value={metrics.listingsMapped}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setMetrics(m => ({ ...m, listingsMapped: val }));
+                    const total = parseInt(metrics.listingsTotal) || 0;
+                    const mapped = parseInt(val) || 0;
+                    if (total > 0 && mapped >= total) setGoals(g => ({ ...g, listings_mapped: true }));
+                  }}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pl-uplift" className="text-xs">Revenue uplift target (%)</Label>
+                <Input
+                  id="pl-uplift"
+                  type="number"
+                  min={0}
+                  value={metrics.upliftTarget}
+                  onChange={e => setMetrics(m => ({ ...m, upliftTarget: e.target.value }))}
+                  placeholder="10"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Last sync verified</Label>
+                <div className="text-sm h-10 flex items-center px-3 border rounded-md bg-muted/30 text-muted-foreground">
+                  {metrics.lastSyncAt ? new Date(metrics.lastSyncAt).toLocaleString() : "Not yet"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Listing coverage</div>
+                <div className="text-lg font-semibold">{mappingPct}%</div>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Goal progress</div>
+                <div className="text-lg font-semibold">{goalProgress.pct}%</div>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Uplift target</div>
+                <div className="text-lg font-semibold">{metrics.upliftTarget || 0}%</div>
+              </div>
+            </div>
+          </div>
         </div>
       </AccordionContent>
     </AccordionItem>
