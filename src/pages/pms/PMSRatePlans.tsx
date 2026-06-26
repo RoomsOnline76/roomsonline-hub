@@ -593,21 +593,26 @@ export default function PMSRatePlans() {
                   {/* Room type linking */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
-                    {roomTypes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>
-                    ) : (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {roomTypes.map(rt => (
-                          <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
-                            <Checkbox
-                              checked={form.linkedRoomTypeIds.includes(rt.id)}
-                              onCheckedChange={() => toggleRoomType(rt.id)}
-                            />
-                            <span className="text-sm">{rt.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const scopePropId = editingPlan?.property_id || propertyId;
+                      const scopedRoomTypes = roomTypes.filter(rt => rt.property_id === scopePropId);
+                      if (scopedRoomTypes.length === 0) {
+                        return <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>;
+                      }
+                      return (
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          {scopedRoomTypes.map(rt => (
+                            <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox
+                                checked={form.linkedRoomTypeIds.includes(rt.id)}
+                                onCheckedChange={() => toggleRoomType(rt.id)}
+                              />
+                              <span className="text-sm">{rt.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <Button onClick={handleSave} className="w-full">{editingPlan ? "Update" : "Create"}</Button>
