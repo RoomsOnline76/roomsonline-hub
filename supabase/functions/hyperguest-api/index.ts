@@ -2126,28 +2126,57 @@ async function listHotels(
     .map(normalizeHgHotel)
     .filter((h): h is { id: string; name: string; city: string | null; country: string | null } => !!h);
 
+  // Africa-only filter (ISO 3166-1 alpha-2 + common country name fallbacks)
+  const AFRICA_ISO2 = new Set([
+    "DZ","AO","BJ","BW","BF","BI","CV","CM","CF","TD","KM","CG","CD","CI","DJ","EG","GQ","ER",
+    "SZ","ET","GA","GM","GH","GN","GW","KE","LS","LR","LY","MG","MW","ML","MR","MU","YT","MA",
+    "MZ","NA","NE","NG","RE","RW","SH","ST","SN","SC","SL","SO","ZA","SS","SD","TZ","TG","TN",
+    "UG","EH","ZM","ZW",
+  ]);
+  const AFRICA_NAMES = new Set(Array.from(AFRICA_ISO2).concat([
+    "algeria","angola","benin","botswana","burkina faso","burundi","cabo verde","cape verde","cameroon",
+    "central african republic","chad","comoros","congo","democratic republic of the congo","drc",
+    "ivory coast","cote d'ivoire","côte d'ivoire","djibouti","egypt","equatorial guinea","eritrea",
+    "eswatini","swaziland","ethiopia","gabon","gambia","ghana","guinea","guinea-bissau","kenya",
+    "lesotho","liberia","libya","madagascar","malawi","mali","mauritania","mauritius","mayotte",
+    "morocco","mozambique","namibia","niger","nigeria","reunion","réunion","rwanda","saint helena",
+    "sao tome and principe","são tomé and príncipe","senegal","seychelles","sierra leone","somalia",
+    "south africa","south sudan","sudan","tanzania","togo","tunisia","uganda","western sahara",
+    "zambia","zimbabwe",
+  ].map((s) => s.toLowerCase())));
+  const isAfrican = (h: { country: string | null }) => {
+    if (!h.country) return false;
+    const c = h.country.trim();
+    if (c.length === 2 && AFRICA_ISO2.has(c.toUpperCase())) return true;
+    return AFRICA_NAMES.has(c.toLowerCase());
+  };
+  const africaOnly = normalized.filter(isAfrican);
+
   const query = (opts.query ?? "").trim();
   const limit = opts.limit ?? 25;
 
-  let hotels = normalized;
+  let hotels = africaOnly;
   if (query) {
-    hotels = normalized
+    hotels = africaOnly
       .map((h) => ({ ...h, score: tokenScore(query, h.name) }))
       .filter((h) => h.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
   } else {
-    hotels = normalized.slice(0, limit);
+    hotels = africaOnly.slice(0, limit);
   }
+
 
   return {
     source: "static",
-    total: normalized.length,
+    total: africaOnly.length,
     returned: hotels.length,
     query: query || null,
+    region: "africa",
     hotels,
   };
 }
+
 
 
 // ============================================================================
