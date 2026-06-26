@@ -2169,12 +2169,14 @@ async function listHotels(
 
   return {
     source: "static",
-    total: normalized.length,
+    total: africaOnly.length,
     returned: hotels.length,
     query: query || null,
+    region: "africa",
     hotels,
   };
 }
+
 
 
 // ============================================================================
