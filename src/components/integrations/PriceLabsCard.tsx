@@ -1,15 +1,33 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, CheckCircle2, AlertCircle, RefreshCw, Send, KeyRound, TrendingUp } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
+import { Loader2, CheckCircle2, AlertCircle, RefreshCw, Send, KeyRound, TrendingUp, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const FN_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pricelabs-api`;
+const GOALS_STORAGE_KEY = "pricelabs_integration_goals_v1";
+const METRICS_STORAGE_KEY = "pricelabs_integration_metrics_v1";
+
+const DEFAULT_GOALS: { id: string; label: string; description?: string }[] = [
+  { id: "credentials", label: "API credentials provisioned", description: "Integration name + token stored in secrets" },
+  { id: "webhooks_registered", label: "Callback URLs registered with PriceLabs", description: "Sync, calendar trigger, and hook endpoints saved" },
+  { id: "health_ok", label: "Health check passing", description: "PriceLabs IAPI v2 reachable" },
+  { id: "listings_mapped", label: "Listings mapped to ROL'OS properties", description: "Every PriceLabs listing has a matching property" },
+  { id: "calendar_sync", label: "Calendar sync verified", description: "Rates + availability pushed from PriceLabs" },
+  { id: "hook_events", label: "Hook events received", description: "PriceLabs successfully calls our hook URL" },
+  { id: "revenue_uplift", label: "Revenue uplift measured", description: "First month-on-month uplift report generated" },
+];
+
+type Goals = Record<string, boolean>;
+type Metrics = { listingsTotal: string; listingsMapped: string; lastSyncAt: string; upliftTarget: string };
+const DEFAULT_METRICS: Metrics = { listingsTotal: "", listingsMapped: "", lastSyncAt: "", upliftTarget: "10" };
 
 type ActionResult = {
   success?: boolean;
@@ -36,6 +54,29 @@ export function PriceLabsCard() {
   const [hookUrl, setHookUrl] = useState("");
   const [regenerate, setRegenerate] = useState(false);
 
+  // Goals + metrics (persisted locally — these are dev/admin tracking aids)
+  const [goals, setGoals] = useState<Goals>(() => {
+    try { return { ...(JSON.parse(localStorage.getItem(GOALS_STORAGE_KEY) || "{}")) }; } catch { return {}; }
+  });
+  const [metrics, setMetrics] = useState<Metrics>(() => {
+    try { return { ...DEFAULT_METRICS, ...(JSON.parse(localStorage.getItem(METRICS_STORAGE_KEY) || "{}")) }; } catch { return DEFAULT_METRICS; }
+  });
+
+  useEffect(() => { localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals)); }, [goals]);
+  useEffect(() => { localStorage.setItem(METRICS_STORAGE_KEY, JSON.stringify(metrics)); }, [metrics]);
+
+  const goalProgress = useMemo(() => {
+    const done = DEFAULT_GOALS.filter(g => goals[g.id]).length;
+    return { done, total: DEFAULT_GOALS.length, pct: Math.round((done / DEFAULT_GOALS.length) * 100) };
+  }, [goals]);
+
+  const mappingPct = useMemo(() => {
+    const total = parseInt(metrics.listingsTotal) || 0;
+    const mapped = parseInt(metrics.listingsMapped) || 0;
+    if (!total) return 0;
+    return Math.min(100, Math.round((mapped / total) * 100));
+  }, [metrics]);
+
   const projectId = (import.meta.env.VITE_SUPABASE_PROJECT_ID as string) || "";
   const base = `https://${projectId}.functions.supabase.co`;
 
@@ -51,6 +92,7 @@ export function PriceLabsCard() {
     setLastResponse(r);
     setHealthOk(!!r.success);
     setLoading(false);
+    if (r.success) setGoals(g => ({ ...g, health_ok: true }));
     toast({
       title: r.success ? "PriceLabs reachable" : "PriceLabs error",
       description: r.success ? `HTTP ${r.status}` : (r.error || `HTTP ${r.status}`),
@@ -75,7 +117,10 @@ export function PriceLabsCard() {
         : (r.error || `HTTP ${r.status}`),
       variant: r.success ? "default" : "destructive",
     });
-    if (r.success) setRegenerate(false);
+    if (r.success) {
+      setRegenerate(false);
+      setGoals(g => ({ ...g, webhooks_registered: true, credentials: true }));
+    }
   };
 
   const fetchSyncStatus = async () => {
@@ -83,6 +128,7 @@ export function PriceLabsCard() {
     const r = await callPL("get_sync_status");
     setLastResponse(r);
     setLoading(false);
+    if (r.success) setMetrics(m => ({ ...m, lastSyncAt: new Date().toISOString() }));
   };
 
   return (
@@ -100,6 +146,7 @@ export function PriceLabsCard() {
             {healthOk === false && (
               <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Error</Badge>
             )}
+            <Badge variant="outline" className="gap-1"><Target className="h-3 w-3" /> {goalProgress.done}/{goalProgress.total} goals</Badge>
             <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> Token Auth</Badge>
           </div>
         </div>
@@ -154,6 +201,99 @@ export function PriceLabsCard() {
               {JSON.stringify(lastResponse, null, 2)}
             </pre>
           )}
+
+          {/* Goals & Metrics tracker */}
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-600" />
+                <h4 className="font-semibold text-sm">Integration Goals</h4>
+              </div>
+              <span className="text-xs text-muted-foreground">{goalProgress.done} of {goalProgress.total} complete</span>
+            </div>
+            <Progress value={goalProgress.pct} className="h-2" />
+
+            <div className="grid gap-2">
+              {DEFAULT_GOALS.map(g => (
+                <label key={g.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/40 cursor-pointer">
+                  <Checkbox
+                    checked={!!goals[g.id]}
+                    onCheckedChange={(v) => setGoals(prev => ({ ...prev, [g.id]: !!v }))}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm ${goals[g.id] ? "line-through text-muted-foreground" : ""}`}>{g.label}</div>
+                    {g.description && (
+                      <div className="text-xs text-muted-foreground">{g.description}</div>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 pt-2">
+              <div>
+                <Label htmlFor="pl-listings-total" className="text-xs">Total PriceLabs listings</Label>
+                <Input
+                  id="pl-listings-total"
+                  type="number"
+                  min={0}
+                  value={metrics.listingsTotal}
+                  onChange={e => setMetrics(m => ({ ...m, listingsTotal: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pl-listings-mapped" className="text-xs">Mapped to ROL'OS properties</Label>
+                <Input
+                  id="pl-listings-mapped"
+                  type="number"
+                  min={0}
+                  value={metrics.listingsMapped}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setMetrics(m => ({ ...m, listingsMapped: val }));
+                    const total = parseInt(metrics.listingsTotal) || 0;
+                    const mapped = parseInt(val) || 0;
+                    if (total > 0 && mapped >= total) setGoals(g => ({ ...g, listings_mapped: true }));
+                  }}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <Label htmlFor="pl-uplift" className="text-xs">Revenue uplift target (%)</Label>
+                <Input
+                  id="pl-uplift"
+                  type="number"
+                  min={0}
+                  value={metrics.upliftTarget}
+                  onChange={e => setMetrics(m => ({ ...m, upliftTarget: e.target.value }))}
+                  placeholder="10"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Last sync verified</Label>
+                <div className="text-sm h-10 flex items-center px-3 border rounded-md bg-muted/30 text-muted-foreground">
+                  {metrics.lastSyncAt ? new Date(metrics.lastSyncAt).toLocaleString() : "Not yet"}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1">
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Listing coverage</div>
+                <div className="text-lg font-semibold">{mappingPct}%</div>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Goal progress</div>
+                <div className="text-lg font-semibold">{goalProgress.pct}%</div>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Uplift target</div>
+                <div className="text-lg font-semibold">{metrics.upliftTarget || 0}%</div>
+              </div>
+            </div>
+          </div>
         </div>
       </AccordionContent>
     </AccordionItem>

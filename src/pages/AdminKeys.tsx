@@ -4946,6 +4946,7 @@ export default function AdminKeys() {
             "wetu",
             "Travel content portal — property descriptions, images, rooms, and features (read-only content API)",
           )}
+          <PriceLabsCard />
           {renderResendCard()}
           {renderTripadvisorCard()}
           {additionalKeys
