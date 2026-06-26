@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -86,7 +86,13 @@ const STATUS_BORDER: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PMSHousekeeping() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const goToProperty = (offset: number) => {
+    if (properties.length === 0) return;
+    const next = (currentIndex + offset + properties.length) % properties.length;
+    switchProperty(properties[next].id);
+  };
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
@@ -273,9 +279,32 @@ export default function PMSHousekeeping() {
     <>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Housekeeping Board</h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {properties.length > 1 && (
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(-1)} title="Previous property">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                  <SelectTrigger className="h-8 w-[220px]">
+                    <SelectValue placeholder="Select property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(1)} title="Next property">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground ml-1">
+                  {currentIndex >= 0 ? currentIndex + 1 : "—"} / {properties.length}
+                </span>
+              </div>
+            )}
             <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />Refresh
             </Button>
