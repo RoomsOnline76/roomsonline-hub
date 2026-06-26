@@ -2936,6 +2936,10 @@ export default function PropertyForm() {
               (selectedPMS === "roomsonline" || selectedPMS === "rolos")
                 ? (hyperguestHotelId?.trim() || null)
                 : (existingExternalIds.hyperguest_hotel_id ?? null),
+            beds24_property_id:
+              (selectedPMS === "roomsonline" || selectedPMS === "rolos")
+                ? (beds24PropertyId?.trim() || null)
+                : (existingExternalIds.beds24_property_id ?? null),
           },
           property_info: {
             restaurants_cafes: formData.restaurants_cafes,
