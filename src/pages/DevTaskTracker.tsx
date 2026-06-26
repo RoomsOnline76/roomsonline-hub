@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight, Search, Mail, Loader2 } from "lucide-react";
+import { Plus, MoreVertical, Archive, Trash2, User, Clock, CheckCircle2, FlaskConical, Sparkles, ArrowRight, Search, Mail, Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -74,6 +74,32 @@ export default function DevTaskTracker() {
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [editingTask, setEditingTask] = useState<DevTask | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium" as TaskPriority, assigned_to: "" });
+
+  const openEditDialog = (task: DevTask) => {
+    setEditingTask(task);
+    setEditForm({
+      title: task.title,
+      description: task.description || "",
+      priority: task.priority,
+      assigned_to: task.assigned_to || "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingTask || !editForm.title.trim()) return;
+    const { error } = await supabase.from("dev_tasks").update({
+      title: editForm.title.trim(),
+      description: editForm.description.trim() || null,
+      priority: editForm.priority,
+      assigned_to: editForm.assigned_to || null,
+    } as any).eq("id", editingTask.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Task updated");
+    setEditingTask(null);
+    fetchTasks();
+  };
 
   const sendTaskReport = async () => {
     if (filterAssignee === "all" || filterAssignee === "unassigned") {
@@ -267,6 +293,9 @@ export default function DevTaskTracker() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openEditDialog(task)}>
+                  <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                </DropdownMenuItem>
                 {nextStatus && (
                   <DropdownMenuItem onClick={() => updateStatus(task.id, nextStatus)}>
                     Move to {STATUS_CONFIG[nextStatus].label}
@@ -561,6 +590,9 @@ export default function DevTaskTracker() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(task)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => unarchiveTask(task.id)}>
                               Restore to Worklist
                             </DropdownMenuItem>
@@ -577,6 +609,72 @@ export default function DevTaskTracker() {
             )}
           </TabsContent>
         </Tabs>
+
+        <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Title</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                  placeholder="Task title"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Optional description"
+                  rows={4}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Priority</Label>
+                  <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v as TaskPriority })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Assign to</Label>
+                  <Select
+                    value={editForm.assigned_to || "unassigned"}
+                    onValueChange={(v) => setEditForm({ ...editForm, assigned_to: v === "unassigned" ? "" : v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditingTask(null)} className="flex-1">
+                  Cancel
+                </Button>
+                <Button onClick={saveEdit} className="flex-1" disabled={!editForm.title.trim()}>
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
