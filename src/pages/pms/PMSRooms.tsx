@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, BedDouble, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { toast } from "sonner";
@@ -39,7 +39,7 @@ type RoomForm = { room_number: string; room_name: string; floor: string; room_ty
 const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_type_id: "", max_occupancy: "" };
 
 export default function PMSRooms() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,15 +184,57 @@ export default function PMSRooms() {
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
   if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
+  const currentIdx = properties.findIndex((p) => p.id === propertyId);
+  const canCycle = properties.length > 1;
+  const goPrev = () => {
+    if (!canCycle) return;
+    const next = properties[(currentIdx - 1 + properties.length) % properties.length];
+    if (next) switchProperty(next.id);
+  };
+  const goNext = () => {
+    if (!canCycle) return;
+    const next = properties[(currentIdx + 1) % properties.length];
+    if (next) switchProperty(next.id);
+  };
+
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Room Inventory</h1>
             <p className="text-sm text-muted-foreground">Physical rooms linked to room types from Property Overview.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {properties.length > 0 && (
+              <div className="flex items-center gap-1">
+                {canCycle && (
+                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Previous property">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                )}
+                <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                  <SelectTrigger className="h-9 min-w-[220px]">
+                    <SelectValue placeholder="Select property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {canCycle && (
+                  <>
+                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Next property">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground ml-1 tabular-nums">
+                      {currentIdx + 1} / {properties.length}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
