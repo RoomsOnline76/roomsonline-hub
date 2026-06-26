@@ -1215,7 +1215,7 @@ export default function PMSDashboard() {
                   {weekChunks.map((weekDates, weekIdx) => (
                     <div key={weekIdx} className="space-y-3">
                       <div className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1.5 bg-primary/10 border-l-4 border-primary rounded-r-md">
-                        <Calendar className="h-4 w-4 text-primary shrink-0" />
+                        <CalendarDays className="h-4 w-4 text-primary shrink-0" />
                         <h2 className="text-sm font-bold text-foreground">
                           Week {weekIdx + 1} · {format(weekDates[0], "MMM d")} – {format(weekDates[weekDates.length - 1], "MMM d, yyyy")}
                         </h2>
