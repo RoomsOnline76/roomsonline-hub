@@ -2074,6 +2074,16 @@ export default function PropertyForm() {
             setExistingHyperguestHotelId(String(amenities.external_ids.hyperguest_hotel_id));
           }
 
+          // Set Beds24 property ID. For Beds24 PMS it's on properties.external_id;
+          // for ROLOS/Roomsonline it's stored on amenities.external_ids.beds24_property_id.
+          if ((data as any).external_system === "beds24" && (data as any).external_id) {
+            setBeds24PropertyId(String((data as any).external_id));
+            setExistingBeds24PropertyId(String((data as any).external_id));
+          } else if (amenities?.external_ids?.beds24_property_id) {
+            setBeds24PropertyId(String(amenities.external_ids.beds24_property_id));
+            setExistingBeds24PropertyId(String(amenities.external_ids.beds24_property_id));
+          }
+
           // Set Hostfully property UID
           if ((data as any).hostfully_property_uid) {
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
