@@ -279,10 +279,6 @@ export default function PMSHousekeeping() {
 
   // ── Derived data ──────────────────────────────────────────────────────
 
-  const dirtyRooms = rooms.filter(r => r.status === "dirty");
-  const maintenanceRooms = rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-  const cleanRooms = rooms.filter(r => r.status === "available");
-
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
     maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
@@ -290,7 +286,11 @@ export default function PMSHousekeeping() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+
+  const propertySections = isPortfolio
+    ? properties.map((p) => ({ id: p.id, name: p.name, rooms: rooms.filter((r) => r.property_id === p.id) }))
+    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", rooms }];
 
   return (
     <>
