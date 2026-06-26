@@ -92,6 +92,7 @@ export function PriceLabsCard() {
     setLastResponse(r);
     setHealthOk(!!r.success);
     setLoading(false);
+    if (r.success) setGoals(g => ({ ...g, health_ok: true }));
     toast({
       title: r.success ? "PriceLabs reachable" : "PriceLabs error",
       description: r.success ? `HTTP ${r.status}` : (r.error || `HTTP ${r.status}`),
