@@ -582,7 +582,6 @@ export default function PMSHousekeeping() {
           );
         })}
       </div>
-      </div>
 
       {/* ─── Create Maintenance Docket Dialog ────────────────────────────── */}
       <Dialog open={showCreateDocket} onOpenChange={setShowCreateDocket}>
