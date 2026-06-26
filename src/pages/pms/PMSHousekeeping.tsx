@@ -341,7 +341,20 @@ export default function PMSHousekeeping() {
           </Card>
         )}
 
-        {/* 3-Column Board */}
+        {/* Per-property boards */}
+        {propertySections.map((section) => {
+          const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
+          const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
+          const cleanRooms = section.rooms.filter(r => r.status === "available");
+          return (
+        <div key={section.id} className="space-y-3">
+          {isPortfolio && (
+            <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 border-b">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">{section.name}</h2>
+              <Badge variant="outline" className="text-xs">{section.rooms.length} rooms</Badge>
+            </div>
+          )}
         <div className="grid md:grid-cols-3 gap-6">
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
@@ -565,6 +578,10 @@ export default function PMSHousekeeping() {
             })}
           </div>
         </div>
+        </div>
+          );
+        })}
+      </div>
       </div>
 
       {/* ─── Create Maintenance Docket Dialog ────────────────────────────── */}
