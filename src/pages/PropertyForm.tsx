@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
+import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -4190,10 +4191,10 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {selectedPMS === "hyperguest" && (
+                      {(selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
-                            HyperGuest Hotel ID *
+                            HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}
                           </Label>
                           <Input
                             id="hyperguest_hotel_id"
@@ -4204,10 +4205,21 @@ export default function PropertyForm() {
                             }}
                             placeholder="e.g. 19912"
                             className="h-7 text-xs w-40"
-                            required
+                            required={selectedPMS === "hyperguest"}
+                          />
+                          <HyperGuestPropertyLookup
+                            propertyId={propertyId}
+                            propertyName={formData.name}
+                            currentHotelId={hyperguestHotelId}
+                            onSelect={(hotelId) => {
+                              setHyperguestHotelId(hotelId);
+                              setIsDirty(true);
+                            }}
                           />
                           <span className="text-[10px] text-muted-foreground">
-                            Sandbox certification hotel: 19912
+                            {selectedPMS === "hyperguest"
+                              ? "Sandbox certification hotel: 19912"
+                              : "Optional — links this ROL'OS property to a HyperGuest hotel for distribution."}
                           </span>
                           {propertyId && hyperguestHotelId && (
                             <HyperGuestSyncReflectionButton propertyId={propertyId} />
