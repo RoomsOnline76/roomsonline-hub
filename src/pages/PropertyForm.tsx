@@ -2837,6 +2837,8 @@ export default function PropertyForm() {
         external_system: selectedPMS || null,
         external_id: selectedPMS === "hyperguest"
           ? (hyperguestHotelId?.trim() || existingHyperguestHotelId || null)
+          : selectedPMS === "beds24"
+          ? (beds24PropertyId?.trim() || existingBeds24PropertyId || null)
           : (formData.bb_id || formData.venue_id || null),
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
