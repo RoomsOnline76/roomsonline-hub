@@ -117,7 +117,10 @@ export function PriceLabsCard() {
         : (r.error || `HTTP ${r.status}`),
       variant: r.success ? "default" : "destructive",
     });
-    if (r.success) setRegenerate(false);
+    if (r.success) {
+      setRegenerate(false);
+      setGoals(g => ({ ...g, webhooks_registered: true, credentials: true }));
+    }
   };
 
   const fetchSyncStatus = async () => {
@@ -125,6 +128,7 @@ export function PriceLabsCard() {
     const r = await callPL("get_sync_status");
     setLastResponse(r);
     setLoading(false);
+    if (r.success) setMetrics(m => ({ ...m, lastSyncAt: new Date().toISOString() }));
   };
 
   return (
