@@ -86,7 +86,13 @@ const STATUS_BORDER: Record<string, string> = {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PMSHousekeeping() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const goToProperty = (offset: number) => {
+    if (properties.length === 0) return;
+    const next = (currentIndex + offset + properties.length) % properties.length;
+    switchProperty(properties[next].id);
+  };
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
