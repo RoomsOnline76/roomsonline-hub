@@ -1183,6 +1183,8 @@ export default function PropertyForm() {
     hotelbedsHotelCode, setHotelbedsHotelCode,
     hyperguestHotelId, setHyperguestHotelId,
     existingHyperguestHotelId, setExistingHyperguestHotelId,
+    beds24PropertyId, setBeds24PropertyId,
+    existingBeds24PropertyId, setExistingBeds24PropertyId,
     hostfullyPropertyUid, setHostfullyPropertyUid,
     isSyncingPms, lastPmsSync,
     isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
