@@ -78,6 +78,7 @@ export interface ExistingExternalIds {
   tripadvisor_id?: string | null;
   google_place_id?: string | null;
   hyperguest_hotel_id?: string | null;
+  beds24_property_id?: string | null;
 }
 
 export function usePMSSync({
@@ -110,6 +111,8 @@ export function usePMSSync({
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
   const [hyperguestHotelId, setHyperguestHotelId] = useState<string>("");
   const [existingHyperguestHotelId, setExistingHyperguestHotelId] = useState<string | null>(null);
+  const [beds24PropertyId, setBeds24PropertyId] = useState<string>("");
+  const [existingBeds24PropertyId, setExistingBeds24PropertyId] = useState<string | null>(null);
   const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
@@ -1275,6 +1278,10 @@ export function usePMSSync({
     setHyperguestHotelId,
     existingHyperguestHotelId,
     setExistingHyperguestHotelId,
+    beds24PropertyId,
+    setBeds24PropertyId,
+    existingBeds24PropertyId,
+    setExistingBeds24PropertyId,
 
     // Sync state
     isSyncingPms,

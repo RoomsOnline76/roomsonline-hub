@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
+import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -1182,6 +1183,8 @@ export default function PropertyForm() {
     hotelbedsHotelCode, setHotelbedsHotelCode,
     hyperguestHotelId, setHyperguestHotelId,
     existingHyperguestHotelId, setExistingHyperguestHotelId,
+    beds24PropertyId, setBeds24PropertyId,
+    existingBeds24PropertyId, setExistingBeds24PropertyId,
     hostfullyPropertyUid, setHostfullyPropertyUid,
     isSyncingPms, lastPmsSync,
     isSyncEditorialDialogOpen, setIsSyncEditorialDialogOpen,
@@ -2071,6 +2074,16 @@ export default function PropertyForm() {
             setExistingHyperguestHotelId(String(amenities.external_ids.hyperguest_hotel_id));
           }
 
+          // Set Beds24 property ID. For Beds24 PMS it's on properties.external_id;
+          // for ROLOS/Roomsonline it's stored on amenities.external_ids.beds24_property_id.
+          if ((data as any).external_system === "beds24" && (data as any).external_id) {
+            setBeds24PropertyId(String((data as any).external_id));
+            setExistingBeds24PropertyId(String((data as any).external_id));
+          } else if (amenities?.external_ids?.beds24_property_id) {
+            setBeds24PropertyId(String(amenities.external_ids.beds24_property_id));
+            setExistingBeds24PropertyId(String(amenities.external_ids.beds24_property_id));
+          }
+
           // Set Hostfully property UID
           if ((data as any).hostfully_property_uid) {
             setHostfullyPropertyUid((data as any).hostfully_property_uid);
@@ -2824,6 +2837,8 @@ export default function PropertyForm() {
         external_system: selectedPMS || null,
         external_id: selectedPMS === "hyperguest"
           ? (hyperguestHotelId?.trim() || existingHyperguestHotelId || null)
+          : selectedPMS === "beds24"
+          ? (beds24PropertyId?.trim() || existingBeds24PropertyId || null)
           : (formData.bb_id || formData.venue_id || null),
         // Preserve existing benson_property_code if PMS changed, only update if benson is selected
         benson_property_code: selectedPMS === "benson" ? bensonPropertyCode : existingBensonPropertyCode,
@@ -2921,6 +2936,10 @@ export default function PropertyForm() {
               (selectedPMS === "roomsonline" || selectedPMS === "rolos")
                 ? (hyperguestHotelId?.trim() || null)
                 : (existingExternalIds.hyperguest_hotel_id ?? null),
+            beds24_property_id:
+              (selectedPMS === "roomsonline" || selectedPMS === "rolos")
+                ? (beds24PropertyId?.trim() || null)
+                : (existingExternalIds.beds24_property_id ?? null),
           },
           property_info: {
             restaurants_cafes: formData.restaurants_cafes,
@@ -4226,7 +4245,39 @@ export default function PropertyForm() {
                           )}
                         </div>)}
 
-                      {/* Hostfully connection for owners */}
+                      {(selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="beds24_property_id" className="text-xs whitespace-nowrap">
+                            Beds24 Property ID{selectedPMS === "beds24" ? " *" : ""}
+                          </Label>
+                          <Input
+                            id="beds24_property_id"
+                            value={beds24PropertyId}
+                            onChange={(e) => {
+                              setBeds24PropertyId(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g. 123456"
+                            className="h-7 text-xs w-40"
+                            required={selectedPMS === "beds24"}
+                          />
+                          <Beds24PropertyLookup
+                            propertyId={propertyId}
+                            propertyName={formData.name}
+                            currentPropertyId={beds24PropertyId}
+                            onSelect={(b24Id) => {
+                              setBeds24PropertyId(b24Id);
+                              setIsDirty(true);
+                            }}
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            {selectedPMS === "beds24"
+                              ? "Required — your Beds24 property ID."
+                              : "Optional — links this ROL'OS property to a Beds24 property for distribution."}
+                          </span>
+                        </div>
+                      )}
+
                       {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
                         <div className="w-full mt-2">
                           <OwnerPMSConnectionCard
