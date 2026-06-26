@@ -42,9 +42,12 @@ interface ManualBookingDialogProps {
   rooms: Room[];
   ratePlans: RatePlan[];
   onCreated: () => void;
+  /** Optional: resolve the nightly rate for a room type on a specific date.
+   *  Uses the same logic as the calendar (rolos_rate_prices, amenities.season_rates, plan base_rate, default_rate, cache). */
+  getRateForDate?: (roomTypeId: string, date: Date) => number | null;
 }
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     guest_name: "",
