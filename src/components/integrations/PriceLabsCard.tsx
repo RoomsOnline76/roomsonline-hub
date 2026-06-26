@@ -146,6 +146,7 @@ export function PriceLabsCard() {
             {healthOk === false && (
               <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Error</Badge>
             )}
+            <Badge variant="outline" className="gap-1"><Target className="h-3 w-3" /> {goalProgress.done}/{goalProgress.total} goals</Badge>
             <Badge variant="outline" className="gap-1"><KeyRound className="h-3 w-3" /> Token Auth</Badge>
           </div>
         </div>
