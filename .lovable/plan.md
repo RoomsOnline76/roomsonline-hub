@@ -1,18 +1,19 @@
-## Plan
+# Plan: Show HyperGuest Hotel ID + Search on ROLOS properties
 
-1. **Fix the ROLOS condition mismatch**
-   - The current UI only shows the HyperGuest Hotel ID field when `selectedPMS` is `"hyperguest"` or `"rolos"`.
-   - The screenshot shows the ROLOS value is actually stored/rendered as `"roomsonline"`, so the condition misses ROLOS properties.
-   - Update the General tab so the HyperGuest ID field and **Search by name** button show for both `"roomsonline"` and any legacy `"rolos"` value.
+## Root cause
+`src/pages/PropertyForm.tsx` (the file actually rendered for the property edit screen — not `GeneralTab.tsx`) gates the HyperGuest Hotel ID field on `selectedPMS === "hyperguest"` only. Dassiesingel stores `external_system = "roomsonline"`, so the field never renders and there is no lookup button.
 
-2. **Make the field save for ROLOS properties**
-   - Check the save path currently only writes `external_id` when PMS is `"hyperguest"`.
-   - Extend it so ROLOS/Roomsonline properties can persist the optional HyperGuest Hotel ID instead of discarding it on save.
+## Fix (single edit, frontend only)
+In `src/pages/PropertyForm.tsx` around lines 4193–4215, replace the `hyperguest`-only block with one that:
 
-3. **Keep HyperGuest-only behavior required**
-   - Keep the field required only when PMS is HyperGuest.
-   - Keep it optional for ROLOS properties.
+1. Renders when `selectedPMS` is `"hyperguest"`, `"rolos"`, or `"roomsonline"`.
+2. Marks the input required only for `hyperguest`.
+3. Adds `<HyperGuestPropertyLookup ... />` (already imported elsewhere — add import if missing) next to the input so ROLOS users can search HyperGuest by property name.
+4. Shows the appropriate helper text ("Sandbox certification hotel: 19912" vs "Optional — links this ROL'OS property to a HyperGuest hotel for distribution.").
+5. Keeps the existing `HyperGuestSyncReflectionButton` rendering when `propertyId && hyperguestHotelId`.
 
-4. **Verify on the Dassiesingel edit screen**
-   - Confirm the General tab shows **HyperGuest Hotel ID** and **Search by name** next to/under the ROLOS PMS row.
-   - Confirm selecting/searching an ID marks the form dirty and the value remains after save/reload.
+Persistence already handles `roomsonline`/`rolos` by writing to `amenities.external_ids.hyperguest_hotel_id` (lines 2919–2922) and loading from the same path (lines 2068–2070), so no backend changes are required.
+
+## Verification
+On the Dassiesingel edit screen the General tab should now display, in the PMS row:
+`PMS [ROL'OS] | HyperGuest Hotel ID [____] [Search by name] (helper text) [Sync from HyperGuest]`.
