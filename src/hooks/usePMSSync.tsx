@@ -78,6 +78,7 @@ export interface ExistingExternalIds {
   tripadvisor_id?: string | null;
   google_place_id?: string | null;
   hyperguest_hotel_id?: string | null;
+  beds24_property_id?: string | null;
 }
 
 export function usePMSSync({
