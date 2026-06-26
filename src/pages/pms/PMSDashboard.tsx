@@ -1355,7 +1355,14 @@ export default function PMSDashboard() {
         roomTypes={roomTypes}
         rooms={rooms}
         ratePlans={ratePlansWithRate}
-        onCreated={() => { queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }}
+        getRateForDate={getRateForDate}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+          queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+          queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+        }}
       />
 
       {/* Restriction Dialogs */}
