@@ -436,7 +436,79 @@ export default function PMSRatePlans() {
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+
+  const propertySections = isPortfolio
+    ? properties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
+    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", plans }];
+
+  const renderPlanCard = (plan: RatePlan) => {
+    const linkedIds = getLinkedRoomTypes(plan.id);
+    return (
+      <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{plan.name}{plan.is_active === false && <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>}</CardTitle>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete "{plan.name}"?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete this rate plan, its seasons, prices, and room type links. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDeletePlan(plan)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
+            </div>
+          </div>
+          {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
+        </CardHeader>
+        <CardContent>
+          {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+            <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
+            {plan.base_rate && plan.base_rate > 0 ? (
+              <div className="flex items-center gap-1">
+                <DollarSign className="h-3 w-3" />
+                <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.suffix || ''}</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60 italic">No base rate set</span>
+            )}
+            <span>Min stay: {plan.min_stay}n</span>
+            {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+          </div>
+          {linkedIds.length > 0 ? (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {linkedIds.map(rtId => (
+                <Badge key={rtId} variant="secondary" className="text-xs">
+                  {getRoomTypeName(rtId)}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any room types</p>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <>
