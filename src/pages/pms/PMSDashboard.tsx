@@ -1172,25 +1172,25 @@ export default function PMSDashboard() {
 
             {/* Calendar Grid */}
             {isPortfolioMode ? (
-              <div className="space-y-6">
-                {(portfolioProperties || []).map(prop => {
-                  const propData = portfolioDataByProperty.get(prop.id);
-                  if (!propData || propData.roomTypes.length === 0) return null;
-                  const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
-                  const propGetSuffix = () => '';
-                  const propGetRestriction = (rtName: string, date: Date) =>
-                    propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
+              viewMode === "week" ? (
+                <div className="space-y-6">
+                  {(portfolioProperties || []).map(prop => {
+                    const propData = portfolioDataByProperty.get(prop.id);
+                    if (!propData || propData.roomTypes.length === 0) return null;
+                    const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
+                    const propGetSuffix = () => '';
+                    const propGetRestriction = (rtName: string, date: Date) =>
+                      propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
 
-                  return (
-                    <div key={prop.id}>
-                      <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
-                        <Building2 className="h-4 w-4 text-primary shrink-0" />
-                        <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
-                        <Badge variant="outline" className="text-[10px]">
-                          {propData.roomTypes.length} types · {propData.rooms.length} rooms
-                        </Badge>
-                      </div>
-                      {viewMode === "week" ? (
+                    return (
+                      <div key={prop.id}>
+                        <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
+                          <Building2 className="h-4 w-4 text-primary shrink-0" />
+                          <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
+                          <Badge variant="outline" className="text-[10px]">
+                            {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                          </Badge>
+                        </div>
                         <WeekCalendarGrid
                           dates={dates}
                           roomTypes={propData.roomTypes}
@@ -1205,26 +1205,64 @@ export default function PMSDashboard() {
                           onSelectBooking={setSelectedBooking}
                           bookingsLoading={false}
                         />
-                      ) : (
-                        <MonthCalendarGrid
-                          weekChunks={weekChunks}
-                          roomTypes={propData.roomTypes}
-                          roomsByType={propData.roomsByType}
-                          bookings={propData.bookings}
-                          rooms={propData.rooms}
-                          overrideMap={propData.overrideMap}
-                          getRateForDate={propGetRate}
-                          getPricingSuffix={propGetSuffix}
-                          getSeasonForDate={getSeasonForDate}
-                          getRestriction={propGetRestriction}
-                          onSelectBooking={setSelectedBooking}
-                          bookingsLoading={false}
-                        />
-                      )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Portfolio + month view: group by WEEK across all properties
+                <div className="space-y-8">
+                  {weekChunks.map((weekDates, weekIdx) => (
+                    <div key={weekIdx} className="space-y-3">
+                      <div className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1.5 bg-primary/10 border-l-4 border-primary rounded-r-md">
+                        <Calendar className="h-4 w-4 text-primary shrink-0" />
+                        <h2 className="text-sm font-bold text-foreground">
+                          Week {weekIdx + 1} · {format(weekDates[0], "MMM d")} – {format(weekDates[weekDates.length - 1], "MMM d, yyyy")}
+                        </h2>
+                        <Badge variant="outline" className="text-[10px] ml-auto">
+                          {(portfolioProperties || []).length} properties
+                        </Badge>
+                      </div>
+                      <div className="space-y-4 pl-2">
+                        {(portfolioProperties || []).map(prop => {
+                          const propData = portfolioDataByProperty.get(prop.id);
+                          if (!propData || propData.roomTypes.length === 0) return null;
+                          const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
+                          const propGetSuffix = () => '';
+                          const propGetRestriction = (rtName: string, date: Date) =>
+                            propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
+
+                          return (
+                            <div key={`${prop.id}-${weekIdx}`}>
+                              <div className="flex items-center gap-2 mb-2 px-1 py-1 bg-muted/30 rounded-md">
+                                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
+                                <Badge variant="outline" className="text-[10px]">
+                                  {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                                </Badge>
+                              </div>
+                              <WeekCalendarGrid
+                                dates={weekDates}
+                                roomTypes={propData.roomTypes}
+                                roomsByType={propData.roomsByType}
+                                bookings={propData.bookings}
+                                rooms={propData.rooms}
+                                overrideMap={propData.overrideMap}
+                                getRateForDate={propGetRate}
+                                getPricingSuffix={propGetSuffix}
+                                getSeasonForDate={getSeasonForDate}
+                                getRestriction={propGetRestriction}
+                                onSelectBooking={setSelectedBooking}
+                                bookingsLoading={false}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )
             ) : viewMode === "week" ? (
               <WeekCalendarGrid
                 dates={dates}
