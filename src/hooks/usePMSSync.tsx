@@ -111,6 +111,8 @@ export function usePMSSync({
   const [hotelbedsHotelCode, setHotelbedsHotelCode] = useState<string>("");
   const [hyperguestHotelId, setHyperguestHotelId] = useState<string>("");
   const [existingHyperguestHotelId, setExistingHyperguestHotelId] = useState<string | null>(null);
+  const [beds24PropertyId, setBeds24PropertyId] = useState<string>("");
+  const [existingBeds24PropertyId, setExistingBeds24PropertyId] = useState<string | null>(null);
   const [hostfullyPropertyUid, setHostfullyPropertyUid] = useState<string>("");
   const [isSyncingPms, setIsSyncingPms] = useState(false);
   const [lastPmsSync, setLastPmsSync] = useState<Date | null>(null);
