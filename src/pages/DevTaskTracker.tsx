@@ -74,6 +74,32 @@ export default function DevTaskTracker() {
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [editingTask, setEditingTask] = useState<DevTask | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", description: "", priority: "medium" as TaskPriority, assigned_to: "" });
+
+  const openEditDialog = (task: DevTask) => {
+    setEditingTask(task);
+    setEditForm({
+      title: task.title,
+      description: task.description || "",
+      priority: task.priority,
+      assigned_to: task.assigned_to || "",
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingTask || !editForm.title.trim()) return;
+    const { error } = await supabase.from("dev_tasks").update({
+      title: editForm.title.trim(),
+      description: editForm.description.trim() || null,
+      priority: editForm.priority,
+      assigned_to: editForm.assigned_to || null,
+    } as any).eq("id", editingTask.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Task updated");
+    setEditingTask(null);
+    fetchTasks();
+  };
 
   const sendTaskReport = async () => {
     if (filterAssignee === "all" || filterAssignee === "unassigned") {
