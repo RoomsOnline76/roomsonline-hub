@@ -520,13 +520,49 @@ export default function PMSRatePlans() {
               Create rate plans and link them to room types. Changes sync with Property Overview.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {properties.length > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+                >
+                  {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                  {viewMode === "portfolio" ? "Portfolio" : "Single"}
+                </Button>
+                {!isPortfolio && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(-1)} title="Previous property">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                      <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
+                      <SelectContent>
+                        {properties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(1)} title="Next property">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {properties.length}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()}><Plus className="h-4 w-4 mr-2" />New Rate Plan</Button>
+                <Button onClick={() => handleOpenDialog()} disabled={isPortfolio} title={isPortfolio ? "Switch to a single property to create a new rate plan" : undefined}>
+                  <Plus className="h-4 w-4 mr-2" />New Rate Plan
+                </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>{editingPlan ? "Edit Rate Plan" : "Create Rate Plan"}</DialogTitle></DialogHeader>
