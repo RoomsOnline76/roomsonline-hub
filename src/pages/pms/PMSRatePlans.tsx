@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ const PRICING_MODELS = [
 
 interface RatePlan {
   id: string;
+  property_id: string;
   name: string;
   code: string | null;
   description: string | null;
@@ -37,6 +38,7 @@ interface RatePlan {
 
 interface RoomType {
   id: string;
+  property_id: string;
   name: string;
 }
 
