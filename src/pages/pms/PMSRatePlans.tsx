@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ const PRICING_MODELS = [
 
 interface RatePlan {
   id: string;
+  property_id: string;
   name: string;
   code: string | null;
   description: string | null;
@@ -37,6 +38,7 @@ interface RatePlan {
 
 interface RoomType {
   id: string;
+  property_id: string;
   name: string;
 }
 
@@ -46,7 +48,29 @@ interface RatePlanRoomLink {
 }
 
 export default function PMSRatePlans() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const goToProperty = (offset: number) => {
+    if (properties.length === 0) return;
+    const next = (currentIndex + offset + properties.length) % properties.length;
+    switchProperty(properties[next].id);
+  };
+
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  useEffect(() => {
+    if (!autoDefaulted && properties.length > 1) {
+      setViewMode("portfolio");
+      setAutoDefaulted(true);
+    }
+  }, [properties.length, autoDefaulted]);
+
+  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, properties, propertyId]
+  );
+
   const [plans, setPlans] = useState<RatePlan[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
@@ -222,37 +246,40 @@ export default function PMSRatePlans() {
   }, [propertyId]);
 
   const fetchData = useCallback(async () => {
-    if (!propertyId) return;
+    if (activePropertyIds.length === 0) return;
     setLoading(true);
 
-    // Auto-sync from amenities first
-    await syncFromAmenities();
+    // Auto-sync from amenities only in single-property mode (expensive per-property work)
+    if (!isPortfolio) {
+      await syncFromAmenities();
+    }
 
-    const [plansRes, roomTypesRes, linksRes] = await Promise.all([
-      supabase
-        .from("rolos_rate_plans")
-        .select("id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
-        .eq("property_id", propertyId)
-        .order("name"),
-      supabase
-        .from("rolos_room_types")
-        .select("id, name")
-        .eq("property_id", propertyId)
-        .eq("is_active", true)
-        .order("name"),
-      supabase
-        .from("rolos_rate_plan_room_types")
-        .select("rate_plan_id, room_type_id")
-        .in("rate_plan_id",
-          (await supabase.from("rolos_rate_plans").select("id").eq("property_id", propertyId)).data?.map(p => p.id) || []
-        ),
-    ]);
+    const plansQ = supabase
+      .from("rolos_rate_plans")
+      .select("id, property_id, name, code, description, is_active, min_stay, requires_deposit, deposit_percentage, base_rate, pricing_model")
+      .in("property_id", activePropertyIds)
+      .order("name");
+    const roomTypesQ = supabase
+      .from("rolos_room_types")
+      .select("id, property_id, name")
+      .in("property_id", activePropertyIds)
+      .eq("is_active", true)
+      .order("name");
+
+    const [plansRes, roomTypesRes] = await Promise.all([plansQ, roomTypesQ]);
+    const planIds = (plansRes.data || []).map((p: any) => p.id);
+    const linksRes = planIds.length
+      ? await supabase
+          .from("rolos_rate_plan_room_types")
+          .select("rate_plan_id, room_type_id")
+          .in("rate_plan_id", planIds)
+      : { data: [] as RatePlanRoomLink[] };
 
     setPlans((plansRes.data || []) as RatePlan[]);
     setRoomTypes((roomTypesRes.data || []) as RoomType[]);
     setLinks((linksRes.data || []) as RatePlanRoomLink[]);
     setLoading(false);
-  }, [propertyId, syncFromAmenities]);
+  }, [activePropertyIds, isPortfolio, syncFromAmenities]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -409,7 +436,79 @@ export default function PMSRatePlans() {
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+
+  const propertySections = isPortfolio
+    ? properties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
+    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", plans }];
+
+  const renderPlanCard = (plan: RatePlan) => {
+    const linkedIds = getLinkedRoomTypes(plan.id);
+    return (
+      <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">{plan.name}{plan.is_active === false && <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>}</CardTitle>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete "{plan.name}"?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete this rate plan, its seasons, prices, and room type links. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDeletePlan(plan)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
+            </div>
+          </div>
+          {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
+        </CardHeader>
+        <CardContent>
+          {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
+            <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
+            {plan.base_rate && plan.base_rate > 0 ? (
+              <div className="flex items-center gap-1">
+                <DollarSign className="h-3 w-3" />
+                <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.suffix || ''}</span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground/60 italic">No base rate set</span>
+            )}
+            <span>Min stay: {plan.min_stay}n</span>
+            {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
+          </div>
+          {linkedIds.length > 0 ? (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {linkedIds.map(rtId => (
+                <Badge key={rtId} variant="secondary" className="text-xs">
+                  {getRoomTypeName(rtId)}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any room types</p>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <>
@@ -421,13 +520,49 @@ export default function PMSRatePlans() {
               Create rate plans and link them to room types. Changes sync with Property Overview.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {properties.length > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+                >
+                  {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                  {viewMode === "portfolio" ? "Portfolio" : "Single"}
+                </Button>
+                {!isPortfolio && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(-1)} title="Previous property">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                      <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
+                      <SelectContent>
+                        {properties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => goToProperty(1)} title="Next property">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {properties.length}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()}><Plus className="h-4 w-4 mr-2" />New Rate Plan</Button>
+                <Button onClick={() => handleOpenDialog()} disabled={isPortfolio} title={isPortfolio ? "Switch to a single property to create a new rate plan" : undefined}>
+                  <Plus className="h-4 w-4 mr-2" />New Rate Plan
+                </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>{editingPlan ? "Edit Rate Plan" : "Create Rate Plan"}</DialogTitle></DialogHeader>
@@ -458,21 +593,26 @@ export default function PMSRatePlans() {
                   {/* Room type linking */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
-                    {roomTypes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>
-                    ) : (
-                      <div className="space-y-2 rounded-md border border-border p-3">
-                        {roomTypes.map(rt => (
-                          <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
-                            <Checkbox
-                              checked={form.linkedRoomTypeIds.includes(rt.id)}
-                              onCheckedChange={() => toggleRoomType(rt.id)}
-                            />
-                            <span className="text-sm">{rt.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const scopePropId = editingPlan?.property_id || propertyId;
+                      const scopedRoomTypes = roomTypes.filter(rt => rt.property_id === scopePropId);
+                      if (scopedRoomTypes.length === 0) {
+                        return <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>;
+                      }
+                      return (
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          {scopedRoomTypes.map(rt => (
+                            <label key={rt.id} className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox
+                                checked={form.linkedRoomTypeIds.includes(rt.id)}
+                                onCheckedChange={() => toggleRoomType(rt.id)}
+                              />
+                              <span className="text-sm">{rt.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <Button onClick={handleSave} className="w-full">{editingPlan ? "Update" : "Create"}</Button>
@@ -493,74 +633,25 @@ export default function PMSRatePlans() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {plans.map((plan) => {
-              const linkedIds = getLinkedRoomTypes(plan.id);
-              return (
-                <Card key={plan.id} className={`group ${plan.is_active === false ? "opacity-50" : ""}`}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{plan.name}{plan.is_active === false && <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>}</CardTitle>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete "{plan.name}"?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently delete this rate plan, its seasons, prices, and room type links. This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeletePlan(plan)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                        <Switch checked={plan.is_active ?? true} onCheckedChange={() => handleToggleActive(plan)} />
-                      </div>
-                    </div>
-                    {plan.code && <p className="text-xs text-muted-foreground font-mono">{plan.code}</p>}
-                  </CardHeader>
-                  <CardContent>
-                    {plan.description && !plan.description.toLowerCase().includes('configure rate amount') && <p className="text-sm text-muted-foreground mb-2">{plan.description}</p>}
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground mb-2">
-                      <Badge variant="outline" className="text-xs capitalize">{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.label || plan.pricing_model}</Badge>
-                      {plan.base_rate && plan.base_rate > 0 ? (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          <span className="font-semibold text-foreground">R{plan.base_rate.toLocaleString()}{PRICING_MODELS.find(m => m.value === plan.pricing_model)?.suffix || ''}</span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground/60 italic">No base rate set</span>
-                      )}
-                      <span>Min stay: {plan.min_stay}n</span>
-                      {plan.requires_deposit && <Badge variant="outline" className="text-xs">Deposit</Badge>}
-                    </div>
-                    {linkedIds.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {linkedIds.map(rtId => (
-                          <Badge key={rtId} variant="secondary" className="text-xs">
-                            {getRoomTypeName(rtId)}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60 mt-2 italic">Not linked to any room types</p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <div className="space-y-6">
+            {propertySections.map((section) => (
+              <div key={section.id} className="space-y-3">
+                {isPortfolio && (
+                  <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-2 border-b">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <h2 className="text-lg font-semibold">{section.name}</h2>
+                    <Badge variant="outline" className="text-xs">{section.plans.length} plan{section.plans.length === 1 ? "" : "s"}</Badge>
+                  </div>
+                )}
+                {section.plans.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {section.plans.map(renderPlanCard)}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
