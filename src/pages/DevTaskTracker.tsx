@@ -590,6 +590,9 @@ export default function DevTaskTracker() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(task)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" /> Edit
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => unarchiveTask(task.id)}>
                               Restore to Worklist
                             </DropdownMenuItem>
