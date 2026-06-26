@@ -4245,7 +4245,39 @@ export default function PropertyForm() {
                           )}
                         </div>)}
 
-                      {/* Hostfully connection for owners */}
+                      {(selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="beds24_property_id" className="text-xs whitespace-nowrap">
+                            Beds24 Property ID{selectedPMS === "beds24" ? " *" : ""}
+                          </Label>
+                          <Input
+                            id="beds24_property_id"
+                            value={beds24PropertyId}
+                            onChange={(e) => {
+                              setBeds24PropertyId(e.target.value);
+                              setIsDirty(true);
+                            }}
+                            placeholder="e.g. 123456"
+                            className="h-7 text-xs w-40"
+                            required={selectedPMS === "beds24"}
+                          />
+                          <Beds24PropertyLookup
+                            propertyId={propertyId}
+                            propertyName={formData.name}
+                            currentPropertyId={beds24PropertyId}
+                            onSelect={(b24Id) => {
+                              setBeds24PropertyId(b24Id);
+                              setIsDirty(true);
+                            }}
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            {selectedPMS === "beds24"
+                              ? "Required — your Beds24 property ID."
+                              : "Optional — links this ROL'OS property to a Beds24 property for distribution."}
+                          </span>
+                        </div>
+                      )}
+
                       {selectedPMS === "hostfully" && !authLoading && isOwnerUser && (
                         <div className="w-full mt-2">
                           <OwnerPMSConnectionCard
