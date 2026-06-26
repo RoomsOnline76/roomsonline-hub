@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2,
 } from "lucide-react";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
