@@ -48,7 +48,29 @@ interface RatePlanRoomLink {
 }
 
 export default function PMSRatePlans() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const goToProperty = (offset: number) => {
+    if (properties.length === 0) return;
+    const next = (currentIndex + offset + properties.length) % properties.length;
+    switchProperty(properties[next].id);
+  };
+
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  useEffect(() => {
+    if (!autoDefaulted && properties.length > 1) {
+      setViewMode("portfolio");
+      setAutoDefaulted(true);
+    }
+  }, [properties.length, autoDefaulted]);
+
+  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, properties, propertyId]
+  );
+
   const [plans, setPlans] = useState<RatePlan[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [links, setLinks] = useState<RatePlanRoomLink[]>([]);
