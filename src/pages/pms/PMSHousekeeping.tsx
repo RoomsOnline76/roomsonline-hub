@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 interface Room {
   id: string;
+  property_id: string;
   room_number: string;
   room_name: string | null;
   floor: number | null;
