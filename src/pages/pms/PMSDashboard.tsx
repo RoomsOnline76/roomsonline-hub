@@ -389,8 +389,8 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms) as BookingRow[],
-    [bookingsRaw, rooms]
+    () => autoAssignBookings(bookingsRaw, rooms, roomTypes) as BookingRow[],
+    [bookingsRaw, rooms, roomTypes]
   );
 
   // Fetch today's arrivals & departures
@@ -657,7 +657,7 @@ export default function PMSDashboard() {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRooms = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms) as BookingRow[];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypesRaw) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
       const propData = portfolioPropertiesData.find(p => p.id === prop.id);
 

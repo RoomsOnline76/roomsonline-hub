@@ -86,6 +86,7 @@ export default function PMSCommandCentre() {
   const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
   const [gridBookings, setGridBookings] = useState<CalendarBookingRow[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<CalendarBookingRow | null>(null);
+  const [roomTypeNameById, setRoomTypeNameById] = useState<Record<string, string>>({});
 
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
@@ -239,10 +240,12 @@ export default function PMSCommandCentre() {
       const activeRoomKeys = new Set<string>();
       const propsWithActiveTypes = new Set<string>();
 
+      const rtNameById: Record<string, string> = {};
       for (const rt of rolosResult.data || []) {
         const slug = slugify(rt.name);
         nameMap[rt.id] = rt.name;
         nameMap[slug] = rt.name;
+        rtNameById[rt.id] = rt.name.trim().toLowerCase();
         if (rt.is_active) {
           activeRoomKeys.add(rt.id);
           activeRoomKeys.add(slug);
@@ -250,6 +253,7 @@ export default function PMSCommandCentre() {
           propsWithActiveTypes.add(rt.property_id);
         }
       }
+      setRoomTypeNameById(rtNameById);
 
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
@@ -345,7 +349,7 @@ export default function PMSCommandCentre() {
           .from("bookings")
           .select("property_id, room_type_id, check_in_date, check_out_date")
           .in("property_id", rolosPropertyIds)
-          .in("status", ["confirmed", "checked_in"])
+          .in("status", ["confirmed", "checked_in", "pending"])
           .lte("check_in_date", endDate)
           .gte("check_out_date", startDate);
 
@@ -353,24 +357,45 @@ export default function PMSCommandCentre() {
           (rt) => rt.is_active && rolosPropertyIds.includes(rt.property_id)
         );
 
-        // Build a set of "propertyId:roomTypeId:date" that are booked
+        // Build name index across ALL rolos_room_types (active + inactive)
+        // so bookings tagged with a duplicate/inactive type_id can still be
+        // resolved to a name and matched against the active room type rows.
+        const typeNameById = new Map<string, string>();
+        for (const rt of rolosResult.data || []) {
+          typeNameById.set(rt.id, rt.name.trim().toLowerCase());
+        }
+
+        // bookedSet keyed by propertyId:normalizedTypeName:date
         const bookedSet = new Set<string>();
         for (const b of rolosBookings || []) {
           if (!b.room_type_id) continue;
+          const tname = typeNameById.get(b.room_type_id);
+          if (!tname) continue;
           const ciDate = new Date(b.check_in_date);
           const coDate = new Date(b.check_out_date);
           const rangeStart = ciDate < new Date(startDate) ? new Date(startDate) : ciDate;
           const rangeEnd = coDate > new Date(endDate) ? new Date(endDate) : coDate;
           const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeEnd, -1) });
           for (const d of days) {
-            bookedSet.add(`${b.property_id}:${b.room_type_id}:${format(d, "yyyy-MM-dd")}`);
+            bookedSet.add(`${b.property_id}:${tname}:${format(d, "yyyy-MM-dd")}`);
           }
         }
 
-        for (const rt of activeRolosRooms) {
+        // Dedupe active types by name (the schema currently allows duplicate
+        // active rows per name — only render one row per name)
+        const seenName = new Set<string>();
+        const dedupedActive = activeRolosRooms.filter((rt) => {
+          const key = `${rt.property_id}:${rt.name.trim().toLowerCase()}`;
+          if (seenName.has(key)) return false;
+          seenName.add(key);
+          return true;
+        });
+
+        for (const rt of dedupedActive) {
+          const tname = rt.name.trim().toLowerCase();
           for (const day of weekDays) {
             const dateStr = format(day, "yyyy-MM-dd");
-            const isBooked = bookedSet.has(`${rt.property_id}:${rt.id}:${dateStr}`);
+            const isBooked = bookedSet.has(`${rt.property_id}:${tname}:${dateStr}`);
             rolosRows.push({
               property_id: rt.property_id,
               property_name: propMap[rt.property_id] || "Unknown",
@@ -614,15 +639,39 @@ export default function PMSCommandCentre() {
     return m;
   }, [availability]);
 
-  // Group bookings by property+date for cell pill rendering
-  const bookingsByPropertyDate = useMemo(() => {
+  // Group bookings by property + room-type-name + date for in-cell pills.
+  // We resolve the booking's room_type_id → name via roomTypeNameById so that
+  // bookings tagged with a duplicate/inactive type still land on the correct
+  // active row.
+  const bookingsByPropertyRoomTypeDate = useMemo(() => {
     const m = new Map<string, CalendarBookingRow[]>();
     for (const b of gridBookings) {
+      const tname = b.room_type_id ? roomTypeNameById[b.room_type_id] : "";
+      if (!tname) continue;
       const ci = b.check_in_date;
       const co = b.check_out_date;
       for (const day of weekDays) {
         const d = format(day, "yyyy-MM-dd");
         if (d >= ci && d < co) {
+          const key = `${b.property_id}|${tname}|${d}`;
+          const arr = m.get(key);
+          if (arr) arr.push(b); else m.set(key, [b]);
+        }
+      }
+    }
+    return m;
+  }, [gridBookings, weekDays, roomTypeNameById]);
+
+  // Fallback: bookings whose room_type_id couldn't be resolved still render
+  // in a "Bookings" row under the property header.
+  const unresolvedBookingsByPropertyDate = useMemo(() => {
+    const m = new Map<string, CalendarBookingRow[]>();
+    for (const b of gridBookings) {
+      const tname = b.room_type_id ? roomTypeNameById[b.room_type_id] : "";
+      if (tname) continue;
+      for (const day of weekDays) {
+        const d = format(day, "yyyy-MM-dd");
+        if (d >= b.check_in_date && d < b.check_out_date) {
           const key = `${b.property_id}|${d}`;
           const arr = m.get(key);
           if (arr) arr.push(b); else m.set(key, [b]);
@@ -630,7 +679,8 @@ export default function PMSCommandCentre() {
       }
     }
     return m;
-  }, [gridBookings, weekDays]);
+  }, [gridBookings, weekDays, roomTypeNameById]);
+
 
 
   // Group occupancy cards: portfolio → property type → cards
@@ -919,14 +969,14 @@ export default function PMSCommandCentre() {
                       {(() => {
                         const pid = propertyIdByName[propertyName];
                         if (!pid) return null;
-                        const hasAny = weekDays.some(d => (bookingsByPropertyDate.get(`${pid}|${format(d, "yyyy-MM-dd")}`) || []).length > 0);
+                        const hasAny = weekDays.some(d => (unresolvedBookingsByPropertyDate.get(`${pid}|${format(d, "yyyy-MM-dd")}`) || []).length > 0);
                         if (!hasAny) return null;
                         return (
                           <tr className="border-b border-border/30 bg-background">
-                            <td className="py-1.5 px-2 pl-6 text-[11px] uppercase tracking-wider text-muted-foreground">Bookings</td>
+                            <td className="py-1.5 px-2 pl-6 text-[11px] uppercase tracking-wider text-muted-foreground">Unassigned</td>
                             {weekDays.map((day) => {
                               const d = format(day, "yyyy-MM-dd");
-                              const list = bookingsByPropertyDate.get(`${pid}|${d}`) || [];
+                              const list = unresolvedBookingsByPropertyDate.get(`${pid}|${d}`) || [];
                               return (
                                 <td key={d} className={cn("p-1 align-top", isToday(day) && "bg-primary/5")}>
                                   <div className="flex flex-col gap-0.5">
@@ -958,21 +1008,48 @@ export default function PMSCommandCentre() {
 
                       {Object.entries(roomTypes)
                         .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([roomType, dates]) => (
+                        .map(([roomType, dates]) => {
+                        const pid = propertyIdByName[propertyName];
+                        const tname = roomType.trim().toLowerCase();
+                        return (
                         <tr key={`${propertyName}-${roomType}`} className="border-b border-border/30 hover:bg-muted/10">
                           <td className="py-1.5 px-2 pl-6 text-foreground/80">{roomType}</td>
                           {weekDays.map((day) => {
                             const dateStr = format(day, "yyyy-MM-dd");
                             const units = dates[dateStr];
                             const hasData = units !== undefined;
+                            const cellBookings = pid
+                              ? (bookingsByPropertyRoomTypeDate.get(`${pid}|${tname}|${dateStr}`) || [])
+                              : [];
                             return (
                               <td
                                 key={dateStr}
-                                className={`text-center py-1.5 px-1.5 ${
+                                className={`text-center py-1.5 px-1 align-top ${
                                   isToday(day) ? "bg-primary/5" : ""
                                 }`}
                               >
-                                {hasData ? (
+                                {cellBookings.length > 0 ? (
+                                  <div className="flex flex-col gap-0.5">
+                                    {cellBookings.map((b) => {
+                                      const c = getBookingStatusColor(b.status);
+                                      const isStart = b.check_in_date === dateStr;
+                                      return (
+                                        <button
+                                          key={b.id}
+                                          onClick={() => setSelectedBooking(b)}
+                                          title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date}`}
+                                          className={cn(
+                                            "w-full text-left rounded-sm border px-1 py-0.5 text-[9px] font-medium leading-tight overflow-hidden truncate cursor-pointer hover:opacity-80 flex items-center gap-1",
+                                            c.bg, c.border, c.text,
+                                          )}
+                                        >
+                                          <span className="truncate">{isStart ? b.guest_name : "…"}</span>
+                                          {bookingHasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : hasData ? (
                                   <span
                                     className={`inline-flex items-center justify-center w-7 h-6 rounded text-xs font-medium ${
                                       units === 0
@@ -991,7 +1068,8 @@ export default function PMSCommandCentre() {
                             );
                           })}
                         </tr>
-                      ))}
+                        );
+                      })}
                     </Fragment>
                   ))}
                 </tbody>
