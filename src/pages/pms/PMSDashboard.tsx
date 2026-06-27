@@ -1356,6 +1356,10 @@ export default function PMSDashboard() {
         rooms={rooms}
         ratePlans={ratePlansWithRate}
         getRateForDate={getRateForDate}
+        portfolioOptions={isPortfolioMode ? (portfolioProperties || []).map(p => {
+          const pd = portfolioDataByProperty.get(p.id);
+          return { id: p.id, name: p.name, roomTypes: pd?.roomTypes || [], rooms: pd?.rooms || [] };
+        }) : undefined}
         onCreated={() => {
           queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
           queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });

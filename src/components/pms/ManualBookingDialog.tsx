@@ -34,6 +34,13 @@ interface RatePlan {
   pricing_model?: string;
 }
 
+interface PortfolioPropertyOption {
+  id: string;
+  name: string;
+  roomTypes: RoomType[];
+  rooms: Room[];
+}
+
 interface ManualBookingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,10 +52,31 @@ interface ManualBookingDialogProps {
   /** Optional: resolve the nightly rate for a room type on a specific date.
    *  Uses the same logic as the calendar (rolos_rate_prices, amenities.season_rates, plan base_rate, default_rate, cache). */
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Optional: when in portfolio mode, allow selecting which property the booking belongs to.
+   *  When provided and non-empty, the dialog renders a Property selector and uses that property's
+   *  roomTypes/rooms instead of the top-level props. */
+  portfolioOptions?: PortfolioPropertyOption[];
 }
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
+  const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
+
+  useEffect(() => {
+    // Reset the dialog's selected property when the parent propertyId changes
+    // or when portfolio options change.
+    setSelectedPropertyId(propertyId || "");
+  }, [propertyId, portfolioMode]);
+
+  const effectivePropertyId = portfolioMode ? selectedPropertyId : (propertyId || "");
+  const selectedPortfolioProp = useMemo(
+    () => (portfolioMode ? portfolioOptions!.find(p => p.id === effectivePropertyId) : undefined),
+    [portfolioMode, portfolioOptions, effectivePropertyId]
+  );
+  const activeRoomTypes: RoomType[] = portfolioMode ? (selectedPortfolioProp?.roomTypes || []) : roomTypes;
+  const activeRooms: Room[] = portfolioMode ? (selectedPortfolioProp?.rooms || []) : rooms;
+
   const [form, setForm] = useState({
     guest_name: "",
     guest_email: "",
@@ -69,10 +97,15 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     special_requests: "",
   });
 
+  // Reset room type / room when the active property changes so we never carry
+  // a room type from a different property into the booking payload.
+  useEffect(() => {
+    setForm(p => ({ ...p, room_type_id: "", room_id: "" }));
+  }, [effectivePropertyId]);
 
   const filteredRooms = useMemo(() =>
-    rooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
-    [rooms, form.room_type_id]
+    activeRooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
+    [activeRooms, form.room_type_id]
   );
 
   const nights = useMemo(() => {
@@ -84,7 +117,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   // to room-type default_rate. No per-unit rate column exists today.
   const nightlyRates = useMemo(() => {
     if (!nights || !form.check_in || !form.room_type_id) return [] as number[];
-    const rt = roomTypes.find(t => t.id === form.room_type_id);
+    const rt = activeRoomTypes.find(t => t.id === form.room_type_id);
     const defaultRate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
 
     const out: number[] = [];
@@ -96,7 +129,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       out.push(rate);
     }
     return out;
-  }, [nights, form.check_in, form.room_type_id, roomTypes, getRateForDate]);
+  }, [nights, form.check_in, form.room_type_id, activeRoomTypes, getRateForDate]);
 
   const rateUnresolved = nightlyRates.length > 0 && nightlyRates.every(r => r === 0);
 
@@ -117,6 +150,14 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
+    if (portfolioMode && !effectivePropertyId) {
+      toast.error("Please select a property");
+      return;
+    }
+    if (!effectivePropertyId) {
+      toast.error("No property selected");
+      return;
+    }
     if (!form.guest_name || !form.guest_email || !form.check_in || !form.check_out || !form.room_type_id) {
       toast.error("Please fill in guest name, email, dates, and room type");
       return;
@@ -137,7 +178,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       const { data: existingGuest } = await supabase
         .from("rolos_guest_profiles")
         .select("id, total_stays, total_spent")
-        .eq("property_id", propertyId)
+        .eq("property_id", effectivePropertyId)
         .eq("email", form.guest_email)
         .maybeSingle();
 
@@ -152,7 +193,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         }).eq("id", existingGuest.id);
       } else {
         const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
-          property_id: propertyId,
+          property_id: effectivePropertyId,
           full_name: form.guest_name,
           email: form.guest_email,
           phone: form.guest_phone || null,
@@ -168,7 +209,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     // 2. Insert booking
     const payload: any = {
-      property_id: propertyId,
+      property_id: effectivePropertyId,
       guest_name: form.guest_name,
       guest_email: form.guest_email,
       guest_phone: form.guest_phone || null,
@@ -240,6 +281,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
           <DialogTitle>New Manual Booking</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {portfolioMode && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Property</h4>
+              <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v)}>
+                <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                <SelectContent>
+                  {portfolioOptions!.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedPropertyId && (
+                <p className="text-[11px] text-muted-foreground">Choose which property this booking belongs to.</p>
+              )}
+            </div>
+          )}
+
           {/* Guest Info */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Guest Information</h4>
@@ -247,7 +305,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div>
                 <Label>Guest Name *</Label>
                 <GuestNameAutocomplete
-                  propertyId={propertyId}
+                  propertyId={effectivePropertyId}
                   value={form.guest_name}
                   onChange={(v) => update("guest_name", v)}
                   onSelect={(g) => {
@@ -271,6 +329,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             </div>
 
           </div>
+
 
           {/* Stay Details */}
           <div className="space-y-2">
@@ -310,10 +369,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Room Type *</Label>
-                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }} disabled={portfolioMode && !effectivePropertyId}>
+                  <SelectTrigger><SelectValue placeholder={portfolioMode && !effectivePropertyId ? "Select property first" : (activeRoomTypes.length ? "Select room type" : "No room types")} /></SelectTrigger>
                   <SelectContent>
-                    {roomTypes.map(rt => (
+                    {activeRoomTypes.map(rt => (
                       <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
                     ))}
                   </SelectContent>
