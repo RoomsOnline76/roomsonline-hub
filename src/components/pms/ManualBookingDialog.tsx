@@ -150,6 +150,14 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
+    if (portfolioMode && !effectivePropertyId) {
+      toast.error("Please select a property");
+      return;
+    }
+    if (!effectivePropertyId) {
+      toast.error("No property selected");
+      return;
+    }
     if (!form.guest_name || !form.guest_email || !form.check_in || !form.check_out || !form.room_type_id) {
       toast.error("Please fill in guest name, email, dates, and room type");
       return;
