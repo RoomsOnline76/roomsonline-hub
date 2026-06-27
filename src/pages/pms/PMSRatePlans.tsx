@@ -442,8 +442,8 @@ export default function PMSRatePlans() {
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const propertySections = isPortfolio
-    ? properties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
-    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", plans }];
+    ? scopeProperties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
+    : [{ id: propertyId!, name: scopeProperties.find((p) => p.id === propertyId)?.name || "", plans }];
 
   const renderPlanCard = (plan: RatePlan) => {
     const linkedIds = getLinkedRoomTypes(plan.id);
