@@ -1794,7 +1794,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isStart = b.check_in_date === dateStr;
                     return (
                       <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
-                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>}
+                        {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>}
                       </button>
                     );
                   })}
