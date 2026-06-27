@@ -10740,6 +10740,10 @@ export type Database = {
         Args: { _portfolio_id: string; _user_id: string }
         Returns: boolean
       }
+      user_can_access_property_via_portfolio: {
+        Args: { _property_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role:
