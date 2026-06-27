@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -246,7 +246,19 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Guest Name *</Label>
-                <Input value={form.guest_name} onChange={e => update("guest_name", e.target.value)} placeholder="Full name" />
+                <GuestNameAutocomplete
+                  propertyId={propertyId}
+                  value={form.guest_name}
+                  onChange={(v) => update("guest_name", v)}
+                  onSelect={(g) => {
+                    setForm((p) => ({
+                      ...p,
+                      guest_name: g.full_name || p.guest_name,
+                      guest_email: g.email || p.guest_email,
+                      guest_phone: g.phone || p.guest_phone,
+                    }));
+                  }}
+                />
               </div>
               <div>
                 <Label>Email *</Label>
@@ -257,6 +269,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <Label>Phone</Label>
               <Input value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} placeholder="+27..." />
             </div>
+
           </div>
 
           {/* Stay Details */}
@@ -396,3 +409,135 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     </Dialog>
   );
 }
+
+interface GuestSuggestion {
+  id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  total_stays: number | null;
+  last_stay_date: string | null;
+}
+
+function GuestNameAutocomplete({
+  propertyId,
+  value,
+  onChange,
+  onSelect,
+}: {
+  propertyId: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSelect: (g: GuestSuggestion) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<GuestSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const lastPicked = useRef<string>("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search across guest profiles (name/email/phone) for this property.
+  useEffect(() => {
+    const term = value.trim();
+    // Suppress reopening the dropdown right after a pick.
+    if (term && term === lastPicked.current) return;
+    if (term.length < 2 || !propertyId) {
+      setSuggestions([]);
+      setOpen(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    const handle = setTimeout(async () => {
+      const like = `%${term}%`;
+      const { data, error } = await supabase
+        .from("rolos_guest_profiles")
+        .select("id, full_name, email, phone, total_stays, last_stay_date")
+        .eq("property_id", propertyId)
+        .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
+        .order("last_stay_date", { ascending: false, nullsFirst: false })
+        .limit(8);
+
+      if (cancelled) return;
+      if (error) {
+        console.warn("guest search failed:", error);
+        setSuggestions([]);
+      } else {
+        setSuggestions((data || []) as GuestSuggestion[]);
+        setOpen((data?.length ?? 0) > 0);
+      }
+      setLoading(false);
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [value, propertyId]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        value={value}
+        onChange={(e) => {
+          lastPicked.current = "";
+          onChange(e.target.value);
+        }}
+        onFocus={() => {
+          if (suggestions.length > 0) setOpen(true);
+        }}
+        placeholder="Start typing to search past guests…"
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-72 overflow-auto">
+          {loading && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">Searching…</div>
+          )}
+          {!loading && suggestions.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">No matching guests</div>
+          )}
+          {suggestions.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => {
+                lastPicked.current = g.full_name;
+                onSelect(g);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground border-b border-border/40 last:border-b-0"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium truncate">{g.full_name}</span>
+                {g.total_stays ? (
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                    {g.total_stays} stay{g.total_stays === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+              </div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {[g.email, g.phone].filter(Boolean).join(" · ") || "—"}
+                {g.last_stay_date ? ` · last ${g.last_stay_date}` : ""}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
