@@ -11,10 +11,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2,
+  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2, AlertTriangle,
 } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
+import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
+
 
 interface AvailabilityRow {
   property_id: string;
@@ -80,6 +84,9 @@ export default function PMSCommandCentre() {
   const [selectedPropertyFilter, setSelectedPropertyFilter] = useState<string>("all");
   const [portfolioGroups, setPortfolioGroups] = useState<PortfolioGroup[]>([]);
   const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
+  const [gridBookings, setGridBookings] = useState<CalendarBookingRow[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<CalendarBookingRow | null>(null);
+
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
@@ -159,6 +166,29 @@ export default function PMSCommandCentre() {
     };
     fetchTypes();
   }, [agentProperties]);
+
+  // Fetch bookings overlapping the visible week for all filtered properties
+  useEffect(() => {
+    const propIds = filteredPropertyIds.split(",").filter(Boolean);
+    if (propIds.length === 0) { setGridBookings([]); return; }
+    const startDate = format(weekStart, "yyyy-MM-dd");
+    const endDate = format(weekEnd, "yyyy-MM-dd");
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, property_id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, teens, infants, pets, total_price, special_requests, requires_intervention, payment_status, room_type_id")
+        .in("property_id", propIds)
+        .not("status", "in", "(cancelled,no_show)")
+        .lte("check_in_date", endDate)
+        .gt("check_out_date", startDate);
+      if (cancelled) return;
+      if (error) { console.error("Booking fetch error", error); setGridBookings([]); return; }
+      setGridBookings((data || []) as CalendarBookingRow[]);
+    })();
+    return () => { cancelled = true; };
+  }, [filteredPropertyIds, weekOffset]);
+
 
   // Main data loader
   useEffect(() => {
@@ -575,6 +605,34 @@ export default function PMSCommandCentre() {
     return grouped;
   }, [availability]);
 
+  // Map property name → id (first match) for booking lookups
+  const propertyIdByName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const r of availability) {
+      if (!m[r.property_name]) m[r.property_name] = r.property_id;
+    }
+    return m;
+  }, [availability]);
+
+  // Group bookings by property+date for cell pill rendering
+  const bookingsByPropertyDate = useMemo(() => {
+    const m = new Map<string, CalendarBookingRow[]>();
+    for (const b of gridBookings) {
+      const ci = b.check_in_date;
+      const co = b.check_out_date;
+      for (const day of weekDays) {
+        const d = format(day, "yyyy-MM-dd");
+        if (d >= ci && d < co) {
+          const key = `${b.property_id}|${d}`;
+          const arr = m.get(key);
+          if (arr) arr.push(b); else m.set(key, [b]);
+        }
+      }
+    }
+    return m;
+  }, [gridBookings, weekDays]);
+
+
   // Group occupancy cards: portfolio → property type → cards
   const groupedOccupancy = useMemo(() => {
     const assignedIds = new Set<string>();
@@ -858,6 +916,46 @@ export default function PMSCommandCentre() {
                           {propertyName}
                         </td>
                       </tr>
+                      {(() => {
+                        const pid = propertyIdByName[propertyName];
+                        if (!pid) return null;
+                        const hasAny = weekDays.some(d => (bookingsByPropertyDate.get(`${pid}|${format(d, "yyyy-MM-dd")}`) || []).length > 0);
+                        if (!hasAny) return null;
+                        return (
+                          <tr className="border-b border-border/30 bg-background">
+                            <td className="py-1.5 px-2 pl-6 text-[11px] uppercase tracking-wider text-muted-foreground">Bookings</td>
+                            {weekDays.map((day) => {
+                              const d = format(day, "yyyy-MM-dd");
+                              const list = bookingsByPropertyDate.get(`${pid}|${d}`) || [];
+                              return (
+                                <td key={d} className={cn("p-1 align-top", isToday(day) && "bg-primary/5")}>
+                                  <div className="flex flex-col gap-0.5">
+                                    {list.map((b) => {
+                                      const c = getBookingStatusColor(b.status);
+                                      const isStart = b.check_in_date === d;
+                                      return (
+                                        <button
+                                          key={b.id}
+                                          onClick={() => setSelectedBooking(b)}
+                                          title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date}`}
+                                          className={cn(
+                                            "w-full text-left rounded-sm border px-1 py-0.5 text-[9px] font-medium leading-tight overflow-hidden truncate cursor-pointer hover:opacity-80 flex items-center gap-1",
+                                            c.bg, c.border, c.text,
+                                          )}
+                                        >
+                                          <span className="truncate">{isStart ? b.guest_name : "…"}</span>
+                                          {bookingHasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })()}
+
                       {Object.entries(roomTypes)
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([roomType, dates]) => (
@@ -981,7 +1079,13 @@ export default function PMSCommandCentre() {
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
+      <BookingQuickViewSheet
+        booking={selectedBooking}
+        onOpenChange={(open) => !open && setSelectedBooking(null)}
+      />
     </div>
+
   );
 }
 
