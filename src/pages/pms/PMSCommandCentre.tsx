@@ -84,6 +84,9 @@ export default function PMSCommandCentre() {
   const [selectedPropertyFilter, setSelectedPropertyFilter] = useState<string>("all");
   const [portfolioGroups, setPortfolioGroups] = useState<PortfolioGroup[]>([]);
   const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
+  const [gridBookings, setGridBookings] = useState<CalendarBookingRow[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<CalendarBookingRow | null>(null);
+
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
