@@ -48,27 +48,30 @@ interface RatePlanRoomLink {
 }
 
 export default function PMSRatePlans() {
-  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const { propertyId, properties, portfolioProperties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const scopeProperties = portfolioProperties && portfolioProperties.length > 0 ? portfolioProperties : properties;
+  const currentIndex = scopeProperties.findIndex((p) => p.id === propertyId);
   const goToProperty = (offset: number) => {
-    if (properties.length === 0) return;
-    const next = (currentIndex + offset + properties.length) % properties.length;
-    switchProperty(properties[next].id);
+    if (scopeProperties.length === 0) return;
+    const next = (currentIndex + offset + scopeProperties.length) % scopeProperties.length;
+    switchProperty(scopeProperties[next].id);
   };
 
-  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
   const [autoDefaulted, setAutoDefaulted] = useState(false);
   useEffect(() => {
-    if (!autoDefaulted && properties.length > 1) {
+    if (!autoDefaulted && portfolioProperties && portfolioProperties.length > 1) {
       setViewMode("portfolio");
       setAutoDefaulted(true);
     }
-  }, [properties.length, autoDefaulted]);
+  }, [portfolioProperties, autoDefaulted]);
 
-  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const isPortfolio = viewMode === "portfolio" && scopeProperties.length > 1;
   const activePropertyIds = useMemo(
-    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
-    [isPortfolio, properties, propertyId]
+    () => (isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, scopeProperties, propertyId]
   );
 
   const [plans, setPlans] = useState<RatePlan[]>([]);
