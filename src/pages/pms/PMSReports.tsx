@@ -41,9 +41,27 @@ const PAGE_SIZE = 500;
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function PMSReports() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const scopeProperties = portfolioProperties && portfolioProperties.length > 0 ? portfolioProperties : properties;
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState("this_month");
+
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
+  const autoDefaulted = useRef(false);
+  useEffect(() => {
+    if (!autoDefaulted.current && portfolioProperties && portfolioProperties.length > 1) {
+      setViewMode("portfolio");
+      autoDefaulted.current = true;
+    }
+  }, [portfolioProperties]);
+
+  const isPortfolio = viewMode === "portfolio" && scopeProperties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, scopeProperties, propertyId]
+  );
 
   // Derive date range from period
   const dateRange = useMemo(() => {
@@ -70,13 +88,13 @@ export default function PMSReports() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["pms-reports-bookings", propertyId, fromStr, toStr],
+    queryKey: ["pms-reports-bookings", activePropertyIds.join(","), fromStr, toStr],
     queryFn: async ({ pageParam = 0 }) => {
-      if (!propertyId) return { items: [] as ReportBooking[], nextOffset: null };
+      if (activePropertyIds.length === 0) return { items: [] as ReportBooking[], nextOffset: null };
       const { data, count } = await supabase
         .from("bookings")
         .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel", { count: "exact" })
-        .eq("property_id", propertyId)
+        .in("property_id", activePropertyIds)
         .gte("check_in_date", fromStr)
         .lte("check_in_date", toStr)
         .order("check_in_date", { ascending: true })
@@ -89,7 +107,7 @@ export default function PMSReports() {
     },
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     initialPageParam: 0,
-    enabled: !!propertyId,
+    enabled: activePropertyIds.length > 0,
     staleTime: 0,
   });
 
@@ -101,16 +119,16 @@ export default function PMSReports() {
 
   // Fetch rooms count for occupancy calculation
   const { data: rooms = [] } = useQuery({
-    queryKey: ["pms-reports-rooms", propertyId],
+    queryKey: ["pms-reports-rooms", activePropertyIds.join(",")],
     queryFn: async () => {
-      if (!propertyId) return [];
+      if (activePropertyIds.length === 0) return [];
       const { data } = await supabase
         .from("rolos_rooms")
         .select("id")
-        .eq("property_id", propertyId);
+        .in("property_id", activePropertyIds);
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: activePropertyIds.length > 0,
   });
 
   const totalRooms = Math.max(1, rooms.length);
