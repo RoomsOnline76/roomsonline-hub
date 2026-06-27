@@ -1079,7 +1079,13 @@ export default function PMSCommandCentre() {
           </CollapsibleContent>
         </Card>
       </Collapsible>
+
+      <BookingQuickViewSheet
+        booking={selectedBooking}
+        onOpenChange={(open) => !open && setSelectedBooking(null)}
+      />
     </div>
+
   );
 }
 
