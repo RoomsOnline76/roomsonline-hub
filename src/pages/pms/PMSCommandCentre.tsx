@@ -345,7 +345,7 @@ export default function PMSCommandCentre() {
           .from("bookings")
           .select("property_id, room_type_id, check_in_date, check_out_date")
           .in("property_id", rolosPropertyIds)
-          .in("status", ["confirmed", "checked_in"])
+          .in("status", ["confirmed", "checked_in", "pending"])
           .lte("check_in_date", endDate)
           .gte("check_out_date", startDate);
 
@@ -353,24 +353,45 @@ export default function PMSCommandCentre() {
           (rt) => rt.is_active && rolosPropertyIds.includes(rt.property_id)
         );
 
-        // Build a set of "propertyId:roomTypeId:date" that are booked
+        // Build name index across ALL rolos_room_types (active + inactive)
+        // so bookings tagged with a duplicate/inactive type_id can still be
+        // resolved to a name and matched against the active room type rows.
+        const typeNameById = new Map<string, string>();
+        for (const rt of rolosResult.data || []) {
+          typeNameById.set(rt.id, rt.name.trim().toLowerCase());
+        }
+
+        // bookedSet keyed by propertyId:normalizedTypeName:date
         const bookedSet = new Set<string>();
         for (const b of rolosBookings || []) {
           if (!b.room_type_id) continue;
+          const tname = typeNameById.get(b.room_type_id);
+          if (!tname) continue;
           const ciDate = new Date(b.check_in_date);
           const coDate = new Date(b.check_out_date);
           const rangeStart = ciDate < new Date(startDate) ? new Date(startDate) : ciDate;
           const rangeEnd = coDate > new Date(endDate) ? new Date(endDate) : coDate;
           const days = eachDayOfInterval({ start: rangeStart, end: addDays(rangeEnd, -1) });
           for (const d of days) {
-            bookedSet.add(`${b.property_id}:${b.room_type_id}:${format(d, "yyyy-MM-dd")}`);
+            bookedSet.add(`${b.property_id}:${tname}:${format(d, "yyyy-MM-dd")}`);
           }
         }
 
-        for (const rt of activeRolosRooms) {
+        // Dedupe active types by name (the schema currently allows duplicate
+        // active rows per name — only render one row per name)
+        const seenName = new Set<string>();
+        const dedupedActive = activeRolosRooms.filter((rt) => {
+          const key = `${rt.property_id}:${rt.name.trim().toLowerCase()}`;
+          if (seenName.has(key)) return false;
+          seenName.add(key);
+          return true;
+        });
+
+        for (const rt of dedupedActive) {
+          const tname = rt.name.trim().toLowerCase();
           for (const day of weekDays) {
             const dateStr = format(day, "yyyy-MM-dd");
-            const isBooked = bookedSet.has(`${rt.property_id}:${rt.id}:${dateStr}`);
+            const isBooked = bookedSet.has(`${rt.property_id}:${tname}:${dateStr}`);
             rolosRows.push({
               property_id: rt.property_id,
               property_name: propMap[rt.property_id] || "Unknown",
