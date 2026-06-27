@@ -1362,8 +1362,11 @@ export default function PMSDashboard() {
           queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
           queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
           queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+          // Force the calendar's infinite query to reload its first page immediately.
+          queryClient.refetchQueries({ queryKey: ["pms-cal-bookings", propertyId] });
         }}
       />
+
 
       {/* Restriction Dialogs */}
       <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
