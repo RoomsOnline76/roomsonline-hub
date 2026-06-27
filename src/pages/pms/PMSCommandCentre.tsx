@@ -639,15 +639,39 @@ export default function PMSCommandCentre() {
     return m;
   }, [availability]);
 
-  // Group bookings by property+date for cell pill rendering
-  const bookingsByPropertyDate = useMemo(() => {
+  // Group bookings by property + room-type-name + date for in-cell pills.
+  // We resolve the booking's room_type_id → name via roomTypeNameById so that
+  // bookings tagged with a duplicate/inactive type still land on the correct
+  // active row.
+  const bookingsByPropertyRoomTypeDate = useMemo(() => {
     const m = new Map<string, CalendarBookingRow[]>();
     for (const b of gridBookings) {
+      const tname = b.room_type_id ? roomTypeNameById[b.room_type_id] : "";
+      if (!tname) continue;
       const ci = b.check_in_date;
       const co = b.check_out_date;
       for (const day of weekDays) {
         const d = format(day, "yyyy-MM-dd");
         if (d >= ci && d < co) {
+          const key = `${b.property_id}|${tname}|${d}`;
+          const arr = m.get(key);
+          if (arr) arr.push(b); else m.set(key, [b]);
+        }
+      }
+    }
+    return m;
+  }, [gridBookings, weekDays, roomTypeNameById]);
+
+  // Fallback: bookings whose room_type_id couldn't be resolved still render
+  // in a "Bookings" row under the property header.
+  const unresolvedBookingsByPropertyDate = useMemo(() => {
+    const m = new Map<string, CalendarBookingRow[]>();
+    for (const b of gridBookings) {
+      const tname = b.room_type_id ? roomTypeNameById[b.room_type_id] : "";
+      if (tname) continue;
+      for (const day of weekDays) {
+        const d = format(day, "yyyy-MM-dd");
+        if (d >= b.check_in_date && d < b.check_out_date) {
           const key = `${b.property_id}|${d}`;
           const arr = m.get(key);
           if (arr) arr.push(b); else m.set(key, [b]);
@@ -655,7 +679,8 @@ export default function PMSCommandCentre() {
       }
     }
     return m;
-  }, [gridBookings, weekDays]);
+  }, [gridBookings, weekDays, roomTypeNameById]);
+
 
 
   // Group occupancy cards: portfolio → property type → cards
