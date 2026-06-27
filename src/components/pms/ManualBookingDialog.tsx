@@ -334,35 +334,39 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
           {/* Stay Details */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Stay Details</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Check-in *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !form.check_in && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {form.check_in ? format(form.check_in, "d MMM yyyy") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={form.check_in} onSelect={d => update("check_in", d)} className="p-3 pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label>Check-out *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !form.check_out && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {form.check_out ? format(form.check_out, "d MMM yyyy") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={form.check_out} onSelect={d => update("check_out", d)} disabled={date => form.check_in ? date <= form.check_in : false} className="p-3 pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            <div>
+              <Label>Check-in → Check-out *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !form.check_in && !form.check_out && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.check_in && form.check_out
+                      ? `${format(form.check_in, "d MMM yyyy")} → ${format(form.check_out, "d MMM yyyy")}`
+                      : form.check_in
+                        ? `${format(form.check_in, "d MMM yyyy")} → Select check-out`
+                        : "Select check-in & check-out"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    numberOfMonths={2}
+                    selected={{ from: form.check_in, to: form.check_out }}
+                    onSelect={(range: any) => {
+                      setForm(p => ({ ...p, check_in: range?.from, check_out: range?.to }));
+                    }}
+                    disabled={date => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             {nights > 0 && <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>}
 
