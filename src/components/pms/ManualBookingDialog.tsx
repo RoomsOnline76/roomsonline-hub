@@ -57,7 +57,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     check_out: undefined as Date | undefined,
     room_type_id: "",
     room_id: "",
-    rate_plan_id: "",
     adults: "1",
     children: "0",
     teens: "0",
@@ -70,6 +69,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     special_requests: "",
   });
 
+
   const filteredRooms = useMemo(() =>
     rooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
     [rooms, form.room_type_id]
@@ -80,17 +80,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     return Math.max(0, differenceInDays(form.check_out, form.check_in));
   }, [form.check_in, form.check_out]);
 
-  // Auto-calculate price when rate/nights/guests change
-  const selectedPlan = ratePlans.find(p => p.id === form.rate_plan_id);
-  const pricingModel = selectedPlan?.pricing_model || 'per_room';
-  const totalGuests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
-
   // Sum nightly rates using the calendar's resolver (season-aware), falling back
-  // to plan base_rate / room-type default_rate if no resolver is provided.
+  // to room-type default_rate. No per-unit rate column exists today.
   const nightlyRates = useMemo(() => {
     if (!nights || !form.check_in || !form.room_type_id) return [] as number[];
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const planRate = plan?.base_rate && plan.base_rate > 0 ? plan.base_rate : null;
     const rt = roomTypes.find(t => t.id === form.room_type_id);
     const defaultRate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
 
@@ -99,53 +92,27 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       const d = new Date(form.check_in);
       d.setDate(d.getDate() + i);
       const resolved = getRateForDate ? getRateForDate(form.room_type_id, d) : null;
-      const rate = (resolved && resolved > 0) ? resolved : (planRate ?? defaultRate ?? 0);
+      const rate = (resolved && resolved > 0) ? resolved : (defaultRate ?? 0);
       out.push(rate);
     }
     return out;
-  }, [nights, form.check_in, form.room_type_id, form.rate_plan_id, ratePlans, roomTypes, getRateForDate]);
+  }, [nights, form.check_in, form.room_type_id, roomTypes, getRateForDate]);
+
+  const rateUnresolved = nightlyRates.length > 0 && nightlyRates.every(r => r === 0);
 
   const autoPrice = useMemo(() => {
-    if (!nightlyRates.length) return null;
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const model = plan?.pricing_model || 'per_room';
-    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
-    const sum = nightlyRates.reduce((a, b) => a + b, 0);
-    switch (model) {
-      case 'per_person':
-        return sum * guests;
-      case 'per_person_sharing': {
-        const extra = Math.max(0, guests - 2);
-        return sum + (sum * extra);
-      }
-      case 'per_unit':
-      case 'per_room':
-      default:
-        return sum;
-    }
-  }, [nightlyRates, form.rate_plan_id, form.adults, form.children, form.teens, ratePlans]);
+    if (!nightlyRates.length || rateUnresolved) return null;
+    return nightlyRates.reduce((a, b) => a + b, 0);
+  }, [nightlyRates, rateUnresolved]);
 
   const priceBreakdown = useMemo(() => {
     if (!nights || !autoPrice || !nightlyRates.length) return null;
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const model = plan?.pricing_model || 'per_room';
-    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
     const min = Math.min(...nightlyRates);
     const max = Math.max(...nightlyRates);
     const rangeLabel = min === max ? `R${min.toLocaleString()}` : `R${min.toLocaleString()}–R${max.toLocaleString()}`;
-    switch (model) {
-      case 'per_person':
-        return `${rangeLabel}/night × ${guests} guest${guests !== 1 ? 's' : ''} × ${nights} night${nights !== 1 ? 's' : ''}`;
-      case 'per_person_sharing': {
-        const extra = Math.max(0, guests - 2);
-        return extra > 0
-          ? `${rangeLabel}/n × ${nights}n (base 2 pax) + ${extra} extra pax`
-          : `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''} (sharing)`;
-      }
-      default:
-        return `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''}`;
-    }
-  }, [nights, autoPrice, nightlyRates, form.rate_plan_id, form.adults, form.children, form.teens, ratePlans]);
+    return `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''}`;
+  }, [nights, autoPrice, nightlyRates]);
+
 
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
@@ -223,7 +190,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     };
 
     if (form.room_id) payload.rolos_room_ids = [form.room_id];
-    if (form.rate_plan_id) payload.rolos_rate_plan_id = form.rate_plan_id;
     if (guestId) payload.rolos_guest_id = guestId;
 
     const { data: insertedData, error } = await supabase.from("bookings").insert(payload).select("id").single();
@@ -236,33 +202,36 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     toast.success(`Booking created as "${autoStatus}"`);
 
-    // 3. Send confirmation email
+    // 3. Send confirmation email (non-blocking)
     if (insertedData?.id) {
       try {
-        const { error: emailError } = await supabase.functions.invoke("send-booking-email", {
-          body: { booking_id: insertedData.id, bookingId: insertedData.id, status: "success" },
+        const { data: emailData, error: emailError } = await supabase.functions.invoke("send-booking-email", {
+          body: { booking_id: insertedData.id, status: "success" },
         });
-        if (emailError) {
-          console.warn("Confirmation email failed:", emailError);
-          toast.warning("Booking created but confirmation email failed to send");
+        const reason = (emailData as any)?.reason || emailError?.message;
+        if (emailError || (emailData && (emailData as any).ok === false)) {
+          console.warn("Confirmation email failed:", reason || emailError);
+          toast.warning(`Booking saved — email skipped${reason ? `: ${reason}` : ""}`);
         } else {
           toast.success("Confirmation email sent to " + form.guest_email);
         }
-      } catch (emailErr) {
+      } catch (emailErr: any) {
         console.warn("Email send error:", emailErr);
+        toast.warning(`Booking saved — email skipped: ${emailErr?.message || "unknown error"}`);
       }
     }
     onOpenChange(false);
     setForm({
       guest_name: "", guest_email: "", guest_phone: "",
       check_in: undefined, check_out: undefined,
-      room_type_id: "", room_id: "", rate_plan_id: "",
+      room_type_id: "", room_id: "",
       adults: "1", children: "0", teens: "0", infants: "0", pets: "0",
       total_price: "", payment_status: "unpaid", payment_method: "",
       status: "confirmed", special_requests: "",
     });
     onCreated();
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -350,25 +319,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               </div>
             </div>
 
-            <div>
-              <Label>Rate Plan</Label>
-              <Select value={form.rate_plan_id} onValueChange={v => update("rate_plan_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Select rate plan (optional)" /></SelectTrigger>
-                <SelectContent>
-                  {ratePlans.map(rp => (
-                    <SelectItem key={rp.id} value={rp.id}>
-                      {rp.name}{rp.base_rate ? ` — R${rp.base_rate.toLocaleString()}` : ""}
-                      {rp.pricing_model && rp.pricing_model !== 'per_room' && (
-                        <span className="text-muted-foreground ml-1 text-xs">({rp.pricing_model.replace(/_/g, ' ')})</span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {pricingModel === 'per_person' && (
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium">⚡ Per-person rate — price multiplied by guest count</p>
-              )}
-            </div>
+            {rateUnresolved && form.room_type_id && nights > 0 && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                Rate unavailable for this room type / date — please enter Total Price manually below.
+              </p>
+            )}
+
           </div>
 
           {/* Guest Counts */}

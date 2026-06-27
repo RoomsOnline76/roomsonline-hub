@@ -1,61 +1,52 @@
-# Beds24 Adapter + Name Lookup
+# Fix Manual Booking — rate, calendar block-out, email
 
-Mirror the HyperGuest pattern for Beds24 (API v2) and surface a "Search by name" picker on the property General tab for ROLOS and Beds24 properties.
+Three connected fixes to `ManualBookingDialog` + dashboard wiring.
 
-## 1. Secrets (Lovable Cloud)
+## 1. Unit-aware rate (remove rate-plan dropdown)
 
-Request via `add_secret` (user must paste):
-- `BEDS24_API_TOKEN` — long-life token from Beds24 → Account → API.
-- `BEDS24_INVITE_CODE` (optional) — used once to mint a refresh token if the user prefers OAuth-style auth. Initial release will rely on the long-life token only.
+In `src/components/pms/ManualBookingDialog.tsx`:
 
-Auth header for every call: `token: <BEDS24_API_TOKEN>`, base URL `https://beds24.com/api/v2`.
+- Remove the **Rate Plan** `<Select>` block entirely (the unit/room-type already determines the rate).
+- Drop `rate_plan_id` from form state and `selectedPlan`/`pricingModel` derivations.
+- Rewrite the rate resolver so it is unit-first, then room-type, then date-aware:
+  1. If a `room_id` is selected, look up that room's `base_rate` / `nightly_rate` (per-unit override) from the `rolos_rooms` row passed in via `rooms`.
+  2. Otherwise call `getRateForDate(room_type_id, date)` per night (season + amenities-aware — already wired from the dashboard).
+  3. Final fallback: room type's `default_rate`. **Remove the hard R1000-style fallback** — if nothing resolves, show "Rate unavailable — enter manually" and require the user to type `total_price`.
+- Pricing model defaults to `per_room` (no plan); keep `per_person` math only if room-type metadata flags it.
+- Update the price breakdown text accordingly (`R{rate}/night × {nights} nights`).
+- Remove `rolos_rate_plan_id` from the insert payload.
 
-## 2. Edge function: `supabase/functions/beds24-api/index.ts`
+Extend the `Room` interface in the dialog to include the per-unit rate field(s) and pass that data through from `PMSDashboard.tsx` (the `rooms` query already selects from `rolos_rooms` — add `base_rate`/`nightly_rate` to its `.select(...)` if missing).
 
-Single function exposing actions, matching the HyperGuest shape (`{ action, propertyId, ... }`). Shared helpers (`b24Fetch` with gzip `Accept-Encoding`, redacted tracing, retry/backoff, Zod validation).
+## 2. Booking doesn't block on calendar
 
-Initial actions:
-- `health_check` — `GET /authentication/details`.
-- `list_hotels` — `GET /properties` (paginated via `offset`). Apply the same African-country allow-list filter as HyperGuest, then fuzzy match by name. Returns `[{ id, name, city, country, score }]`.
-- `list_rooms` — `GET /properties?includeAllRooms=true&id=<beds24PropId>`; normalize to ROLOS room shape.
-- `get_ari` — `GET /inventory/rooms/calendar?roomId=...&startDate=...&endDate=...` → normalized availability + rates.
-- `push_ari` — `POST /inventory/rooms/calendar` with batched day records (price1, numAvail, minStay, maxStay, multiplier).
-- `sync_reflection` — pull static property data and write to `properties.external_metadata.beds24_reflection` (parity with HyperGuest reflection).
-- Booking endpoints (`create_booking`, `cancel_booking`, `list_bookings`) — wired but flagged behind a follow-up cert pass; minimal stubs returning `not_implemented` so the UI surfaces capability gaps cleanly.
+Root cause: the new booking is inserted with `rolos_room_ids = [room_id]` but the calendar grid keys cells by `room_type_id` + date range. Two adjustments:
 
-All responses go through the existing `isAdapterSuccess` / `unwrapAdapterResponse` envelope.
+- In `onCreated` (PMSDashboard line 1359), also invalidate `["pms-cal-rooms"]` (already there) **and** force `bookingsInfinite.refetch()` via `queryClient.refetchQueries({ queryKey: ["pms-cal-bookings", propertyId] })` so the infinite-query first page reloads immediately instead of waiting for the next focus event.
+- Verify the inserted row has `status` set to `confirmed` or `pending` (both are kept by the `.neq("status","cancelled")` filter — confirmed via current code).
+- Ensure `check_in_date`/`check_out_date` are stored as `yyyy-MM-dd` (already correct via `format(..., "yyyy-MM-dd")`).
 
-## 3. Frontend
+## 3. Confirmation email failing
 
-### a. `src/components/property/Beds24PropertyLookup.tsx`
-Copy of `HyperGuestPropertyLookup.tsx` calling `supabase.functions.invoke("beds24-api", { body: { action: "list_hotels", query } })`. Same dialog UX, debounce, Africa-only helper text, `onSelect(hotelId)` callback.
+`send-booking-email` uses Resend directly and currently throws when:
+- `RESEND_API_KEY` is missing, or
+- The `from` domain isn't verified for that key, or
+- The booking row lacks fields the template expects.
 
-### b. `src/pages/PropertyForm.tsx` (General tab — PMS row)
-- Add state `beds24PropertyId` / `existingBeds24PropertyId` mirroring the HyperGuest pair.
-- Load from `external_system==='beds24'` → `external_id`, otherwise from `amenities.external_ids.beds24_property_id`.
-- Save back into both places using the same branching used for HyperGuest.
-- Render a new row directly under the HyperGuest row, gated on `selectedPMS in ['beds24','rolos','roomsonline']`:
-  - `Label`: "Beds24 Property ID" (required only when `selectedPMS==='beds24'`).
-  - `Input` + `<Beds24PropertyLookup propertyId propertyName currentPropertyId onSelect/>`.
-  - Helper text: required for native Beds24, optional distribution link for ROLOS.
+Fixes:
+- Wrap the `resend.emails.send` call in `send-booking-email/index.ts` with explicit error capture and return a structured `{ ok:false, reason }` instead of throwing — so the dialog's warning toast surfaces the real reason.
+- In the dialog, surface that `reason` in the warning toast ("Booking saved — email skipped: <reason>") instead of the generic message.
+- Confirm `RESEND_API_KEY` secret is present; if not, prompt to add it. Use the verified sender domain already configured for other transactional emails (`hello@notify.roomsonline.co.za`) as the default `from` when the property has no branded sender configured.
+- Add a guard so the email call is **awaited but non-blocking** to the dashboard refresh (already structured this way; just ensure the `onCreated()` callback runs even when the email path throws — currently it does, keep it).
 
-### c. `src/lib/pmsSystemsConfig.ts`
-Promote the existing `beds24` entry from "planned" to active by adding capability flags (`channel_manager: true`, `ari_sync: true`, `bookings: false` for now). Add to `pmsFieldMappings.ts` if needed so the PMS selector renders it.
+## Out of scope
 
-### d. `src/components/pms/channels/ChannelLogo.tsx`
-Already has the `beds24` badge — no change.
+- No schema changes.
+- No edits to the dashboard rendering logic beyond the `onCreated` refetch line.
+- No migration to Lovable Emails in this pass (separate task if requested).
 
-## 4. Storage / schema
+## Files touched
 
-No migrations: reuse existing `properties.external_system` / `external_id` and the `amenities.external_ids` JSON bag (`beds24_property_id` key) — the same approach the HyperGuest lookup uses for ROLOS.
-
-## 5. Verification
-
-- Deploy `beds24-api`, hit `health_check` via `supabase--curl_edge_functions` once the token is set.
-- Run `list_hotels` with `query="dass"` and confirm Africa filter + fuzzy match.
-- Open Dassiesingel (ROLOS) → General tab → confirm the new "Beds24 Property ID" row + "Search by name" button appear under the HyperGuest row, persist on save, and reload correctly.
-
-## Out of scope (follow-ups)
-
-- Full booking create/cancel/modify against Beds24 (needs sandbox property + cert plan like HyperGuest).
-- A Beds24 certification portal/runner — can mirror the HyperGuest portal later if Beds24 requires one.
+- `src/components/pms/ManualBookingDialog.tsx` — remove rate-plan select, unit-aware rate resolver, better email error toast.
+- `src/pages/pms/PMSDashboard.tsx` — extend `rooms` select with per-unit rate columns, add `refetchQueries` in `onCreated`.
+- `supabase/functions/send-booking-email/index.ts` — structured error return, default verified `from` fallback.
