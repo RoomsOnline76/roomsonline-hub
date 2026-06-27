@@ -95,6 +95,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     payment_method: "",
     status: "confirmed",
     special_requests: "",
+    booking_channel: "direct",
   });
 
   // Reset room type / room when the active property changes so we never carry
@@ -226,7 +227,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
       special_requests: form.special_requests || null,
-      booking_channel: "direct",
+      booking_channel: form.booking_channel || "direct",
       integration_type: "rolos",
     };
 
@@ -268,7 +269,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       room_type_id: "", room_id: "",
       adults: "1", children: "0", teens: "0", infants: "0", pets: "0",
       total_price: "", payment_status: "unpaid", payment_method: "",
-      status: "confirmed", special_requests: "",
+      status: "confirmed", special_requests: "", booking_channel: "direct",
     });
     onCreated();
   };
@@ -461,6 +462,42 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          </div>
+
+          {/* Booking Source / Channel */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Booking Source</h4>
+            <div>
+              <Label>Channel / Origin *</Label>
+              <Select value={form.booking_channel} onValueChange={v => update("booking_channel", v)}>
+                <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="direct">Direct Booking</SelectItem>
+                  <SelectItem value="walk_in">Walk-in</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="website">Own Website</SelectItem>
+                  <SelectItem value="booking_com">Booking.com</SelectItem>
+                  <SelectItem value="lekkeslaap">LekkeSlaap</SelectItem>
+                  <SelectItem value="safarinow">SafariNow</SelectItem>
+                  <SelectItem value="nightsbridge">NightsBridge</SelectItem>
+                  <SelectItem value="agoda">Agoda</SelectItem>
+                  <SelectItem value="expedia">Expedia</SelectItem>
+                  <SelectItem value="airbnb">Airbnb</SelectItem>
+                  <SelectItem value="vrbo">Vrbo</SelectItem>
+                  <SelectItem value="hostelworld">Hostelworld</SelectItem>
+                  <SelectItem value="hotels_com">Hotels.com</SelectItem>
+                  <SelectItem value="tripadvisor">TripAdvisor</SelectItem>
+                  <SelectItem value="google">Google Hotels</SelectItem>
+                  <SelectItem value="hyperguest">HyperGuest</SelectItem>
+                  <SelectItem value="travel_agent">Travel Agent</SelectItem>
+                  <SelectItem value="tour_operator">Tour Operator</SelectItem>
+                  <SelectItem value="corporate">Corporate</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">Feeds reports &amp; financials attribution.</p>
             </div>
           </div>
 
