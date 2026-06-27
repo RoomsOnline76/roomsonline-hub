@@ -227,7 +227,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
       special_requests: form.special_requests || null,
-      booking_channel: "direct",
+      booking_channel: form.booking_channel || "direct",
       integration_type: "rolos",
     };
 
