@@ -11,10 +11,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2,
+  CalendarDays, Sparkles, ChevronDown, Copy, ExternalLink, RefreshCw, Lightbulb, Loader2, AlertTriangle,
 } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, formatDistanceToNow, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
+import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
+
 
 interface AvailabilityRow {
   property_id: string;
