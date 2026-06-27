@@ -240,10 +240,12 @@ export default function PMSCommandCentre() {
       const activeRoomKeys = new Set<string>();
       const propsWithActiveTypes = new Set<string>();
 
+      const rtNameById: Record<string, string> = {};
       for (const rt of rolosResult.data || []) {
         const slug = slugify(rt.name);
         nameMap[rt.id] = rt.name;
         nameMap[slug] = rt.name;
+        rtNameById[rt.id] = rt.name.trim().toLowerCase();
         if (rt.is_active) {
           activeRoomKeys.add(rt.id);
           activeRoomKeys.add(slug);
@@ -251,6 +253,7 @@ export default function PMSCommandCentre() {
           propsWithActiveTypes.add(rt.property_id);
         }
       }
+      setRoomTypeNameById(rtNameById);
 
       for (const rt of hostfullyResult.data || []) {
         const slug = slugify(rt.name);
