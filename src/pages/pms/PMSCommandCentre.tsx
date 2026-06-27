@@ -86,6 +86,7 @@ export default function PMSCommandCentre() {
   const [propertyTypes, setPropertyTypes] = useState<Record<string, string>>({});
   const [gridBookings, setGridBookings] = useState<CalendarBookingRow[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<CalendarBookingRow | null>(null);
+  const [roomTypeNameById, setRoomTypeNameById] = useState<Record<string, string>>({});
 
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
