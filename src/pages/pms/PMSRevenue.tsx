@@ -350,88 +350,110 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
 }
 
 export default function PMSRevenue() {
-  const { propertyId, loading: propLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   const [forecastDays] = useState(14);
   const [historyDays, setHistoryDays] = useState(30);
+
+  // View mode: default to portfolio when a portfolio exists, otherwise single
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  useEffect(() => {
+    if (!autoDefaulted && (portfolioProperties?.length || 0) > 1) {
+      setViewMode("portfolio");
+      setAutoDefaulted(true);
+    }
+  }, [portfolioProperties, autoDefaulted]);
+
+  const portfolioPropertyIds = useMemo(
+    () => portfolioProperties?.map(p => p.id) || [],
+    [portfolioProperties]
+  );
+  const isPortfolioMode = viewMode === "portfolio" && portfolioPropertyIds.length > 1;
+  const activeIds = useMemo<string[]>(
+    () => (isPortfolioMode ? portfolioPropertyIds : (propertyId ? [propertyId] : [])),
+    [isPortfolioMode, portfolioPropertyIds, propertyId]
+  );
+  const activeIdsKey = activeIds.join(",");
+  const queryEnabled = activeIds.length > 0;
 
   const today = format(new Date(), "yyyy-MM-dd");
   const futureEnd = format(addDays(new Date(), forecastDays), "yyyy-MM-dd");
   const past30 = format(subDays(new Date(), 30), "yyyy-MM-dd");
   const historyStart = format(subDays(new Date(), historyDays), "yyyy-MM-dd");
 
-  // Fetch rooms
+  // Fetch rooms (sum across active properties)
   const { data: rooms = [] } = useQuery({
-    queryKey: ["rev-rooms", propertyId],
+    queryKey: ["rev-rooms", activeIdsKey],
     queryFn: async () => {
       const { data } = await supabase
         .from("rolos_rooms" as any)
         .select("id")
-        .eq("property_id", propertyId!);
+        .in("property_id", activeIds);
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: queryEnabled,
   });
 
   // Fetch upcoming bookings (next 14 days)
   const { data: futureBookings = [], isLoading: futureLoading } = useQuery({
-    queryKey: ["rev-future-bookings", propertyId, today, futureEnd],
+    queryKey: ["rev-future-bookings", activeIdsKey, today, futureEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("id, check_in_date, check_out_date, total_price, status, room_type_id")
-        .eq("property_id", propertyId!)
+        .select("id, check_in_date, check_out_date, total_price, status, room_type_id, property_id")
+        .in("property_id", activeIds)
         .gte("check_out_date", today)
         .lte("check_in_date", futureEnd)
         .neq("status", "cancelled");
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: queryEnabled,
   });
 
   // Fetch past 30 days bookings for baseline
   const { data: pastBookings = [] } = useQuery({
-    queryKey: ["rev-past-bookings", propertyId, past30, today],
+    queryKey: ["rev-past-bookings", activeIdsKey, past30, today],
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
         .select("id, check_in_date, check_out_date, total_price, status")
-        .eq("property_id", propertyId!)
+        .in("property_id", activeIds)
         .gte("check_in_date", past30)
         .lte("check_in_date", today)
         .neq("status", "cancelled");
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: queryEnabled,
   });
 
   // === Historical revenue & channel data ===
   const { data: historyBookings = [], isLoading: historyLoading } = useQuery({
-    queryKey: ["rev-history", propertyId, historyStart, today],
+    queryKey: ["rev-history", activeIdsKey, historyStart, today],
     queryFn: async () => {
       const { data } = await supabase
         .from("bookings")
         .select("id, check_in_date, total_price, calculated_commission, booking_channel, payment_status, status")
-        .eq("property_id", propertyId!)
+        .in("property_id", activeIds)
         .gte("check_in_date", historyStart)
         .lte("check_in_date", today)
         .not("status", "in", '("cancelled","failed")');
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: queryEnabled,
   });
 
   // Fetch rate plans
   const { data: ratePlans = [] } = useQuery({
-    queryKey: ["rev-rate-plans", propertyId],
+    queryKey: ["rev-rate-plans", activeIdsKey],
     queryFn: async () => {
       const { data } = await supabase
         .from("rolos_rate_plans" as any)
-        .select("id, name, base_rate, pricing_model")
-        .eq("property_id", propertyId!)
+        .select("id, name, base_rate, pricing_model, property_id")
+        .in("property_id", activeIds)
         .eq("is_active", true);
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: queryEnabled,
   });
 
   const totalRooms = Math.max(1, rooms.length);
