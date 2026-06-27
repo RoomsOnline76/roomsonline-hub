@@ -269,7 +269,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       room_type_id: "", room_id: "",
       adults: "1", children: "0", teens: "0", infants: "0", pets: "0",
       total_price: "", payment_status: "unpaid", payment_method: "",
-      status: "confirmed", special_requests: "",
+      status: "confirmed", special_requests: "", booking_channel: "direct",
     });
     onCreated();
   };
