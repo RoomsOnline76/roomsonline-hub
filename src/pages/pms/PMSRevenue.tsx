@@ -567,17 +567,54 @@ export default function PMSRevenue() {
   const loading = propLoading || futureLoading;
 
   if (propLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!queryEnabled) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
     <>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Revenue Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Demand forecast, rate optimization & historical performance
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Revenue Management</h1>
+            <p className="text-sm text-muted-foreground">
+              {isPortfolioMode
+                ? `Portfolio view — ${portfolioPropertyIds.length} properties aggregated`
+                : "Demand forecast, rate optimization & historical performance"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {showPortfolioToggle && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button
+                  size="sm"
+                  variant={viewMode === "portfolio" ? "default" : "ghost"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("portfolio")}
+                >
+                  Portfolio
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "single" ? "default" : "ghost"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("single")}
+                >
+                  Single
+                </Button>
+              </div>
+            )}
+            {viewMode === "single" && properties.length > 1 && (
+              <Select value={propertyId || ""} onValueChange={(v) => switchProperty(v)}>
+                <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Select property" /></SelectTrigger>
+                <SelectContent>
+                  {(portfolioProperties || properties).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
+
 
         {/* KPI Cards - Combined forward + historical */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
