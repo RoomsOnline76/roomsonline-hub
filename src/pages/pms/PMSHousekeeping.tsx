@@ -131,6 +131,9 @@ export default function PMSHousekeeping() {
   // Resolve dialog
   const [resolveReq, setResolveReq] = useState<MaintenanceRequest | null>(null);
   const [resolveNotes, setResolveNotes] = useState("");
+  // Per-property toggle to expand the otherwise-collapsed "Ready" column.
+  const [readyExpanded, setReadyExpanded] = useState<Record<string, boolean>>({});
+
 
   // ── Fetch all data ────────────────────────────────────────────────────
 
