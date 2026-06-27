@@ -117,7 +117,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   // to room-type default_rate. No per-unit rate column exists today.
   const nightlyRates = useMemo(() => {
     if (!nights || !form.check_in || !form.room_type_id) return [] as number[];
-    const rt = roomTypes.find(t => t.id === form.room_type_id);
+    const rt = activeRoomTypes.find(t => t.id === form.room_type_id);
     const defaultRate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
 
     const out: number[] = [];
@@ -129,7 +129,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       out.push(rate);
     }
     return out;
-  }, [nights, form.check_in, form.room_type_id, roomTypes, getRateForDate]);
+  }, [nights, form.check_in, form.room_type_id, activeRoomTypes, getRateForDate]);
 
   const rateUnresolved = nightlyRates.length > 0 && nightlyRates.every(r => r === 0);
 
