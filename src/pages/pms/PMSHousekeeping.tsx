@@ -15,8 +15,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2, ChevronDown, ChevronUp,
 } from "lucide-react";
+
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
