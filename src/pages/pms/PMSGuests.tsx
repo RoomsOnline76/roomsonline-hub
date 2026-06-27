@@ -121,31 +121,58 @@ export default function PMSGuests() {
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!activeIds.length) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Guest</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Add Guest Profile</DialogTitle></DialogHeader>
-              <div className="space-y-4">
-                <div><Label>Full Name *</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
-                <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
-                <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
-                <Button onClick={handleCreate} className="w-full">Add Guest</Button>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
+            <p className="text-sm text-muted-foreground">
+              {viewMode === "portfolio"
+                ? `Portfolio view — ${activeIds.length} properties aggregated`
+                : "Single property view"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {showPortfolioToggle && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button size="sm" variant={viewMode === "portfolio" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setViewMode("portfolio")}>Portfolio</Button>
+                <Button size="sm" variant={viewMode === "single" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setViewMode("single")}>Single</Button>
               </div>
-            </DialogContent>
-          </Dialog>
+            )}
+            {viewMode === "single" && properties.length > 1 && (
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={propertyId || ""}
+                onChange={(e) => switchProperty(e.target.value)}
+              >
+                {(portfolioProperties || properties).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Guest</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Add Guest Profile</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div><Label>Full Name *</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
+                  <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
+                  <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
+                  <Button onClick={handleCreate} className="w-full">Add Guest</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search guests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
+
 
         {loading ? <p className="text-muted-foreground">Loading...</p> : guests.length === 0 ? (
           <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
