@@ -1,11 +1,11 @@
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart3, TrendingUp, TrendingDown, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt } from "lucide-react";
+import { BarChart3, BedDouble, Percent, RefreshCw, Download, Loader2, Receipt, LayoutGrid, Building2 } from "lucide-react";
 import { PMSFoliosManager } from "@/components/pms/PMSFoliosManager";
 import { CrossPropertyPipelineCard } from "@/components/pms/CrossPropertyPipelineCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,9 +41,27 @@ const PAGE_SIZE = 500;
 // ── Component ────────────────────────────────────────────────────────────
 
 export default function PMSReports() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const scopeProperties = portfolioProperties && portfolioProperties.length > 0 ? portfolioProperties : properties;
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState("this_month");
+
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
+  const autoDefaulted = useRef(false);
+  useEffect(() => {
+    if (!autoDefaulted.current && portfolioProperties && portfolioProperties.length > 1) {
+      setViewMode("portfolio");
+      autoDefaulted.current = true;
+    }
+  }, [portfolioProperties]);
+
+  const isPortfolio = viewMode === "portfolio" && scopeProperties.length > 1;
+  const activePropertyIds = useMemo(
+    () => (isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, scopeProperties, propertyId]
+  );
 
   // Derive date range from period
   const dateRange = useMemo(() => {
@@ -70,13 +88,13 @@ export default function PMSReports() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["pms-reports-bookings", propertyId, fromStr, toStr],
+    queryKey: ["pms-reports-bookings", activePropertyIds.join(","), fromStr, toStr],
     queryFn: async ({ pageParam = 0 }) => {
-      if (!propertyId) return { items: [] as ReportBooking[], nextOffset: null };
+      if (activePropertyIds.length === 0) return { items: [] as ReportBooking[], nextOffset: null };
       const { data, count } = await supabase
         .from("bookings")
         .select("id, check_in_date, check_out_date, total_price, status, created_at, room_type_id, booking_channel", { count: "exact" })
-        .eq("property_id", propertyId)
+        .in("property_id", activePropertyIds)
         .gte("check_in_date", fromStr)
         .lte("check_in_date", toStr)
         .order("check_in_date", { ascending: true })
@@ -89,7 +107,7 @@ export default function PMSReports() {
     },
     getNextPageParam: (lastPage) => lastPage.nextOffset,
     initialPageParam: 0,
-    enabled: !!propertyId,
+    enabled: activePropertyIds.length > 0,
     staleTime: 0,
   });
 
@@ -101,16 +119,16 @@ export default function PMSReports() {
 
   // Fetch rooms count for occupancy calculation
   const { data: rooms = [] } = useQuery({
-    queryKey: ["pms-reports-rooms", propertyId],
+    queryKey: ["pms-reports-rooms", activePropertyIds.join(",")],
     queryFn: async () => {
-      if (!propertyId) return [];
+      if (activePropertyIds.length === 0) return [];
       const { data } = await supabase
         .from("rolos_rooms")
         .select("id")
-        .eq("property_id", propertyId);
+        .in("property_id", activePropertyIds);
       return data || [];
     },
-    enabled: !!propertyId,
+    enabled: activePropertyIds.length > 0,
   });
 
   const totalRooms = Math.max(1, rooms.length);
@@ -230,7 +248,7 @@ export default function PMSReports() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
     <>
@@ -244,11 +262,37 @@ export default function PMSReports() {
           </TabsList>
 
           <TabsContent value="analytics" className="space-y-6">
-        {propertyId && <CrossPropertyPipelineCard propertyId={propertyId} />}
+        {!isPortfolio && propertyId && <CrossPropertyPipelineCard propertyId={propertyId} />}
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-lg font-semibold">Performance Analytics</h2>
-          <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">
+            Performance Analytics
+            {isPortfolio && <span className="ml-2 text-xs font-normal text-muted-foreground">Portfolio · {scopeProperties.length} properties</span>}
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            {scopeProperties.length > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+                >
+                  {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                  {viewMode === "portfolio" ? "Portfolio" : "Single"}
+                </Button>
+                {!isPortfolio && (
+                  <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                    <SelectTrigger className="h-9 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
+                    <SelectContent>
+                      {scopeProperties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </>
+            )}
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -391,7 +435,7 @@ export default function PMSReports() {
           </TabsContent>
 
           <TabsContent value="folios">
-            <PMSFoliosManager propertyId={propertyId} />
+            {propertyId ? <PMSFoliosManager propertyId={propertyId} /> : <p className="text-muted-foreground">Select a property to view folios.</p>}
           </TabsContent>
         </Tabs>
       </div>
