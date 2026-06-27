@@ -1413,7 +1413,16 @@ Deno.serve(async (req) => {
 
     if (emailError) {
       console.error("Email send error:", emailError);
-      throw new Error(emailError.message || "Failed to send email");
+      // Return structured non-2xx-free response so callers can surface the reason
+      // without supabase.functions.invoke turning it into a generic FunctionsHttpError.
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          reason: emailError.message || "Email provider rejected the send",
+          provider: "resend",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     console.log("Email sent successfully:", emailData);
@@ -1431,6 +1440,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        ok: true,
         success: true,
         message: `Booking ${status} email sent successfully`,
         email_id: emailData?.id,
@@ -1439,15 +1449,11 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error("Send booking email error:", error);
-
+    const reason = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
+      JSON.stringify({ ok: false, reason, error: reason }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
+
