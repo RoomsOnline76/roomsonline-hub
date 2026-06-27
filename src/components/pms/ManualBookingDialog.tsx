@@ -281,6 +281,23 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
           <DialogTitle>New Manual Booking</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {portfolioMode && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Property</h4>
+              <Select value={selectedPropertyId} onValueChange={(v) => setSelectedPropertyId(v)}>
+                <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                <SelectContent>
+                  {portfolioOptions!.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedPropertyId && (
+                <p className="text-[11px] text-muted-foreground">Choose which property this booking belongs to.</p>
+              )}
+            </div>
+          )}
+
           {/* Guest Info */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Guest Information</h4>
@@ -288,7 +305,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div>
                 <Label>Guest Name *</Label>
                 <GuestNameAutocomplete
-                  propertyId={propertyId}
+                  propertyId={effectivePropertyId}
                   value={form.guest_name}
                   onChange={(v) => update("guest_name", v)}
                   onSelect={(g) => {
@@ -312,6 +329,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             </div>
 
           </div>
+
 
           {/* Stay Details */}
           <div className="space-y-2">
