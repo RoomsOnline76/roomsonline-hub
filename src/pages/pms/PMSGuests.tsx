@@ -134,7 +134,8 @@ export default function PMSGuests() {
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!activeIds.length) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (viewMode === "single" && !activeIds.length) return <p className="text-muted-foreground">Select a property first.</p>;
+
 
   return (
     <>
