@@ -38,7 +38,10 @@ interface GuestBooking {
 }
 
 export default function PMSGuests() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, showPortfolioToggle, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(() =>
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,23 +57,46 @@ export default function PMSGuests() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Default to portfolio when multiple properties become available
+  useEffect(() => {
+    if (portfolioProperties && portfolioProperties.length > 1) setViewMode(prev => prev);
+  }, [portfolioProperties]);
+
+  const activeIds = (viewMode === "portfolio" && portfolioProperties?.length)
+    ? portfolioProperties.map(p => p.id)
+    : (propertyId ? [propertyId] : []);
+
   const fetchGuests = useCallback(async () => {
-    if (!propertyId) return;
+    if (!activeIds.length) return;
     setLoading(true);
     try {
-      const res = await callPmsApi<{ guests: Guest[] }>("get_guest_profiles", { propertyId, search: debouncedSearch || undefined, limit: 100 });
-      if (res.success) setGuests(res.data?.guests || []);
-    } catch { /* ignore */ }
+      let q = supabase
+        .from("rolos_guest_profiles")
+        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date")
+        .in("property_id", activeIds)
+        .order("last_stay_date", { ascending: false, nullsFirst: false })
+        .limit(200);
+      if (debouncedSearch) {
+        q = q.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      setGuests((data || []) as Guest[]);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load guests");
+    }
     setLoading(false);
-  }, [propertyId, debouncedSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId, debouncedSearch, viewMode, portfolioProperties]);
 
   useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
   const handleCreate = async () => {
-    if (!propertyId || !form.full_name) return;
+    const targetPropertyId = propertyId || activeIds[0];
+    if (!targetPropertyId || !form.full_name) return;
     try {
       const res = await callPmsApi("create_guest_profile", {
-        propertyId, full_name: form.full_name, email: form.email || null, phone: form.phone || null,
+        propertyId: targetPropertyId, full_name: form.full_name, email: form.email || null, phone: form.phone || null,
       });
       if (res.success) { toast.success("Guest added"); setDialogOpen(false); setForm({ full_name: "", email: "", phone: "" }); fetchGuests(); }
     } catch (e: any) { toast.error(e.message); }
@@ -95,31 +121,58 @@ export default function PMSGuests() {
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!activeIds.length) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
     <>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Guest</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Add Guest Profile</DialogTitle></DialogHeader>
-              <div className="space-y-4">
-                <div><Label>Full Name *</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
-                <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
-                <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
-                <Button onClick={handleCreate} className="w-full">Add Guest</Button>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Guest CRM</h1>
+            <p className="text-sm text-muted-foreground">
+              {viewMode === "portfolio"
+                ? `Portfolio view — ${activeIds.length} properties aggregated`
+                : "Single property view"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {showPortfolioToggle && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button size="sm" variant={viewMode === "portfolio" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setViewMode("portfolio")}>Portfolio</Button>
+                <Button size="sm" variant={viewMode === "single" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setViewMode("single")}>Single</Button>
               </div>
-            </DialogContent>
-          </Dialog>
+            )}
+            {viewMode === "single" && properties.length > 1 && (
+              <select
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={propertyId || ""}
+                onChange={(e) => switchProperty(e.target.value)}
+              >
+                {(portfolioProperties || properties).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Guest</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Add Guest Profile</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div><Label>Full Name *</Label><Input value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></div>
+                  <div><Label>Email</Label><Input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} /></div>
+                  <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} /></div>
+                  <Button onClick={handleCreate} className="w-full">Add Guest</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search guests..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
         </div>
+
 
         {loading ? <p className="text-muted-foreground">Loading...</p> : guests.length === 0 ? (
           <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
