@@ -381,7 +381,7 @@ export default function PMSDashboard() {
     }
   }, [bookingsInfinite.hasNextPage, bookingsInfinite.isFetchingNextPage, bookingsInfinite.data]);
 
-  const bookings: BookingRow[] = useMemo(
+  const bookingsRaw: BookingRow[] = useMemo(
     () => bookingsInfinite.data?.pages.flatMap(p => p.items) || [],
     [bookingsInfinite.data]
   );
