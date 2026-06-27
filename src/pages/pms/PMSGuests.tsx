@@ -72,15 +72,22 @@ export default function PMSGuests() {
     : (propertyId ? [propertyId] : []);
 
   const fetchGuests = useCallback(async () => {
-    if (!activeIds.length) return;
     setLoading(true);
     try {
       let q = supabase
         .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date")
-        .in("property_id", activeIds)
+        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date, property_id")
         .order("last_stay_date", { ascending: false, nullsFirst: false })
-        .limit(200);
+        .limit(1000);
+
+      // In single-property mode, scope to that property. In portfolio mode
+      // show every guest the user can read (RLS handles authorisation), so
+      // guests created in manual bookings — or imported under a sibling
+      // property — still appear without forcing a search.
+      if (viewMode === "single" && propertyId) {
+        q = q.eq("property_id", propertyId);
+      }
+
       if (debouncedSearch) {
         q = q.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
       }
@@ -93,6 +100,7 @@ export default function PMSGuests() {
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId, debouncedSearch, viewMode, portfolioProperties]);
+
 
   useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
