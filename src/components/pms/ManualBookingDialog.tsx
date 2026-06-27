@@ -246,7 +246,19 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Guest Name *</Label>
-                <Input value={form.guest_name} onChange={e => update("guest_name", e.target.value)} placeholder="Full name" />
+                <GuestNameAutocomplete
+                  propertyId={propertyId}
+                  value={form.guest_name}
+                  onChange={(v) => update("guest_name", v)}
+                  onSelect={(g) => {
+                    setForm((p) => ({
+                      ...p,
+                      guest_name: g.full_name || p.guest_name,
+                      guest_email: g.email || p.guest_email,
+                      guest_phone: g.phone || p.guest_phone,
+                    }));
+                  }}
+                />
               </div>
               <div>
                 <Label>Email *</Label>
@@ -257,6 +269,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <Label>Phone</Label>
               <Input value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} placeholder="+27..." />
             </div>
+
           </div>
 
           {/* Stay Details */}
