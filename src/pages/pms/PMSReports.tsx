@@ -248,7 +248,7 @@ export default function PMSReports() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
-  if (!propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
+  if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   return (
     <>
@@ -262,11 +262,37 @@ export default function PMSReports() {
           </TabsList>
 
           <TabsContent value="analytics" className="space-y-6">
-        {propertyId && <CrossPropertyPipelineCard propertyId={propertyId} />}
+        {!isPortfolio && propertyId && <CrossPropertyPipelineCard propertyId={propertyId} />}
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <h2 className="text-lg font-semibold">Performance Analytics</h2>
-          <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">
+            Performance Analytics
+            {isPortfolio && <span className="ml-2 text-xs font-normal text-muted-foreground">Portfolio · {scopeProperties.length} properties</span>}
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            {scopeProperties.length > 1 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
+                >
+                  {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
+                  {viewMode === "portfolio" ? "Portfolio" : "Single"}
+                </Button>
+                {!isPortfolio && (
+                  <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                    <SelectTrigger className="h-9 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
+                    <SelectContent>
+                      {scopeProperties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </>
+            )}
             <Select value={period} onValueChange={setPeriod}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
