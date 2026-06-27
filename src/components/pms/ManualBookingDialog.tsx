@@ -95,6 +95,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     payment_method: "",
     status: "confirmed",
     special_requests: "",
+    booking_channel: "direct",
   });
 
   // Reset room type / room when the active property changes so we never carry
