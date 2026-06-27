@@ -2015,7 +2015,8 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
                 )}>
                   {isStart && (
                     <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
+
                       {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
                     </>
                   )}
