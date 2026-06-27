@@ -916,6 +916,46 @@ export default function PMSCommandCentre() {
                           {propertyName}
                         </td>
                       </tr>
+                      {(() => {
+                        const pid = propertyIdByName[propertyName];
+                        if (!pid) return null;
+                        const hasAny = weekDays.some(d => (bookingsByPropertyDate.get(`${pid}|${format(d, "yyyy-MM-dd")}`) || []).length > 0);
+                        if (!hasAny) return null;
+                        return (
+                          <tr className="border-b border-border/30 bg-background">
+                            <td className="py-1.5 px-2 pl-6 text-[11px] uppercase tracking-wider text-muted-foreground">Bookings</td>
+                            {weekDays.map((day) => {
+                              const d = format(day, "yyyy-MM-dd");
+                              const list = bookingsByPropertyDate.get(`${pid}|${d}`) || [];
+                              return (
+                                <td key={d} className={cn("p-1 align-top", isToday(day) && "bg-primary/5")}>
+                                  <div className="flex flex-col gap-0.5">
+                                    {list.map((b) => {
+                                      const c = getBookingStatusColor(b.status);
+                                      const isStart = b.check_in_date === d;
+                                      return (
+                                        <button
+                                          key={b.id}
+                                          onClick={() => setSelectedBooking(b)}
+                                          title={`${b.guest_name} · ${b.check_in_date} → ${b.check_out_date}`}
+                                          className={cn(
+                                            "w-full text-left rounded-sm border px-1 py-0.5 text-[9px] font-medium leading-tight overflow-hidden truncate cursor-pointer hover:opacity-80 flex items-center gap-1",
+                                            c.bg, c.border, c.text,
+                                          )}
+                                        >
+                                          <span className="truncate">{isStart ? b.guest_name : "…"}</span>
+                                          {bookingHasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })()}
+
                       {Object.entries(roomTypes)
                         .sort(([a], [b]) => a.localeCompare(b))
                         .map(([roomType, dates]) => (
