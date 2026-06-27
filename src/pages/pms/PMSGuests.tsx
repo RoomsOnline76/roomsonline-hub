@@ -38,7 +38,10 @@ interface GuestBooking {
 }
 
 export default function PMSGuests() {
-  const { propertyId, loading: propertyLoading } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, showPortfolioToggle, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(() =>
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -54,23 +57,46 @@ export default function PMSGuests() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Default to portfolio when multiple properties become available
+  useEffect(() => {
+    if (portfolioProperties && portfolioProperties.length > 1) setViewMode(prev => prev);
+  }, [portfolioProperties]);
+
+  const activeIds = (viewMode === "portfolio" && portfolioProperties?.length)
+    ? portfolioProperties.map(p => p.id)
+    : (propertyId ? [propertyId] : []);
+
   const fetchGuests = useCallback(async () => {
-    if (!propertyId) return;
+    if (!activeIds.length) return;
     setLoading(true);
     try {
-      const res = await callPmsApi<{ guests: Guest[] }>("get_guest_profiles", { propertyId, search: debouncedSearch || undefined, limit: 100 });
-      if (res.success) setGuests(res.data?.guests || []);
-    } catch { /* ignore */ }
+      let q = supabase
+        .from("rolos_guest_profiles")
+        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date")
+        .in("property_id", activeIds)
+        .order("last_stay_date", { ascending: false, nullsFirst: false })
+        .limit(200);
+      if (debouncedSearch) {
+        q = q.or(`full_name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone.ilike.%${debouncedSearch}%`);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      setGuests((data || []) as Guest[]);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to load guests");
+    }
     setLoading(false);
-  }, [propertyId, debouncedSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propertyId, debouncedSearch, viewMode, portfolioProperties]);
 
   useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
   const handleCreate = async () => {
-    if (!propertyId || !form.full_name) return;
+    const targetPropertyId = propertyId || activeIds[0];
+    if (!targetPropertyId || !form.full_name) return;
     try {
       const res = await callPmsApi("create_guest_profile", {
-        propertyId, full_name: form.full_name, email: form.email || null, phone: form.phone || null,
+        propertyId: targetPropertyId, full_name: form.full_name, email: form.email || null, phone: form.phone || null,
       });
       if (res.success) { toast.success("Guest added"); setDialogOpen(false); setForm({ full_name: "", email: "", phone: "" }); fetchGuests(); }
     } catch (e: any) { toast.error(e.message); }
