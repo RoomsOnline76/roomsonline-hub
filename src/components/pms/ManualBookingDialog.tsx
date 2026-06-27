@@ -298,6 +298,15 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             </div>
           )}
 
+          {!effectivePropertyId ? (
+            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/20 p-6 text-center">
+              <p className="text-sm font-medium text-foreground">Select a property to start</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Booking details become available once a property is chosen.
+              </p>
+            </div>
+          ) : (
+            <>
           {/* Guest Info */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Guest Information</h4>
@@ -373,8 +382,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Room Type *</Label>
-                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }} disabled={portfolioMode && !effectivePropertyId}>
-                  <SelectTrigger><SelectValue placeholder={portfolioMode && !effectivePropertyId ? "Select property first" : (activeRoomTypes.length ? "Select room type" : "No room types")} /></SelectTrigger>
+                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }}>
+                  <SelectTrigger><SelectValue placeholder={activeRoomTypes.length ? "Select room type" : "No room types"} /></SelectTrigger>
                   <SelectContent>
                     {activeRoomTypes.map(rt => (
                       <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
@@ -467,7 +476,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? "Creating..." : "Create Booking"}
           </Button>
+            </>
+          )}
         </div>
+
       </DialogContent>
     </Dialog>
   );
