@@ -167,6 +167,29 @@ export default function PMSCommandCentre() {
     fetchTypes();
   }, [agentProperties]);
 
+  // Fetch bookings overlapping the visible week for all filtered properties
+  useEffect(() => {
+    const propIds = filteredPropertyIds.split(",").filter(Boolean);
+    if (propIds.length === 0) { setGridBookings([]); return; }
+    const startDate = format(weekStart, "yyyy-MM-dd");
+    const endDate = format(weekEnd, "yyyy-MM-dd");
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id, property_id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, teens, infants, pets, total_price, special_requests, requires_intervention, payment_status, room_type_id")
+        .in("property_id", propIds)
+        .not("status", "in", "(cancelled,no_show)")
+        .lte("check_in_date", endDate)
+        .gt("check_out_date", startDate);
+      if (cancelled) return;
+      if (error) { console.error("Booking fetch error", error); setGridBookings([]); return; }
+      setGridBookings((data || []) as CalendarBookingRow[]);
+    })();
+    return () => { cancelled = true; };
+  }, [filteredPropertyIds, weekOffset]);
+
+
   // Main data loader
   useEffect(() => {
     if (filteredPropertyIds) loadData();
