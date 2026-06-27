@@ -524,7 +524,7 @@ export default function PMSRatePlans() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 1 && (
+            {scopeProperties.length > 1 && (
               <>
                 <Button
                   variant="outline"
@@ -543,7 +543,7 @@ export default function PMSRatePlans() {
                     <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
                       <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
                       <SelectContent>
-                        {properties.map((p) => (
+                        {scopeProperties.map((p) => (
                           <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -552,7 +552,7 @@ export default function PMSRatePlans() {
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground ml-1">
-                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {properties.length}
+                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {scopeProperties.length}
                     </span>
                   </div>
                 )}
