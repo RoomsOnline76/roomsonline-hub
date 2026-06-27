@@ -34,6 +34,13 @@ interface RatePlan {
   pricing_model?: string;
 }
 
+interface PortfolioPropertyOption {
+  id: string;
+  name: string;
+  roomTypes: RoomType[];
+  rooms: Room[];
+}
+
 interface ManualBookingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,10 +52,31 @@ interface ManualBookingDialogProps {
   /** Optional: resolve the nightly rate for a room type on a specific date.
    *  Uses the same logic as the calendar (rolos_rate_prices, amenities.season_rates, plan base_rate, default_rate, cache). */
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Optional: when in portfolio mode, allow selecting which property the booking belongs to.
+   *  When provided and non-empty, the dialog renders a Property selector and uses that property's
+   *  roomTypes/rooms instead of the top-level props. */
+  portfolioOptions?: PortfolioPropertyOption[];
 }
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, portfolioOptions }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
+  const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
+
+  useEffect(() => {
+    // Reset the dialog's selected property when the parent propertyId changes
+    // or when portfolio options change.
+    setSelectedPropertyId(propertyId || "");
+  }, [propertyId, portfolioMode]);
+
+  const effectivePropertyId = portfolioMode ? selectedPropertyId : (propertyId || "");
+  const selectedPortfolioProp = useMemo(
+    () => (portfolioMode ? portfolioOptions!.find(p => p.id === effectivePropertyId) : undefined),
+    [portfolioMode, portfolioOptions, effectivePropertyId]
+  );
+  const activeRoomTypes: RoomType[] = portfolioMode ? (selectedPortfolioProp?.roomTypes || []) : roomTypes;
+  const activeRooms: Room[] = portfolioMode ? (selectedPortfolioProp?.rooms || []) : rooms;
+
   const [form, setForm] = useState({
     guest_name: "",
     guest_email: "",
@@ -69,10 +97,15 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     special_requests: "",
   });
 
+  // Reset room type / room when the active property changes so we never carry
+  // a room type from a different property into the booking payload.
+  useEffect(() => {
+    setForm(p => ({ ...p, room_type_id: "", room_id: "" }));
+  }, [effectivePropertyId]);
 
   const filteredRooms = useMemo(() =>
-    rooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
-    [rooms, form.room_type_id]
+    activeRooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
+    [activeRooms, form.room_type_id]
   );
 
   const nights = useMemo(() => {
