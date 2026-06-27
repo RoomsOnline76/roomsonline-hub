@@ -605,6 +605,34 @@ export default function PMSCommandCentre() {
     return grouped;
   }, [availability]);
 
+  // Map property name → id (first match) for booking lookups
+  const propertyIdByName = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const r of availability) {
+      if (!m[r.property_name]) m[r.property_name] = r.property_id;
+    }
+    return m;
+  }, [availability]);
+
+  // Group bookings by property+date for cell pill rendering
+  const bookingsByPropertyDate = useMemo(() => {
+    const m = new Map<string, CalendarBookingRow[]>();
+    for (const b of gridBookings) {
+      const ci = b.check_in_date;
+      const co = b.check_out_date;
+      for (const day of weekDays) {
+        const d = format(day, "yyyy-MM-dd");
+        if (d >= ci && d < co) {
+          const key = `${b.property_id}|${d}`;
+          const arr = m.get(key);
+          if (arr) arr.push(b); else m.set(key, [b]);
+        }
+      }
+    }
+    return m;
+  }, [gridBookings, weekDays]);
+
+
   // Group occupancy cards: portfolio → property type → cards
   const groupedOccupancy = useMemo(() => {
     const assignedIds = new Set<string>();
