@@ -1,9 +1,14 @@
 /**
  * Auto-assigns bookings to rooms when rolos_room_ids is empty/null.
- * Strategy: round-robin assign each unassigned booking to the first room of
- * the matching room_type whose occupied date-range does not collide.
  *
- * This is presentation-only — DB rows are not mutated.
+ * Strategy:
+ *  1. First try to match the booking's room_type_id directly to rooms.
+ *  2. If that fails (duplicate / orphan room_type rows) and a `roomTypes`
+ *     index is supplied, resolve booking.room_type_id → type name → any room
+ *     whose room_type's name matches (case-insensitive).
+ *  3. Round-robin to the first non-conflicting candidate.
+ *
+ * Presentation-only — DB rows are not mutated.
  */
 export interface AssignableBooking {
   id: string;
@@ -19,17 +24,38 @@ export interface AssignableRoom {
   status?: string | null;
 }
 
+export interface AssignableRoomType {
+  id: string;
+  name: string;
+}
+
+const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
 export function autoAssignBookings<T extends AssignableBooking>(
   bookings: T[],
-  rooms: AssignableRoom[]
+  rooms: AssignableRoom[],
+  roomTypes: AssignableRoomType[] = []
 ): T[] {
   if (!bookings.length || !rooms.length) return bookings;
 
+  // type-id → rooms
   const roomsByType = new Map<string, AssignableRoom[]>();
   for (const r of rooms) {
     if (!r.room_type_id) continue;
     if (!roomsByType.has(r.room_type_id)) roomsByType.set(r.room_type_id, []);
     roomsByType.get(r.room_type_id)!.push(r);
+  }
+
+  // type-name → rooms (fallback for duplicate / orphan room_type rows)
+  const typeNameById = new Map<string, string>();
+  for (const t of roomTypes) typeNameById.set(t.id, norm(t.name));
+
+  const roomsByTypeName = new Map<string, AssignableRoom[]>();
+  for (const r of rooms) {
+    const tn = r.room_type_id ? typeNameById.get(r.room_type_id) : "";
+    if (!tn) continue;
+    if (!roomsByTypeName.has(tn)) roomsByTypeName.set(tn, []);
+    roomsByTypeName.get(tn)!.push(r);
   }
 
   // Track occupied date ranges per room id (start inclusive, end exclusive)
@@ -54,8 +80,14 @@ export function autoAssignBookings<T extends AssignableBooking>(
     const ids = b.rolos_room_ids || [];
     if (ids.length > 0) return b;
     if (!b.room_type_id) return b;
-    const candidates = roomsByType.get(b.room_type_id) || [];
+
+    let candidates = roomsByType.get(b.room_type_id) || [];
+    if (candidates.length === 0) {
+      const tn = typeNameById.get(b.room_type_id);
+      if (tn) candidates = roomsByTypeName.get(tn) || [];
+    }
     if (candidates.length === 0) return b;
+
     const pick = candidates.find(r => r.status !== "out_of_service" && !conflicts(r.id, b))
       || candidates[0];
     recordOcc(pick.id, b);
