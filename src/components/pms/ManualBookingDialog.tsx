@@ -178,7 +178,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       const { data: existingGuest } = await supabase
         .from("rolos_guest_profiles")
         .select("id, total_stays, total_spent")
-        .eq("property_id", propertyId)
+        .eq("property_id", effectivePropertyId)
         .eq("email", form.guest_email)
         .maybeSingle();
 
@@ -193,7 +193,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         }).eq("id", existingGuest.id);
       } else {
         const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
-          property_id: propertyId,
+          property_id: effectivePropertyId,
           full_name: form.guest_name,
           email: form.guest_email,
           phone: form.guest_phone || null,
@@ -209,7 +209,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     // 2. Insert booking
     const payload: any = {
-      property_id: propertyId,
+      property_id: effectivePropertyId,
       guest_name: form.guest_name,
       guest_email: form.guest_email,
       guest_phone: form.guest_phone || null,
@@ -495,7 +495,7 @@ function GuestNameAutocomplete({
       const { data, error } = await supabase
         .from("rolos_guest_profiles")
         .select("id, full_name, email, phone, total_stays, last_stay_date")
-        .eq("property_id", propertyId)
+        .eq("property_id", effectivePropertyId)
         .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .limit(8);
