@@ -465,6 +465,42 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             </div>
           </div>
 
+          {/* Booking Source / Channel */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Booking Source</h4>
+            <div>
+              <Label>Channel / Origin *</Label>
+              <Select value={form.booking_channel} onValueChange={v => update("booking_channel", v)}>
+                <SelectTrigger><SelectValue placeholder="Select channel" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="direct">Direct Booking</SelectItem>
+                  <SelectItem value="walk_in">Walk-in</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="website">Own Website</SelectItem>
+                  <SelectItem value="booking_com">Booking.com</SelectItem>
+                  <SelectItem value="lekkeslaap">LekkeSlaap</SelectItem>
+                  <SelectItem value="safarinow">SafariNow</SelectItem>
+                  <SelectItem value="nightsbridge">NightsBridge</SelectItem>
+                  <SelectItem value="agoda">Agoda</SelectItem>
+                  <SelectItem value="expedia">Expedia</SelectItem>
+                  <SelectItem value="airbnb">Airbnb</SelectItem>
+                  <SelectItem value="vrbo">Vrbo</SelectItem>
+                  <SelectItem value="hostelworld">Hostelworld</SelectItem>
+                  <SelectItem value="hotels_com">Hotels.com</SelectItem>
+                  <SelectItem value="tripadvisor">TripAdvisor</SelectItem>
+                  <SelectItem value="google">Google Hotels</SelectItem>
+                  <SelectItem value="hyperguest">HyperGuest</SelectItem>
+                  <SelectItem value="travel_agent">Travel Agent</SelectItem>
+                  <SelectItem value="tour_operator">Tour Operator</SelectItem>
+                  <SelectItem value="corporate">Corporate</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground mt-1">Feeds reports &amp; financials attribution.</p>
+            </div>
+          </div>
+
           {/* Status & Special Requests */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">Status auto-set: Paid → Confirmed, otherwise → Pending</p>
