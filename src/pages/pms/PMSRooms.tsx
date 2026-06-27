@@ -67,39 +67,53 @@ export default function PMSRooms() {
   const [form, setForm] = useState<RoomForm>(emptyForm);
   const [deleteRoom, setDeleteRoom] = useState<Room | null>(null);
 
-  // Auto-sync room types from the true Property Overview source (single-property mode only)
+  // Auto-sync room types from the true Property Overview source for every
+  // property currently in scope (single OR portfolio view). Without this,
+  // properties never opened individually had no rolos_room_types / rolos_rooms
+  // hydrated and the portfolio grid appeared empty for them.
   const syncRoomTypesFromOverview = useCallback(async () => {
-    if (isPortfolio || !propertyId) return;
+    if (activePropertyIds.length === 0) return;
 
-    await syncRolosRoomTypesFromOverview(propertyId);
+    await Promise.all(
+      activePropertyIds.map(async (pid) => {
+        try {
+          await syncRolosRoomTypesFromOverview(pid);
 
-    const { data: allRolosTypes } = await supabase
-      .from("rolos_room_types")
-      .select("id, name")
-      .eq("property_id", propertyId)
-      .eq("is_active", true);
+          const { data: allRolosTypes } = await supabase
+            .from("rolos_room_types")
+            .select("id, name")
+            .eq("property_id", pid)
+            .eq("is_active", true);
 
-    if (allRolosTypes && allRolosTypes.length > 0) {
-      const { data: existingPhysical } = await supabase
-        .from("rolos_rooms")
-        .select("room_type_id")
-        .eq("property_id", propertyId);
+          if (allRolosTypes && allRolosTypes.length > 0) {
+            const { data: existingPhysical } = await supabase
+              .from("rolos_rooms")
+              .select("room_type_id")
+              .eq("property_id", pid);
 
-      const hasPhysical = new Set((existingPhysical || []).map((room) => room.room_type_id).filter(Boolean));
-      const missingPhysical = allRolosTypes.filter((roomType) => !hasPhysical.has(roomType.id));
+            const hasPhysical = new Set(
+              (existingPhysical || []).map((room) => room.room_type_id).filter(Boolean)
+            );
+            const missingPhysical = allRolosTypes.filter((roomType) => !hasPhysical.has(roomType.id));
 
-      if (missingPhysical.length > 0) {
-        const backfillRooms = missingPhysical.map((roomType) => ({
-          property_id: propertyId,
-          room_number: roomType.name,
-          room_name: roomType.name,
-          room_type_id: roomType.id,
-          status: "available",
-        }));
-        await supabase.from("rolos_rooms").insert(backfillRooms);
-      }
-    }
-  }, [propertyId, isPortfolio]);
+            if (missingPhysical.length > 0) {
+              const backfillRooms = missingPhysical.map((roomType) => ({
+                property_id: pid,
+                room_number: roomType.name,
+                room_name: roomType.name,
+                room_type_id: roomType.id,
+                status: "available",
+              }));
+              await supabase.from("rolos_rooms").insert(backfillRooms);
+            }
+          }
+        } catch (err) {
+          console.warn(`[PMSRooms] sync failed for property ${pid}:`, err);
+        }
+      })
+    );
+  }, [activePropertyIds]);
+
 
   const fetchData = useCallback(async () => {
     if (activePropertyIds.length === 0) return;
