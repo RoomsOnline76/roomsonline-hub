@@ -58,9 +58,14 @@ export default function PMSGuests() {
   }, [search]);
 
   // Default to portfolio when multiple properties become available
+  const didAutoPortfolio = useRef(false);
   useEffect(() => {
-    if (portfolioProperties && portfolioProperties.length > 1) setViewMode(prev => prev);
+    if (!didAutoPortfolio.current && portfolioProperties && portfolioProperties.length > 1) {
+      didAutoPortfolio.current = true;
+      setViewMode("portfolio");
+    }
   }, [portfolioProperties]);
+
 
   const activeIds = (viewMode === "portfolio" && portfolioProperties?.length)
     ? portfolioProperties.map(p => p.id)
