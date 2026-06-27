@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
+import { autoAssignBookings } from "@/lib/bookingAssignment";
 
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
@@ -381,11 +382,16 @@ export default function PMSDashboard() {
     }
   }, [bookingsInfinite.hasNextPage, bookingsInfinite.isFetchingNextPage, bookingsInfinite.data]);
 
-  const bookings: BookingRow[] = useMemo(
+  const bookingsRaw: BookingRow[] = useMemo(
     () => bookingsInfinite.data?.pages.flatMap(p => p.items) || [],
     [bookingsInfinite.data]
   );
   const bookingsLoading = bookingsInfinite.isLoading;
+
+  const bookings: BookingRow[] = useMemo(
+    () => autoAssignBookings(bookingsRaw, rooms) as BookingRow[],
+    [bookingsRaw, rooms]
+  );
 
   // Fetch today's arrivals & departures
   const today = format(new Date(), "yyyy-MM-dd");
@@ -650,7 +656,8 @@ export default function PMSDashboard() {
     for (const prop of portfolioProperties || []) {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRooms = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
-      const propBookings = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
       const propData = portfolioPropertiesData.find(p => p.id === prop.id);
 
