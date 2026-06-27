@@ -495,7 +495,7 @@ function GuestNameAutocomplete({
       const { data, error } = await supabase
         .from("rolos_guest_profiles")
         .select("id, full_name, email, phone, total_stays, last_stay_date")
-        .eq("property_id", effectivePropertyId)
+        .eq("property_id", propertyId)
         .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .limit(8);
