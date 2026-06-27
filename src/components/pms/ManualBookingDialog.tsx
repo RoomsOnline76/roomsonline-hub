@@ -190,7 +190,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     };
 
     if (form.room_id) payload.rolos_room_ids = [form.room_id];
-    if (form.rate_plan_id) payload.rolos_rate_plan_id = form.rate_plan_id;
     if (guestId) payload.rolos_guest_id = guestId;
 
     const { data: insertedData, error } = await supabase.from("bookings").insert(payload).select("id").single();
@@ -203,33 +202,36 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     toast.success(`Booking created as "${autoStatus}"`);
 
-    // 3. Send confirmation email
+    // 3. Send confirmation email (non-blocking)
     if (insertedData?.id) {
       try {
-        const { error: emailError } = await supabase.functions.invoke("send-booking-email", {
-          body: { booking_id: insertedData.id, bookingId: insertedData.id, status: "success" },
+        const { data: emailData, error: emailError } = await supabase.functions.invoke("send-booking-email", {
+          body: { booking_id: insertedData.id, status: "success" },
         });
-        if (emailError) {
-          console.warn("Confirmation email failed:", emailError);
-          toast.warning("Booking created but confirmation email failed to send");
+        const reason = (emailData as any)?.reason || emailError?.message;
+        if (emailError || (emailData && (emailData as any).ok === false)) {
+          console.warn("Confirmation email failed:", reason || emailError);
+          toast.warning(`Booking saved — email skipped${reason ? `: ${reason}` : ""}`);
         } else {
           toast.success("Confirmation email sent to " + form.guest_email);
         }
-      } catch (emailErr) {
+      } catch (emailErr: any) {
         console.warn("Email send error:", emailErr);
+        toast.warning(`Booking saved — email skipped: ${emailErr?.message || "unknown error"}`);
       }
     }
     onOpenChange(false);
     setForm({
       guest_name: "", guest_email: "", guest_phone: "",
       check_in: undefined, check_out: undefined,
-      room_type_id: "", room_id: "", rate_plan_id: "",
+      room_type_id: "", room_id: "",
       adults: "1", children: "0", teens: "0", infants: "0", pets: "0",
       total_price: "", payment_status: "unpaid", payment_method: "",
       status: "confirmed", special_requests: "",
     });
     onCreated();
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
