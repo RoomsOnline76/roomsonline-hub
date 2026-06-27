@@ -531,68 +531,124 @@ export default function PMSHousekeeping() {
           </div>
 
           {/* ─── Ready ──────────────────────────────── */}
-          <div className="space-y-3">
-            <h2 className="font-semibold text-emerald-700 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" /> Ready ({cleanRooms.length})
-            </h2>
-            {cleanRooms.map(room => {
-              const openDockets = openMaintenanceForRoom(room.id);
-              return (
-                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
-                  <CardContent className="py-3 space-y-1.5">
-                    <p className="font-bold">{room.room_number}</p>
-                    <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
-                    {openDockets.length > 0 && (
-                      <div className="mt-1 space-y-2">
-                        <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
-                          <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                          <span className="text-xs text-amber-700 dark:text-amber-400">
-                            {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
-                          </span>
-                        </div>
-                        {openDockets.map(req => (
-                          <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <AlertTriangle className="h-3 w-3 text-destructive" />
-                              <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
-                              {req.priority && (
-                                <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
-                              )}
-                              <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{req.description}</p>
-                            {req.status === "resolved" && (
-                              <div className="bg-muted/50 p-2 rounded space-y-1.5">
-                                {req.completion_notes && (
-                                  <p className="text-xs"><span className="font-medium">Notes:</span> {req.completion_notes}</p>
-                                )}
-                                <div className="flex items-center gap-2">
-                                  <Checkbox
-                                    id={`ready-clean-${req.id}`}
-                                    checked={req.room_ready_confirmed}
-                                    onCheckedChange={(checked) => toggleRoomReady(req, !!checked)}
-                                  />
-                                  <Label htmlFor={`ready-clean-${req.id}`} className="text-xs cursor-pointer flex items-center gap-1">
-                                    <ShieldCheck className="h-3 w-3" /> Room ready after repairs
-                                  </Label>
-                                </div>
-                              </div>
-                            )}
-                            {STATUSES_OPEN.includes(req.status || "") && (
-                              <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
-                                <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
-                              </Button>
-                            )}
+          {(() => {
+            const expanded = !!readyExpanded[section.id];
+            // Always show rooms with open dockets in full — they need attention.
+            const readyWithDockets = cleanRooms.filter(r => openMaintenanceForRoom(r.id).length > 0);
+            const readyClean = cleanRooms.filter(r => openMaintenanceForRoom(r.id).length === 0);
+            return (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-emerald-700 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" /> Ready ({cleanRooms.length})
+                  </h2>
+                  {readyClean.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setReadyExpanded(prev => ({ ...prev, [section.id]: !expanded }))}
+                    >
+                      {expanded ? <><ChevronUp className="h-3 w-3 mr-1" />Collapse</> : <><ChevronDown className="h-3 w-3 mr-1" />Expand</>}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Always-full cards for ready rooms that still have open dockets */}
+                {readyWithDockets.map(room => {
+                  const openDockets = openMaintenanceForRoom(room.id);
+                  return (
+                    <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                      <CardContent className="py-3 space-y-1.5">
+                        <p className="font-bold">{room.room_number}</p>
+                        <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                        <div className="mt-1 space-y-2">
+                          <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
+                            <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                            <span className="text-xs text-amber-700 dark:text-amber-400">
+                              {openDockets.length} open docket{openDockets.length > 1 ? "s" : ""}
+                            </span>
                           </div>
+                          {openDockets.map(req => (
+                            <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <AlertTriangle className="h-3 w-3 text-destructive" />
+                                <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
+                                {req.priority && (
+                                  <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
+                                )}
+                                <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{req.description}</p>
+                              {req.status === "resolved" && (
+                                <div className="bg-muted/50 p-2 rounded space-y-1.5">
+                                  {req.completion_notes && (
+                                    <p className="text-xs"><span className="font-medium">Notes:</span> {req.completion_notes}</p>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`ready-clean-${req.id}`}
+                                      checked={req.room_ready_confirmed}
+                                      onCheckedChange={(checked) => toggleRoomReady(req, !!checked)}
+                                    />
+                                    <Label htmlFor={`ready-clean-${req.id}`} className="text-xs cursor-pointer flex items-center gap-1">
+                                      <ShieldCheck className="h-3 w-3" /> Room ready after repairs
+                                    </Label>
+                                  </div>
+                                </div>
+                              )}
+                              {STATUSES_OPEN.includes(req.status || "") && (
+                                <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
+                                  <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+
+                {/* Collapsed compact view for clean-and-clear ready rooms */}
+                {readyClean.length > 0 && !expanded && (
+                  <Card className="border-l-4 border-l-emerald-500">
+                    <CardContent className="py-3">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {readyClean.length} room{readyClean.length === 1 ? "" : "s"} clean &amp; ready
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {readyClean.map(room => (
+                          <Badge
+                            key={room.id}
+                            variant="outline"
+                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400"
+                            title={roomTypeName(room.room_type_id)}
+                          >
+                            {room.room_number}
+                          </Badge>
                         ))}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Expanded — original full card per ready room */}
+                {readyClean.length > 0 && expanded && readyClean.map(room => (
+                  <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                    <CardContent className="py-3 space-y-1.5">
+                      <p className="font-bold">{room.room_number}</p>
+                      <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {cleanRooms.length === 0 && <p className="text-sm text-muted-foreground">No ready rooms.</p>}
+              </div>
+            );
+          })()}
         </div>
+
         </div>
           );
         })}
