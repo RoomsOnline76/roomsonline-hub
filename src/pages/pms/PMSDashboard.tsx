@@ -1719,20 +1719,22 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                 <div className="flex items-center justify-center h-full"><Ban className="h-3 w-3 text-muted-foreground/30" /></div>
               ) : (
                 <>
-                  <div className={cn("flex flex-col items-center", isSingleRoom && "absolute inset-0 z-0 justify-center pointer-events-none")}>
-                    {rate != null ? (
-                      <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground/50 italic">—</span>
-                    )}
-                    {!isSingleRoom && (
-                      <div className="text-[8px] font-semibold mt-0.5">
-                        <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
-                        {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
-                      </div>
-                    )}
-                    <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
-                  </div>
+                  {dayBookings.length === 0 && (
+                    <div className={cn("flex flex-col items-center", isSingleRoom && "absolute inset-0 z-0 justify-center pointer-events-none")}>
+                      {rate != null ? (
+                        <span className="text-[10px] font-medium text-foreground">R{rate.toLocaleString()}{getPricingSuffix(rt.id)}</span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/50 italic">—</span>
+                      )}
+                      {!isSingleRoom && (
+                        <div className="text-[8px] font-semibold mt-0.5">
+                          <span className={avail > 0 ? "text-emerald-600" : "text-red-500"}>{avail}</span>
+                          {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
+                        </div>
+                      )}
+                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} />
+                    </div>
+                  )}
                   {/* Booking bars for single-room types */}
                   {dayBookings.map(b => {
                     const colors = getStatusColor(b.status);
@@ -1747,13 +1749,14 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                       )}>
                         {isStart && (
                           <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name.split(" ")[0]}</span>
+                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
                             {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
                           </>
                         )}
                       </button>
                     );
                   })}
+
                 </>
               )}
             </td>
