@@ -389,8 +389,8 @@ export default function PMSDashboard() {
   const bookingsLoading = bookingsInfinite.isLoading;
 
   const bookings: BookingRow[] = useMemo(
-    () => autoAssignBookings(bookingsRaw, rooms) as BookingRow[],
-    [bookingsRaw, rooms]
+    () => autoAssignBookings(bookingsRaw, rooms, roomTypes) as BookingRow[],
+    [bookingsRaw, rooms, roomTypes]
   );
 
   // Fetch today's arrivals & departures
