@@ -1013,7 +1013,19 @@ export default function PMSRevenue() {
 
           {/* === YIELD RULES TAB === */}
           <TabsContent value="yield" className="space-y-4">
-            <YieldRulesTab propertyId={propertyId!} />
+            {isPortfolioMode ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <Zap className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Yield rules are configured per property.</p>
+                  <Button size="sm" variant="outline" onClick={() => setViewMode("single")}>
+                    Switch to single-property view
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <YieldRulesTab propertyId={propertyId!} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
