@@ -435,7 +435,7 @@ export default function PMSReports() {
           </TabsContent>
 
           <TabsContent value="folios">
-            <PMSFoliosManager propertyId={propertyId} />
+            {propertyId ? <PMSFoliosManager propertyId={propertyId} /> : <p className="text-muted-foreground">Select a property to view folios.</p>}
           </TabsContent>
         </Tabs>
       </div>
