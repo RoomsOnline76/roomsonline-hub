@@ -48,27 +48,30 @@ interface RatePlanRoomLink {
 }
 
 export default function PMSRatePlans() {
-  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  const currentIndex = properties.findIndex((p) => p.id === propertyId);
+  const { propertyId, properties, portfolioProperties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
+  const scopeProperties = portfolioProperties && portfolioProperties.length > 0 ? portfolioProperties : properties;
+  const currentIndex = scopeProperties.findIndex((p) => p.id === propertyId);
   const goToProperty = (offset: number) => {
-    if (properties.length === 0) return;
-    const next = (currentIndex + offset + properties.length) % properties.length;
-    switchProperty(properties[next].id);
+    if (scopeProperties.length === 0) return;
+    const next = (currentIndex + offset + scopeProperties.length) % scopeProperties.length;
+    switchProperty(scopeProperties[next].id);
   };
 
-  const [viewMode, setViewMode] = useState<"portfolio" | "single">("single");
+  const [viewMode, setViewMode] = useState<"portfolio" | "single">(
+    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
+  );
   const [autoDefaulted, setAutoDefaulted] = useState(false);
   useEffect(() => {
-    if (!autoDefaulted && properties.length > 1) {
+    if (!autoDefaulted && portfolioProperties && portfolioProperties.length > 1) {
       setViewMode("portfolio");
       setAutoDefaulted(true);
     }
-  }, [properties.length, autoDefaulted]);
+  }, [portfolioProperties, autoDefaulted]);
 
-  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const isPortfolio = viewMode === "portfolio" && scopeProperties.length > 1;
   const activePropertyIds = useMemo(
-    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
-    [isPortfolio, properties, propertyId]
+    () => (isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, scopeProperties, propertyId]
   );
 
   const [plans, setPlans] = useState<RatePlan[]>([]);
@@ -439,8 +442,8 @@ export default function PMSRatePlans() {
   if (!isPortfolio && !propertyId) return <p className="text-muted-foreground">Select a property first.</p>;
 
   const propertySections = isPortfolio
-    ? properties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
-    : [{ id: propertyId!, name: properties.find((p) => p.id === propertyId)?.name || "", plans }];
+    ? scopeProperties.map((p) => ({ id: p.id, name: p.name, plans: plans.filter((pl) => pl.property_id === p.id) }))
+    : [{ id: propertyId!, name: scopeProperties.find((p) => p.id === propertyId)?.name || "", plans }];
 
   const renderPlanCard = (plan: RatePlan) => {
     const linkedIds = getLinkedRoomTypes(plan.id);
@@ -521,7 +524,7 @@ export default function PMSRatePlans() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 1 && (
+            {scopeProperties.length > 1 && (
               <>
                 <Button
                   variant="outline"
@@ -540,7 +543,7 @@ export default function PMSRatePlans() {
                     <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
                       <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Select property" /></SelectTrigger>
                       <SelectContent>
-                        {properties.map((p) => (
+                        {scopeProperties.map((p) => (
                           <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -549,7 +552,7 @@ export default function PMSRatePlans() {
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground ml-1">
-                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {properties.length}
+                      {currentIndex >= 0 ? currentIndex + 1 : "—"} / {scopeProperties.length}
                     </span>
                   </div>
                 )}
