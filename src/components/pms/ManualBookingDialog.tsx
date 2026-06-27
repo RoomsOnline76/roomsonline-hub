@@ -57,7 +57,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     check_out: undefined as Date | undefined,
     room_type_id: "",
     room_id: "",
-    rate_plan_id: "",
     adults: "1",
     children: "0",
     teens: "0",
@@ -69,6 +68,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     status: "confirmed",
     special_requests: "",
   });
+
 
   const filteredRooms = useMemo(() =>
     rooms.filter(r => r.room_type_id === form.room_type_id && r.status !== "out_of_service"),
