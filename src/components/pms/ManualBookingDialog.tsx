@@ -369,10 +369,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Room Type *</Label>
-                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }}>
-                  <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+                <Select value={form.room_type_id} onValueChange={v => { update("room_type_id", v); update("room_id", ""); }} disabled={portfolioMode && !effectivePropertyId}>
+                  <SelectTrigger><SelectValue placeholder={portfolioMode && !effectivePropertyId ? "Select property first" : (activeRoomTypes.length ? "Select room type" : "No room types")} /></SelectTrigger>
                   <SelectContent>
-                    {roomTypes.map(rt => (
+                    {activeRoomTypes.map(rt => (
                       <SelectItem key={rt.id} value={rt.id}>{rt.name}</SelectItem>
                     ))}
                   </SelectContent>
