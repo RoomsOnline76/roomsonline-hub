@@ -80,17 +80,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     return Math.max(0, differenceInDays(form.check_out, form.check_in));
   }, [form.check_in, form.check_out]);
 
-  // Auto-calculate price when rate/nights/guests change
-  const selectedPlan = ratePlans.find(p => p.id === form.rate_plan_id);
-  const pricingModel = selectedPlan?.pricing_model || 'per_room';
-  const totalGuests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
-
   // Sum nightly rates using the calendar's resolver (season-aware), falling back
-  // to plan base_rate / room-type default_rate if no resolver is provided.
+  // to room-type default_rate. No per-unit rate column exists today.
   const nightlyRates = useMemo(() => {
     if (!nights || !form.check_in || !form.room_type_id) return [] as number[];
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const planRate = plan?.base_rate && plan.base_rate > 0 ? plan.base_rate : null;
     const rt = roomTypes.find(t => t.id === form.room_type_id);
     const defaultRate = rt?.default_rate && rt.default_rate > 0 ? rt.default_rate : null;
 
@@ -99,53 +92,27 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       const d = new Date(form.check_in);
       d.setDate(d.getDate() + i);
       const resolved = getRateForDate ? getRateForDate(form.room_type_id, d) : null;
-      const rate = (resolved && resolved > 0) ? resolved : (planRate ?? defaultRate ?? 0);
+      const rate = (resolved && resolved > 0) ? resolved : (defaultRate ?? 0);
       out.push(rate);
     }
     return out;
-  }, [nights, form.check_in, form.room_type_id, form.rate_plan_id, ratePlans, roomTypes, getRateForDate]);
+  }, [nights, form.check_in, form.room_type_id, roomTypes, getRateForDate]);
+
+  const rateUnresolved = nightlyRates.length > 0 && nightlyRates.every(r => r === 0);
 
   const autoPrice = useMemo(() => {
-    if (!nightlyRates.length) return null;
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const model = plan?.pricing_model || 'per_room';
-    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
-    const sum = nightlyRates.reduce((a, b) => a + b, 0);
-    switch (model) {
-      case 'per_person':
-        return sum * guests;
-      case 'per_person_sharing': {
-        const extra = Math.max(0, guests - 2);
-        return sum + (sum * extra);
-      }
-      case 'per_unit':
-      case 'per_room':
-      default:
-        return sum;
-    }
-  }, [nightlyRates, form.rate_plan_id, form.adults, form.children, form.teens, ratePlans]);
+    if (!nightlyRates.length || rateUnresolved) return null;
+    return nightlyRates.reduce((a, b) => a + b, 0);
+  }, [nightlyRates, rateUnresolved]);
 
   const priceBreakdown = useMemo(() => {
     if (!nights || !autoPrice || !nightlyRates.length) return null;
-    const plan = ratePlans.find(p => p.id === form.rate_plan_id);
-    const model = plan?.pricing_model || 'per_room';
-    const guests = (parseInt(form.adults) || 1) + (parseInt(form.children) || 0) + (parseInt(form.teens) || 0);
     const min = Math.min(...nightlyRates);
     const max = Math.max(...nightlyRates);
     const rangeLabel = min === max ? `R${min.toLocaleString()}` : `R${min.toLocaleString()}–R${max.toLocaleString()}`;
-    switch (model) {
-      case 'per_person':
-        return `${rangeLabel}/night × ${guests} guest${guests !== 1 ? 's' : ''} × ${nights} night${nights !== 1 ? 's' : ''}`;
-      case 'per_person_sharing': {
-        const extra = Math.max(0, guests - 2);
-        return extra > 0
-          ? `${rangeLabel}/n × ${nights}n (base 2 pax) + ${extra} extra pax`
-          : `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''} (sharing)`;
-      }
-      default:
-        return `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''}`;
-    }
-  }, [nights, autoPrice, nightlyRates, form.rate_plan_id, form.adults, form.children, form.teens, ratePlans]);
+    return `${rangeLabel}/night × ${nights} night${nights !== 1 ? 's' : ''}`;
+  }, [nights, autoPrice, nightlyRates]);
+
 
   const update = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
 
