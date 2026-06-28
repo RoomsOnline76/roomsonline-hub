@@ -1128,7 +1128,6 @@ export default function PMSDashboard() {
                 {effectiveArrivals.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">No arrivals today</p>
                 ) : effectiveArrivals.map((b: BookingRow) => {
-                  const canCheckIn = b.status === "confirmed";
                   const alreadyIn = b.status === "checked_in";
                   const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
                   return (
@@ -1141,33 +1140,6 @@ export default function PMSDashboard() {
                         {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
                       </button>
                       <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
-                      {canCheckIn && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 px-2 text-xs shrink-0"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const res = await callPmsApi("check_in", { booking_id: b.id });
-                            if (!res.success) {
-                              if (res.error?.code === "ROOMS_NOT_READY") {
-                                toast.error("Rooms not ready — open booking to reassign");
-                                setSelectedBooking(b);
-                              } else {
-                                toast.error(res.error?.message || "Check-in failed");
-                              }
-                              return;
-                            }
-                            toast.success(`${b.guest_name} checked in — room marked in use`);
-                            queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
-                          }}
-                        >
-                          <LogIn className="h-3 w-3 mr-1" />Check In
-                        </Button>
-                      )}
                       {alreadyIn && (
                         <Badge variant="secondary" className="text-[10px] shrink-0">In House</Badge>
                       )}
