@@ -539,11 +539,17 @@ Deno.serve(async (req) => {
 
     // Get active PMS systems from pms_credentials
     const activePmsSystems = await getActivePmsSystems(supabase);
+    // Get parked PMS systems from pms_tracker_status (always skipped)
+    const parkedPmsSystems = await getParkedPmsSystems(supabase);
 
-    // Filter components: keep all non-PMS, only keep PMS with active credentials
+    // Filter components: keep all non-PMS, skip parked PMS, only keep PMS with active credentials
     const componentsToCheck = (components || []).filter((component: Component) => {
       if (component.component_type !== 'pms') {
         return true;
+      }
+      if (parkedPmsSystems.has(component.component_key)) {
+        console.log(`[Health Check] Skipping ${component.component_key} - parked`);
+        return false;
       }
       const isActive = activePmsSystems.has(component.component_key);
       if (!isActive) {
@@ -551,6 +557,7 @@ Deno.serve(async (req) => {
       }
       return isActive;
     });
+
 
     const skippedCount = (components?.length || 0) - componentsToCheck.length;
     console.log(`[Health Check] Checking ${componentsToCheck.length} components (${skippedCount} PMS skipped)...`);
