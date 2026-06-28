@@ -20,6 +20,7 @@ import { Analytics } from "@vercel/analytics/react";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import UnderConstruction from "./pages/UnderConstruction";
 
 // ─── Lazy — public pages ─────────────────────────────────────────
 const PropertyShowcase = lazy(() => import("./pages/PropertyShowcase"));
