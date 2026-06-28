@@ -717,7 +717,25 @@ export default function PMSDashboard() {
     return map;
   }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData]);
 
-  // Portfolio rate lookup
+  // Resolve room names for a booking (single or portfolio mode)
+  const getBookingRoomNames = useCallback((b: BookingRow): string[] => {
+    const roomIds = b.rolos_room_ids || [];
+    if (roomIds.length === 0) return [];
+    if (isPortfolioMode && b.property_id) {
+      const propRooms = portfolioDataByProperty.get(b.property_id)?.rooms || [];
+      return roomIds
+        .map(id => propRooms.find(r => r.id === id))
+        .filter((r): r is Room => !!r)
+        .map(r => r.room_name || r.room_number || "")
+        .filter(Boolean);
+    }
+    return roomIds
+      .map(id => rooms.find(r => r.id === id))
+      .filter((r): r is Room => !!r)
+      .map(r => r.room_name || r.room_number || "")
+      .filter(Boolean);
+  }, [isPortfolioMode, portfolioDataByProperty, rooms]);
+
   const getPortfolioRateForDate = useCallback((propId: string, roomTypeId: string, date: Date): number | null => {
     const propData = portfolioDataByProperty.get(propId);
     if (!propData) return null;
