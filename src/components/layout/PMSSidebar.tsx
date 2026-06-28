@@ -157,10 +157,10 @@ export function PMSSidebar() {
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-foreground truncate">
-                {propertyName || "ROL'OS PMS"}
+                {portfolioName || propertyName || "ROL'OS PMS"}
               </span>
               <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground truncate">
-                Property Management
+                {portfolioName ? "Portfolio" : "Property Management"}
               </span>
             </div>
           )}
