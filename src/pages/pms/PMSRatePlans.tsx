@@ -541,7 +541,7 @@ export default function PMSRatePlans() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  onClick={() => setViewModeManual(viewMode === "portfolio" ? "single" : "portfolio")}
                   title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
                 >
                   {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
