@@ -15,8 +15,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2, ChevronDown, ChevronUp,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2, ChevronDown, ChevronUp, BedDouble,
 } from "lucide-react";
+
 
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,7 +85,9 @@ const STATUS_BORDER: Record<string, string> = {
   dirty: "border-l-amber-500",
   maintenance: "border-l-red-500",
   out_of_order: "border-l-destructive",
+  in_house: "border-l-blue-500",
 };
+
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -360,6 +363,7 @@ export default function PMSHousekeeping() {
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
           const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
+          const occupiedRooms = section.rooms.filter(r => r.status === "occupied" || r.status === "in_house");
           const cleanRooms = section.rooms.filter(r => r.status === "available");
           return (
         <div key={section.id} className="space-y-3">
@@ -370,7 +374,8 @@ export default function PMSHousekeeping() {
               <Badge variant="outline" className="text-xs">{section.rooms.length} rooms</Badge>
             </div>
           )}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
             <h2 className="font-semibold text-amber-700 flex items-center gap-2">
@@ -530,7 +535,29 @@ export default function PMSHousekeeping() {
             {maintenanceRooms.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
           </div>
 
+          {/* ─── In House (Occupied) ───────────────── */}
+          <div className="space-y-3">
+            <h2 className="font-semibold text-blue-700 flex items-center gap-2">
+              <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
+            </h2>
+            {occupiedRooms.map(room => (
+              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status] || "border-l-blue-500"}`}>
+                <CardContent className="py-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold">{room.room_number}</p>
+                      <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                    </div>
+                    <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">occupied</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {occupiedRooms.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
+          </div>
+
           {/* ─── Ready ──────────────────────────────── */}
+
           {(() => {
             const expanded = !!readyExpanded[section.id];
             // Always show rooms with open dockets in full — they need attention.
