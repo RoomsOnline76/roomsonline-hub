@@ -207,10 +207,25 @@ export default function PMSRooms() {
   };
 
   const handleStatusChange = async (roomId: string, status: string) => {
-    const { error } = await supabase.from("rolos_rooms").update({ status }).eq("id", roomId);
-    if (error) { toast.error(error.message); return; }
+    // Optimistic update so the dropdown reflects the new state immediately.
+    const previous = rooms;
+    setRooms((rs) => rs.map((r) => (r.id === roomId ? { ...r, status } : r)));
+    const { data, error } = await supabase
+      .from("rolos_rooms")
+      .update({ status })
+      .eq("id", roomId)
+      .select("id, status");
+    if (error) {
+      setRooms(previous);
+      toast.error(error.message);
+      return;
+    }
+    if (!data || data.length === 0) {
+      setRooms(previous);
+      toast.error("Status update was blocked (no permission on this room).");
+      return;
+    }
     toast.success("Status updated");
-    fetchData();
   };
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
