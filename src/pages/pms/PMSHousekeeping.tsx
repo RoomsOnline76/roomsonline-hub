@@ -122,6 +122,9 @@ export default function PMSHousekeeping() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [hkTasks, setHkTasks] = useState<HKTask[]>([]);
   const [maintenanceReqs, setMaintenanceReqs] = useState<MaintenanceRequest[]>([]);
+  // Active stays: drives the "In House" indicator regardless of room.status drift.
+  const [inHouseBookings, setInHouseBookings] = useState<Array<{ id: string; rolos_room_ids: string[] | null; guest_name: string | null; property_id: string }>>([]);
+  const [docketRoomSearchOpen, setDocketRoomSearchOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dialog state
