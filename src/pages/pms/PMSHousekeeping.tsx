@@ -421,7 +421,7 @@ export default function PMSHousekeeping() {
               const tasks = tasksForRoom(room.id);
               const openDockets = openMaintenanceForRoom(room.id);
               return (
-                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`} onClick={() => openDocketForRoom(room.id)} role="button" tabIndex={0}>
                   <CardContent className="py-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
@@ -510,7 +510,7 @@ export default function PMSHousekeeping() {
             {maintenanceRooms.map(room => {
               const reqs = openMaintenanceForRoom(room.id);
               return (
-                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`} onClick={() => openDocketForRoom(room.id)} role="button" tabIndex={0}>
                   <CardContent className="py-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
