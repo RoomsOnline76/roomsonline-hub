@@ -1178,6 +1178,7 @@ export default function PMSDashboard() {
                   const alreadyIn = b.status === "checked_in";
                   const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === b.property_id)?.name : null;
                   const roomNames = getBookingRoomNames(b);
+                  const isQuickLoading = quickAction?.bookingId === b.id;
                   return (
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
@@ -1192,10 +1193,23 @@ export default function PMSDashboard() {
                           {!propName && roomNames.length === 0 && <span>No room assigned</span>}
                         </span>
                       </button>
-                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
-                      {alreadyIn && (
-                        <Badge variant="secondary" className="text-[10px] shrink-0">In House</Badge>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                        {alreadyIn ? (
+                          <Badge variant="secondary" className="text-[10px]">In House</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-6 text-[10px] px-2 py-0"
+                            disabled={!!quickAction}
+                            onClick={() => handleQuickAction(b, "check_in")}
+                          >
+                            {isQuickLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogIn className="h-3 w-3 mr-1" />}
+                            Check In
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
