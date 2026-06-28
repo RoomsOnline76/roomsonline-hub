@@ -340,7 +340,7 @@ export default function PMSDashboard() {
 
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
-    queryKey: ["pms-cal-rooms", propertyId],
+    queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(",")],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data } = await supabase
@@ -349,16 +349,10 @@ export default function PMSDashboard() {
         .eq("property_id", propertyId)
         .order("room_number");
       const raw = (data || []) as Room[];
-      // Dedupe by normalized name to avoid double-counting units that exist
-      // under multiple room_type_id rows.
-      const seen = new Set<string>();
-      return raw.filter((r) => {
-        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
-        if (!key) return true;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const activeTypeIds = new Set(roomTypes.map((rt) => rt.id));
+      return activeTypeIds.size > 0
+        ? raw.filter((room) => !room.room_type_id || activeTypeIds.has(room.room_type_id))
+        : raw;
     },
     enabled: !!propertyId,
   });
