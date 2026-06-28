@@ -340,7 +340,7 @@ export default function PMSDashboard() {
 
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
-    queryKey: ["pms-cal-rooms", propertyId],
+    queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(",")],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data } = await supabase
@@ -349,16 +349,10 @@ export default function PMSDashboard() {
         .eq("property_id", propertyId)
         .order("room_number");
       const raw = (data || []) as Room[];
-      // Dedupe by normalized name to avoid double-counting units that exist
-      // under multiple room_type_id rows.
-      const seen = new Set<string>();
-      return raw.filter((r) => {
-        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
-        if (!key) return true;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const activeTypeIds = new Set(roomTypes.map((rt) => rt.id));
+      return activeTypeIds.size > 0
+        ? raw.filter((room) => !room.room_type_id || activeTypeIds.has(room.room_type_id))
+        : raw;
     },
     enabled: !!propertyId,
   });
@@ -669,19 +663,6 @@ export default function PMSDashboard() {
     for (const prop of portfolioProperties || []) {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRoomsRawForProp = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
-      // Dedupe rooms by normalized name (room_name || room_number) to avoid double-counting
-      // when the same physical unit exists under multiple room_type_id rows.
-      const seenRoomNames = new Set<string>();
-      const propRooms = propRoomsRawForProp.filter((r) => {
-        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
-        if (!key) return true;
-        if (seenRoomNames.has(key)) return false;
-        seenRoomNames.add(key);
-        return true;
-      });
-      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypesRaw) as BookingRow[];
-      const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
       const propData = portfolioPropertiesData.find(p => p.id === prop.id);
 
       // Deduplicate room types using same logic as single-property mode
@@ -709,6 +690,14 @@ export default function PMSDashboard() {
         }
         propRoomTypes = Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
       }
+
+      const activeRoomTypeIds = new Set(propRoomTypes.map(rt => rt.id));
+      // Only count physical rooms linked to the canonical active room-type catalogue. This avoids
+      // stale/deactivated sync rows being counted as extra units without hiding valid rooms.
+      const propRooms = propRoomsRawForProp.filter((r) => !r.room_type_id || activeRoomTypeIds.has(r.room_type_id));
+      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes) as BookingRow[];
+      const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
 
       const oMap = new Map<string, AvailabilityOverride>();
       propOverrides.forEach(o => oMap.set(`${o.room_type}-${o.date}`, o));
@@ -904,7 +893,9 @@ export default function PMSDashboard() {
     const arrivals: BookingRow[] = [];
     const departures: BookingRow[] = [];
     for (const [, pd] of portfolioDataByProperty) {
-      const physical = pd.rooms.filter(r => r.status !== "out_of_service").length;
+      const displayedRooms = Array.from(pd.roomsByType.values()).flat() as Room[];
+      const displayedRoomIds = new Set(displayedRooms.filter(r => r.status !== "out_of_service").map(r => r.id));
+      const physical = displayedRoomIds.size || pd.rooms.filter(r => r.status !== "out_of_service").length;
       const tRooms = physical > 0 ? physical : pd.roomTypes.length;
       totalRooms += tRooms;
       const activeToday = pd.bookings.filter(b =>
@@ -918,8 +909,9 @@ export default function PMSDashboard() {
       } else {
         occupied += activeToday.length;
       }
-      dirty += pd.rooms.filter(r => r.status === "dirty").length;
-      maintenance += pd.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
+      const roomsForStatus = displayedRooms.length ? displayedRooms : pd.rooms;
+      dirty += roomsForStatus.filter(r => r.status === "dirty").length;
+      maintenance += roomsForStatus.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
       pd.bookings.forEach(b => {
         if (b.check_in_date === todayStr && ["confirmed", "pending"].includes(b.status)) arrivals.push(b);
         if (b.check_out_date === todayStr && ["confirmed", "checked_in"].includes(b.status)) departures.push(b);
@@ -1413,13 +1405,15 @@ export default function PMSDashboard() {
                     const propGetRestriction = (rtName: string, date: Date) =>
                       propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
 
+                    const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
+
                     return (
                       <div key={prop.id}>
                         <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
                           <Badge variant="outline" className="text-[10px]">
-                            {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                            {propData.roomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
                         <WeekCalendarGrid
@@ -1463,13 +1457,15 @@ export default function PMSDashboard() {
                           const propGetRestriction = (rtName: string, date: Date) =>
                             propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
 
+                          const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
+
                           return (
                             <div key={`${prop.id}-${weekIdx}`}>
                               <div className="flex items-center gap-2 mb-2 px-1 py-1 bg-muted/30 rounded-md">
                                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
                                 <Badge variant="outline" className="text-[10px]">
-                                  {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                                  {propData.roomTypes.length} types · {displayedRoomCount} rooms
                                 </Badge>
                               </div>
                               <WeekCalendarGrid

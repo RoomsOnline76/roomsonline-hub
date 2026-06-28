@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, BedDouble, RefreshCw, Pencil, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
+import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -23,6 +24,17 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 interface RoomType { id: string; name: string; property_id: string; }
+
+interface ActiveBooking {
+  id: string;
+  guest_name: string | null;
+  property_id: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  status: string;
+  room_type_id: string | null;
+  rolos_room_ids: string[] | null;
+}
 
 interface Room {
   id: string;
@@ -61,6 +73,7 @@ export default function PMSRooms() {
 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+  const [activeBookings, setActiveBookings] = useState<ActiveBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
@@ -120,7 +133,8 @@ export default function PMSRooms() {
     setLoading(true);
     await syncRoomTypesFromOverview();
 
-    const [roomsRes, typesRes] = await Promise.all([
+    const today = new Date().toLocaleDateString("en-CA");
+    const [roomsRes, typesRes, allTypesRes, bookingsRes] = await Promise.all([
       supabase
         .from("rolos_rooms")
         .select("id, property_id, room_number, room_name, floor, status, max_occupancy, room_type_id")
@@ -133,20 +147,56 @@ export default function PMSRooms() {
         .in("property_id", activePropertyIds)
         .eq("is_active", true)
         .order("name"),
+      supabase
+        .from("rolos_room_types")
+        .select("id, name, property_id")
+        .in("property_id", activePropertyIds),
+      (supabase.from("bookings") as any)
+        .select("id, guest_name, check_in_date, check_out_date, status, room_type_id, rolos_room_ids, property_id")
+        .in("property_id", activePropertyIds)
+        .lte("check_in_date", today)
+        .gte("check_out_date", today)
+        .in("status", ["confirmed", "checked_in", "in_house"]),
     ]);
 
-    const types = (typesRes.data || []) as RoomType[];
+    const rawBookings = (bookingsRes.data || []) as ActiveBooking[];
+    const bookingIds = rawBookings.map((b) => b.id);
+    const { data: bookingRoomLinks } = bookingIds.length
+      ? await (supabase.from("rolos_booking_rooms") as any)
+          .select("booking_id, room_id")
+          .in("booking_id", bookingIds)
+      : { data: [] };
+    const linkedRoomIdsByBooking = new Map<string, string[]>();
+    for (const link of (bookingRoomLinks || []) as any[]) {
+      if (!link.booking_id || !link.room_id) continue;
+      linkedRoomIdsByBooking.set(link.booking_id, [...(linkedRoomIdsByBooking.get(link.booking_id) || []), link.room_id]);
+    }
+
+    const allTypes = (allTypesRes.data || []) as RoomType[];
+    const types = ((typesRes.data || []) as RoomType[]).length ? (typesRes.data || []) as RoomType[] : allTypes;
     setRoomTypes(types);
 
     const activeTypeIds = new Set(types.map((t) => t.id));
     const typeMap = new Map(types.map((t) => [t.id, t.name]));
 
-    setRooms((roomsRes.data || [])
+    const visibleRooms = ((roomsRes.data || []) as any[])
       .filter((r: any) => !r.room_type_id || activeTypeIds.has(r.room_type_id))
       .map((r: any) => ({
         ...r,
         room_type_name: r.room_type_id ? typeMap.get(r.room_type_id) : undefined,
-      })));
+      }));
+    setRooms(visibleRooms);
+
+    const assignedBookings = autoAssignBookings(
+      rawBookings.map((booking) => {
+        const linkedIds = linkedRoomIdsByBooking.get(booking.id) || [];
+        const mergedIds = Array.from(new Set([...(booking.rolos_room_ids || []), ...linkedIds]));
+        return { ...booking, rolos_room_ids: mergedIds.length ? mergedIds : booking.rolos_room_ids };
+      }),
+      visibleRooms,
+      (allTypes.length ? allTypes : types)
+    );
+    setActiveBookings(assignedBookings);
     setLoading(false);
   }, [activePropertyIds, syncRoomTypesFromOverview]);
 
@@ -257,9 +307,21 @@ export default function PMSRooms() {
         roomTypes,
       }];
 
+  const activeBookingForRoom = (roomId: string) =>
+    activeBookings.find((booking) => (booking.rolos_room_ids || []).includes(roomId));
+
+  const displayStatusForRoom = (room: Room) => {
+    const hasActiveBooking = !!activeBookingForRoom(room.id);
+    if (hasActiveBooking && !["maintenance", "out_of_order", "out_of_service"].includes(room.status)) return "occupied";
+    return room.status;
+  };
+
   const renderRoomGrid = (items: Room[]) => (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-      {items.map((room) => (
+      {items.map((room) => {
+        const displayStatus = displayStatusForRoom(room);
+        const activeBooking = activeBookingForRoom(room.id);
+        return (
         <Card key={room.id} className="relative group">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -276,9 +338,10 @@ export default function PMSRooms() {
             {room.room_name && <p className="text-xs text-muted-foreground">{room.room_name}</p>}
           </CardHeader>
           <CardContent className="space-y-2">
-            <Badge className={STATUS_COLORS[room.status] || ""} variant="outline">{room.status}</Badge>
+            <Badge className={STATUS_COLORS[displayStatus] || ""} variant="outline">{displayStatus}</Badge>
+            {activeBooking?.guest_name && <p className="text-xs text-blue-700 dark:text-blue-300 truncate">Guest: {activeBooking.guest_name}</p>}
             {room.room_type_name && <p className="text-xs text-muted-foreground">{room.room_type_name}</p>}
-            <Select value={room.status} onValueChange={(v) => handleStatusChange(room.id, v)}>
+            <Select value={displayStatus} onValueChange={(v) => handleStatusChange(room.id, v)}>
               <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.keys(STATUS_COLORS).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -286,7 +349,8 @@ export default function PMSRooms() {
             </Select>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 
