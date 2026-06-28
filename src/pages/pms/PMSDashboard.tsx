@@ -200,7 +200,7 @@ function getStatusColor(status: string) {
 }
 
 export default function PMSDashboard() {
-  const { propertyId, properties, portfolioProperties, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
+  const { propertyId, properties, portfolioProperties, portfolioName, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   // If selected property is in a portfolio, scope dropdown to portfolio members
   const displayProperties = portfolioProperties || properties;
   const { propertyName: brandName } = usePMSBrand();
