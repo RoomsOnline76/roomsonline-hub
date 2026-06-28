@@ -173,7 +173,7 @@ export default function PMSHousekeeping() {
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
     const activeTypesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds).eq("is_active", true);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
-    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, property_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     // Current in-house bookings: only guests that have actually been checked in.
     const todayIso = new Date().toLocaleDateString("en-CA");
     const bookingsQ = (supabase.from("bookings") as any)
