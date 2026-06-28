@@ -578,8 +578,39 @@ export default function PMSHousekeeping() {
           {/* ─── Maintenance ────────────────────────── */}
           <div className="space-y-3">
             <h2 className="font-semibold text-red-700 flex items-center gap-2">
-              <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length})
+              <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length + (orphanedDockets.length > 0 ? 1 : 0)})
             </h2>
+            {orphanedDockets.length > 0 && (
+              <Card className="border-l-4 border-l-destructive">
+                <CardContent className="py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-sm">Unlinked dockets</p>
+                      <p className="text-xs text-muted-foreground">Docket's room no longer exists</p>
+                    </div>
+                    <Badge variant="destructive" className="text-xs">{orphanedDockets.length}</Badge>
+                  </div>
+                  {orphanedDockets.map(req => (
+                    <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                        <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
+                        {req.priority && (
+                          <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{req.description}</p>
+                      {STATUSES_OPEN.includes(req.status || "") && (
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
+                          <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
             {maintenanceRooms.map(room => {
               const reqs = openMaintenanceForRoom(room.id);
               return (
