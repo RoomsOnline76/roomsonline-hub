@@ -58,4 +58,7 @@ export function ChannelLogo({
   );
 }
 
-export const ALL_CHANNELS = Object.keys(CHANNEL_CONFIG).filter((c) => c !== "manual");
+export const ALL_CHANNELS = Object.entries(CHANNEL_CONFIG)
+  .filter(([k, c]) => k !== "manual" && !c.parked)
+  .map(([k]) => k);
+
