@@ -317,12 +317,14 @@ export default function PMSRatePlans() {
   };
 
   const handleSave = async () => {
-    if (!propertyId || !form.name) return;
+    // When editing in portfolio view, the plan's own property_id must be preserved.
+    const targetPropertyId = editingPlan?.property_id || propertyId;
+    if (!targetPropertyId || !form.name) return;
 
     const baseRate = form.base_rate ? parseFloat(form.base_rate) : 0;
 
     const payload = {
-      property_id: propertyId,
+      property_id: targetPropertyId,
       name: form.name,
       code: form.code || null,
       description: form.description || null,
