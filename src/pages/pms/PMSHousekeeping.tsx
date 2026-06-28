@@ -307,6 +307,25 @@ export default function PMSHousekeeping() {
   const openMaintenanceForRoom = (roomId: string) =>
     maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
 
+  // Rooms currently occupied by a guest, derived from active bookings (not just rolos_rooms.status).
+  const inHouseRoomIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const b of inHouseBookings) for (const id of b.rolos_room_ids || []) if (id) s.add(id);
+    return s;
+  }, [inHouseBookings]);
+  const guestForRoom = (roomId: string) => inHouseBookings.find(b => (b.rolos_room_ids || []).includes(roomId))?.guest_name || null;
+  const isInHouse = (room: Room) => room.status === "occupied" || inHouseRoomIds.has(room.id);
+
+  // Open the create-docket dialog pre-scoped to a given room.
+  const openDocketForRoom = (roomId: string) => {
+    resetDocketForm();
+    setDocketRoomId(roomId);
+    setShowCreateDocket(true);
+  };
+
+  // Property name lookup for the docket combobox grouping.
+  const propertyName = (pid: string) => properties.find(p => p.id === pid)?.name || "Property";
+
   // ── Render ────────────────────────────────────────────────────────────
 
   if (propertyLoading) return <p className="text-muted-foreground">Loading property…</p>;
