@@ -147,7 +147,7 @@ export default function PMSHousekeeping() {
     setLoading(true);
     const roomsQ = (supabase.from("rolos_rooms") as any).select("id, property_id, room_number, room_name, floor, status, room_type_id").in("property_id", activePropertyIds);
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
-    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to").in("property_id", activePropertyIds);
+    const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
 

@@ -1092,7 +1092,7 @@ Deno.serve(async (req) => {
     // Get booking details
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
-      .select("*, property:properties(*)")
+      .select("*, property:properties!bookings_property_id_fkey(*)")
       .eq("id", booking_id)
       .single();
 
