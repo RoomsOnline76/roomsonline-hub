@@ -892,7 +892,9 @@ export default function PMSDashboard() {
     const arrivals: BookingRow[] = [];
     const departures: BookingRow[] = [];
     for (const [, pd] of portfolioDataByProperty) {
-      const physical = pd.rooms.filter(r => r.status !== "out_of_service").length;
+      const displayedRooms = Array.from(pd.roomsByType.values()).flat() as Room[];
+      const displayedRoomIds = new Set(displayedRooms.filter(r => r.status !== "out_of_service").map(r => r.id));
+      const physical = displayedRoomIds.size || pd.rooms.filter(r => r.status !== "out_of_service").length;
       const tRooms = physical > 0 ? physical : pd.roomTypes.length;
       totalRooms += tRooms;
       const activeToday = pd.bookings.filter(b =>
@@ -906,8 +908,9 @@ export default function PMSDashboard() {
       } else {
         occupied += activeToday.length;
       }
-      dirty += pd.rooms.filter(r => r.status === "dirty").length;
-      maintenance += pd.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
+      const roomsForStatus = displayedRooms.length ? displayedRooms : pd.rooms;
+      dirty += roomsForStatus.filter(r => r.status === "dirty").length;
+      maintenance += roomsForStatus.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
       pd.bookings.forEach(b => {
         if (b.check_in_date === todayStr && ["confirmed", "pending"].includes(b.status)) arrivals.push(b);
         if (b.check_out_date === todayStr && ["confirmed", "checked_in"].includes(b.status)) departures.push(b);
