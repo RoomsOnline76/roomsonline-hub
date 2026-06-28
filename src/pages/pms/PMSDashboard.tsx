@@ -658,7 +658,17 @@ export default function PMSDashboard() {
 
     for (const prop of portfolioProperties || []) {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
-      const propRooms = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
+      const propRoomsRawForProp = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
+      // Dedupe rooms by normalized name (room_name || room_number) to avoid double-counting
+      // when the same physical unit exists under multiple room_type_id rows.
+      const seenRoomNames = new Set<string>();
+      const propRooms = propRoomsRawForProp.filter((r) => {
+        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
+        if (!key) return true;
+        if (seenRoomNames.has(key)) return false;
+        seenRoomNames.add(key);
+        return true;
+      });
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypesRaw) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
