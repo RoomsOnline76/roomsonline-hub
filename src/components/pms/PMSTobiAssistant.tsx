@@ -165,16 +165,29 @@ function ActionResultCard({ result }: { result: ActionResult }) {
   }
 }
 
-export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
+export function PMSTobiAssistant({
+  propertyName,
+  isPortfolio,
+  portfolioPropertyIds,
+  portfolioName,
+}: PMSTobiAssistantProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { propertyId } = usePmsPropertyId();
-  
-  const makeGreeting = useCallback((name?: string): string =>
-    name 
-      ? `Hey there! I'm TOBI, your assistant for **${name}** 🐱\n\nI can help with rooms, rates, bookings, run the night audit, pull live stats, and more. Just ask!`
-      : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
-    []
+
+  const portfolioMode = !!(isPortfolio && portfolioPropertyIds && portfolioPropertyIds.length > 1);
+  const portfolioCount = portfolioPropertyIds?.length || 0;
+  const contextLabel = portfolioMode
+    ? (portfolioName || "your portfolio")
+    : propertyName;
+
+  const makeGreeting = useCallback((): string =>
+    portfolioMode
+      ? `Hey there! I'm TOBI, your assistant for **${contextLabel}** 🐱\n\nI'm watching across all **${portfolioCount} properties** in this portfolio — ask me about occupancy, arrivals, revenue, or any single property by name.`
+      : contextLabel
+        ? `Hey there! I'm TOBI, your assistant for **${contextLabel}** 🐱\n\nI can help with rooms, rates, bookings, run the night audit, pull live stats, and more. Just ask!`
+        : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
+    [portfolioMode, portfolioCount, contextLabel]
   );
 
   const [messages, setMessages] = useState<Message[]>([
