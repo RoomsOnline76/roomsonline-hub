@@ -14,12 +14,14 @@ export interface AssignableBooking {
   id: string;
   check_in_date: string;
   check_out_date: string;
+  property_id?: string | null;
   room_type_id?: string | null;
   rolos_room_ids?: string[] | null;
 }
 
 export interface AssignableRoom {
   id: string;
+  property_id?: string | null;
   room_type_id: string | null;
   status?: string | null;
 }
@@ -27,9 +29,11 @@ export interface AssignableRoom {
 export interface AssignableRoomType {
   id: string;
   name: string;
+  property_id?: string | null;
 }
 
 const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+const nameKey = (propertyId: string | null | undefined, name: string) => `${propertyId || "*"}::${name}`;
 
 export function autoAssignBookings<T extends AssignableBooking>(
   bookings: T[],
@@ -47,15 +51,24 @@ export function autoAssignBookings<T extends AssignableBooking>(
   }
 
   // type-name → rooms (fallback for duplicate / orphan room_type rows)
-  const typeNameById = new Map<string, string>();
-  for (const t of roomTypes) typeNameById.set(t.id, norm(t.name));
+  const typeInfoById = new Map<string, { name: string; property_id?: string | null }>();
+  for (const t of roomTypes) typeInfoById.set(t.id, { name: norm(t.name), property_id: t.property_id });
 
   const roomsByTypeName = new Map<string, AssignableRoom[]>();
   for (const r of rooms) {
-    const tn = r.room_type_id ? typeNameById.get(r.room_type_id) : "";
+    const typeInfo = r.room_type_id ? typeInfoById.get(r.room_type_id) : undefined;
+    const tn = typeInfo?.name;
     if (!tn) continue;
-    if (!roomsByTypeName.has(tn)) roomsByTypeName.set(tn, []);
-    roomsByTypeName.get(tn)!.push(r);
+    const scopedKey = nameKey(r.property_id || typeInfo?.property_id, tn);
+    if (!roomsByTypeName.has(scopedKey)) roomsByTypeName.set(scopedKey, []);
+    roomsByTypeName.get(scopedKey)!.push(r);
+
+    // Retain a global fallback for legacy single-property callers that do not
+    // have property_id on rows, but prefer the scoped key whenever possible.
+    if (!r.property_id && !typeInfo?.property_id) {
+      if (!roomsByTypeName.has(tn)) roomsByTypeName.set(tn, []);
+      roomsByTypeName.get(tn)!.push(r);
+    }
   }
 
   // Track occupied date ranges per room id (start inclusive, end exclusive)
@@ -83,8 +96,13 @@ export function autoAssignBookings<T extends AssignableBooking>(
 
     let candidates = roomsByType.get(b.room_type_id) || [];
     if (candidates.length === 0) {
-      const tn = typeNameById.get(b.room_type_id);
-      if (tn) candidates = roomsByTypeName.get(tn) || [];
+      const typeInfo = typeInfoById.get(b.room_type_id);
+      const tn = typeInfo?.name;
+      if (tn) {
+        candidates = roomsByTypeName.get(nameKey(b.property_id || typeInfo?.property_id, tn))
+          || roomsByTypeName.get(tn)
+          || [];
+      }
     }
     if (candidates.length === 0) return b;
 
