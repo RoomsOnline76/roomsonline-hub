@@ -318,7 +318,7 @@ export function PMSTobiAssistant({
 
       onDone(fullText);
     },
-    [user, propertyId]
+    [user, propertyId, portfolioMode, portfolioPropertyIds, portfolioName]
   );
 
   const sendMessage = async (messageText?: string) => {
