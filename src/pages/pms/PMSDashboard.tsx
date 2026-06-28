@@ -221,6 +221,7 @@ export default function PMSDashboard() {
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
   const [autoDefaultedView, setAutoDefaultedView] = useState(false);
+  const [quickAction, setQuickAction] = useState<{ bookingId: string; action: "check_in" | "check_out" } | null>(null);
   // Default to portfolio view when a portfolio (>1 properties) exists
   useEffect(() => {
     if (!autoDefaultedView && (portfolioProperties?.length || 0) > 1) {
