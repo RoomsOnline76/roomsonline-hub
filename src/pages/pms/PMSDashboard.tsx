@@ -149,6 +149,7 @@ interface Room {
   room_name: string | null;
   room_type_id: string | null;
   status: string;
+  property_id?: string | null;
 }
 
 interface RateSeason {
@@ -177,6 +178,35 @@ interface AvailabilityOverride {
   lead_days_advance: number | null;
   lead_days_post: number | null;
   available_units: number | null;
+}
+
+const normalizeRoomTypeName = (value: string | null | undefined) => value?.trim().toLowerCase() || "";
+
+function normalizeRoomsToCanonicalRoomTypes<T extends Room>(
+  rawRooms: T[],
+  rawRoomTypes: Array<Pick<RoomType, "id" | "name">>,
+  canonicalRoomTypes: Array<Pick<RoomType, "id" | "name">>,
+): T[] {
+  if (canonicalRoomTypes.length === 0) return rawRooms;
+
+  const canonicalTypeIds = new Set(canonicalRoomTypes.map((roomType) => roomType.id));
+  const canonicalIdByName = new Map(
+    canonicalRoomTypes
+      .map((roomType) => [normalizeRoomTypeName(roomType.name), roomType.id] as const)
+      .filter(([name]) => Boolean(name)),
+  );
+  const rawTypeNameById = new Map(rawRoomTypes.map((roomType) => [roomType.id, normalizeRoomTypeName(roomType.name)]));
+
+  return rawRooms.flatMap((room) => {
+    if (!room.room_type_id || canonicalTypeIds.has(room.room_type_id)) return [room];
+
+    const legacyTypeName = rawTypeNameById.get(room.room_type_id)
+      || normalizeRoomTypeName(room.room_name)
+      || normalizeRoomTypeName(room.room_number);
+    const canonicalTypeId = legacyTypeName ? canonicalIdByName.get(legacyTypeName) : undefined;
+
+    return canonicalTypeId ? [{ ...room, room_type_id: canonicalTypeId }] : [];
+  });
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -338,9 +368,22 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
+  const { data: roomTypeNamesForRooms = [] } = useQuery({
+    queryKey: ["pms-cal-room-type-names", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [];
+      const { data } = await supabase
+        .from("rolos_room_types")
+        .select("id, name")
+        .eq("property_id", propertyId);
+      return data || [];
+    },
+    enabled: !!propertyId,
+  });
+
   // Fetch rooms
   const { data: rooms = [] } = useQuery({
-    queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(",")],
+    queryKey: ["pms-cal-rooms", propertyId, roomTypes.map(t => t.id).join(","), roomTypeNamesForRooms.map(t => t.id).join(",")],
     queryFn: async () => {
       if (!propertyId) return [];
       const { data } = await supabase
@@ -349,10 +392,7 @@ export default function PMSDashboard() {
         .eq("property_id", propertyId)
         .order("room_number");
       const raw = (data || []) as Room[];
-      const activeTypeIds = new Set(roomTypes.map((rt) => rt.id));
-      return activeTypeIds.size > 0
-        ? raw.filter((room) => !room.room_type_id || activeTypeIds.has(room.room_type_id))
-        : raw;
+      return normalizeRoomsToCanonicalRoomTypes(raw, roomTypeNamesForRooms, roomTypes);
     },
     enabled: !!propertyId,
   });
@@ -691,10 +731,9 @@ export default function PMSDashboard() {
         propRoomTypes = Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
       }
 
-      const activeRoomTypeIds = new Set(propRoomTypes.map(rt => rt.id));
-      // Only count physical rooms linked to the canonical active room-type catalogue. This avoids
-      // stale/deactivated sync rows being counted as extra units without hiding valid rooms.
-      const propRooms = propRoomsRawForProp.filter((r) => !r.room_type_id || activeRoomTypeIds.has(r.room_type_id));
+      // Keep physical rooms whose legacy/stale room_type_id maps by name to the canonical active type.
+      // This prevents valid units like GRYSBOK from disappearing when duplicate type rows exist.
+      const propRooms = normalizeRoomsToCanonicalRoomTypes(propRoomsRawForProp, propRoomTypesRaw, propRoomTypes);
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
