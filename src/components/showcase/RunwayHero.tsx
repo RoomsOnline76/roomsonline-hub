@@ -15,7 +15,19 @@ interface RunwayHeroProps {
   lowestRate?: number | null;
   city?: string;
   country?: string;
+  propertyType?: string;
   onShowAllPhotos?: () => void;
+}
+
+/**
+ * Format the descriptive heading combining name, type, and location.
+ * Renders "{name} — {type} in {city}" when context is available.
+ */
+function composeHeading(name: string, propertyType?: string, city?: string): string {
+  const parts: string[] = [];
+  if (propertyType) parts.push(propertyType);
+  if (city) parts.push(`in ${city}`);
+  return parts.length ? `${name} — ${parts.join(" ")}` : name;
 }
 
 /**
@@ -31,8 +43,10 @@ export function RunwayHero({
   lowestRate,
   city,
   country,
+  propertyType,
   onShowAllPhotos,
 }: RunwayHeroProps) {
+  const headingText = composeHeading(name, propertyType, city);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const imageCount = images?.length || 0;
 
@@ -158,7 +172,7 @@ export function RunwayHero({
               {...heroTitleReveal}
               className="font-serif text-2xl sm:text-3xl font-light tracking-tight text-white leading-[1.1] mb-2"
             >
-              {name}
+              {headingText}
             </motion.h1>
 
             <motion.p
@@ -328,7 +342,7 @@ export function RunwayHero({
             transition={{ delay: 0.15, duration: 0.4 }}
             className="font-serif text-3xl lg:text-4xl font-light tracking-tight text-foreground leading-[1.15] mb-2"
           >
-            {name}
+            {headingText}
           </motion.h1>
 
           <motion.p

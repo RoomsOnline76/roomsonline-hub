@@ -260,7 +260,7 @@ export default function PropertyShowcase() {
     description: property
       ? `Book ${property.name} in ${property.city}, ${property.country}. ${property.description?.slice(0, 120) || "Extraordinary accommodation in Africa."}`
       : "Discover extraordinary accommodation across Africa.",
-    ogType: "place" as const,
+    ogType: "website" as const,
     ogImage: property?.images?.[0] || undefined,
     breadcrumbs: property
       ? [
@@ -1008,6 +1008,7 @@ export default function PropertyShowcase() {
         lowestRate={lowestRate}
         city={property.city}
         country={property.country}
+        propertyType={property.property_type ? String(property.property_type).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : undefined}
       />
 
       {/* 2-Column Layout: Content + Booking Sidebar */}
