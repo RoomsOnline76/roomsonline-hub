@@ -155,12 +155,23 @@ export default function PMSHousekeeping() {
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
-    const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
+    // Current in-house bookings: covers today, status checked_in OR confirmed-and-arrived-but-not-yet-departed.
+    const todayIso = new Date().toISOString().split("T")[0];
+    const bookingsQ = (supabase.from("bookings") as any)
+      .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date")
+      .in("property_id", activePropertyIds)
+      .lte("check_in_date", todayIso)
+      .gt("check_out_date", todayIso)
+      .in("status", ["checked_in", "confirmed", "in_house"]);
+    const [roomsRes, typesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ, bookingsQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
     setRoomTypes(fetchedRoomTypes);
     setHkTasks((tasksRes.data || []) as HKTask[]);
     setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
+    setInHouseBookings(((bookingsRes.data || []) as any[]).map(b => ({
+      id: b.id, rolos_room_ids: b.rolos_room_ids, guest_name: b.guest_name, property_id: b.property_id,
+    })));
 
     const fetchedRooms = (roomsRes.data || []) as Room[];
     if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
