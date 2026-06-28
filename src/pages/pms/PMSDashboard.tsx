@@ -829,6 +829,44 @@ export default function PMSDashboard() {
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
   }, [rooms, roomTypes, bookings]);
 
+  // Portfolio-aware aggregated stats + arrivals/departures
+  const portfolioAggregate = useMemo(() => {
+    if (!isPortfolioMode) return null;
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    let totalRooms = 0, occupied = 0, dirty = 0, maintenance = 0;
+    const arrivals: BookingRow[] = [];
+    const departures: BookingRow[] = [];
+    for (const [, pd] of portfolioDataByProperty) {
+      const physical = pd.rooms.filter(r => r.status !== "out_of_service").length;
+      const tRooms = physical > 0 ? physical : pd.roomTypes.length;
+      totalRooms += tRooms;
+      const activeToday = pd.bookings.filter(b =>
+        todayStr >= b.check_in_date && todayStr < b.check_out_date &&
+        !["cancelled", "no_show"].includes(b.status)
+      );
+      if (physical > 0) {
+        const ids = new Set<string>();
+        activeToday.forEach(b => b.rolos_room_ids?.forEach(rid => ids.add(rid)));
+        occupied += ids.size;
+      } else {
+        occupied += activeToday.length;
+      }
+      dirty += pd.rooms.filter(r => r.status === "dirty").length;
+      maintenance += pd.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
+      pd.bookings.forEach(b => {
+        if (b.check_in_date === todayStr && ["confirmed", "pending"].includes(b.status)) arrivals.push(b);
+        if (b.check_out_date === todayStr && ["confirmed", "checked_in"].includes(b.status)) departures.push(b);
+      });
+    }
+    const available = Math.max(0, totalRooms - occupied);
+    const occupancyPct = totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0;
+    return { totalRooms, occupied, available, occupancyPct, dirty, maintenance, arrivals, departures };
+  }, [isPortfolioMode, portfolioDataByProperty]);
+
+  const effectiveStats = portfolioAggregate ?? dynamicStats;
+  const effectiveArrivals: BookingRow[] = portfolioAggregate ? portfolioAggregate.arrivals : (todayArrivals as BookingRow[]);
+  const effectiveDepartures: BookingRow[] = portfolioAggregate ? portfolioAggregate.departures : (todayDepartures as BookingRow[]);
+
   // Urgent rooms: dirty/maintenance rooms with same-day arrivals
   const urgentRooms = useMemo(() => {
     if (!todayArrivals.length || !rooms.length) return [];
