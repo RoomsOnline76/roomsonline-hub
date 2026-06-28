@@ -421,9 +421,15 @@ export default function PMSHousekeeping() {
               const tasks = tasksForRoom(room.id);
               const openDockets = openMaintenanceForRoom(room.id);
               return (
-                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`} onClick={() => openDocketForRoom(room.id)} role="button" tabIndex={0}>
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                   <CardContent className="py-3 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div
+                      className="flex items-center justify-between cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                      role="button"
+                      tabIndex={0}
+                      title="Add a maintenance docket for this room"
+                      onClick={() => openDocketForRoom(room.id)}
+                    >
                       <div>
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
@@ -510,9 +516,15 @@ export default function PMSHousekeeping() {
             {maintenanceRooms.map(room => {
               const reqs = openMaintenanceForRoom(room.id);
               return (
-                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`} onClick={() => openDocketForRoom(room.id)} role="button" tabIndex={0}>
+                <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                   <CardContent className="py-3 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div
+                      className="flex items-center justify-between cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                      role="button"
+                      tabIndex={0}
+                      title="Add another docket for this room"
+                      onClick={() => openDocketForRoom(room.id)}
+                    >
                       <div>
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
