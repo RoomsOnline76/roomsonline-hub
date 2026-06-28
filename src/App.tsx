@@ -212,6 +212,11 @@ const App = () => (
                           </Route>
                         )}
 
+                        {/* ═══ Book domain — Under construction (catch-all) ═ */}
+                        {isBookDomain && (
+                          <Route path="*" element={<UnderConstruction />} />
+                        )}
+
                         {/* ═══ Root ═══════════════════════════════════════ */}
                         <Route
                           path="/"
@@ -220,9 +225,7 @@ const App = () => (
                               ? <Navigate to="/" replace />
                               : isSurveyDomain
                                 ? <ProjectDiscoverySurvey />
-                                : window.location.hostname === "book.sleepinafrica.roomsonline.co.za"
-                                  ? <Home />
-                                  : <Navigate to="/dashboard/reports" replace />
+                                : <Navigate to="/dashboard/reports" replace />
                           }
                         />
 
