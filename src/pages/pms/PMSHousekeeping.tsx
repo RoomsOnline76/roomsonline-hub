@@ -174,7 +174,7 @@ export default function PMSHousekeeping() {
       .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date, room_type_id")
       .in("property_id", activePropertyIds)
       .lte("check_in_date", todayIso)
-      .gt("check_out_date", todayIso)
+      .gte("check_out_date", todayIso)
       .in("status", ["checked_in", "confirmed", "in_house"]);
     const [roomsRes, typesRes, activeTypesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, activeTypesQ, tasksQ, maintQ, bookingsQ]);
 
