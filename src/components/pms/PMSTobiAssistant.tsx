@@ -223,7 +223,12 @@ export function PMSTobiAssistant({
         body: JSON.stringify({
           messages: [],
           userRole: user?.user_metadata?.role || "user",
-          pmsContext: { propertyId },
+          pmsContext: {
+            propertyId,
+            portfolioPropertyIds: portfolioMode ? portfolioPropertyIds : undefined,
+            portfolioName: portfolioMode ? (portfolioName || null) : undefined,
+            isPortfolio: portfolioMode,
+          },
           actionRequest: { type: actionType },
         }),
       });
