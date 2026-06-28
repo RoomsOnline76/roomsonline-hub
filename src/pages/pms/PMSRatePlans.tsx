@@ -57,21 +57,31 @@ export default function PMSRatePlans() {
     switchProperty(scopeProperties[next].id);
   };
 
-  const [viewMode, setViewMode] = useState<"portfolio" | "single">(
-    (portfolioProperties && portfolioProperties.length > 1) ? "portfolio" : "single"
-  );
-  const [autoDefaulted, setAutoDefaulted] = useState(false);
+  const [viewMode, setViewMode] = useState<"portfolio" | "single" | null>(null);
+  const [userOverrode, setUserOverrode] = useState(false);
+
+  // Default to portfolio once portfolio context is known; don't override user choice
   useEffect(() => {
-    if (!autoDefaulted && portfolioProperties && portfolioProperties.length > 1) {
+    if (userOverrode || propertyLoading) return;
+    if (portfolioProperties && portfolioProperties.length > 1) {
       setViewMode("portfolio");
-      setAutoDefaulted(true);
+    } else if (viewMode === null) {
+      setViewMode("single");
     }
-  }, [portfolioProperties, autoDefaulted]);
+  }, [portfolioProperties, propertyLoading, userOverrode, viewMode]);
+
+  const setViewModeManual = (m: "portfolio" | "single") => {
+    setUserOverrode(true);
+    setViewMode(m);
+  };
 
   const isPortfolio = viewMode === "portfolio" && scopeProperties.length > 1;
   const activePropertyIds = useMemo(
-    () => (isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : []),
-    [isPortfolio, scopeProperties, propertyId]
+    () => {
+      if (viewMode === null || propertyLoading) return [];
+      return isPortfolio ? scopeProperties.map((p) => p.id) : propertyId ? [propertyId] : [];
+    },
+    [viewMode, propertyLoading, isPortfolio, scopeProperties, propertyId]
   );
 
   const [plans, setPlans] = useState<RatePlan[]>([]);
@@ -531,7 +541,7 @@ export default function PMSRatePlans() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setViewMode(viewMode === "portfolio" ? "single" : "portfolio")}
+                  onClick={() => setViewModeManual(viewMode === "portfolio" ? "single" : "portfolio")}
                   title={viewMode === "portfolio" ? "Switch to single property" : "Switch to portfolio view"}
                 >
                   {viewMode === "portfolio" ? <Building2 className="h-4 w-4 mr-1" /> : <LayoutGrid className="h-4 w-4 mr-1" />}
