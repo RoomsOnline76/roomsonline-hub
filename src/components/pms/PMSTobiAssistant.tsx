@@ -260,7 +260,12 @@ export function PMSTobiAssistant({
         body: JSON.stringify({
           messages: chatMessages.map(m => ({ role: m.role, content: m.content })),
           userRole: user?.user_metadata?.role || "user",
-          pmsContext: propertyId ? { propertyId } : undefined,
+          pmsContext: propertyId ? {
+            propertyId,
+            portfolioPropertyIds: portfolioMode ? portfolioPropertyIds : undefined,
+            portfolioName: portfolioMode ? (portfolioName || null) : undefined,
+            isPortfolio: portfolioMode,
+          } : undefined,
         }),
       });
 
