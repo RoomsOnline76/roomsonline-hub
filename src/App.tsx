@@ -376,6 +376,7 @@ const App = () => (
                         {/* ═══ Catch-all ═════════════════════════════════ */}
                         <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
                       </Routes>
+                      )}
                     </Suspense>
                   </BrowserRouter>
                 </TooltipProvider>
