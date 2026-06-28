@@ -678,7 +678,7 @@ export default function PMSHousekeeping() {
                 </Card>
               );
             })}
-            {maintenanceRooms.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
+            {maintenanceRooms.length === 0 && orphanedDockets.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
           </div>
 
           {/* ─── In House (Occupied) ───────────────── */}
