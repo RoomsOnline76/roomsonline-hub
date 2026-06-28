@@ -69,6 +69,7 @@ interface HKTask {
 interface MaintenanceRequest {
   id: string;
   room_id: string | null;
+  property_id: string | null;
   issue_type: string | null;
   priority: string | null;
   description: string;
@@ -172,7 +173,7 @@ export default function PMSHousekeeping() {
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
     const activeTypesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds).eq("is_active", true);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
-    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
+    const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, property_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     // Current in-house bookings: only guests that have actually been checked in.
     const todayIso = new Date().toLocaleDateString("en-CA");
     const bookingsQ = (supabase.from("bookings") as any)
@@ -454,9 +455,19 @@ export default function PMSHousekeeping() {
         {/* Per-property boards */}
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
-          const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && r.status !== "maintenance" && r.status !== "out_of_order");
-          const cleanRooms = section.rooms.filter(r => ["available", "occupied"].includes(r.status) && !inHouseRoomIds.has(r.id));
+          const sectionRoomIds = new Set(section.rooms.map(r => r.id));
+          const maintenanceRooms = section.rooms.filter(r =>
+            r.status === "maintenance" || r.status === "out_of_order" || openMaintenanceForRoom(r.id).length > 0
+          );
+          const maintenanceRoomIds = new Set(maintenanceRooms.map(r => r.id));
+          // Dockets attributed to this property but whose room_id is missing/stale (e.g. deleted unit).
+          const orphanedDockets = maintenanceReqs.filter(m =>
+            (m.property_id === section.id || !m.property_id) &&
+            (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)) &&
+            (!m.room_id || !sectionRoomIds.has(m.room_id))
+          );
+          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && !maintenanceRoomIds.has(r.id));
+          const cleanRooms = section.rooms.filter(r => ["available", "occupied"].includes(r.status) && !inHouseRoomIds.has(r.id) && !maintenanceRoomIds.has(r.id));
           return (
         <div key={section.id} className="space-y-3">
           {isPortfolio && (
@@ -567,8 +578,39 @@ export default function PMSHousekeeping() {
           {/* ─── Maintenance ────────────────────────── */}
           <div className="space-y-3">
             <h2 className="font-semibold text-red-700 flex items-center gap-2">
-              <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length})
+              <Wrench className="h-4 w-4" /> Maintenance ({maintenanceRooms.length + (orphanedDockets.length > 0 ? 1 : 0)})
             </h2>
+            {orphanedDockets.length > 0 && (
+              <Card className="border-l-4 border-l-destructive">
+                <CardContent className="py-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-sm">Unlinked dockets</p>
+                      <p className="text-xs text-muted-foreground">Docket's room no longer exists</p>
+                    </div>
+                    <Badge variant="destructive" className="text-xs">{orphanedDockets.length}</Badge>
+                  </div>
+                  {orphanedDockets.map(req => (
+                    <div key={req.id} className="border-t border-border pt-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                        <span className="text-xs font-medium capitalize">{req.issue_type || "General"}</span>
+                        {req.priority && (
+                          <Badge className={`text-xs ${PRIORITY_BADGE[req.priority] || ""}`}>{req.priority}</Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs ml-auto">{req.status}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{req.description}</p>
+                      {STATUSES_OPEN.includes(req.status || "") && (
+                        <Button size="sm" variant="outline" className="w-full" onClick={() => { setResolveReq(req); setResolveNotes(""); }}>
+                          <CheckCircle className="h-3 w-3 mr-1" />Mark Resolved
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
             {maintenanceRooms.map(room => {
               const reqs = openMaintenanceForRoom(room.id);
               return (
@@ -636,7 +678,7 @@ export default function PMSHousekeeping() {
                 </Card>
               );
             })}
-            {maintenanceRooms.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
+            {maintenanceRooms.length === 0 && orphanedDockets.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
           </div>
 
           {/* ─── In House (Occupied) ───────────────── */}
