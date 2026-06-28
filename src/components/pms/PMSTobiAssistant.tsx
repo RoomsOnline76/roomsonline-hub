@@ -191,7 +191,7 @@ export function PMSTobiAssistant({
   );
 
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: makeGreeting(propertyName) },
+    { role: "assistant", content: makeGreeting() },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -206,7 +206,7 @@ export function PMSTobiAssistant({
   }, [messages]);
 
   useEffect(() => {
-    setMessages([{ role: "assistant", content: makeGreeting(propertyName) }]);
+    setMessages([{ role: "assistant", content: makeGreeting() }]);
   }, [propertyId, propertyName, makeGreeting]);
 
   // Execute an action via the edge function
@@ -380,7 +380,7 @@ export function PMSTobiAssistant({
   };
 
   const resetChat = () => {
-    setMessages([{ role: "assistant", content: makeGreeting(propertyName) }]);
+    setMessages([{ role: "assistant", content: makeGreeting() }]);
     setInput("");
   };
 
