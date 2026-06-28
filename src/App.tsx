@@ -205,6 +205,11 @@ const App = () => (
                   <BrowserRouter>
                     <Suspense fallback={<PageFallback />}>
                       <Routes>
+                        {isBookDomain && (
+                          <Route path="*" element={<UnderConstruction />} />
+                        )}
+                        {!isBookDomain && <>
+
                         {/* ═══ Connect domain mount ═══════════════════════ */}
                         {isConnectDomain && (
                           <Route path="/" element={<ConnectLayout />}>
