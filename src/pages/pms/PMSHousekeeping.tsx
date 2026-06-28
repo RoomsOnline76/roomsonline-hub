@@ -770,14 +770,53 @@ export default function PMSHousekeeping() {
           <div className="space-y-4">
             <div>
               <Label>Room *</Label>
-              <Select value={docketRoomId} onValueChange={setDocketRoomId}>
-                <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
-                <SelectContent>
-                  {rooms.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.room_number}{r.room_name ? ` — ${r.room_name}` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const selected = rooms.find(r => r.id === docketRoomId);
+                const selectedLabel = selected
+                  ? `${propertyName(selected.property_id)} · ${selected.room_number}${selected.room_name ? ` — ${selected.room_name}` : ""}`
+                  : "Select room";
+                const grouped = propertySections
+                  .map(s => ({ ...s, rooms: [...s.rooms].sort((a, b) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true })) }))
+                  .filter(s => s.rooms.length > 0);
+                return (
+                  <Popover open={docketRoomSearchOpen} onOpenChange={setDocketRoomSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" aria-expanded={docketRoomSearchOpen} className="w-full justify-between font-normal">
+                        <span className={docketRoomId ? "" : "text-muted-foreground"}>{selectedLabel}</span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search property or room…" />
+                        <CommandList>
+                          <CommandEmpty>No room found.</CommandEmpty>
+                          {grouped.map(section => (
+                            <CommandGroup key={section.id} heading={section.name}>
+                              {section.rooms.map(r => {
+                                const label = `${r.room_number}${r.room_name ? ` — ${r.room_name}` : ""}`;
+                                return (
+                                  <CommandItem
+                                    key={r.id}
+                                    value={`${section.name} ${label} ${roomTypeName(r.room_type_id)}`}
+                                    onSelect={() => { setDocketRoomId(r.id); setDocketRoomSearchOpen(false); }}
+                                  >
+                                    <Check className={`mr-2 h-4 w-4 ${docketRoomId === r.id ? "opacity-100" : "opacity-0"}`} />
+                                    <div className="flex flex-col">
+                                      <span>{label}</span>
+                                      <span className="text-xs text-muted-foreground">{roomTypeName(r.room_type_id)}</span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
