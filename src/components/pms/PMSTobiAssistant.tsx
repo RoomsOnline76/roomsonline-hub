@@ -26,6 +26,9 @@ interface ActionResult {
 
 interface PMSTobiAssistantProps {
   propertyName?: string;
+  isPortfolio?: boolean;
+  portfolioPropertyIds?: string[];
+  portfolioName?: string;
 }
 
 const PMS_SUGGESTED_PROMPTS = [
