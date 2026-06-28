@@ -69,6 +69,7 @@ interface HKTask {
 interface MaintenanceRequest {
   id: string;
   room_id: string | null;
+  property_id: string | null;
   issue_type: string | null;
   priority: string | null;
   description: string;
