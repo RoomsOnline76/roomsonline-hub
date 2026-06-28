@@ -1022,7 +1022,7 @@ export default function PMSDashboard() {
     refetchOverrides();
   };
 
-  const displayName = brandName || propertyData?.name || "";
+  const displayName = isPortfolioMode ? (portfolioName || "Portfolio") : (brandName || propertyData?.name || "");
 
   if (propLoading) {
     return (
