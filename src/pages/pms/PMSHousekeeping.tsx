@@ -14,8 +14,11 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import {
-  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2, ChevronDown, ChevronUp, BedDouble,
+  CheckCircle, Sparkles, Wrench, RefreshCw, Plus, AlertTriangle, ShieldCheck, ChevronLeft, ChevronRight, LayoutGrid, Building2, ChevronDown, ChevronUp, BedDouble, Check, ChevronsUpDown,
 } from "lucide-react";
 
 
@@ -119,6 +122,9 @@ export default function PMSHousekeeping() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [hkTasks, setHkTasks] = useState<HKTask[]>([]);
   const [maintenanceReqs, setMaintenanceReqs] = useState<MaintenanceRequest[]>([]);
+  // Active stays: drives the "In House" indicator regardless of room.status drift.
+  const [inHouseBookings, setInHouseBookings] = useState<Array<{ id: string; rolos_room_ids: string[] | null; guest_name: string | null; property_id: string }>>([]);
+  const [docketRoomSearchOpen, setDocketRoomSearchOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dialog state
@@ -149,12 +155,23 @@ export default function PMSHousekeeping() {
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
-    const [roomsRes, typesRes, tasksRes, maintRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ]);
+    // Current in-house bookings: covers today, status checked_in OR confirmed-and-arrived-but-not-yet-departed.
+    const todayIso = new Date().toISOString().split("T")[0];
+    const bookingsQ = (supabase.from("bookings") as any)
+      .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date")
+      .in("property_id", activePropertyIds)
+      .lte("check_in_date", todayIso)
+      .gt("check_out_date", todayIso)
+      .in("status", ["checked_in", "confirmed", "in_house"]);
+    const [roomsRes, typesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ, bookingsQ]);
 
     const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
     setRoomTypes(fetchedRoomTypes);
     setHkTasks((tasksRes.data || []) as HKTask[]);
     setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
+    setInHouseBookings(((bookingsRes.data || []) as any[]).map(b => ({
+      id: b.id, rolos_room_ids: b.rolos_room_ids, guest_name: b.guest_name, property_id: b.property_id,
+    })));
 
     const fetchedRooms = (roomsRes.data || []) as Room[];
     if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
@@ -209,14 +226,16 @@ export default function PMSHousekeeping() {
   };
 
   const createMaintenanceDocket = async () => {
-    if (!propertyId || !docketRoomId || !docketDescription.trim()) {
+    const selectedRoom = rooms.find(r => r.id === docketRoomId);
+    const targetPropertyId = selectedRoom?.property_id || propertyId;
+    if (!targetPropertyId || !docketRoomId || !docketDescription.trim()) {
       toast.error("Room and description required");
       return;
     }
     setSaving(true);
     try {
       const { error } = await supabase.from("rolos_maintenance_requests").insert({
-        property_id: propertyId,
+        property_id: targetPropertyId,
         room_id: docketRoomId,
         issue_type: docketIssueType || null,
         priority: docketPriority,
@@ -289,6 +308,25 @@ export default function PMSHousekeeping() {
   const tasksForRoom = (roomId: string) => hkTasks.filter(t => t.room_id === roomId);
   const openMaintenanceForRoom = (roomId: string) =>
     maintenanceReqs.filter(m => m.room_id === roomId && (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)));
+
+  // Rooms currently occupied by a guest, derived from active bookings (not just rolos_rooms.status).
+  const inHouseRoomIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const b of inHouseBookings) for (const id of b.rolos_room_ids || []) if (id) s.add(id);
+    return s;
+  }, [inHouseBookings]);
+  const guestForRoom = (roomId: string) => inHouseBookings.find(b => (b.rolos_room_ids || []).includes(roomId))?.guest_name || null;
+  const isInHouse = (room: Room) => room.status === "occupied" || inHouseRoomIds.has(room.id);
+
+  // Open the create-docket dialog pre-scoped to a given room.
+  const openDocketForRoom = (roomId: string) => {
+    resetDocketForm();
+    setDocketRoomId(roomId);
+    setShowCreateDocket(true);
+  };
+
+  // Property name lookup for the docket combobox grouping.
+  const propertyName = (pid: string) => properties.find(p => p.id === pid)?.name || "Property";
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -363,8 +401,8 @@ export default function PMSHousekeeping() {
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
           const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-          const occupiedRooms = section.rooms.filter(r => r.status === "occupied" || r.status === "in_house");
-          const cleanRooms = section.rooms.filter(r => r.status === "available");
+          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && r.status !== "maintenance" && r.status !== "out_of_order");
+          const cleanRooms = section.rooms.filter(r => r.status === "available" && !inHouseRoomIds.has(r.id));
           return (
         <div key={section.id} className="space-y-3">
           {isPortfolio && (
@@ -387,7 +425,13 @@ export default function PMSHousekeeping() {
               return (
                 <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                   <CardContent className="py-3 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div
+                      className="flex items-center justify-between cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                      role="button"
+                      tabIndex={0}
+                      title="Add a maintenance docket for this room"
+                      onClick={() => openDocketForRoom(room.id)}
+                    >
                       <div>
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
@@ -476,7 +520,13 @@ export default function PMSHousekeeping() {
               return (
                 <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                   <CardContent className="py-3 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div
+                      className="flex items-center justify-between cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                      role="button"
+                      tabIndex={0}
+                      title="Add another docket for this room"
+                      onClick={() => openDocketForRoom(room.id)}
+                    >
                       <div>
                         <p className="font-bold">{room.room_number}</p>
                         <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
@@ -540,19 +590,30 @@ export default function PMSHousekeeping() {
             <h2 className="font-semibold text-blue-700 flex items-center gap-2">
               <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
             </h2>
-            {occupiedRooms.map(room => (
-              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status] || "border-l-blue-500"}`}>
-                <CardContent className="py-3 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold">{room.room_number}</p>
-                      <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+            {occupiedRooms.map(room => {
+              const guest = guestForRoom(room.id);
+              return (
+                <Card
+                  key={room.id}
+                  className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => openDocketForRoom(room.id)}
+                  role="button"
+                  tabIndex={0}
+                  title="Log a maintenance docket for this in-house room"
+                >
+                  <CardContent className="py-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="font-bold truncate">{room.room_number}</p>
+                        <p className="text-xs text-muted-foreground truncate">{roomTypeName(room.room_type_id)}</p>
+                        {guest && <p className="text-xs text-blue-700 dark:text-blue-300 truncate">Guest: {guest}</p>}
+                      </div>
+                      <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">in house</Badge>
                     </div>
-                    <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">occupied</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
             {occupiedRooms.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
           </div>
 
@@ -587,8 +648,16 @@ export default function PMSHousekeeping() {
                   return (
                     <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                       <CardContent className="py-3 space-y-1.5">
-                        <p className="font-bold">{room.room_number}</p>
-                        <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                        <div
+                          className="cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                          role="button"
+                          tabIndex={0}
+                          title="Add another docket for this room"
+                          onClick={() => openDocketForRoom(room.id)}
+                        >
+                          <p className="font-bold">{room.room_number}</p>
+                          <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                        </div>
                         <div className="mt-1 space-y-2">
                           <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
                             <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
@@ -649,8 +718,11 @@ export default function PMSHousekeeping() {
                           <Badge
                             key={room.id}
                             variant="outline"
-                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400"
-                            title={roomTypeName(room.room_type_id)}
+                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400 cursor-pointer hover:bg-emerald-500/10"
+                            title={`${roomTypeName(room.room_type_id)} — click to add a maintenance docket`}
+                            onClick={() => openDocketForRoom(room.id)}
+                            role="button"
+                            tabIndex={0}
                           >
                             {room.room_number}
                           </Badge>
@@ -662,7 +734,14 @@ export default function PMSHousekeeping() {
 
                 {/* Expanded — original full card per ready room */}
                 {readyClean.length > 0 && expanded && readyClean.map(room => (
-                  <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                  <Card
+                    key={room.id}
+                    className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`}
+                    onClick={() => openDocketForRoom(room.id)}
+                    role="button"
+                    tabIndex={0}
+                    title="Add a maintenance docket for this room"
+                  >
                     <CardContent className="py-3 space-y-1.5">
                       <p className="font-bold">{room.room_number}</p>
                       <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
@@ -691,14 +770,53 @@ export default function PMSHousekeeping() {
           <div className="space-y-4">
             <div>
               <Label>Room *</Label>
-              <Select value={docketRoomId} onValueChange={setDocketRoomId}>
-                <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
-                <SelectContent>
-                  {rooms.map(r => (
-                    <SelectItem key={r.id} value={r.id}>{r.room_number}{r.room_name ? ` — ${r.room_name}` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const selected = rooms.find(r => r.id === docketRoomId);
+                const selectedLabel = selected
+                  ? `${propertyName(selected.property_id)} · ${selected.room_number}${selected.room_name ? ` — ${selected.room_name}` : ""}`
+                  : "Select room";
+                const grouped = propertySections
+                  .map(s => ({ ...s, rooms: [...s.rooms].sort((a, b) => a.room_number.localeCompare(b.room_number, undefined, { numeric: true })) }))
+                  .filter(s => s.rooms.length > 0);
+                return (
+                  <Popover open={docketRoomSearchOpen} onOpenChange={setDocketRoomSearchOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" aria-expanded={docketRoomSearchOpen} className="w-full justify-between font-normal">
+                        <span className={docketRoomId ? "" : "text-muted-foreground"}>{selectedLabel}</span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search property or room…" />
+                        <CommandList>
+                          <CommandEmpty>No room found.</CommandEmpty>
+                          {grouped.map(section => (
+                            <CommandGroup key={section.id} heading={section.name}>
+                              {section.rooms.map(r => {
+                                const label = `${r.room_number}${r.room_name ? ` — ${r.room_name}` : ""}`;
+                                return (
+                                  <CommandItem
+                                    key={r.id}
+                                    value={`${section.name} ${label} ${roomTypeName(r.room_type_id)}`}
+                                    onSelect={() => { setDocketRoomId(r.id); setDocketRoomSearchOpen(false); }}
+                                  >
+                                    <Check className={`mr-2 h-4 w-4 ${docketRoomId === r.id ? "opacity-100" : "opacity-0"}`} />
+                                    <div className="flex flex-col">
+                                      <span>{label}</span>
+                                      <span className="text-xs text-muted-foreground">{roomTypeName(r.room_type_id)}</span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
