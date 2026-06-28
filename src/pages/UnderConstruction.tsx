@@ -60,7 +60,7 @@ const UnderConstruction = () => {
               variant="outline"
               className="btn-thumb-zone min-w-[200px]"
             >
-              <a href="https://sleepinafrica.roomsonline.co.za">
+              <a href="https://connect.roomsonline.co.za/">
                 Visit main site
               </a>
             </Button>
