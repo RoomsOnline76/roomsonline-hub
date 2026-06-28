@@ -161,6 +161,11 @@ export default function PMSHousekeeping() {
   const [usingFallback, setUsingFallback] = useState(false);
 
   const fetchAll = useCallback(async () => {
+    if (propertyLoading) return;
+    // Wait until we know whether a portfolio exists before firing, to avoid a
+    // single-property fetch racing the auto-flipped portfolio fetch and
+    // overwriting it.
+    if (!autoDefaulted && properties.length > 1) return;
     if (activePropertyIds.length === 0) return;
     setLoading(true);
     const roomsQ = (supabase.from("rolos_rooms") as any).select("id, property_id, room_number, room_name, floor, status, room_type_id").in("property_id", activePropertyIds);
@@ -176,7 +181,12 @@ export default function PMSHousekeeping() {
       .lte("check_in_date", todayIso)
       .gte("check_out_date", todayIso)
       .in("status", ["checked_in", "in_house"]);
+    const requestedIdsKey = activePropertyIds.slice().sort().join(",");
     const [roomsRes, typesRes, activeTypesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, activeTypesQ, tasksQ, maintQ, bookingsQ]);
+
+    // Stale-response guard: if the active scope has changed since we kicked
+    // off this request, discard the result so a newer fetch wins.
+    if (latestFetchKey.current !== requestedIdsKey) return;
 
     const rawInHouseBookings = (bookingsRes.data || []) as InHouseBooking[];
     const bookingIds = rawInHouseBookings.map((b) => b.id);
@@ -231,9 +241,14 @@ export default function PMSHousekeeping() {
       setUsingFallback(false);
     }
     setLoading(false);
-  }, [activePropertyIds, isPortfolio]);
+  }, [activePropertyIds, isPortfolio, propertyLoading, autoDefaulted, properties.length]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Track the most recently requested scope so stale responses can be dropped.
+  const latestFetchKey = useRef<string>("");
+  useEffect(() => {
+    latestFetchKey.current = activePropertyIds.slice().sort().join(",");
+    fetchAll();
+  }, [fetchAll, activePropertyIds]);
 
   // Auto-refresh every 30s
   useEffect(() => {
