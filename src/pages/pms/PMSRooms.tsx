@@ -159,7 +159,8 @@ export default function PMSRooms() {
         .in("status", ["confirmed", "checked_in", "in_house"]),
     ]);
 
-    const types = (typesRes.data || []) as RoomType[];
+    const allTypes = (allTypesRes.data || []) as RoomType[];
+    const types = ((typesRes.data || []) as RoomType[]).length ? (typesRes.data || []) as RoomType[] : allTypes;
     setRoomTypes(types);
 
     const activeTypeIds = new Set(types.map((t) => t.id));
@@ -176,7 +177,7 @@ export default function PMSRooms() {
     const assignedBookings = autoAssignBookings(
       ((bookingsRes.data || []) as ActiveBooking[]),
       visibleRooms,
-      ((allTypesRes.data || types) as RoomType[])
+      (allTypes.length ? allTypes : types)
     );
     setActiveBookings(assignedBookings);
     setLoading(false);
