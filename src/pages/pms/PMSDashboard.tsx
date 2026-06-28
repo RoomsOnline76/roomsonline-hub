@@ -1350,7 +1350,7 @@ export default function PMSDashboard() {
       {/* Booking Detail Sheet */}
       <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
-          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
+          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
         </SheetContent>
       </Sheet>
 
