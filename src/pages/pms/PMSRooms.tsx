@@ -159,6 +159,19 @@ export default function PMSRooms() {
         .in("status", ["confirmed", "checked_in", "in_house"]),
     ]);
 
+    const rawBookings = (bookingsRes.data || []) as ActiveBooking[];
+    const bookingIds = rawBookings.map((b) => b.id);
+    const { data: bookingRoomLinks } = bookingIds.length
+      ? await (supabase.from("rolos_booking_rooms") as any)
+          .select("booking_id, room_id")
+          .in("booking_id", bookingIds)
+      : { data: [] };
+    const linkedRoomIdsByBooking = new Map<string, string[]>();
+    for (const link of (bookingRoomLinks || []) as any[]) {
+      if (!link.booking_id || !link.room_id) continue;
+      linkedRoomIdsByBooking.set(link.booking_id, [...(linkedRoomIdsByBooking.get(link.booking_id) || []), link.room_id]);
+    }
+
     const allTypes = (allTypesRes.data || []) as RoomType[];
     const types = ((typesRes.data || []) as RoomType[]).length ? (typesRes.data || []) as RoomType[] : allTypes;
     setRoomTypes(types);
@@ -175,7 +188,11 @@ export default function PMSRooms() {
     setRooms(visibleRooms);
 
     const assignedBookings = autoAssignBookings(
-      ((bookingsRes.data || []) as ActiveBooking[]),
+      rawBookings.map((booking) => {
+        const linkedIds = linkedRoomIdsByBooking.get(booking.id) || [];
+        const mergedIds = Array.from(new Set([...(booking.rolos_room_ids || []), ...linkedIds]));
+        return { ...booking, rolos_room_ids: mergedIds.length ? mergedIds : booking.rolos_room_ids };
+      }),
       visibleRooms,
       (allTypes.length ? allTypes : types)
     );
