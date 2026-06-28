@@ -168,8 +168,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       return;
     }
 
-    setSaving(true);
     const totalPrice = form.total_price ? parseFloat(form.total_price) : (autoPrice || 0);
+    if (!totalPrice || totalPrice <= 0) {
+      toast.error("Booking total is R0. Enter a total price or configure a rate for this room type before saving.");
+      return;
+    }
+    setSaving(true);
     // Auto-determine status: paid → confirmed, else pending
     const autoStatus = form.payment_status === "paid" ? "confirmed" : "pending";
 
