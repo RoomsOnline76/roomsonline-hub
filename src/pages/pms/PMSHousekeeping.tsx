@@ -24,6 +24,7 @@ import {
 
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
+import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -42,6 +43,17 @@ interface RoomType {
   id: string;
   name: string;
   property_id: string;
+}
+
+interface InHouseBooking {
+  id: string;
+  rolos_room_ids: string[] | null;
+  guest_name: string | null;
+  property_id: string;
+  status: string;
+  check_in_date: string;
+  check_out_date: string;
+  room_type_id: string | null;
 }
 
 interface HKTask {
@@ -123,7 +135,7 @@ export default function PMSHousekeeping() {
   const [hkTasks, setHkTasks] = useState<HKTask[]>([]);
   const [maintenanceReqs, setMaintenanceReqs] = useState<MaintenanceRequest[]>([]);
   // Active stays: drives the "In House" indicator regardless of room.status drift.
-  const [inHouseBookings, setInHouseBookings] = useState<Array<{ id: string; rolos_room_ids: string[] | null; guest_name: string | null; property_id: string }>>([]);
+  const [inHouseBookings, setInHouseBookings] = useState<InHouseBooking[]>([]);
   const [docketRoomSearchOpen, setDocketRoomSearchOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -153,30 +165,39 @@ export default function PMSHousekeeping() {
     setLoading(true);
     const roomsQ = (supabase.from("rolos_rooms") as any).select("id, property_id, room_number, room_name, floor, status, room_type_id").in("property_id", activePropertyIds);
     const typesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds);
+    const activeTypesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds).eq("is_active", true);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
     // Current in-house bookings: covers today, status checked_in OR confirmed-and-arrived-but-not-yet-departed.
-    const todayIso = new Date().toISOString().split("T")[0];
+    const todayIso = new Date().toLocaleDateString("en-CA");
     const bookingsQ = (supabase.from("bookings") as any)
       .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date")
       .in("property_id", activePropertyIds)
       .lte("check_in_date", todayIso)
       .gt("check_out_date", todayIso)
       .in("status", ["checked_in", "confirmed", "in_house"]);
-    const [roomsRes, typesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, tasksQ, maintQ, bookingsQ]);
+    const [roomsRes, typesRes, activeTypesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, activeTypesQ, tasksQ, maintQ, bookingsQ]);
 
-    const fetchedRoomTypes = (typesRes.data || []) as RoomType[];
-    setRoomTypes(fetchedRoomTypes);
+    const allFetchedRoomTypes = (typesRes.data || []) as RoomType[];
+    const activeRoomTypes = (activeTypesRes.data || []) as RoomType[];
+    setRoomTypes(activeRoomTypes.length ? activeRoomTypes : allFetchedRoomTypes);
     setHkTasks((tasksRes.data || []) as HKTask[]);
     setMaintenanceReqs((maintRes.data || []) as MaintenanceRequest[]);
-    setInHouseBookings(((bookingsRes.data || []) as any[]).map(b => ({
-      id: b.id, rolos_room_ids: b.rolos_room_ids, guest_name: b.guest_name, property_id: b.property_id,
-    })));
-
     const fetchedRooms = (roomsRes.data || []) as Room[];
+    const activeTypeIds = new Set(activeRoomTypes.map((t) => t.id));
+    const visibleRooms = activeTypeIds.size > 0
+      ? fetchedRooms.filter((room) => !room.room_type_id || activeTypeIds.has(room.room_type_id))
+      : fetchedRooms;
+    const assignedInHouseBookings = autoAssignBookings(
+      (bookingsRes.data || []) as InHouseBooking[],
+      visibleRooms,
+      allFetchedRoomTypes
+    );
+    setInHouseBookings(assignedInHouseBookings);
+
     if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
       // Fallback: derive synthetic rooms from room types (single-property only)
-      const syntheticRooms: Room[] = fetchedRoomTypes.map((rt) => ({
+      const syntheticRooms: Room[] = (activeRoomTypes.length ? activeRoomTypes : allFetchedRoomTypes).map((rt) => ({
         id: `fallback-${rt.id}`,
         property_id: rt.property_id,
         room_number: rt.name,
@@ -188,7 +209,7 @@ export default function PMSHousekeeping() {
       setRooms(syntheticRooms);
       setUsingFallback(true);
     } else {
-      setRooms(fetchedRooms);
+      setRooms(visibleRooms);
       setUsingFallback(false);
     }
     setLoading(false);
