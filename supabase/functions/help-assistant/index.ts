@@ -292,36 +292,47 @@ async function executeAction(
   actionType: string,
   propertyId: string,
   supabase: ReturnType<typeof createClient>,
+  portfolioPropertyIds?: string[],
 ): Promise<ActionResult> {
   const today = new Date().toISOString().split("T")[0];
+  const isPortfolio = !!(portfolioPropertyIds && portfolioPropertyIds.length > 1);
+  const scopeIds = isPortfolio ? portfolioPropertyIds! : [propertyId];
+  const scopeLabel = isPortfolio ? `portfolio (${scopeIds.length} properties)` : "property";
 
   switch (actionType) {
     case "trigger_night_audit": {
-      // Call the pms-night-audit edge function
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const resp = await fetch(`${supabaseUrl}/functions/v1/pms-night-audit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({ property_id: propertyId, trigger: "tobi_assistant" }),
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        return { type: actionType, success: false, error: `Night audit failed: ${errText}` };
+      const results: Array<{ property_id: string; ok: boolean; error?: string }> = [];
+      for (const pid of scopeIds) {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/pms-night-audit`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ property_id: pid, trigger: "tobi_assistant" }),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          results.push({ property_id: pid, ok: false, error: errText });
+        } else {
+          results.push({ property_id: pid, ok: true });
+        }
       }
-      const result = await resp.json();
-      return { type: actionType, success: true, data: result };
+      return {
+        type: actionType,
+        success: results.every(r => r.ok),
+        data: { scope: scopeLabel, results },
+      };
     }
 
     case "occupancy_summary": {
       const { data: rooms } = await supabase
         .from("rolos_rooms")
-        .select("id, status")
-        .eq("property_id", propertyId);
+        .select("id, status, property_id")
+        .in("property_id", scopeIds);
       const total = rooms?.length || 0;
       const occupied = rooms?.filter((r: { status: string }) => r.status === "occupied").length || 0;
       const available = rooms?.filter((r: { status: string }) => r.status === "available").length || 0;
@@ -331,6 +342,8 @@ async function executeAction(
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
+          properties: scopeIds.length,
           total_rooms: total,
           occupied,
           available,
@@ -345,31 +358,34 @@ async function executeAction(
     case "todays_arrivals": {
       const { data: arrivals } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, status, total_price, rooms, rolos_room_ids")
-        .eq("property_id", propertyId)
+        .select("id, guest_name, guest_email, status, total_price, property_id")
+        .in("property_id", scopeIds)
         .eq("check_in_date", today)
         .in("status", ["confirmed", "pending"]);
       const { data: departures } = await supabase
         .from("bookings")
-        .select("id, guest_name, status")
-        .eq("property_id", propertyId)
+        .select("id, guest_name, status, property_id")
+        .in("property_id", scopeIds)
         .eq("check_out_date", today)
         .in("status", ["confirmed", "checked_in"]);
       return {
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
           date: today,
-          arrivals: (arrivals || []).map((a: { id: string; guest_name: string; status: string; total_price: number }) => ({
+          arrivals: (arrivals || []).map((a: { id: string; guest_name: string; status: string; total_price: number; property_id: string }) => ({
             id: a.id,
             guest_name: a.guest_name,
             status: a.status,
             total_price: a.total_price,
+            property_id: a.property_id,
           })),
-          departures: (departures || []).map((d: { id: string; guest_name: string; status: string }) => ({
+          departures: (departures || []).map((d: { id: string; guest_name: string; status: string; property_id: string }) => ({
             id: d.id,
             guest_name: d.guest_name,
             status: d.status,
+            property_id: d.property_id,
           })),
           arrival_count: arrivals?.length || 0,
           departure_count: departures?.length || 0,
@@ -381,8 +397,8 @@ async function executeAction(
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
       const { data: bookings } = await supabase
         .from("bookings")
-        .select("id, total_price, status, check_in_date, booking_channel")
-        .eq("property_id", propertyId)
+        .select("id, total_price, status, check_in_date, booking_channel, property_id")
+        .in("property_id", scopeIds)
         .gte("check_in_date", thirtyDaysAgo)
         .in("status", ["confirmed", "checked_in", "checked_out"]);
 
@@ -390,7 +406,6 @@ async function executeAction(
       const bookingCount = bookings?.length || 0;
       const avgBookingValue = bookingCount > 0 ? Math.round(totalRevenue / bookingCount) : 0;
 
-      // Channel breakdown
       const channelMap: Record<string, number> = {};
       (bookings || []).forEach((b: { booking_channel: string | null; total_price: number }) => {
         const ch = b.booking_channel || "Direct";
@@ -401,6 +416,7 @@ async function executeAction(
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
           period: "Last 30 days",
           total_revenue: totalRevenue,
           booking_count: bookingCount,
