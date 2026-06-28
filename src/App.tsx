@@ -172,11 +172,10 @@ const queryClient = new QueryClient({
   },
 });
 const isSurveyDomain = window.location.hostname === "survey.roomsonline.co.za";
+const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
 const BookRedirect = () => {
-  const hostname = window.location.hostname;
-  const isPreviewHost = hostname.includes("lovableproject.com") || hostname.includes("lovable.app");
-  if (hostname === "book.sleepinafrica.roomsonline.co.za" || isPreviewHost) return <Home />;
+  if (isBookDomain) return <UnderConstruction />;
   window.location.href = "https://book.sleepinafrica.roomsonline.co.za";
   return null;
 };
