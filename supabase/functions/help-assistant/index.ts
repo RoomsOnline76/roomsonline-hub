@@ -477,9 +477,10 @@ serve(async (req) => {
       const portfolioName: string | null = pmsContext.portfolioName || null;
       const today = new Date().toISOString().split("T")[0];
 
-      // Parallel fetch all property data
+      // Parallel fetch all property data (scoped to portfolio when applicable)
       const [
         propertyRes,
+        portfolioPropertiesRes,
         roomTypesRes,
         roomsRes,
         ratePlansRes,
@@ -498,69 +499,75 @@ serve(async (req) => {
           .select("id, name, city, country, property_type, owner_email")
           .eq("id", propertyId)
           .single(),
+        isPortfolio
+          ? supabase
+              .from("properties")
+              .select("id, name, city, country")
+              .in("id", scopeIds)
+          : Promise.resolve({ data: null }),
         supabase
           .from("rolos_room_types")
-          .select("id, name, max_occupancy, default_rate, is_active")
-          .eq("property_id", propertyId)
+          .select("id, name, max_occupancy, default_rate, is_active, property_id")
+          .in("property_id", scopeIds)
           .eq("is_active", true),
         supabase
           .from("rolos_rooms")
-          .select("id, room_number, room_name, status, floor")
-          .eq("property_id", propertyId)
-          .limit(100),
+          .select("id, room_number, room_name, status, floor, property_id")
+          .in("property_id", scopeIds)
+          .limit(500),
         supabase
           .from("rolos_rate_plans")
-          .select("id, name, code, min_stay, is_active")
-          .eq("property_id", propertyId),
+          .select("id, name, code, min_stay, is_active, property_id")
+          .in("property_id", scopeIds),
         supabase
           .from("bookings")
-          .select("id, guest_name, check_in_date, check_out_date, status, total_price")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, check_in_date, check_out_date, status, total_price, property_id")
+          .in("property_id", scopeIds)
           .order("created_at", { ascending: false })
-          .limit(10),
+          .limit(20),
         supabase
           .from("bookings")
-          .select("id, guest_name, status")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, status, property_id")
+          .in("property_id", scopeIds)
           .eq("check_in_date", today)
           .in("status", ["confirmed", "pending"]),
         supabase
           .from("bookings")
-          .select("id, guest_name, status")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, status, property_id")
+          .in("property_id", scopeIds)
           .eq("check_out_date", today)
           .in("status", ["confirmed", "checked_in"]),
         supabase
           .from("rolos_guest_profiles")
           .select("id", { count: "exact", head: true })
-          .eq("property_id", propertyId),
+          .in("property_id", scopeIds),
         supabase
           .from("rolos_channel_connections")
-          .select("id, channel_name, is_active, last_sync_at")
-          .eq("property_id", propertyId),
+          .select("id, channel_name, is_active, last_sync_at, property_id")
+          .in("property_id", scopeIds),
         supabase
           .from("rolos_groups")
-          .select("id, name, status, arrival_date, departure_date, total_rooms")
-          .eq("property_id", propertyId)
+          .select("id, name, status, arrival_date, departure_date, total_rooms, property_id")
+          .in("property_id", scopeIds)
           .in("status", ["tentative", "confirmed"])
           .order("arrival_date", { ascending: true })
-          .limit(5),
+          .limit(10),
         supabase
           .from("rolos_events")
-          .select("id, name, status, event_date, event_type")
-          .eq("property_id", propertyId)
+          .select("id, name, status, event_date, event_type, property_id")
+          .in("property_id", scopeIds)
           .gte("event_date", today)
           .order("event_date", { ascending: true })
-          .limit(5),
+          .limit(10),
         supabase
           .from("rolos_pms_staff")
-          .select("id, display_name, role, is_active")
-          .eq("property_id", propertyId)
+          .select("id, display_name, role, is_active, property_id")
+          .in("property_id", scopeIds)
           .eq("is_active", true),
         supabase
           .from("rolos_housekeeping_tasks")
-          .select("id, status, priority")
-          .eq("property_id", propertyId)
+          .select("id, status, priority, property_id")
+          .in("property_id", scopeIds)
           .eq("task_date", today),
       ]);
 
