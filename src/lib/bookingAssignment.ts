@@ -41,6 +41,7 @@ export function autoAssignBookings<T extends AssignableBooking>(
   roomTypes: AssignableRoomType[] = []
 ): T[] {
   if (!bookings.length || !rooms.length) return bookings;
+  const visibleRoomIds = new Set(rooms.map((r) => r.id));
 
   // type-id → rooms
   const roomsByType = new Map<string, AssignableRoom[]>();
@@ -85,13 +86,16 @@ export function autoAssignBookings<T extends AssignableBooking>(
 
   // First pass: pre-populate occupancy for already-assigned bookings
   for (const b of bookings) {
-    const ids = b.rolos_room_ids || [];
+    const ids = (b.rolos_room_ids || []).filter((id) => visibleRoomIds.has(id));
     for (const id of ids) recordOcc(id, b);
   }
 
   return bookings.map(b => {
     const ids = b.rolos_room_ids || [];
-    if (ids.length > 0) return b;
+    const visibleIds = ids.filter((id) => visibleRoomIds.has(id));
+    if (visibleIds.length > 0) {
+      return visibleIds.length === ids.length ? b : { ...b, rolos_room_ids: visibleIds };
+    }
     if (!b.room_type_id) return b;
 
     let candidates = roomsByType.get(b.room_type_id) || [];
