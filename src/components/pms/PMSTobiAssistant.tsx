@@ -239,7 +239,7 @@ export function PMSTobiAssistant({
     } finally {
       setExecutingAction(false);
     }
-  }, [propertyId, user]);
+  }, [propertyId, user, portfolioMode, portfolioPropertyIds, portfolioName]);
 
   const streamChat = useCallback(
     async ({
