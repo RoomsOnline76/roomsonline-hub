@@ -226,14 +226,16 @@ export default function PMSHousekeeping() {
   };
 
   const createMaintenanceDocket = async () => {
-    if (!propertyId || !docketRoomId || !docketDescription.trim()) {
+    const selectedRoom = rooms.find(r => r.id === docketRoomId);
+    const targetPropertyId = selectedRoom?.property_id || propertyId;
+    if (!targetPropertyId || !docketRoomId || !docketDescription.trim()) {
       toast.error("Room and description required");
       return;
     }
     setSaving(true);
     try {
       const { error } = await supabase.from("rolos_maintenance_requests").insert({
-        property_id: propertyId,
+        property_id: targetPropertyId,
         room_id: docketRoomId,
         issue_type: docketIssueType || null,
         priority: docketPriority,
