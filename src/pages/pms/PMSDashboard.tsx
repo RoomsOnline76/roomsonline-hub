@@ -129,6 +129,7 @@ interface BookingRow {
   modification_notes: Record<string, unknown>[] | null;
   room_type_id: string | null;
   rolos_guest_id: string | null;
+  property_id: string | null;
 }
 
 interface RoomType {
