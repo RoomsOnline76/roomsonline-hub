@@ -225,8 +225,10 @@ export function usePmsPropertyId() {
     properties,
     portfolioProperties,
     portfolioIds: portfolioContext?.portfolioIds || [],
+    portfolioName: portfolioNameData || null,
     loading: isLoading,
     showPortfolioToggle,
     switchProperty,
   };
+
 }
