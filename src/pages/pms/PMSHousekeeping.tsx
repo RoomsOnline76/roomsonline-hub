@@ -85,7 +85,9 @@ const STATUS_BORDER: Record<string, string> = {
   dirty: "border-l-amber-500",
   maintenance: "border-l-red-500",
   out_of_order: "border-l-destructive",
+  in_house: "border-l-blue-500",
 };
+
 
 // ── Component ──────────────────────────────────────────────────────────────
 
