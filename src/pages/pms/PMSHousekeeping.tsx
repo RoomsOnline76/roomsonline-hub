@@ -171,7 +171,7 @@ export default function PMSHousekeeping() {
     // Current in-house bookings: covers today, status checked_in OR confirmed-and-arrived-but-not-yet-departed.
     const todayIso = new Date().toLocaleDateString("en-CA");
     const bookingsQ = (supabase.from("bookings") as any)
-      .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date")
+      .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date, room_type_id")
       .in("property_id", activePropertyIds)
       .lte("check_in_date", todayIso)
       .gt("check_out_date", todayIso)
@@ -195,9 +195,10 @@ export default function PMSHousekeeping() {
     );
     setInHouseBookings(assignedInHouseBookings);
 
-    if (fetchedRooms.length === 0 && fetchedRoomTypes.length > 0 && !isPortfolio) {
+    const fallbackRoomTypes = activeRoomTypes.length ? activeRoomTypes : allFetchedRoomTypes;
+    if (fetchedRooms.length === 0 && fallbackRoomTypes.length > 0 && !isPortfolio) {
       // Fallback: derive synthetic rooms from room types (single-property only)
-      const syntheticRooms: Room[] = (activeRoomTypes.length ? activeRoomTypes : allFetchedRoomTypes).map((rt) => ({
+      const syntheticRooms: Room[] = fallbackRoomTypes.map((rt) => ({
         id: `fallback-${rt.id}`,
         property_id: rt.property_id,
         room_number: rt.name,
