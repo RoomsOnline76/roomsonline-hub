@@ -1350,7 +1350,7 @@ export default function PMSDashboard() {
       {/* Booking Detail Sheet */}
       <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
-          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
+          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
         </SheetContent>
       </Sheet>
 
@@ -2067,7 +2067,31 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     status: booking.status,
     special_requests: booking.special_requests || "",
   });
-  const update = (key: string, value: string) => setForm(p => ({ ...p, [key]: value }));
+  // Track whether the user has manually edited the total so we don't overwrite it on date changes.
+  const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
+  const originalNights = Math.max(1, differenceInDays(parseISO(booking.check_out_date), parseISO(booking.check_in_date)));
+  const originalNightlyRate = (booking.total_price || 0) / originalNights;
+
+  const update = (key: string, value: string) => {
+    setForm(p => {
+      const next = { ...p, [key]: value };
+      if (key === "total_price") {
+        setTotalManuallyEdited(true);
+      }
+      // Auto-recalc total when dates change (unless user manually overrode it).
+      if ((key === "check_in_date" || key === "check_out_date") && !totalManuallyEdited) {
+        try {
+          const ci = parseISO(next.check_in_date);
+          const co = parseISO(next.check_out_date);
+          const n = differenceInDays(co, ci);
+          if (n > 0 && originalNightlyRate > 0) {
+            next.total_price = String(Math.round(originalNightlyRate * n * 100) / 100);
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      return next;
+    });
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -2317,6 +2341,13 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
                 <div><label className="text-xs text-muted-foreground">Check-in</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_in_date} onChange={e => update("check_in_date", e.target.value)} /></div>
                 <div><label className="text-xs text-muted-foreground">Check-out</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_out_date} onChange={e => update("check_out_date", e.target.value)} /></div>
               </div>
+              {(() => {
+                try {
+                  const n = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
+                  if (n > 0) return <p className="text-[11px] text-muted-foreground">{n} night{n !== 1 ? "s" : ""}{!totalManuallyEdited && originalNightlyRate > 0 ? ` · total auto-recalculated at R${Math.round(originalNightlyRate).toLocaleString()}/night` : ""}</p>;
+                  return <p className="text-[11px] text-destructive">Check-out must be after check-in</p>;
+                } catch { return null; }
+              })()}
               <div className="grid grid-cols-5 gap-2">
                 {(["adults", "children", "teens", "infants", "pets"] as const).map(f => (
                   <div key={f}><label className="text-[10px] text-muted-foreground capitalize">{f}</label><input type="number" min={f === "adults" ? 1 : 0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={(form as any)[f]} onChange={e => update(f, e.target.value)} /></div>
