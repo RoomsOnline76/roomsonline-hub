@@ -102,7 +102,7 @@ function HomeContent() {
 
   usePageSEO({
     title: "Sleep in Africa — Extraordinary African Accommodation",
-    description: "Discover hand-picked safari lodges, boutique hotels, guest houses, and luxury retreats across Africa. Book directly with real-time availability and best-rate guarantees.",
+    description: "Handpicked safari lodges, boutique hotels & guest houses across Africa. Book direct with real-time availability and best-rate guarantees.",
     ogType: "website",
     jsonLd: [
       {
@@ -487,7 +487,7 @@ function HomeContent() {
               />
               <div className={`${isExpanded ? "hidden" : "block"}`}>
                 <h1 className="font-display text-xl sm:text-2xl text-white drop-shadow-lg tracking-wide">
-                  RoomsOnline
+                  RoomsOnline — Extraordinary African Accommodation
                 </h1>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-white/80 mt-0.5">Rooms done Right</p>
               </div>

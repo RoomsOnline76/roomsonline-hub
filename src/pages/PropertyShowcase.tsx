@@ -260,7 +260,7 @@ export default function PropertyShowcase() {
     description: property
       ? `Book ${property.name} in ${property.city}, ${property.country}. ${property.description?.slice(0, 120) || "Extraordinary accommodation in Africa."}`
       : "Discover extraordinary accommodation across Africa.",
-    ogType: "place" as const,
+    ogType: "website" as const,
     ogImage: property?.images?.[0] || undefined,
     breadcrumbs: property
       ? [
