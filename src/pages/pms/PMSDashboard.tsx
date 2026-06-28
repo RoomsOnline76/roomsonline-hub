@@ -2077,8 +2077,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
     return { booked, avail: Math.max(0, totalUnits - booked) };
   };
 
-  const isSingleRoom = typeRooms.length === 1;
-  const singleRoom = isSingleRoom ? typeRooms[0] : null;
+  const isSingleRoom = typeRooms.length <= 1;
+  const singleRoom = typeRooms.length === 1 ? typeRooms[0] : null;
   const singleRoomOOS = singleRoom?.status === "out_of_service";
 
   return (
