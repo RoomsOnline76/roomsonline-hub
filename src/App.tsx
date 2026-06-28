@@ -20,6 +20,7 @@ import { Analytics } from "@vercel/analytics/react";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import UnderConstruction from "./pages/UnderConstruction";
 
 // ─── Lazy — public pages ─────────────────────────────────────────
 const PropertyShowcase = lazy(() => import("./pages/PropertyShowcase"));
@@ -171,11 +172,10 @@ const queryClient = new QueryClient({
   },
 });
 const isSurveyDomain = window.location.hostname === "survey.roomsonline.co.za";
+const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
 const BookRedirect = () => {
-  const hostname = window.location.hostname;
-  const isPreviewHost = hostname.includes("lovableproject.com") || hostname.includes("lovable.app");
-  if (hostname === "book.sleepinafrica.roomsonline.co.za" || isPreviewHost) return <Home />;
+  if (isBookDomain) return <UnderConstruction />;
   window.location.href = "https://book.sleepinafrica.roomsonline.co.za";
   return null;
 };
@@ -212,6 +212,11 @@ const App = () => (
                           </Route>
                         )}
 
+                        {/* ═══ Book domain — Under construction (catch-all) ═ */}
+                        {isBookDomain && (
+                          <Route path="*" element={<UnderConstruction />} />
+                        )}
+
                         {/* ═══ Root ═══════════════════════════════════════ */}
                         <Route
                           path="/"
@@ -220,9 +225,7 @@ const App = () => (
                               ? <Navigate to="/" replace />
                               : isSurveyDomain
                                 ? <ProjectDiscoverySurvey />
-                                : window.location.hostname === "book.sleepinafrica.roomsonline.co.za"
-                                  ? <Home />
-                                  : <Navigate to="/dashboard/reports" replace />
+                                : <Navigate to="/dashboard/reports" replace />
                           }
                         />
 
