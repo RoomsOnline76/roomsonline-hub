@@ -363,6 +363,7 @@ export default function PMSHousekeeping() {
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
           const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
+          const occupiedRooms = section.rooms.filter(r => r.status === "occupied" || r.status === "in_house");
           const cleanRooms = section.rooms.filter(r => r.status === "available");
           return (
         <div key={section.id} className="space-y-3">
@@ -373,7 +374,8 @@ export default function PMSHousekeeping() {
               <Badge variant="outline" className="text-xs">{section.rooms.length} rooms</Badge>
             </div>
           )}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
+
           {/* ─── Needs Cleaning ─────────────────────── */}
           <div className="space-y-3">
             <h2 className="font-semibold text-amber-700 flex items-center gap-2">
