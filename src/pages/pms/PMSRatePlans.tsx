@@ -364,7 +364,7 @@ export default function PMSRatePlans() {
       const { data: property } = await supabase
         .from("properties")
         .select("amenities")
-        .eq("id", propertyId)
+        .eq("id", targetPropertyId)
         .single();
 
       if (property) {
@@ -396,7 +396,7 @@ export default function PMSRatePlans() {
         await supabase
           .from("properties")
           .update({ amenities: { ...amenities, pms_rate_types: pmsRateTypes } })
-          .eq("id", propertyId);
+          .eq("id", targetPropertyId);
       }
     } catch (wbErr) {
       console.warn("[PMSRatePlans] Write-back to amenities warning:", wbErr);
