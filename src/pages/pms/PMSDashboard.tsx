@@ -1252,13 +1252,14 @@ export default function PMSDashboard() {
                             size="sm"
                             variant="default"
                             className="h-6 text-[10px] px-2 py-0"
-                            disabled={!!quickAction}
-                            onClick={() => handleQuickAction(b, "check_out")}
+                            title="Review charges, confirm payment, then check out"
+                            onClick={() => setSelectedBooking(b)}
                           >
-                            {isQuickLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3 mr-1" />}
-                            Check Out
+                            <LogOut className="h-3 w-3 mr-1" />
+                            Review &amp; Check Out
                           </Button>
                         )}
+
                       </div>
                     </div>
                   );
