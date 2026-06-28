@@ -212,22 +212,21 @@ const App = () => (
                           </Route>
                         )}
 
-                        {/* ═══ Book domain — Under construction (catch-all) ═ */}
-                        {isBookDomain && (
+                        {/* ═══ Book domain — Under construction (all paths) ═ */}
+                        {isBookDomain ? (
                           <Route path="*" element={<UnderConstruction />} />
+                        ) : (
+                          <Route
+                            path="/"
+                            element={
+                              isConnectDomain
+                                ? <Navigate to="/" replace />
+                                : isSurveyDomain
+                                  ? <ProjectDiscoverySurvey />
+                                  : <Navigate to="/dashboard/reports" replace />
+                            }
+                          />
                         )}
-
-                        {/* ═══ Root ═══════════════════════════════════════ */}
-                        <Route
-                          path="/"
-                          element={
-                            isConnectDomain
-                              ? <Navigate to="/" replace />
-                              : isSurveyDomain
-                                ? <ProjectDiscoverySurvey />
-                                : <Navigate to="/dashboard/reports" replace />
-                          }
-                        />
 
                         {/* ═══ Public routes ══════════════════════════════ */}
                         <Route path="/book" element={<BookRedirect />} />
