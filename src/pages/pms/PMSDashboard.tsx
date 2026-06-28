@@ -663,13 +663,6 @@ export default function PMSDashboard() {
     for (const prop of portfolioProperties || []) {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRoomsRawForProp = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
-      const activeRoomTypeIds = new Set(propRoomTypesRaw.map(rt => rt.id));
-      // Only count physical rooms linked to the active room-type catalogue. This avoids
-      // stale/deactivated sync rows being counted as extra units without hiding valid rooms.
-      const propRooms = propRoomsRawForProp.filter((r) => !r.room_type_id || activeRoomTypeIds.has(r.room_type_id));
-      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
-      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypesRaw) as BookingRow[];
-      const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
       const propData = portfolioPropertiesData.find(p => p.id === prop.id);
 
       // Deduplicate room types using same logic as single-property mode
@@ -697,6 +690,14 @@ export default function PMSDashboard() {
         }
         propRoomTypes = Array.from(deduped.values()).sort((a, b) => a.name.localeCompare(b.name));
       }
+
+      const activeRoomTypeIds = new Set(propRoomTypes.map(rt => rt.id));
+      // Only count physical rooms linked to the canonical active room-type catalogue. This avoids
+      // stale/deactivated sync rows being counted as extra units without hiding valid rooms.
+      const propRooms = propRoomsRawForProp.filter((r) => !r.room_type_id || activeRoomTypeIds.has(r.room_type_id));
+      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypes) as BookingRow[];
+      const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
 
       const oMap = new Map<string, AvailabilityOverride>();
       propOverrides.forEach(o => oMap.set(`${o.room_type}-${o.date}`, o));
