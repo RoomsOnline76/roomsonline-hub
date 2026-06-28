@@ -585,10 +585,21 @@ serve(async (req) => {
       const staff = staffRes.data;
       const housekeepingTasks = housekeepingRes.data;
 
-      // Build property context
-      contextContent = `\n\n--- PROPERTY DATA: ${property?.name || 'Unknown Property'} ---\n`;
-      contextContent += `Location: ${property?.city || ''}, ${property?.country || ''}\n`;
-      contextContent += `Type: ${property?.property_type || 'Not specified'}\n\n`;
+      // Build property / portfolio context header
+      if (isPortfolio) {
+        const portfolioProps = (portfolioPropertiesRes.data || []) as Array<{ id: string; name: string; city: string | null; country: string | null }>;
+        contextContent = `\n\n--- PORTFOLIO DATA: ${portfolioName || "Multi-Property Portfolio"} ---\n`;
+        contextContent += `IMPORTANT: You are TOBI for the ENTIRE PORTFOLIO — speak holistically. When asked about "today", "occupancy", "arrivals", "revenue", etc., aggregate across all properties below. Mention individual property names when relevant.\n\n`;
+        contextContent += `PROPERTIES IN PORTFOLIO (${portfolioProps.length}):\n`;
+        portfolioProps.forEach(p => {
+          contextContent += `- ${p.name}${p.city ? ` (${p.city}${p.country ? `, ${p.country}` : ""})` : ""}\n`;
+        });
+        contextContent += `\nCurrently selected property: ${property?.name || "Unknown"}\n\n`;
+      } else {
+        contextContent = `\n\n--- PROPERTY DATA: ${property?.name || 'Unknown Property'} ---\n`;
+        contextContent += `Location: ${property?.city || ''}, ${property?.country || ''}\n`;
+        contextContent += `Type: ${property?.property_type || 'Not specified'}\n\n`;
+      }
 
       if (roomTypes && roomTypes.length > 0) {
         contextContent += `ROOM TYPES (${roomTypes.length}):\n`;
