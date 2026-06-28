@@ -1185,7 +1185,8 @@ export default function PMSDashboard() {
                 {effectiveDepartures.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-2">No departures today</p>
                 ) : effectiveDepartures.map((b: BookingRow) => {
-                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
+                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === b.property_id)?.name : null;
+                  const roomNames = getBookingRoomNames(b);
                   return (
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
@@ -1193,7 +1194,12 @@ export default function PMSDashboard() {
                         onClick={() => setSelectedBooking(b)}
                       >
                         <span className="block truncate">{b.guest_name}</span>
-                        {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
+                        <span className="block text-[10px] text-muted-foreground truncate">
+                          {propName && <span>{propName}</span>}
+                          {propName && roomNames.length > 0 && <span> · </span>}
+                          {roomNames.length > 0 && <span>{roomNames.join(", ")}</span>}
+                          {!propName && roomNames.length === 0 && <span>No room assigned</span>}
+                        </span>
                       </button>
                       <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
                     </div>
