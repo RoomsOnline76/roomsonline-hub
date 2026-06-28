@@ -108,10 +108,16 @@ export default function PMSCommandCentre() {
     [filteredProperties]
   );
 
-  // Sync URL param to filter on mount
+  // Sync URL param to filter on mount.
+  // If the user has any portfolio (multi-property), default to "all" so the
+  // Command Centre loads the full portfolio view by default — only honour the
+  // ?property= param when the user has a single property or explicitly picks one.
   useEffect(() => {
+    const hasPortfolio = agentProperties.length > 1;
     if (propertyId && agentProperties.some((p) => p.id === propertyId)) {
-      setSelectedPropertyFilter(propertyId);
+      if (!hasPortfolio) {
+        setSelectedPropertyFilter(propertyId);
+      }
     }
   }, [propertyId, agentProperties]);
 
