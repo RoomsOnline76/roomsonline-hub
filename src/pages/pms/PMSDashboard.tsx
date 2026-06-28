@@ -1322,12 +1322,51 @@ export default function PMSDashboard() {
                 <CardTitle className="text-sm">Today's Arrivals ({todayArrivals.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                {todayArrivals.map((b: BookingRow) => (
-                  <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                    <p className="text-sm font-medium">{b.guest_name}</p>
-                    <Badge variant="outline" className="text-xs">{b.status}</Badge>
-                  </div>
-                ))}
+                {todayArrivals.map((b: BookingRow) => {
+                  const canCheckIn = b.status === "confirmed";
+                  const alreadyIn = b.status === "checked_in";
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
+                      <button
+                        className="text-sm font-medium text-left hover:underline truncate flex-1"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        {b.guest_name}
+                      </button>
+                      <Badge variant="outline" className="text-xs capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                      {canCheckIn && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-2 text-xs"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const res = await callPmsApi("check_in", { booking_id: b.id });
+                            if (!res.success) {
+                              if (res.error?.code === "ROOMS_NOT_READY") {
+                                toast.error("Rooms not ready — open booking to reassign");
+                                setSelectedBooking(b);
+                              } else {
+                                toast.error(res.error?.message || "Check-in failed");
+                              }
+                              return;
+                            }
+                            toast.success(`${b.guest_name} checked in — room marked in use`);
+                            queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+                          }}
+                        >
+                          <LogIn className="h-3 w-3 mr-1" />Check In
+                        </Button>
+                      )}
+                      {alreadyIn && (
+                        <Badge variant="secondary" className="text-[10px]">In House</Badge>
+                      )}
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
             <Card>
@@ -1336,9 +1375,24 @@ export default function PMSDashboard() {
               </CardHeader>
               <CardContent>
                 {todayDepartures.map((b: BookingRow) => (
-                  <div key={b.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                    <p className="text-sm font-medium">{b.guest_name}</p>
-                    <Badge variant="outline" className="text-xs">{b.status}</Badge>
+                  <div key={b.id} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
+                    <button
+                      className="text-sm font-medium text-left hover:underline truncate flex-1"
+                      onClick={() => setSelectedBooking(b)}
+                    >
+                      {b.guest_name}
+                    </button>
+                    <Badge variant="outline" className="text-xs capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                    {b.status === "checked_in" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <LogOut className="h-3 w-3 mr-1" />Check Out
+                      </Button>
+                    )}
                   </div>
                 ))}
               </CardContent>
