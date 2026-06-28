@@ -67,6 +67,7 @@ import {
   FileText,
   Receipt,
   MessageSquareText,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -220,6 +221,7 @@ export default function PMSDashboard() {
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
   const [autoDefaultedView, setAutoDefaultedView] = useState(false);
+  const [quickAction, setQuickAction] = useState<{ bookingId: string; action: "check_in" | "check_out" } | null>(null);
   // Default to portfolio view when a portfolio (>1 properties) exists
   useEffect(() => {
     if (!autoDefaultedView && (portfolioProperties?.length || 0) > 1) {
@@ -737,6 +739,32 @@ export default function PMSDashboard() {
       .filter(Boolean);
   }, [isPortfolioMode, portfolioDataByProperty, rooms]);
 
+  // Quick check-in / check-out from the arrivals/departures cards
+  const handleQuickAction = useCallback(async (booking: BookingRow, action: "check_in" | "check_out") => {
+    setQuickAction({ bookingId: booking.id, action });
+    try {
+      const res = await callPmsApi(action, { booking_id: booking.id });
+      if (!res.success) {
+        if (res.error?.code === "ROOMS_NOT_READY") {
+          toast.error("Assigned rooms are not ready. Open the booking to reassign rooms before checking in.");
+        } else {
+          throw new Error(res.error?.message || "Action failed");
+        }
+      } else {
+        toast.success(action === "check_in" ? "Guest checked in" : "Guest checked out");
+        queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setQuickAction(null);
+    }
+  }, [queryClient]);
+
   const getPortfolioRateForDate = useCallback((propId: string, roomTypeId: string, date: Date): number | null => {
     const propData = portfolioDataByProperty.get(propId);
     if (!propData) return null;
@@ -1150,6 +1178,7 @@ export default function PMSDashboard() {
                   const alreadyIn = b.status === "checked_in";
                   const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === b.property_id)?.name : null;
                   const roomNames = getBookingRoomNames(b);
+                  const isQuickLoading = quickAction?.bookingId === b.id;
                   return (
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
@@ -1164,10 +1193,23 @@ export default function PMSDashboard() {
                           {!propName && roomNames.length === 0 && <span>No room assigned</span>}
                         </span>
                       </button>
-                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
-                      {alreadyIn && (
-                        <Badge variant="secondary" className="text-[10px] shrink-0">In House</Badge>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                        {alreadyIn ? (
+                          <Badge variant="secondary" className="text-[10px]">In House</Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-6 text-[10px] px-2 py-0"
+                            disabled={!!quickAction}
+                            onClick={() => handleQuickAction(b, "check_in")}
+                          >
+                            {isQuickLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogIn className="h-3 w-3 mr-1" />}
+                            Check In
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1187,6 +1229,8 @@ export default function PMSDashboard() {
                 ) : effectiveDepartures.map((b: BookingRow) => {
                   const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === b.property_id)?.name : null;
                   const roomNames = getBookingRoomNames(b);
+                  const canCheckOut = b.status === "checked_in";
+                  const isQuickLoading = quickAction?.bookingId === b.id;
                   return (
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
@@ -1201,7 +1245,21 @@ export default function PMSDashboard() {
                           {!propName && roomNames.length === 0 && <span>No room assigned</span>}
                         </span>
                       </button>
-                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                        {canCheckOut && (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-6 text-[10px] px-2 py-0"
+                            disabled={!!quickAction}
+                            onClick={() => handleQuickAction(b, "check_out")}
+                          >
+                            {isQuickLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3 mr-1" />}
+                            Check Out
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
