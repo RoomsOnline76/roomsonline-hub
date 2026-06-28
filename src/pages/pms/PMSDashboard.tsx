@@ -1405,13 +1405,15 @@ export default function PMSDashboard() {
                     const propGetRestriction = (rtName: string, date: Date) =>
                       propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
 
+                    const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
+
                     return (
                       <div key={prop.id}>
                         <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-muted/30 rounded-md">
                           <Building2 className="h-4 w-4 text-primary shrink-0" />
                           <h3 className="text-sm font-bold text-foreground">{prop.name}</h3>
                           <Badge variant="outline" className="text-[10px]">
-                            {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                            {propData.roomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
                         <WeekCalendarGrid
@@ -1455,13 +1457,15 @@ export default function PMSDashboard() {
                           const propGetRestriction = (rtName: string, date: Date) =>
                             propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
 
+                          const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
+
                           return (
                             <div key={`${prop.id}-${weekIdx}`}>
                               <div className="flex items-center gap-2 mb-2 px-1 py-1 bg-muted/30 rounded-md">
                                 <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                                 <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
                                 <Badge variant="outline" className="text-[10px]">
-                                  {propData.roomTypes.length} types · {propData.rooms.length} rooms
+                                  {propData.roomTypes.length} types · {displayedRoomCount} rooms
                                 </Badge>
                               </div>
                               <WeekCalendarGrid
