@@ -155,7 +155,7 @@ export default function PMSRooms() {
         .select("id, guest_name, check_in_date, check_out_date, status, room_type_id, rolos_room_ids, property_id")
         .in("property_id", activePropertyIds)
         .lte("check_in_date", today)
-        .gt("check_out_date", today)
+        .gte("check_out_date", today)
         .in("status", ["confirmed", "checked_in", "in_house"]),
     ]);
 
