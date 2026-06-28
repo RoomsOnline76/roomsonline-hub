@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: string }> = {
+const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: string; parked?: boolean }> = {
   booking_com: { label: "Booking.com", color: "bg-blue-600", initials: "B" },
   airbnb: { label: "Airbnb", color: "bg-rose-500", initials: "A" },
   expedia: { label: "Expedia", color: "bg-yellow-500", initials: "E" },
@@ -8,7 +8,7 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   google_hotels: { label: "Google Hotels", color: "bg-emerald-500", initials: "G" },
   lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk" },
   nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
-  rentalsunited: { label: "Rentals United", color: "bg-indigo-600", initials: "RU" },
+  rentalsunited: { label: "Rentals United", color: "bg-indigo-600", initials: "RU", parked: true },
   profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
   hyperguest: { label: "HyperGuest", color: "bg-cyan-600", initials: "HG" },
   hotelbeds: { label: "HotelBeds", color: "bg-amber-600", initials: "HB" },
@@ -20,6 +20,11 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
   ebeds: { label: "eBeds", color: "bg-amber-600", initials: "eB" },
   manual: { label: "Manual", color: "bg-muted-foreground", initials: "M" },
 };
+
+export const PARKED_CHANNELS = new Set(
+  Object.entries(CHANNEL_CONFIG).filter(([, c]) => c.parked).map(([k]) => k)
+);
+
 
 export function getChannelLabel(channelName: string): string {
   return CHANNEL_CONFIG[channelName]?.label ?? channelName;
