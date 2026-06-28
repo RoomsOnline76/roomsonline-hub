@@ -1171,16 +1171,6 @@ export default function PMSDashboard() {
                         {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
                       </button>
                       <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
-                      {b.status === "checked_in" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs shrink-0"
-                          onClick={() => setSelectedBooking(b)}
-                        >
-                          <LogOut className="h-3 w-3 mr-1" />Check Out
-                        </Button>
-                      )}
                     </div>
                   );
                 })}
