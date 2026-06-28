@@ -1062,7 +1062,7 @@ export default function PMSDashboard() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight">{displayName}</h1>
-            {displayProperties.length > 1 && (
+            {displayProperties.length > 1 && !isPortfolioMode && (
               <Select value={propertyId || ""} onValueChange={switchProperty}>
                 <SelectTrigger className="w-[220px] h-8 text-sm">
                   <SelectValue placeholder="Switch property" />
