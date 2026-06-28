@@ -178,6 +178,19 @@ export default function PMSHousekeeping() {
       .in("status", ["checked_in", "in_house"]);
     const [roomsRes, typesRes, activeTypesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, activeTypesQ, tasksQ, maintQ, bookingsQ]);
 
+    const rawInHouseBookings = (bookingsRes.data || []) as InHouseBooking[];
+    const bookingIds = rawInHouseBookings.map((b) => b.id);
+    const { data: bookingRoomLinks } = bookingIds.length
+      ? await (supabase.from("rolos_booking_rooms") as any)
+          .select("booking_id, room_id")
+          .in("booking_id", bookingIds)
+      : { data: [] };
+    const linkedRoomIdsByBooking = new Map<string, string[]>();
+    for (const link of (bookingRoomLinks || []) as any[]) {
+      if (!link.booking_id || !link.room_id) continue;
+      linkedRoomIdsByBooking.set(link.booking_id, [...(linkedRoomIdsByBooking.get(link.booking_id) || []), link.room_id]);
+    }
+
     const allFetchedRoomTypes = (typesRes.data || []) as RoomType[];
     const activeRoomTypes = (activeTypesRes.data || []) as RoomType[];
     setRoomTypes(activeRoomTypes.length ? activeRoomTypes : allFetchedRoomTypes);
@@ -189,7 +202,11 @@ export default function PMSHousekeeping() {
       ? fetchedRooms.filter((room) => !room.room_type_id || activeTypeIds.has(room.room_type_id))
       : fetchedRooms;
     const assignedInHouseBookings = autoAssignBookings(
-      (bookingsRes.data || []) as InHouseBooking[],
+      rawInHouseBookings.map((booking) => {
+        const linkedIds = linkedRoomIdsByBooking.get(booking.id) || [];
+        const mergedIds = Array.from(new Set([...(booking.rolos_room_ids || []), ...linkedIds]));
+        return { ...booking, rolos_room_ids: mergedIds.length ? mergedIds : booking.rolos_room_ids };
+      }),
       visibleRooms,
       allFetchedRoomTypes
     );
