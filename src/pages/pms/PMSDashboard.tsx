@@ -2415,6 +2415,9 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
         <Button key="pay" size="sm" onClick={() => handleLifecycleAction("mark_paid")} disabled={!!actionLoading}>
           <CheckCircle className="h-3 w-3 mr-1" />{loading("mark_paid") ? "..." : "Mark Paid & Confirm"}
         </Button>,
+        <Button key="checkin" size="sm" variant="secondary" onClick={() => handleLifecycleAction("check_in")} disabled={!!actionLoading}>
+          <LogIn className="h-3 w-3 mr-1" />{loading("check_in") ? "..." : "Check In Now"}
+        </Button>,
         <Button key="cancel" size="sm" variant="destructive" onClick={() => handleLifecycleAction("cancel")} disabled={!!actionLoading}>
           <XCircle className="h-3 w-3 mr-1" />Cancel
         </Button>,
