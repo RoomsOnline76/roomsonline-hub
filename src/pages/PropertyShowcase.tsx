@@ -1008,6 +1008,7 @@ export default function PropertyShowcase() {
         lowestRate={lowestRate}
         city={property.city}
         country={property.country}
+        propertyType={property.property_type ? String(property.property_type).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : undefined}
       />
 
       {/* 2-Column Layout: Content + Booking Sidebar */}

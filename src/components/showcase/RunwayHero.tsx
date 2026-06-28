@@ -172,7 +172,7 @@ export function RunwayHero({
               {...heroTitleReveal}
               className="font-serif text-2xl sm:text-3xl font-light tracking-tight text-white leading-[1.1] mb-2"
             >
-              {name}
+              {headingText}
             </motion.h1>
 
             <motion.p
@@ -342,7 +342,7 @@ export function RunwayHero({
             transition={{ delay: 0.15, duration: 0.4 }}
             className="font-serif text-3xl lg:text-4xl font-light tracking-tight text-foreground leading-[1.15] mb-2"
           >
-            {name}
+            {headingText}
           </motion.h1>
 
           <motion.p

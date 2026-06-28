@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import { usePageSEO } from "@/hooks/usePageSEO";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
@@ -119,6 +120,24 @@ const FAQ_CATEGORIES = [
 ];
 
 export default function ConnectFAQ() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ_CATEGORIES.flatMap((cat) =>
+      cat.items.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      }))
+    ),
+  };
+
+  usePageSEO({
+    title: "ROL'OS Developer FAQ — Connect",
+    description: "Answers about ROL'OS API access, WordPress plugin, embeddable widgets, PMS integrations, analytics and support.",
+    jsonLd: faqSchema,
+  });
+
   return (
     <div>
       {/* Hero */}
