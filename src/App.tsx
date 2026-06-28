@@ -204,7 +204,13 @@ const App = () => (
                   <Sonner />
                   <BrowserRouter>
                     <Suspense fallback={<PageFallback />}>
+                      {isBookDomain ? (
+                        <Routes>
+                          <Route path="*" element={<UnderConstruction />} />
+                        </Routes>
+                      ) : (
                       <Routes>
+
                         {/* ═══ Connect domain mount ═══════════════════════ */}
                         {isConnectDomain && (
                           <Route path="/" element={<ConnectLayout />}>
@@ -212,22 +218,21 @@ const App = () => (
                           </Route>
                         )}
 
-                        {/* ═══ Book domain — Under construction (catch-all) ═ */}
-                        {isBookDomain && (
+                        {/* ═══ Book domain — Under construction (all paths) ═ */}
+                        {isBookDomain ? (
                           <Route path="*" element={<UnderConstruction />} />
+                        ) : (
+                          <Route
+                            path="/"
+                            element={
+                              isConnectDomain
+                                ? <Navigate to="/" replace />
+                                : isSurveyDomain
+                                  ? <ProjectDiscoverySurvey />
+                                  : <Navigate to="/dashboard/reports" replace />
+                            }
+                          />
                         )}
-
-                        {/* ═══ Root ═══════════════════════════════════════ */}
-                        <Route
-                          path="/"
-                          element={
-                            isConnectDomain
-                              ? <Navigate to="/" replace />
-                              : isSurveyDomain
-                                ? <ProjectDiscoverySurvey />
-                                : <Navigate to="/dashboard/reports" replace />
-                          }
-                        />
 
                         {/* ═══ Public routes ══════════════════════════════ */}
                         <Route path="/book" element={<BookRedirect />} />
@@ -371,6 +376,7 @@ const App = () => (
                         {/* ═══ Catch-all ═════════════════════════════════ */}
                         <Route path="*" element={isConnectDomain ? <Navigate to="/" replace /> : <NotFound />} />
                       </Routes>
+                      )}
                     </Suspense>
                   </BrowserRouter>
                 </TooltipProvider>
