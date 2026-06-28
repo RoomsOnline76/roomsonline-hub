@@ -28,6 +28,7 @@ interface RoomType { id: string; name: string; property_id: string; }
 interface ActiveBooking {
   id: string;
   guest_name: string | null;
+  property_id: string | null;
   check_in_date: string;
   check_out_date: string;
   status: string;
@@ -293,7 +294,7 @@ export default function PMSRooms() {
 
   const displayStatusForRoom = (room: Room) => {
     const hasActiveBooking = !!activeBookingForRoom(room.id);
-    if (hasActiveBooking && ["available", "occupied"].includes(room.status)) return "occupied";
+    if (hasActiveBooking && !["maintenance", "out_of_order", "out_of_service"].includes(room.status)) return "occupied";
     return room.status;
   };
 
