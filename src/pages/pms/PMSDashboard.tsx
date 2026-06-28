@@ -669,16 +669,10 @@ export default function PMSDashboard() {
     for (const prop of portfolioProperties || []) {
       const propRoomTypesRaw = portfolioRoomTypesRaw.filter(rt => (rt as any).property_id === prop.id) as RoomType[];
       const propRoomsRawForProp = portfolioRoomsRaw.filter(r => (r as any).property_id === prop.id) as Room[];
-      // Dedupe rooms by normalized name (room_name || room_number) to avoid double-counting
-      // when the same physical unit exists under multiple room_type_id rows.
-      const seenRoomNames = new Set<string>();
-      const propRooms = propRoomsRawForProp.filter((r) => {
-        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
-        if (!key) return true;
-        if (seenRoomNames.has(key)) return false;
-        seenRoomNames.add(key);
-        return true;
-      });
+      const activeRoomTypeIds = new Set(propRoomTypesRaw.map(rt => rt.id));
+      // Only count physical rooms linked to the active room-type catalogue. This avoids
+      // stale/deactivated sync rows being counted as extra units without hiding valid rooms.
+      const propRooms = propRoomsRawForProp.filter((r) => !r.room_type_id || activeRoomTypeIds.has(r.room_type_id));
       const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propBookings = autoAssignBookings(propBookingsRaw, propRooms, propRoomTypesRaw) as BookingRow[];
       const propOverrides = portfolioOverridesRaw.filter(o => (o as any).property_id === prop.id);
