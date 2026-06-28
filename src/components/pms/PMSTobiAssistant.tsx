@@ -424,12 +424,18 @@ export function PMSTobiAssistant({
           <div>
             <h3 className="font-semibold text-sm">TOBI</h3>
             <p className="text-xs text-muted-foreground">
-              {propertyName ? `${propertyName} Assistant` : "PMS Guide"}
+              {portfolioMode
+                ? `${contextLabel} Portfolio Assistant`
+                : contextLabel ? `${contextLabel} Assistant` : "PMS Guide"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {propertyId && (
+          {portfolioMode ? (
+            <Badge variant="outline" className="text-xs">
+              Portfolio · {portfolioCount} properties
+            </Badge>
+          ) : propertyId && (
             <Badge variant="outline" className="text-xs">
               Property Connected
             </Badge>
