@@ -488,6 +488,24 @@ async function getActivePmsSystems(supabase: SupabaseClientType): Promise<Set<st
   return activeTypes;
 }
 
+// Helper to get parked PMS systems from pms_tracker_status (excluded from health checks)
+async function getParkedPmsSystems(supabase: SupabaseClientType): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('pms_tracker_status')
+    .select('system_type')
+    .eq('integration_status', 'parked');
+
+  if (error || !data) {
+    console.warn('[Health Check] Could not fetch parked PMS list:', error?.message);
+    return new Set<string>();
+  }
+
+  const parked = new Set<string>(data.map((row: { system_type: string }) => row.system_type));
+  if (parked.size) console.log(`[Health Check] Parked PMS (skipped): ${Array.from(parked).join(', ')}`);
+  return parked;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
