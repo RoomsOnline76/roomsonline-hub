@@ -18,11 +18,14 @@ interface PMSLayoutProps {
 
 export function PMSLayout({ children }: PMSLayoutProps) {
   const isMobile = useIsMobile();
-  const { propertyId } = usePmsPropertyId();
+  const { propertyId, portfolioProperties, portfolioName } = usePmsPropertyId();
   const { user } = useAuth();
   const { mustChangePassword, loading: roleLoading } = usePmsStaffRole(propertyId);
   const [propertyName, setPropertyName] = useState<string | undefined>();
   const [pwChanged, setPwChanged] = useState(false);
+
+  const isPortfolio = !!(portfolioProperties && portfolioProperties.length > 1);
+  const portfolioPropertyIds = isPortfolio ? portfolioProperties!.map(p => p.id) : [];
 
   useEffect(() => {
     if (!propertyId) {
@@ -40,6 +43,10 @@ export function PMSLayout({ children }: PMSLayoutProps) {
   }, [propertyId]);
 
   const showForcePassword = !roleLoading && mustChangePassword && !pwChanged && !!propertyId && !!user;
+
+  const tobiDisplayName = isPortfolio
+    ? (portfolioName || "Portfolio")
+    : propertyName;
 
   return (
     <HelpProvider>
@@ -63,7 +70,12 @@ export function PMSLayout({ children }: PMSLayoutProps) {
           onComplete={() => setPwChanged(true)}
         />
       )}
-      <PMSHelpDrawer propertyName={propertyName} />
+      <PMSHelpDrawer
+        propertyName={tobiDisplayName}
+        isPortfolio={isPortfolio}
+        portfolioPropertyIds={portfolioPropertyIds}
+        portfolioName={portfolioName || undefined}
+      />
       <FloatingHelpButton />
     </HelpProvider>
   );
