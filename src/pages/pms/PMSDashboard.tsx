@@ -829,6 +829,44 @@ export default function PMSDashboard() {
     return { totalRooms, occupied, available, occupancyPct, dirty, maintenance };
   }, [rooms, roomTypes, bookings]);
 
+  // Portfolio-aware aggregated stats + arrivals/departures
+  const portfolioAggregate = useMemo(() => {
+    if (!isPortfolioMode) return null;
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+    let totalRooms = 0, occupied = 0, dirty = 0, maintenance = 0;
+    const arrivals: BookingRow[] = [];
+    const departures: BookingRow[] = [];
+    for (const [, pd] of portfolioDataByProperty) {
+      const physical = pd.rooms.filter(r => r.status !== "out_of_service").length;
+      const tRooms = physical > 0 ? physical : pd.roomTypes.length;
+      totalRooms += tRooms;
+      const activeToday = pd.bookings.filter(b =>
+        todayStr >= b.check_in_date && todayStr < b.check_out_date &&
+        !["cancelled", "no_show"].includes(b.status)
+      );
+      if (physical > 0) {
+        const ids = new Set<string>();
+        activeToday.forEach(b => b.rolos_room_ids?.forEach(rid => ids.add(rid)));
+        occupied += ids.size;
+      } else {
+        occupied += activeToday.length;
+      }
+      dirty += pd.rooms.filter(r => r.status === "dirty").length;
+      maintenance += pd.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order").length;
+      pd.bookings.forEach(b => {
+        if (b.check_in_date === todayStr && ["confirmed", "pending"].includes(b.status)) arrivals.push(b);
+        if (b.check_out_date === todayStr && ["confirmed", "checked_in"].includes(b.status)) departures.push(b);
+      });
+    }
+    const available = Math.max(0, totalRooms - occupied);
+    const occupancyPct = totalRooms > 0 ? Math.round((occupied / totalRooms) * 100) : 0;
+    return { totalRooms, occupied, available, occupancyPct, dirty, maintenance, arrivals, departures };
+  }, [isPortfolioMode, portfolioDataByProperty]);
+
+  const effectiveStats = portfolioAggregate ?? dynamicStats;
+  const effectiveArrivals: BookingRow[] = portfolioAggregate ? portfolioAggregate.arrivals : (todayArrivals as BookingRow[]);
+  const effectiveDepartures: BookingRow[] = portfolioAggregate ? portfolioAggregate.departures : (todayDepartures as BookingRow[]);
+
   // Urgent rooms: dirty/maintenance rooms with same-day arrivals
   const urgentRooms = useMemo(() => {
     if (!todayArrivals.length || !rooms.length) return [];
@@ -1008,13 +1046,13 @@ export default function PMSDashboard() {
   }
 
   const statCards = [
-    { label: "Total Rooms", value: dynamicStats.totalRooms, icon: Building2, color: "text-foreground" },
-    { label: "Available", value: dynamicStats.available, icon: BedDouble, color: "text-emerald-600" },
-    { label: "Occupied", value: `${dynamicStats.occupied} (${dynamicStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
-    { label: "Arrivals Today", value: todayArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
-    { label: "Departures Today", value: todayDepartures.length, icon: TrendingUp, color: "text-purple-600" },
-    ...(dynamicStats.dirty > 0 ? [{ label: "Dirty", value: dynamicStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
-    ...(dynamicStats.maintenance > 0 ? [{ label: "Maintenance", value: dynamicStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
+    { label: "Total Rooms", value: effectiveStats.totalRooms, icon: Building2, color: "text-foreground" },
+    { label: "Available", value: effectiveStats.available, icon: BedDouble, color: "text-emerald-600" },
+    { label: "Occupied", value: `${effectiveStats.occupied} (${effectiveStats.occupancyPct}%)`, icon: Users, color: "text-blue-600" },
+    { label: "Arrivals Today", value: effectiveArrivals.length, icon: CalendarCheck, color: "text-amber-600" },
+    { label: "Departures Today", value: effectiveDepartures.length, icon: TrendingUp, color: "text-purple-600" },
+    ...(effectiveStats.dirty > 0 ? [{ label: "Dirty", value: effectiveStats.dirty, icon: AlertTriangle, color: "text-amber-500" }] : []),
+    ...(effectiveStats.maintenance > 0 ? [{ label: "Maintenance", value: effectiveStats.maintenance, icon: Ban, color: "text-destructive" }] : []),
   ];
 
   return (
@@ -1074,6 +1112,112 @@ export default function PMSDashboard() {
             ))}
           </div>
         </div>
+
+        {/* Today's Arrivals & Departures — surfaced top of page */}
+        {(effectiveArrivals.length > 0 || effectiveDepartures.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <Card className="border-amber-500/30">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-amber-600" />
+                  Today's Arrivals
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">{effectiveArrivals.length}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0 max-h-64 overflow-y-auto">
+                {effectiveArrivals.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No arrivals today</p>
+                ) : effectiveArrivals.map((b: BookingRow) => {
+                  const canCheckIn = b.status === "confirmed";
+                  const alreadyIn = b.status === "checked_in";
+                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                      <button
+                        className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <span className="block truncate">{b.guest_name}</span>
+                        {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
+                      </button>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
+                      {canCheckIn && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-2 text-xs shrink-0"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const res = await callPmsApi("check_in", { booking_id: b.id });
+                            if (!res.success) {
+                              if (res.error?.code === "ROOMS_NOT_READY") {
+                                toast.error("Rooms not ready — open booking to reassign");
+                                setSelectedBooking(b);
+                              } else {
+                                toast.error(res.error?.message || "Check-in failed");
+                              }
+                              return;
+                            }
+                            toast.success(`${b.guest_name} checked in — room marked in use`);
+                            queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+                          }}
+                        >
+                          <LogIn className="h-3 w-3 mr-1" />Check In
+                        </Button>
+                      )}
+                      {alreadyIn && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">In House</Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+            <Card className="border-purple-500/30">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <LogOut className="h-4 w-4 text-purple-600" />
+                  Today's Departures
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">{effectiveDepartures.length}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0 max-h-64 overflow-y-auto">
+                {effectiveDepartures.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No departures today</p>
+                ) : effectiveDepartures.map((b: BookingRow) => {
+                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                      <button
+                        className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <span className="block truncate">{b.guest_name}</span>
+                        {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
+                      </button>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
+                      {b.status === "checked_in" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs shrink-0"
+                          onClick={() => setSelectedBooking(b)}
+                        >
+                          <LogOut className="h-3 w-3 mr-1" />Check Out
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+
 
         {/* Urgent housekeeping alert */}
         {urgentRooms.length > 0 && (
@@ -1314,91 +1458,6 @@ export default function PMSDashboard() {
           </CardContent>
         </Card>
 
-        {/* Today's Arrivals & Departures */}
-        {(todayArrivals.length > 0 || todayDepartures.length > 0) && (
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Today's Arrivals ({todayArrivals.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {todayArrivals.map((b: BookingRow) => {
-                  const canCheckIn = b.status === "confirmed";
-                  const alreadyIn = b.status === "checked_in";
-                  return (
-                    <div key={b.id} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
-                      <button
-                        className="text-sm font-medium text-left hover:underline truncate flex-1"
-                        onClick={() => setSelectedBooking(b)}
-                      >
-                        {b.guest_name}
-                      </button>
-                      <Badge variant="outline" className="text-xs capitalize">{b.status.replace(/_/g, " ")}</Badge>
-                      {canCheckIn && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          className="h-7 px-2 text-xs"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const res = await callPmsApi("check_in", { booking_id: b.id });
-                            if (!res.success) {
-                              if (res.error?.code === "ROOMS_NOT_READY") {
-                                toast.error("Rooms not ready — open booking to reassign");
-                                setSelectedBooking(b);
-                              } else {
-                                toast.error(res.error?.message || "Check-in failed");
-                              }
-                              return;
-                            }
-                            toast.success(`${b.guest_name} checked in — room marked in use`);
-                            queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
-                            queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
-                          }}
-                        >
-                          <LogIn className="h-3 w-3 mr-1" />Check In
-                        </Button>
-                      )}
-                      {alreadyIn && (
-                        <Badge variant="secondary" className="text-[10px]">In House</Badge>
-                      )}
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Today's Departures ({todayDepartures.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {todayDepartures.map((b: BookingRow) => (
-                  <div key={b.id} className="flex items-center justify-between gap-2 py-1 border-b border-border last:border-0">
-                    <button
-                      className="text-sm font-medium text-left hover:underline truncate flex-1"
-                      onClick={() => setSelectedBooking(b)}
-                    >
-                      {b.guest_name}
-                    </button>
-                    <Badge variant="outline" className="text-xs capitalize">{b.status.replace(/_/g, " ")}</Badge>
-                    {b.status === "checked_in" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setSelectedBooking(b)}
-                      >
-                        <LogOut className="h-3 w-3 mr-1" />Check Out
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </div>
 
       {/* Booking Detail Sheet */}
