@@ -646,8 +646,16 @@ export default function PMSHousekeeping() {
                   return (
                     <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
                       <CardContent className="py-3 space-y-1.5">
-                        <p className="font-bold">{room.room_number}</p>
-                        <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                        <div
+                          className="cursor-pointer rounded -mx-1 px-1 py-0.5 hover:bg-muted/60"
+                          role="button"
+                          tabIndex={0}
+                          title="Add another docket for this room"
+                          onClick={() => openDocketForRoom(room.id)}
+                        >
+                          <p className="font-bold">{room.room_number}</p>
+                          <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                        </div>
                         <div className="mt-1 space-y-2">
                           <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded p-1.5">
                             <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
