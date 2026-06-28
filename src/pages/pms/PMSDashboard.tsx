@@ -1113,6 +1113,112 @@ export default function PMSDashboard() {
           </div>
         </div>
 
+        {/* Today's Arrivals & Departures — surfaced top of page */}
+        {(effectiveArrivals.length > 0 || effectiveDepartures.length > 0) && (
+          <div className="grid md:grid-cols-2 gap-3">
+            <Card className="border-amber-500/30">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-amber-600" />
+                  Today's Arrivals
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">{effectiveArrivals.length}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0 max-h-64 overflow-y-auto">
+                {effectiveArrivals.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No arrivals today</p>
+                ) : effectiveArrivals.map((b: BookingRow) => {
+                  const canCheckIn = b.status === "confirmed";
+                  const alreadyIn = b.status === "checked_in";
+                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                      <button
+                        className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <span className="block truncate">{b.guest_name}</span>
+                        {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
+                      </button>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
+                      {canCheckIn && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 px-2 text-xs shrink-0"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const res = await callPmsApi("check_in", { booking_id: b.id });
+                            if (!res.success) {
+                              if (res.error?.code === "ROOMS_NOT_READY") {
+                                toast.error("Rooms not ready — open booking to reassign");
+                                setSelectedBooking(b);
+                              } else {
+                                toast.error(res.error?.message || "Check-in failed");
+                              }
+                              return;
+                            }
+                            toast.success(`${b.guest_name} checked in — room marked in use`);
+                            queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+                            queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+                          }}
+                        >
+                          <LogIn className="h-3 w-3 mr-1" />Check In
+                        </Button>
+                      )}
+                      {alreadyIn && (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">In House</Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+            <Card className="border-purple-500/30">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <LogOut className="h-4 w-4 text-purple-600" />
+                  Today's Departures
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">{effectiveDepartures.length}</Badge>
+              </CardHeader>
+              <CardContent className="pt-0 max-h-64 overflow-y-auto">
+                {effectiveDepartures.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No departures today</p>
+                ) : effectiveDepartures.map((b: BookingRow) => {
+                  const propName = isPortfolioMode ? (portfolioProperties || []).find(p => p.id === (b as any).property_id)?.name : null;
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                      <button
+                        className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                        onClick={() => setSelectedBooking(b)}
+                      >
+                        <span className="block truncate">{b.guest_name}</span>
+                        {propName && <span className="block text-[10px] text-muted-foreground truncate">{propName}</span>}
+                      </button>
+                      <Badge variant="outline" className="text-[10px] capitalize shrink-0">{b.status.replace(/_/g, " ")}</Badge>
+                      {b.status === "checked_in" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs shrink-0"
+                          onClick={() => setSelectedBooking(b)}
+                        >
+                          <LogOut className="h-3 w-3 mr-1" />Check Out
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+
+
         {/* Urgent housekeeping alert */}
         {urgentRooms.length > 0 && (
           <Card className="border-amber-500/50 bg-amber-500/10">
