@@ -452,7 +452,12 @@ serve(async (req) => {
     // Direct action request (non-streaming) — returns JSON immediately
     // -----------------------------------------------------------------------
     if (actionRequest && pmsContext?.propertyId) {
-      const result = await executeAction(actionRequest.type, pmsContext.propertyId, supabase);
+      const result = await executeAction(
+        actionRequest.type,
+        pmsContext.propertyId,
+        supabase,
+        pmsContext.portfolioPropertyIds,
+      );
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -461,11 +466,15 @@ serve(async (req) => {
     let contextContent = "";
     let systemPrompt = GENERIC_SYSTEM_PROMPT;
 
-    // PMS MODE: Fetch property-specific data
+    // PMS MODE: Fetch property-specific data (or portfolio aggregate)
     if (pmsContext?.propertyId) {
       systemPrompt = PMS_SYSTEM_PROMPT;
-      
+
       const propertyId = pmsContext.propertyId;
+      const portfolioPropertyIds: string[] | undefined = pmsContext.portfolioPropertyIds;
+      const isPortfolio = !!(portfolioPropertyIds && portfolioPropertyIds.length > 1);
+      const scopeIds: string[] = isPortfolio ? portfolioPropertyIds! : [propertyId];
+      const portfolioName: string | null = pmsContext.portfolioName || null;
       const today = new Date().toISOString().split("T")[0];
 
       // Parallel fetch all property data
