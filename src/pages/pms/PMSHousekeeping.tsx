@@ -455,9 +455,19 @@ export default function PMSHousekeeping() {
         {/* Per-property boards */}
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
-          const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && r.status !== "maintenance" && r.status !== "out_of_order");
-          const cleanRooms = section.rooms.filter(r => ["available", "occupied"].includes(r.status) && !inHouseRoomIds.has(r.id));
+          const sectionRoomIds = new Set(section.rooms.map(r => r.id));
+          const maintenanceRooms = section.rooms.filter(r =>
+            r.status === "maintenance" || r.status === "out_of_order" || openMaintenanceForRoom(r.id).length > 0
+          );
+          const maintenanceRoomIds = new Set(maintenanceRooms.map(r => r.id));
+          // Dockets attributed to this property but whose room_id is missing/stale (e.g. deleted unit).
+          const orphanedDockets = maintenanceReqs.filter(m =>
+            (m.property_id === section.id || !m.property_id) &&
+            (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)) &&
+            (!m.room_id || !sectionRoomIds.has(m.room_id))
+          );
+          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && !maintenanceRoomIds.has(r.id));
+          const cleanRooms = section.rooms.filter(r => ["available", "occupied"].includes(r.status) && !inHouseRoomIds.has(r.id) && !maintenanceRoomIds.has(r.id));
           return (
         <div key={section.id} className="space-y-3">
           {isPortfolio && (
