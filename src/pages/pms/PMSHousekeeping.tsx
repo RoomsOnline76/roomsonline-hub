@@ -168,14 +168,14 @@ export default function PMSHousekeeping() {
     const activeTypesQ = (supabase.from("rolos_room_types") as any).select("id, name, property_id").in("property_id", activePropertyIds).eq("is_active", true);
     const tasksQ = (supabase.from("rolos_housekeeping_tasks") as any).select("id, room_id, task_type, priority, status, notes, assigned_to, rolos_rooms!inner(property_id)").in("rolos_rooms.property_id", activePropertyIds);
     const maintQ = (supabase.from("rolos_maintenance_requests") as any).select("id, room_id, issue_type, priority, description, status, estimated_cost, actual_cost, completion_notes, room_ready_confirmed, completed_date").in("property_id", activePropertyIds);
-    // Current in-house bookings: covers today, status checked_in OR confirmed-and-arrived-but-not-yet-departed.
+    // Current in-house bookings: only guests that have actually been checked in.
     const todayIso = new Date().toLocaleDateString("en-CA");
     const bookingsQ = (supabase.from("bookings") as any)
       .select("id, rolos_room_ids, guest_name, property_id, status, check_in_date, check_out_date, room_type_id")
       .in("property_id", activePropertyIds)
       .lte("check_in_date", todayIso)
       .gte("check_out_date", todayIso)
-      .in("status", ["checked_in", "confirmed", "in_house"]);
+      .in("status", ["checked_in", "in_house"]);
     const [roomsRes, typesRes, activeTypesRes, tasksRes, maintRes, bookingsRes] = await Promise.all([roomsQ, typesQ, activeTypesQ, tasksQ, maintQ, bookingsQ]);
 
     const allFetchedRoomTypes = (typesRes.data || []) as RoomType[];
@@ -338,7 +338,7 @@ export default function PMSHousekeeping() {
     return s;
   }, [inHouseBookings]);
   const guestForRoom = (roomId: string) => inHouseBookings.find(b => (b.rolos_room_ids || []).includes(roomId))?.guest_name || null;
-  const isInHouse = (room: Room) => room.status === "occupied" || inHouseRoomIds.has(room.id);
+  const isInHouse = (room: Room) => inHouseRoomIds.has(room.id);
 
   // Open the create-docket dialog pre-scoped to a given room.
   const openDocketForRoom = (roomId: string) => {
