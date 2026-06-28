@@ -88,8 +88,8 @@ export function PMSSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, isDev, isAdmin, isFearlessLeader } = useAuth();
+  const { propertyId, properties, switchProperty, portfolioName, showPortfolioToggle } = usePmsPropertyId();
   const { propertyName, logoUrl, brandEnabled } = usePMSBrand();
-  const { propertyId, properties, switchProperty } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
