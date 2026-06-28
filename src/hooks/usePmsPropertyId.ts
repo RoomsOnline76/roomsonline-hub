@@ -173,8 +173,29 @@ export function usePmsPropertyId() {
     return portfolioContext.properties;
   }, [portfolioContext]);
 
+  // Fetch portfolio name(s) for the current portfolio context
+  const { data: portfolioNameData } = useQuery({
+    queryKey: ["pms-portfolio-names", portfolioContext?.portfolioIds],
+    queryFn: async () => {
+      const ids = portfolioContext?.portfolioIds || [];
+      if (ids.length === 0) return null;
+      const { data, error } = await supabase
+        .from("property_portfolios" as any)
+        .select("id, name")
+        .in("id", ids);
+      if (error) {
+        console.error("[usePmsPropertyId] portfolio name error:", error);
+        return null;
+      }
+      return (data as any[] || []).map(p => p.name).filter(Boolean).join(" / ") || null;
+    },
+    enabled: !!(portfolioContext?.portfolioIds?.length),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const showPortfolioToggle = !!(portfolioProperties && portfolioProperties.length > 1);
   const isLoading = authLoading || propertiesLoading || (!!propertyId && portfolioLoading);
+
 
   // Keep shared store + URL in sync when propertyId resolves
   useEffect(() => {
