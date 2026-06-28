@@ -399,8 +399,8 @@ export default function PMSHousekeeping() {
         {propertySections.map((section) => {
           const dirtyRooms = section.rooms.filter(r => r.status === "dirty");
           const maintenanceRooms = section.rooms.filter(r => r.status === "maintenance" || r.status === "out_of_order");
-          const occupiedRooms = section.rooms.filter(r => r.status === "occupied" || r.status === "in_house");
-          const cleanRooms = section.rooms.filter(r => r.status === "available");
+          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && r.status !== "maintenance" && r.status !== "out_of_order");
+          const cleanRooms = section.rooms.filter(r => r.status === "available" && !inHouseRoomIds.has(r.id));
           return (
         <div key={section.id} className="space-y-3">
           {isPortfolio && (
