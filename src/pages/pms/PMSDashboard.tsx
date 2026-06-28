@@ -2341,6 +2341,13 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
                 <div><label className="text-xs text-muted-foreground">Check-in</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_in_date} onChange={e => update("check_in_date", e.target.value)} /></div>
                 <div><label className="text-xs text-muted-foreground">Check-out</label><input type="date" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" value={form.check_out_date} onChange={e => update("check_out_date", e.target.value)} /></div>
               </div>
+              {(() => {
+                try {
+                  const n = differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date));
+                  if (n > 0) return <p className="text-[11px] text-muted-foreground">{n} night{n !== 1 ? "s" : ""}{!totalManuallyEdited && originalNightlyRate > 0 ? ` · total auto-recalculated at R${Math.round(originalNightlyRate).toLocaleString()}/night` : ""}</p>;
+                  return <p className="text-[11px] text-destructive">Check-out must be after check-in</p>;
+                } catch { return null; }
+              })()}
               <div className="grid grid-cols-5 gap-2">
                 {(["adults", "children", "teens", "infants", "pets"] as const).map(f => (
                   <div key={f}><label className="text-[10px] text-muted-foreground capitalize">{f}</label><input type="number" min={f === "adults" ? 1 : 0} className="flex h-9 w-full rounded-md border border-input bg-background px-2 py-1 text-sm" value={(form as any)[f]} onChange={e => update(f, e.target.value)} /></div>
