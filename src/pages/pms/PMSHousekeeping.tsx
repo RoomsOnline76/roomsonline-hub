@@ -535,7 +535,29 @@ export default function PMSHousekeeping() {
             {maintenanceRooms.length === 0 && <p className="text-sm text-muted-foreground">No issues.</p>}
           </div>
 
+          {/* ─── In House (Occupied) ───────────────── */}
+          <div className="space-y-3">
+            <h2 className="font-semibold text-blue-700 flex items-center gap-2">
+              <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
+            </h2>
+            {occupiedRooms.map(room => (
+              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status] || "border-l-blue-500"}`}>
+                <CardContent className="py-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold">{room.room_number}</p>
+                      <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+                    </div>
+                    <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">occupied</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {occupiedRooms.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
+          </div>
+
           {/* ─── Ready ──────────────────────────────── */}
+
           {(() => {
             const expanded = !!readyExpanded[section.id];
             // Always show rooms with open dockets in full — they need attention.
