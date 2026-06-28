@@ -88,8 +88,8 @@ export function PMSSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, isDev, isAdmin, isFearlessLeader } = useAuth();
+  const { propertyId, properties, switchProperty, portfolioName } = usePmsPropertyId();
   const { propertyName, logoUrl, brandEnabled } = usePMSBrand();
-  const { propertyId, properties, switchProperty } = usePmsPropertyId();
   const { staffRole } = usePmsStaffRole(propertyId);
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
@@ -150,17 +150,17 @@ export function PMSSidebar() {
       <div className={cn("flex flex-col gap-2 p-4 border-b border-border", collapsed && "items-center")}>
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
           {logoUrl ? (
-            <img src={logoUrl} alt={propertyName} className="h-8 w-8 object-contain rounded" />
+            <img src={logoUrl} alt={portfolioName || propertyName || "ROL'OS"} className="h-8 w-8 object-contain rounded" />
           ) : (
-            <img src={rolLogo} alt="ROL'OS" className="h-8 w-8 object-contain" />
+            <img src={rolLogo} alt={portfolioName || propertyName || "ROL'OS"} className="h-8 w-8 object-contain" />
           )}
           {!collapsed && (
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-semibold text-foreground truncate">
-                {propertyName || "ROL'OS PMS"}
+                {portfolioName || propertyName || "ROL'OS PMS"}
               </span>
               <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground truncate">
-                Property Management
+                {portfolioName ? "Portfolio" : "Property Management"}
               </span>
             </div>
           )}
