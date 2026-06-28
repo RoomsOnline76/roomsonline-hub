@@ -204,11 +204,12 @@ const App = () => (
                   <Sonner />
                   <BrowserRouter>
                     <Suspense fallback={<PageFallback />}>
-                      <Routes>
-                        {isBookDomain && (
+                      {isBookDomain ? (
+                        <Routes>
                           <Route path="*" element={<UnderConstruction />} />
-                        )}
-                        {!isBookDomain && <>
+                        </Routes>
+                      ) : (
+                      <Routes>
 
                         {/* ═══ Connect domain mount ═══════════════════════ */}
                         {isConnectDomain && (
