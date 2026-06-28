@@ -588,19 +588,30 @@ export default function PMSHousekeeping() {
             <h2 className="font-semibold text-blue-700 flex items-center gap-2">
               <BedDouble className="h-4 w-4" /> In House ({occupiedRooms.length})
             </h2>
-            {occupiedRooms.map(room => (
-              <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status] || "border-l-blue-500"}`}>
-                <CardContent className="py-3 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold">{room.room_number}</p>
-                      <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
+            {occupiedRooms.map(room => {
+              const guest = guestForRoom(room.id);
+              return (
+                <Card
+                  key={room.id}
+                  className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => openDocketForRoom(room.id)}
+                  role="button"
+                  tabIndex={0}
+                  title="Log a maintenance docket for this in-house room"
+                >
+                  <CardContent className="py-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className="font-bold truncate">{room.room_number}</p>
+                        <p className="text-xs text-muted-foreground truncate">{roomTypeName(room.room_type_id)}</p>
+                        {guest && <p className="text-xs text-blue-700 dark:text-blue-300 truncate">Guest: {guest}</p>}
+                      </div>
+                      <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">in house</Badge>
                     </div>
-                    <Badge className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">occupied</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
             {occupiedRooms.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
           </div>
 
