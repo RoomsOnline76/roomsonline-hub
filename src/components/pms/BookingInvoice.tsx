@@ -129,10 +129,13 @@ export function BookingInvoice({ bookingId, guestName, guestEmail, checkIn, chec
   const handleEmail = async () => {
     setEmailing(true);
     try {
-      const { error } = await supabase.functions.invoke("send-booking-email", {
+      const { data, error } = await supabase.functions.invoke("send-booking-email", {
         body: { booking_id: bookingId, bookingId: bookingId, type: "invoice", status: "success" },
       });
       if (error) throw error;
+      if (data && (data as any).ok === false) {
+        throw new Error((data as any).reason || "Email provider rejected the send");
+      }
       toast.success(`Invoice emailed to ${guestEmail}`);
     } catch (e: any) {
       toast.error("Failed to email invoice: " + (e.message || "Unknown error"));
