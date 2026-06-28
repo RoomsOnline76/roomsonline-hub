@@ -26,6 +26,9 @@ interface ActionResult {
 
 interface PMSTobiAssistantProps {
   propertyName?: string;
+  isPortfolio?: boolean;
+  portfolioPropertyIds?: string[];
+  portfolioName?: string;
 }
 
 const PMS_SUGGESTED_PROMPTS = [
@@ -162,20 +165,33 @@ function ActionResultCard({ result }: { result: ActionResult }) {
   }
 }
 
-export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
+export function PMSTobiAssistant({
+  propertyName,
+  isPortfolio,
+  portfolioPropertyIds,
+  portfolioName,
+}: PMSTobiAssistantProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { propertyId } = usePmsPropertyId();
-  
-  const makeGreeting = useCallback((name?: string): string =>
-    name 
-      ? `Hey there! I'm TOBI, your assistant for **${name}** 🐱\n\nI can help with rooms, rates, bookings, run the night audit, pull live stats, and more. Just ask!`
-      : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
-    []
+
+  const portfolioMode = !!(isPortfolio && portfolioPropertyIds && portfolioPropertyIds.length > 1);
+  const portfolioCount = portfolioPropertyIds?.length || 0;
+  const contextLabel = portfolioMode
+    ? (portfolioName || "your portfolio")
+    : propertyName;
+
+  const makeGreeting = useCallback((): string =>
+    portfolioMode
+      ? `Hey there! I'm TOBI, your assistant for **${contextLabel}** 🐱\n\nI'm watching across all **${portfolioCount} properties** in this portfolio — ask me about occupancy, arrivals, revenue, or any single property by name.`
+      : contextLabel
+        ? `Hey there! I'm TOBI, your assistant for **${contextLabel}** 🐱\n\nI can help with rooms, rates, bookings, run the night audit, pull live stats, and more. Just ask!`
+        : "Hi! I'm TOBI, your ROL'OS assistant 🐱 Select a property and I'll help you manage it!",
+    [portfolioMode, portfolioCount, contextLabel]
   );
 
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: makeGreeting(propertyName) },
+    { role: "assistant", content: makeGreeting() },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -190,7 +206,7 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
   }, [messages]);
 
   useEffect(() => {
-    setMessages([{ role: "assistant", content: makeGreeting(propertyName) }]);
+    setMessages([{ role: "assistant", content: makeGreeting() }]);
   }, [propertyId, propertyName, makeGreeting]);
 
   // Execute an action via the edge function
@@ -207,7 +223,12 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
         body: JSON.stringify({
           messages: [],
           userRole: user?.user_metadata?.role || "user",
-          pmsContext: { propertyId },
+          pmsContext: {
+            propertyId,
+            portfolioPropertyIds: portfolioMode ? portfolioPropertyIds : undefined,
+            portfolioName: portfolioMode ? (portfolioName || null) : undefined,
+            isPortfolio: portfolioMode,
+          },
           actionRequest: { type: actionType },
         }),
       });
@@ -218,7 +239,7 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
     } finally {
       setExecutingAction(false);
     }
-  }, [propertyId, user]);
+  }, [propertyId, user, portfolioMode, portfolioPropertyIds, portfolioName]);
 
   const streamChat = useCallback(
     async ({
@@ -239,7 +260,12 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
         body: JSON.stringify({
           messages: chatMessages.map(m => ({ role: m.role, content: m.content })),
           userRole: user?.user_metadata?.role || "user",
-          pmsContext: propertyId ? { propertyId } : undefined,
+          pmsContext: propertyId ? {
+            propertyId,
+            portfolioPropertyIds: portfolioMode ? portfolioPropertyIds : undefined,
+            portfolioName: portfolioMode ? (portfolioName || null) : undefined,
+            isPortfolio: portfolioMode,
+          } : undefined,
         }),
       });
 
@@ -292,7 +318,7 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
 
       onDone(fullText);
     },
-    [user, propertyId]
+    [user, propertyId, portfolioMode, portfolioPropertyIds, portfolioName]
   );
 
   const sendMessage = async (messageText?: string) => {
@@ -364,7 +390,7 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
   };
 
   const resetChat = () => {
-    setMessages([{ role: "assistant", content: makeGreeting(propertyName) }]);
+    setMessages([{ role: "assistant", content: makeGreeting() }]);
     setInput("");
   };
 
@@ -398,12 +424,18 @@ export function PMSTobiAssistant({ propertyName }: PMSTobiAssistantProps) {
           <div>
             <h3 className="font-semibold text-sm">TOBI</h3>
             <p className="text-xs text-muted-foreground">
-              {propertyName ? `${propertyName} Assistant` : "PMS Guide"}
+              {portfolioMode
+                ? `${contextLabel} Portfolio Assistant`
+                : contextLabel ? `${contextLabel} Assistant` : "PMS Guide"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {propertyId && (
+          {portfolioMode ? (
+            <Badge variant="outline" className="text-xs">
+              Portfolio · {portfolioCount} properties
+            </Badge>
+          ) : propertyId && (
             <Badge variant="outline" className="text-xs">
               Property Connected
             </Badge>

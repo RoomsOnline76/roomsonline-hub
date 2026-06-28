@@ -292,36 +292,47 @@ async function executeAction(
   actionType: string,
   propertyId: string,
   supabase: ReturnType<typeof createClient>,
+  portfolioPropertyIds?: string[],
 ): Promise<ActionResult> {
   const today = new Date().toISOString().split("T")[0];
+  const isPortfolio = !!(portfolioPropertyIds && portfolioPropertyIds.length > 1);
+  const scopeIds = isPortfolio ? portfolioPropertyIds! : [propertyId];
+  const scopeLabel = isPortfolio ? `portfolio (${scopeIds.length} properties)` : "property";
 
   switch (actionType) {
     case "trigger_night_audit": {
-      // Call the pms-night-audit edge function
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const resp = await fetch(`${supabaseUrl}/functions/v1/pms-night-audit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({ property_id: propertyId, trigger: "tobi_assistant" }),
-      });
-      if (!resp.ok) {
-        const errText = await resp.text();
-        return { type: actionType, success: false, error: `Night audit failed: ${errText}` };
+      const results: Array<{ property_id: string; ok: boolean; error?: string }> = [];
+      for (const pid of scopeIds) {
+        const resp = await fetch(`${supabaseUrl}/functions/v1/pms-night-audit`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${anonKey}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ property_id: pid, trigger: "tobi_assistant" }),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          results.push({ property_id: pid, ok: false, error: errText });
+        } else {
+          results.push({ property_id: pid, ok: true });
+        }
       }
-      const result = await resp.json();
-      return { type: actionType, success: true, data: result };
+      return {
+        type: actionType,
+        success: results.every(r => r.ok),
+        data: { scope: scopeLabel, results },
+      };
     }
 
     case "occupancy_summary": {
       const { data: rooms } = await supabase
         .from("rolos_rooms")
-        .select("id, status")
-        .eq("property_id", propertyId);
+        .select("id, status, property_id")
+        .in("property_id", scopeIds);
       const total = rooms?.length || 0;
       const occupied = rooms?.filter((r: { status: string }) => r.status === "occupied").length || 0;
       const available = rooms?.filter((r: { status: string }) => r.status === "available").length || 0;
@@ -331,6 +342,8 @@ async function executeAction(
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
+          properties: scopeIds.length,
           total_rooms: total,
           occupied,
           available,
@@ -345,31 +358,34 @@ async function executeAction(
     case "todays_arrivals": {
       const { data: arrivals } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, status, total_price, rooms, rolos_room_ids")
-        .eq("property_id", propertyId)
+        .select("id, guest_name, guest_email, status, total_price, property_id")
+        .in("property_id", scopeIds)
         .eq("check_in_date", today)
         .in("status", ["confirmed", "pending"]);
       const { data: departures } = await supabase
         .from("bookings")
-        .select("id, guest_name, status")
-        .eq("property_id", propertyId)
+        .select("id, guest_name, status, property_id")
+        .in("property_id", scopeIds)
         .eq("check_out_date", today)
         .in("status", ["confirmed", "checked_in"]);
       return {
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
           date: today,
-          arrivals: (arrivals || []).map((a: { id: string; guest_name: string; status: string; total_price: number }) => ({
+          arrivals: (arrivals || []).map((a: { id: string; guest_name: string; status: string; total_price: number; property_id: string }) => ({
             id: a.id,
             guest_name: a.guest_name,
             status: a.status,
             total_price: a.total_price,
+            property_id: a.property_id,
           })),
-          departures: (departures || []).map((d: { id: string; guest_name: string; status: string }) => ({
+          departures: (departures || []).map((d: { id: string; guest_name: string; status: string; property_id: string }) => ({
             id: d.id,
             guest_name: d.guest_name,
             status: d.status,
+            property_id: d.property_id,
           })),
           arrival_count: arrivals?.length || 0,
           departure_count: departures?.length || 0,
@@ -381,8 +397,8 @@ async function executeAction(
       const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
       const { data: bookings } = await supabase
         .from("bookings")
-        .select("id, total_price, status, check_in_date, booking_channel")
-        .eq("property_id", propertyId)
+        .select("id, total_price, status, check_in_date, booking_channel, property_id")
+        .in("property_id", scopeIds)
         .gte("check_in_date", thirtyDaysAgo)
         .in("status", ["confirmed", "checked_in", "checked_out"]);
 
@@ -390,7 +406,6 @@ async function executeAction(
       const bookingCount = bookings?.length || 0;
       const avgBookingValue = bookingCount > 0 ? Math.round(totalRevenue / bookingCount) : 0;
 
-      // Channel breakdown
       const channelMap: Record<string, number> = {};
       (bookings || []).forEach((b: { booking_channel: string | null; total_price: number }) => {
         const ch = b.booking_channel || "Direct";
@@ -401,6 +416,7 @@ async function executeAction(
         type: actionType,
         success: true,
         data: {
+          scope: scopeLabel,
           period: "Last 30 days",
           total_revenue: totalRevenue,
           booking_count: bookingCount,
@@ -436,7 +452,12 @@ serve(async (req) => {
     // Direct action request (non-streaming) — returns JSON immediately
     // -----------------------------------------------------------------------
     if (actionRequest && pmsContext?.propertyId) {
-      const result = await executeAction(actionRequest.type, pmsContext.propertyId, supabase);
+      const result = await executeAction(
+        actionRequest.type,
+        pmsContext.propertyId,
+        supabase,
+        pmsContext.portfolioPropertyIds,
+      );
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -445,16 +466,21 @@ serve(async (req) => {
     let contextContent = "";
     let systemPrompt = GENERIC_SYSTEM_PROMPT;
 
-    // PMS MODE: Fetch property-specific data
+    // PMS MODE: Fetch property-specific data (or portfolio aggregate)
     if (pmsContext?.propertyId) {
       systemPrompt = PMS_SYSTEM_PROMPT;
-      
+
       const propertyId = pmsContext.propertyId;
+      const portfolioPropertyIds: string[] | undefined = pmsContext.portfolioPropertyIds;
+      const isPortfolio = !!(portfolioPropertyIds && portfolioPropertyIds.length > 1);
+      const scopeIds: string[] = isPortfolio ? portfolioPropertyIds! : [propertyId];
+      const portfolioName: string | null = pmsContext.portfolioName || null;
       const today = new Date().toISOString().split("T")[0];
 
-      // Parallel fetch all property data
+      // Parallel fetch all property data (scoped to portfolio when applicable)
       const [
         propertyRes,
+        portfolioPropertiesRes,
         roomTypesRes,
         roomsRes,
         ratePlansRes,
@@ -473,69 +499,75 @@ serve(async (req) => {
           .select("id, name, city, country, property_type, owner_email")
           .eq("id", propertyId)
           .single(),
+        isPortfolio
+          ? supabase
+              .from("properties")
+              .select("id, name, city, country")
+              .in("id", scopeIds)
+          : Promise.resolve({ data: null }),
         supabase
           .from("rolos_room_types")
-          .select("id, name, max_occupancy, default_rate, is_active")
-          .eq("property_id", propertyId)
+          .select("id, name, max_occupancy, default_rate, is_active, property_id")
+          .in("property_id", scopeIds)
           .eq("is_active", true),
         supabase
           .from("rolos_rooms")
-          .select("id, room_number, room_name, status, floor")
-          .eq("property_id", propertyId)
-          .limit(100),
+          .select("id, room_number, room_name, status, floor, property_id")
+          .in("property_id", scopeIds)
+          .limit(500),
         supabase
           .from("rolos_rate_plans")
-          .select("id, name, code, min_stay, is_active")
-          .eq("property_id", propertyId),
+          .select("id, name, code, min_stay, is_active, property_id")
+          .in("property_id", scopeIds),
         supabase
           .from("bookings")
-          .select("id, guest_name, check_in_date, check_out_date, status, total_price")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, check_in_date, check_out_date, status, total_price, property_id")
+          .in("property_id", scopeIds)
           .order("created_at", { ascending: false })
-          .limit(10),
+          .limit(20),
         supabase
           .from("bookings")
-          .select("id, guest_name, status")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, status, property_id")
+          .in("property_id", scopeIds)
           .eq("check_in_date", today)
           .in("status", ["confirmed", "pending"]),
         supabase
           .from("bookings")
-          .select("id, guest_name, status")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, status, property_id")
+          .in("property_id", scopeIds)
           .eq("check_out_date", today)
           .in("status", ["confirmed", "checked_in"]),
         supabase
           .from("rolos_guest_profiles")
           .select("id", { count: "exact", head: true })
-          .eq("property_id", propertyId),
+          .in("property_id", scopeIds),
         supabase
           .from("rolos_channel_connections")
-          .select("id, channel_name, is_active, last_sync_at")
-          .eq("property_id", propertyId),
+          .select("id, channel_name, is_active, last_sync_at, property_id")
+          .in("property_id", scopeIds),
         supabase
           .from("rolos_groups")
-          .select("id, name, status, arrival_date, departure_date, total_rooms")
-          .eq("property_id", propertyId)
+          .select("id, name, status, arrival_date, departure_date, total_rooms, property_id")
+          .in("property_id", scopeIds)
           .in("status", ["tentative", "confirmed"])
           .order("arrival_date", { ascending: true })
-          .limit(5),
+          .limit(10),
         supabase
           .from("rolos_events")
-          .select("id, name, status, event_date, event_type")
-          .eq("property_id", propertyId)
+          .select("id, name, status, event_date, event_type, property_id")
+          .in("property_id", scopeIds)
           .gte("event_date", today)
           .order("event_date", { ascending: true })
-          .limit(5),
+          .limit(10),
         supabase
           .from("rolos_pms_staff")
-          .select("id, display_name, role, is_active")
-          .eq("property_id", propertyId)
+          .select("id, display_name, role, is_active, property_id")
+          .in("property_id", scopeIds)
           .eq("is_active", true),
         supabase
           .from("rolos_housekeeping_tasks")
-          .select("id, status, priority")
-          .eq("property_id", propertyId)
+          .select("id, status, priority, property_id")
+          .in("property_id", scopeIds)
           .eq("task_date", today),
       ]);
 
@@ -553,10 +585,21 @@ serve(async (req) => {
       const staff = staffRes.data;
       const housekeepingTasks = housekeepingRes.data;
 
-      // Build property context
-      contextContent = `\n\n--- PROPERTY DATA: ${property?.name || 'Unknown Property'} ---\n`;
-      contextContent += `Location: ${property?.city || ''}, ${property?.country || ''}\n`;
-      contextContent += `Type: ${property?.property_type || 'Not specified'}\n\n`;
+      // Build property / portfolio context header
+      if (isPortfolio) {
+        const portfolioProps = (portfolioPropertiesRes.data || []) as Array<{ id: string; name: string; city: string | null; country: string | null }>;
+        contextContent = `\n\n--- PORTFOLIO DATA: ${portfolioName || "Multi-Property Portfolio"} ---\n`;
+        contextContent += `IMPORTANT: You are TOBI for the ENTIRE PORTFOLIO — speak holistically. When asked about "today", "occupancy", "arrivals", "revenue", etc., aggregate across all properties below. Mention individual property names when relevant.\n\n`;
+        contextContent += `PROPERTIES IN PORTFOLIO (${portfolioProps.length}):\n`;
+        portfolioProps.forEach(p => {
+          contextContent += `- ${p.name}${p.city ? ` (${p.city}${p.country ? `, ${p.country}` : ""})` : ""}\n`;
+        });
+        contextContent += `\nCurrently selected property: ${property?.name || "Unknown"}\n\n`;
+      } else {
+        contextContent = `\n\n--- PROPERTY DATA: ${property?.name || 'Unknown Property'} ---\n`;
+        contextContent += `Location: ${property?.city || ''}, ${property?.country || ''}\n`;
+        contextContent += `Type: ${property?.property_type || 'Not specified'}\n\n`;
+      }
 
       if (roomTypes && roomTypes.length > 0) {
         contextContent += `ROOM TYPES (${roomTypes.length}):\n`;
