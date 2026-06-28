@@ -348,7 +348,17 @@ export default function PMSDashboard() {
         .select("id, room_number, room_name, room_type_id, status")
         .eq("property_id", propertyId)
         .order("room_number");
-      return (data || []) as Room[];
+      const raw = (data || []) as Room[];
+      // Dedupe by normalized name to avoid double-counting units that exist
+      // under multiple room_type_id rows.
+      const seen = new Set<string>();
+      return raw.filter((r) => {
+        const key = String((r as any).room_name || (r as any).room_number || r.id).trim().toLowerCase();
+        if (!key) return true;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     },
     enabled: !!propertyId,
   });
