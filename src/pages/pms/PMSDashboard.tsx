@@ -739,6 +739,32 @@ export default function PMSDashboard() {
       .filter(Boolean);
   }, [isPortfolioMode, portfolioDataByProperty, rooms]);
 
+  // Quick check-in / check-out from the arrivals/departures cards
+  const handleQuickAction = useCallback(async (booking: BookingRow, action: "check_in" | "check_out") => {
+    setQuickAction({ bookingId: booking.id, action });
+    try {
+      const res = await callPmsApi(action, { booking_id: booking.id });
+      if (!res.success) {
+        if (res.error?.code === "ROOMS_NOT_READY") {
+          toast.error("Assigned rooms are not ready. Open the booking to reassign rooms before checking in.");
+        } else {
+          throw new Error(res.error?.message || "Action failed");
+        }
+      } else {
+        toast.success(action === "check_in" ? "Guest checked in" : "Guest checked out");
+        queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+        queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setQuickAction(null);
+    }
+  }, [queryClient]);
+
   const getPortfolioRateForDate = useCallback((propId: string, roomTypeId: string, date: Date): number | null => {
     const propData = portfolioDataByProperty.get(propId);
     if (!propData) return null;
