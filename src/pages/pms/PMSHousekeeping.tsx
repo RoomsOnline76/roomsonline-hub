@@ -708,8 +708,11 @@ export default function PMSHousekeeping() {
                           <Badge
                             key={room.id}
                             variant="outline"
-                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400"
-                            title={roomTypeName(room.room_type_id)}
+                            className="text-xs font-medium border-emerald-300 text-emerald-700 dark:text-emerald-400 cursor-pointer hover:bg-emerald-500/10"
+                            title={`${roomTypeName(room.room_type_id)} — click to add a maintenance docket`}
+                            onClick={() => openDocketForRoom(room.id)}
+                            role="button"
+                            tabIndex={0}
                           >
                             {room.room_number}
                           </Badge>
@@ -721,7 +724,14 @@ export default function PMSHousekeeping() {
 
                 {/* Expanded — original full card per ready room */}
                 {readyClean.length > 0 && expanded && readyClean.map(room => (
-                  <Card key={room.id} className={`border-l-4 ${STATUS_BORDER[room.status]}`}>
+                  <Card
+                    key={room.id}
+                    className={`border-l-4 ${STATUS_BORDER[room.status]} cursor-pointer hover:shadow-md transition-shadow`}
+                    onClick={() => openDocketForRoom(room.id)}
+                    role="button"
+                    tabIndex={0}
+                    title="Add a maintenance docket for this room"
+                  >
                     <CardContent className="py-3 space-y-1.5">
                       <p className="font-bold">{room.room_number}</p>
                       <p className="text-xs text-muted-foreground">{roomTypeName(room.room_type_id)}</p>
