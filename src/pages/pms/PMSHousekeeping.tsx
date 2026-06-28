@@ -466,7 +466,7 @@ export default function PMSHousekeeping() {
             (STATUSES_OPEN.includes(m.status || "") || (m.status === "resolved" && !m.room_ready_confirmed)) &&
             (!m.room_id || !sectionRoomIds.has(m.room_id))
           );
-          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty" && !maintenanceRoomIds.has(r.id));
+          const occupiedRooms = section.rooms.filter(r => isInHouse(r) && r.status !== "dirty");
           const cleanRooms = section.rooms.filter(r => ["available", "occupied"].includes(r.status) && !inHouseRoomIds.has(r.id) && !maintenanceRoomIds.has(r.id));
           return (
         <div key={section.id} className="space-y-3">
