@@ -2067,7 +2067,31 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
     status: booking.status,
     special_requests: booking.special_requests || "",
   });
-  const update = (key: string, value: string) => setForm(p => ({ ...p, [key]: value }));
+  // Track whether the user has manually edited the total so we don't overwrite it on date changes.
+  const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
+  const originalNights = Math.max(1, differenceInDays(parseISO(booking.check_out_date), parseISO(booking.check_in_date)));
+  const originalNightlyRate = (booking.total_price || 0) / originalNights;
+
+  const update = (key: string, value: string) => {
+    setForm(p => {
+      const next = { ...p, [key]: value };
+      if (key === "total_price") {
+        setTotalManuallyEdited(true);
+      }
+      // Auto-recalc total when dates change (unless user manually overrode it).
+      if ((key === "check_in_date" || key === "check_out_date") && !totalManuallyEdited) {
+        try {
+          const ci = parseISO(next.check_in_date);
+          const co = parseISO(next.check_out_date);
+          const n = differenceInDays(co, ci);
+          if (n > 0 && originalNightlyRate > 0) {
+            next.total_price = String(Math.round(originalNightlyRate * n * 100) / 100);
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      return next;
+    });
+  };
 
   const handleSave = async () => {
     setSaving(true);
