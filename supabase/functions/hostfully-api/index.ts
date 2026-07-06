@@ -124,6 +124,7 @@ const baseRequestSchema = z.object({
     "fetch_property_data",
     "full_ingest_property",    // One-time property data ingestion
     "ingest_building_units",   // Unit-level ingestion for building properties
+    "repair_room_mapping",     // Backfill hostfully_room_types.hostfully_room_id by name
   ]),
   // Owner-level credentials (NEW)
   api_key: z.string().optional(),
@@ -207,23 +208,21 @@ async function resolveHostfullyPropertyUid(
     return null;
   }
   
-  // Option 1: Use external_id if set
+  // Option 1: Use external_id if set (must be a Hostfully building UID, not a ROL UUID)
   if (propData.external_id) {
     console.log("[Hostfully] Resolved propertyUid from external_id:", propData.external_id);
     return propData.external_id;
   }
-  
-  // Option 2: Extract from amenities.room_types[0].hostfullyId or pmsRoomId
+
+  // Option 2: amenities.room_types[0].hostfullyId — ONLY if explicitly a Hostfully id.
+  // We deliberately do NOT fall back to `pmsRoomId` because in many properties that field
+  // holds a ROL UUID, not a Hostfully building UID, and using it produces wrong sync data.
   const roomTypes = propData.amenities?.room_types || [];
-  if (roomTypes.length > 0) {
-    const firstRoom = roomTypes[0];
-    const resolvedUid = firstRoom.hostfullyId || firstRoom.pmsRoomId || null;
-    if (resolvedUid) {
-      console.log("[Hostfully] Resolved propertyUid from room_types:", resolvedUid);
-      return resolvedUid;
-    }
+  if (roomTypes.length > 0 && roomTypes[0].hostfullyId) {
+    console.log("[Hostfully] Resolved propertyUid from amenities.hostfullyId:", roomTypes[0].hostfullyId);
+    return roomTypes[0].hostfullyId;
   }
-  
+
   console.log("[Hostfully] Could not resolve propertyUid for property:", propertyId);
   return null;
 }
@@ -893,6 +892,160 @@ async function handleListAllProperties(creds: HostfullyCredentials, supabase: an
   }
 }
 
+/**
+ * Normalise a room name so "Two-Bedroom Apartment" ↔ "2 Bedroom" can be matched.
+ * Lowercases, strips punctuation, drops descriptor words, and collapses spelled-out
+ * numbers (one→1, two→2, etc.) so we can align ROL names with Hostfully unit names.
+ */
+function normaliseRoomName(name: string): string {
+  if (!name) return "";
+  let s = name.toLowerCase();
+  const words: Record<string, string> = {
+    one: "1", two: "2", three: "3", four: "4", five: "5",
+    six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
+  };
+  s = s.replace(/[-_/,]+/g, " ");
+  s = s.replace(/\b(apartment|apt|suite|unit|room|the|a|an)\b/g, " ");
+  s = s.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g, (m) => words[m] || m);
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+/**
+ * Backfill hostfully_room_types.hostfully_room_id (and properties.external_id when
+ * possible) by matching ROL room type names against Hostfully child unit names for
+ * the given property. Used to recover from mis-mapped multi-unit buildings such as
+ * ONE46 ON M where all hostfully_room_id values were NULL and calendar sync produced
+ * ghost "Property" rows.
+ */
+async function handleRepairRoomMapping(
+  creds: HostfullyCredentials,
+  supabase: any,
+  propertyId: string,
+) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+
+  try {
+    const { data: prop } = await supabase
+      .from("properties")
+      .select("id, name, external_id")
+      .eq("id", propertyId)
+      .maybeSingle();
+    if (!prop) return createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", "repair_room_mapping");
+
+    const { data: rolRooms } = await supabase
+      .from("hostfully_room_types")
+      .select("id, name, hostfully_room_id")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    if (!rolRooms || rolRooms.length === 0) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No active room types on this property", "repair_room_mapping");
+    }
+
+    // 1. Locate the agency
+    const agenciesRes = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesRes.ok) {
+      const err = mapHostfullyHttpError(agenciesRes.status, await agenciesRes.text());
+      return createErrorResponse(err.code, err.message, "repair_room_mapping");
+    }
+    const agenciesData = await agenciesRes.json();
+    const agencyUid = (agenciesData?.agencies?.[0] || agenciesData?.[0])?.uid;
+    if (!agencyUid) return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency", "repair_room_mapping");
+
+    // 2. List multi-unit buildings and locate ours by name
+    const muRes = await hostfullyRequest(`/multi-units/multi-unit-properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+    let buildingUid: string | null = prop.external_id || null;
+    let childUnits: any[] = [];
+
+    if (muRes.ok) {
+      const muData = await muRes.json();
+      const buildings = muData?.multiUnitProperties || muData?.properties || muData || [];
+      const targetKey = normaliseRoomName(prop.name);
+      const building = (Array.isArray(buildings) ? buildings : []).find((b: any) =>
+        normaliseRoomName(b.name || "") === targetKey
+      );
+      if (building) {
+        buildingUid = buildingUid || building.uid;
+        childUnits = building.childProperties || building.units || [];
+      }
+    }
+
+    // 3. If we still have no child list, ask the /properties endpoint (single-unit buildings)
+    if (childUnits.length === 0) {
+      const propsRes = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+      if (propsRes.ok) {
+        const propsData = await propsRes.json();
+        const allProps = propsData?.properties || propsData || [];
+        const targetKey = normaliseRoomName(prop.name);
+        childUnits = (Array.isArray(allProps) ? allProps : []).filter((p: any) =>
+          normaliseRoomName(p.name || "").includes(targetKey) ||
+          targetKey.includes(normaliseRoomName(p.name || ""))
+        );
+      }
+    }
+
+    if (childUnits.length === 0) {
+      return createErrorResponse(
+        ERROR_CODES.NOT_FOUND,
+        `Could not locate any Hostfully units for "${prop.name}". Check the property name matches your Hostfully building name.`,
+        "repair_room_mapping"
+      );
+    }
+
+    // 4. Match child units to ROL room types by normalised name
+    const results: Array<{ room_type_id: string; room_name: string; hostfully_uid: string | null; hostfully_name: string | null; matched: boolean }> = [];
+    for (const rolRoom of rolRooms) {
+      const key = normaliseRoomName(rolRoom.name);
+      let match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      if (!match) {
+        // Loose contains match as a fallback
+        match = childUnits.find((u: any) => {
+          const n = normaliseRoomName(u.name || "");
+          return n && (n.includes(key) || key.includes(n));
+        });
+      }
+      if (match?.uid) {
+        await supabase
+          .from("hostfully_room_types")
+          .update({ hostfully_room_id: match.uid })
+          .eq("id", rolRoom.id);
+      }
+      results.push({
+        room_type_id: rolRoom.id,
+        room_name: rolRoom.name,
+        hostfully_uid: match?.uid || null,
+        hostfully_name: match?.name || null,
+        matched: !!match?.uid,
+      });
+    }
+
+    // 5. Save building UID on the property if we have one and it isn't set
+    if (buildingUid && !prop.external_id) {
+      await supabase.from("properties").update({ external_id: buildingUid }).eq("id", propertyId);
+    }
+
+    // 6. Purge cache rows that no longer match any active room type so the next
+    // sync starts clean.
+    await supabase
+      .from("pms_availability_cache")
+      .delete()
+      .eq("property_id", propertyId)
+      .eq("system_type", "hostfully");
+
+    return createSuccessResponse({
+      property_id: propertyId,
+      building_uid: buildingUid,
+      matched: results.filter(r => r.matched).length,
+      total: results.length,
+      results,
+    }, "repair_room_mapping");
+  } catch (err) {
+    console.error("[Hostfully] repair_room_mapping failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to repair room mapping", "repair_room_mapping", err);
+  }
+}
+
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
@@ -908,6 +1061,7 @@ async function handleFetchAvailability(
   try {
     // Check if this property has room types with unit maps
     let roomTypeRows: { id: string; name: string; total_units: number; hostfully_room_id: string }[] = [];
+    let allRoomTypeCount = 0;
     let unitMapByRoomType = new Map<string, { hostfully_uid: string; unit_name: string }[]>();
     
     if (propertyId) {
@@ -919,6 +1073,7 @@ async function handleFetchAvailability(
         .eq('is_active', true);
       
       if (roomTypes && roomTypes.length > 0) {
+        allRoomTypeCount = roomTypes.length;
         roomTypeRows = roomTypes.filter(r => !!r.hostfully_room_id);
         
         // Check for unit map entries
@@ -939,8 +1094,24 @@ async function handleFetchAvailability(
             });
           }
         }
+
+        // Guardrail: if the property has room types but NONE of them carry a Hostfully
+        // room id, we cannot safely fetch availability — silently falling back to the
+        // single-unit path would poison the cache with placeholder "Property" rows and
+        // wrong ARI (see ONE46 ON M incident, 2026-07). Surface a real error instead.
+        if (allRoomTypeCount > 0 && roomTypeRows.length === 0 && unitMapByRoomType.size === 0) {
+          console.warn(
+            `[Hostfully] Property ${propertyId} has ${allRoomTypeCount} room types but none have hostfully_room_id set — refusing to sync.`
+          );
+          return createErrorResponse(
+            ERROR_CODES.INVALID_REQUEST,
+            `Hostfully room mapping is missing for this property. Run "Repair Hostfully mapping" so each room type is linked to its Hostfully unit UID before syncing availability.`,
+            "fetch_availability"
+          );
+        }
       }
     }
+
 
     // If we have room types, fetch availability per unit and aggregate by type
     if (roomTypeRows.length > 0) {
@@ -1108,58 +1279,70 @@ async function handleFetchAvailability(
       );
     }
     
-    let roomName = 'Property';
+    // Look up the matching ROL room type by Hostfully unit UID. If we can't identify
+    // it, we refuse to cache — writing a placeholder "Property" row would poison the
+    // calendar (see ONE46 ON M incident, 2026-07).
+    let roomTypeRow: { id: string; name: string } | null = null;
     try {
       const { data: roomData } = await supabase
         .from('hostfully_room_types')
-        .select('name')
+        .select('id, name')
         .eq('hostfully_room_id', propertyUid)
         .maybeSingle();
-      
-      if (roomData?.name) {
-        roomName = roomData.name;
-      }
-      console.log(`[Hostfully] Using room name: "${roomName}" for propertyUid: ${propertyUid}`);
+      if (roomData?.id) roomTypeRow = roomData;
     } catch (dbErr) {
-      console.warn("[Hostfully] Could not fetch room name from DB, using default:", dbErr);
+      console.warn("[Hostfully] Could not look up room type by hostfully_room_id:", dbErr);
     }
-    
-    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomName);
 
-    // Cache availability
+    if (!roomTypeRow) {
+      console.warn(
+        `[Hostfully] No hostfully_room_types row matches Hostfully UID ${propertyUid} for property ${propertyId ?? 'n/a'} — refusing to cache to avoid ghost rows.`
+      );
+      return createErrorResponse(
+        ERROR_CODES.INVALID_REQUEST,
+        `Cannot identify which room type this Hostfully unit (${propertyUid}) belongs to. Run "Repair Hostfully mapping" to link it before syncing availability.`,
+        "fetch_availability"
+      );
+    }
+
+    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomTypeRow.name);
+
+    // Cache availability under the ROL room type id so orchestrator lookups line up
+    // with hostfully_room_types.id (never the raw Hostfully UID).
     if (propertyId && availability.room_types?.length > 0) {
       (async () => {
         try {
           for (const roomType of availability.room_types) {
             const availPerNight = roomType.availability_per_night || [];
             const rateTypes = roomType.rate_types || [];
-            
+
             for (const availDay of availPerNight) {
-              const ratesForDate = rateTypes.flatMap((rt: any) => 
+              const ratesForDate = rateTypes.flatMap((rt: any) =>
                 (rt.rates || []).filter((r: any) => r.date === availDay.date)
               );
-              
+
               await supabase.from("pms_availability_cache").upsert({
                 property_id: propertyId,
                 system_type: "hostfully",
-                external_room_type_id: roomType.room_type_id,
+                external_room_type_id: roomTypeRow!.id,
                 date: availDay.date,
                 available_units: availDay.available_units,
                 restrictions: availDay.restrictions,
                 rates: ratesForDate.length > 0 ? ratesForDate : null,
-                raw_data: { roomTypeName: roomType.name },
+                raw_data: { roomTypeName: roomTypeRow!.name, hostfully_uid: propertyUid },
                 fetched_at: new Date().toISOString(),
               }, {
                 onConflict: 'property_id,external_room_type_id,date,system_type',
               });
             }
           }
-          console.log(`[Hostfully] Cached ${availability.room_types[0]?.availability_per_night?.length || 0} days to pms_availability_cache`);
+          console.log(`[Hostfully] Cached ${availability.room_types[0]?.availability_per_night?.length || 0} days for ${roomTypeRow!.name}`);
         } catch (cacheErr) {
           console.warn("[Hostfully] Failed to cache availability:", cacheErr);
         }
       })();
     }
+
 
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
@@ -1760,6 +1943,17 @@ serve(async (req) => {
         response = ingestionResult.errors.length > 0 && ingestionResult.units_succeeded === 0
           ? createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, ingestionResult.errors.join('; '), action, ingestionResult)
           : createSuccessResponse(ingestionResult, action);
+        break;
+      }
+
+      case "repair_room_mapping": {
+        if (!body.property_id) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "property_id is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        response = await handleRepairRoomMapping(creds, supabase, body.property_id);
         break;
       }
 

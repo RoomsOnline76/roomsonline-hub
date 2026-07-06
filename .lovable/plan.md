@@ -1,52 +1,71 @@
-# Fix Manual Booking — rate, calendar block-out, email
 
-Three connected fixes to `ManualBookingDialog` + dashboard wiring.
+## Diagnosis
 
-## 1. Unit-aware rate (remove rate-plan dropdown)
+The Property Form (Room Types) reads directly from `hostfully_room_types` and correctly lists all 5 units: **2 Bedroom, Studio, 1 Bedroom, Compact Studio, Compact 1 Bedroom**.
 
-In `src/components/pms/ManualBookingDialog.tsx`:
+The ROL Calendar reads `pms_availability_cache` through `booking-orchestrator-api → transformCacheToAvailability`. For ONE46 ON M (`464c5d9f…`) the cache currently contains only 4 rows per date in the visible window:
 
-- Remove the **Rate Plan** `<Select>` block entirely (the unit/room-type already determines the rate).
-- Drop `rate_plan_id` from form state and `selectedPlan`/`pricingModel` derivations.
-- Rewrite the rate resolver so it is unit-first, then room-type, then date-aware:
-  1. If a `room_id` is selected, look up that room's `base_rate` / `nightly_rate` (per-unit override) from the `rolos_rooms` row passed in via `rooms`.
-  2. Otherwise call `getRateForDate(room_type_id, date)` per night (season + amenities-aware — already wired from the dashboard).
-  3. Final fallback: room type's `default_rate`. **Remove the hard R1000-style fallback** — if nothing resolves, show "Rate unavailable — enter manually" and require the user to type `total_price`.
-- Pricing model defaults to `per_room` (no plan); keep `per_person` math only if room-type metadata flags it.
-- Update the price breakdown text accordingly (`R{rate}/night × {nights} nights`).
-- Remove `rolos_rate_plan_id` from the insert payload.
+| external_room_type_id | cached name |
+|---|---|
+| `46fa0c63…` | Compact Studio |
+| `5861b321…` | Studio |
+| `97536287…` | 1 Bedroom |
+| `c7166dba…` | **"Property"** (this UUID is actually "2 Bedroom") |
 
-Extend the `Room` interface in the dialog to include the per-unit rate field(s) and pass that data through from `PMSDashboard.tsx` (the `rooms` query already selects from `rolos_rooms` — add `base_rate`/`nightly_rate` to its `.select(...)` if missing).
+`cffcaa35…` (Compact 1 Bedroom) is not in the cache at all → the row is missing. `c7166dba…` (2 Bedroom) is in the cache but labelled `"Property"` → the ghost row.
 
-## 2. Booking doesn't block on calendar
+Root cause is in the Hostfully adapter:
 
-Root cause: the new booking is inserted with `rolos_room_ids = [room_id]` but the calendar grid keys cells by `room_type_id` + date range. Two adjustments:
+1. `hostfully_room_types.hostfully_room_id` is **NULL for all 5 rows** on ONE46. The multi-unit code path (`handleFetchAvailability`, hostfully-api ~line 922) filters those out with `filter(r => !!r.hostfully_room_id)` and the array becomes empty.
+2. The code then falls to the single-unit path, which asks `resolveHostfullyPropertyUid` for a building UID. That helper (line 216-224) grabs `amenities.room_types[0].pmsRoomId`. For ONE46 that value is `c7166dba…`, which is a **ROL UUID, not a Hostfully UID**. The adapter then calls `/property-calendar/c7166dba…`, caches whatever comes back under `external_room_type_id = c7166dba`, and — because no `hostfully_room_types` row has `hostfully_room_id = c7166dba` — defaults `roomName` to the string `"Property"` (line 1111). That row also has bogus ARI, which is why the numbers in the ROL calendar don't match the Hostfully PMS calendar.
+3. The other 3 room UUIDs in the cache are stale rows from a previous sync that happened to use the correct ROL UUIDs; `Compact 1 Bedroom` was never touched by that older run, so it is missing entirely.
 
-- In `onCreated` (PMSDashboard line 1359), also invalidate `["pms-cal-rooms"]` (already there) **and** force `bookingsInfinite.refetch()` via `queryClient.refetchQueries({ queryKey: ["pms-cal-bookings", propertyId] })` so the infinite-query first page reloads immediately instead of waiting for the next focus event.
-- Verify the inserted row has `status` set to `confirmed` or `pending` (both are kept by the `.neq("status","cancelled")` filter — confirmed via current code).
-- Ensure `check_in_date`/`check_out_date` are stored as `yyyy-MM-dd` (already correct via `format(..., "yyyy-MM-dd")`).
+## Fix
 
-## 3. Confirmation email failing
+### 1. Repair `hostfully_room_types.hostfully_room_id` mapping (root cause)
 
-`send-booking-email` uses Resend directly and currently throws when:
-- `RESEND_API_KEY` is missing, or
-- The `from` domain isn't verified for that key, or
-- The booking row lacks fields the template expects.
+- Call Hostfully `list_properties` / multi-unit endpoint for the agency, match child units by name against `hostfully_room_types.name`, and populate `hostfully_room_id` for each ROL room type row. Handles the name mismatch (`"2 Bedroom"` in ROL vs `"Two-Bedroom Apartment"` in Hostfully) by writing a small name-normaliser (strip words like `Apartment`, collapse `One`↔`1`, case-insensitive).
+- Expose this as a "Repair Hostfully mapping" action in the existing Hostfully building importer (`HostfullyBuildingImporter.tsx`) and run it once for ONE46 ON M.
 
-Fixes:
-- Wrap the `resend.emails.send` call in `send-booking-email/index.ts` with explicit error capture and return a structured `{ ok:false, reason }` instead of throwing — so the dialog's warning toast surfaces the real reason.
-- In the dialog, surface that `reason` in the warning toast ("Booking saved — email skipped: <reason>") instead of the generic message.
-- Confirm `RESEND_API_KEY` secret is present; if not, prompt to add it. Use the verified sender domain already configured for other transactional emails (`hello@notify.roomsonline.co.za`) as the default `from` when the property has no branded sender configured.
-- Add a guard so the email call is **awaited but non-blocking** to the dashboard refresh (already structured this way; just ensure the `onCreated()` callback runs even when the email path throws — currently it does, keep it).
+### 2. Stop the adapter from writing garbage when the mapping is broken
 
-## Out of scope
+Edit `supabase/functions/hostfully-api/index.ts`:
 
-- No schema changes.
-- No edits to the dashboard rendering logic beyond the `onCreated` refetch line.
-- No migration to Lovable Emails in this pass (separate task if requested).
+- `resolveHostfullyPropertyUid`: remove the `amenities.room_types[0].pmsRoomId` fallback (line 220). ROL UUIDs must never be sent as Hostfully building UIDs. If nothing resolves, return null and let the caller surface a real error instead of silently mis-syncing.
+- `handleFetchAvailability`:
+  - If `roomTypes` come back with **no** `hostfully_room_id`, return a structured error (`NO_HOSTFULLY_MAPPING`) instead of falling through to the single-unit path.
+  - Single-unit path: never default `roomName` to `"Property"`. If we cannot find a matching `hostfully_room_types` row by `hostfully_room_id`, refuse to cache and return an error.
 
-## Files touched
+### 3. Purge and refresh the poisoned cache
 
-- `src/components/pms/ManualBookingDialog.tsx` — remove rate-plan select, unit-aware rate resolver, better email error toast.
-- `src/pages/pms/PMSDashboard.tsx` — extend `rooms` select with per-unit rate columns, add `refetchQueries` in `onCreated`.
-- `supabase/functions/send-booking-email/index.ts` — structured error return, default verified `from` fallback.
+- Delete existing `pms_availability_cache` rows for ONE46 that no longer correspond to any active `hostfully_room_types.id`, and specifically the `c7166dba` rows labelled `"Property"`.
+- Trigger a fresh sync after the mapping is repaired.
+
+### 4. Defensive filter in the orchestrator
+
+Edit `supabase/functions/booking-orchestrator-api/index.ts` `transformCacheToAvailability` (called from `resolveFromCache`):
+
+- Pass through the property's active `hostfully_room_types.id` set and drop cache rows whose `external_room_type_id` is not in that set. This guarantees the calendar can never display a room the property doesn't actually own, even if stale cache rows are left over from previous adapter bugs.
+- Prefer the current `hostfully_room_types.name` over `raw_data.roomTypeName` when building `room_type_name`, so a poisoned `"Property"` label can never surface again.
+
+### 5. Frontend safety net
+
+`src/pages/CalendarAccommodation.tsx` `calendarRoomData` (~line 1142): when the PMS response is present, cross-check each returned room against `hostfully_room_types` for the property (already fetched for `roomCategoryMap` at line 1387) and:
+
+- drop any room whose id/name is not in that set (kills any residual ghost rows), and
+- append entries for room types that exist in `hostfully_room_types` but are missing from the PMS response, marked as "no data" so the operator can see them.
+
+## Verification
+
+After applying the fix and re-syncing ONE46 ON M:
+
+- Property Form and ROL Calendar both list exactly the same 5 room types.
+- No "Property" row.
+- Availability and rates per room match what the Hostfully PMS calendar shows for the same date window.
+- Run the same check on one other Hostfully property (e.g. another multi-unit building) to confirm nothing regressed.
+
+## Technical notes
+
+- Files touched: `supabase/functions/hostfully-api/index.ts`, `supabase/functions/booking-orchestrator-api/index.ts`, `src/pages/CalendarAccommodation.tsx`, `src/components/pms/HostfullyBuildingImporter.tsx` (+ new small helper for name normalisation).
+- Data operations: one-off SQL to clear stale cache rows for ONE46 (and any other property with `hostfully_room_id IS NULL` across all its room types), plus the mapping backfill triggered from the importer.
+- No schema changes required.

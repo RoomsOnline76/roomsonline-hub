@@ -71,19 +71,29 @@ function generateDailyRates(
 function transformCacheToAvailability(
   cacheData: any[],
   roomAliases: Map<string, string[]>,
+  activeRoomTypes?: Map<string, string>, // id -> current canonical name
 ) {
   const roomTypeMap = new Map<string, any>();
   for (const row of cacheData) {
     const rtId = row.external_room_type_id;
+
+    // Drop cache rows that no longer belong to an active room type on this property.
+    // Prevents ghost rows (like the stale "Property" entry that leaked into ONE46 ON M)
+    // from ever reaching the calendar UI.
+    if (activeRoomTypes && !activeRoomTypes.has(rtId)) continue;
+
     if (!roomTypeMap.has(rtId)) {
       const aliases: string[] = [rtId];
       for (const [origId, slugArr] of roomAliases) {
         if (slugArr.includes(rtId)) aliases.push(origId);
       }
+      // Prefer the live canonical name from hostfully_room_types over anything the
+      // cache may have stored (which can be stale or a placeholder like "Property").
+      const canonicalName = activeRoomTypes?.get(rtId);
       roomTypeMap.set(rtId, {
         room_type_id: rtId,
         room_type_aliases: aliases,
-        room_type_name: row.raw_data?.roomTypeName || rtId,
+        room_type_name: canonicalName || row.raw_data?.roomTypeName || rtId,
         rooms_available_per_night: [],
         rate_types: [],
       });
@@ -124,6 +134,7 @@ function transformCacheToAvailability(
   }
   return { room_types: Array.from(roomTypeMap.values()) };
 }
+
 
 // ─── PMS adapter dispatch ──────────────────────────────────────────────
 
@@ -193,8 +204,26 @@ async function resolveFromCache(
   for (const rt of roomTypes) {
     roomAliases.set(String(rt.id), [slugify(rt.name)]);
   }
-  return transformCacheToAvailability(cacheData, roomAliases);
+
+  // Load the property's live active room types so we can drop stale/ghost cache rows
+  // and always show the current canonical name (see ONE46 ON M incident, 2026-07).
+  const activeRoomTypes = new Map<string, string>();
+  const { data: hfRooms } = await supabase
+    .from("hostfully_room_types")
+    .select("id, name")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+  if (hfRooms) {
+    for (const r of hfRooms as any[]) activeRoomTypes.set(String(r.id), r.name);
+  }
+
+  return transformCacheToAvailability(
+    cacheData,
+    roomAliases,
+    activeRoomTypes.size > 0 ? activeRoomTypes : undefined,
+  );
 }
+
 
 async function resolveRolosRates(
   supabase: any,

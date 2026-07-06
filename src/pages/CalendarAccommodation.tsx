@@ -1291,6 +1291,35 @@ const CalendarAccommodation = () => {
     });
   }, [selectedPropertyData, pmsData]);
 
+  // Safety net: for Hostfully properties, cross-check calendarRoomData against the
+  // canonical hostfully_room_types list (loaded into roomCategoryMap). Drops any
+  // ghost rows the PMS/cache pipeline may have surfaced (e.g. the "Property" row
+  // from a broken mapping) and appends any active room types that were missed by
+  // the sync so operators can see the whole property.
+  const canonicalRoomData = React.useMemo(() => {
+    if (roomCategoryMap.size === 0) return calendarRoomData;
+    const canonical = new Set(roomCategoryMap.keys());
+    const filtered = calendarRoomData.filter(r => canonical.has(r.name));
+    const present = new Set(filtered.map(r => r.name));
+    for (const name of canonical) {
+      if (!present.has(name)) {
+        filtered.push({
+          name,
+          pmsRoomTypeId: "",
+          rates: [],
+          availability: {} as { [date: string]: number | AvailabilityData },
+          allowTeens: true,
+          allowChildren: true,
+          allowInfants: true,
+          minGuests: 1,
+          units: 1,
+        });
+      }
+    }
+    return filtered;
+  }, [calendarRoomData, roomCategoryMap]);
+
+
   // Get rate type options from property's saved pms_rate_types (same as Property Form > Room Information > Rate Types)
   const rateTypeOptions = React.useMemo(() => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
@@ -1751,7 +1780,7 @@ const CalendarAccommodation = () => {
   };
 
   // Filter rooms based on selected room types (using dynamic property data)
-  const filteredRooms = calendarRoomData.filter(room => 
+  const filteredRooms = canonicalRoomData.filter(room => 
     selectedRoomTypes.includes(room.name)
   );
 
@@ -1992,13 +2021,13 @@ const CalendarAccommodation = () => {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-[160px] h-8 text-xs justify-between" disabled={!selectedProperty}>
-                    Room Types ({getSelectedCount(selectedRoomTypes, pmsData.roomTypes.length || roomTypes.length)})
+                    Room Types ({getSelectedCount(selectedRoomTypes, canonicalRoomData.length || pmsData.roomTypes.length || roomTypes.length)})
                     <ChevronDown className="h-3 w-3 ml-1" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-2 bg-popover" align="start">
                   <div className="space-y-2">
-                    {(pmsData.roomTypes.length > 0 ? pmsData.roomTypes.map((room) => ({ name: room.roomTypeName })) : roomTypes).map((room, index) => {
+                    {(canonicalRoomData.length > 0 ? canonicalRoomData.map((room) => ({ name: room.name })) : pmsData.roomTypes.length > 0 ? pmsData.roomTypes.map((room) => ({ name: room.roomTypeName })) : roomTypes).map((room, index) => {
                       const roomName = room.name || room;
                       return (
                         <div key={index} className="flex items-center space-x-2">
@@ -2062,6 +2091,39 @@ const CalendarAccommodation = () => {
                 )}
                 {isPmsProperty && !isNativeRolosProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
+
+              {selectedPropertyData?.external_system === "hostfully" && (
+                <Button
+                  variant="outline"
+                  className="gap-1 h-8 text-xs px-2"
+                  onClick={async () => {
+                    if (!selectedProperty) return;
+                    toast({ title: "Repairing Hostfully mapping…", description: "Matching ROL room types to Hostfully units by name." });
+                    const { data, error } = await supabase.functions.invoke("hostfully-api", {
+                      body: { action: "repair_room_mapping", property_id: selectedProperty },
+                    });
+                    if (error || data?.error) {
+                      toast({
+                        title: "Repair failed",
+                        description: (data?.error?.message || error?.message || "Unknown error"),
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    const r = data?.data || data;
+                    toast({
+                      title: "Mapping repaired",
+                      description: `Matched ${r?.matched ?? 0}/${r?.total ?? 0} room types. Re-syncing calendar…`,
+                    });
+                    await fetchPmsAvailability(true);
+                  }}
+                  disabled={pmsSyncStatus === "loading"}
+                  title="Match ROL room types to Hostfully units by name and re-sync"
+                >
+                  Repair Hostfully mapping
+                </Button>
+              )}
+
 
               <div className="ml-auto flex gap-1">
                 <Button variant="default" disabled className="opacity-50 cursor-not-allowed h-8 text-xs px-2">Save</Button>
@@ -3008,7 +3070,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setBulkRateOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkAvailabilityRuleDialog 
@@ -3016,7 +3078,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setBulkAvailabilityOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkStopSellDialog 
@@ -3024,7 +3086,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setStopSellOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkMinimumStayDialog 
@@ -3032,7 +3094,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setMinStayOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkMaximumStayDialog 
@@ -3040,7 +3102,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setMaxStayOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysAdvanceDialog 
@@ -3048,7 +3110,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setLeadDaysAdvanceOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysPostDialog 
@@ -3056,7 +3118,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setLeadDaysPostOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
     </AppLayout>
