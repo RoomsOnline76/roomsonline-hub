@@ -1288,6 +1288,7 @@ async function handleFetchAvailability(
       // room types in the cache even though the live fetch aggregated all 5.
       if (propertyId && allRoomTypes.length > 0) {
         const cacheErrors: Array<{ room_type_id: string; date?: string; message: string }> = [];
+        const cacheRows: any[] = [];
 
         for (const roomType of allRoomTypes) {
           const availPerNight = roomType.availability_per_night || [];
@@ -1298,7 +1299,7 @@ async function handleFetchAvailability(
               (rt.rates || []).filter((r: any) => r.date === availDay.date)
             );
 
-            const { error: cacheError } = await supabase.from("pms_availability_cache").upsert({
+            cacheRows.push({
               property_id: propertyId,
               system_type: "hostfully",
               external_room_type_id: roomType.room_type_id,
@@ -1311,14 +1312,22 @@ async function handleFetchAvailability(
                 hostfully_uid: roomType.external_room_type_id,
               },
               fetched_at: new Date().toISOString(),
-            }, {
-              onConflict: 'property_id,external_room_type_id,date,system_type',
             });
+          }
+        }
 
-            if (cacheError) {
+        const CHUNK_SIZE = 500;
+        for (let i = 0; i < cacheRows.length; i += CHUNK_SIZE) {
+          const chunk = cacheRows.slice(i, i + CHUNK_SIZE);
+          const { error: cacheError } = await supabase.from("pms_availability_cache").upsert(chunk, {
+            onConflict: 'property_id,external_room_type_id,date,system_type',
+          });
+
+          if (cacheError) {
+            for (const row of chunk.slice(0, 25)) {
               cacheErrors.push({
-                room_type_id: roomType.room_type_id,
-                date: availDay.date,
+                room_type_id: row.external_room_type_id,
+                date: row.date,
                 message: cacheError.message || String(cacheError),
               });
             }
@@ -1335,7 +1344,7 @@ async function handleFetchAvailability(
           );
         }
 
-        console.log(`[Hostfully] Cached availability for ${allRoomTypes.length} room types`);
+        console.log(`[Hostfully] Cached ${cacheRows.length} availability rows for ${allRoomTypes.length} room types`);
       }
       
       return createSuccessResponse(availability, "fetch_availability");
