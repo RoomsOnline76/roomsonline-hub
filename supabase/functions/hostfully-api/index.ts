@@ -124,6 +124,7 @@ const baseRequestSchema = z.object({
     "fetch_property_data",
     "full_ingest_property",    // One-time property data ingestion
     "ingest_building_units",   // Unit-level ingestion for building properties
+    "repair_room_mapping",     // Backfill hostfully_room_types.hostfully_room_id by name
   ]),
   // Owner-level credentials (NEW)
   api_key: z.string().optional(),
