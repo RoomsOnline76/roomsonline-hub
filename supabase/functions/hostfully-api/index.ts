@@ -892,6 +892,160 @@ async function handleListAllProperties(creds: HostfullyCredentials, supabase: an
   }
 }
 
+/**
+ * Normalise a room name so "Two-Bedroom Apartment" ↔ "2 Bedroom" can be matched.
+ * Lowercases, strips punctuation, drops descriptor words, and collapses spelled-out
+ * numbers (one→1, two→2, etc.) so we can align ROL names with Hostfully unit names.
+ */
+function normaliseRoomName(name: string): string {
+  if (!name) return "";
+  let s = name.toLowerCase();
+  const words: Record<string, string> = {
+    one: "1", two: "2", three: "3", four: "4", five: "5",
+    six: "6", seven: "7", eight: "8", nine: "9", ten: "10",
+  };
+  s = s.replace(/[-_/,]+/g, " ");
+  s = s.replace(/\b(apartment|apt|suite|unit|room|the|a|an)\b/g, " ");
+  s = s.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g, (m) => words[m] || m);
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+/**
+ * Backfill hostfully_room_types.hostfully_room_id (and properties.external_id when
+ * possible) by matching ROL room type names against Hostfully child unit names for
+ * the given property. Used to recover from mis-mapped multi-unit buildings such as
+ * ONE46 ON M where all hostfully_room_id values were NULL and calendar sync produced
+ * ghost "Property" rows.
+ */
+async function handleRepairRoomMapping(
+  creds: HostfullyCredentials,
+  supabase: any,
+  propertyId: string,
+) {
+  const baseUrl = HOSTFULLY_URLS[creds.environment];
+
+  try {
+    const { data: prop } = await supabase
+      .from("properties")
+      .select("id, name, external_id")
+      .eq("id", propertyId)
+      .maybeSingle();
+    if (!prop) return createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", "repair_room_mapping");
+
+    const { data: rolRooms } = await supabase
+      .from("hostfully_room_types")
+      .select("id, name, hostfully_room_id")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    if (!rolRooms || rolRooms.length === 0) {
+      return createErrorResponse(ERROR_CODES.NOT_FOUND, "No active room types on this property", "repair_room_mapping");
+    }
+
+    // 1. Locate the agency
+    const agenciesRes = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+    if (!agenciesRes.ok) {
+      const err = mapHostfullyHttpError(agenciesRes.status, await agenciesRes.text());
+      return createErrorResponse(err.code, err.message, "repair_room_mapping");
+    }
+    const agenciesData = await agenciesRes.json();
+    const agencyUid = (agenciesData?.agencies?.[0] || agenciesData?.[0])?.uid;
+    if (!agencyUid) return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency", "repair_room_mapping");
+
+    // 2. List multi-unit buildings and locate ours by name
+    const muRes = await hostfullyRequest(`/multi-units/multi-unit-properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+    let buildingUid: string | null = prop.external_id || null;
+    let childUnits: any[] = [];
+
+    if (muRes.ok) {
+      const muData = await muRes.json();
+      const buildings = muData?.multiUnitProperties || muData?.properties || muData || [];
+      const targetKey = normaliseRoomName(prop.name);
+      const building = (Array.isArray(buildings) ? buildings : []).find((b: any) =>
+        normaliseRoomName(b.name || "") === targetKey
+      );
+      if (building) {
+        buildingUid = buildingUid || building.uid;
+        childUnits = building.childProperties || building.units || [];
+      }
+    }
+
+    // 3. If we still have no child list, ask the /properties endpoint (single-unit buildings)
+    if (childUnits.length === 0) {
+      const propsRes = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+      if (propsRes.ok) {
+        const propsData = await propsRes.json();
+        const allProps = propsData?.properties || propsData || [];
+        const targetKey = normaliseRoomName(prop.name);
+        childUnits = (Array.isArray(allProps) ? allProps : []).filter((p: any) =>
+          normaliseRoomName(p.name || "").includes(targetKey) ||
+          targetKey.includes(normaliseRoomName(p.name || ""))
+        );
+      }
+    }
+
+    if (childUnits.length === 0) {
+      return createErrorResponse(
+        ERROR_CODES.NOT_FOUND,
+        `Could not locate any Hostfully units for "${prop.name}". Check the property name matches your Hostfully building name.`,
+        "repair_room_mapping"
+      );
+    }
+
+    // 4. Match child units to ROL room types by normalised name
+    const results: Array<{ room_type_id: string; room_name: string; hostfully_uid: string | null; hostfully_name: string | null; matched: boolean }> = [];
+    for (const rolRoom of rolRooms) {
+      const key = normaliseRoomName(rolRoom.name);
+      let match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      if (!match) {
+        // Loose contains match as a fallback
+        match = childUnits.find((u: any) => {
+          const n = normaliseRoomName(u.name || "");
+          return n && (n.includes(key) || key.includes(n));
+        });
+      }
+      if (match?.uid) {
+        await supabase
+          .from("hostfully_room_types")
+          .update({ hostfully_room_id: match.uid })
+          .eq("id", rolRoom.id);
+      }
+      results.push({
+        room_type_id: rolRoom.id,
+        room_name: rolRoom.name,
+        hostfully_uid: match?.uid || null,
+        hostfully_name: match?.name || null,
+        matched: !!match?.uid,
+      });
+    }
+
+    // 5. Save building UID on the property if we have one and it isn't set
+    if (buildingUid && !prop.external_id) {
+      await supabase.from("properties").update({ external_id: buildingUid }).eq("id", propertyId);
+    }
+
+    // 6. Purge cache rows that no longer match any active room type so the next
+    // sync starts clean.
+    await supabase
+      .from("pms_availability_cache")
+      .delete()
+      .eq("property_id", propertyId)
+      .eq("system_type", "hostfully");
+
+    return createSuccessResponse({
+      property_id: propertyId,
+      building_uid: buildingUid,
+      matched: results.filter(r => r.matched).length,
+      total: results.length,
+      results,
+    }, "repair_room_mapping");
+  } catch (err) {
+    console.error("[Hostfully] repair_room_mapping failed:", err);
+    return createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, "Failed to repair room mapping", "repair_room_mapping", err);
+  }
+}
+
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
