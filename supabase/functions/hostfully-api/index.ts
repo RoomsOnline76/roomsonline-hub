@@ -1487,6 +1487,10 @@ async function handleFetchAvailability(
         dateAvailMap: Map<string, { available: number; restrictions: any; rates: any[] }>;
         unavailableLeavesByDate: Map<string, Set<string>>;
         firstUnit: any | null;
+        // When populated, availability came from Hostfully's unit-type inventory
+        // endpoint (Rooms-to-Sell parity) and reservation deduction MUST be
+        // skipped for this room type — inventory already reflects bookings.
+        inventoryAuthoritative: boolean;
       };
       const intermediates: Intermediate[] = [];
 
