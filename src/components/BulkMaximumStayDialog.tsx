@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,12 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, eachDayOfInterval, getDay } from "date-fns";
+import {
+  PropertyScopeSelector,
+  PropertyScopeValue,
+  resolveTargetPropertyIds,
+  useUnionRoomTypes,
+} from "@/components/restrictions/PropertyScopeSelector";
 
 interface BulkMaximumStayDialogProps {
   open: boolean;
@@ -16,6 +22,8 @@ interface BulkMaximumStayDialogProps {
   propertyId?: string;
   propertyName?: string;
   roomTypes?: { name: string; id?: string; units?: number }[];
+  portfolioProperties?: { id: string; name: string }[];
+  roomTypesByProperty?: Record<string, { name: string; id?: string; units?: number }[]>;
   onRuleCreated?: () => void;
 }
 
@@ -25,6 +33,8 @@ export function BulkMaximumStayDialog({
   propertyId,
   propertyName,
   roomTypes = [],
+  portfolioProperties,
+  roomTypesByProperty,
   onRuleCreated
 }: BulkMaximumStayDialogProps) {
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
@@ -32,6 +42,7 @@ export function BulkMaximumStayDialog({
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [maximumStay, setMaximumStay] = useState("14");
   const [saving, setSaving] = useState(false);
+  const [scope, setScope] = useState<PropertyScopeValue>({ mode: "single", specificIds: [] });
   const [selectedDays, setSelectedDays] = useState({
     allDays: true,
     sunday: true,
@@ -46,6 +57,7 @@ export function BulkMaximumStayDialog({
   useEffect(() => {
     if (open) {
       setSelectedRoomTypes([]);
+      setScope({ mode: "single", specificIds: [] });
     }
   }, [open]);
 
@@ -81,8 +93,14 @@ export function BulkMaximumStayDialog({
     saturday: 6,
   };
 
+  const targetPropertyIds = useMemo(
+    () => resolveTargetPropertyIds(scope, propertyId, portfolioProperties),
+    [scope, propertyId, portfolioProperties],
+  );
+  const effectiveRoomTypes = useUnionRoomTypes(targetPropertyIds, roomTypesByProperty, roomTypes);
+
   const handleCreateRule = async () => {
-    if (!propertyId) {
+    if (targetPropertyIds.length === 0) {
       toast.error("No property selected");
       return;
     }
@@ -125,15 +143,17 @@ export function BulkMaximumStayDialog({
       }
 
       const records = [];
-      for (const roomType of selectedRoomTypes) {
-        for (const date of filteredDates) {
-          records.push({
-            property_id: propertyId,
-            room_type: roomType,
-            date: format(date, "yyyy-MM-dd"),
-            max_stay: maxStay,
-            external_system: 'manual',
-          });
+      for (const pid of targetPropertyIds) {
+        for (const roomType of selectedRoomTypes) {
+          for (const date of filteredDates) {
+            records.push({
+              property_id: pid,
+              room_type: roomType,
+              date: format(date, "yyyy-MM-dd"),
+              max_stay: maxStay,
+              external_system: 'manual',
+            });
+          }
         }
       }
 
@@ -174,8 +194,8 @@ export function BulkMaximumStayDialog({
           {/* Left Sidebar - Rooms */}
           <div className="col-span-4 border rounded-lg p-4 space-y-2 max-h-[400px] overflow-y-auto">
             <p className="text-sm font-medium mb-2">Select Rooms</p>
-            {roomTypes.length > 0 ? (
-              roomTypes.map((room) => (
+            {effectiveRoomTypes.length > 0 ? (
+              effectiveRoomTypes.map((room) => (
                 <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
                   <div className="flex items-center">
                     <Checkbox
@@ -201,7 +221,16 @@ export function BulkMaximumStayDialog({
           </div>
 
           {/* Right Content - Form */}
-          <div className="col-span-8 space-y-6">
+          <div className="col-span-8 space-y-4">
+            {portfolioProperties && portfolioProperties.length > 1 && (
+              <PropertyScopeSelector
+                portfolioProperties={portfolioProperties}
+                defaultPropertyId={propertyId}
+                defaultPropertyName={propertyName}
+                value={scope}
+                onChange={setScope}
+              />
+            )}
             <div className="border rounded-lg p-6 space-y-4">
               <div className="space-y-2">
                 <Label>Maximum Stay</Label>
@@ -266,7 +295,7 @@ export function BulkMaximumStayDialog({
                 </Button>
                 <Button 
                   onClick={handleCreateRule} 
-                  disabled={saving || selectedRoomTypes.length === 0}
+                  disabled={saving || selectedRoomTypes.length === 0 || targetPropertyIds.length === 0}
                 >
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Set Maximum Stay
