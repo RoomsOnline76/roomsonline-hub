@@ -1273,6 +1273,97 @@ async function handleRepairRoomMapping(
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔒 ADAPTER LOCK — Unit-Type Inventory Fetcher
+// Hostfully "Rooms to Sell" parity requires the unit-type-level inventory
+// endpoint, which returns the true count of sellable units per night after the
+// PMS has applied all reservations (including OTA holds on the parent Room
+// that never flip a leaf unit calendar). Summing leaf `/property-calendar`
+// endpoints ALONE overcounts and drifts — never fall back silently to that
+// path without exhausting the inventory endpoint variants below first.
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchHostfullyUnitTypeInventory(
+  unitTypeUid: string,
+  startDate: string,
+  endDate: string,
+  apiKey: string,
+  baseUrl: string,
+): Promise<{ date: string; available_units: number; min_stay?: number; max_stay?: number; closed_to_arrival?: boolean; closed_to_departure?: boolean }[] | null> {
+  // Endpoint candidates in priority order. Hostfully v3 exposes unit-type
+  // inventory under a few equivalent aliases depending on tenant migration
+  // state. We try each until one returns per-date counts.
+  const endpoints = [
+    `/multi-units/unit-types/${unitTypeUid}/availabilities?startDate=${startDate}&endDate=${endDate}`,
+    `/multi-units/availabilities?unitTypeUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+    `/availabilities?propertyUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+    `/availabilities?unitTypeUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const resp = await hostfullyRequest(endpoint, apiKey, baseUrl);
+      if (!resp.ok) continue;
+      const body = await resp.json().catch(() => null);
+      if (!body) continue;
+
+      // Locate the array of per-date entries in a variety of possible shapes.
+      const arr: any[] | null =
+        (Array.isArray(body?.availabilities) && body.availabilities) ||
+        (Array.isArray(body?.data) && body.data) ||
+        (Array.isArray(body?.calendar?.entries) && body.calendar.entries) ||
+        (Array.isArray(body?.calendar) && body.calendar) ||
+        (Array.isArray(body) && body) ||
+        null;
+      if (!arr || arr.length === 0) continue;
+
+      const days: { date: string; available_units: number; min_stay?: number; max_stay?: number; closed_to_arrival?: boolean; closed_to_departure?: boolean }[] = [];
+      for (const entry of arr) {
+        const date: string | undefined = entry?.date || entry?.day || entry?.calendarDate;
+        if (!date) continue;
+
+        // Prefer explicit inventory count fields; fall back to boolean *only*
+        // if the entry itself is scoped to a single unit (avoid this — we want
+        // the aggregate).
+        const rawCount =
+          entry?.numberOfAvailableUnits ??
+          entry?.availableUnits ??
+          entry?.available_units ??
+          entry?.availableCount ??
+          entry?.count ??
+          entry?.inventory ??
+          entry?.availability?.numberOfAvailableUnits ??
+          entry?.availability?.availableUnits;
+
+        // If no count present at all, this endpoint isn't the inventory
+        // endpoint — bail out of this candidate entirely.
+        if (rawCount === undefined || rawCount === null) {
+          days.length = 0;
+          break;
+        }
+
+        const count = Math.max(0, Math.floor(Number(rawCount) || 0));
+        const availabilityBlock = entry?.availability ?? entry;
+        days.push({
+          date,
+          available_units: count,
+          min_stay: availabilityBlock?.minimumStayLength ?? entry?.minimumStay,
+          max_stay: availabilityBlock?.maximumStayLength ?? entry?.maximumStay ?? null,
+          closed_to_arrival: availabilityBlock?.availableForCheckIn === false,
+          closed_to_departure: availabilityBlock?.availableForCheckOut === false,
+        });
+      }
+      if (days.length > 0) {
+        console.log(`[Hostfully] Unit-type inventory ok via ${endpoint.split('?')[0]} (${days.length} days) for ${unitTypeUid}`);
+        return days;
+      }
+    } catch (err) {
+      console.warn(`[Hostfully] Unit-type inventory attempt failed for ${endpoint}:`, err);
+    }
+  }
+
+  return null;
+}
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
