@@ -3070,7 +3070,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setBulkRateOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkAvailabilityRuleDialog 
@@ -3078,7 +3078,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setBulkAvailabilityOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkStopSellDialog 
@@ -3086,7 +3086,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setStopSellOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkMinimumStayDialog 
@@ -3094,7 +3094,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setMinStayOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkMaximumStayDialog 
@@ -3102,7 +3102,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setMaxStayOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysAdvanceDialog 
@@ -3110,7 +3110,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setLeadDaysAdvanceOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
       <BulkLeadDaysPostDialog 
@@ -3118,7 +3118,7 @@ const CalendarAccommodation = () => {
         onOpenChange={setLeadDaysPostOpen}
         propertyId={selectedProperty}
         propertyName={selectedPropertyData?.name}
-        roomTypes={calendarRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
+        roomTypes={canonicalRoomData.map(r => ({ name: r.name, id: r.pmsRoomTypeId, units: r.units || 1 }))}
         onRuleCreated={refreshCalendarData}
       />
     </AppLayout>
