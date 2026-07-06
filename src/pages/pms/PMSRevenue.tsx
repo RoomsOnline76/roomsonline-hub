@@ -175,6 +175,7 @@ const RULE_TYPES = [
 
 function YieldRulesTab({ propertyId }: { propertyId: string }) {
   const { data: rules = [], isLoading } = useYieldRules(propertyId);
+  const { data: seasons = [] } = useSeasons(propertyId);
   const upsert = useUpsertYieldRule(propertyId);
   const deleteRule = useDeleteYieldRule(propertyId);
   const toggleRule = useToggleYieldRule(propertyId);
@@ -183,6 +184,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
     name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10,
     min_occupancy: 80, max_occupancy: 100, days: [] as string[],
     min_lead_days: 0, max_lead_days: 7,
+    season_id: "",
   });
 
   const handleCreate = () => {
@@ -193,6 +195,8 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
       condition = { days: form.days };
     } else if (form.rule_type === "lead_time") {
       condition = { min_lead_days: form.min_lead_days, max_lead_days: form.max_lead_days };
+    } else if (form.rule_type === "season") {
+      condition = { season_id: form.season_id };
     }
     upsert.mutate({
       property_id: propertyId,
@@ -204,7 +208,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
     } as any, {
       onSuccess: () => {
         setShowCreate(false);
-        setForm({ name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10, min_occupancy: 80, max_occupancy: 100, days: [], min_lead_days: 0, max_lead_days: 7 });
+        setForm({ name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10, min_occupancy: 80, max_occupancy: 100, days: [], min_lead_days: 0, max_lead_days: 7, season_id: "" });
       },
     });
   };
@@ -215,7 +219,12 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
       case "occupancy_threshold": return `${c.min_occupancy ?? 0}% – ${c.max_occupancy ?? 100}% occupancy`;
       case "day_of_week": return (c.days as string[] || []).join(", ") || "No days set";
       case "lead_time": return `${c.min_lead_days ?? 0} – ${c.max_lead_days ?? 999} days ahead`;
-      case "season": return "Season-based";
+      case "season": {
+        const sid = c.season_id as string | undefined;
+        if (!sid) return "Season-based (no season linked)";
+        const s = seasons.find(x => x.id === sid);
+        return s ? `Season: ${s.name} (${s.start_date} – ${s.end_date})` : "Season-based (season not found)";
+      }
       default: return JSON.stringify(c);
     }
   };
