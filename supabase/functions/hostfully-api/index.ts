@@ -927,6 +927,10 @@ function normaliseRoomName(name: string): string {
   return s;
 }
 
+function compactRoomKey(name: string): string {
+  return normaliseRoomName(name).replace(/[^a-z0-9]/g, "");
+}
+
 function deriveCanonicalRoomNameFromHostfullyUnit(unitName: string | null | undefined): string | null {
   if (!unitName) return null;
   const trimmed = unitName.trim();
@@ -951,6 +955,76 @@ function deriveCanonicalRoomNameFromHostfullyUnit(unitName: string | null | unde
   if (/^two bedroom$/i.test(category)) return "Two-Bedroom Apartment";
   if (/apartment$/i.test(category)) return category;
   return `${category} Apartment`;
+}
+
+async function fetchHostfullyChildUnitsForBuilding(
+  creds: HostfullyCredentials,
+  baseUrl: string,
+  supabase: any,
+  propertyId: string,
+): Promise<Array<{ uid: string; name: string }>> {
+  const { data: prop } = await supabase
+    .from("properties")
+    .select("id, name, external_id, hostfully_property_uid")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (!prop) return [];
+
+  const agenciesRes = await hostfullyRequest("/agencies", creds.api_key, baseUrl);
+  if (!agenciesRes.ok) return [];
+
+  const agenciesData = await agenciesRes.json();
+  const agencyUid = (agenciesData?.agencies?.[0] || agenciesData?.[0])?.uid;
+  if (!agencyUid) return [];
+
+  const knownUids = new Set(
+    [prop.external_id, prop.hostfully_property_uid].filter(Boolean) as string[]
+  );
+  const targetKey = normaliseRoomName(prop.name || "");
+
+  const muRes = await hostfullyRequest(`/multi-units/multi-unit-properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+  if (muRes.ok) {
+    const muData = await muRes.json();
+    const buildings = muData?.multiUnitProperties || muData?.properties || muData || [];
+    const list = Array.isArray(buildings) ? buildings : [];
+    const building = list.find((b: any) => {
+      if (b?.uid && knownUids.has(b.uid)) return true;
+      if (normaliseRoomName(b?.name || "") === targetKey) return true;
+      const children = b?.childProperties || b?.units || [];
+      return children.some((c: any) => c?.uid && knownUids.has(c.uid));
+    });
+
+    const children = building?.childProperties || building?.units || [];
+    if (Array.isArray(children) && children.length > 0) {
+      return children
+        .filter((child: any) => child?.uid)
+        .map((child: any) => ({ uid: child.uid, name: child.name || "" }));
+    }
+  }
+
+  const propsRes = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
+  if (propsRes.ok) {
+    const propsData = await propsRes.json();
+    const allProps = propsData?.properties || propsData || [];
+    const list = Array.isArray(allProps) ? allProps : [];
+    const compactTargetKey = compactRoomKey(prop.name || "");
+
+    return list
+      .filter((property: any) => {
+        if (property?.uid && knownUids.has(property.uid)) return true;
+        const normalisedName = normaliseRoomName(property?.name || "");
+        const compactName = compactRoomKey(property?.name || "");
+        return (
+          (normalisedName && targetKey && (normalisedName.includes(targetKey) || targetKey.includes(normalisedName))) ||
+          (compactName && compactTargetKey && compactName.includes(compactTargetKey))
+        );
+      })
+      .filter((property: any) => property?.uid)
+      .map((property: any) => ({ uid: property.uid, name: property.name || "" }));
+  }
+
+  return [];
 }
 
 /**
@@ -1145,7 +1219,7 @@ async function handleFetchAvailability(
 
   try {
     // Check if this property has room types with unit maps
-    let roomTypeRows: { id: string; name: string; total_units: number; hostfully_room_id: string }[] = [];
+    let roomTypeRows: { id: string; name: string; property_type?: string | null; total_units: number; hostfully_room_id: string }[] = [];
     let allRoomTypeCount = 0;
     let unitMapByRoomType = new Map<string, { hostfully_uid: string; unit_name: string }[]>();
     let calendarRateMultiplier = 1;
@@ -1161,7 +1235,7 @@ async function handleFetchAvailability(
       // First try the new unit_map approach
       const { data: roomTypes } = await supabase
         .from('hostfully_room_types')
-        .select('id, hostfully_room_id, name, total_units')
+        .select('id, hostfully_room_id, name, property_type, total_units')
         .eq('property_id', propertyId)
         .eq('is_active', true);
       
@@ -1185,6 +1259,38 @@ async function handleFetchAvailability(
               hostfully_uid: um.hostfully_uid,
               unit_name: um.unit_name || '',
             });
+          }
+        }
+
+        // Category-level Hostfully rows (e.g. ONE46 ON M) store one canonical
+        // calendar row per PMS room category, while Hostfully calendar availability
+        // still lives on every child unit. When no explicit unit map exists, build
+        // a transient unit map by matching Hostfully child unit names back to the
+        // canonical category labels so availability counts sum all units.
+        if (unitMapByRoomType.size === 0) {
+          const childUnits = await fetchHostfullyChildUnitsForBuilding(creds, baseUrl, supabase, propertyId);
+          if (childUnits.length > roomTypeRows.length) {
+            for (const roomType of roomTypeRows) {
+              const roomKeys = [roomType.name, roomType.property_type]
+                .filter(Boolean)
+                .map((value) => normaliseRoomName(String(value)));
+              const matchingUnits = childUnits.filter((unit) => {
+                const derivedName = deriveCanonicalRoomNameFromHostfullyUnit(unit.name);
+                const candidateKeys = [derivedName, unit.name]
+                  .filter(Boolean)
+                  .map((value) => normaliseRoomName(String(value)));
+                return candidateKeys.some((candidateKey) =>
+                  roomKeys.some((roomKey) => candidateKey === roomKey)
+                );
+              });
+
+              if (matchingUnits.length > 0) {
+                unitMapByRoomType.set(roomType.id, matchingUnits.map((unit) => ({
+                  hostfully_uid: unit.uid,
+                  unit_name: unit.name,
+                })));
+              }
+            }
           }
         }
 
