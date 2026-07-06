@@ -207,23 +207,21 @@ async function resolveHostfullyPropertyUid(
     return null;
   }
   
-  // Option 1: Use external_id if set
+  // Option 1: Use external_id if set (must be a Hostfully building UID, not a ROL UUID)
   if (propData.external_id) {
     console.log("[Hostfully] Resolved propertyUid from external_id:", propData.external_id);
     return propData.external_id;
   }
-  
-  // Option 2: Extract from amenities.room_types[0].hostfullyId or pmsRoomId
+
+  // Option 2: amenities.room_types[0].hostfullyId — ONLY if explicitly a Hostfully id.
+  // We deliberately do NOT fall back to `pmsRoomId` because in many properties that field
+  // holds a ROL UUID, not a Hostfully building UID, and using it produces wrong sync data.
   const roomTypes = propData.amenities?.room_types || [];
-  if (roomTypes.length > 0) {
-    const firstRoom = roomTypes[0];
-    const resolvedUid = firstRoom.hostfullyId || firstRoom.pmsRoomId || null;
-    if (resolvedUid) {
-      console.log("[Hostfully] Resolved propertyUid from room_types:", resolvedUid);
-      return resolvedUid;
-    }
+  if (roomTypes.length > 0 && roomTypes[0].hostfullyId) {
+    console.log("[Hostfully] Resolved propertyUid from amenities.hostfullyId:", roomTypes[0].hostfullyId);
+    return roomTypes[0].hostfullyId;
   }
-  
+
   console.log("[Hostfully] Could not resolve propertyUid for property:", propertyId);
   return null;
 }
