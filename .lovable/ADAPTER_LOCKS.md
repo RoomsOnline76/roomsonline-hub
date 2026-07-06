@@ -24,6 +24,9 @@ production properties. Ship-first-fix-later is not acceptable here.
    not from a computed sum of leaf/child calendars. If the PMS exposes a
    Rooms-to-Sell / unit-type / room-type inventory endpoint, it is the source
    of truth.
+   - Hostfully multi-room properties are not allowed to cache summed
+     `/property-calendar` child totals when v3.1/v3.3 unit-type inventory is
+     unavailable or not exposed for the credential; fail loudly instead.
 2. **Never silently fall back to a less-authoritative surface** — log a
    warning, cache with the correct authority marker, and surface the
    degradation upstream.

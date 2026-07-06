@@ -37,6 +37,24 @@ const HOSTFULLY_URLS: Record<string, string> = {
   production: "https://api.hostfully.com/api/v3",
 };
 
+function deriveHostfullyMultiUnitBaseUrls(baseUrl: string): string[] {
+  const candidates = new Set<string>();
+  const add = (url: string) => candidates.add(url.replace(/\/$/, ""));
+
+  if (baseUrl.includes("api.hostfully.com/api/v3")) {
+    add(baseUrl.replace(/\/api\/v3(?:\.\d+)?$/, "/api/v3.3"));
+    add(baseUrl.replace(/\/api\/v3(?:\.\d+)?$/, "/api/v3.1"));
+  }
+
+  if (baseUrl.includes("sandbox.hostfully.com/api/v3")) {
+    add("https://sandbox-api.hostfully.com/api/v3.3");
+    add("https://sandbox-api.hostfully.com/api/v3.1");
+  }
+
+  add(baseUrl);
+  return Array.from(candidates);
+}
+
 // ============================================================================
 // CAPABILITY DECLARATION
 // ============================================================================
@@ -1298,11 +1316,17 @@ async function fetchHostfullyUnitTypeInventory(
     `/availabilities?propertyUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
     `/availabilities?unitTypeUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
   ];
+  const baseUrls = deriveHostfullyMultiUnitBaseUrls(baseUrl);
 
-  for (const endpoint of endpoints) {
+  for (const candidateBaseUrl of baseUrls) {
+    for (const endpoint of endpoints) {
     try {
-      const resp = await hostfullyRequest(endpoint, apiKey, baseUrl);
-      if (!resp.ok) continue;
+      const resp = await hostfullyRequest(endpoint, apiKey, candidateBaseUrl);
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        console.warn(`[Hostfully] Unit-type inventory ${resp.status} via ${candidateBaseUrl}${endpoint}: ${body.substring(0, 180)}`);
+        continue;
+      }
       const body = await resp.json().catch(() => null);
       if (!body) continue;
 
@@ -1353,11 +1377,12 @@ async function fetchHostfullyUnitTypeInventory(
         });
       }
       if (days.length > 0) {
-        console.log(`[Hostfully] Unit-type inventory ok via ${endpoint.split('?')[0]} (${days.length} days) for ${unitTypeUid}`);
+        console.log(`[Hostfully] Unit-type inventory ok via ${candidateBaseUrl}${endpoint.split('?')[0]} (${days.length} days) for ${unitTypeUid}`);
         return days;
       }
     } catch (err) {
-      console.warn(`[Hostfully] Unit-type inventory attempt failed for ${endpoint}:`, err);
+      console.warn(`[Hostfully] Unit-type inventory attempt failed for ${candidateBaseUrl}${endpoint}:`, err);
+    }
     }
   }
 
@@ -1509,8 +1534,8 @@ async function handleFetchAvailability(
         // Hostfully's unit-type (Rooms-to-Sell) inventory is the single source
         // of truth for how many units are actually sellable per night. We try
         // it first using the room type's Hostfully room id (which for hotel /
-        // multi-unit properties is the unit-type UID). Only if that endpoint
-        // returns no data do we fall back to aggregating child-unit calendars.
+        // multi-unit properties is the unit-type UID). Multi-room properties
+        // must NOT fall back to child calendars when inventory is missing.
         let inventoryAuthoritative = false;
         const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
         const unavailableLeavesByDate = new Map<string, Set<string>>();
@@ -1540,6 +1565,23 @@ async function handleFetchAvailability(
                 rates: [],
               });
             }
+          } else if (roomTypeRows.length > 1 || unitEntries.length > 1 || allRoomTypeCount > 1) {
+            console.warn(
+              `[Hostfully] Refusing non-authoritative multi-room availability for ${roomType.name} (${unitTypeUid}). ` +
+              `Unit-type inventory did not return per-date counts; leaf calendar sums are not Rooms-to-Sell parity.`
+            );
+            return createErrorResponse(
+              ERROR_CODES.PMS_UNAVAILABLE,
+              "Hostfully unit-type inventory is not available for this mapped room type. Refusing to cache child-calendar totals because they do not match PMS Rooms-to-Sell.",
+              "fetch_availability",
+              {
+                property_id: propertyId,
+                room_type_id: roomType.id,
+                room_type_name: roomType.name,
+                hostfully_room_id: unitTypeUid,
+                required_source: "Hostfully unit-type inventory / Rooms-to-Sell",
+              },
+            );
           }
         }
 
