@@ -91,6 +91,7 @@ export default function PMSRatePlans() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
+  const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
   const [form, setForm] = useState({
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
     base_rate: "",
