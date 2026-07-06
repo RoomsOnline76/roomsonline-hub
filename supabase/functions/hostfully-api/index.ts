@@ -1864,8 +1864,8 @@ async function handleGetReservations(
 
   try {
     let endpoint = `/leads?propertyUid=${propertyUid}`;
-    if (startDate) endpoint += `&checkInDate=${startDate}`;
-    if (endDate) endpoint += `&checkOutDate=${endDate}`;
+    if (startDate) endpoint += `&checkOutFrom=${startDate}`;
+    if (endDate) endpoint += `&checkInTo=${endDate}`;
 
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
 
