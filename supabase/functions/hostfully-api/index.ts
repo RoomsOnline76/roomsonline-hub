@@ -1505,7 +1505,48 @@ async function handleFetchAvailability(
           if (u.hostfully_uid) leafToRoomType.set(u.hostfully_uid, roomType.id);
         }
 
+        // ── 🔒 ADAPTER LOCK: PREFER UNIT-TYPE INVENTORY ────────────────────
+        // Hostfully's unit-type (Rooms-to-Sell) inventory is the single source
+        // of truth for how many units are actually sellable per night. We try
+        // it first using the room type's Hostfully room id (which for hotel /
+        // multi-unit properties is the unit-type UID). Only if that endpoint
+        // returns no data do we fall back to aggregating child-unit calendars.
+        let inventoryAuthoritative = false;
+        const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
+        const unavailableLeavesByDate = new Map<string, Set<string>>();
         const unitAvailabilities: any[] = [];
+
+        const unitTypeUid = roomType.hostfully_room_id;
+        if (unitTypeUid) {
+          const inventory = await fetchHostfullyUnitTypeInventory(
+            unitTypeUid,
+            startDate,
+            endDate,
+            creds.api_key,
+            baseUrl,
+          );
+          if (inventory && inventory.length > 0) {
+            inventoryAuthoritative = true;
+            for (const day of inventory) {
+              dateAvailMap.set(day.date, {
+                available: day.available_units,
+                restrictions: {
+                  stop_sell: day.available_units === 0,
+                  min_stay: day.min_stay ?? 1,
+                  max_stay: day.max_stay ?? null,
+                  closed_to_arrival: !!day.closed_to_arrival,
+                  closed_to_departure: !!day.closed_to_departure,
+                },
+                rates: [],
+              });
+            }
+          }
+        }
+
+        // Always fetch at least ONE leaf calendar so we can hydrate rates
+        // (rate_types for the room type) — inventory endpoint doesn't return
+        // pricing. When inventory was NOT authoritative, use the leaf sums to
+        // build availability too.
         for (let i = 0; i < unitEntries.length; i += BATCH_SIZE) {
           const batch = unitEntries.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
@@ -1537,10 +1578,9 @@ async function handleFetchAvailability(
           for (const rt of batchResults) {
             if (rt) unitAvailabilities.push(rt);
           }
+          // If inventory is authoritative we only need the first leaf for rates.
+          if (inventoryAuthoritative && unitAvailabilities.length > 0) break;
         }
-
-        const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
-        const unavailableLeavesByDate = new Map<string, Set<string>>();
 
         for (const unitAvail of unitAvailabilities) {
           const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
