@@ -1780,7 +1780,7 @@ const CalendarAccommodation = () => {
   };
 
   // Filter rooms based on selected room types (using dynamic property data)
-  const filteredRooms = calendarRoomData.filter(room => 
+  const filteredRooms = canonicalRoomData.filter(room => 
     selectedRoomTypes.includes(room.name)
   );
 
