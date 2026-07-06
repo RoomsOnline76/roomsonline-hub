@@ -1085,6 +1085,23 @@ export default function PMSRevenue() {
               <YieldRulesTab propertyId={propertyId!} />
             )}
           </TabsContent>
+
+          {/* === RATE STRATEGIES TAB === */}
+          <TabsContent value="strategies" className="space-y-4">
+            {isPortfolioMode ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <Settings2 className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Rate strategies are configured per property.</p>
+                  <Button size="sm" variant="outline" onClick={() => setViewMode("single")}>
+                    Switch to single-property view
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <RateStrategiesTable propertyId={propertyId!} />
+            )}
+          </TabsContent>
         </Tabs>
       </div>
     </>
