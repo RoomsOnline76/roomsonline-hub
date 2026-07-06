@@ -106,7 +106,7 @@ const restrictionOptions = [
   { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
 ];
 
-const PMS_SESSION_CACHE_VERSION = 2;
+const PMS_SESSION_CACHE_VERSION = 3;
 
 const getRoomDisplayOrder = (name: string) => {
   const normalized = name.trim().toLowerCase();
