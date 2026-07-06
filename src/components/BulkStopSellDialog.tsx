@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,12 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, eachDayOfInterval, getDay } from "date-fns";
+import {
+  PropertyScopeSelector,
+  PropertyScopeValue,
+  resolveTargetPropertyIds,
+  useUnionRoomTypes,
+} from "@/components/restrictions/PropertyScopeSelector";
 
 interface BulkStopSellDialogProps {
   open: boolean;
@@ -17,22 +23,27 @@ interface BulkStopSellDialogProps {
   propertyId?: string;
   propertyName?: string;
   roomTypes?: { name: string; id?: string; units?: number }[];
+  portfolioProperties?: { id: string; name: string }[];
+  roomTypesByProperty?: Record<string, { name: string; id?: string; units?: number }[]>;
   onRuleCreated?: () => void;
 }
 
-export function BulkStopSellDialog({ 
-  open, 
-  onOpenChange, 
-  propertyId, 
+export function BulkStopSellDialog({
+  open,
+  onOpenChange,
+  propertyId,
   propertyName,
   roomTypes = [],
-  onRuleCreated 
+  portfolioProperties,
+  roomTypesByProperty,
+  onRuleCreated,
 }: BulkStopSellDialogProps) {
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [isStopSell, setIsStopSell] = useState(true); // true = block, false = unblock
   const [saving, setSaving] = useState(false);
+  const [scope, setScope] = useState<PropertyScopeValue>({ mode: "single", specificIds: [] });
   const [selectedDays, setSelectedDays] = useState({
     allDays: true,
     sunday: true,
@@ -49,8 +60,16 @@ export function BulkStopSellDialog({
     if (open) {
       setSelectedRoomTypes([]);
       setIsStopSell(true);
+      setScope({ mode: "single", specificIds: [] });
     }
   }, [open]);
+
+  const targetPropertyIds = useMemo(
+    () => resolveTargetPropertyIds(scope, propertyId, portfolioProperties),
+    [scope, propertyId, portfolioProperties],
+  );
+  const effectiveRoomTypes = useUnionRoomTypes(targetPropertyIds, roomTypesByProperty, roomTypes);
+
 
   const toggleDay = (day: keyof typeof selectedDays) => {
     if (day === "allDays") {
