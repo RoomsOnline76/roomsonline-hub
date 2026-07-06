@@ -1600,11 +1600,36 @@ export default function PMSDashboard() {
 
 
       {/* Restriction Dialogs */}
-      <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-      <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-      <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-      <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
-      <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} onRuleCreated={handleRuleCreated} />
+      {(() => {
+        const scopePortfolio = isPortfolioMode
+          ? (portfolioProperties || []).map(p => ({ id: p.id, name: p.name }))
+          : undefined;
+        const scopeRoomTypesByProperty = isPortfolioMode
+          ? Object.fromEntries(
+              (portfolioProperties || []).map(p => {
+                const d = portfolioDataByProperty.get(p.id);
+                return [
+                  p.id,
+                  (d?.roomTypes || []).map(rt => ({
+                    name: rt.name,
+                    id: rt.id,
+                    units: (d?.roomsByType.get(rt.id) || []).length,
+                  })),
+                ];
+              })
+            )
+          : undefined;
+        return (
+          <>
+            <BulkStopSellDialog open={stopSellOpen} onOpenChange={setStopSellOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <BulkMinimumStayDialog open={minStayOpen} onOpenChange={setMinStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+          </>
+        );
+      })()}
+
     </>
   );
 }

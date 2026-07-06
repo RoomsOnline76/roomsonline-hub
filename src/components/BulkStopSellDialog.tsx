@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,12 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, eachDayOfInterval, getDay } from "date-fns";
+import {
+  PropertyScopeSelector,
+  PropertyScopeValue,
+  resolveTargetPropertyIds,
+  useUnionRoomTypes,
+} from "@/components/restrictions/PropertyScopeSelector";
 
 interface BulkStopSellDialogProps {
   open: boolean;
@@ -17,22 +23,27 @@ interface BulkStopSellDialogProps {
   propertyId?: string;
   propertyName?: string;
   roomTypes?: { name: string; id?: string; units?: number }[];
+  portfolioProperties?: { id: string; name: string }[];
+  roomTypesByProperty?: Record<string, { name: string; id?: string; units?: number }[]>;
   onRuleCreated?: () => void;
 }
 
-export function BulkStopSellDialog({ 
-  open, 
-  onOpenChange, 
-  propertyId, 
+export function BulkStopSellDialog({
+  open,
+  onOpenChange,
+  propertyId,
   propertyName,
   roomTypes = [],
-  onRuleCreated 
+  portfolioProperties,
+  roomTypesByProperty,
+  onRuleCreated,
 }: BulkStopSellDialogProps) {
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [isStopSell, setIsStopSell] = useState(true); // true = block, false = unblock
   const [saving, setSaving] = useState(false);
+  const [scope, setScope] = useState<PropertyScopeValue>({ mode: "single", specificIds: [] });
   const [selectedDays, setSelectedDays] = useState({
     allDays: true,
     sunday: true,
@@ -49,8 +60,16 @@ export function BulkStopSellDialog({
     if (open) {
       setSelectedRoomTypes([]);
       setIsStopSell(true);
+      setScope({ mode: "single", specificIds: [] });
     }
   }, [open]);
+
+  const targetPropertyIds = useMemo(
+    () => resolveTargetPropertyIds(scope, propertyId, portfolioProperties),
+    [scope, propertyId, portfolioProperties],
+  );
+  const effectiveRoomTypes = useUnionRoomTypes(targetPropertyIds, roomTypesByProperty, roomTypes);
+
 
   const toggleDay = (day: keyof typeof selectedDays) => {
     if (day === "allDays") {
@@ -85,16 +104,16 @@ export function BulkStopSellDialog({
   };
 
   const handleCreateRule = async () => {
-    if (!propertyId) {
+    if (targetPropertyIds.length === 0) {
       toast.error("No property selected");
       return;
     }
-    
+
     if (selectedRoomTypes.length === 0) {
       toast.error("Please select at least one room type");
       return;
     }
-    
+
     if (!fromDate || !toDate) {
       toast.error("Please select date range");
       return;
@@ -102,18 +121,16 @@ export function BulkStopSellDialog({
 
     setSaving(true);
     try {
-      // Generate dates for the range, filtered by selected days of week
       const allDates = eachDayOfInterval({
         start: new Date(fromDate),
         end: new Date(toDate),
       });
 
-      // Filter dates by selected days of week
       const selectedDaysOfWeek = Object.entries(selectedDays)
         .filter(([key, value]) => key !== 'allDays' && value)
         .map(([key]) => dayOfWeekMap[key]);
 
-      const filteredDates = allDates.filter(date => 
+      const filteredDates = allDates.filter(date =>
         selectedDaysOfWeek.includes(getDay(date))
       );
 
@@ -123,50 +140,53 @@ export function BulkStopSellDialog({
         return;
       }
 
+      const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
+
       if (isStopSell) {
-        // BLOCKING: Create records with available_units = 0
         const records = [];
-        for (const roomType of selectedRoomTypes) {
-          for (const date of filteredDates) {
-            records.push({
-              property_id: propertyId,
-              room_type: roomType,
-              date: format(date, "yyyy-MM-dd"),
-              is_stop_sell: true,
-              available_units: 0,
-              external_system: 'manual',
-            });
+        for (const pid of targetPropertyIds) {
+          for (const roomType of selectedRoomTypes) {
+            for (const ds of dateStrings) {
+              records.push({
+                property_id: pid,
+                room_type: roomType,
+                date: ds,
+                is_stop_sell: true,
+                available_units: 0,
+                external_system: 'manual',
+              });
+            }
           }
         }
 
-        // Upsert records (update if exists, insert if not)
         const { error } = await supabase
           .from("property_availability")
-          .upsert(records, { 
+          .upsert(records, {
             onConflict: 'property_id,room_type,date',
-            ignoreDuplicates: false 
+            ignoreDuplicates: false,
           });
 
         if (error) throw error;
 
-        toast.success(`Blocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
+        toast.success(
+          `Blocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
+        );
       } else {
-        // UNBLOCKING: Delete the override records to restore default availability
-        // Build date strings for the filtered dates
-        const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
-        
-        const { error } = await supabase
-          .from("property_availability")
-          .delete()
-          .eq("property_id", propertyId)
-          .in("room_type", selectedRoomTypes)
-          .in("date", dateStrings);
+        for (const pid of targetPropertyIds) {
+          const { error } = await supabase
+            .from("property_availability")
+            .delete()
+            .eq("property_id", pid)
+            .in("room_type", selectedRoomTypes)
+            .in("date", dateStrings);
+          if (error) throw error;
+        }
 
-        if (error) throw error;
-
-        toast.success(`Unblocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
+        toast.success(
+          `Unblocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
+        );
       }
-      
+
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
@@ -176,6 +196,7 @@ export function BulkStopSellDialog({
       setSaving(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -194,12 +215,12 @@ export function BulkStopSellDialog({
           {/* Left Sidebar - Rooms */}
           <div className="col-span-4 border rounded-lg p-4 space-y-2 max-h-[400px] overflow-y-auto">
             <p className="text-sm font-medium mb-2">Select Rooms</p>
-            {roomTypes.length > 0 ? (
-              roomTypes.map((room) => (
+            {effectiveRoomTypes.length > 0 ? (
+              effectiveRoomTypes.map((room) => (
                 <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
                   <div className="flex items-center">
                     <Checkbox
-                      id={room.id || room.name}
+                      id={`stopsell-${room.id || room.name}`}
                       checked={selectedRoomTypes.includes(room.name)}
                       onCheckedChange={(checked) => {
                         if (checked) {
@@ -209,13 +230,13 @@ export function BulkStopSellDialog({
                         }
                       }}
                     />
-                    <label htmlFor={room.id || room.name} className="text-sm cursor-pointer ml-2">
+                    <label htmlFor={`stopsell-${room.id || room.name}`} className="text-sm cursor-pointer ml-2">
                       {room.name}
                     </label>
                   </div>
-                  {room.units && (
+                  {room.units ? (
                     <span className="text-xs text-muted-foreground">{room.units} unit{room.units > 1 ? 's' : ''}</span>
-                  )}
+                  ) : null}
                 </div>
               ))
             ) : (
@@ -223,9 +244,20 @@ export function BulkStopSellDialog({
             )}
           </div>
 
+
           {/* Right Content - Form */}
-          <div className="col-span-8 space-y-6">
+          <div className="col-span-8 space-y-4">
+            {portfolioProperties && portfolioProperties.length > 1 && (
+              <PropertyScopeSelector
+                portfolioProperties={portfolioProperties}
+                defaultPropertyId={propertyId}
+                defaultPropertyName={propertyName}
+                value={scope}
+                onChange={setScope}
+              />
+            )}
             <div className="border rounded-lg p-6 space-y-4">
+
               {/* Block/Unblock Toggle */}
               <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div>
@@ -290,11 +322,12 @@ export function BulkStopSellDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleCreateRule} 
-                  disabled={saving || selectedRoomTypes.length === 0}
+                <Button
+                  onClick={handleCreateRule}
+                  disabled={saving || selectedRoomTypes.length === 0 || targetPropertyIds.length === 0}
                   variant={isStopSell ? "destructive" : "default"}
                 >
+
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isStopSell ? 'Block Dates' : 'Unblock Dates'}
                 </Button>
