@@ -6,11 +6,18 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 // HOSTFULLY API ADAPTER
 // Conforms to: supabase/functions/_shared/adapter-contract.ts
 // Reference: https://dev.hostfully.com/reference/getting-started
-// 
+//
 // KEY CHANGE: Owner-level API keys
 // - API key is tied to an Owner (Agency in Hostfully) who owns many properties
 // - Each property has many rooms
 // - API key passed per-request from owner_pms_credentials table
+//
+// 🔒 ADAPTER LOCK — DO NOT MODIFY WITHOUT EXPLICIT USER APPROVAL
+// See .lovable/ADAPTER_LOCKS.md. Availability MUST resolve from Hostfully
+// unit-type inventory (Rooms-to-Sell parity), NOT summed leaf-unit calendars.
+// Regressing this caused the ONE46 ON M availability drift (2026-07).
+// If you must change `handleFetchAvailability` or `fetchHostfullyUnitTypeInventory`,
+// obtain the user's written go-ahead in the same message that ships the change.
 // ============================================================================
 
 const corsHeaders = {
