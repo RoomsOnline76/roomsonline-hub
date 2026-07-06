@@ -906,6 +906,7 @@ async function handleFetchAvailability(
   try {
     // Check if this property has room types with unit maps
     let roomTypeRows: { id: string; name: string; total_units: number; hostfully_room_id: string }[] = [];
+    let allRoomTypeCount = 0;
     let unitMapByRoomType = new Map<string, { hostfully_uid: string; unit_name: string }[]>();
     
     if (propertyId) {
@@ -917,6 +918,7 @@ async function handleFetchAvailability(
         .eq('is_active', true);
       
       if (roomTypes && roomTypes.length > 0) {
+        allRoomTypeCount = roomTypes.length;
         roomTypeRows = roomTypes.filter(r => !!r.hostfully_room_id);
         
         // Check for unit map entries
@@ -937,8 +939,24 @@ async function handleFetchAvailability(
             });
           }
         }
+
+        // Guardrail: if the property has room types but NONE of them carry a Hostfully
+        // room id, we cannot safely fetch availability — silently falling back to the
+        // single-unit path would poison the cache with placeholder "Property" rows and
+        // wrong ARI (see ONE46 ON M incident, 2026-07). Surface a real error instead.
+        if (allRoomTypeCount > 0 && roomTypeRows.length === 0 && unitMapByRoomType.size === 0) {
+          console.warn(
+            `[Hostfully] Property ${propertyId} has ${allRoomTypeCount} room types but none have hostfully_room_id set — refusing to sync.`
+          );
+          return createErrorResponse(
+            ERROR_CODES.INVALID_REQUEST,
+            `Hostfully room mapping is missing for this property. Run "Repair Hostfully mapping" so each room type is linked to its Hostfully unit UID before syncing availability.`,
+            "fetch_availability"
+          );
+        }
       }
     }
+
 
     // If we have room types, fetch availability per unit and aggregate by type
     if (roomTypeRows.length > 0) {
