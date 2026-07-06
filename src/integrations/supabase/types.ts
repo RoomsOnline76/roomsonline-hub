@@ -8277,6 +8277,62 @@ export type Database = {
           },
         ]
       }
+      rolos_rate_plan_stop_sell: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          property_id: string
+          rate_plan_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          property_id: string
+          rate_plan_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          property_id?: string
+          rate_plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_stop_sell_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_stop_sell_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_stop_sell_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plan_stop_sell_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_rate_plans: {
         Row: {
           adult_1_rate: number | null
