@@ -243,6 +243,7 @@ async function resolveRolosRates(
 
   const rolosIds = (hfRooms || []).filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
   const ratePlanMap: Record<string, any> = {};
+  const closedDatesByRoom: Record<string, Set<string>> = {};
 
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
@@ -260,7 +261,33 @@ async function resolveRolosRates(
             pricing_model: plan.pricing_model || "per_unit",
             adult_1_rate: plan.adult_1_rate ? Number(plan.adult_1_rate) : undefined,
             adult_2_rate: plan.adult_2_rate ? Number(plan.adult_2_rate) : undefined,
+            rate_plan_id: plan.id,
           };
+        }
+      }
+
+      // Fetch rate-plan stop-sell closures overlapping the requested range
+      const planIds = rpRoomTypes.map((e: any) => e.rate_plan_id).filter(Boolean);
+      if (planIds.length > 0) {
+        const { data: closures } = await supabase
+          .from("rolos_rate_plan_stop_sell")
+          .select("rate_plan_id, date")
+          .in("rate_plan_id", planIds)
+          .gte("date", startDate)
+          .lte("date", endDate);
+        if (closures && closures.length > 0) {
+          const planToRooms: Record<string, string[]> = {};
+          for (const entry of rpRoomTypes) {
+            const pid = (entry as any).rate_plan_id;
+            if (!pid) continue;
+            (planToRooms[pid] ||= []).push(entry.room_type_id);
+          }
+          for (const c of closures) {
+            const rooms = planToRooms[c.rate_plan_id] || [];
+            for (const rid of rooms) {
+              (closedDatesByRoom[rid] ||= new Set<string>()).add(c.date);
+            }
+          }
         }
       }
     }
