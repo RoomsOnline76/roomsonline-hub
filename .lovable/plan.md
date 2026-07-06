@@ -1,57 +1,42 @@
-## Problem
-For ONE46 ON M (Hostfully building), ROLOS Compact Studio / Studio availability matches Hostfully on the first 2 nights (0, 6, 5) then drifts high (ROLOS 9 vs PMS 1–2). Root cause: `fetch_availability` in `hostfully-api` aggregates each leaf unit's `/property-calendar` as `available_units = 1|0`. This works only when Hostfully has already assigned a booking to a specific leaf unit. OTA / channel bookings held against the parent Room (unassigned to a leaf) never flip any leaf calendar to unavailable, so ROLOS overcounts and diverges as the range extends.
+# Hostfully availability — final resolution (2026-07-06)
 
-Verified by ordered date-by-date comparison of the user's screenshot:
-- Mon 06: ROLOS 0 = PMS Sold ✓
-- Tue 07: 6 = 6 ✓
-- Wed 08: 5 = 5 ✓
-- Thu 09: 5 vs 4 (drift starts) …
-- Tue 14: 9 vs 2 (biggest drift)
+## Root cause (recap)
+For ONE46 ON M and other Hostfully hotel / multi-unit properties, the adapter
+was summing per-leaf-unit `/property-calendar` endpoints (`available_units = 1|0`)
+to compute per-room-type inventory. OTA / channel bookings held against the
+parent Room (unassigned to a specific leaf) never flip any leaf calendar to
+unavailable, so ROLOS overcounts and drifts high as the date range extends.
 
-## Fix
-Deduct real reservations from the aggregated per-night availability inside `fetch_availability`.
+Reservation-based deduction was a stopgap; the real fix is switching the
+primary source to Hostfully's unit-type inventory (Rooms-to-Sell parity).
 
-### Steps (all in `supabase/functions/hostfully-api/index.ts`)
+## Fix (shipped)
+`handleFetchAvailability` in `supabase/functions/hostfully-api/index.ts` now:
 
-1. **Collect the full set of Hostfully UIDs to query for reservations** per property:
-   - Building UID (`properties.external_id` / `hostfully_property_uid`).
-   - Every leaf unit UID discovered via `unitMapByRoomType` and `roomTypeRows.hostfully_room_id`.
+1. For every ROLOS room type with a `hostfully_room_id` (unit-type UID), calls
+   `fetchHostfullyUnitTypeInventory(uid, start, end)` FIRST. It tries the
+   following endpoints in order and returns per-date inventory counts as soon
+   as one responds with data:
+   - `GET /multi-units/unit-types/{uid}/availabilities?startDate&endDate`
+   - `GET /multi-units/availabilities?unitTypeUid={uid}&startDate&endDate`
+   - `GET /availabilities?propertyUid={uid}&startDate&endDate`
+   - `GET /availabilities?unitTypeUid={uid}&startDate&endDate`
+2. When inventory is available, `dateAvailMap` is populated directly from it
+   and marked `inventoryAuthoritative = true`. Only ONE leaf `/property-calendar`
+   is still fetched to hydrate rates for `rate_types`.
+3. Leaf-calendar aggregation and reservation deduction are BOTH skipped for
+   authoritative room types — Hostfully's inventory already reflects
+   reservations, so deducting again would double-count.
+4. When no inventory endpoint returns data, the adapter cleanly falls back to
+   the previous leaf-aggregation + lead-deduction path.
 
-2. **Fetch reservations** for the date window (`startDate`…`endDate`) by calling `/leads?propertyUid=<uid>&checkInDate=<start>&checkOutDate=<end>` for each UID (batched ≤ 5 concurrent). Merge, dedupe by lead id. Ignore statuses `CANCELLED`, `DECLINED`, `IGNORED`, `EXPIRED`.
-
-3. **Assign each reservation to a room type**:
-   - If the reservation's `propertyUid` maps to a leaf unit in `unitMapByRoomType` → assign to that room type.
-   - Else if it maps to the building UID → assign to the room type whose `hostfully_room_id` matches the reservation's `roomTypeUid`/`roomUid` (Hostfully returns this on the lead when the building has multiple Rooms).
-   - Else skip and log.
-
-4. **Build a `bookedByRoomTypePerNight` map** by iterating each night `checkInDate ≤ n < checkOutDate` and incrementing `roomType → date → count`.
-
-5. **Adjust aggregation** after the existing `dateAvailMap` fill:
-   ```ts
-   const bookedForType = bookedByRoomTypePerNight.get(roomType.id);
-   for (const [date, data] of dateAvailMap) {
-     const booked = bookedForType?.get(date) ?? 0;
-     data.available = Math.max(0, data.available - booked);
-   }
-   ```
-   Only deduct bookings that were **not already** reflected in a leaf calendar being marked unavailable — safest approach: track leaf UIDs whose calendar already showed the date as unavailable and skip deduction for reservations pinned to those leaves.
-
-6. **Cache** the corrected `available_units` into `pms_availability_cache` (existing upsert), and also stamp `restrictions.stop_sell = true` when the corrected count is 0.
-
-7. **Log summary** per sync: `Deducted N reservations across M room types` for observability.
-
-### Guardrails
-- Never go below zero.
-- If `/leads` fails, warn and fall back to raw calendar counts (never fail the whole sync).
-- Respect existing 2 req/sec rate limiter used elsewhere in the file.
-
-## Out of scope
-- Rate/price divergence (rates already reconciled).
-- Restrictions (stop sell / min stay) — untouched.
-- Non-Hostfully PMS adapters.
-
-## Files
-- `supabase/functions/hostfully-api/index.ts` — extend `fetch_availability` handler with reservation-aware deduction; add helper `fetchAndBucketReservations()`.
+## Hardening
+`.lovable/ADAPTER_LOCKS.md` now lists every PMS adapter region that requires
+explicit user approval before edits. The Hostfully adapter carries a prominent
+`🔒 ADAPTER LOCK` banner in the file header and around the inventory helper.
+A matching memory rule was saved so future turns respect the lock.
 
 ## Validation
-After deploy, sync ONE46 ON M and re-check the same window against the PMS screenshot: Compact Studio should read 6,5,4,2,2,2,2,2,2,1,1,1,1,1 and match Hostfully's Rooms to Sell.
+Deploy `hostfully-api`, then sync ONE46 ON M for the same window as the user's
+screenshot. Compact Studio should read 6,5,4,2,2,2,2,2,2,1,1,1,1,1 and match
+Hostfully's Rooms to Sell exactly.
