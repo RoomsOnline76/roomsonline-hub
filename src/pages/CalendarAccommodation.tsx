@@ -108,6 +108,24 @@ const restrictionOptions = [
 
 const PMS_SESSION_CACHE_VERSION = 2;
 
+const getRoomDisplayOrder = (name: string) => {
+  const normalized = name.trim().toLowerCase();
+  const preferredOrder: Record<string, number> = {
+    "compact studio": 1,
+    "studio": 2,
+    "compact one bedroom apartment": 3,
+    "one-bedroom apartment": 4,
+    "two-bedroom apartment": 5,
+  };
+  return preferredOrder[normalized] ?? 100;
+};
+
+const sortRoomsByDisplayOrder = <T extends { name: string }>(rooms: T[]) =>
+  [...rooms].sort((a, b) => {
+    const rankDiff = getRoomDisplayOrder(a.name) - getRoomDisplayOrder(b.name);
+    return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+  });
+
 const getSouthAfricanHolidays = (year: number): { [key: string]: string } => {
   const holidays: { [key: string]: string } = {
     [`${year}-01-01`]: "New Year's Day",
@@ -1339,7 +1357,7 @@ const CalendarAccommodation = () => {
     const byId = new Map(calendarRoomData.map((room) => [room.pmsRoomTypeId, room]));
     const byName = new Map(calendarRoomData.map((room) => [room.name, room]));
 
-    return Array.from(canonicalRoomTypeMap.values()).map((canonicalRoom) => {
+    return sortRoomsByDisplayOrder(Array.from(canonicalRoomTypeMap.values())).map((canonicalRoom) => {
       const existing = byId.get(canonicalRoom.id) || byName.get(canonicalRoom.name);
 
       if (existing) {
@@ -1470,7 +1488,7 @@ const CalendarAccommodation = () => {
       
       const catMap = new Map<string, string>();
       const canonicalMap = new Map<string, CanonicalRoomType>();
-      for (const row of data) {
+      for (const row of sortRoomsByDisplayOrder(data.filter((row) => row.name))) {
         if (row.id && row.name) {
           canonicalMap.set(row.id, {
             id: row.id,
