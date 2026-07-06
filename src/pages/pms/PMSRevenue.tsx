@@ -111,6 +111,29 @@ function useToggleYieldRule(propertyId: string | null) {
   });
 }
 
+interface RateSeason {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
+function useSeasons(propertyId: string | null) {
+  return useQuery({
+    queryKey: ["rolos-rate-seasons", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_rate_seasons" as any)
+        .select("id, name, start_date, end_date")
+        .eq("property_id", propertyId!)
+        .order("start_date", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as RateSeason[];
+    },
+  });
+}
+
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
@@ -152,6 +175,7 @@ const RULE_TYPES = [
 
 function YieldRulesTab({ propertyId }: { propertyId: string }) {
   const { data: rules = [], isLoading } = useYieldRules(propertyId);
+  const { data: seasons = [] } = useSeasons(propertyId);
   const upsert = useUpsertYieldRule(propertyId);
   const deleteRule = useDeleteYieldRule(propertyId);
   const toggleRule = useToggleYieldRule(propertyId);
@@ -160,6 +184,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
     name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10,
     min_occupancy: 80, max_occupancy: 100, days: [] as string[],
     min_lead_days: 0, max_lead_days: 7,
+    season_id: "",
   });
 
   const handleCreate = () => {
@@ -170,6 +195,8 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
       condition = { days: form.days };
     } else if (form.rule_type === "lead_time") {
       condition = { min_lead_days: form.min_lead_days, max_lead_days: form.max_lead_days };
+    } else if (form.rule_type === "season") {
+      condition = { season_id: form.season_id };
     }
     upsert.mutate({
       property_id: propertyId,
@@ -181,7 +208,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
     } as any, {
       onSuccess: () => {
         setShowCreate(false);
-        setForm({ name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10, min_occupancy: 80, max_occupancy: 100, days: [], min_lead_days: 0, max_lead_days: 7 });
+        setForm({ name: "", rule_type: "occupancy_threshold", adjustment_percent: 10, priority: 10, min_occupancy: 80, max_occupancy: 100, days: [], min_lead_days: 0, max_lead_days: 7, season_id: "" });
       },
     });
   };
@@ -192,7 +219,12 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
       case "occupancy_threshold": return `${c.min_occupancy ?? 0}% – ${c.max_occupancy ?? 100}% occupancy`;
       case "day_of_week": return (c.days as string[] || []).join(", ") || "No days set";
       case "lead_time": return `${c.min_lead_days ?? 0} – ${c.max_lead_days ?? 999} days ahead`;
-      case "season": return "Season-based";
+      case "season": {
+        const sid = c.season_id as string | undefined;
+        if (!sid) return "Season-based (no season linked)";
+        const s = seasons.find(x => x.id === sid);
+        return s ? `Season: ${s.name} (${s.start_date} – ${s.end_date})` : "Season-based (season not found)";
+      }
       default: return JSON.stringify(c);
     }
   };
@@ -275,6 +307,31 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
                 </div>
               )}
 
+              {form.rule_type === "season" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Linked Season</Label>
+                  {seasons.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No seasons configured for this property yet. Configure seasons in Rate Management first.
+                    </p>
+                  ) : (
+                    <Select value={form.season_id} onValueChange={v => setForm(f => ({ ...f, season_id: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select a season" /></SelectTrigger>
+                      <SelectContent>
+                        {seasons.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} ({s.start_date} – {s.end_date})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">The adjustment applies to dates within this season.</p>
+                </div>
+              )}
+
+
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Adjustment %</Label>
@@ -289,7 +346,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleCreate} disabled={!form.name || upsert.isPending}>
+              <Button onClick={handleCreate} disabled={!form.name || upsert.isPending || (form.rule_type === "season" && !form.season_id)}>
                 {upsert.isPending ? "Saving…" : "Create Rule"}
               </Button>
             </DialogFooter>
