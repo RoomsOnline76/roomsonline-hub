@@ -322,11 +322,12 @@ export function BulkStopSellDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleCreateRule} 
-                  disabled={saving || selectedRoomTypes.length === 0}
+                <Button
+                  onClick={handleCreateRule}
+                  disabled={saving || selectedRoomTypes.length === 0 || targetPropertyIds.length === 0}
                   variant={isStopSell ? "destructive" : "default"}
                 >
+
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isStopSell ? 'Block Dates' : 'Unblock Dates'}
                 </Button>
