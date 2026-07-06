@@ -1291,6 +1291,35 @@ const CalendarAccommodation = () => {
     });
   }, [selectedPropertyData, pmsData]);
 
+  // Safety net: for Hostfully properties, cross-check calendarRoomData against the
+  // canonical hostfully_room_types list (loaded into roomCategoryMap). Drops any
+  // ghost rows the PMS/cache pipeline may have surfaced (e.g. the "Property" row
+  // from a broken mapping) and appends any active room types that were missed by
+  // the sync so operators can see the whole property.
+  const canonicalRoomData = React.useMemo(() => {
+    if (roomCategoryMap.size === 0) return calendarRoomData;
+    const canonical = new Set(roomCategoryMap.keys());
+    const filtered = calendarRoomData.filter(r => canonical.has(r.name));
+    const present = new Set(filtered.map(r => r.name));
+    for (const name of canonical) {
+      if (!present.has(name)) {
+        filtered.push({
+          name,
+          pmsRoomTypeId: "",
+          rates: [],
+          availability: {} as { [date: string]: number | AvailabilityData },
+          allowTeens: true,
+          allowChildren: true,
+          allowInfants: true,
+          minGuests: 1,
+          units: 1,
+        });
+      }
+    }
+    return filtered;
+  }, [calendarRoomData, roomCategoryMap]);
+
+
   // Get rate type options from property's saved pms_rate_types (same as Property Form > Room Information > Rate Types)
   const rateTypeOptions = React.useMemo(() => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
