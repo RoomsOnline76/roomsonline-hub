@@ -516,6 +516,49 @@ function mapHostfullyBookingToReservation(booking: any) {
   };
 }
 
+function extractHostfullyLeads(responseBody: any): any[] {
+  if (Array.isArray(responseBody)) return responseBody;
+  if (!responseBody || typeof responseBody !== "object") return [];
+
+  const candidates = [
+    responseBody.leads,
+    responseBody.bookings,
+    responseBody.reservations,
+    responseBody.items,
+    responseBody.results,
+    responseBody.content,
+    responseBody.data,
+    responseBody._embedded?.leads,
+    responseBody._embedded?.bookings,
+    responseBody._embedded?.reservations,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+    if (candidate && typeof candidate === "object") {
+      if (Array.isArray(candidate.leads)) return candidate.leads;
+      if (Array.isArray(candidate.bookings)) return candidate.bookings;
+      if (Array.isArray(candidate.reservations)) return candidate.reservations;
+      if (Array.isArray(candidate.items)) return candidate.items;
+      if (Array.isArray(candidate.results)) return candidate.results;
+      if (Array.isArray(candidate.content)) return candidate.content;
+    }
+  }
+
+  return [];
+}
+
+function readNestedString(source: any, paths: string[][]): string | undefined {
+  for (const path of paths) {
+    let value = source;
+    for (const key of path) {
+      value = value?.[key];
+    }
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
 // ============================================================================
 // ACTION HANDLERS
 // ============================================================================
@@ -1450,15 +1493,14 @@ async function handleFetchAvailability(
           const batchLeads = await Promise.all(
             batch.map(async (uid) => {
               try {
-                const endpoint = `/leads?propertyUid=${uid}&checkInDate=${startDate}&checkOutDate=${endDate}`;
+                const endpoint = `/leads?propertyUid=${uid}&checkInTo=${endDate}&checkOutFrom=${startDate}&_limit=100`;
                 const resp = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
                 if (!resp.ok) {
                   console.warn(`[Hostfully] leads fetch failed for ${uid}: ${resp.status}`);
                   return [];
                 }
                 const body = await resp.json();
-                const leads = Array.isArray(body) ? body : (body?.leads || body?.data || []);
-                return Array.isArray(leads) ? leads : [];
+                return extractHostfullyLeads(body);
               } catch (err) {
                 console.warn(`[Hostfully] leads fetch error for ${uid}:`, err);
                 return [];
@@ -1466,7 +1508,7 @@ async function handleFetchAvailability(
             })
           );
 
-          const DEAD_STATUSES = new Set(["CANCELLED", "DECLINED", "IGNORED", "EXPIRED"]);
+          const DEAD_STATUSES = new Set(["CANCELLED", "DECLINED", "IGNORED", "EXPIRED", "DUPLICATE", "SAMPLE", "CLOSED"]);
           for (const leads of batchLeads) {
             for (const lead of leads) {
               const leadId = lead.uid || lead.id;
@@ -1475,10 +1517,50 @@ async function handleFetchAvailability(
               const statusUpper = String(lead.status || "").toUpperCase();
               if (DEAD_STATUSES.has(statusUpper)) continue;
 
-              const leadPropUid: string | undefined = lead.propertyUid || lead.property_uid;
-              const leadRoomUid: string | undefined = lead.roomUid || lead.roomTypeUid || lead.room_uid;
-              const checkIn: string | undefined = lead.checkInDate || lead.arrival_date;
-              const checkOut: string | undefined = lead.checkOutDate || lead.departure_date;
+              const leadPropUid = readNestedString(lead, [
+                ["propertyUid"],
+                ["property_uid"],
+                ["property", "uid"],
+                ["property", "id"],
+                ["listing", "uid"],
+                ["listing", "id"],
+              ]);
+              const leadRoomUid = readNestedString(lead, [
+                ["roomUid"],
+                ["roomTypeUid"],
+                ["room_uid"],
+                ["room_type_uid"],
+                ["room", "uid"],
+                ["room", "id"],
+                ["roomType", "uid"],
+                ["roomType", "id"],
+                ["unitUid"],
+                ["unit_uid"],
+                ["unit", "uid"],
+                ["unit", "id"],
+                ["property", "roomUid"],
+                ["property", "roomTypeUid"],
+              ]);
+              const checkIn = readNestedString(lead, [
+                ["checkInDate"],
+                ["check_in_date"],
+                ["arrival_date"],
+                ["arrivalDate"],
+                ["startDate"],
+                ["checkInLocalDateTime"],
+                ["checkInZonedDateTime"],
+                ["stay", "checkInDate"],
+              ]);
+              const checkOut = readNestedString(lead, [
+                ["checkOutDate"],
+                ["check_out_date"],
+                ["departure_date"],
+                ["departureDate"],
+                ["endDate"],
+                ["checkOutLocalDateTime"],
+                ["checkOutZonedDateTime"],
+                ["stay", "checkOutDate"],
+              ]);
               if (!checkIn || !checkOut) continue;
 
               // Resolve room type + whether the reservation is pinned to a leaf
@@ -1487,6 +1569,9 @@ async function handleFetchAvailability(
               if (leadPropUid && leafToRoomType.has(leadPropUid)) {
                 roomTypeId = leafToRoomType.get(leadPropUid);
                 pinnedLeafUid = leadPropUid;
+              } else if (leadRoomUid && leafToRoomType.has(leadRoomUid)) {
+                roomTypeId = leafToRoomType.get(leadRoomUid);
+                pinnedLeafUid = leadRoomUid;
               } else if (leadRoomUid) {
                 const rt = roomTypeRows.find(r => r.hostfully_room_id === leadRoomUid);
                 if (rt) roomTypeId = rt.id;
@@ -1779,8 +1864,8 @@ async function handleGetReservations(
 
   try {
     let endpoint = `/leads?propertyUid=${propertyUid}`;
-    if (startDate) endpoint += `&checkInDate=${startDate}`;
-    if (endDate) endpoint += `&checkOutDate=${endDate}`;
+    if (startDate) endpoint += `&checkOutFrom=${startDate}`;
+    if (endDate) endpoint += `&checkInTo=${endDate}`;
 
     const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
 
@@ -1789,8 +1874,8 @@ async function handleGetReservations(
       return createErrorResponse(error.code, error.message, "get_reservations");
     }
 
-    const bookings = await response.json();
-    const reservations = (bookings || []).map(mapHostfullyBookingToReservation);
+    const bookings = extractHostfullyLeads(await response.json());
+    const reservations = bookings.map(mapHostfullyBookingToReservation);
 
     return createSuccessResponse({ reservations }, "get_reservations");
   } catch (err) {
