@@ -87,6 +87,13 @@ interface PMSData {
   roomTypes: PMSRoomTypeData[];
   lastSynced: Date | null;
   systemType: string;
+  cacheVersion?: number;
+}
+
+interface CanonicalRoomType {
+  id: string;
+  name: string;
+  category: string | null;
 }
 
 type PMSSyncStatus = "idle" | "loading" | "success" | "error" | "not_configured" | "no_property_code";
@@ -98,6 +105,26 @@ const restrictionOptions = [
   { id: "lead_days_advance", label: "Lead Days Advance", color: "bg-yellow-500" },
   { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
 ];
+
+const PMS_SESSION_CACHE_VERSION = 2;
+
+const getRoomDisplayOrder = (name: string) => {
+  const normalized = name.trim().toLowerCase();
+  const preferredOrder: Record<string, number> = {
+    "compact studio": 1,
+    "studio": 2,
+    "compact one bedroom apartment": 3,
+    "one-bedroom apartment": 4,
+    "two-bedroom apartment": 5,
+  };
+  return preferredOrder[normalized] ?? 100;
+};
+
+const sortRoomsByDisplayOrder = <T extends { name: string }>(rooms: T[]) =>
+  [...rooms].sort((a, b) => {
+    const rankDiff = getRoomDisplayOrder(a.name) - getRoomDisplayOrder(b.name);
+    return rankDiff !== 0 ? rankDiff : a.name.localeCompare(b.name);
+  });
 
 const getSouthAfricanHolidays = (year: number): { [key: string]: string } => {
   const holidays: { [key: string]: string } = {
@@ -188,6 +215,7 @@ const CalendarAccommodation = () => {
   const [checkedOccupancyRows, setCheckedOccupancyRows] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
+  const [canonicalRoomTypeMap, setCanonicalRoomTypeMap] = useState<Map<string, CanonicalRoomType>>(new Map());
 
   const toggleOccupancyRow = (roomName: string, rateTypeId: string, occKey: string) => {
     const key = `${roomName}-${rateTypeId}-${occKey}`;
@@ -213,6 +241,10 @@ const CalendarAccommodation = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion !== PMS_SESSION_CACHE_VERSION) {
+            sessionStorage.removeItem(`pms_data_${propertyId}`);
+            return { roomTypes: [], lastSynced: null, systemType: "" };
+          }
           return {
             ...parsed,
             lastSynced: parsed.lastSynced ? new Date(parsed.lastSynced) : null,
@@ -229,7 +261,15 @@ const CalendarAccommodation = () => {
     const propertyId = searchParams.get("property");
     if (propertyId) {
       const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
-      if (cached) return "success";
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion === PMS_SESSION_CACHE_VERSION) return "success";
+          sessionStorage.removeItem(`pms_data_${propertyId}`);
+        } catch (_) {
+          sessionStorage.removeItem(`pms_data_${propertyId}`);
+        }
+      }
     }
     return "idle";
   });
@@ -241,6 +281,10 @@ const CalendarAccommodation = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion !== PMS_SESSION_CACHE_VERSION) {
+            sessionStorage.removeItem(`pms_data_${propertyId}`);
+            return null;
+          }
           return parsed.lastSynced ? new Date(parsed.lastSynced) : null;
         } catch (e) {
           return null;
@@ -270,11 +314,17 @@ const CalendarAccommodation = () => {
         fetchRoomCategories(selectedProperty);
       } else {
         setRoomCategoryMap(new Map());
+        setCanonicalRoomTypeMap(new Map());
       }
     }
   }, [selectedProperty, properties]);
 
   useEffect(() => {
+    if (canonicalRoomTypeMap.size > 0) {
+      setSelectedRoomTypes(Array.from(canonicalRoomTypeMap.values()).map((room) => room.name));
+      return;
+    }
+
     if (pmsData.roomTypes.length > 0) {
       setSelectedRoomTypes(pmsData.roomTypes.map((room) => room.roomTypeName));
       return;
@@ -283,7 +333,7 @@ const CalendarAccommodation = () => {
     if (roomTypes.length > 0) {
       setSelectedRoomTypes(roomTypes.map((r) => r.name || r));
     }
-  }, [roomTypes, pmsData.roomTypes]);
+  }, [roomTypes, pmsData.roomTypes, canonicalRoomTypeMap]);
 
   const getPmsPropertyCode = useCallback((property: Property | undefined): string | null => {
     if (!property?.external_system) return null;
@@ -484,6 +534,7 @@ const CalendarAccommodation = () => {
           roomTypes: cachedData,
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
+          cacheVersion: PMS_SESSION_CACHE_VERSION,
         });
         setPmsSyncStatus("success");
         setLastSyncTime(new Date());
@@ -515,6 +566,7 @@ const CalendarAccommodation = () => {
           roomTypes: staleCachedData,
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
+          cacheVersion: PMS_SESSION_CACHE_VERSION,
         });
         staleFallbackApplied = transformedRoomsHaveRates(staleCachedData);
       }
@@ -637,6 +689,7 @@ const CalendarAccommodation = () => {
         roomTypes: transformedData,
         lastSynced: new Date(),
         systemType: selectedPropertyData.external_system,
+        cacheVersion: PMS_SESSION_CACHE_VERSION,
       });
       setPmsSyncStatus("success");
       setLastSyncTime(new Date());
@@ -672,6 +725,7 @@ const CalendarAccommodation = () => {
             roomTypes: recoveredCache,
             lastSynced: new Date(),
             systemType: selectedPropertyData.external_system,
+            cacheVersion: PMS_SESSION_CACHE_VERSION,
           });
           setPmsSyncStatus("success");
           setLastSyncTime(new Date());
@@ -1023,6 +1077,7 @@ const CalendarAccommodation = () => {
       roomTypes: transformedRooms,
       lastSynced: new Date(),
       systemType: 'manual',
+      cacheVersion: PMS_SESSION_CACHE_VERSION,
     });
     setPmsSyncStatus("success");
     setLastSyncTime(new Date());
@@ -1297,27 +1352,35 @@ const CalendarAccommodation = () => {
   // from a broken mapping) and appends any active room types that were missed by
   // the sync so operators can see the whole property.
   const canonicalRoomData = React.useMemo(() => {
-    if (roomCategoryMap.size === 0) return calendarRoomData;
-    const canonical = new Set(roomCategoryMap.keys());
-    const filtered = calendarRoomData.filter(r => canonical.has(r.name));
-    const present = new Set(filtered.map(r => r.name));
-    for (const name of canonical) {
-      if (!present.has(name)) {
-        filtered.push({
-          name,
-          pmsRoomTypeId: "",
-          rates: [],
-          availability: {} as { [date: string]: number | AvailabilityData },
-          allowTeens: true,
-          allowChildren: true,
-          allowInfants: true,
-          minGuests: 1,
-          units: 1,
-        });
+    if (canonicalRoomTypeMap.size === 0) return calendarRoomData;
+
+    const byId = new Map(calendarRoomData.map((room) => [room.pmsRoomTypeId, room]));
+    const byName = new Map(calendarRoomData.map((room) => [room.name, room]));
+
+    return sortRoomsByDisplayOrder(Array.from(canonicalRoomTypeMap.values())).map((canonicalRoom) => {
+      const existing = byId.get(canonicalRoom.id) || byName.get(canonicalRoom.name);
+
+      if (existing) {
+        return {
+          ...existing,
+          name: canonicalRoom.name,
+          pmsRoomTypeId: canonicalRoom.id,
+        };
       }
-    }
-    return filtered;
-  }, [calendarRoomData, roomCategoryMap]);
+
+      return {
+        name: canonicalRoom.name,
+        pmsRoomTypeId: canonicalRoom.id,
+        rates: [],
+        availability: {} as { [date: string]: number | AvailabilityData },
+        allowTeens: true,
+        allowChildren: true,
+        allowInfants: true,
+        minGuests: 1,
+        units: 1,
+      };
+    });
+  }, [calendarRoomData, canonicalRoomTypeMap]);
 
 
   // Get rate type options from property's saved pms_rate_types (same as Property Form > Room Information > Rate Types)
@@ -1417,21 +1480,31 @@ const CalendarAccommodation = () => {
     try {
       const { data, error } = await supabase
         .from("hostfully_room_types")
-        .select("name, property_type")
+        .select("id, name, property_type")
         .eq("property_id", propertyId)
         .eq("is_active", true);
       
       if (error || !data) return;
       
       const catMap = new Map<string, string>();
-      for (const row of data) {
+      const canonicalMap = new Map<string, CanonicalRoomType>();
+      for (const row of sortRoomsByDisplayOrder(data.filter((row) => row.name))) {
+        if (row.id && row.name) {
+          canonicalMap.set(row.id, {
+            id: row.id,
+            name: row.name,
+            category: row.property_type || null,
+          });
+        }
         if (row.name && row.property_type) {
           catMap.set(row.name, row.property_type);
         }
       }
       setRoomCategoryMap(catMap);
+      setCanonicalRoomTypeMap(canonicalMap);
     } catch (err) {
       console.error("Error fetching room categories:", err);
+      setCanonicalRoomTypeMap(new Map());
     }
   };
 
@@ -1591,13 +1664,10 @@ const CalendarAccommodation = () => {
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
-      // Try exact match first, then fuzzy match
-      const pmsRoom = pmsData.roomTypes.find(rt => 
-        rt.roomTypeName === roomName
-      ) || pmsData.roomTypes.find(rt => 
-        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-      );
+      const displayRoom = canonicalRoomData.find((room) => room.name === roomName);
+      const pmsRoom = displayRoom?.pmsRoomTypeId
+        ? pmsData.roomTypes.find((rt) => rt.roomTypeId === displayRoom.pmsRoomTypeId)
+        : pmsData.roomTypes.find((rt) => rt.roomTypeName === roomName);
       
       if (pmsRoom && pmsRoom.availabilityByDate[dateStr] !== undefined) {
         return { value: pmsRoom.availabilityByDate[dateStr], fromPms: true };
@@ -1620,12 +1690,10 @@ const CalendarAccommodation = () => {
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
-      const pmsRoom = pmsData.roomTypes.find(rt => 
-        rt.roomTypeName === roomName
-      ) || pmsData.roomTypes.find(rt => 
-        rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-        roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-      );
+      const displayRoom = canonicalRoomData.find((room) => room.name === roomName);
+      const pmsRoom = displayRoom?.pmsRoomTypeId
+        ? pmsData.roomTypes.find((rt) => rt.roomTypeId === displayRoom.pmsRoomTypeId)
+        : pmsData.roomTypes.find((rt) => rt.roomTypeName === roomName);
       
       if (pmsRoom && pmsRoom.ratesByDate[dateStr]) {
         // Find by rate type ID first
@@ -1695,16 +1763,10 @@ const CalendarAccommodation = () => {
     const dateStr = format(date, "yyyy-MM-dd");
     
     if (pmsData.roomTypes.length > 0) {
-      // Try exact match first
-      let pmsRoom = pmsData.roomTypes.find(rt => rt.roomTypeName === roomName);
-      
-      // Fallback to fuzzy match if exact match not found
-      if (!pmsRoom) {
-        pmsRoom = pmsData.roomTypes.find(rt => 
-          rt.roomTypeName.toLowerCase().includes(roomName.toLowerCase()) ||
-          roomName.toLowerCase().includes(rt.roomTypeName.toLowerCase())
-        );
-      }
+      const displayRoom = canonicalRoomData.find((room) => room.name === roomName);
+      const pmsRoom = displayRoom?.pmsRoomTypeId
+        ? pmsData.roomTypes.find((rt) => rt.roomTypeId === displayRoom.pmsRoomTypeId)
+        : pmsData.roomTypes.find((rt) => rt.roomTypeName === roomName);
       
       if (pmsRoom) {
         // Check if we have restrictions for this date
