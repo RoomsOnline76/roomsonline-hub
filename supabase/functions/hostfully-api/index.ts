@@ -1946,6 +1946,17 @@ serve(async (req) => {
         break;
       }
 
+      case "repair_room_mapping": {
+        if (!body.property_id) {
+          return new Response(
+            JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "property_id is required", action)),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+          );
+        }
+        response = await handleRepairRoomMapping(creds, supabase, body.property_id);
+        break;
+      }
+
       default:
         response = createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Unknown action: ${action}`, action);
     }
