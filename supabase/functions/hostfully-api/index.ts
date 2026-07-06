@@ -1751,8 +1751,12 @@ async function handleFetchAvailability(
         console.warn("[Hostfully] Reservation deduction failed, using raw calendar counts:", err);
       }
 
-      // Apply deductions to each room type's dateAvailMap
+      // Apply deductions to each room type's dateAvailMap — but SKIP any room
+      // type whose availability came from the Hostfully unit-type inventory
+      // endpoint (that count already reflects reservations; deducting again
+      // would double-count OTA holds).
       for (const inter of intermediates) {
+        if (inter.inventoryAuthoritative) continue;
         const bucket = bookedByRoomTypeDate.get(inter.roomType.id);
         if (!bucket) continue;
         for (const [date, data] of inter.dateAvailMap) {
