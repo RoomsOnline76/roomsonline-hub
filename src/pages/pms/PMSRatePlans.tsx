@@ -681,6 +681,18 @@ export default function PMSRatePlans() {
           </div>
         )}
       </div>
+      {stopSellPlan && (
+        <RatePlanStopSellDialog
+          open={!!stopSellPlan}
+          onOpenChange={(o) => { if (!o) setStopSellPlan(null); }}
+          propertyId={stopSellPlan.property_id}
+          propertyName={scopeProperties.find((p) => p.id === stopSellPlan.property_id)?.name}
+          ratePlanId={stopSellPlan.id}
+          ratePlanName={stopSellPlan.name}
+          ratePlanCode={stopSellPlan.code}
+          portfolioProperties={isPortfolio ? scopeProperties.map((p) => ({ id: p.id, name: p.name })) : undefined}
+        />
+      )}
     </>
   );
 }
