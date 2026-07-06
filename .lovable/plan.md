@@ -1,53 +1,49 @@
 ## Goal
-When a user is in a Portfolio context in the ROLOS Dashboard, the Restrictions dialogs (Stop Sell, Min Stay, Max Stay, Lead Days Advance, Lead Days Post) must let them choose which property (or properties) the restriction applies to — a specific property, several, or all properties in the portfolio. In single-property context, behaviour stays unchanged.
+Allow date-range Stop Sell to be applied to a specific **rate plan** (not just a room). Reachable from both the Rate Plans page and the Dashboard Bulk Stop Sell dialog.
+
+## Schema
+New table `public.rolos_rate_plan_stop_sell`:
+- `id uuid pk`
+- `property_id uuid → properties(id)`
+- `rate_plan_id uuid → rolos_rate_plans(id) ON DELETE CASCADE`
+- `date date not null`
+- `created_at`, `created_by`
+- `UNIQUE(rate_plan_id, date)`
+- RLS: staff of the property can read/write (mirror `rolos_rate_plans` policies). GRANTs for `authenticated` + `service_role`.
+
+Rationale: `property_availability` is keyed on `(room_type, date, external_system)` and has no rate-plan concept, so a dedicated closure table is cleaner and avoids polluting the ARI cache.
+
+## UI
+
+### 1. Rate Plans page (`src/pages/pms/PMSRatePlans.tsx`)
+- Add a **Stop Sell** action on each rate-plan card (kebab menu or button next to the Active switch).
+- Opens a new `RatePlanStopSellDialog` with:
+  - Date-range picker (from / to)
+  - Read-only rate plan name
+  - Existing closures list for that rate plan (chips with X to remove)
+  - Property Scope selector (reuse `PropertyScopeSelector`) shown when in Portfolio mode, so the same rate-plan-code closure can be applied across sibling properties that own a plan with the same `code`. Resolve target rate-plan IDs by `code` per property.
+- Save = upsert one row per date × target rate plan.
+
+### 2. Dashboard `BulkStopSellDialog` (`src/components/BulkStopSellDialog.tsx`)
+- Add a **"Apply to"** segmented control: `Rooms` (existing) / `Rate plan`.
+- When `Rate plan` is selected:
+  - Hide the rooms list, show a rate-plan dropdown (fetched via `rolos_rate_plans` for the target property/properties, filtered to `is_active`).
+  - Write to `rolos_rate_plan_stop_sell` instead of `property_availability`.
+  - Existing Property Scope selector continues to work; multi-property writes resolve by rate plan `code`.
+- Toast summarises `dates × rate plans × properties`.
+
+## Booking / ARI enforcement
+- `booking-orchestrator-api` (and the ARI resolver it uses): when evaluating a rate plan for a date, join `rolos_rate_plan_stop_sell`; if a row exists for `(rate_plan_id, date)` in the requested range, treat that plan as closed (exclude from returned rate options, block checkout with `NO_BOOKING_FROM_CACHE`-compatible reason `RATE_PLAN_CLOSED`).
+- Calendar rate row rendering: mark cells as closed for that rate plan (grey pill with lock icon) — small addition in the existing rate row in `PMSDashboard`/`CalendarAccommodation` where rate-plan rows are drawn.
 
 ## Files to change
-
-1. `src/pages/pms/PMSDashboard.tsx`
-2. `src/components/BulkStopSellDialog.tsx`
-3. `src/components/BulkMinimumStayDialog.tsx`
-4. `src/components/BulkMaximumStayDialog.tsx`
-5. `src/components/BulkLeadDaysAdvanceDialog.tsx`
-6. `src/components/BulkLeadDaysPostDialog.tsx`
-
-## Changes
-
-### 1. Extend the dialog props (all 5 Bulk dialogs)
-Add optional props:
-- `portfolioProperties?: { id: string; name: string }[]` — the properties in the current portfolio (only passed when portfolio has >1 property).
-- `roomTypesByProperty?: Record<string, { name: string; id?: string; units?: number }[]>` — room types keyed by property id, so we can show the correct rooms per selected property.
-
-Keep existing `propertyId`, `propertyName`, `roomTypes` props for single-property (backwards compatible).
-
-### 2. Add a Property Scope selector in each dialog
-Rendered only when `portfolioProperties` has >1 entry:
-- A "Apply to" section at the top of the right-hand form pane with:
-  - Radio: **This property only** (default when a single `propertyId` is passed), **All properties in portfolio**, **Select specific properties**.
-  - When "Select specific properties" is chosen, show a checkbox list of portfolio properties (with a "Select all" toggle).
-- The resolved list of target `propertyIds` drives the write.
-
-When no `portfolioProperties` prop is passed, the dialog behaves exactly as today (single property).
-
-### 3. Room selection with multi-property scope
-- When multiple properties are targeted, the left-hand "Select Rooms" list shows the **union of room type names** across the selected properties (deduped by name — `property_availability` matches on `room_type` name, so name-level selection is correct).
-- Each room row shows a small subtitle listing which selected properties it belongs to (e.g. "3 properties").
-
-### 4. Write logic
-Loop the existing upsert/delete over each target `propertyId`:
-- Stop Sell: upsert `property_availability` records with `property_id` per target.
-- Min/Max Stay + Lead Days Advance/Post: the same field-per-date upsert pattern already used, iterated per property.
-- Toast summarises `{dates} dates × {rooms} rooms × {properties} properties`.
-
-### 5. Wire dialogs from `PMSDashboard.tsx`
-- Compute `portfolioProperties` from the already-available `portfolioProperties` variable (only when `isPortfolioMode`).
-- Compute `roomTypesByProperty` from portfolio room-type data (already fetched for the portfolio view — reuse the same query result; if not available for the currently-rendered dialog, fetch on demand using a lightweight `properties → amenities.room_types` query keyed by portfolio ids).
-- Pass both props to the 5 `<Bulk*Dialog />` elements at the bottom of `PMSDashboard.tsx`.
-- Default `propertyId`/`propertyName` still point at the currently-selected property so "This property only" is preselected and single-property flow is unchanged.
-
-### 6. `onRuleCreated` invalidation
-No changes — same query keys are invalidated; RLS already scopes per property, so writes to multiple properties in the same call are safe.
+- New: `supabase/migrations/<ts>_rate_plan_stop_sell.sql`
+- New: `src/components/restrictions/RatePlanStopSellDialog.tsx`
+- `src/pages/pms/PMSRatePlans.tsx` — add action + dialog wiring
+- `src/components/BulkStopSellDialog.tsx` — mode switch + rate-plan write path
+- `src/pages/pms/PMSDashboard.tsx` — pass rate-plan list into dialog
+- `supabase/functions/booking-orchestrator-api/index.ts` — honour new closures
+- Optional calendar tint: `src/pages/pms/PMSDashboard.tsx` / `CalendarAccommodation.tsx`
 
 ## Out of scope
-- Any change to the calendar rendering, restriction visualisation, or rate/ARI logic.
-- Any schema/migration change (still writing to `property_availability`).
-- Non-restriction dialogs (Bulk Rate, Manual Booking).
+- No changes to `property_availability`, rates, or channel-manager push (channel mapping of rate-plan closures can be layered in a follow-up).
