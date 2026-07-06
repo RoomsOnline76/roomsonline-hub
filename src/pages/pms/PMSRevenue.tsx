@@ -307,6 +307,31 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
                 </div>
               )}
 
+              {form.rule_type === "season" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Linked Season</Label>
+                  {seasons.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No seasons configured for this property yet. Configure seasons in Rate Management first.
+                    </p>
+                  ) : (
+                    <Select value={form.season_id} onValueChange={v => setForm(f => ({ ...f, season_id: v }))}>
+                      <SelectTrigger><SelectValue placeholder="Select a season" /></SelectTrigger>
+                      <SelectContent>
+                        {seasons.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name} ({s.start_date} – {s.end_date})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">The adjustment applies to dates within this season.</p>
+                </div>
+              )}
+
+
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Adjustment %</Label>
