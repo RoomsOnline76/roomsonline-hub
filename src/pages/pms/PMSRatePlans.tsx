@@ -10,7 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2 } from "lucide-react";
+import { Plus, TrendingUp, RefreshCw, Pencil, Link2, DollarSign, Trash2, ChevronLeft, ChevronRight, LayoutGrid, Building2, Ban } from "lucide-react";
+import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -90,6 +91,7 @@ export default function PMSRatePlans() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<RatePlan | null>(null);
+  const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
   const [form, setForm] = useState({
     name: "", code: "", description: "", min_stay: "1", requires_deposit: false,
     base_rate: "",
@@ -465,6 +467,15 @@ export default function PMSRatePlans() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">{plan.name}{plan.is_active === false && <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>}</CardTitle>
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Stop Sell"
+                onClick={() => setStopSellPlan(plan)}
+              >
+                <Ban className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleOpenDialog(plan)}>
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -670,6 +681,18 @@ export default function PMSRatePlans() {
           </div>
         )}
       </div>
+      {stopSellPlan && (
+        <RatePlanStopSellDialog
+          open={!!stopSellPlan}
+          onOpenChange={(o) => { if (!o) setStopSellPlan(null); }}
+          propertyId={stopSellPlan.property_id}
+          propertyName={scopeProperties.find((p) => p.id === stopSellPlan.property_id)?.name}
+          ratePlanId={stopSellPlan.id}
+          ratePlanName={stopSellPlan.name}
+          ratePlanCode={stopSellPlan.code}
+          portfolioProperties={isPortfolio ? scopeProperties.map((p) => ({ id: p.id, name: p.name })) : undefined}
+        />
+      )}
     </>
   );
 }
