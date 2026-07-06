@@ -1493,7 +1493,7 @@ async function handleFetchAvailability(
           const batchLeads = await Promise.all(
             batch.map(async (uid) => {
               try {
-                const endpoint = `/leads?propertyUid=${uid}&checkInDate=${startDate}&checkOutDate=${endDate}`;
+                const endpoint = `/leads?propertyUid=${uid}&checkInTo=${endDate}&checkOutFrom=${startDate}&_limit=100`;
                 const resp = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
                 if (!resp.ok) {
                   console.warn(`[Hostfully] leads fetch failed for ${uid}: ${resp.status}`);
@@ -1508,7 +1508,7 @@ async function handleFetchAvailability(
             })
           );
 
-          const DEAD_STATUSES = new Set(["CANCELLED", "DECLINED", "IGNORED", "EXPIRED"]);
+          const DEAD_STATUSES = new Set(["CANCELLED", "DECLINED", "IGNORED", "EXPIRED", "DUPLICATE", "SAMPLE", "CLOSED"]);
           for (const leads of batchLeads) {
             for (const lead of leads) {
               const leadId = lead.uid || lead.id;
