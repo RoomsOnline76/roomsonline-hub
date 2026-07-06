@@ -204,8 +204,26 @@ async function resolveFromCache(
   for (const rt of roomTypes) {
     roomAliases.set(String(rt.id), [slugify(rt.name)]);
   }
-  return transformCacheToAvailability(cacheData, roomAliases);
+
+  // Load the property's live active room types so we can drop stale/ghost cache rows
+  // and always show the current canonical name (see ONE46 ON M incident, 2026-07).
+  const activeRoomTypes = new Map<string, string>();
+  const { data: hfRooms } = await supabase
+    .from("hostfully_room_types")
+    .select("id, name")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+  if (hfRooms) {
+    for (const r of hfRooms as any[]) activeRoomTypes.set(String(r.id), r.name);
+  }
+
+  return transformCacheToAvailability(
+    cacheData,
+    roomAliases,
+    activeRoomTypes.size > 0 ? activeRoomTypes : undefined,
+  );
 }
+
 
 async function resolveRolosRates(
   supabase: any,
