@@ -6,11 +6,18 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 // HOSTFULLY API ADAPTER
 // Conforms to: supabase/functions/_shared/adapter-contract.ts
 // Reference: https://dev.hostfully.com/reference/getting-started
-// 
+//
 // KEY CHANGE: Owner-level API keys
 // - API key is tied to an Owner (Agency in Hostfully) who owns many properties
 // - Each property has many rooms
 // - API key passed per-request from owner_pms_credentials table
+//
+// 🔒 ADAPTER LOCK — DO NOT MODIFY WITHOUT EXPLICIT USER APPROVAL
+// See .lovable/ADAPTER_LOCKS.md. Availability MUST resolve from Hostfully
+// unit-type inventory (Rooms-to-Sell parity), NOT summed leaf-unit calendars.
+// Regressing this caused the ONE46 ON M availability drift (2026-07).
+// If you must change `handleFetchAvailability` or `fetchHostfullyUnitTypeInventory`,
+// obtain the user's written go-ahead in the same message that ships the change.
 // ============================================================================
 
 const corsHeaders = {
@@ -1266,6 +1273,97 @@ async function handleRepairRoomMapping(
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 🔒 ADAPTER LOCK — Unit-Type Inventory Fetcher
+// Hostfully "Rooms to Sell" parity requires the unit-type-level inventory
+// endpoint, which returns the true count of sellable units per night after the
+// PMS has applied all reservations (including OTA holds on the parent Room
+// that never flip a leaf unit calendar). Summing leaf `/property-calendar`
+// endpoints ALONE overcounts and drifts — never fall back silently to that
+// path without exhausting the inventory endpoint variants below first.
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchHostfullyUnitTypeInventory(
+  unitTypeUid: string,
+  startDate: string,
+  endDate: string,
+  apiKey: string,
+  baseUrl: string,
+): Promise<{ date: string; available_units: number; min_stay?: number; max_stay?: number; closed_to_arrival?: boolean; closed_to_departure?: boolean }[] | null> {
+  // Endpoint candidates in priority order. Hostfully v3 exposes unit-type
+  // inventory under a few equivalent aliases depending on tenant migration
+  // state. We try each until one returns per-date counts.
+  const endpoints = [
+    `/multi-units/unit-types/${unitTypeUid}/availabilities?startDate=${startDate}&endDate=${endDate}`,
+    `/multi-units/availabilities?unitTypeUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+    `/availabilities?propertyUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+    `/availabilities?unitTypeUid=${unitTypeUid}&startDate=${startDate}&endDate=${endDate}`,
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const resp = await hostfullyRequest(endpoint, apiKey, baseUrl);
+      if (!resp.ok) continue;
+      const body = await resp.json().catch(() => null);
+      if (!body) continue;
+
+      // Locate the array of per-date entries in a variety of possible shapes.
+      const arr: any[] | null =
+        (Array.isArray(body?.availabilities) && body.availabilities) ||
+        (Array.isArray(body?.data) && body.data) ||
+        (Array.isArray(body?.calendar?.entries) && body.calendar.entries) ||
+        (Array.isArray(body?.calendar) && body.calendar) ||
+        (Array.isArray(body) && body) ||
+        null;
+      if (!arr || arr.length === 0) continue;
+
+      const days: { date: string; available_units: number; min_stay?: number; max_stay?: number; closed_to_arrival?: boolean; closed_to_departure?: boolean }[] = [];
+      for (const entry of arr) {
+        const date: string | undefined = entry?.date || entry?.day || entry?.calendarDate;
+        if (!date) continue;
+
+        // Prefer explicit inventory count fields; fall back to boolean *only*
+        // if the entry itself is scoped to a single unit (avoid this — we want
+        // the aggregate).
+        const rawCount =
+          entry?.numberOfAvailableUnits ??
+          entry?.availableUnits ??
+          entry?.available_units ??
+          entry?.availableCount ??
+          entry?.count ??
+          entry?.inventory ??
+          entry?.availability?.numberOfAvailableUnits ??
+          entry?.availability?.availableUnits;
+
+        // If no count present at all, this endpoint isn't the inventory
+        // endpoint — bail out of this candidate entirely.
+        if (rawCount === undefined || rawCount === null) {
+          days.length = 0;
+          break;
+        }
+
+        const count = Math.max(0, Math.floor(Number(rawCount) || 0));
+        const availabilityBlock = entry?.availability ?? entry;
+        days.push({
+          date,
+          available_units: count,
+          min_stay: availabilityBlock?.minimumStayLength ?? entry?.minimumStay,
+          max_stay: availabilityBlock?.maximumStayLength ?? entry?.maximumStay ?? null,
+          closed_to_arrival: availabilityBlock?.availableForCheckIn === false,
+          closed_to_departure: availabilityBlock?.availableForCheckOut === false,
+        });
+      }
+      if (days.length > 0) {
+        console.log(`[Hostfully] Unit-type inventory ok via ${endpoint.split('?')[0]} (${days.length} days) for ${unitTypeUid}`);
+        return days;
+      }
+    } catch (err) {
+      console.warn(`[Hostfully] Unit-type inventory attempt failed for ${endpoint}:`, err);
+    }
+  }
+
+  return null;
+}
+
 async function handleFetchAvailability(
   creds: HostfullyCredentials,
   propertyUid: string,
@@ -1389,6 +1487,10 @@ async function handleFetchAvailability(
         dateAvailMap: Map<string, { available: number; restrictions: any; rates: any[] }>;
         unavailableLeavesByDate: Map<string, Set<string>>;
         firstUnit: any | null;
+        // When populated, availability came from Hostfully's unit-type inventory
+        // endpoint (Rooms-to-Sell parity) and reservation deduction MUST be
+        // skipped for this room type — inventory already reflects bookings.
+        inventoryAuthoritative: boolean;
       };
       const intermediates: Intermediate[] = [];
 
@@ -1403,7 +1505,48 @@ async function handleFetchAvailability(
           if (u.hostfully_uid) leafToRoomType.set(u.hostfully_uid, roomType.id);
         }
 
+        // ── 🔒 ADAPTER LOCK: PREFER UNIT-TYPE INVENTORY ────────────────────
+        // Hostfully's unit-type (Rooms-to-Sell) inventory is the single source
+        // of truth for how many units are actually sellable per night. We try
+        // it first using the room type's Hostfully room id (which for hotel /
+        // multi-unit properties is the unit-type UID). Only if that endpoint
+        // returns no data do we fall back to aggregating child-unit calendars.
+        let inventoryAuthoritative = false;
+        const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
+        const unavailableLeavesByDate = new Map<string, Set<string>>();
         const unitAvailabilities: any[] = [];
+
+        const unitTypeUid = roomType.hostfully_room_id;
+        if (unitTypeUid) {
+          const inventory = await fetchHostfullyUnitTypeInventory(
+            unitTypeUid,
+            startDate,
+            endDate,
+            creds.api_key,
+            baseUrl,
+          );
+          if (inventory && inventory.length > 0) {
+            inventoryAuthoritative = true;
+            for (const day of inventory) {
+              dateAvailMap.set(day.date, {
+                available: day.available_units,
+                restrictions: {
+                  stop_sell: day.available_units === 0,
+                  min_stay: day.min_stay ?? 1,
+                  max_stay: day.max_stay ?? null,
+                  closed_to_arrival: !!day.closed_to_arrival,
+                  closed_to_departure: !!day.closed_to_departure,
+                },
+                rates: [],
+              });
+            }
+          }
+        }
+
+        // Always fetch at least ONE leaf calendar so we can hydrate rates
+        // (rate_types for the room type) — inventory endpoint doesn't return
+        // pricing. When inventory was NOT authoritative, use the leaf sums to
+        // build availability too.
         for (let i = 0; i < unitEntries.length; i += BATCH_SIZE) {
           const batch = unitEntries.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
@@ -1435,29 +1578,34 @@ async function handleFetchAvailability(
           for (const rt of batchResults) {
             if (rt) unitAvailabilities.push(rt);
           }
+          // If inventory is authoritative we only need the first leaf for rates.
+          if (inventoryAuthoritative && unitAvailabilities.length > 0) break;
         }
 
-        const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
-        const unavailableLeavesByDate = new Map<string, Set<string>>();
-
-        for (const unitAvail of unitAvailabilities) {
-          const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
-          const perNight = unitAvail.availability_per_night || [];
-          for (const day of perNight) {
-            const existing = dateAvailMap.get(day.date);
-            if (existing) {
-              existing.available += (day.available_units || 0);
-            } else {
-              dateAvailMap.set(day.date, {
-                available: day.available_units || 0,
-                restrictions: day.restrictions || {},
-                rates: [],
-              });
-            }
-            if ((day.available_units || 0) === 0) {
-              const set = unavailableLeavesByDate.get(day.date) || new Set<string>();
-              set.add(leafUid);
-              unavailableLeavesByDate.set(day.date, set);
+        // Only aggregate leaf calendars into availability when unit-type
+        // inventory was NOT available. When authoritative, `dateAvailMap` is
+        // already populated from the inventory endpoint and MUST NOT be
+        // double-counted with leaf sums.
+        if (!inventoryAuthoritative) {
+          for (const unitAvail of unitAvailabilities) {
+            const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
+            const perNight = unitAvail.availability_per_night || [];
+            for (const day of perNight) {
+              const existing = dateAvailMap.get(day.date);
+              if (existing) {
+                existing.available += (day.available_units || 0);
+              } else {
+                dateAvailMap.set(day.date, {
+                  available: day.available_units || 0,
+                  restrictions: day.restrictions || {},
+                  rates: [],
+                });
+              }
+              if ((day.available_units || 0) === 0) {
+                const set = unavailableLeavesByDate.get(day.date) || new Set<string>();
+                set.add(leafUid);
+                unavailableLeavesByDate.set(day.date, set);
+              }
             }
           }
         }
@@ -1468,6 +1616,7 @@ async function handleFetchAvailability(
           dateAvailMap,
           unavailableLeavesByDate,
           firstUnit: unitAvailabilities[0] || null,
+          inventoryAuthoritative,
         });
       }
 
@@ -1602,8 +1751,12 @@ async function handleFetchAvailability(
         console.warn("[Hostfully] Reservation deduction failed, using raw calendar counts:", err);
       }
 
-      // Apply deductions to each room type's dateAvailMap
+      // Apply deductions to each room type's dateAvailMap — but SKIP any room
+      // type whose availability came from the Hostfully unit-type inventory
+      // endpoint (that count already reflects reservations; deducting again
+      // would double-count OTA holds).
       for (const inter of intermediates) {
+        if (inter.inventoryAuthoritative) continue;
         const bucket = bookedByRoomTypeDate.get(inter.roomType.id);
         if (!bucket) continue;
         for (const [date, data] of inter.dateAvailMap) {
