@@ -87,6 +87,7 @@ interface PMSData {
   roomTypes: PMSRoomTypeData[];
   lastSynced: Date | null;
   systemType: string;
+  cacheVersion?: number;
 }
 
 interface CanonicalRoomType {
@@ -104,6 +105,8 @@ const restrictionOptions = [
   { id: "lead_days_advance", label: "Lead Days Advance", color: "bg-yellow-500" },
   { id: "lead_days_post", label: "Lead Days Post", color: "bg-orange-500" },
 ];
+
+const PMS_SESSION_CACHE_VERSION = 2;
 
 const getSouthAfricanHolidays = (year: number): { [key: string]: string } => {
   const holidays: { [key: string]: string } = {
@@ -220,6 +223,10 @@ const CalendarAccommodation = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion !== PMS_SESSION_CACHE_VERSION) {
+            sessionStorage.removeItem(`pms_data_${propertyId}`);
+            return { roomTypes: [], lastSynced: null, systemType: "" };
+          }
           return {
             ...parsed,
             lastSynced: parsed.lastSynced ? new Date(parsed.lastSynced) : null,
@@ -236,7 +243,15 @@ const CalendarAccommodation = () => {
     const propertyId = searchParams.get("property");
     if (propertyId) {
       const cached = sessionStorage.getItem(`pms_data_${propertyId}`);
-      if (cached) return "success";
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion === PMS_SESSION_CACHE_VERSION) return "success";
+          sessionStorage.removeItem(`pms_data_${propertyId}`);
+        } catch (_) {
+          sessionStorage.removeItem(`pms_data_${propertyId}`);
+        }
+      }
     }
     return "idle";
   });
@@ -248,6 +263,10 @@ const CalendarAccommodation = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          if (parsed.cacheVersion !== PMS_SESSION_CACHE_VERSION) {
+            sessionStorage.removeItem(`pms_data_${propertyId}`);
+            return null;
+          }
           return parsed.lastSynced ? new Date(parsed.lastSynced) : null;
         } catch (e) {
           return null;
