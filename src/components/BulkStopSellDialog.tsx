@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,6 +30,8 @@ interface BulkStopSellDialogProps {
   onRuleCreated?: () => void;
 }
 
+type ApplyMode = "rooms" | "rate_plan";
+
 export function BulkStopSellDialog({
   open,
   onOpenChange,
@@ -38,28 +42,25 @@ export function BulkStopSellDialog({
   roomTypesByProperty,
   onRuleCreated,
 }: BulkStopSellDialogProps) {
+  const [applyMode, setApplyMode] = useState<ApplyMode>("rooms");
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
+  const [selectedRatePlanIds, setSelectedRatePlanIds] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
-  const [isStopSell, setIsStopSell] = useState(true); // true = block, false = unblock
+  const [isStopSell, setIsStopSell] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scope, setScope] = useState<PropertyScopeValue>({ mode: "single", specificIds: [] });
   const [selectedDays, setSelectedDays] = useState({
-    allDays: true,
-    sunday: true,
-    monday: true,
-    tuesday: true,
-    wednesday: true,
-    thursday: true,
-    friday: true,
-    saturday: true,
+    allDays: true, sunday: true, monday: true, tuesday: true,
+    wednesday: true, thursday: true, friday: true, saturday: true,
   });
 
-  // Reset selection when dialog opens
   useEffect(() => {
     if (open) {
       setSelectedRoomTypes([]);
+      setSelectedRatePlanIds([]);
       setIsStopSell(true);
+      setApplyMode("rooms");
       setScope({ mode: "single", specificIds: [] });
     }
   }, [open]);
@@ -70,121 +71,129 @@ export function BulkStopSellDialog({
   );
   const effectiveRoomTypes = useUnionRoomTypes(targetPropertyIds, roomTypesByProperty, roomTypes);
 
+  // Rate plans across target properties (grouped by code so multi-property selection is one item).
+  const { data: ratePlans = [] } = useQuery({
+    queryKey: ["bulk-stop-sell-rate-plans", targetPropertyIds.join(",")],
+    queryFn: async () => {
+      if (targetPropertyIds.length === 0) return [];
+      const { data } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name, code, property_id")
+        .in("property_id", targetPropertyIds)
+        .eq("is_active", true)
+        .order("name");
+      return (data || []) as { id: string; name: string; code: string | null; property_id: string }[];
+    },
+    enabled: open && applyMode === "rate_plan" && targetPropertyIds.length > 0,
+  });
+
+  // Group rate plans for display: dedupe by (code || name)
+  const groupedRatePlans = useMemo(() => {
+    const byKey = new Map<string, { key: string; label: string; ids: string[]; propertyCount: number }>();
+    for (const p of ratePlans) {
+      const key = (p.code?.trim() || p.name.trim().toLowerCase());
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.ids.push(p.id);
+        existing.propertyCount += 1;
+      } else {
+        byKey.set(key, { key, label: p.name, ids: [p.id], propertyCount: 1 });
+      }
+    }
+    return Array.from(byKey.values());
+  }, [ratePlans]);
 
   const toggleDay = (day: keyof typeof selectedDays) => {
     if (day === "allDays") {
-      const newValue = !selectedDays.allDays;
-      setSelectedDays({
-        allDays: newValue,
-        sunday: newValue,
-        monday: newValue,
-        tuesday: newValue,
-        wednesday: newValue,
-        thursday: newValue,
-        friday: newValue,
-        saturday: newValue,
-      });
+      const nv = !selectedDays.allDays;
+      setSelectedDays({ allDays: nv, sunday: nv, monday: nv, tuesday: nv, wednesday: nv, thursday: nv, friday: nv, saturday: nv });
     } else {
-      setSelectedDays(prev => ({
-        ...prev,
-        [day]: !prev[day],
-        allDays: false,
-      }));
+      setSelectedDays((p) => ({ ...p, [day]: !p[day], allDays: false }));
     }
   };
 
-  const dayOfWeekMap: { [key: string]: number } = {
-    sunday: 0,
-    monday: 1,
-    tuesday: 2,
-    wednesday: 3,
-    thursday: 4,
-    friday: 5,
-    saturday: 6,
+  const dayOfWeekMap: Record<string, number> = {
+    sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6,
   };
 
   const handleCreateRule = async () => {
-    if (targetPropertyIds.length === 0) {
-      toast.error("No property selected");
-      return;
-    }
-
-    if (selectedRoomTypes.length === 0) {
-      toast.error("Please select at least one room type");
-      return;
-    }
-
-    if (!fromDate || !toDate) {
-      toast.error("Please select date range");
-      return;
-    }
+    if (targetPropertyIds.length === 0) { toast.error("No property selected"); return; }
+    if (applyMode === "rooms" && selectedRoomTypes.length === 0) { toast.error("Please select at least one room type"); return; }
+    if (applyMode === "rate_plan" && selectedRatePlanIds.length === 0) { toast.error("Please select at least one rate plan"); return; }
+    if (!fromDate || !toDate) { toast.error("Please select date range"); return; }
 
     setSaving(true);
     try {
-      const allDates = eachDayOfInterval({
-        start: new Date(fromDate),
-        end: new Date(toDate),
-      });
+      const days = Object.entries(selectedDays)
+        .filter(([k, v]) => k !== "allDays" && v)
+        .map(([k]) => dayOfWeekMap[k]);
 
-      const selectedDaysOfWeek = Object.entries(selectedDays)
-        .filter(([key, value]) => key !== 'allDays' && value)
-        .map(([key]) => dayOfWeekMap[key]);
+      const dates = eachDayOfInterval({ start: new Date(fromDate), end: new Date(toDate) })
+        .filter((d) => days.includes(getDay(d)))
+        .map((d) => format(d, "yyyy-MM-dd"));
 
-      const filteredDates = allDates.filter(date =>
-        selectedDaysOfWeek.includes(getDay(date))
-      );
+      if (dates.length === 0) { toast.error("No dates match the selected days of week"); setSaving(false); return; }
 
-      if (filteredDates.length === 0) {
-        toast.error("No dates match the selected days of week");
-        setSaving(false);
-        return;
-      }
-
-      const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
-
-      if (isStopSell) {
-        const records = [];
-        for (const pid of targetPropertyIds) {
-          for (const roomType of selectedRoomTypes) {
-            for (const ds of dateStrings) {
-              records.push({
-                property_id: pid,
-                room_type: roomType,
-                date: ds,
-                is_stop_sell: true,
-                available_units: 0,
-                external_system: 'manual',
-              });
+      if (applyMode === "rooms") {
+        if (isStopSell) {
+          const records: any[] = [];
+          for (const pid of targetPropertyIds) {
+            for (const roomType of selectedRoomTypes) {
+              for (const ds of dates) {
+                records.push({ property_id: pid, room_type: roomType, date: ds, is_stop_sell: true, available_units: 0, external_system: "manual" });
+              }
             }
           }
-        }
-
-        const { error } = await supabase
-          .from("property_availability")
-          .upsert(records, {
-            onConflict: 'property_id,room_type,date',
-            ignoreDuplicates: false,
-          });
-
-        if (error) throw error;
-
-        toast.success(
-          `Blocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
-        );
-      } else {
-        for (const pid of targetPropertyIds) {
           const { error } = await supabase
             .from("property_availability")
-            .delete()
-            .eq("property_id", pid)
-            .in("room_type", selectedRoomTypes)
-            .in("date", dateStrings);
+            .upsert(records, { onConflict: "property_id,room_type,date", ignoreDuplicates: false });
           if (error) throw error;
+          toast.success(`Blocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
+        } else {
+          for (const pid of targetPropertyIds) {
+            const { error } = await supabase
+              .from("property_availability")
+              .delete()
+              .eq("property_id", pid)
+              .in("room_type", selectedRoomTypes)
+              .in("date", dates);
+            if (error) throw error;
+          }
+          toast.success(`Unblocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
         }
+      } else {
+        // Rate plan mode: expand selected grouped keys into all rate plan ids in the group
+        const expandedPlanIds = new Set<string>();
+        for (const key of selectedRatePlanIds) {
+          const g = groupedRatePlans.find((x) => x.key === key);
+          g?.ids.forEach((id) => expandedPlanIds.add(id));
+        }
+        const planToProperty = new Map(ratePlans.map((p) => [p.id, p.property_id]));
 
-        toast.success(
-          `Unblocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
-        );
+        if (isStopSell) {
+          const { data: user } = await supabase.auth.getUser();
+          const records: any[] = [];
+          for (const pid of expandedPlanIds) {
+            const propId = planToProperty.get(pid);
+            if (!propId) continue;
+            for (const ds of dates) {
+              records.push({ rate_plan_id: pid, property_id: propId, date: ds, created_by: user.user?.id ?? null });
+            }
+          }
+          const { error } = await supabase
+            .from("rolos_rate_plan_stop_sell")
+            .upsert(records, { onConflict: "rate_plan_id,date", ignoreDuplicates: true });
+          if (error) throw error;
+          toast.success(`Closed ${dates.length} date(s) × ${expandedPlanIds.size} rate plan(s)`);
+        } else {
+          const { error } = await supabase
+            .from("rolos_rate_plan_stop_sell")
+            .delete()
+            .in("rate_plan_id", Array.from(expandedPlanIds))
+            .in("date", dates);
+          if (error) throw error;
+          toast.success(`Reopened ${dates.length} date(s) × ${expandedPlanIds.size} rate plan(s)`);
+        }
       }
 
       onRuleCreated?.();
@@ -197,7 +206,6 @@ export function BulkStopSellDialog({
     }
   };
 
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -207,45 +215,72 @@ export function BulkStopSellDialog({
             <Badge variant="outline" className="ml-2">Manual Mode</Badge>
           </DialogTitle>
           <DialogDescription>
-            {propertyName ? `Manage availability for ${propertyName}` : 'Block or unblock dates for selected rooms'}
+            {propertyName ? `Manage availability for ${propertyName}` : "Block or unblock dates"}
           </DialogDescription>
         </DialogHeader>
 
+        <Tabs value={applyMode} onValueChange={(v) => setApplyMode(v as ApplyMode)} className="mt-4">
+          <TabsList className="grid grid-cols-2 w-full max-w-sm">
+            <TabsTrigger value="rooms">Rooms</TabsTrigger>
+            <TabsTrigger value="rate_plan">Rate plan</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         <div className="grid grid-cols-12 gap-4 mt-4">
-          {/* Left Sidebar - Rooms */}
           <div className="col-span-4 border rounded-lg p-4 space-y-2 max-h-[400px] overflow-y-auto">
-            <p className="text-sm font-medium mb-2">Select Rooms</p>
-            {effectiveRoomTypes.length > 0 ? (
-              effectiveRoomTypes.map((room) => (
-                <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
-                  <div className="flex items-center">
-                    <Checkbox
-                      id={`stopsell-${room.id || room.name}`}
-                      checked={selectedRoomTypes.includes(room.name)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedRoomTypes([...selectedRoomTypes, room.name]);
-                        } else {
-                          setSelectedRoomTypes(selectedRoomTypes.filter(name => name !== room.name));
-                        }
-                      }}
-                    />
-                    <label htmlFor={`stopsell-${room.id || room.name}`} className="text-sm cursor-pointer ml-2">
-                      {room.name}
-                    </label>
-                  </div>
-                  {room.units ? (
-                    <span className="text-xs text-muted-foreground">{room.units} unit{room.units > 1 ? 's' : ''}</span>
-                  ) : null}
-                </div>
-              ))
+            {applyMode === "rooms" ? (
+              <>
+                <p className="text-sm font-medium mb-2">Select Rooms</p>
+                {effectiveRoomTypes.length > 0 ? (
+                  effectiveRoomTypes.map((room) => (
+                    <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
+                      <div className="flex items-center">
+                        <Checkbox
+                          id={`stopsell-${room.id || room.name}`}
+                          checked={selectedRoomTypes.includes(room.name)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedRoomTypes([...selectedRoomTypes, room.name]);
+                            else setSelectedRoomTypes(selectedRoomTypes.filter((n) => n !== room.name));
+                          }}
+                        />
+                        <label htmlFor={`stopsell-${room.id || room.name}`} className="text-sm cursor-pointer ml-2">{room.name}</label>
+                      </div>
+                      {room.units ? (<span className="text-xs text-muted-foreground">{room.units} unit{room.units > 1 ? "s" : ""}</span>) : null}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No room types available</p>
+                )}
+              </>
             ) : (
-              <p className="text-sm text-muted-foreground">No room types available</p>
+              <>
+                <p className="text-sm font-medium mb-2">Select Rate Plans</p>
+                {groupedRatePlans.length > 0 ? (
+                  groupedRatePlans.map((g) => (
+                    <div key={g.key} className="flex items-center justify-between p-2 hover:bg-muted rounded">
+                      <div className="flex items-center">
+                        <Checkbox
+                          id={`stopsell-rp-${g.key}`}
+                          checked={selectedRatePlanIds.includes(g.key)}
+                          onCheckedChange={(checked) => {
+                            if (checked) setSelectedRatePlanIds([...selectedRatePlanIds, g.key]);
+                            else setSelectedRatePlanIds(selectedRatePlanIds.filter((k) => k !== g.key));
+                          }}
+                        />
+                        <label htmlFor={`stopsell-rp-${g.key}`} className="text-sm cursor-pointer ml-2">{g.label}</label>
+                      </div>
+                      {targetPropertyIds.length > 1 && (
+                        <span className="text-xs text-muted-foreground">{g.propertyCount}/{targetPropertyIds.length}</span>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No active rate plans</p>
+                )}
+              </>
             )}
           </div>
 
-
-          {/* Right Content - Form */}
           <div className="col-span-8 space-y-4">
             {portfolioProperties && portfolioProperties.length > 1 && (
               <PropertyScopeSelector
@@ -257,79 +292,58 @@ export function BulkStopSellDialog({
               />
             )}
             <div className="border rounded-lg p-6 space-y-4">
-
-              {/* Block/Unblock Toggle */}
               <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div>
-                  <p className="font-medium">{isStopSell ? 'Block Dates' : 'Unblock Dates'}</p>
+                  <p className="font-medium">{isStopSell ? "Block Dates" : "Unblock Dates"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {isStopSell ? 'Prevent new bookings' : 'Remove blocks and restore default availability'}
+                    {isStopSell ? "Prevent new bookings" : "Remove blocks and restore default availability"}
                   </p>
                 </div>
-                <Switch 
-                  checked={isStopSell} 
-                  onCheckedChange={setIsStopSell}
-                />
+                <Switch checked={isStopSell} onCheckedChange={setIsStopSell} />
               </div>
 
-              {/* Date Range */}
               <div className="space-y-2">
                 <Label>Date Range</Label>
                 <div className="flex gap-4 items-center">
-                  <Input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="flex-1" />
                   <span className="text-muted-foreground">to</span>
-                  <Input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
-                    className="flex-1"
-                  />
+                  <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="flex-1" />
                 </div>
               </div>
 
-              {/* Days of Week */}
               <div className="space-y-2">
                 <Label>Apply to Days</Label>
                 <div className="flex flex-wrap gap-3">
                   <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="allDays"
-                      checked={selectedDays.allDays}
-                      onCheckedChange={() => toggleDay("allDays")}
-                    />
+                    <Checkbox id="allDays" checked={selectedDays.allDays} onCheckedChange={() => toggleDay("allDays")} />
                     <label htmlFor="allDays" className="text-sm cursor-pointer font-medium">All days</label>
                   </div>
-                  {["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].map((day) => (
+                  {["sunday","monday","tuesday","wednesday","thursday","friday","saturday"].map((day) => (
                     <div key={day} className="flex items-center space-x-2">
                       <Checkbox
                         id={day}
                         checked={selectedDays[day as keyof typeof selectedDays]}
                         onCheckedChange={() => toggleDay(day as keyof typeof selectedDays)}
                       />
-                      <label htmlFor={day} className="text-sm cursor-pointer capitalize">{day.slice(0, 3)}</label>
+                      <label htmlFor={day} className="text-sm cursor-pointer capitalize">{day.slice(0,3)}</label>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  Cancel
-                </Button>
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
                 <Button
                   onClick={handleCreateRule}
-                  disabled={saving || selectedRoomTypes.length === 0 || targetPropertyIds.length === 0}
+                  disabled={
+                    saving ||
+                    targetPropertyIds.length === 0 ||
+                    (applyMode === "rooms" ? selectedRoomTypes.length === 0 : selectedRatePlanIds.length === 0)
+                  }
                   variant={isStopSell ? "destructive" : "default"}
                 >
-
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isStopSell ? 'Block Dates' : 'Unblock Dates'}
+                  {isStopSell ? "Block Dates" : "Unblock Dates"}
                 </Button>
               </div>
             </div>
