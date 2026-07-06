@@ -1124,58 +1124,70 @@ async function handleFetchAvailability(
       );
     }
     
-    let roomName = 'Property';
+    // Look up the matching ROL room type by Hostfully unit UID. If we can't identify
+    // it, we refuse to cache — writing a placeholder "Property" row would poison the
+    // calendar (see ONE46 ON M incident, 2026-07).
+    let roomTypeRow: { id: string; name: string } | null = null;
     try {
       const { data: roomData } = await supabase
         .from('hostfully_room_types')
-        .select('name')
+        .select('id, name')
         .eq('hostfully_room_id', propertyUid)
         .maybeSingle();
-      
-      if (roomData?.name) {
-        roomName = roomData.name;
-      }
-      console.log(`[Hostfully] Using room name: "${roomName}" for propertyUid: ${propertyUid}`);
+      if (roomData?.id) roomTypeRow = roomData;
     } catch (dbErr) {
-      console.warn("[Hostfully] Could not fetch room name from DB, using default:", dbErr);
+      console.warn("[Hostfully] Could not look up room type by hostfully_room_id:", dbErr);
     }
-    
-    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomName);
 
-    // Cache availability
+    if (!roomTypeRow) {
+      console.warn(
+        `[Hostfully] No hostfully_room_types row matches Hostfully UID ${propertyUid} for property ${propertyId ?? 'n/a'} — refusing to cache to avoid ghost rows.`
+      );
+      return createErrorResponse(
+        ERROR_CODES.INVALID_REQUEST,
+        `Cannot identify which room type this Hostfully unit (${propertyUid}) belongs to. Run "Repair Hostfully mapping" to link it before syncing availability.`,
+        "fetch_availability"
+      );
+    }
+
+    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomTypeRow.name);
+
+    // Cache availability under the ROL room type id so orchestrator lookups line up
+    // with hostfully_room_types.id (never the raw Hostfully UID).
     if (propertyId && availability.room_types?.length > 0) {
       (async () => {
         try {
           for (const roomType of availability.room_types) {
             const availPerNight = roomType.availability_per_night || [];
             const rateTypes = roomType.rate_types || [];
-            
+
             for (const availDay of availPerNight) {
-              const ratesForDate = rateTypes.flatMap((rt: any) => 
+              const ratesForDate = rateTypes.flatMap((rt: any) =>
                 (rt.rates || []).filter((r: any) => r.date === availDay.date)
               );
-              
+
               await supabase.from("pms_availability_cache").upsert({
                 property_id: propertyId,
                 system_type: "hostfully",
-                external_room_type_id: roomType.room_type_id,
+                external_room_type_id: roomTypeRow!.id,
                 date: availDay.date,
                 available_units: availDay.available_units,
                 restrictions: availDay.restrictions,
                 rates: ratesForDate.length > 0 ? ratesForDate : null,
-                raw_data: { roomTypeName: roomType.name },
+                raw_data: { roomTypeName: roomTypeRow!.name, hostfully_uid: propertyUid },
                 fetched_at: new Date().toISOString(),
               }, {
                 onConflict: 'property_id,external_room_type_id,date,system_type',
               });
             }
           }
-          console.log(`[Hostfully] Cached ${availability.room_types[0]?.availability_per_night?.length || 0} days to pms_availability_cache`);
+          console.log(`[Hostfully] Cached ${availability.room_types[0]?.availability_per_night?.length || 0} days for ${roomTypeRow!.name}`);
         } catch (cacheErr) {
           console.warn("[Hostfully] Failed to cache availability:", cacheErr);
         }
       })();
     }
+
 
     return createSuccessResponse(availability, "fetch_availability");
   } catch (err) {
