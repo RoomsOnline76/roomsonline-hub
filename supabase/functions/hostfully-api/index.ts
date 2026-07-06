@@ -999,6 +999,26 @@ async function handleRepairRoomMapping(
       }
     }
 
+    // 3b. Direct-UID fallback: in some legacy imports the ROL
+    // hostfully_room_types.id was set to the Hostfully unit UID itself.
+    // Verify against Hostfully and treat as a valid mapping when it resolves.
+    if (childUnits.length === 0) {
+      for (const rolRoom of rolRooms) {
+        try {
+          const r = await hostfullyRequest(`/properties/${rolRoom.id}`, creds.api_key, baseUrl);
+          if (r.ok) {
+            const pd = await r.json();
+            const unit = pd?.property || pd;
+            if (unit?.uid) {
+              childUnits.push({ uid: unit.uid, name: unit.name || rolRoom.name });
+            }
+          } else {
+            await r.text().catch(() => "");
+          }
+        } catch (_) { /* ignore */ }
+      }
+    }
+
     if (childUnits.length === 0) {
       return createErrorResponse(
         ERROR_CODES.NOT_FOUND,
@@ -1007,13 +1027,17 @@ async function handleRepairRoomMapping(
       );
     }
 
-    // 4. Match child units to ROL room types by normalised name
+    // 4. Match child units to ROL room types: prefer direct UID equality
+    // (rolRoom.id === unit.uid), fall back to normalised name.
     const results: Array<{ room_type_id: string; room_name: string; hostfully_uid: string | null; hostfully_name: string | null; matched: boolean }> = [];
     for (const rolRoom of rolRooms) {
-      const key = normaliseRoomName(rolRoom.name);
-      let match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      let match = childUnits.find((u: any) => u?.uid === rolRoom.id);
       if (!match) {
-        // Loose contains match as a fallback
+        const key = normaliseRoomName(rolRoom.name);
+        match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      }
+      if (!match) {
+        const key = normaliseRoomName(rolRoom.name);
         match = childUnits.find((u: any) => {
           const n = normaliseRoomName(u.name || "");
           return n && (n.includes(key) || key.includes(n));
