@@ -246,8 +246,18 @@ export function BulkStopSellDialog({
 
 
           {/* Right Content - Form */}
-          <div className="col-span-8 space-y-6">
+          <div className="col-span-8 space-y-4">
+            {portfolioProperties && portfolioProperties.length > 1 && (
+              <PropertyScopeSelector
+                portfolioProperties={portfolioProperties}
+                defaultPropertyId={propertyId}
+                defaultPropertyName={propertyName}
+                value={scope}
+                onChange={setScope}
+              />
+            )}
             <div className="border rounded-lg p-6 space-y-4">
+
               {/* Block/Unblock Toggle */}
               <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div>
