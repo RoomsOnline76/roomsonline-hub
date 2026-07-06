@@ -1003,11 +1003,29 @@ async function fetchHostfullyChildUnitsForBuilding(
     }
   }
 
-  const propsRes = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
-  if (propsRes.ok) {
+  const PAGE_SIZE = 100;
+  let offset = 0;
+  let hasMore = true;
+  const list: any[] = [];
+
+  while (hasMore) {
+    const propsRes = await hostfullyRequest(
+      `/properties?agencyUid=${agencyUid}&_limit=${PAGE_SIZE}&_offset=${offset}`,
+      creds.api_key,
+      baseUrl
+    );
+
+    if (!propsRes.ok) break;
+
     const propsData = await propsRes.json();
     const allProps = propsData?.properties || propsData || [];
-    const list = Array.isArray(allProps) ? allProps : [];
+    const batch = Array.isArray(allProps) ? allProps : [];
+    list.push(...batch);
+    hasMore = batch.length === PAGE_SIZE;
+    offset += PAGE_SIZE;
+  }
+
+  if (list.length > 0) {
     const compactTargetKey = compactRoomKey(prop.name || "");
 
     return list
