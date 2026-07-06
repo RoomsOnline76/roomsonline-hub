@@ -911,6 +911,29 @@ function normaliseRoomName(name: string): string {
   return s;
 }
 
+function deriveCanonicalRoomNameFromHostfullyUnit(unitName: string | null | undefined): string | null {
+  if (!unitName) return null;
+  const trimmed = unitName.trim();
+
+  // ONE46 units arrive from Hostfully as labels like "ONE46ONM 301 Compact One Bedroom".
+  // The operator-facing room type should be the PMS category name, not the unit number
+  // and not the older short ROL alias ("Compact 1 Bedroom"). Keep this deliberately
+  // scoped so other properties are not renamed unexpectedly.
+  const one46Match = trimmed.match(/^ONE46ONM\s+\d+\s+(.+)$/i);
+  if (!one46Match?.[1]) return null;
+
+  const category = one46Match[1]
+    .replace(/\bOne\b/gi, "One")
+    .replace(/\bTwo\b/gi, "Two")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!category) return null;
+  if (/studio$/i.test(category)) return category;
+  if (/apartment$/i.test(category)) return category;
+  return `${category} Apartment`;
+}
+
 /**
  * Backfill hostfully_room_types.hostfully_room_id (and properties.external_id when
  * possible) by matching ROL room type names against Hostfully child unit names for
@@ -1043,15 +1066,19 @@ async function handleRepairRoomMapping(
           return n && (n.includes(key) || key.includes(n));
         });
       }
+      const canonicalName = deriveCanonicalRoomNameFromHostfullyUnit(match?.name);
       if (match?.uid) {
         await supabase
           .from("hostfully_room_types")
-          .update({ hostfully_room_id: match.uid })
+          .update({
+            hostfully_room_id: match.uid,
+            ...(canonicalName ? { name: canonicalName } : {}),
+          })
           .eq("id", rolRoom.id);
       }
       results.push({
         room_type_id: rolRoom.id,
-        room_name: rolRoom.name,
+        room_name: canonicalName || rolRoom.name,
         hostfully_uid: match?.uid || null,
         hostfully_name: match?.name || null,
         matched: !!match?.uid,
@@ -1253,39 +1280,59 @@ async function handleFetchAvailability(
       
       const availability = { room_types: allRoomTypes };
       
-      // Cache all unit availability
+      // Cache all unit availability. This must be awaited; otherwise the function can
+      // return before all room types are persisted, which left ONE46 ON M with 4/5
+      // room types in the cache even though the live fetch aggregated all 5.
       if (propertyId && allRoomTypes.length > 0) {
-        (async () => {
-          try {
-            for (const roomType of allRoomTypes) {
-              const availPerNight = roomType.availability_per_night || [];
-              const rateTypes = roomType.rate_types || [];
-              
-              for (const availDay of availPerNight) {
-                const ratesForDate = rateTypes.flatMap((rt: any) => 
-                  (rt.rates || []).filter((r: any) => r.date === availDay.date)
-                );
-                
-                await supabase.from("pms_availability_cache").upsert({
-                  property_id: propertyId,
-                  system_type: "hostfully",
-                  external_room_type_id: roomType.room_type_id,
-                  date: availDay.date,
-                  available_units: availDay.available_units,
-                  restrictions: availDay.restrictions,
-                  rates: ratesForDate.length > 0 ? ratesForDate : null,
-                  raw_data: { roomTypeName: roomType.name },
-                  fetched_at: new Date().toISOString(),
-                }, {
-                  onConflict: 'property_id,external_room_type_id,date,system_type',
-                });
-              }
+        const cacheErrors: Array<{ room_type_id: string; date?: string; message: string }> = [];
+
+        for (const roomType of allRoomTypes) {
+          const availPerNight = roomType.availability_per_night || [];
+          const rateTypes = roomType.rate_types || [];
+
+          for (const availDay of availPerNight) {
+            const ratesForDate = rateTypes.flatMap((rt: any) =>
+              (rt.rates || []).filter((r: any) => r.date === availDay.date)
+            );
+
+            const { error: cacheError } = await supabase.from("pms_availability_cache").upsert({
+              property_id: propertyId,
+              system_type: "hostfully",
+              external_room_type_id: roomType.room_type_id,
+              date: availDay.date,
+              available_units: availDay.available_units,
+              restrictions: availDay.restrictions,
+              rates: ratesForDate.length > 0 ? ratesForDate : null,
+              raw_data: {
+                roomTypeName: roomType.name,
+                hostfully_uid: roomType.external_room_type_id,
+              },
+              fetched_at: new Date().toISOString(),
+            }, {
+              onConflict: 'property_id,external_room_type_id,date,system_type',
+            });
+
+            if (cacheError) {
+              cacheErrors.push({
+                room_type_id: roomType.room_type_id,
+                date: availDay.date,
+                message: cacheError.message || String(cacheError),
+              });
             }
-            console.log(`[Hostfully] Cached availability for ${allRoomTypes.length} units`);
-          } catch (cacheErr) {
-            console.warn("[Hostfully] Failed to cache multi-unit availability:", cacheErr);
           }
-        })();
+        }
+
+        if (cacheErrors.length > 0) {
+          console.warn("[Hostfully] Failed to cache some multi-unit availability rows:", cacheErrors.slice(0, 10));
+          return createErrorResponse(
+            ERROR_CODES.INTERNAL_ADAPTER_ERROR,
+            `Hostfully availability was fetched but ${cacheErrors.length} cache rows failed to save.`,
+            "fetch_availability",
+            { cache_errors: cacheErrors.slice(0, 25) },
+          );
+        }
+
+        console.log(`[Hostfully] Cached availability for ${allRoomTypes.length} room types`);
       }
       
       return createSuccessResponse(availability, "fetch_availability");
