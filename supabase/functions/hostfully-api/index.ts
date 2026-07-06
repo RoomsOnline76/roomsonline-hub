@@ -930,6 +930,9 @@ function deriveCanonicalRoomNameFromHostfullyUnit(unitName: string | null | unde
 
   if (!category) return null;
   if (/studio$/i.test(category)) return category;
+  if (/^compact one bedroom$/i.test(category)) return "Compact One Bedroom Apartment";
+  if (/^one bedroom$/i.test(category)) return "One-Bedroom Apartment";
+  if (/^two bedroom$/i.test(category)) return "Two-Bedroom Apartment";
   if (/apartment$/i.test(category)) return category;
   return `${category} Apartment`;
 }
