@@ -516,6 +516,7 @@ const CalendarAccommodation = () => {
           roomTypes: cachedData,
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
+          cacheVersion: PMS_SESSION_CACHE_VERSION,
         });
         setPmsSyncStatus("success");
         setLastSyncTime(new Date());
@@ -547,6 +548,7 @@ const CalendarAccommodation = () => {
           roomTypes: staleCachedData,
           lastSynced: new Date(),
           systemType: selectedPropertyData.external_system,
+          cacheVersion: PMS_SESSION_CACHE_VERSION,
         });
         staleFallbackApplied = transformedRoomsHaveRates(staleCachedData);
       }
@@ -669,6 +671,7 @@ const CalendarAccommodation = () => {
         roomTypes: transformedData,
         lastSynced: new Date(),
         systemType: selectedPropertyData.external_system,
+        cacheVersion: PMS_SESSION_CACHE_VERSION,
       });
       setPmsSyncStatus("success");
       setLastSyncTime(new Date());
@@ -704,6 +707,7 @@ const CalendarAccommodation = () => {
             roomTypes: recoveredCache,
             lastSynced: new Date(),
             systemType: selectedPropertyData.external_system,
+            cacheVersion: PMS_SESSION_CACHE_VERSION,
           });
           setPmsSyncStatus("success");
           setLastSyncTime(new Date());
@@ -1055,6 +1059,7 @@ const CalendarAccommodation = () => {
       roomTypes: transformedRooms,
       lastSynced: new Date(),
       systemType: 'manual',
+      cacheVersion: PMS_SESSION_CACHE_VERSION,
     });
     setPmsSyncStatus("success");
     setLastSyncTime(new Date());
