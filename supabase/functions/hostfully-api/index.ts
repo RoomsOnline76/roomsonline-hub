@@ -928,7 +928,7 @@ async function handleRepairRoomMapping(
   try {
     const { data: prop } = await supabase
       .from("properties")
-      .select("id, name, external_id")
+      .select("id, name, external_id, hostfully_property_uid")
       .eq("id", propertyId)
       .maybeSingle();
     if (!prop) return createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", "repair_room_mapping");
@@ -952,35 +952,70 @@ async function handleRepairRoomMapping(
     const agencyUid = (agenciesData?.agencies?.[0] || agenciesData?.[0])?.uid;
     if (!agencyUid) return createErrorResponse(ERROR_CODES.NOT_FOUND, "No agency", "repair_room_mapping");
 
-    // 2. List multi-unit buildings and locate ours by name
+    // 2. List multi-unit buildings. Prefer matching by the property's known
+    // hostfully_property_uid / external_id; fall back to a normalised name match.
     const muRes = await hostfullyRequest(`/multi-units/multi-unit-properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
-    let buildingUid: string | null = prop.external_id || null;
+    let buildingUid: string | null = prop.external_id || prop.hostfully_property_uid || null;
     let childUnits: any[] = [];
+    const knownUids = new Set(
+      [prop.external_id, prop.hostfully_property_uid].filter(Boolean) as string[]
+    );
 
     if (muRes.ok) {
       const muData = await muRes.json();
       const buildings = muData?.multiUnitProperties || muData?.properties || muData || [];
+      const list = Array.isArray(buildings) ? buildings : [];
       const targetKey = normaliseRoomName(prop.name);
-      const building = (Array.isArray(buildings) ? buildings : []).find((b: any) =>
-        normaliseRoomName(b.name || "") === targetKey
-      );
+
+      // Try by known UID (building itself or any child)
+      let building = list.find((b: any) => {
+        if (b?.uid && knownUids.has(b.uid)) return true;
+        const children = b?.childProperties || b?.units || [];
+        return children.some((c: any) => c?.uid && knownUids.has(c.uid));
+      });
+      // Then by normalised building name
+      if (!building) {
+        building = list.find((b: any) => normaliseRoomName(b.name || "") === targetKey);
+      }
       if (building) {
-        buildingUid = buildingUid || building.uid;
+        buildingUid = building.uid || buildingUid;
         childUnits = building.childProperties || building.units || [];
       }
     }
 
-    // 3. If we still have no child list, ask the /properties endpoint (single-unit buildings)
+    // 3. Fallback: list all single-unit properties for this agency and match by known UID / name
     if (childUnits.length === 0) {
       const propsRes = await hostfullyRequest(`/properties?agencyUid=${agencyUid}`, creds.api_key, baseUrl);
       if (propsRes.ok) {
         const propsData = await propsRes.json();
         const allProps = propsData?.properties || propsData || [];
+        const list = Array.isArray(allProps) ? allProps : [];
         const targetKey = normaliseRoomName(prop.name);
-        childUnits = (Array.isArray(allProps) ? allProps : []).filter((p: any) =>
-          normaliseRoomName(p.name || "").includes(targetKey) ||
-          targetKey.includes(normaliseRoomName(p.name || ""))
-        );
+        childUnits = list.filter((p: any) => {
+          if (p?.uid && knownUids.has(p.uid)) return true;
+          const n = normaliseRoomName(p.name || "");
+          return n && (n.includes(targetKey) || targetKey.includes(n));
+        });
+      }
+    }
+
+    // 3b. Direct-UID fallback: in some legacy imports the ROL
+    // hostfully_room_types.id was set to the Hostfully unit UID itself.
+    // Verify against Hostfully and treat as a valid mapping when it resolves.
+    if (childUnits.length === 0) {
+      for (const rolRoom of rolRooms) {
+        try {
+          const r = await hostfullyRequest(`/properties/${rolRoom.id}`, creds.api_key, baseUrl);
+          if (r.ok) {
+            const pd = await r.json();
+            const unit = pd?.property || pd;
+            if (unit?.uid) {
+              childUnits.push({ uid: unit.uid, name: unit.name || rolRoom.name });
+            }
+          } else {
+            await r.text().catch(() => "");
+          }
+        } catch (_) { /* ignore */ }
       }
     }
 
@@ -992,13 +1027,17 @@ async function handleRepairRoomMapping(
       );
     }
 
-    // 4. Match child units to ROL room types by normalised name
+    // 4. Match child units to ROL room types: prefer direct UID equality
+    // (rolRoom.id === unit.uid), fall back to normalised name.
     const results: Array<{ room_type_id: string; room_name: string; hostfully_uid: string | null; hostfully_name: string | null; matched: boolean }> = [];
     for (const rolRoom of rolRooms) {
-      const key = normaliseRoomName(rolRoom.name);
-      let match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      let match = childUnits.find((u: any) => u?.uid === rolRoom.id);
       if (!match) {
-        // Loose contains match as a fallback
+        const key = normaliseRoomName(rolRoom.name);
+        match = childUnits.find((u: any) => normaliseRoomName(u.name || "") === key);
+      }
+      if (!match) {
+        const key = normaliseRoomName(rolRoom.name);
         match = childUnits.find((u: any) => {
           const n = normaliseRoomName(u.name || "");
           return n && (n.includes(key) || key.includes(n));
