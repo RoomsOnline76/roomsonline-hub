@@ -8528,6 +8528,121 @@ export type Database = {
           },
         ]
       }
+      rolos_rate_strategies: {
+        Row: {
+          adjustment_type: string
+          adjustment_value: number
+          booking_window_from: string | null
+          booking_window_to: string | null
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          is_active: boolean
+          max_occupancy: number | null
+          min_occupancy: number | null
+          name: string
+          only_on_arrival: boolean
+          priority: number
+          property_id: string
+          rate_plan_id: string | null
+          room_type_id: string | null
+          season_id: string | null
+          start_date: string
+          updated_at: string
+          weekdays: number[]
+        }
+        Insert: {
+          adjustment_type?: string
+          adjustment_value?: number
+          booking_window_from?: string | null
+          booking_window_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean
+          max_occupancy?: number | null
+          min_occupancy?: number | null
+          name: string
+          only_on_arrival?: boolean
+          priority?: number
+          property_id: string
+          rate_plan_id?: string | null
+          room_type_id?: string | null
+          season_id?: string | null
+          start_date: string
+          updated_at?: string
+          weekdays?: number[]
+        }
+        Update: {
+          adjustment_type?: string
+          adjustment_value?: number
+          booking_window_from?: string | null
+          booking_window_to?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          max_occupancy?: number | null
+          min_occupancy?: number | null
+          name?: string
+          only_on_arrival?: boolean
+          priority?: number
+          property_id?: string
+          rate_plan_id?: string | null
+          room_type_id?: string | null
+          season_id?: string | null
+          start_date?: string
+          updated_at?: string
+          weekdays?: number[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_strategies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_strategies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_strategies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_strategies_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_strategies_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_strategies_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_refunds: {
         Row: {
           amount: number

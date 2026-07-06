@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { RateStrategiesTable } from "@/components/revenue/RateStrategiesTable";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -763,6 +764,7 @@ export default function PMSRevenue() {
             <TabsTrigger value="suggestions"><Lightbulb className="w-4 h-4 mr-1" />Rate Suggestions</TabsTrigger>
             <TabsTrigger value="plans"><DollarSign className="w-4 h-4 mr-1" />Active Plans</TabsTrigger>
             <TabsTrigger value="yield"><Zap className="w-4 h-4 mr-1" />Yield Rules</TabsTrigger>
+            <TabsTrigger value="strategies"><Settings2 className="w-4 h-4 mr-1" />Rate Strategies</TabsTrigger>
           </TabsList>
 
           {/* === FORECAST TAB (existing) === */}
@@ -1082,6 +1084,23 @@ export default function PMSRevenue() {
               </Card>
             ) : (
               <YieldRulesTab propertyId={propertyId!} />
+            )}
+          </TabsContent>
+
+          {/* === RATE STRATEGIES TAB === */}
+          <TabsContent value="strategies" className="space-y-4">
+            {isPortfolioMode ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <Settings2 className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Rate strategies are configured per property.</p>
+                  <Button size="sm" variant="outline" onClick={() => setViewMode("single")}>
+                    Switch to single-property view
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <RateStrategiesTable propertyId={propertyId!} />
             )}
           </TabsContent>
         </Tabs>
