@@ -215,12 +215,12 @@ export function BulkStopSellDialog({
           {/* Left Sidebar - Rooms */}
           <div className="col-span-4 border rounded-lg p-4 space-y-2 max-h-[400px] overflow-y-auto">
             <p className="text-sm font-medium mb-2">Select Rooms</p>
-            {roomTypes.length > 0 ? (
-              roomTypes.map((room) => (
+            {effectiveRoomTypes.length > 0 ? (
+              effectiveRoomTypes.map((room) => (
                 <div key={room.id || room.name} className="flex items-center justify-between p-2 hover:bg-muted rounded">
                   <div className="flex items-center">
                     <Checkbox
-                      id={room.id || room.name}
+                      id={`stopsell-${room.id || room.name}`}
                       checked={selectedRoomTypes.includes(room.name)}
                       onCheckedChange={(checked) => {
                         if (checked) {
@@ -230,19 +230,20 @@ export function BulkStopSellDialog({
                         }
                       }}
                     />
-                    <label htmlFor={room.id || room.name} className="text-sm cursor-pointer ml-2">
+                    <label htmlFor={`stopsell-${room.id || room.name}`} className="text-sm cursor-pointer ml-2">
                       {room.name}
                     </label>
                   </div>
-                  {room.units && (
+                  {room.units ? (
                     <span className="text-xs text-muted-foreground">{room.units} unit{room.units > 1 ? 's' : ''}</span>
-                  )}
+                  ) : null}
                 </div>
               ))
             ) : (
               <p className="text-sm text-muted-foreground">No room types available</p>
             )}
           </div>
+
 
           {/* Right Content - Form */}
           <div className="col-span-8 space-y-6">
