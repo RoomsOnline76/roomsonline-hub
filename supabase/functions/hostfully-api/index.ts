@@ -437,7 +437,23 @@ interface HostfullyCalendarDay {
   checkOutAllowed?: boolean;
 }
 
-function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[], propertyUid: string, roomName: string = "Property") {
+function getHostfullyCalendarRateMultiplier(amenities: unknown): number {
+  const record = amenities && typeof amenities === "object" ? amenities as Record<string, unknown> : {};
+  const rawValue =
+    record.hostfully_calendar_rate_multiplier ??
+    record.hostfullyCalendarRateMultiplier ??
+    record.pms_calendar_rate_multiplier ??
+    record.pmsCalendarRateMultiplier;
+  const numeric = Number(rawValue);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+}
+
+function mapHostfullyCalendarToAvailability(
+  calendarData: HostfullyCalendarDay[],
+  propertyUid: string,
+  roomName: string = "Property",
+  rateMultiplier = 1,
+) {
   const roomType = {
     room_type_id: propertyUid,
     name: roomName,
@@ -472,7 +488,7 @@ function mapHostfullyCalendarToAvailability(calendarData: HostfullyCalendarDay[]
         .filter(d => d.pricing?.value || d.price)
         .map(day => ({
           date: day.date,
-          room_amount: day.pricing?.value || day.price || 0,
+          room_amount: Math.round(((day.pricing?.value || day.price || 0) * rateMultiplier) * 100) / 100,
           adult_amounts: [],
         })),
     }],
@@ -1132,8 +1148,16 @@ async function handleFetchAvailability(
     let roomTypeRows: { id: string; name: string; total_units: number; hostfully_room_id: string }[] = [];
     let allRoomTypeCount = 0;
     let unitMapByRoomType = new Map<string, { hostfully_uid: string; unit_name: string }[]>();
+    let calendarRateMultiplier = 1;
     
     if (propertyId) {
+      const { data: propertyConfig } = await supabase
+        .from('properties')
+        .select('amenities')
+        .eq('id', propertyId)
+        .maybeSingle();
+      calendarRateMultiplier = getHostfullyCalendarRateMultiplier(propertyConfig?.amenities);
+
       // First try the new unit_map approach
       const { data: roomTypes } = await supabase
         .from('hostfully_room_types')
@@ -1222,7 +1246,7 @@ async function handleFetchAvailability(
                   return null;
                 }
                 
-                const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_uid, unit.unit_name);
+                const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_uid, unit.unit_name, calendarRateMultiplier);
                 return mapped.room_types[0] || null;
               } catch (err) {
                 console.warn(`[Hostfully] Error fetching calendar for unit ${unit.unit_name}:`, err);
@@ -1403,7 +1427,7 @@ async function handleFetchAvailability(
       );
     }
 
-    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomTypeRow.name);
+    const availability = mapHostfullyCalendarToAvailability(calendarArray, propertyUid, roomTypeRow.name, calendarRateMultiplier);
 
     // Cache availability under the ROL room type id so orchestrator lookups line up
     // with hostfully_room_types.id (never the raw Hostfully UID).
