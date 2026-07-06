@@ -2063,6 +2063,39 @@ const CalendarAccommodation = () => {
                 {isPmsProperty && !isNativeRolosProperty ? `Sync ${selectedPropertyData?.external_system || "PMS"}` : "Refresh"}
               </Button>
 
+              {selectedPropertyData?.external_system === "hostfully" && (
+                <Button
+                  variant="outline"
+                  className="gap-1 h-8 text-xs px-2"
+                  onClick={async () => {
+                    if (!selectedProperty) return;
+                    toast({ title: "Repairing Hostfully mapping…", description: "Matching ROL room types to Hostfully units by name." });
+                    const { data, error } = await supabase.functions.invoke("hostfully-api", {
+                      body: { action: "repair_room_mapping", property_id: selectedProperty },
+                    });
+                    if (error || data?.error) {
+                      toast({
+                        title: "Repair failed",
+                        description: (data?.error?.message || error?.message || "Unknown error"),
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    const r = data?.data || data;
+                    toast({
+                      title: "Mapping repaired",
+                      description: `Matched ${r?.matched ?? 0}/${r?.total ?? 0} room types. Re-syncing calendar…`,
+                    });
+                    await fetchPmsAvailability(true);
+                  }}
+                  disabled={pmsSyncStatus === "loading"}
+                  title="Match ROL room types to Hostfully units by name and re-sync"
+                >
+                  Repair Hostfully mapping
+                </Button>
+              )}
+
+
               <div className="ml-auto flex gap-1">
                 <Button variant="default" disabled className="opacity-50 cursor-not-allowed h-8 text-xs px-2">Save</Button>
                 <DropdownMenu>
