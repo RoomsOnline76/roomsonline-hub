@@ -1334,18 +1334,33 @@ async function handleFetchAvailability(
     if (roomTypeRows.length > 0) {
       const hasUnitMap = unitMapByRoomType.size > 0;
       console.log(`[Hostfully] Multi-unit property: ${roomTypeRows.length} room types, unit_map=${hasUnitMap}`);
-      
+
       const BATCH_SIZE = 10;
-      const allRoomTypes: any[] = [];
+
+      // Intermediate per-room-type aggregation kept in memory so we can subtract
+      // reservations (including OTA bookings held against the parent Room that
+      // never flip a leaf calendar) before caching.
+      type Intermediate = {
+        roomType: typeof roomTypeRows[number];
+        unitEntries: { hostfully_uid: string; unit_name: string }[];
+        dateAvailMap: Map<string, { available: number; restrictions: any; rates: any[] }>;
+        unavailableLeavesByDate: Map<string, Set<string>>;
+        firstUnit: any | null;
+      };
+      const intermediates: Intermediate[] = [];
+
+      // Build reverse map leafUid -> roomTypeId for reservation bucketing.
+      const leafToRoomType = new Map<string, string>();
 
       for (const roomType of roomTypeRows) {
-        // Get individual unit UIDs: prefer unit_map, fallback to single hostfully_room_id
-        const unitEntries = unitMapByRoomType.get(roomType.id) || 
+        const unitEntries = unitMapByRoomType.get(roomType.id) ||
           [{ hostfully_uid: roomType.hostfully_room_id, unit_name: roomType.name }];
-        
-        // Fetch availability for all units of this type
+
+        for (const u of unitEntries) {
+          if (u.hostfully_uid) leafToRoomType.set(u.hostfully_uid, roomType.id);
+        }
+
         const unitAvailabilities: any[] = [];
-        
         for (let i = 0; i < unitEntries.length; i += BATCH_SIZE) {
           const batch = unitEntries.slice(i, i + BATCH_SIZE);
           const batchResults = await Promise.all(
@@ -1353,23 +1368,19 @@ async function handleFetchAvailability(
               try {
                 const endpoint = `/property-calendar/${unit.hostfully_uid}?from=${startDate}&to=${endDate}`;
                 const response = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
-                
                 if (!response.ok) {
                   console.warn(`[Hostfully] Calendar fetch failed for unit ${unit.unit_name} (${unit.hostfully_uid}): ${response.status}`);
                   return null;
                 }
-                
                 const responseData = await response.json();
-                const calendarArray = responseData?.calendar?.entries || 
-                                      responseData?.calendar || 
-                                      responseData?.days || 
+                const calendarArray = responseData?.calendar?.entries ||
+                                      responseData?.calendar ||
+                                      responseData?.days ||
                                       responseData;
-                
                 if (!Array.isArray(calendarArray)) {
                   console.warn(`[Hostfully] Invalid calendar data for unit ${unit.unit_name}`);
                   return null;
                 }
-                
                 const mapped = mapHostfullyCalendarToAvailability(calendarArray, unit.hostfully_uid, unit.unit_name, calendarRateMultiplier);
                 return mapped.room_types[0] || null;
               } catch (err) {
@@ -1378,56 +1389,173 @@ async function handleFetchAvailability(
               }
             })
           );
-          
           for (const rt of batchResults) {
             if (rt) unitAvailabilities.push(rt);
           }
         }
 
-        // Aggregate: sum available units per date across all units of this type
-        if (unitAvailabilities.length > 0) {
-          const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
-          
-          for (const unitAvail of unitAvailabilities) {
-            const perNight = unitAvail.availability_per_night || [];
-            for (const day of perNight) {
-              const existing = dateAvailMap.get(day.date);
-              if (existing) {
-                existing.available += (day.available_units || 0);
-              } else {
-                dateAvailMap.set(day.date, {
-                  available: day.available_units || 0,
-                  restrictions: day.restrictions || {},
-                  rates: [],
-                });
-              }
+        const dateAvailMap = new Map<string, { available: number; restrictions: any; rates: any[] }>();
+        const unavailableLeavesByDate = new Map<string, Set<string>>();
+
+        for (const unitAvail of unitAvailabilities) {
+          const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
+          const perNight = unitAvail.availability_per_night || [];
+          for (const day of perNight) {
+            const existing = dateAvailMap.get(day.date);
+            if (existing) {
+              existing.available += (day.available_units || 0);
+            } else {
+              dateAvailMap.set(day.date, {
+                available: day.available_units || 0,
+                restrictions: day.restrictions || {},
+                rates: [],
+              });
+            }
+            if ((day.available_units || 0) === 0) {
+              const set = unavailableLeavesByDate.get(day.date) || new Set<string>();
+              set.add(leafUid);
+              unavailableLeavesByDate.set(day.date, set);
             }
           }
+        }
 
-          // Use rate data from first unit (rates are same across units of same type)
-          const firstUnit = unitAvailabilities[0];
-          
-          const aggregatedPerNight = Array.from(dateAvailMap.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([date, data]) => ({
-              date,
-              available_units: data.available,
-              restrictions: data.restrictions,
-            }));
+        intermediates.push({
+          roomType,
+          unitEntries,
+          dateAvailMap,
+          unavailableLeavesByDate,
+          firstUnit: unitAvailabilities[0] || null,
+        });
+      }
 
-          allRoomTypes.push({
-            room_type_id: roomType.id,
-            external_room_type_id: roomType.hostfully_room_id || roomType.id,
-            room_type_aliases: [roomType.hostfully_room_id, roomType.id].filter(Boolean),
-            name: roomType.name,
-            total_units: roomType.total_units || unitEntries.length,
-            availability_per_night: aggregatedPerNight,
-            rate_types: firstUnit.rate_types || [],
-          });
+      // === Deduct real reservations ===
+      // OTA / channel bookings held against the parent Room don't flip any leaf
+      // calendar to unavailable, so aggregate leaf-calendar counts drift high.
+      // We fetch reservations from Hostfully for the building UID + every mapped
+      // leaf UID, dedupe, and subtract per (room_type, date), skipping any leaf
+      // whose calendar already reported the date as unavailable.
+      const buildingCandidates = [propertyUid].filter(Boolean);
+      const reservationUids = Array.from(new Set([
+        ...buildingCandidates,
+        ...Array.from(leafToRoomType.keys()),
+      ]));
+
+      const bookedByRoomTypeDate = new Map<string, Map<string, number>>();
+      let totalDeducted = 0;
+      try {
+        const seenLeadIds = new Set<string>();
+        const RES_BATCH = 5;
+        for (let i = 0; i < reservationUids.length; i += RES_BATCH) {
+          const batch = reservationUids.slice(i, i + RES_BATCH);
+          const batchLeads = await Promise.all(
+            batch.map(async (uid) => {
+              try {
+                const endpoint = `/leads?propertyUid=${uid}&checkInDate=${startDate}&checkOutDate=${endDate}`;
+                const resp = await hostfullyRequest(endpoint, creds.api_key, baseUrl);
+                if (!resp.ok) {
+                  console.warn(`[Hostfully] leads fetch failed for ${uid}: ${resp.status}`);
+                  return [];
+                }
+                const body = await resp.json();
+                const leads = Array.isArray(body) ? body : (body?.leads || body?.data || []);
+                return Array.isArray(leads) ? leads : [];
+              } catch (err) {
+                console.warn(`[Hostfully] leads fetch error for ${uid}:`, err);
+                return [];
+              }
+            })
+          );
+
+          const DEAD_STATUSES = new Set(["CANCELLED", "DECLINED", "IGNORED", "EXPIRED"]);
+          for (const leads of batchLeads) {
+            for (const lead of leads) {
+              const leadId = lead.uid || lead.id;
+              if (!leadId || seenLeadIds.has(leadId)) continue;
+              seenLeadIds.add(leadId);
+              const statusUpper = String(lead.status || "").toUpperCase();
+              if (DEAD_STATUSES.has(statusUpper)) continue;
+
+              const leadPropUid: string | undefined = lead.propertyUid || lead.property_uid;
+              const leadRoomUid: string | undefined = lead.roomUid || lead.roomTypeUid || lead.room_uid;
+              const checkIn: string | undefined = lead.checkInDate || lead.arrival_date;
+              const checkOut: string | undefined = lead.checkOutDate || lead.departure_date;
+              if (!checkIn || !checkOut) continue;
+
+              // Resolve room type + whether the reservation is pinned to a leaf
+              let roomTypeId: string | undefined;
+              let pinnedLeafUid: string | undefined;
+              if (leadPropUid && leafToRoomType.has(leadPropUid)) {
+                roomTypeId = leafToRoomType.get(leadPropUid);
+                pinnedLeafUid = leadPropUid;
+              } else if (leadRoomUid) {
+                const rt = roomTypeRows.find(r => r.hostfully_room_id === leadRoomUid);
+                if (rt) roomTypeId = rt.id;
+              }
+              if (!roomTypeId) continue;
+
+              // Iterate each night in [checkIn, checkOut)
+              const start = new Date(checkIn);
+              const end = new Date(checkOut);
+              const inter = intermediates.find(x => x.roomType.id === roomTypeId);
+              const bucket = bookedByRoomTypeDate.get(roomTypeId) || new Map<string, number>();
+              for (let d = new Date(start); d < end; d.setUTCDate(d.getUTCDate() + 1)) {
+                const dateStr = d.toISOString().slice(0, 10);
+                // Skip if this leaf's calendar already showed unavailable
+                if (pinnedLeafUid) {
+                  const already = inter?.unavailableLeavesByDate.get(dateStr);
+                  if (already && already.has(pinnedLeafUid)) continue;
+                }
+                bucket.set(dateStr, (bucket.get(dateStr) || 0) + 1);
+                totalDeducted++;
+              }
+              bookedByRoomTypeDate.set(roomTypeId, bucket);
+            }
+          }
+        }
+        console.log(`[Hostfully] Reservation deduction: ${totalDeducted} unit-nights across ${bookedByRoomTypeDate.size} room types`);
+      } catch (err) {
+        console.warn("[Hostfully] Reservation deduction failed, using raw calendar counts:", err);
+      }
+
+      // Apply deductions to each room type's dateAvailMap
+      for (const inter of intermediates) {
+        const bucket = bookedByRoomTypeDate.get(inter.roomType.id);
+        if (!bucket) continue;
+        for (const [date, data] of inter.dateAvailMap) {
+          const booked = bucket.get(date) || 0;
+          if (booked > 0) {
+            data.available = Math.max(0, data.available - booked);
+            if (data.available === 0) {
+              data.restrictions = { ...(data.restrictions || {}), stop_sell: true };
+            }
+          }
         }
       }
-      
-      console.log(`[Hostfully] Successfully aggregated availability for ${allRoomTypes.length}/${roomTypeRows.length} room types`);
+
+      // Build final allRoomTypes payload
+      const allRoomTypes: any[] = [];
+      for (const inter of intermediates) {
+        if (!inter.firstUnit) continue;
+        const aggregatedPerNight = Array.from(inter.dateAvailMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, data]) => ({
+            date,
+            available_units: data.available,
+            restrictions: data.restrictions,
+          }));
+
+        allRoomTypes.push({
+          room_type_id: inter.roomType.id,
+          external_room_type_id: inter.roomType.hostfully_room_id || inter.roomType.id,
+          room_type_aliases: [inter.roomType.hostfully_room_id, inter.roomType.id].filter(Boolean),
+          name: inter.roomType.name,
+          total_units: inter.roomType.total_units || inter.unitEntries.length,
+          availability_per_night: aggregatedPerNight,
+          rate_types: inter.firstUnit.rate_types || [],
+        });
+      }
+
+
       
       const availability = { room_types: allRoomTypes };
       
