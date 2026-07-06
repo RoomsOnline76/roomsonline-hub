@@ -1582,24 +1582,30 @@ async function handleFetchAvailability(
           if (inventoryAuthoritative && unitAvailabilities.length > 0) break;
         }
 
-        for (const unitAvail of unitAvailabilities) {
-          const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
-          const perNight = unitAvail.availability_per_night || [];
-          for (const day of perNight) {
-            const existing = dateAvailMap.get(day.date);
-            if (existing) {
-              existing.available += (day.available_units || 0);
-            } else {
-              dateAvailMap.set(day.date, {
-                available: day.available_units || 0,
-                restrictions: day.restrictions || {},
-                rates: [],
-              });
-            }
-            if ((day.available_units || 0) === 0) {
-              const set = unavailableLeavesByDate.get(day.date) || new Set<string>();
-              set.add(leafUid);
-              unavailableLeavesByDate.set(day.date, set);
+        // Only aggregate leaf calendars into availability when unit-type
+        // inventory was NOT available. When authoritative, `dateAvailMap` is
+        // already populated from the inventory endpoint and MUST NOT be
+        // double-counted with leaf sums.
+        if (!inventoryAuthoritative) {
+          for (const unitAvail of unitAvailabilities) {
+            const leafUid: string = unitAvail.room_type_id; // set to propertyUid in mapper
+            const perNight = unitAvail.availability_per_night || [];
+            for (const day of perNight) {
+              const existing = dateAvailMap.get(day.date);
+              if (existing) {
+                existing.available += (day.available_units || 0);
+              } else {
+                dateAvailMap.set(day.date, {
+                  available: day.available_units || 0,
+                  restrictions: day.restrictions || {},
+                  rates: [],
+                });
+              }
+              if ((day.available_units || 0) === 0) {
+                const set = unavailableLeavesByDate.get(day.date) || new Set<string>();
+                set.add(leafUid);
+                unavailableLeavesByDate.set(day.date, set);
+              }
             }
           }
         }
@@ -1610,6 +1616,7 @@ async function handleFetchAvailability(
           dateAvailMap,
           unavailableLeavesByDate,
           firstUnit: unitAvailabilities[0] || null,
+          inventoryAuthoritative,
         });
       }
 
