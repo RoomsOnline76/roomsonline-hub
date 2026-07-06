@@ -319,10 +319,12 @@ async function resolveRolosRates(
     const availArr: any[] = [];
     const cur = new Date(startDate);
     const end = new Date(endDate);
+    const closedSet = room.linked_rolos_id ? closedDatesByRoom[room.linked_rolos_id] : undefined;
     while (cur < end) {
       const ds = cur.toISOString().split("T")[0];
-      dailyRates.push({ date: ds, room_amount: effectiveRate });
-      availArr.push({ date: ds, available_units: 99 });
+      const isClosed = closedSet?.has(ds) ?? false;
+      dailyRates.push({ date: ds, room_amount: isClosed ? 0 : effectiveRate, stop_sell: isClosed || undefined });
+      availArr.push({ date: ds, available_units: isClosed ? 0 : 99 });
       cur.setDate(cur.getDate() + 1);
     }
 
