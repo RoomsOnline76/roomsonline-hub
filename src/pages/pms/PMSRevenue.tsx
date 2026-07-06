@@ -346,7 +346,7 @@ function YieldRulesTab({ propertyId }: { propertyId: string }) {
             </div>
             <DialogFooter>
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button onClick={handleCreate} disabled={!form.name || upsert.isPending}>
+              <Button onClick={handleCreate} disabled={!form.name || upsert.isPending || (form.rule_type === "season" && !form.season_id)}>
                 {upsert.isPending ? "Saving…" : "Create Rule"}
               </Button>
             </DialogFooter>
