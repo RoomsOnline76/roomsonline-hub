@@ -111,6 +111,29 @@ function useToggleYieldRule(propertyId: string | null) {
   });
 }
 
+interface RateSeason {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
+function useSeasons(propertyId: string | null) {
+  return useQuery({
+    queryKey: ["rolos-rate-seasons", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rolos_rate_seasons" as any)
+        .select("id, name, start_date, end_date")
+        .eq("property_id", propertyId!)
+        .order("start_date", { ascending: true });
+      if (error) throw error;
+      return (data || []) as unknown as RateSeason[];
+    },
+  });
+}
+
 const fmt = (n: number) => n.toLocaleString("en-ZA", { maximumFractionDigits: 0 });
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
