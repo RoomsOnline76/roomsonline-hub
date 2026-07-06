@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import { RateStrategiesTable } from "@/components/revenue/RateStrategiesTable";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
