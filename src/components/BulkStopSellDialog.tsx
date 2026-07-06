@@ -104,16 +104,16 @@ export function BulkStopSellDialog({
   };
 
   const handleCreateRule = async () => {
-    if (!propertyId) {
+    if (targetPropertyIds.length === 0) {
       toast.error("No property selected");
       return;
     }
-    
+
     if (selectedRoomTypes.length === 0) {
       toast.error("Please select at least one room type");
       return;
     }
-    
+
     if (!fromDate || !toDate) {
       toast.error("Please select date range");
       return;
@@ -121,18 +121,16 @@ export function BulkStopSellDialog({
 
     setSaving(true);
     try {
-      // Generate dates for the range, filtered by selected days of week
       const allDates = eachDayOfInterval({
         start: new Date(fromDate),
         end: new Date(toDate),
       });
 
-      // Filter dates by selected days of week
       const selectedDaysOfWeek = Object.entries(selectedDays)
         .filter(([key, value]) => key !== 'allDays' && value)
         .map(([key]) => dayOfWeekMap[key]);
 
-      const filteredDates = allDates.filter(date => 
+      const filteredDates = allDates.filter(date =>
         selectedDaysOfWeek.includes(getDay(date))
       );
 
@@ -142,50 +140,53 @@ export function BulkStopSellDialog({
         return;
       }
 
+      const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
+
       if (isStopSell) {
-        // BLOCKING: Create records with available_units = 0
         const records = [];
-        for (const roomType of selectedRoomTypes) {
-          for (const date of filteredDates) {
-            records.push({
-              property_id: propertyId,
-              room_type: roomType,
-              date: format(date, "yyyy-MM-dd"),
-              is_stop_sell: true,
-              available_units: 0,
-              external_system: 'manual',
-            });
+        for (const pid of targetPropertyIds) {
+          for (const roomType of selectedRoomTypes) {
+            for (const ds of dateStrings) {
+              records.push({
+                property_id: pid,
+                room_type: roomType,
+                date: ds,
+                is_stop_sell: true,
+                available_units: 0,
+                external_system: 'manual',
+              });
+            }
           }
         }
 
-        // Upsert records (update if exists, insert if not)
         const { error } = await supabase
           .from("property_availability")
-          .upsert(records, { 
+          .upsert(records, {
             onConflict: 'property_id,room_type,date',
-            ignoreDuplicates: false 
+            ignoreDuplicates: false,
           });
 
         if (error) throw error;
 
-        toast.success(`Blocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
+        toast.success(
+          `Blocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
+        );
       } else {
-        // UNBLOCKING: Delete the override records to restore default availability
-        // Build date strings for the filtered dates
-        const dateStrings = filteredDates.map(date => format(date, "yyyy-MM-dd"));
-        
-        const { error } = await supabase
-          .from("property_availability")
-          .delete()
-          .eq("property_id", propertyId)
-          .in("room_type", selectedRoomTypes)
-          .in("date", dateStrings);
+        for (const pid of targetPropertyIds) {
+          const { error } = await supabase
+            .from("property_availability")
+            .delete()
+            .eq("property_id", pid)
+            .in("room_type", selectedRoomTypes)
+            .in("date", dateStrings);
+          if (error) throw error;
+        }
 
-        if (error) throw error;
-
-        toast.success(`Unblocked ${filteredDates.length} dates for ${selectedRoomTypes.length} room(s)`);
+        toast.success(
+          `Unblocked ${filteredDates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`
+        );
       }
-      
+
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
@@ -195,6 +196,7 @@ export function BulkStopSellDialog({
       setSaving(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
