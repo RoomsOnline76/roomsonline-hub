@@ -32,7 +32,7 @@ export function useBillingDefaults() {
         .order("strategy");
 
       if (error) throw error;
-      return data as BillingDefault[];
+      return data as unknown as BillingDefault[];
     },
   });
 
