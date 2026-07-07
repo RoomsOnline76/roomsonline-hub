@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface PortfolioWidgetTabProps {
   property: {
