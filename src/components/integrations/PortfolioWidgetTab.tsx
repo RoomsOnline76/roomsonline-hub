@@ -98,6 +98,11 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
           <CardTitle className="text-sm flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />
             Portfolio Widget
+            {wl.enabled && (
+              <Badge variant="secondary" className="gap-1 text-xs ml-1">
+                <ShieldCheck className="h-3 w-3" /> White-label
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription className="text-xs">
             Embed a multi-property portal that lists all properties in a portfolio with search, filtering, and per-property booking.
