@@ -81,7 +81,9 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
   const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
-  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"]`;
+  const wl = useWhitelabel(property.id);
+  const wlAttrs = wl.enabled ? ` whitelabel="1"${wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : ""}` : "";
+  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"${wlAttrs}]`;
   const gridShortcode = `[rolos_property_grid limit="12" columns="3"]`;
 
   const handleDownloadZip = async () => {
