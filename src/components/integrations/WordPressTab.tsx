@@ -4,7 +4,7 @@ import { IntegrationToggle } from "./IntegrationToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2 } from "lucide-react";
+import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 import { useState } from "react";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -80,7 +81,9 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
   const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
-  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"]`;
+  const wl = useWhitelabel(property.id);
+  const wlAttrs = wl.enabled ? ` whitelabel="1"${wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : ""}` : "";
+  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"${wlAttrs}]`;
   const gridShortcode = `[rolos_property_grid limit="12" columns="3"]`;
 
   const handleDownloadZip = async () => {

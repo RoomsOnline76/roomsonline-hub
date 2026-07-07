@@ -486,6 +486,21 @@ export function IntegrationDocumentation({ type }: IntegrationDocumentationProps
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* White-label mode callout — behaviour is identical for every integration type */}
+        <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+          <div className="flex items-start gap-2">
+            <Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground">White-label mode</p>
+              <p className="text-muted-foreground">
+                When your property has white-label enabled, snippets on this page automatically hide the
+                "Powered by ROL'OS" chrome (adds <code className="bg-muted px-1 rounded">wl=1</code>).
+                Once you connect your own booking subdomain (see the panel at the top of the Integrations tab),
+                every generated URL and embed uses that domain — guests never see the ROL'OS URL.
+              </p>
+            </div>
+          </div>
+        </div>
         <Accordion type="single" collapsible className="w-full">
           {/* Overview */}
           <AccordionItem value="overview">

@@ -8,6 +8,12 @@ interface WhiteLabelLayoutProps {
   propertyName?: string;
   propertyLogoUrl?: string | null;
   className?: string;
+  /**
+   * Full white-label mode: hides the "Powered by ROL'OS" footer and the
+   * floating JourneyBuilder so the page is indistinguishable from the
+   * property's own site. Set by pages when `?wl=1` is present in the URL.
+   */
+  hideRolBranding?: boolean;
 }
 
 /**
@@ -21,6 +27,7 @@ export function WhiteLabelLayout({
   propertyName,
   propertyLogoUrl,
   className,
+  hideRolBranding = false,
 }: WhiteLabelLayoutProps) {
   return (
     <div className={cn("min-h-screen flex flex-col bg-background", className)}>
@@ -46,13 +53,15 @@ export function WhiteLabelLayout({
         {children}
       </main>
 
-      {/* Minimal footer */}
-      <footer className="border-t border-border/30 py-4">
-        <PoweredByRolOS />
-      </footer>
+      {/* Minimal footer — hidden entirely in full white-label mode */}
+      {!hideRolBranding && (
+        <footer className="border-t border-border/30 py-4">
+          <PoweredByRolOS />
+        </footer>
+      )}
 
-      {/* Floating Journey Builder for multi-stay visibility in embed flows */}
-      <JourneyBuilder />
+      {/* Floating Journey Builder — omitted in full white-label mode */}
+      {!hideRolBranding && <JourneyBuilder />}
     </div>
   );
 }

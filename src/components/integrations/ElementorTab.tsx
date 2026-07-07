@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface ElementorTabProps {
   property: {
@@ -39,11 +40,15 @@ export function ElementorTab({ property }: ElementorTabProps) {
 
   const [expanded, setExpanded] = useState<string | null>("booking");
 
-  const bwShortcode = `[rolos_booking_widget property_id="${property.id}" color="${bwColor}" layout="${bwLayout}" height="${bwHeight}"]`;
-  const pcShortcode = `[rolos_property_card property_id="${property.id}" show_price="${pcShowPrice}" show_availability="${pcShowAvail}" style="${pcStyle}"]`;
-  const agShortcode = `[rolos_availability property_id="${property.id}" months="${agMonths}" color="${agColor}"]`;
+  const wl = useWhitelabel(property.id);
+  const wlAttrs = wl.enabled ? ` whitelabel="1"${wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : ""}` : "";
+  const bwShortcode = `[rolos_booking_widget property_id="${property.id}" color="${bwColor}" layout="${bwLayout}" height="${bwHeight}"${wlAttrs}]`;
+  const pcShortcode = `[rolos_property_card property_id="${property.id}" show_price="${pcShowPrice}" show_availability="${pcShowAvail}" style="${pcStyle}"${wlAttrs}]`;
+  const agShortcode = `[rolos_availability property_id="${property.id}" months="${agMonths}" color="${agColor}"${wlAttrs}]`;
 
-  const embedUrl = `${PUBLIC_DOMAIN}/embed/property/${property.slug}?integration=elementor&property_id=${property.id}&brand_color=${encodeURIComponent(bwColor)}&mode=embedded`;
+  const BASE = wl.host || PUBLIC_DOMAIN;
+  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+  const embedUrl = `${BASE}/embed/property/${property.slug}?integration=elementor&property_id=${property.id}&brand_color=${encodeURIComponent(bwColor)}&mode=embedded${wlParam}`;
 
   const toggle = (key: string) => setExpanded(expanded === key ? null : key);
 

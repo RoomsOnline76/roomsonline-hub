@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks, Building2 } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, ExternalLink, Sparkles, Blocks, Building2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PushToRentalsUnited } from "./PushToRentalsUnited";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +17,8 @@ import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookBut
 import { WidgetSetupWizard } from "@/components/integrations/WidgetSetupWizard";
 import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPaymentProviderSelect";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
+import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
@@ -29,6 +31,7 @@ interface PropertyFormIntegrationsTabProps {
 
 export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegrationsTabProps) {
   const navigate = useNavigate();
+  const wl = useWhitelabel(property.id);
 
   return (
     <div className="space-y-4">
@@ -50,6 +53,11 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
                   Embed booking widgets and connect your website to ROL'OS
                 </p>
               </div>
+              {wl.enabled && (
+                <Badge variant="secondary" className="gap-1">
+                  <ShieldCheck className="h-3 w-3" /> White-label mode
+                </Badge>
+              )}
             </div>
             <Button
               variant="outline"
@@ -63,6 +71,15 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           </div>
         </CardContent>
       </Card>
+
+      {/* White-label custom subdomain panel (only when WL enabled) */}
+      {wl.enabled && (
+        <WhiteLabelDomainPanel
+          propertyId={property.id}
+          currentDomain={wl.domain}
+          currentStatus={wl.domainStatus}
+        />
+      )}
 
       {/* Integration Tabs */}
       <Tabs defaultValue="smart_button" className="space-y-4">

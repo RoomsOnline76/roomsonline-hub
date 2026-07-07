@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Code2, AlertCircle, Zap, Eye, EyeOff, ExternalLink, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PUBLIC_DOMAIN } from "@/lib/config";
+import { Badge } from "@/components/ui/badge";
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface WidgetTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -16,22 +17,28 @@ export function WidgetTab({ property }: WidgetTabProps) {
   const brandColor = property.brand_primary_color || "#e91e63";
   const [showPreview, setShowPreview] = useState(false);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const wl = useWhitelabel(property.id);
+  const wlActive = wl.enabled;
 
   const embedUrl = buildEntryUrl(property, entryOpts, {
     integration: "widget",
     property_id: property.id,
     brand_color: brandColor,
-  });
+  }, wlActive ? { enabled: true, host: wl.host } : undefined);
 
-  const rolEmbedSnippet = `<!-- ROL'OS Booking Widget (Recommended) -->
+  const wlAttrs = wlActive
+    ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
+    : "";
+
+  const rolEmbedSnippet = `<!-- ROL'OS Booking Widget${wlActive ? " (white-label)" : ""} -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
 <div data-rolos-property="${property.slug}"
-     data-brand-color="${brandColor}"></div>`;
+     data-brand-color="${brandColor}"${wlAttrs}></div>`;
 
   const rolEmbedAdvancedSnippet = `<!-- ROL'OS Booking Widget (Advanced) -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
 <div data-rolos-property="${property.slug}"
-     data-brand-color="${brandColor}"
+     data-brand-color="${brandColor}"${wlAttrs}
      data-layout="standard"
      data-height="600"></div>
 
@@ -61,6 +68,11 @@ export function WidgetTab({ property }: WidgetTabProps) {
           <div className="flex items-center gap-2">
             <Code2 className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Embedded Booking Widget</CardTitle>
+            {wlActive && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <ShieldCheck className="h-3 w-3" /> White-label
+              </Badge>
+            )}
           </div>
           <IntegrationToggle propertyId={property.id} integrationType="widget" />
         </div>

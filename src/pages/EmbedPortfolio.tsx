@@ -958,9 +958,11 @@ export default function EmbedPortfolio() {
       </div>
 
       {/* Footer */}
-      <div className="border-t py-3 px-4 flex justify-center">
-        <PoweredByRolOS />
-      </div>
+      {searchParams.get("wl") !== "1" && (
+        <div className="border-t py-3 px-4 flex justify-center">
+          <PoweredByRolOS />
+        </div>
+      )}
     </div>
   );
 }

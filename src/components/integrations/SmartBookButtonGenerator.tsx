@@ -8,6 +8,8 @@ import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers } from "lucide-react";
 
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { ShieldCheck } from "lucide-react";
 
 interface SmartBookButtonGeneratorProps {
   property: {
@@ -68,17 +70,20 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
     }
   }, [property.brand_primary_color]);
 
+  const wl = useWhitelabel(property.id);
+  const wlOpts = wl.enabled ? { enabled: true, host: wl.host } : undefined;
+
   const bookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "smart_button",
     property_id: property.id,
     brand_color: buttonColor,
-  });
+  }, wlOpts);
   const embedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
     integration: "smart_widget",
     property_id: property.id,
     brand_color: buttonColor,
-  });
+  }, wlOpts);
   const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
   const size = SIZE_MAP[buttonSize];
 

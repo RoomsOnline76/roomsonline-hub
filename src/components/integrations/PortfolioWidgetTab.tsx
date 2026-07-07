@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface PortfolioWidgetTabProps {
   property: {
@@ -65,14 +68,19 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const selectedPortfolio = allPortfolios.find((p: any) => p.id === selectedPortfolioId);
   const portfolioSlug = selectedPortfolio?.slug || "my-portfolio";
 
-  const BASE = "https://book.sleepinafrica.roomsonline.co.za";
-  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}`;
+  const wl = useWhitelabel(property.id);
+  const BASE = wl.host || PUBLIC_DOMAIN;
+  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
 
-  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}></div>`;
+  const wlAttrs = wl.enabled
+    ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
+    : "";
+  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
 
   const snippetScript = `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`;
 
-  const fullSnippet = `<!-- ROL'OS Portfolio Widget -->\n${snippetDiv}\n${snippetScript}`;
+  const fullSnippet = `<!-- ROL'OS Portfolio Widget${wl.enabled ? " (white-label)" : ""} -->\n${snippetDiv}\n${snippetScript}`;
 
   const iframeSnippet = `<iframe src="${embedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
 
@@ -90,6 +98,11 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
           <CardTitle className="text-sm flex items-center gap-2">
             <Building2 className="h-4 w-4 text-primary" />
             Portfolio Widget
+            {wl.enabled && (
+              <Badge variant="secondary" className="gap-1 text-xs ml-1">
+                <ShieldCheck className="h-3 w-3" /> White-label
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription className="text-xs">
             Embed a multi-property portal that lists all properties in a portfolio with search, filtering, and per-property booking.

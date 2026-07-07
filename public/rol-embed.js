@@ -35,7 +35,7 @@
 (function () {
   'use strict';
 
-  var BASE = 'https://book.sleepinafrica.roomsonline.co.za';
+  var DEFAULT_BASE = 'https://book.sleepinafrica.roomsonline.co.za';
   var VERSION = '1.0.0';
   var ATTR = 'data-rolos-property';
   var PORTFOLIO_ATTR = 'data-rolos-portfolio';
@@ -61,6 +61,11 @@
     el.dispatchEvent(evt);
   }
 
+  function resolveBase(config) {
+    if (config && config.wlHost) return String(config.wlHost).replace(/\/$/, '');
+    return DEFAULT_BASE;
+  }
+
   function buildEmbedUrl(slug, config) {
     var params = new URLSearchParams();
     params.set('integration', 'rol_embed');
@@ -70,10 +75,11 @@
     if (config.brandSecondaryColor) params.set('brand_secondary_color', config.brandSecondaryColor);
     if (config.brandFontColor) params.set('brand_font_color', config.brandFontColor);
     if (config.layout) params.set('layout', config.layout);
-    if (config.hidePoweredBy) params.set('hide_powered_by', '1');
+    if (config.hidePoweredBy || config.whiteLabel) params.set('hide_powered_by', '1');
+    if (config.whiteLabel) params.set('wl', '1');
     if (config.lang) params.set('lang', config.lang);
     params.set('embed_version', VERSION);
-    return BASE + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
+    return resolveBase(config) + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
   }
 
   function createWidget(container) {
@@ -90,6 +96,8 @@
       layout: getAttr(container, 'data-layout', 'standard'),
       height: getAttr(container, 'data-height', '600'),
       hidePoweredBy: getAttr(container, 'data-hide-powered-by') === 'true',
+      whiteLabel: getAttr(container, 'data-white-label') === 'true' || getAttr(container, 'data-wl') === '1',
+      wlHost: getAttr(container, 'data-wl-host'),
       lang: getAttr(container, 'data-lang'),
     };
 
@@ -171,7 +179,7 @@
   function sendToIframe(slug, message) {
     var widget = widgets[slug];
     if (widget && widget.iframe && widget.iframe.contentWindow) {
-      widget.iframe.contentWindow.postMessage(message, BASE);
+      widget.iframe.contentWindow.postMessage(message, resolveBase(widget.config));
     }
   }
 
@@ -185,14 +193,17 @@
       brandLogo: getAttr(container, 'data-brand-logo'),
       layout: getAttr(container, 'data-layout', 'grid'),
       height: getAttr(container, 'data-height', '700'),
+      whiteLabel: getAttr(container, 'data-white-label') === 'true' || getAttr(container, 'data-wl') === '1',
+      wlHost: getAttr(container, 'data-wl-host'),
     };
 
     var params = new URLSearchParams();
     if (config.brandColor) params.set('brand_color', config.brandColor);
     if (config.brandLogo) params.set('brand_logo', config.brandLogo);
     if (config.layout) params.set('layout', config.layout);
+    if (config.whiteLabel) { params.set('wl', '1'); params.set('hide_powered_by', '1'); }
     params.set('embed_version', VERSION);
-    var src = BASE + '/embed/portfolio/' + encodeURIComponent(slug) + '?' + params.toString();
+    var src = resolveBase(config) + '/embed/portfolio/' + encodeURIComponent(slug) + '?' + params.toString();
 
     var iframe = document.createElement('iframe');
     iframe.src = src;
