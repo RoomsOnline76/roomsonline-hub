@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
 
 const STRATEGY_LABELS: Record<string, string> = {
   default: "Standard Commission",
