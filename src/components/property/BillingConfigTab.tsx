@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck, Layers, Plus, Trash2 } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
 import { useBillingDefaults } from "@/hooks/useBillingDefaults";
 import { CommissionTab } from "./CommissionTab";
@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAULT_TIERS } from "@/lib/billingTierResolver";
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
@@ -72,6 +73,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
   const [volumeTiers, setVolumeTiers] = useState("");
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [tierScope, setTierScope] = useState<"portfolio" | "property">("portfolio");
+  const [roomCountOverride, setRoomCountOverride] = useState("");
+  const [tierPricing, setTierPricing] = useState<PricingTier[] | null>(null);
 
   useEffect(() => {
     if (config) {
@@ -84,10 +88,21 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
       setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
       setBillingStartDate(config.billing_start_date || "");
+      setTierScope(((config as any).tier_scope as "portfolio" | "property") || "portfolio");
+      setRoomCountOverride((config as any).room_count_override?.toString() || "");
+      const overrideTiers = normalizeTiers((config as any).tier_pricing_json);
+      setTierPricing(overrideTiers.length ? overrideTiers : null);
     }
   }, [config]);
 
   const globalDefaults = getDefaultsForStrategy(strategy);
+  const tieredStrategy = isTierStrategy(strategy);
+
+  const { data: resolved, refetch: refetchResolved } = useQuery({
+    queryKey: ["resolved-tier", propertyId, strategy, tierScope, roomCountOverride, tierPricing],
+    queryFn: () => resolvePropertyTier(propertyId),
+    enabled: !!propertyId && tieredStrategy,
+  });
 
   const handleSave = () => {
     let volumeTierJson = null;
@@ -110,8 +125,28 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       volume_tier_json: volumeTierJson,
       billing_start_date: billingStartDate || null,
+      tier_scope: tieredStrategy ? tierScope : null,
+      room_count_override: tieredStrategy && roomCountOverride ? parseInt(roomCountOverride) : null,
+      tier_pricing_json: tieredStrategy ? (tierPricing as any) : null,
     } as any);
+    setTimeout(() => refetchResolved(), 500);
   };
+
+  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
+    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+  const addTier = () => {
+    setTierPricing((prev) => {
+      const base = prev ?? [...DEFAULT_TIERS];
+      const last = base[base.length - 1];
+      const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
+      return [...base, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }];
+    });
+  };
+  const removeTier = (idx: number) => {
+    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).filter((_, i) => i !== idx));
+  };
+  const resetTiersToGlobal = () => setTierPricing(null);
 
   if (isLoading) {
     return (
@@ -187,6 +222,89 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             <GlobalHint value={globalDefaults?.default_subscription_fee} label=" ZAR" />
           </div>
         )}
+
+        {/* Room-count tier resolver */}
+        {tieredStrategy && (
+          <div className="rounded-md border p-3 space-y-3 bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              <Label className="text-xs font-semibold">Room-Count Tier</Label>
+            </div>
+            {resolved?.tier ? (
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-lg font-semibold">
+                  R{resolved.tier.monthly_fee}
+                  <span className="text-xs text-muted-foreground font-normal"> / month</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {resolved.rooms} rooms ({resolved.scope}) • tier {resolved.tier.min_rooms}
+                  {resolved.tier.max_rooms == null ? "+" : `–${resolved.tier.max_rooms}`}
+                  {resolved.usedOverride ? " • custom tiers" : " • global tiers"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Resolving tier…</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Tier Scope</Label>
+                <Select value={tierScope} onValueChange={(v) => setTierScope(v as "portfolio" | "property")}>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="portfolio">Portfolio (aggregate)</SelectItem>
+                    <SelectItem value="property">This property only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Room Count Override</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={roomCountOverride}
+                  onChange={(e) => setRoomCountOverride(e.target.value)}
+                  placeholder="auto"
+                  className="text-xs h-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Custom Tier Table (overrides global)</Label>
+                <div className="flex gap-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                  {tierPricing && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetTiersToGlobal}>
+                      Reset
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {tierPricing && tierPricing.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+                    <span>Min</span><span>Max</span><span>ZAR/mo</span><span />
+                  </div>
+                  {tierPricing.map((t, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                      <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
+                      <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                      <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground italic px-1">Using platform defaults. Click Add to override.</p>
+              )}
+            </div>
+          </div>
+        )}
+
 
         {/* Transaction Fee */}
         {showTransactionFee && (

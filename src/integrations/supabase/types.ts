@@ -338,6 +338,7 @@ export type Database = {
           referral_residual_months: number | null
           referral_residual_rate: number | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
+          tier_pricing_json: Json | null
           updated_at: string | null
           updated_by: string | null
           white_label_monthly_fee: number | null
@@ -354,6 +355,7 @@ export type Database = {
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
+          tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           white_label_monthly_fee?: number | null
@@ -370,6 +372,7 @@ export type Database = {
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
           strategy?: Database["public"]["Enums"]["billing_strategy"]
+          tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
           white_label_monthly_fee?: number | null
@@ -4396,7 +4399,10 @@ export type Database = {
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
           property_id: string
+          room_count_override: number | null
           subscription_fee_monthly: number | null
+          tier_pricing_json: Json | null
+          tier_scope: string | null
           transaction_fee_percentage: number | null
           updated_at: string | null
           volume_tier_json: Json | null
@@ -4414,7 +4420,10 @@ export type Database = {
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
           property_id: string
+          room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          tier_pricing_json?: Json | null
+          tier_scope?: string | null
           transaction_fee_percentage?: number | null
           updated_at?: string | null
           volume_tier_json?: Json | null
@@ -4432,7 +4441,10 @@ export type Database = {
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
           property_id?: string
+          room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          tier_pricing_json?: Json | null
+          tier_scope?: string | null
           transaction_fee_percentage?: number | null
           updated_at?: string | null
           volume_tier_json?: Json | null

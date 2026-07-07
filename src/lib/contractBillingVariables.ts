@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
 
 const STRATEGY_LABELS: Record<string, string> = {
   default: "Standard Commission",
@@ -30,6 +31,9 @@ export interface BillingContractVariables {
   payment_facilitator_fee: string;
   payment_facilitator_clause: string;
   volume_tier_clause: string;
+  tier_monthly_fee: string;
+  tier_room_count: string;
+  tier_clause: string;
 }
 
 /**
@@ -50,6 +54,9 @@ export async function resolveBillingContractVariables(
     payment_facilitator_fee: "",
     payment_facilitator_clause: "",
     volume_tier_clause: "",
+    tier_monthly_fee: "",
+    tier_room_count: "",
+    tier_clause: "<!-- N/A -->",
   };
 
   if (!propertyIds.length) return empty;
@@ -82,6 +89,26 @@ export async function resolveBillingContractVariables(
 
   const words = numberToWords(Math.round(commissionRate));
 
+  // Resolve room-count tier for tiered strategies
+  let tierMonthlyFee = "";
+  let tierRoomCount = "";
+  let tierClause: string = "<!-- N/A -->";
+  if (isTierStrategy(strategy)) {
+    try {
+      const info = await resolvePropertyTier(propertyIds[0]);
+      if (info.tier) {
+        tierMonthlyFee = String(info.tier.monthly_fee);
+        tierRoomCount = String(info.rooms);
+        const feeWords = numberToWords(Math.round(info.tier.monthly_fee));
+        const roomsWords = numberToWords(info.rooms);
+        const scopeLabel = info.scope === "portfolio" ? "portfolio" : "property";
+        tierClause = `Based on a ${scopeLabel} of ${roomsWords} (${info.rooms}) rooms, the applicable monthly subscription is ${feeWords} Rand (R${info.tier.monthly_fee}) per month.`;
+      }
+    } catch (e) {
+      console.warn("[contractBillingVariables] tier resolution failed", e);
+    }
+  }
+
   const result: BillingContractVariables = {
     billing_strategy_label: STRATEGY_LABELS[strategy] || strategy,
     commission_rate: `${words} percent (${commissionRate}%)`,
@@ -92,7 +119,10 @@ export async function resolveBillingContractVariables(
     white_label_clause: whiteLabel ? "" : "<!-- N/A -->",
     payment_facilitator_fee: payFacFee ? String(payFacFee) : "",
     payment_facilitator_clause: payFacEnabled ? "" : "<!-- N/A -->",
-    volume_tier_clause: strategy === "volume-tiered" ? "" : "<!-- N/A -->",
+    volume_tier_clause: strategy === "volume_tiered" ? "" : "<!-- N/A -->",
+    tier_monthly_fee: tierMonthlyFee,
+    tier_room_count: tierRoomCount,
+    tier_clause: tierClause,
   };
 
   return result;

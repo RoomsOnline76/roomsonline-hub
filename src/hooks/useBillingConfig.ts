@@ -13,6 +13,9 @@ export interface BillingConfig {
   payment_facilitator_enabled: boolean;
   white_label_allowed: boolean;
   volume_tier_json: Record<string, number> | null;
+  tier_pricing_json: Array<{ min_rooms: number; max_rooms: number | null; monthly_fee: number }> | null;
+  tier_scope: "property" | "portfolio" | null;
+  room_count_override: number | null;
   billing_start_date: string | null;
   linked_contract_id: string | null;
   custom_overrides: Record<string, unknown> | null;
@@ -34,7 +37,7 @@ export function useBillingConfig(propertyId: string | undefined) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as BillingConfig | null;
+      return data as unknown as BillingConfig | null;
     },
     enabled: !!propertyId,
   });

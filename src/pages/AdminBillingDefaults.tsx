@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, DollarSign, ArrowLeft } from "lucide-react";
+import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers } from "lucide-react";
 import { useBillingDefaults, BillingDefault } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
+import { DEFAULT_TIERS, PricingTier, normalizeTiers, isTierStrategy } from "@/lib/billingTierResolver";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
   default: { label: "Default (Commission)", description: "Standard listing/PMS commission model" },
@@ -21,6 +22,7 @@ const STRATEGY_LABELS: Record<string, { label: string; description: string }> = 
 
 function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
   const meta = STRATEGY_LABELS[item.strategy] || { label: item.strategy, description: "" };
+  const tieredStrategy = isTierStrategy(item.strategy);
   const [commission, setCommission] = useState(item.default_commission_rate?.toString() ?? "");
   const [subscription, setSubscription] = useState(item.default_subscription_fee?.toString() ?? "");
   const [transaction, setTransaction] = useState(item.default_transaction_fee?.toString() ?? "");
@@ -31,6 +33,20 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
   const [refMonths, setRefMonths] = useState(item.referral_residual_months?.toString() ?? "");
   const [refClawback, setRefClawback] = useState(item.referral_clawback_days?.toString() ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
+  const [tiers, setTiers] = useState<PricingTier[]>(() => {
+    const existing = normalizeTiers((item as any).tier_pricing_json);
+    return existing.length ? existing : tieredStrategy ? DEFAULT_TIERS : [];
+  });
+
+  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
+    setTiers((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+  const addTier = () => {
+    const last = tiers[tiers.length - 1];
+    const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
+    setTiers((prev) => [...prev, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }]);
+  };
+  const removeTier = (idx: number) => setTiers((prev) => prev.filter((_, i) => i !== idx));
 
   const handleSave = () => {
     onSave({
@@ -45,7 +61,8 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       referral_residual_months: refMonths ? parseInt(refMonths) : null,
       referral_clawback_days: refClawback ? parseInt(refClawback) : null,
       notes: notes || null,
-    });
+      ...(tieredStrategy ? { tier_pricing_json: tiers as any } : {}),
+    } as any);
   };
 
   return (
@@ -80,6 +97,40 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
             <Input type="number" step="0.1" min="0" max="100" value={payFac} onChange={(e) => setPayFac(e.target.value)} placeholder="2.5" className="h-8 text-sm" />
           </div>
         </div>
+        {tieredStrategy && (
+          <div className="border-t pt-3 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5" />
+                Room-Count Pricing Tiers
+              </p>
+              <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
+                <Plus className="h-3 w-3 mr-1" /> Add tier
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+                <span>Min rooms</span>
+                <span>Max rooms</span>
+                <span>ZAR / mo</span>
+                <span />
+              </div>
+              {tiers.map((t, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                  <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
+                  <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                  <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
+                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ))}
+              {tiers.length === 0 && (
+                <p className="text-[10px] text-muted-foreground italic px-1">No tiers configured — falls back to flat subscription fee.</p>
+              )}
+            </div>
+          </div>
+        )}
         {/* Referral Commission Defaults */}
         <div className="border-t pt-3 mt-2">
           <p className="text-xs font-medium text-muted-foreground mb-2">Referral Commission Defaults</p>
