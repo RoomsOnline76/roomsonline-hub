@@ -31,6 +31,9 @@ export interface BillingContractVariables {
   payment_facilitator_fee: string;
   payment_facilitator_clause: string;
   volume_tier_clause: string;
+  tier_monthly_fee: string;
+  tier_room_count: string;
+  tier_clause: string;
 }
 
 /**
