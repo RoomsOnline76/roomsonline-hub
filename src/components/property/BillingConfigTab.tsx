@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck, Layers, Plus, Trash2 } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
 import { useBillingDefaults } from "@/hooks/useBillingDefaults";
 import { CommissionTab } from "./CommissionTab";
@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAULT_TIERS } from "@/lib/billingTierResolver";
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission-based)", description: "10% listing / 2% PMS" },
