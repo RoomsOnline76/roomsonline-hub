@@ -61,7 +61,8 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       referral_residual_months: refMonths ? parseInt(refMonths) : null,
       referral_clawback_days: refClawback ? parseInt(refClawback) : null,
       notes: notes || null,
-    });
+      ...(tieredStrategy ? { tier_pricing_json: tiers as any } : {}),
+    } as any);
   };
 
   return (
