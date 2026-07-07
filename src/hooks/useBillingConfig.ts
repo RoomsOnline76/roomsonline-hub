@@ -37,7 +37,7 @@ export function useBillingConfig(propertyId: string | undefined) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as BillingConfig | null;
+      return data as unknown as BillingConfig | null;
     },
     enabled: !!propertyId,
   });
