@@ -125,8 +125,28 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       volume_tier_json: volumeTierJson,
       billing_start_date: billingStartDate || null,
+      tier_scope: tieredStrategy ? tierScope : null,
+      room_count_override: tieredStrategy && roomCountOverride ? parseInt(roomCountOverride) : null,
+      tier_pricing_json: tieredStrategy ? (tierPricing as any) : null,
     } as any);
+    setTimeout(() => refetchResolved(), 500);
   };
+
+  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
+    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+  const addTier = () => {
+    setTierPricing((prev) => {
+      const base = prev ?? [...DEFAULT_TIERS];
+      const last = base[base.length - 1];
+      const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
+      return [...base, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }];
+    });
+  };
+  const removeTier = (idx: number) => {
+    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).filter((_, i) => i !== idx));
+  };
+  const resetTiersToGlobal = () => setTierPricing(null);
 
   if (isLoading) {
     return (
