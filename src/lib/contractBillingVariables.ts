@@ -54,6 +54,9 @@ export async function resolveBillingContractVariables(
     payment_facilitator_fee: "",
     payment_facilitator_clause: "",
     volume_tier_clause: "",
+    tier_monthly_fee: "",
+    tier_room_count: "",
+    tier_clause: "<!-- N/A -->",
   };
 
   if (!propertyIds.length) return empty;
