@@ -1,6 +1,8 @@
 // Application configuration constants
 // GLOBAL RULE: All generated/shared links MUST use production domains, never lovable.* domains.
 
+import { supabase } from "@/integrations/supabase/client";
+
 // The admin domain for admin panel URLs (ROLOS PMS, staff login, contracts, onboarding)
 export const ADMIN_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
@@ -70,3 +72,25 @@ export const getNightsBridgeBookingUrl = (
   
   return `https://nightsbridge.co.za/bridge/book?${params.toString()}`;
 };
+
+/**
+ * Resolves the white-label host for a property (server-side callers / emails).
+ * Returns the property's custom subdomain when Active, otherwise PUBLIC_DOMAIN.
+ * Client components should prefer the `useWhitelabel` hook for reactive reads.
+ */
+export const getWhitelabelHost = async (propertyId: string): Promise<string> => {
+  try {
+    const { data } = await supabase
+      .from("property_billing_configs")
+      .select("white_label_domain, white_label_domain_status")
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    const status = (data as any)?.white_label_domain_status;
+    const domain = ((data as any)?.white_label_domain || "").trim();
+    if (status === "active" && domain) return `https://${domain}`;
+  } catch {
+    /* fall through */
+  }
+  return PUBLIC_DOMAIN;
+};
+

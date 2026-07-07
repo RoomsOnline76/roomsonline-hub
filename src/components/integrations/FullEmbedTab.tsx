@@ -3,11 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { Globe, AlertCircle, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Globe, AlertCircle, Eye, EyeOff, ExternalLink, ShieldCheck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface FullEmbedTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -18,15 +20,15 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
   const [height, setHeight] = useState(800);
   const [showPreview, setShowPreview] = useState(false);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const wl = useWhitelabel(property.id);
 
-  const encodedColor = encodeURIComponent(brandColor);
   const embedUrl = buildEntryUrl(property, entryOpts, {
     integration: "full_embed",
     property_id: property.id,
     brand_color: brandColor,
-  });
+  }, wl.enabled ? { enabled: true, host: wl.host } : undefined);
 
-  const snippet = `<!-- RoomsOnline Full Booking Engine -->
+  const snippet = `<!-- RoomsOnline Full Booking Engine${wl.enabled ? " (white-label)" : ""} -->
 <iframe 
   src="${embedUrl}" 
   style="width:100%;min-height:${height}px;border:none;border-radius:8px;"
@@ -42,6 +44,11 @@ export function FullEmbedTab({ property }: FullEmbedTabProps) {
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Full Booking Engine</CardTitle>
+            {wl.enabled && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <ShieldCheck className="h-3 w-3" /> White-label
+              </Badge>
+            )}
           </div>
           <IntegrationToggle propertyId={property.id} integrationType="full_embed" />
         </div>

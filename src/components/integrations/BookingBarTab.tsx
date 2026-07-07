@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { LayoutTemplate, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { LayoutTemplate, AlertCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PUBLIC_DOMAIN } from "@/lib/config";
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface BookingBarTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -19,13 +20,14 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
   const [position, setPosition] = useState<"bottom" | "top">("bottom");
   const [showPreview, setShowPreview] = useState(false);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const wl = useWhitelabel(property.id);
 
   const bookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "booking_bar",
     property_id: property.id,
     brand_color: brandColor,
-  });
+  }, wl.enabled ? { enabled: true, host: wl.host } : undefined);
 
   const posStyle = position === "top" ? "position:fixed;top:0;left:0;right:0;" : "position:fixed;bottom:0;left:0;right:0;";
   const shadowDir = position === "top" ? "box-shadow:0 4px 20px rgba(0,0,0,0.18);" : "box-shadow:0 -4px 20px rgba(0,0,0,0.18);";
@@ -180,6 +182,11 @@ export function BookingBarTab({ property }: BookingBarTabProps) {
           <div className="flex items-center gap-2">
             <LayoutTemplate className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Floating Booking Bar</CardTitle>
+            {wl.enabled && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <ShieldCheck className="h-3 w-3" /> White-label
+              </Badge>
+            )}
           </div>
           <IntegrationToggle propertyId={property.id} integrationType="booking_bar" />
         </div>

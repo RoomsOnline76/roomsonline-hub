@@ -4407,6 +4407,9 @@ export type Database = {
           updated_at: string | null
           volume_tier_json: Json | null
           white_label_allowed: boolean | null
+          white_label_domain: string | null
+          white_label_domain_status: string
+          white_label_domain_verified_at: string | null
           white_label_monthly_fee: number | null
         }
         Insert: {
@@ -4428,6 +4431,9 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_domain?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
         }
         Update: {
@@ -4449,6 +4455,9 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_domain?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
         }
         Relationships: [

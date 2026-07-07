@@ -3,11 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { IntegrationToggle } from "./IntegrationToggle";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { Link2, ExternalLink, Info } from "lucide-react";
+import { Link2, ExternalLink, Info, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface DirectLinkTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -36,16 +38,42 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
   const [btnStyle, setBtnStyle] = useState<BtnStyle>("solid");
   const [btnSize, setBtnSize] = useState<BtnSize>("md");
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const wl = useWhitelabel(property.id);
+  const wlDomainActive = wl.enabled && wl.domainStatus === "active" && !!wl.domain;
 
   const bookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "direct",
     property_id: property.id,
     brand_color: brandColor,
-  });
+  }, wl.enabled ? { enabled: true, host: wl.host } : undefined);
 
   const btnCss = buildBtnCss(brandColor, btnStyle, btnSize);
-  const htmlSnippet = `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
+
+  // In WL + no custom domain: emit an in-page modal launcher (SDK) so guests
+  // never navigate away. Otherwise emit a plain anchor.
+  const htmlSnippet = wl.enabled && !wlDomainActive
+    ? `<!-- White-label in-page booking (no custom domain configured) -->
+<script src="https://widget.roomsonline.co.za/rol-sdk.js"></script>
+<button id="rolos-book" style="${btnCss}">Book Now</button>
+<div id="rolos-book-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;padding:24px;">
+  <div style="background:#fff;max-width:960px;margin:auto;border-radius:12px;overflow:hidden;position:relative;">
+    <button onclick="document.getElementById('rolos-book-modal').style.display='none'"
+      style="position:absolute;top:8px;right:8px;background:transparent;border:none;font-size:24px;cursor:pointer;z-index:2;">&times;</button>
+    <div id="rolos-book-body"></div>
+  </div>
+</div>
+<script>
+  RolosSDK.init({ property: '${property.slug}', brandColor: '${brandColor}' });
+  document.getElementById('rolos-book').addEventListener('click', function () {
+    document.getElementById('rolos-book-modal').style.display = 'block';
+    RolosSDK.openCheckout({ container: document.getElementById('rolos-book-body') });
+  });
+  RolosSDK.on('booking:complete', function (d) {
+    console.log('Booking complete', d);
+  });
+</script>`
+    : `<a href="${bookingUrl}" target="_blank" rel="noopener noreferrer" 
   style="${btnCss}">
   Book Now
 </a>`;
@@ -57,6 +85,11 @@ export function DirectLinkTab({ property }: DirectLinkTabProps) {
           <div className="flex items-center gap-2">
             <Link2 className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Direct Booking Link</CardTitle>
+            {wl.enabled && (
+              <Badge variant="secondary" className="gap-1 text-xs">
+                <ShieldCheck className="h-3 w-3" /> {wlDomainActive ? "Your domain" : "In-page modal"}
+              </Badge>
+            )}
           </div>
           <IntegrationToggle propertyId={property.id} integrationType="direct" />
         </div>

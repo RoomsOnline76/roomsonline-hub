@@ -57,7 +57,8 @@ export default function EmbedProperty() {
   const brandSecondaryParam = searchParams.get("brand_secondary_color");
   const brandFontParam = searchParams.get("brand_font_color");
   const layoutParam = searchParams.get("layout") || "standard";
-  const hidePoweredBy = searchParams.get("hide_powered_by") === "1";
+  const isFullWhiteLabel = searchParams.get("wl") === "1";
+  const hidePoweredBy = isFullWhiteLabel || searchParams.get("hide_powered_by") === "1";
 
   const [property, setProperty] = useState<any>(null);
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
@@ -653,6 +654,11 @@ export default function EmbedProperty() {
     // Forward portfolio_slug so checkout can route back to portfolio
     const portfolioSlugParam = searchParams.get("portfolio_slug");
     if (portfolioSlugParam) params.set("portfolio_slug", portfolioSlugParam);
+    // Preserve full white-label mode through checkout so BookingConfirmation stays chrome-less.
+    if (isFullWhiteLabel) {
+      params.set("wl", "1");
+      params.set("hide_powered_by", "1");
+    }
 
     // Journey mode: add this stay to the itinerary and go to journey review
     if (journeyMode && property) {

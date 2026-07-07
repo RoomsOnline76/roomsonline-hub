@@ -2022,9 +2022,10 @@ const Booking = () => {
   // Layout wrapper — white-label for integration flows or brand-override properties
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
   const isWhiteLabel = isIntegration || Boolean(property?.brand_override_enabled);
+  const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback((children: React.ReactNode) =>
     isWhiteLabel ? (
-      <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl}>
+      <WhiteLabelLayout propertyName={property?.name} propertyLogoUrl={propertyLogoUrl} hideRolBranding={hideRolBranding}>
         {children}
       </WhiteLabelLayout>
     ) : (
@@ -2034,7 +2035,7 @@ const Booking = () => {
       >
         {children}
       </PublicLayout>
-    ), [isWhiteLabel, property?.name, propertyLogoUrl, property?.slug, property?.id]);
+    ), [isWhiteLabel, hideRolBranding, property?.name, propertyLogoUrl, property?.slug, property?.id]);
 
   if (isLoading || !brandReady) {
     return (

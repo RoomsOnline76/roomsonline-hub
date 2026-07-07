@@ -30,13 +30,25 @@ const ENTRY_POINTS: { value: EntryPoint; label: string; icon: React.ReactNode; d
   { value: "checkout", label: "Checkout Only", icon: <CreditCard className="h-4 w-4" />, desc: "Jump to guest details & payment" },
 ];
 
+export interface WhiteLabelOptions {
+  /** True when generated URLs should hide ROL chrome (adds `wl=1`). */
+  enabled: boolean;
+  /** Optional host override (e.g. `https://book.theirdomain.com`). Falls back to PUBLIC_DOMAIN. */
+  host?: string;
+}
+
 export function buildEntryUrl(
   property: { id: string; slug: string },
   opts: EntryPointOptions,
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  whitelabel?: WhiteLabelOptions,
 ): string {
-  const base = PUBLIC_DOMAIN;
+  const base = whitelabel?.host || PUBLIC_DOMAIN;
   const shared = new URLSearchParams(params);
+  if (whitelabel?.enabled) {
+    shared.set("wl", "1");
+    shared.set("hide_powered_by", "1");
+  }
 
   switch (opts.entryPoint) {
     case "showcase":

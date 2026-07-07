@@ -106,14 +106,15 @@ const BookingConfirmation = () => {
   const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
   const propertyLogoUrl = booking?.properties ? (booking.properties as any).brand_logo_url : null;
   const isWhiteLabel = isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled);
+  const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback(
     (children: React.ReactNode) =>
       isWhiteLabel ? (
-        <WhiteLabelLayout propertyName={propertyName} propertyLogoUrl={propertyLogoUrl}>{children}</WhiteLabelLayout>
+        <WhiteLabelLayout propertyName={propertyName} propertyLogoUrl={propertyLogoUrl} hideRolBranding={hideRolBranding}>{children}</WhiteLabelLayout>
       ) : (
         <PublicLayout>{children}</PublicLayout>
       ),
-    [isWhiteLabel, propertyName, propertyLogoUrl]
+    [isWhiteLabel, hideRolBranding, propertyName, propertyLogoUrl]
   );
 
   if (isLoading) {
