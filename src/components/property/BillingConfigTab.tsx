@@ -223,6 +223,89 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </div>
         )}
 
+        {/* Room-count tier resolver */}
+        {tieredStrategy && (
+          <div className="rounded-md border p-3 space-y-3 bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              <Label className="text-xs font-semibold">Room-Count Tier</Label>
+            </div>
+            {resolved?.tier ? (
+              <div className="rounded-md border bg-background p-3">
+                <p className="text-lg font-semibold">
+                  R{resolved.tier.monthly_fee}
+                  <span className="text-xs text-muted-foreground font-normal"> / month</span>
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {resolved.rooms} rooms ({resolved.scope}) • tier {resolved.tier.min_rooms}
+                  {resolved.tier.max_rooms == null ? "+" : `–${resolved.tier.max_rooms}`}
+                  {resolved.usedOverride ? " • custom tiers" : " • global tiers"}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Resolving tier…</p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Tier Scope</Label>
+                <Select value={tierScope} onValueChange={(v) => setTierScope(v as "portfolio" | "property")}>
+                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="portfolio">Portfolio (aggregate)</SelectItem>
+                    <SelectItem value="property">This property only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Room Count Override</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={roomCountOverride}
+                  onChange={(e) => setRoomCountOverride(e.target.value)}
+                  placeholder="auto"
+                  className="text-xs h-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Custom Tier Table (overrides global)</Label>
+                <div className="flex gap-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                  {tierPricing && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetTiersToGlobal}>
+                      Reset
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {tierPricing && tierPricing.length > 0 ? (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+                    <span>Min</span><span>Max</span><span>ZAR/mo</span><span />
+                  </div>
+                  {tierPricing.map((t, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                      <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
+                      <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                      <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground italic px-1">Using platform defaults. Click Add to override.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+
         {/* Transaction Fee */}
         {showTransactionFee && (
           <div className="space-y-1">
