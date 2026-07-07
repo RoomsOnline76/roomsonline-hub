@@ -1,52 +1,54 @@
-## Finding
+# Room-Count Tiered Billing
 
-The attached PMS CSV does not match the current cached calendar counts for ONE46 ON M.
+Add an admin-editable tier table (rooms → monthly fee) to the **ROL'OS PMS** and **Volume Tiered** billing strategies. The applicable tier resolves automatically from the property's total room-type inventory (aggregated across portfolio when applicable) and appears in the owner contract as a single resolved rate.
 
-Key mismatches found in the current backend cache:
+## Default tiers (from screenshot)
 
-- **Compact Studio** should be `6,5,4,2,2,2,2,2,2,1,1,1,1`, but the app currently has values like `0,5,4,4,2,3,4,6,8,9,9,8,10`.
-- **Studio** should be `0,1,1,1,1,1,1,1,1,1,1,1,0`, but the app currently has values like `0,2,2,4,3,3,4,6,9,8,7,8,6`.
-- The pattern shows the app is still using aggregated unit/leaf calendar availability for at least some room types, instead of the PMS unit-type “Rooms to Sell” inventory.
-- Some PMS CSV labels, like **Compact One Bedroom**, **One Bedroom**, and **Two Bed Room**, do not currently match one-to-one with the cached `raw_data.roomTypeName` labels, so the name/alias mapping also needs to be hardened.
+| Rooms | Monthly |
+|---|---|
+| 0–9 | R350 |
+| 10–19 | R450 |
+| 20–50 | R600 |
+| 51+ | R750 |
 
-## Plan
+## Changes
 
-1. **Confirm the Hostfully unit-type inventory response shape**
-   - Inspect the deployed Hostfully function logs and/or call the existing availability function for ONE46 ON M.
-   - Confirm whether the function is receiving true unit-type inventory rows, or whether it is falling back to raw unit calendars.
-   - Identify exactly why the previous “unit-type inventory first” switch is not being used for this property/date range.
+### 1. Schema (migration)
+- Add `tier_pricing_json jsonb` to `billing_global_defaults` — array of `{min_rooms, max_rooms|null, monthly_fee}` tiers. Seed defaults above for `rolos_pms` and `volume_tiered` strategies.
+- Add to `property_billing_configs`:
+  - `tier_pricing_json jsonb` — per-property/portfolio override (nullable → falls back to global).
+  - `tier_scope text` — `'property'` | `'portfolio'` (default `'portfolio'` per user choice; keeps door open).
+  - `room_count_override int` — nullable manual override.
 
-2. **Fix the locked Hostfully adapter path**
-   - Update only the explicitly locked Hostfully availability section.
-   - Make unit-type inventory mandatory for Hostfully multi-unit properties where a PMS unit type exists.
-   - Prevent silent fallback to summed child calendars when unit-type inventory exists but parsing/mapping fails.
-   - If unit-type inventory cannot be read, return a clear diagnostic error/log instead of writing incorrect inflated counts.
+### 2. Room-count resolver (`src/lib/billingTierResolver.ts`, new)
+- `getPropertyRoomCount(propertyId)` — sums `hostfully_room_types.number_of_units` (+ equivalent for other PMS via `pms_room_types_cache.max_occupancy_units` / `rolos_room_types.total_units`). Uses whichever source has data.
+- `getPortfolioRoomCount(propertyId)` — resolves portfolio via `property_portfolio_members`, sums across all members; falls back to property count if not in a portfolio.
+- `resolveTier(rooms, tiers)` — returns matching `{min, max, monthly_fee}`.
 
-3. **Harden room-type identity mapping**
-   - Normalize PMS unit-type IDs and ROLOS room-type IDs so cached rows are keyed by the authoritative Hostfully unit-type ID.
-   - Add safe aliases for display-name differences, including:
-     - `Comapct Studio` / `Compact Studio`
-     - `Compact One Bedroom`
-     - `One Bedroom` / `One-Bedroom Apartment`
-     - `Two Bed Room` / `Two-Bedroom Apartment`
-   - Ensure Compact Studio and Studio cannot be blended or deduced from leaf-unit totals.
+### 3. Admin UI — `src/pages/AdminBillingDefaults.tsx`
+- For `rolos_pms` and `volume_tiered` strategy cards only, render a **Tier Table editor**: add/remove rows, edit min/max/fee. Save through existing `useBillingDefaults.update` (persists to `tier_pricing_json`).
+- Keep existing subscription/commission inputs; hide the flat "Subscription Fee" input on these two strategies since tiers replace it.
 
-4. **Refresh ONE46 ON M availability cache**
-   - Re-run the Hostfully availability sync for ONE46 ON M for the CSV date range.
-   - Verify the database cache against the uploaded PMS CSV date-by-date and room-type-by-room-type.
+### 4. Per-property override — `src/components/admin/PropertyBillingConfigCard.tsx` (existing usage location)
+- When strategy is `rolos_pms` or `volume_tiered`, show:
+  - Live "Current tier: **R450 / month** (12 rooms across portfolio)" summary using the resolver.
+  - Collapsible "Override tiers for this portfolio/property" editor writing to `property_billing_configs.tier_pricing_json`.
+  - Optional manual `room_count_override` input.
 
-5. **Add adapter-change guardrails**
-   - Extend the adapter lock documentation so future edits cannot reintroduce raw calendar aggregation for Hostfully availability without explicit approval.
-   - Add a targeted regression check or diagnostic script for ONE46 ON M comparing known PMS counts against cached output.
+### 5. Contract variable — `src/lib/contractBillingVariables.ts`
+- Extend `BillingContractVariables` with:
+  - `tier_monthly_fee` (e.g. `"450"`) 
+  - `tier_room_count` (e.g. `"12"`)
+  - `tier_clause` — rendered sentence, e.g. *"Based on a portfolio of twelve (12) rooms, the applicable monthly subscription is four hundred and fifty Rand (R450) per month."* Empty comment when strategy isn't tier-based.
+- `resolveBillingContractVariables` calls the new resolver, picks tier from property override → global default.
 
-## Validation target
+### 6. `useBillingSummary` / display
+- Update `useBillingSummary` to surface the resolved tier fee so dashboards show the correct monthly amount.
 
-After implementation, the calendar cache for `2026-07-06` through `2026-07-18` should match the PMS CSV counts exactly for:
+## Files touched
+- **New:** migration; `src/lib/billingTierResolver.ts`
+- **Edited:** `AdminBillingDefaults.tsx`, `useBillingDefaults.ts` (type only), `useBillingConfig.ts` (type only), `PropertyBillingConfigCard.tsx`, `contractBillingVariables.ts`, `useBillingSummary.ts`
 
-- Compact Studio
-- Studio
-- Compact One Bedroom
-- One Bedroom
-- Two Bed Room
-
-The admin calendar should then display those same counts for ONE46 ON M.
+## Out of scope
+- Automated re-billing when room count crosses a tier boundary (flag noted; can be added via a scheduled function later).
+- Changes to any PMS adapter (locked).
