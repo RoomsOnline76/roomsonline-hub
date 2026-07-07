@@ -140,7 +140,7 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     supabase
       .from("billing_global_defaults")
       .select("strategy, tier_pricing_json")
-      .in("strategy", TIER_STRATEGIES as unknown as string[]),
+      .in("strategy", [...TIER_STRATEGIES]),
   ]);
 
   const config = configRes.data as any;
