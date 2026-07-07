@@ -73,6 +73,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
   const [volumeTiers, setVolumeTiers] = useState("");
   const [billingStartDate, setBillingStartDate] = useState("");
+  const [tierScope, setTierScope] = useState<"portfolio" | "property">("portfolio");
+  const [roomCountOverride, setRoomCountOverride] = useState("");
+  const [tierPricing, setTierPricing] = useState<PricingTier[] | null>(null);
 
   useEffect(() => {
     if (config) {
