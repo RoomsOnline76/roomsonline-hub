@@ -4,7 +4,7 @@ import { IntegrationToggle } from "./IntegrationToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2 } from "lucide-react";
+import { Puzzle, AlertCircle, Download, RefreshCw, Rocket, CheckCircle2, XCircle, Webhook, Send, Eye, Copy, Loader2, ShieldCheck } from "lucide-react";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 import { useState } from "react";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
