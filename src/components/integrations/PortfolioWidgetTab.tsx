@@ -68,14 +68,19 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const selectedPortfolio = allPortfolios.find((p: any) => p.id === selectedPortfolioId);
   const portfolioSlug = selectedPortfolio?.slug || "my-portfolio";
 
-  const BASE = "https://book.sleepinafrica.roomsonline.co.za";
-  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}`;
+  const wl = useWhitelabel(property.id);
+  const BASE = wl.host || PUBLIC_DOMAIN;
+  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
 
-  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}></div>`;
+  const wlAttrs = wl.enabled
+    ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
+    : "";
+  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
 
   const snippetScript = `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`;
 
-  const fullSnippet = `<!-- ROL'OS Portfolio Widget -->\n${snippetDiv}\n${snippetScript}`;
+  const fullSnippet = `<!-- ROL'OS Portfolio Widget${wl.enabled ? " (white-label)" : ""} -->\n${snippetDiv}\n${snippetScript}`;
 
   const iframeSnippet = `<iframe src="${embedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
 
