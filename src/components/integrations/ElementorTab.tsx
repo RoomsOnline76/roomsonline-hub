@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PUBLIC_DOMAIN } from "@/lib/config";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 
 interface ElementorTabProps {
   property: {
