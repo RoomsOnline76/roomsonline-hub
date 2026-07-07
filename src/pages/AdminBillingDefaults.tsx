@@ -22,6 +22,7 @@ const STRATEGY_LABELS: Record<string, { label: string; description: string }> = 
 
 function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
   const meta = STRATEGY_LABELS[item.strategy] || { label: item.strategy, description: "" };
+  const tieredStrategy = isTierStrategy(item.strategy);
   const [commission, setCommission] = useState(item.default_commission_rate?.toString() ?? "");
   const [subscription, setSubscription] = useState(item.default_subscription_fee?.toString() ?? "");
   const [transaction, setTransaction] = useState(item.default_transaction_fee?.toString() ?? "");
@@ -32,6 +33,20 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
   const [refMonths, setRefMonths] = useState(item.referral_residual_months?.toString() ?? "");
   const [refClawback, setRefClawback] = useState(item.referral_clawback_days?.toString() ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
+  const [tiers, setTiers] = useState<PricingTier[]>(() => {
+    const existing = normalizeTiers((item as any).tier_pricing_json);
+    return existing.length ? existing : tieredStrategy ? DEFAULT_TIERS : [];
+  });
+
+  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
+    setTiers((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+  const addTier = () => {
+    const last = tiers[tiers.length - 1];
+    const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
+    setTiers((prev) => [...prev, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }]);
+  };
+  const removeTier = (idx: number) => setTiers((prev) => prev.filter((_, i) => i !== idx));
 
   const handleSave = () => {
     onSave({
