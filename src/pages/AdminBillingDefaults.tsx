@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, DollarSign, ArrowLeft } from "lucide-react";
+import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers } from "lucide-react";
 import { useBillingDefaults, BillingDefault } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
+import { DEFAULT_TIERS, PricingTier, normalizeTiers, isTierStrategy } from "@/lib/billingTierResolver";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
   default: { label: "Default (Commission)", description: "Standard listing/PMS commission model" },
