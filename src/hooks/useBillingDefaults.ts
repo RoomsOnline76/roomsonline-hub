@@ -15,6 +15,7 @@ export interface BillingDefault {
   referral_residual_months: number | null;
   referral_clawback_days: number | null;
   notes: string | null;
+  tier_pricing_json: Array<{ min_rooms: number; max_rooms: number | null; monthly_fee: number }> | null;
   updated_at: string;
   updated_by: string | null;
 }
