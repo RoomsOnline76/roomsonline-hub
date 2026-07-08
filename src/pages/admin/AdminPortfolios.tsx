@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle, Sparkles } from "lucide-react";
+import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
 import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
