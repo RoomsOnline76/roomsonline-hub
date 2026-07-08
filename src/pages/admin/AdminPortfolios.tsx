@@ -82,6 +82,7 @@ export default function AdminPortfolios() {
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
+  const [placeSearchFor, setPlaceSearchFor] = useState<{ pid: string; query: string } | null>(null);
   const [brandPrimary, setBrandPrimary] = useState("#2563eb");
   const [brandSecondary, setBrandSecondary] = useState("#1e40af");
   const [brandFontColor, setBrandFontColor] = useState("#333333");
