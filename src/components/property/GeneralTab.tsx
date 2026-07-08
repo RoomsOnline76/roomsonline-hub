@@ -34,6 +34,7 @@ import {
 import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncModal";
 import { WebsiteSyncModal } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
+import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
 
 interface GeneralTabProps {
   // Form state
