@@ -512,6 +512,9 @@ export function GeneralTab(props: GeneralTabProps) {
                 <Label htmlFor="google_place_id" className="cursor-help flex items-center gap-1 text-xs">Google Place <Info className="h-3 w-3 text-muted-foreground" /></Label>
               </TooltipTrigger><TooltipContent><p className="text-xs">Google Place ID for reviews and maps integration</p></TooltipContent></Tooltip></TooltipProvider>
               <Input id="google_place_id" value={googlePlaceId} onChange={(e) => { setGooglePlaceId(e.target.value); setIsDirty(true); }} placeholder="ChIJ... or numeric" className="h-7 text-xs w-28" />
+              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" onClick={() => setPlaceSearchOpen(true)} title="Search Google by name">
+                <Sparkles className="h-3 w-3" /> Find
+              </Button>
             </div>
             <div className="flex items-center gap-2">
               <TooltipProvider><Tooltip><TooltipTrigger asChild>
