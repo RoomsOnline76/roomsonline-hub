@@ -8192,6 +8192,45 @@ export type Database = {
           },
         ]
       }
+      rolos_policy_rate_links: {
+        Row: {
+          channel: string | null
+          created_at: string
+          id: string
+          policy_id: string
+          rate_plan_id: string | null
+        }
+        Insert: {
+          channel?: string | null
+          created_at?: string
+          id?: string
+          policy_id: string
+          rate_plan_id?: string | null
+        }
+        Update: {
+          channel?: string | null
+          created_at?: string
+          id?: string
+          policy_id?: string
+          rate_plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_policy_rate_links_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_policy_rate_links_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_pricing_rules: {
         Row: {
           adjustments: Json
@@ -8731,6 +8770,71 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_reservation_policies: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          property_id: string
+          rule: Json
+          source_policy_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name: string
+          property_id: string
+          rule?: Json
+          source_policy_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          property_id?: string
+          rule?: Json
+          source_policy_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_reservation_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_reservation_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservation_policies_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_reservation_policies_source_policy_id_fkey"
+            columns: ["source_policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
             referencedColumns: ["id"]
           },
         ]
