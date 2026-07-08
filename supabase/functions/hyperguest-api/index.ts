@@ -2016,21 +2016,36 @@ async function syncReflection(
   }
 
   // 5. Mirror cancellation policy summary into rolos_policies (one row per property).
+  //    Respect a manual override — if an operator has entered a policy in the Policies tab
+  //    (rule.manual_override === true), do NOT overwrite it with the channel-pulled version.
   if (reflection.cancellation_policies.length) {
     try {
-      await supabase
+      const { data: existingPolicy } = await supabase
         .from("rolos_policies")
-        .upsert({
-          property_id: propertyId,
-          policy_type: "cancellation",
-          rule: {
-            source: "hyperguest",
-            by_rate: reflection.cancellation_policies,
-            synced_at: reflection.fetched_at,
-          },
-          is_ai_generated: false,
-          last_evaluated_at: reflection.fetched_at,
-        }, { onConflict: "property_id,policy_type" });
+        .select("rule")
+        .eq("property_id", propertyId)
+        .eq("policy_type", "cancellation")
+        .maybeSingle();
+
+      const isManual = (existingPolicy?.rule as { manual_override?: boolean } | null)?.manual_override === true;
+
+      if (isManual) {
+        reasons.push("policies_upsert_skipped:manual_override_present");
+      } else {
+        await supabase
+          .from("rolos_policies")
+          .upsert({
+            property_id: propertyId,
+            policy_type: "cancellation",
+            rule: {
+              source: "hyperguest",
+              by_rate: reflection.cancellation_policies,
+              synced_at: reflection.fetched_at,
+            },
+            is_ai_generated: false,
+            last_evaluated_at: reflection.fetched_at,
+          }, { onConflict: "property_id,policy_type" });
+      }
     } catch (e) {
       reasons.push(`policies_upsert_failed:${(e as Error).message}`);
     }
