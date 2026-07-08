@@ -174,11 +174,37 @@ const queryClient = new QueryClient({
 const isSurveyDomain = window.location.hostname === "survey.roomsonline.co.za";
 const isBookDomain = window.location.hostname === "book.sleepinafrica.roomsonline.co.za";
 
+// Exception allowlist: Jongensfontein portfolio + its properties render normally
+// on book.sleepinafrica.roomsonline.co.za, bypassing the UnderConstruction page.
+const JONGENSFONTEIN_PORTFOLIO_SLUG = "jongensfontein";
+const JONGENSFONTEIN_PROPERTY_SLUGS = new Set([
+  "dassiesingel-self-catering-units",
+  "fonteinhutte-self-catering-chalets",
+  "seesig-self-catering-chalets",
+  "tidal-pools-self-catering-apartments",
+]);
+
+const isBookDomainAllowedPath = (): boolean => {
+  if (!isBookDomain) return false;
+  const path = window.location.pathname.toLowerCase();
+  // Portfolio pages (any route referencing the portfolio slug)
+  if (path.includes(`/portfolio/${JONGENSFONTEIN_PORTFOLIO_SLUG}`)) return true;
+  if (path.includes(`/${JONGENSFONTEIN_PORTFOLIO_SLUG}`)) return true;
+  // Property / room / booking / confirmation paths for allowlisted properties
+  for (const slug of JONGENSFONTEIN_PROPERTY_SLUGS) {
+    if (path.includes(`/${slug}`)) return true;
+  }
+  return false;
+};
+
+const bookDomainBlocked = isBookDomain && !isBookDomainAllowedPath();
+
 const BookRedirect = () => {
   if (isBookDomain) return <UnderConstruction />;
   window.location.href = "https://book.sleepinafrica.roomsonline.co.za";
   return null;
 };
+
 
 const PageFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-background">
