@@ -651,12 +651,24 @@ export default function AdminPortfolios() {
                       <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <MapPin className="h-3 w-3" /> Google Place ID
                       </Label>
-                      <Input
-                        value={ids.google_place_id}
-                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
-                        placeholder="e.g. ChIJ..."
-                        className="text-xs font-mono h-7"
-                      />
+                      <div className="flex gap-1">
+                        <Input
+                          value={ids.google_place_id}
+                          onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
+                          placeholder="e.g. ChIJ..."
+                          className="text-xs font-mono h-7"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 shrink-0"
+                          onClick={() => setPlaceSearchFor({ pid, query: prop.name })}
+                          title="Search Google by name"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
