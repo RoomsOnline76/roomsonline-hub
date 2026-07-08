@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Pencil, Copy, ChevronDown, ChevronRight, FolderOpen, Loader2, Building2, ExternalLink, Upload, X, Star, MapPin, AlertTriangle, Sparkles } from "lucide-react";
+import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
 import { contrastRatio } from "@/lib/brandOverride";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { format } from "date-fns";
@@ -81,6 +82,7 @@ export default function AdminPortfolios() {
   const [formSlug, setFormSlug] = useState("");
   const [selectedProps, setSelectedProps] = useState<string[]>([]);
   const [propertySearch, setPropertySearch] = useState("");
+  const [placeSearchFor, setPlaceSearchFor] = useState<{ pid: string; query: string } | null>(null);
   const [brandPrimary, setBrandPrimary] = useState("#2563eb");
   const [brandSecondary, setBrandSecondary] = useState("#1e40af");
   const [brandFontColor, setBrandFontColor] = useState("#333333");
@@ -649,12 +651,24 @@ export default function AdminPortfolios() {
                       <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <MapPin className="h-3 w-3" /> Google Place ID
                       </Label>
-                      <Input
-                        value={ids.google_place_id}
-                        onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
-                        placeholder="e.g. ChIJ..."
-                        className="text-xs font-mono h-7"
-                      />
+                      <div className="flex gap-1">
+                        <Input
+                          value={ids.google_place_id}
+                          onChange={(e) => setReviewIds((r) => ({ ...r, [pid]: { ...ids, google_place_id: e.target.value } }))}
+                          placeholder="e.g. ChIJ..."
+                          className="text-xs font-mono h-7"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 shrink-0"
+                          onClick={() => setPlaceSearchFor({ pid, query: prop.name })}
+                          title="Search Google by name"
+                        >
+                          <Sparkles className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -674,6 +688,20 @@ export default function AdminPortfolios() {
           </div>
         </div>
       )}
+
+      <GooglePlaceSearchDialog
+        open={placeSearchFor !== null}
+        onOpenChange={(v) => { if (!v) setPlaceSearchFor(null); }}
+        initialQuery={placeSearchFor?.query ?? ""}
+        onSelect={(id) => {
+          if (!placeSearchFor) return;
+          const pid = placeSearchFor.pid;
+          setReviewIds((r) => {
+            const existing = r[pid] || { google_place_id: "", tripadvisor_id: "" };
+            return { ...r, [pid]: { ...existing, google_place_id: id } };
+          });
+        }}
+      />
     </div>
   );
 
