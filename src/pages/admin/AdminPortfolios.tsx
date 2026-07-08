@@ -688,6 +688,20 @@ export default function AdminPortfolios() {
           </div>
         </div>
       )}
+
+      <GooglePlaceSearchDialog
+        open={placeSearchFor !== null}
+        onOpenChange={(v) => { if (!v) setPlaceSearchFor(null); }}
+        initialQuery={placeSearchFor?.query ?? ""}
+        onSelect={(id) => {
+          if (!placeSearchFor) return;
+          const pid = placeSearchFor.pid;
+          setReviewIds((r) => {
+            const existing = r[pid] || { google_place_id: "", tripadvisor_id: "" };
+            return { ...r, [pid]: { ...existing, google_place_id: id } };
+          });
+        }}
+      />
     </div>
   );
 
