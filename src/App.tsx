@@ -230,7 +230,7 @@ const App = () => (
                   <Sonner />
                   <BrowserRouter>
                     <Suspense fallback={<PageFallback />}>
-                      {isBookDomain ? (
+                      {bookDomainBlocked ? (
                         <Routes>
                           <Route path="*" element={<UnderConstruction />} />
                         </Routes>
@@ -244,10 +244,8 @@ const App = () => (
                           </Route>
                         )}
 
-                        {/* ═══ Book domain — Under construction (all paths) ═ */}
-                        {isBookDomain ? (
-                          <Route path="*" element={<UnderConstruction />} />
-                        ) : (
+                        {/* ═══ Book domain — allowlisted paths render normally ═ */}
+                        {!isBookDomain && (
                           <Route
                             path="/"
                             element={
@@ -259,6 +257,7 @@ const App = () => (
                             }
                           />
                         )}
+
 
                         {/* ═══ Public routes ══════════════════════════════ */}
                         <Route path="/book" element={<BookRedirect />} />
