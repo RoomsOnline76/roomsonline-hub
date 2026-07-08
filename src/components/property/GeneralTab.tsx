@@ -908,6 +908,13 @@ export function GeneralTab(props: GeneralTabProps) {
           toast({ title: "Fields updated", description: `${appliedSuggestions.length} field(s) applied from website scan` });
         }}
       />
+
+      <GooglePlaceSearchDialog
+        open={placeSearchOpen}
+        onOpenChange={setPlaceSearchOpen}
+        initialQuery={[formData.name, formData.city, formData.country].filter(Boolean).join(" ")}
+        onSelect={(id) => { setGooglePlaceId(id); setIsDirty(true); }}
+      />
     </form>
   );
 }
