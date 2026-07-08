@@ -201,6 +201,7 @@ export function GeneralTab(props: GeneralTabProps) {
   } = props;
 
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
