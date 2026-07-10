@@ -428,13 +428,19 @@ const Booking = () => {
         const resolveSeasonalRate = (room: any, dateStr: string): number | null => {
           if (!room) return null;
           const season = seasons.find((s: any) => {
-            const from = s.from || s.start_date || s.startDate;
-            const to = s.to || s.end_date || s.endDate;
-            return from && to && dateStr >= from && dateStr <= to;
+            const periods = Array.isArray(s.periods) && s.periods.length > 0
+              ? s.periods
+              : [{ from: s.from || s.start_date || s.startDate, to: s.to || s.end_date || s.endDate }];
+            return periods.some((period: any) => {
+              const from = period?.from || period?.start_date || period?.startDate;
+              const to = period?.to || period?.end_date || period?.endDate;
+              return from && to && dateStr >= from && dateStr <= to;
+            });
           });
           if (!season) return null;
           const seasonId = String(season.id);
-          const keys = [room.id, room.room_type_id, room.name].filter(Boolean).map(String);
+          const amenityIdByName = wizardRooms.find((wr: any) => String(wr?.name || "").trim().toLowerCase() === String(room.name || "").trim().toLowerCase())?.id;
+          const keys = [room.id, room.room_type_id, amenityIdByName, room.name].filter(Boolean).map(String);
           const preferredRateTypeId = room?.linkedRateTypes?.[0];
           for (const k of keys) {
             const bucket = seasonRates[k];
@@ -1222,13 +1228,19 @@ const Booking = () => {
         const seasonalRoomAmount = (wizRoom: any, dateStr: string): number | null => {
           if (!wizRoom) return null;
           const season = seasons.find((s: any) => {
-            const from = s.from || s.start_date || s.startDate;
-            const to = s.to || s.end_date || s.endDate;
-            return from && to && dateStr >= from && dateStr <= to;
+            const periods = Array.isArray(s.periods) && s.periods.length > 0
+              ? s.periods
+              : [{ from: s.from || s.start_date || s.startDate, to: s.to || s.end_date || s.endDate }];
+            return periods.some((period: any) => {
+              const from = period?.from || period?.start_date || period?.startDate;
+              const to = period?.to || period?.end_date || period?.endDate;
+              return from && to && dateStr >= from && dateStr <= to;
+            });
           });
           if (!season) return null;
           const seasonId = String(season.id);
-          const keys = [wizRoom.id, wizRoom.room_type_id, wizRoom.name].filter(Boolean).map(String);
+          const amenityIdByName = wizardRooms.find((wr: any) => String(wr?.name || "").trim().toLowerCase() === String(wizRoom.name || "").trim().toLowerCase())?.id;
+          const keys = [wizRoom.id, wizRoom.room_type_id, amenityIdByName, wizRoom.name].filter(Boolean).map(String);
           const preferredRateTypeId = wizRoom?.linkedRateTypes?.[0];
           for (const k of keys) {
             const bucket = seasonRates[k];
