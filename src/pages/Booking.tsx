@@ -1216,45 +1216,87 @@ const Booking = () => {
         const amenitiesData = property.amenities as Record<string, any> | null;
         const wizardRooms = amenitiesData?.room_types || [];
         const pmsRateTypes = amenitiesData?.pms_rate_types || [];
-        
+        const seasons: any[] = amenitiesData?.seasons || [];
+        const seasonRates: Record<string, any> = amenitiesData?.season_rates || {};
+
+        const seasonalRoomAmount = (wizRoom: any, dateStr: string): number | null => {
+          if (!wizRoom) return null;
+          const season = seasons.find((s: any) => {
+            const from = s.from || s.start_date || s.startDate;
+            const to = s.to || s.end_date || s.endDate;
+            return from && to && dateStr >= from && dateStr <= to;
+          });
+          if (!season) return null;
+          const seasonId = String(season.id);
+          const keys = [wizRoom.id, wizRoom.room_type_id, wizRoom.name].filter(Boolean).map(String);
+          const preferredRateTypeId = wizRoom?.linkedRateTypes?.[0];
+          for (const k of keys) {
+            const bucket = seasonRates[k];
+            if (!bucket || typeof bucket !== "object") continue;
+            if (preferredRateTypeId) {
+              const v = bucket[`${seasonId}-${preferredRateTypeId}`];
+              if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+            }
+            for (const subKey of Object.keys(bucket)) {
+              if (!subKey.startsWith(`${seasonId}-`)) continue;
+              const v = bucket[subKey];
+              if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+            }
+          }
+          return null;
+        };
+
         for (const room of rooms) {
           const roomCheckIn = room.checkIn || checkIn;
           const roomCheckOut = room.checkOut || checkOut;
-          const roomNights = roomCheckIn && roomCheckOut 
+          const roomNights = roomCheckIn && roomCheckOut
             ? Math.ceil((new Date(roomCheckOut).getTime() - new Date(roomCheckIn).getTime()) / (1000 * 60 * 60 * 24))
             : nights;
-          
+
           // Find wizard room by ID or name
-          const wizRoom = wizardRooms.find((wr: any) => 
+          const wizRoom = wizardRooms.find((wr: any) =>
             (wr.id || wr.room_type_id) === room.roomTypeId || wr.name === room.roomTypeName
           );
-          
-          if (wizRoom) {
-            // Check linked rate types first
-            let baseRate = 0;
+
+          if (wizRoom && roomNights > 0 && roomCheckIn) {
+            // Rate plan / wizard fallback
+            let fallbackRate = 0;
             if (wizRoom.linkedRateTypes?.length > 0) {
               const linkedRT = pmsRateTypes.find((rt: any) => rt.id === wizRoom.linkedRateTypes[0]);
-              if (linkedRT?.baseRate) baseRate = linkedRT.baseRate;
+              if (linkedRT?.baseRate) fallbackRate = linkedRT.baseRate;
             }
-            if (!baseRate) {
-              baseRate = wizRoom.baseRate || wizRoom.base_rate || wizRoom.daily_rate || 0;
+            if (!fallbackRate) {
+              fallbackRate = wizRoom.baseRate || wizRoom.base_rate || wizRoom.daily_rate || 0;
             }
-            
-            if (baseRate > 0 && roomNights > 0) {
-              const total = baseRate * roomNights;
+
+            // Sum per-night seasonal rates first, falling back per date
+            let total = 0;
+            const start = new Date(roomCheckIn);
+            for (let i = 0; i < roomNights; i++) {
+              const d = new Date(start);
+              d.setDate(start.getDate() + i);
+              const ds = format(d, "yyyy-MM-dd");
+              const seasonal = seasonalRoomAmount(wizRoom, ds);
+              const dayRate = seasonal ?? fallbackRate;
+              total += dayRate || 0;
+            }
+
+            if (total > 0) {
+              const avg = total / roomNights;
               lineItems.push({
                 description: `${room.roomTypeName} (${room.numberOfAdults + room.numberOfTeens + room.numberOfChildren + room.numberOfInfants} guests)`,
                 nights: roomNights,
                 quantity: 1,
-                unitPrice: baseRate,
+                unitPrice: avg,
                 total,
               });
               runningTotal += total;
-              console.log('[Booking] Fallback rate applied:', room.roomTypeName, baseRate, '×', roomNights, '=', total);
+              console.log('[Booking] Fallback rate applied (seasonal-aware):', room.roomTypeName, 'total', total, 'avg', avg);
             }
           }
         }
       }
+
 
       // Apply property charges (taxes, fees, deposits, surcharges)
       if (propertyCharges && propertyCharges.length > 0 && runningTotal > 0) {
