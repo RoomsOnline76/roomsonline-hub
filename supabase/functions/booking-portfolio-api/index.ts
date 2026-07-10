@@ -64,25 +64,77 @@ serve(async (req) => {
       .eq("is_active", true)
       .in("id", propertyIds);
 
-    // Fetch room summaries
-    const { data: rooms } = await supabase
-      .from("hostfully_room_types")
-      .select("property_id, daily_rate, max_guests")
-      .eq("is_active", true)
-      .in("property_id", propertyIds);
+    // --- Rate resolver (tiered) ---
+    // 1) rolos_rate_prices.base_rate  (season-priced native rates)
+    // 2) rolos_rate_plans.base_rate   (native plan default)
+    // 3) rolos_room_types.default_rate (native room type default)
+    // 4) hostfully_room_types.daily_rate (legacy mirror fallback)
 
-    const roomsByProp: Record<string, { count: number; minRate: number; maxGuests: number }> = {};
-    (rooms || []).forEach((r: any) => {
-      if (!roomsByProp[r.property_id]) {
-        roomsByProp[r.property_id] = { count: 0, minRate: Infinity, maxGuests: 0 };
-      }
-      roomsByProp[r.property_id].count++;
-      if (r.daily_rate && r.daily_rate < roomsByProp[r.property_id].minRate) {
-        roomsByProp[r.property_id].minRate = r.daily_rate;
-      }
-      if (r.max_guests && r.max_guests > roomsByProp[r.property_id].maxGuests) {
-        roomsByProp[r.property_id].maxGuests = r.max_guests;
-      }
+    const [
+      { data: rrtRows },
+      { data: planRows },
+      { data: seasonRows },
+      { data: priceRows },
+      { data: hostfullyRows },
+    ] = await Promise.all([
+      supabase
+        .from("rolos_room_types")
+        .select("property_id, default_rate, max_occupancy")
+        .eq("is_active", true)
+        .in("property_id", propertyIds),
+      supabase
+        .from("rolos_rate_plans")
+        .select("id, property_id, base_rate")
+        .eq("is_active", true)
+        .in("property_id", propertyIds),
+      supabase
+        .from("rolos_rate_seasons")
+        .select("id, rate_plan_id"),
+      supabase
+        .from("rolos_rate_prices")
+        .select("season_id, base_rate"),
+      supabase
+        .from("hostfully_room_types")
+        .select("property_id, daily_rate, max_guests")
+        .eq("is_active", true)
+        .in("property_id", propertyIds),
+    ]);
+
+    // Build plan -> property map, then season -> property map
+    const planToProp: Record<string, string> = {};
+    (planRows || []).forEach((p: any) => { planToProp[p.id] = p.property_id; });
+    const seasonToProp: Record<string, string> = {};
+    (seasonRows || []).forEach((s: any) => {
+      const pid = planToProp[s.rate_plan_id];
+      if (pid) seasonToProp[s.id] = pid;
+    });
+
+    type Agg = { minRate: number; count: number; maxGuests: number };
+    const agg: Record<string, Agg> = {};
+    const bump = (pid: string, rate: number | null, guests: number | null, addCount: boolean) => {
+      if (!agg[pid]) agg[pid] = { minRate: Infinity, count: 0, maxGuests: 0 };
+      if (typeof rate === "number" && rate > 0 && rate < agg[pid].minRate) agg[pid].minRate = rate;
+      if (typeof guests === "number" && guests > agg[pid].maxGuests) agg[pid].maxGuests = guests;
+      if (addCount) agg[pid].count++;
+    };
+
+    // Tier 1: seasonal prices
+    (priceRows || []).forEach((pr: any) => {
+      const pid = seasonToProp[pr.season_id];
+      if (pid) bump(pid, pr.base_rate, null, false);
+    });
+    // Tier 2: plan base_rate
+    (planRows || []).forEach((p: any) => bump(p.property_id, p.base_rate, null, false));
+    // Native room counts + defaults (tier 3 + count/maxGuests source)
+    const propsWithNativeRT = new Set<string>();
+    (rrtRows || []).forEach((r: any) => {
+      propsWithNativeRT.add(r.property_id);
+      bump(r.property_id, r.default_rate, r.max_occupancy, true);
+    });
+    // Tier 4: hostfully mirror — only for properties without native room types
+    (hostfullyRows || []).forEach((h: any) => {
+      if (propsWithNativeRT.has(h.property_id)) return;
+      bump(h.property_id, h.daily_rate, h.max_guests, true);
     });
 
     const mapped = (properties || []).map((p: any) => {
@@ -90,7 +142,7 @@ serve(async (req) => {
       const heroImage = Array.isArray(images) && images.length > 0
         ? (typeof images[0] === "string" ? images[0] : images[0]?.url || null)
         : null;
-      const rm = roomsByProp[p.id];
+      const rm = agg[p.id];
       const amenities = p.amenities || {};
       return {
         id: p.id,
@@ -99,7 +151,7 @@ serve(async (req) => {
         city: p.city,
         description: amenities.space_description || p.description,
         hero_image: heroImage,
-        starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
+        starting_rate: rm && rm.minRate !== Infinity ? rm.minRate : null,
         room_count: rm?.count || 0,
         max_guests: rm?.maxGuests || null,
         brand_primary_color: p.brand_primary_color || null,
@@ -117,6 +169,7 @@ serve(async (req) => {
         brand_dark_bg_color: p.brand_dark_bg_color || null,
       };
     });
+
 
     // Fetch active public specials for member properties
     const today = new Date().toISOString().split("T")[0];

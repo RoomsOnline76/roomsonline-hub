@@ -1,87 +1,52 @@
-## Goal
 
-Match the Booking.com "Reservation policies" panel (screenshot) inside ROLOS: each property maintains a **library of named policies** (e.g. "Flexible – 30 days", "Non-refundable") that combine cancellation tiers + prepayment terms, can be linked to rate plans / channels, applied to other properties, and show usage metrics.
+## Problem
 
-## Current state
-- `rolos_policies` stores exactly **one** policy per type per property (unique constraint `(property_id, policy_type)`), edited by the just-shipped `PoliciesTab`.
-- That single row is mirrored into `amenities.cancellation_policies` for channel push.
-- No named presets, no rate-plan linkage, no reporting.
+The portfolio embed (`/embed/portfolio/jongensfontein`) shows "From R1,000" on every property card. All four member properties are ROL'OS-native (`external_system = 'roomsonline'`), and their real rates live in `rolos_rate_plans` / `rolos_rate_prices` / `rolos_room_types`. Example: Dassiesingel has a rate plan with `base_rate = 600`, but the card still says R1,000 because the current pipeline reads from a stale mirror table.
 
-## Data model (one migration)
+Root cause in `supabase/functions/booking-portfolio-api/index.ts` (and the direct-DB fallback in `src/pages/EmbedPortfolio.tsx`):
 
-New table `public.rolos_reservation_policies` (keep `rolos_policies` as the "active default" pointer for backwards-compat):
-- `name` text — display label (e.g. "Flexible – 30 days")
-- `kind` enum-like text — `general` | `non_refundable` | `custom`
-- `is_default` bool — the property's active policy at checkout / channel push
-- `rule` jsonb — same canonical shape produced by `PoliciesTab` today (tiers, non_refundable, deposit_percent, one_night_refundable, full_payment_within_days, additional_terms) plus new `prepayment_timing` (`at_booking` | `days_before:N`).
-- `source_policy_id` uuid nullable — self-reference for "copy" lineage (audit only).
-
-New join table `public.rolos_policy_rate_links`:
-- `policy_id`, `rate_plan_id` (references `rolos_rate_plans`), optional `channel` text.
-- Unique `(policy_id, rate_plan_id, channel)`.
-
-Standard GRANTs + RLS mirroring `rolos_policies` (admin/dev/fearless_leader full access; owners read on their properties).
-
-Trigger: exactly one `is_default = true` per property (partial unique index).
-
-## UI — replace the single-form `PoliciesTab` with a list view
-
-```text
-Reservation policies                                      [+ Create new policy]
-──────────────────────────────────────────────────────────────────────────────
-● Flexible – 30 days (General)                            [★ Default]
-  - Free cancellation until 30 days before arrival …
-  - Prepayment collected before free-cancel deadline
-  [Edit] [Delete] [Apply to other properties ↗]
-──────────────────────────────────────────────────────────────────────────────
-○ Non-refundable                                          [Set default]
-  - Full price charged for any cancellation …
-  Report from 9 Apr 2026 to 8 Jul 2026
-    Room nights: 2   Revenue: ZAR 7,144.04   Cancel rate: 0.0%
-  [Edit] [Delete] [Apply to other properties ↗]
+```
+starting_rate ← MIN(hostfully_room_types.daily_rate)  // stale mirror, uniform 1000
 ```
 
-- **Edit** opens the same detailed editor the current `PoliciesTab` uses (tiers + deposit/terms tabs), pre-loaded with that policy.
-- **Delete** blocked when policy is default or linked to any rate plan (toast explains).
-- **Apply to other properties** dialog: multi-select target properties, plus radio "Copy independent" / "Link (edits propagate)" — see below.
-- **Set default** promotes a policy; on save the app also mirrors that policy's rule into `rolos_policies` + `amenities.cancellation_policies` (same path shipped last turn), so nothing downstream changes.
+`hostfully_room_types` is used as a generic mirror even for non-Hostfully properties, and the client's `fetchLiveRatesBatch` explicitly skips `external_system in ('manual','roomsonline')`, so ROL'OS-native properties never get their real rate.
 
-### Editor extras
-- New "Prepayment timing" select (`At booking` / `X days before arrival`) — feeds Rentals United deposit_type / Nightsbridge-style summary.
-- New "Applies to rate plans / channels" section: multi-select of the property's `rolos_rate_plans` + optional channel tags — writes to `rolos_policy_rate_links`.
+## Fix
 
-### Apply-to-other-properties dialog
-- Radio (as requested): **Copy** vs **Link**.
-- **Copy** = insert a new row per target with same `rule` + `source_policy_id`.
-- **Link** = insert a `rolos_policy_rate_links` row targeting the same source policy id from another property's rate plans (or, if no rate plans selected, an "attached" row with `rate_plan_id = null` treated as "use as default").
-- After apply, toast lists success/failure per property.
+Compute `starting_rate` from ROL'OS-native tables first, fall back to the mirror only when nothing is loaded natively.
 
-## Reporting block per policy
-Per policy card, show for the last 90 days (configurable):
-- Total room nights, total revenue, cancel rate.
-Derived on the fly by a `rolos-policy-metrics` edge function that joins `bookings` on `rate_plan_id ∈ links(policy_id)` (or falls back to the property's default policy for legacy bookings). Cached client-side per session.
+### 1. `supabase/functions/booking-portfolio-api/index.ts`
 
-## Channel push
-The currently active (default) policy still drives the mirror into `amenities.cancellation_policies` (unchanged path). Later, we can extend `push-property-to-ru` and other adapters to push per-rate-plan policies once channels support it — kept out of this iteration to protect ADAPTER_LOCKS.
+Replace the single `hostfully_room_types` aggregation with a tiered resolver, in order:
+
+1. `MIN(rolos_rate_prices.base_rate)` where `base_rate > 0`, joined via `rolos_rate_seasons.rate_plan_id → rolos_rate_plans` filtered to the property, active plans, and seasons overlapping today.
+2. `MIN(rolos_rate_plans.base_rate)` for active plans of the property (fallback when no seasonal price rows exist).
+3. `MIN(rolos_room_types.default_rate)` for active native room types (`default_rate > 0`).
+4. Existing `MIN(hostfully_room_types.daily_rate)` (last resort for legacy/Hostfully-only rows).
+
+Also derive `room_count` / `max_guests` from `rolos_room_types` when the property has native room types (currently comes only from `hostfully_room_types`, which inflates counts because mirror rows are duplicated — e.g. Fonteinhutte shows 9 mirror rows vs 15 native).
+
+Batch the four supplementary queries once for all `propertyIds`, then merge in JS. Keep the response shape unchanged.
+
+### 2. `src/pages/EmbedPortfolio.tsx` (direct-DB fallback path, lines ~247–272)
+
+Mirror the same resolver so the client-side fallback matches the edge function output. Preserve the current shape written to `PortfolioProperty`.
+
+### 3. Live-rates effect (lines ~326–344)
+
+Leave the `fetchLiveRatesBatch` filter unchanged — it correctly skips ROL'OS-native properties, and their rates now come from step 1 above.
+
+## Out of scope
+
+- No changes to `hostfully_room_types` mirroring or to Hostfully/other PMS adapters.
+- No change to the booking flow / orchestrator — this is a display-time "from price" only.
+- No schema changes.
 
 ## Files
 
-New:
-- `supabase/migrations/<ts>_reservation_policies.sql` — the two tables, GRANTs, RLS, default trigger.
-- `supabase/functions/rolos-policy-metrics/index.ts` — reporting endpoint.
-- `src/components/property/ReservationPoliciesList.tsx` — list + card UI.
-- `src/components/property/ReservationPolicyDialog.tsx` — create/edit form (reuses fields from current PoliciesTab).
-- `src/components/property/ApplyPolicyToPropertiesDialog.tsx` — copy vs link.
-- `src/hooks/useReservationPolicies.ts` — CRUD + metrics.
+- `supabase/functions/booking-portfolio-api/index.ts` — swap rate/room aggregation for the tiered resolver.
+- `src/pages/EmbedPortfolio.tsx` — same resolver in the direct-DB fallback branch.
 
-Edited:
-- `src/components/property/PoliciesTab.tsx` → thin wrapper that renders `<ReservationPoliciesList propertyId={…} />` and keeps the "Deposit & Terms" subtab available on the *default* policy for continuity.
-- `src/components/property/RateManagerTab.tsx` — no change (sub-tab still called "Policies").
+## Validation
 
-Out of scope this pass:
-- Global admin catalogue (deferred).
-- Adapter-level per-rate-plan policy pushes.
-- Advanced settings tab from the screenshot (empty stub only).
-
-## Answer to your question
-Reservation policies currently work as a **single per-property blob** — not as the Booking.com-style named library. The plan adds a proper multi-policy library with rate-plan linkage, copy/link propagation, and reporting, while keeping the existing channel-mirror path intact via the "default" flag.
+After deploy, expect Dassiesingel to show "From R600" and the other three to reflect their real native `base_rate` (or `default_rate` if no plan is priced yet). Verify via `booking-portfolio-api?portfolio=jongensfontein` response.
