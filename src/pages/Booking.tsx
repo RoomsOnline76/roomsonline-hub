@@ -383,13 +383,33 @@ const Booking = () => {
       const calendarMap = new Map<string, { available: boolean; rate?: number }>();
 
       if (isManual && amenitiesData) {
-        // Manual properties: use property_availability + wizard rates
-        const wizardRooms = amenitiesData.room_types || [];
-        const firstRoom = wizardRooms[0];
-        const linkedRateTypeId = firstRoom?.linkedRateTypes?.[0];
-        const pmsRateTypes = amenitiesData.pms_rate_types || [];
-        const rateType = pmsRateTypes.find((rt: any) => rt.id === linkedRateTypeId);
-        const baseRate = rateType?.baseRate || firstRoom?.baseRate || firstRoom?.base_rate || property.price_per_night;
+        // Manual / ROLOS-native properties: use property_availability + per-room
+        // seasonal rates from the admin rates calendar, falling back to rate plan.
+        const wizardRooms: any[] = amenitiesData.room_types || [];
+        const pmsRateTypes: any[] = amenitiesData.pms_rate_types || [];
+        const seasons: any[] = amenitiesData?.seasons || [];
+        const seasonRates: Record<string, any> = amenitiesData?.season_rates || {};
+
+        // Filter to preselected room if any, else consider all wizard rooms
+        const normalizeId = (s: string) => (s || "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        const targetRooms = (() => {
+          if (preSelectedRoomTypeId || preSelectedRoomTypeName) {
+            const match = wizardRooms.find((r: any) =>
+              r.id === preSelectedRoomTypeId ||
+              r.room_type_id === preSelectedRoomTypeId ||
+              normalizeId(r.name) === normalizeId(preSelectedRoomTypeName || "")
+            );
+            if (match) return [match];
+          }
+          return wizardRooms.length ? wizardRooms : [null];
+        })();
+
+        // Resolve fallback per-room base rate (linked rate type → wizard base → property default)
+        const roomFallbackRate = (room: any): number => {
+          const linkedId = room?.linkedRateTypes?.[0];
+          const rt = linkedId ? pmsRateTypes.find((r: any) => r.id === linkedId) : null;
+          return rt?.baseRate || room?.baseRate || room?.base_rate || property.price_per_night || 0;
+        };
 
         const { data: blockedData } = await supabase
           .from("property_availability")
@@ -401,30 +421,50 @@ const Booking = () => {
         const blockedDates = new Set<string>();
         if (blockedData) {
           blockedData.forEach((item) => {
-            if (item.is_stop_sell || item.available_units === 0) {
-              blockedDates.add(item.date);
-            }
+            if (item.is_stop_sell || item.available_units === 0) blockedDates.add(item.date);
           });
         }
+
+        const resolveSeasonalRate = (room: any, dateStr: string): number | null => {
+          if (!room) return null;
+          const season = seasons.find((s: any) => {
+            const from = s.from || s.start_date || s.startDate;
+            const to = s.to || s.end_date || s.endDate;
+            return from && to && dateStr >= from && dateStr <= to;
+          });
+          if (!season) return null;
+          const seasonId = String(season.id);
+          const keys = [room.id, room.room_type_id, room.name].filter(Boolean).map(String);
+          const preferredRateTypeId = room?.linkedRateTypes?.[0];
+          for (const k of keys) {
+            const bucket = seasonRates[k];
+            if (!bucket || typeof bucket !== "object") continue;
+            if (preferredRateTypeId) {
+              const v = bucket[`${seasonId}-${preferredRateTypeId}`];
+              if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+            }
+            for (const subKey of Object.keys(bucket)) {
+              if (!subKey.startsWith(`${seasonId}-`)) continue;
+              const v = bucket[subKey];
+              if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+            }
+          }
+          return null;
+        };
 
         for (let i = 0; i < 395; i++) {
           const date = addDays(today, i);
           const dateStr = format(date, "yyyy-MM-dd");
           const isBlocked = blockedDates.has(dateStr);
-          let dayRate = baseRate;
-          const seasons = amenitiesData?.seasons || [];
-          const seasonRates = amenitiesData?.season_rates || {};
-          for (const season of seasons) {
-            if (dateStr >= season.from && dateStr <= season.to) {
-              const seasonRateKey = `${firstRoom?.id || 'default'}-${linkedRateTypeId}`;
-              const seasonRateData = seasonRates[season.id]?.[seasonRateKey];
-              if (seasonRateData?.roomAmount) {
-                dayRate = seasonRateData.roomAmount;
-              }
-              break;
-            }
+          // Lowest rate across the applicable rooms
+          let bestRate: number | undefined;
+          for (const room of targetRooms) {
+            const fallback = roomFallbackRate(room);
+            const seasonal = resolveSeasonalRate(room, dateStr);
+            const dayRate = seasonal ?? fallback;
+            if (dayRate && (bestRate === undefined || dayRate < bestRate)) bestRate = dayRate;
           }
-          calendarMap.set(dateStr, { available: !isBlocked, rate: dayRate });
+          calendarMap.set(dateStr, { available: !isBlocked, rate: bestRate });
         }
       } else {
         // PMS-backed properties: fetch from pms_availability_cache
