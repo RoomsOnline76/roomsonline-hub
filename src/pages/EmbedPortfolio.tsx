@@ -244,19 +244,33 @@ export default function EmbedPortfolio() {
 
       if (!props) { setProperties([]); setLoading(false); return; }
 
-      const { data: rooms } = await supabase
-        .from("hostfully_room_types")
-        .select("property_id, daily_rate, max_guests")
-        .eq("is_active", true)
-        .in("property_id", propertyIds);
+      // Tiered rate resolver (matches booking-portfolio-api):
+      // 1) rolos_rate_prices  2) rolos_rate_plans.base_rate
+      // 3) rolos_room_types.default_rate  4) hostfully_room_types.daily_rate
+      const [rrt, plans, seasons, prices, hfRooms] = await Promise.all([
+        supabase.from("rolos_room_types" as any).select("property_id, default_rate, max_occupancy").eq("is_active", true).in("property_id", propertyIds),
+        supabase.from("rolos_rate_plans" as any).select("id, property_id, base_rate").eq("is_active", true).in("property_id", propertyIds),
+        supabase.from("rolos_rate_seasons" as any).select("id, rate_plan_id"),
+        supabase.from("rolos_rate_prices" as any).select("season_id, base_rate"),
+        supabase.from("hostfully_room_types").select("property_id, daily_rate, max_guests").eq("is_active", true).in("property_id", propertyIds),
+      ]);
+      const planToProp: Record<string, string> = {};
+      ((plans.data as any[]) || []).forEach((p) => { planToProp[p.id] = p.property_id; });
+      const seasonToProp: Record<string, string> = {};
+      ((seasons.data as any[]) || []).forEach((s) => { const pid = planToProp[s.rate_plan_id]; if (pid) seasonToProp[s.id] = pid; });
 
       const roomsByProp: Record<string, { count: number; minRate: number; maxGuests: number }> = {};
-      (rooms || []).forEach((r) => {
-        if (!roomsByProp[r.property_id]) roomsByProp[r.property_id] = { count: 0, minRate: Infinity, maxGuests: 0 };
-        roomsByProp[r.property_id].count++;
-        if (r.daily_rate && r.daily_rate < roomsByProp[r.property_id].minRate) roomsByProp[r.property_id].minRate = r.daily_rate;
-        if (r.max_guests && r.max_guests > roomsByProp[r.property_id].maxGuests) roomsByProp[r.property_id].maxGuests = r.max_guests;
-      });
+      const bump = (pid: string, rate: number | null | undefined, guests: number | null | undefined, addCount: boolean) => {
+        if (!roomsByProp[pid]) roomsByProp[pid] = { count: 0, minRate: Infinity, maxGuests: 0 };
+        if (typeof rate === "number" && rate > 0 && rate < roomsByProp[pid].minRate) roomsByProp[pid].minRate = rate;
+        if (typeof guests === "number" && guests > roomsByProp[pid].maxGuests) roomsByProp[pid].maxGuests = guests;
+        if (addCount) roomsByProp[pid].count++;
+      };
+      ((prices.data as any[]) || []).forEach((pr) => { const pid = seasonToProp[pr.season_id]; if (pid) bump(pid, pr.base_rate, null, false); });
+      ((plans.data as any[]) || []).forEach((p) => bump(p.property_id, p.base_rate, null, false));
+      const nativeRT = new Set<string>();
+      ((rrt.data as any[]) || []).forEach((r) => { nativeRT.add(r.property_id); bump(r.property_id, r.default_rate, r.max_occupancy, true); });
+      ((hfRooms.data as any[]) || []).forEach((r) => { if (!nativeRT.has(r.property_id)) bump(r.property_id, r.daily_rate, r.max_guests, true); });
 
       const mapped: PortfolioProperty[] = props.map((p) => {
         const images = (p.images as any) || [];
@@ -266,10 +280,11 @@ export default function EmbedPortfolio() {
         const rm = roomsByProp[p.id];
         return {
           id: p.id, name: p.name, slug: p.slug, city: p.city, description: p.description, hero_image: heroImg,
-          starting_rate: rm?.minRate === Infinity ? null : rm?.minRate || null,
+          starting_rate: rm && rm.minRate !== Infinity ? rm.minRate : null,
           room_count: rm?.count || 0, max_guests: rm?.maxGuests || null,
         };
       });
+
 
       setProperties(mapped);
 
