@@ -481,16 +481,16 @@ export default function EmbedProperty() {
 
     // Build a lookup: for each date, find which season it belongs to
     const findSeasonForDate = (dateStr: string): string | null => {
-      const d = new Date(dateStr);
       for (const season of seasons) {
         const periods = Array.isArray(season.periods) ? season.periods : [];
         // Also check top-level from/to as a single period
-        const allPeriods = periods.length > 0 ? periods : [{ from: season.from, to: season.to }];
+        const allPeriods = periods.length > 0
+          ? periods
+          : [{ from: season.from || season.start_date || season.startDate, to: season.to || season.end_date || season.endDate }];
         for (const p of allPeriods) {
-          if (!p?.from || !p?.to) continue;
-          const from = new Date(p.from);
-          const to = new Date(p.to);
-          if (d >= from && d <= to) return String(season.id);
+          const from = p?.from || p?.start_date || p?.startDate;
+          const to = p?.to || p?.end_date || p?.endDate;
+          if (from && to && dateStr >= from && dateStr <= to) return String(season.id);
         }
       }
       return null;
@@ -498,30 +498,34 @@ export default function EmbedProperty() {
 
     return (roomId: string, roomName: string, dateStr: string, fallbackRate: number | null): number | null => {
       // Find the wizard room to get its amenities ID and linked rate type
-      const wizardRoom = wizardRooms.find((wr: any) => String(wr?.id) === String(roomId) || wr?.name === roomName);
+      const wizardRoom = wizardRooms.find((wr: any) =>
+        String(wr?.id) === String(roomId) ||
+        String(wr?.pmsRoomId || "") === String(roomId) ||
+        String(wr?.name || "").trim().toLowerCase() === String(roomName || "").trim().toLowerCase()
+      );
       if (!wizardRoom) return fallbackRate;
 
-      const wizardRoomId = String(wizardRoom.id);
-      const roomSeasonRates = seasonRates[wizardRoomId];
-      if (!roomSeasonRates) return fallbackRate;
+      const lookupKeys = [wizardRoom.id, wizardRoom.room_type_id, wizardRoom.pmsRoomId, roomId, roomName].filter(Boolean).map(String);
 
       const seasonId = findSeasonForDate(dateStr);
       if (!seasonId) return fallbackRate;
 
       // Try linked rate type first, then any matching season key
       const linkedRateTypeId = Array.isArray(wizardRoom.linkedRateTypes) ? wizardRoom.linkedRateTypes[0] : null;
-      const preferredKey = linkedRateTypeId ? `${seasonId}-${linkedRateTypeId}` : null;
-      
-      if (preferredKey && roomSeasonRates[preferredKey]) {
-        const amt = roomSeasonRates[preferredKey]?.roomAmount;
-        if (amt != null && Number(amt) > 0) return Number(amt);
-      }
-
-      // Fallback: try any key starting with the seasonId
-      for (const key of Object.keys(roomSeasonRates)) {
-        if (key.startsWith(`${seasonId}-`)) {
-          const amt = roomSeasonRates[key]?.roomAmount;
+      for (const lookupKey of lookupKeys) {
+        const roomSeasonRates = seasonRates[lookupKey];
+        if (!roomSeasonRates || typeof roomSeasonRates !== "object") continue;
+        const preferredKey = linkedRateTypeId ? `${seasonId}-${linkedRateTypeId}` : null;
+        if (preferredKey && roomSeasonRates[preferredKey]) {
+          const amt = roomSeasonRates[preferredKey]?.roomAmount;
           if (amt != null && Number(amt) > 0) return Number(amt);
+        }
+        // Fallback: try any key starting with the seasonId
+        for (const key of Object.keys(roomSeasonRates)) {
+          if (key.startsWith(`${seasonId}-`)) {
+            const amt = roomSeasonRates[key]?.roomAmount;
+            if (amt != null && Number(amt) > 0) return Number(amt);
+          }
         }
       }
 

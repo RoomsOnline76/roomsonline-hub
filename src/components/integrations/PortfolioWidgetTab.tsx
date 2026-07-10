@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -64,6 +64,12 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const memberPortfolioIds = new Set(memberOf.map((m: any) => m.portfolio_id));
   const relevantPortfolios = portfolios.filter((p: any) => memberPortfolioIds.has(p.id));
   const allPortfolios = portfolios;
+
+  useEffect(() => {
+    if (!selectedPortfolioId && relevantPortfolios.length > 0) {
+      setSelectedPortfolioId(relevantPortfolios[0].id);
+    }
+  }, [relevantPortfolios, selectedPortfolioId]);
 
   const selectedPortfolio = allPortfolios.find((p: any) => p.id === selectedPortfolioId);
   const portfolioSlug = selectedPortfolio?.slug || "my-portfolio";

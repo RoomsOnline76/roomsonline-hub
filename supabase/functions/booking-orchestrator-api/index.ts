@@ -320,6 +320,14 @@ async function resolveRolosRates(
   const seasonRates: Record<string, any> = (amenities.season_rates && typeof amenities.season_rates === "object")
     ? amenities.season_rates
     : {};
+  const amenityRoomIdByName: Record<string, string> = {};
+  if (Array.isArray(amenities.room_types)) {
+    for (const room of amenities.room_types) {
+      if (room?.name && room?.id) {
+        amenityRoomIdByName[String(room.name).trim().toLowerCase()] = String(room.id);
+      }
+    }
+  }
 
   // Build linked_rolos_id → amenity room id (linked_overview_id) map
   const rolosToOverview: Record<string, string> = {};
@@ -339,9 +347,14 @@ async function resolveRolosRates(
 
   function findSeasonForDate(dateStr: string): any | null {
     for (const s of seasons) {
-      const sStart = s.start_date || s.startDate || s.from;
-      const sEnd = s.end_date || s.endDate || s.to;
-      if (sStart && sEnd && dateStr >= sStart && dateStr <= sEnd) return s;
+      const periods = Array.isArray(s.periods) && s.periods.length > 0
+        ? s.periods
+        : [{ from: s.from || s.start_date || s.startDate, to: s.to || s.end_date || s.endDate }];
+      for (const period of periods) {
+        const sStart = period?.from || period?.start_date || period?.startDate;
+        const sEnd = period?.to || period?.end_date || period?.endDate;
+        if (sStart && sEnd && dateStr >= sStart && dateStr <= sEnd) return s;
+      }
     }
     return null;
   }
@@ -382,7 +395,8 @@ async function resolveRolosRates(
     // Amenity/room identifiers used to look into season_rates
     const overviewId = room.linked_rolos_id ? rolosToOverview[room.linked_rolos_id] : undefined;
     const rolosName = room.linked_rolos_id ? rolosIdToName[room.linked_rolos_id] : undefined;
-    const lookupKeys = [overviewId, room.linked_rolos_id, rolosName, room.name].filter(Boolean) as string[];
+    const amenityIdFromName = room.name ? amenityRoomIdByName[String(room.name).trim().toLowerCase()] : undefined;
+    const lookupKeys = [overviewId, amenityIdFromName, room.linked_rolos_id, rolosName, room.name].filter(Boolean) as string[];
     const preferredPlanId = rolosPlan?.rate_plan_id;
 
     const dailyRates: any[] = [];
