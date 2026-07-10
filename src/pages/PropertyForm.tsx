@@ -3956,7 +3956,7 @@ export default function PropertyForm() {
                         </Button>
                       )}
                       <span className="text-[10px] text-muted-foreground">
-                        Available for any property — pulls description, images, amenities &amp; geo from WETU.
+                        Pulls description, images, amenities &amp; geo from WETU if availible.
                       </span>
                     </div>
                     <Separator className="my-3" />
