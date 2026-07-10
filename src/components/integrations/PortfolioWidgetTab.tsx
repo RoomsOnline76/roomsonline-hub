@@ -72,6 +72,11 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const BASE = wl.host || PUBLIC_DOMAIN;
   const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
   const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
+  // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
+  // social bios and "Book Now" buttons. Attributes bookings to the portfolio.
+  const directPortfolioUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
+    : "";
 
   const wlAttrs = wl.enabled
     ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
