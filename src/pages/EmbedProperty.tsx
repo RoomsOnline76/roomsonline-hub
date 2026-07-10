@@ -506,7 +506,6 @@ export default function EmbedProperty() {
       if (!wizardRoom) return fallbackRate;
 
       const lookupKeys = [wizardRoom.id, wizardRoom.room_type_id, wizardRoom.pmsRoomId, roomId, roomName].filter(Boolean).map(String);
-      if (!roomSeasonRates) return fallbackRate;
 
       const seasonId = findSeasonForDate(dateStr);
       if (!seasonId) return fallbackRate;
