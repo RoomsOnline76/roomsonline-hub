@@ -1,52 +1,45 @@
+## Goal
+On the booking/checkout flow for ROLOS-native properties (like Dassiesingel), quote each unit using its per-season **room rate from the admin Rates Calendar** first, and only fall back to the ROLOS **Rate Plan base rate** when no seasonal rate exists for that room+date.
 
-## Problem
+## Findings
+- Per-room seasonal rates shown in `/admin/edit property/rates/calendar` (e.g. BOSBOK R700, DASSIE R550, GRYSBOK R550, STEENBOK R1000) are stored in `properties.amenities.season_rates`, keyed by:
+  - amenity room id (timestamp, matches `rolos_room_types.linked_overview_id`)
+  - sub-key `"{seasonId}-{rateTypeId}"` → `{ roomAmount, adultAmount, teenAmount, childAmount, infantAmount }`
+  - active seasons live in `amenities.seasons` with `from`/`to` (or `start_date`/`end_date`).
+- The new normalized `rolos_rate_prices` table exists but is currently empty for Dassiesingel — the calendar UI still writes to `amenities.season_rates`, so it is the authoritative source today.
+- `booking-orchestrator-api → resolveRolosRates` currently only reads `hostfully_room_types.daily_rate` and the linked `rolos_rate_plans.base_rate`. It never looks at `amenities.season_rates`, so per-room seasonal rates from the admin calendar are ignored on the book page.
+- The book-page date-picker preview in `src/pages/Booking.tsx` also only uses the first wizard room's linked rate type, so it misses per-room seasonal rates.
 
-The portfolio embed (`/embed/portfolio/jongensfontein`) shows "From R1,000" on every property card. All four member properties are ROL'OS-native (`external_system = 'roomsonline'`), and their real rates live in `rolos_rate_plans` / `rolos_rate_prices` / `rolos_room_types`. Example: Dassiesingel has a rate plan with `base_rate = 600`, but the card still says R1,000 because the current pipeline reads from a stale mirror table.
+## Implementation plan
 
-Root cause in `supabase/functions/booking-portfolio-api/index.ts` (and the direct-DB fallback in `src/pages/EmbedPortfolio.tsx`):
+1. **Backend: teach the orchestrator to read seasonal room rates first**
+   - In `supabase/functions/booking-orchestrator-api/index.ts → resolveRolosRates`:
+     - Fetch `properties.amenities` (seasons + season_rates) alongside the existing `hostfully_room_types` query.
+     - Also fetch `rolos_room_types (id, linked_overview_id)` for the property so each hostfully mirror row can map to its amenity room id via `linked_rolos_id → rolos_room_types.id → linked_overview_id`.
+     - Build a resolver `getDailyRoomAmount(amenityRoomId, dateStr)` with priority:
+       1. If a season contains `dateStr`, look up `season_rates[amenityRoomId]["{seasonId}-{ratePlanId}"]` for the linked active rate plan; then any `"{seasonId}-*"` sub-key with `roomAmount > 0`.
+       2. Also try `season_rates[rolosRoomTypeId]` and `season_rates[roomName]` as secondary keys (matches existing PMSDashboard fallback order).
+       3. Otherwise use `rolos_rate_plans.base_rate` (linked plan) as today.
+       4. Finally `hostfully_room_types.daily_rate` (last-resort legacy).
+     - Use that resolver when building the `dailyRates` array per date so each night's `room_amount` reflects the correct season+room, not one flat rate. Preserve existing `rolos_rate_plan_stop_sell` stop-sell handling.
+     - Return `pricing_model` from the linked rate plan (per-room vs per-person) unchanged.
 
-```
-starting_rate ← MIN(hostfully_room_types.daily_rate)  // stale mirror, uniform 1000
-```
+2. **Frontend: align book-page calendar preview**
+   - In `src/pages/Booking.tsx` (`fetchAvailability` effect, ~L370-510) for `roomsonline` properties:
+     - When a room is preselected (`preSelectedRoomTypeId`/`preSelectedRoomTypeName`), pick that wizard room; otherwise iterate over wizard rooms and aggregate.
+     - Replace the flat `baseRate` per date with the same seasonal resolver as step 1 (walk `amenities.seasons` + `season_rates` per date, keyed by that room), falling back to linked rate-plan/room base rate.
+   - Keep other logic (blocked dates from `property_availability`, calendar map shape) untouched.
 
-`hostfully_room_types` is used as a generic mirror even for non-Hostfully properties, and the client's `fetchLiveRatesBatch` explicitly skips `external_system in ('manual','roomsonline')`, so ROL'OS-native properties never get their real rate.
+3. **Frontend: safety net in checkout total**
+   - In `Booking.tsx → calculateCost` zero-total fallback (~L1174-1217), extend the wizard fallback so it also consults `amenities.season_rates` for the current stay dates before returning the room's flat base rate. Rate-plan base_rate remains the last resort.
 
-## Fix
-
-Compute `starting_rate` from ROL'OS-native tables first, fall back to the mirror only when nothing is loaded natively.
-
-### 1. `supabase/functions/booking-portfolio-api/index.ts`
-
-Replace the single `hostfully_room_types` aggregation with a tiered resolver, in order:
-
-1. `MIN(rolos_rate_prices.base_rate)` where `base_rate > 0`, joined via `rolos_rate_seasons.rate_plan_id → rolos_rate_plans` filtered to the property, active plans, and seasons overlapping today.
-2. `MIN(rolos_rate_plans.base_rate)` for active plans of the property (fallback when no seasonal price rows exist).
-3. `MIN(rolos_room_types.default_rate)` for active native room types (`default_rate > 0`).
-4. Existing `MIN(hostfully_room_types.daily_rate)` (last resort for legacy/Hostfully-only rows).
-
-Also derive `room_count` / `max_guests` from `rolos_room_types` when the property has native room types (currently comes only from `hostfully_room_types`, which inflates counts because mirror rows are duplicated — e.g. Fonteinhutte shows 9 mirror rows vs 15 native).
-
-Batch the four supplementary queries once for all `propertyIds`, then merge in JS. Keep the response shape unchanged.
-
-### 2. `src/pages/EmbedPortfolio.tsx` (direct-DB fallback path, lines ~247–272)
-
-Mirror the same resolver so the client-side fallback matches the edge function output. Preserve the current shape written to `PortfolioProperty`.
-
-### 3. Live-rates effect (lines ~326–344)
-
-Leave the `fetchLiveRatesBatch` filter unchanged — it correctly skips ROL'OS-native properties, and their rates now come from step 1 above.
-
-## Out of scope
-
-- No changes to `hostfully_room_types` mirroring or to Hostfully/other PMS adapters.
-- No change to the booking flow / orchestrator — this is a display-time "from price" only.
-- No schema changes.
-
-## Files
-
-- `supabase/functions/booking-portfolio-api/index.ts` — swap rate/room aggregation for the tiered resolver.
-- `src/pages/EmbedPortfolio.tsx` — same resolver in the direct-DB fallback branch.
+4. **Out of scope**
+   - Existing PMS-backed paths (Hostfully/Benson/Hotelbeds/HyperGuest) — no changes.
+   - Portfolio "from R" price — already fixed in the earlier change.
+   - No DB schema changes; no migration of `season_rates` into `rolos_rate_prices`.
+   - No change to VAT, charges, vouchers, or payment flow.
 
 ## Validation
-
-After deploy, expect Dassiesingel to show "From R600" and the other three to reflect their real native `base_rate` (or `default_rate` if no plan is priced yet). Verify via `booking-portfolio-api?portfolio=jongensfontein` response.
+- Book Dassiesingel from the portfolio: BOSBOK should quote R700/night (currently R1,000), DASSIE/GRYSBOK R550/night, STEENBOK R1,000/night for the "10-11 Jul" test dates.
+- Selecting different date ranges spanning another season row must reflect that season's per-room rate.
+- A property with only a rate plan (no `season_rates`) must still quote correctly via the plan's `base_rate`.
