@@ -309,11 +309,81 @@ async function resolveRolosRates(
     }
   }
 
+  // ── Load property amenities (seasons + per-room seasonal rates from admin calendar)
+  const { data: propRow } = await supabase
+    .from("properties")
+    .select("amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  const amenities: any = propRow?.amenities || {};
+  const seasons: any[] = Array.isArray(amenities.seasons) ? amenities.seasons : [];
+  const seasonRates: Record<string, any> = (amenities.season_rates && typeof amenities.season_rates === "object")
+    ? amenities.season_rates
+    : {};
+
+  // Build linked_rolos_id → amenity room id (linked_overview_id) map
+  const rolosToOverview: Record<string, string> = {};
+  const rolosIdToName: Record<string, string> = {};
+  if (rolosIds.length > 0) {
+    const { data: rrt } = await supabase
+      .from("rolos_room_types")
+      .select("id, linked_overview_id, name")
+      .in("id", rolosIds);
+    if (rrt) {
+      for (const r of rrt as any[]) {
+        if (r.linked_overview_id) rolosToOverview[r.id] = String(r.linked_overview_id);
+        if (r.name) rolosIdToName[r.id] = r.name;
+      }
+    }
+  }
+
+  function findSeasonForDate(dateStr: string): any | null {
+    for (const s of seasons) {
+      const sStart = s.start_date || s.startDate || s.from;
+      const sEnd = s.end_date || s.endDate || s.to;
+      if (sStart && sEnd && dateStr >= sStart && dateStr <= sEnd) return s;
+    }
+    return null;
+  }
+
+  function resolveSeasonalRoomAmount(
+    dateStr: string,
+    keys: string[],
+    preferredRatePlanId?: string,
+  ): number | null {
+    const season = findSeasonForDate(dateStr);
+    if (!season) return null;
+    const seasonId = String(season.id);
+    for (const k of keys) {
+      if (!k) continue;
+      const bucket = seasonRates[k];
+      if (!bucket || typeof bucket !== "object") continue;
+      // 1) Preferred rate plan key
+      if (preferredRatePlanId) {
+        const v = bucket[`${seasonId}-${preferredRatePlanId}`];
+        if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+      }
+      // 2) Any sub-key starting with `${seasonId}-` with a positive roomAmount
+      for (const subKey of Object.keys(bucket)) {
+        if (!subKey.startsWith(`${seasonId}-`)) continue;
+        const v = bucket[subKey];
+        if (v && Number(v.roomAmount) > 0) return Number(v.roomAmount);
+      }
+    }
+    return null;
+  }
+
   const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
     const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
-    const effectiveRate = room.daily_rate ? Number(room.daily_rate) : (rolosPlan?.base_rate ?? 0);
+    const fallbackRate = rolosPlan?.base_rate ?? (room.daily_rate ? Number(room.daily_rate) : 0);
     const pricingModel = rolosPlan?.pricing_model || "per_unit";
     const isPerPerson = pricingModel === "per_person";
+
+    // Amenity/room identifiers used to look into season_rates
+    const overviewId = room.linked_rolos_id ? rolosToOverview[room.linked_rolos_id] : undefined;
+    const rolosName = room.linked_rolos_id ? rolosIdToName[room.linked_rolos_id] : undefined;
+    const lookupKeys = [overviewId, room.linked_rolos_id, rolosName, room.name].filter(Boolean) as string[];
+    const preferredPlanId = rolosPlan?.rate_plan_id;
 
     const dailyRates: any[] = [];
     const availArr: any[] = [];
@@ -323,6 +393,10 @@ async function resolveRolosRates(
     while (cur < end) {
       const ds = cur.toISOString().split("T")[0];
       const isClosed = closedSet?.has(ds) ?? false;
+      const seasonalRate = !isClosed
+        ? resolveSeasonalRoomAmount(ds, lookupKeys, preferredPlanId)
+        : null;
+      const effectiveRate = seasonalRate ?? fallbackRate;
       dailyRates.push({ date: ds, room_amount: isClosed ? 0 : effectiveRate, stop_sell: isClosed || undefined });
       availArr.push({ date: ds, available_units: isClosed ? 0 : 99 });
       cur.setDate(cur.getDate() + 1);
