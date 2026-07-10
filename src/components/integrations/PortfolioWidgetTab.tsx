@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck } from "lucide-react";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
