@@ -248,11 +248,11 @@ export default function EmbedPortfolio() {
       // 1) rolos_rate_prices  2) rolos_rate_plans.base_rate
       // 3) rolos_room_types.default_rate  4) hostfully_room_types.daily_rate
       const [rrt, plans, seasons, prices, hfRooms] = await Promise.all([
-        supabase.from("rolos_room_types" as any).select("property_id, default_rate, max_occupancy").eq("is_active", true).in("property_id", propertyIds),
+        supabase.from("rolos_room_types" as any).select("property_id, default_rate, max_occupancy, images").eq("is_active", true).in("property_id", propertyIds),
         supabase.from("rolos_rate_plans" as any).select("id, property_id, base_rate").eq("is_active", true).in("property_id", propertyIds),
         supabase.from("rolos_rate_seasons" as any).select("id, rate_plan_id"),
         supabase.from("rolos_rate_prices" as any).select("season_id, base_rate"),
-        supabase.from("hostfully_room_types").select("property_id, daily_rate, max_guests").eq("is_active", true).in("property_id", propertyIds),
+        supabase.from("hostfully_room_types").select("property_id, daily_rate, max_guests, images").eq("is_active", true).in("property_id", propertyIds),
       ]);
       const planToProp: Record<string, string> = {};
       ((plans.data as any[]) || []).forEach((p) => { planToProp[p.id] = p.property_id; });
@@ -272,11 +272,27 @@ export default function EmbedPortfolio() {
       ((rrt.data as any[]) || []).forEach((r) => { nativeRT.add(r.property_id); bump(r.property_id, r.default_rate, r.max_occupancy, true); });
       ((hfRooms.data as any[]) || []).forEach((r) => { if (!nativeRT.has(r.property_id)) bump(r.property_id, r.daily_rate, r.max_guests, true); });
 
+      // Room-image pool per property (fallback for missing property hero image)
+      const roomImgsByProp: Record<string, string[]> = {};
+      const collect = (pid: string, imgs: unknown) => {
+        if (!Array.isArray(imgs)) return;
+        for (const it of imgs) {
+          const url = typeof it === "string" ? it : (it as any)?.url;
+          if (typeof url === "string" && url) (roomImgsByProp[pid] ||= []).push(url);
+        }
+      };
+      ((rrt.data as any[]) || []).forEach((r) => collect(r.property_id, r.images));
+      ((hfRooms.data as any[]) || []).forEach((r) => collect(r.property_id, r.images));
+
       const mapped: PortfolioProperty[] = props.map((p) => {
         const images = (p.images as any) || [];
-        const heroImg = Array.isArray(images) && images.length > 0
+        let heroImg: string | null = Array.isArray(images) && images.length > 0
           ? (typeof images[0] === "string" ? images[0] : (images[0] as any)?.url || null)
           : null;
+        if (!heroImg) {
+          const pool = roomImgsByProp[p.id];
+          if (pool && pool.length > 0) heroImg = pool[Math.floor(Math.random() * pool.length)];
+        }
         const rm = roomsByProp[p.id];
         return {
           id: p.id, name: p.name, slug: p.slug, city: p.city, description: p.description, hero_image: heroImg,

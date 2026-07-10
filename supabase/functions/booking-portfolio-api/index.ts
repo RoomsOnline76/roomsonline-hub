@@ -79,7 +79,7 @@ serve(async (req) => {
     ] = await Promise.all([
       supabase
         .from("rolos_room_types")
-        .select("property_id, default_rate, max_occupancy")
+        .select("property_id, default_rate, max_occupancy, images")
         .eq("is_active", true)
         .in("property_id", propertyIds),
       supabase
@@ -95,7 +95,7 @@ serve(async (req) => {
         .select("season_id, base_rate"),
       supabase
         .from("hostfully_room_types")
-        .select("property_id, daily_rate, max_guests")
+        .select("property_id, daily_rate, max_guests, images")
         .eq("is_active", true)
         .in("property_id", propertyIds),
     ]);
@@ -137,11 +137,31 @@ serve(async (req) => {
       bump(h.property_id, h.daily_rate, h.max_guests, true);
     });
 
+    // Pool of room-level images per property (fallback when property has none)
+    const roomImagesByProp: Record<string, string[]> = {};
+    const collectRoomImg = (pid: string, imgs: unknown) => {
+      if (!Array.isArray(imgs)) return;
+      for (const it of imgs) {
+        const url = typeof it === "string" ? it : (it as any)?.url;
+        if (typeof url === "string" && url) {
+          (roomImagesByProp[pid] ||= []).push(url);
+        }
+      }
+    };
+    (rrtRows || []).forEach((r: any) => collectRoomImg(r.property_id, r.images));
+    (hostfullyRows || []).forEach((h: any) => collectRoomImg(h.property_id, h.images));
+
     const mapped = (properties || []).map((p: any) => {
       const images = p.images || [];
-      const heroImage = Array.isArray(images) && images.length > 0
+      let heroImage: string | null = Array.isArray(images) && images.length > 0
         ? (typeof images[0] === "string" ? images[0] : images[0]?.url || null)
         : null;
+      if (!heroImage) {
+        const pool = roomImagesByProp[p.id];
+        if (pool && pool.length > 0) {
+          heroImage = pool[Math.floor(Math.random() * pool.length)];
+        }
+      }
       const rm = agg[p.id];
       const amenities = p.amenities || {};
       return {
