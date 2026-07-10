@@ -79,7 +79,7 @@ serve(async (req) => {
     ] = await Promise.all([
       supabase
         .from("rolos_room_types")
-        .select("property_id, default_rate, max_occupancy")
+        .select("property_id, default_rate, max_occupancy, images")
         .eq("is_active", true)
         .in("property_id", propertyIds),
       supabase
@@ -95,7 +95,7 @@ serve(async (req) => {
         .select("season_id, base_rate"),
       supabase
         .from("hostfully_room_types")
-        .select("property_id, daily_rate, max_guests")
+        .select("property_id, daily_rate, max_guests, images")
         .eq("is_active", true)
         .in("property_id", propertyIds),
     ]);
