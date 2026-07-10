@@ -157,7 +157,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
             </Button>
           </div>
 
-          </div>
+
 
           {/* Direct Portfolio Link — shareable URL to the full portfolio view */}
           {selectedPortfolioId && (
