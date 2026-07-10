@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck } from "lucide-react";
+import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshCw, ShieldCheck, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
@@ -72,6 +72,11 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const BASE = wl.host || PUBLIC_DOMAIN;
   const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
   const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
+  // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
+  // social bios and "Book Now" buttons. Attributes bookings to the portfolio.
+  const directPortfolioUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
+    : "";
 
   const wlAttrs = wl.enabled
     ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
@@ -151,6 +156,47 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
               Manage Portfolios
             </Button>
           </div>
+
+
+
+          {/* Direct Portfolio Link — shareable URL to the full portfolio view */}
+          {selectedPortfolioId && (
+            <div className="space-y-1.5 rounded-lg border p-3 bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  Direct Portfolio Link
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs gap-1"
+                    onClick={() => copyToClipboard(directPortfolioUrl)}
+                  >
+                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    Copy
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs gap-1"
+                    onClick={() => window.open(directPortfolioUrl, "_blank")}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Open
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Shareable URL to the full portfolio view. Paste into "Book Now" buttons, emails,
+                or social bios. Bookings originating here are attributed to this portfolio.
+              </p>
+              <pre className="bg-background border rounded-md p-2 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                {directPortfolioUrl}
+              </pre>
+            </div>
+          )}
 
           {/* AI Controls */}
           <div className="space-y-3 rounded-lg border p-3 bg-muted/30">
