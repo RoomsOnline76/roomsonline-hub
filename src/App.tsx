@@ -190,6 +190,12 @@ const isBookDomainAllowedPath = (): boolean => {
   // Portfolio pages (any route referencing the portfolio slug)
   if (path.includes(`/portfolio/${JONGENSFONTEIN_PORTFOLIO_SLUG}`)) return true;
   if (path.includes(`/${JONGENSFONTEIN_PORTFOLIO_SLUG}`)) return true;
+  // Post-payment / share / bookmark landing pages (bookingId is a UUID, not a slug)
+  if (path.startsWith("/booking-confirmation/")) return true;
+  if (path.startsWith("/journey-confirmation/")) return true;
+  if (path.startsWith("/guest-portal/")) return true;
+  // Embed routes used by the booking widget
+  if (path.startsWith("/embed/")) return true;
   // Property / room / booking / confirmation paths for allowlisted properties
   for (const slug of JONGENSFONTEIN_PROPERTY_SLUGS) {
     if (path.includes(`/${slug}`)) return true;
