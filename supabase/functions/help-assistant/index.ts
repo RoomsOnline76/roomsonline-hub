@@ -657,8 +657,9 @@ serve(async (req) => {
 
       if (channels && channels.length > 0) {
         contextContent += `CHANNEL CONNECTIONS (${channels.length}):\n`;
-        channels.forEach((ch: { channel_name: string; is_active: boolean; last_sync_at: string | null }) => {
-          contextContent += `- ${ch.channel_name}: ${ch.is_active ? 'Active' : 'Inactive'}${ch.last_sync_at ? `, last synced ${ch.last_sync_at}` : ''}\n`;
+        channels.forEach((ch: { channel_name: string; status: string | null; last_sync_at: string | null }) => {
+          const isActive = ch.status === 'active' || ch.status === 'connected';
+          contextContent += `- ${ch.channel_name}: ${isActive ? 'Active' : (ch.status || 'Inactive')}${ch.last_sync_at ? `, last synced ${ch.last_sync_at}` : ''}\n`;
         });
         contextContent += "\n";
       } else {
