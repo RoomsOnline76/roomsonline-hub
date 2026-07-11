@@ -543,7 +543,7 @@ serve(async (req) => {
           .in("property_id", scopeIds),
         supabase
           .from("rolos_channel_connections")
-          .select("id, channel_name, is_active, last_sync_at, property_id")
+          .select("id, channel_name, status, last_sync_at, property_id")
           .in("property_id", scopeIds),
         supabase
           .from("rolos_groups")
