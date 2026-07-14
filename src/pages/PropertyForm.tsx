@@ -8504,6 +8504,6 @@ export default function PropertyForm() {
         }}
       />
 
-    </AppLayout>
+    </Shell>
   );
 }
