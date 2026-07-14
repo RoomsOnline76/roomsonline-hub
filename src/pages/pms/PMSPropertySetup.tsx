@@ -214,9 +214,10 @@ export default function PMSPropertySetup() {
   useEffect(() => {
     const frame = editorFrameRef.current;
     if (!frame || !iframeSrc) return;
-    if (appliedEditorSrcRef.current !== iframeSrc) {
-      appliedEditorSrcRef.current = iframeSrc;
-      frame.setAttribute("src", iframeSrc);
+    const targetSrc = new URL(iframeSrc, window.location.origin).href;
+    if (appliedEditorSrcRef.current !== targetSrc && frame.src !== targetSrc) {
+      appliedEditorSrcRef.current = targetSrc;
+      frame.src = targetSrc;
     }
   }, [iframeSrc]);
 
