@@ -3738,9 +3738,10 @@ export default function PropertyForm() {
                     // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
                     // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
                     if (isRolosPms(selectedPMS) && !forceTabs) {
-                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages") {
+                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages" || tab.value === "house-rules" || tab.value === "templates" || tab.value === "announcements") {
                         return false;
                       }
+
                     }
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
