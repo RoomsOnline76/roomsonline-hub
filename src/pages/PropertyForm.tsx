@@ -2519,6 +2519,7 @@ export default function PropertyForm() {
     setIsManageAnnouncementOpen(false);
     setEditingAnnouncementId(null);
     setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true });
+    setIsDirty(true);
   };
 
   const editAnnouncement = (a: any) => {
@@ -2536,11 +2537,14 @@ export default function PropertyForm() {
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(announcements.filter((a) => a.id !== id));
     toast({ title: "Announcement deleted", description: "The announcement has been removed." });
+    setIsDirty(true);
   };
 
   const toggleAnnouncementEnabled = (id: string) => {
     setAnnouncements(announcements.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
+    setIsDirty(true);
   };
+
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
