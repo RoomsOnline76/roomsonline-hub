@@ -21,7 +21,9 @@ import {
   FileText,
   Mail,
   Megaphone,
+  Building2,
 } from "lucide-react";
+
 
 /**
  * ROLOS "Property Setup" hub.
