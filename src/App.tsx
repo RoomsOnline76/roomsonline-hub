@@ -135,6 +135,7 @@ const PMSMessaging = lazy(() => import("./pages/pms/PMSMessaging"));
 const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
 const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
 const PMSCommandCentre = lazy(() => import("./pages/pms/PMSCommandCentre"));
+const PMSPropertySetup = lazy(() => import("./pages/pms/PMSPropertySetup"));
 const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
 
 import { PMSShell } from "./components/layout/PMSShell";
