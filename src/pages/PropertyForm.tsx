@@ -3712,7 +3712,7 @@ export default function PropertyForm() {
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-            <TabsList className="bg-secondary h-8">
+            <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
               {[
                 { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: false, highlightBlue: true, onboardingOnly: true },
                 { value: "general", icon: Home, label: "General", highlight: false },
