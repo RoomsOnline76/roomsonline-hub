@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,9 @@ import {
   ShieldCheck,
   CreditCard,
   Receipt,
+  FileText,
+  Mail,
+  Megaphone,
 } from "lucide-react";
 
 /**
@@ -24,11 +28,19 @@ import {
  *
  * Renders the same-origin admin editor (`/admin/edit-property/:id`) inline
  * via an iframe running in `?embed=1` mode. This is the source of truth for
- * ROLOS-PMS booking-backend data (Rates, Packages, Specials, Addons). The
- * public book. OTA reads the same tables — no dual writes.
+ * ROLOS-PMS booking-backend + guest-experience data (Rates, Packages,
+ * Specials, Addons, House Rules, Templates, Announcements). The public
+ * book. OTA reads the same tables — no dual writes.
  */
 
-type TabKey = "rates" | "packages" | "specials" | "addons";
+type TabKey =
+  | "rates"
+  | "packages"
+  | "specials"
+  | "addons"
+  | "house-rules"
+  | "templates"
+  | "announcements";
 
 interface Section {
   key: TabKey;
@@ -38,49 +50,112 @@ interface Section {
   hints?: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
 }
 
-const SECTIONS: Section[] = [
+interface SectionGroup {
+  label: string;
+  sections: Section[];
+}
+
+const SECTION_GROUPS: SectionGroup[] = [
   {
-    key: "rates",
-    label: "Rates",
-    icon: DollarSign,
-    description: "Seasons, rate types, calendar, breakdown, charges, policies and payment providers.",
-    hints: [
-      { key: "seasons", label: "Seasons", icon: CalendarRange },
-      { key: "types", label: "Rate Types", icon: Layers },
-      { key: "calendar", label: "Calendar", icon: Calendar },
-      { key: "breakdown", label: "Breakdown", icon: LayoutList },
-      { key: "charges", label: "Charges", icon: Wallet },
-      { key: "policies", label: "Policies", icon: ShieldCheck },
-      { key: "providers", label: "Providers", icon: CreditCard },
-      { key: "overview", label: "Overview", icon: Receipt },
+    label: "Booking backend",
+    sections: [
+      {
+        key: "rates",
+        label: "Rates",
+        icon: DollarSign,
+        description: "Seasons, rate types, calendar, breakdown, charges, policies and payment providers.",
+        hints: [
+          { key: "seasons", label: "Seasons", icon: CalendarRange },
+          { key: "types", label: "Rate Types", icon: Layers },
+          { key: "calendar", label: "Calendar", icon: Calendar },
+          { key: "breakdown", label: "Breakdown", icon: LayoutList },
+          { key: "charges", label: "Charges", icon: Wallet },
+          { key: "policies", label: "Policies", icon: ShieldCheck },
+          { key: "providers", label: "Providers", icon: CreditCard },
+          { key: "overview", label: "Overview", icon: Receipt },
+        ],
+      },
+      {
+        key: "packages",
+        label: "Packages",
+        icon: Package,
+        description: "Curated stay packages that combine rooms with experiences or inclusions.",
+      },
+      {
+        key: "specials",
+        label: "Specials",
+        icon: Sparkles,
+        description: "Time-boxed promotional offers and discounted rate plans.",
+      },
+      {
+        key: "addons",
+        label: "Addons",
+        icon: Package,
+        description: "Optional guest add-ons: breakfast, transfers, activities, gifts.",
+      },
     ],
   },
   {
-    key: "packages",
-    label: "Packages",
-    icon: Package,
-    description: "Curated stay packages that combine rooms with experiences or inclusions.",
-  },
-  {
-    key: "specials",
-    label: "Specials",
-    icon: Sparkles,
-    description: "Time-boxed promotional offers and discounted rate plans.",
-  },
-  {
-    key: "addons",
-    label: "Addons",
-    icon: Package,
-    description: "Optional guest add-ons: breakfast, transfers, activities, gifts.",
+    label: "Guest experience",
+    sections: [
+      {
+        key: "house-rules",
+        label: "House Rules",
+        icon: FileText,
+        description: "Check-in/out times, child/pet/smoking policy, deposits and cancellation rules.",
+      },
+      {
+        key: "templates",
+        label: "Templates",
+        icon: Mail,
+        description: "Confirmation, pre-stay and post-stay guest email templates.",
+      },
+      {
+        key: "announcements",
+        label: "Announcements",
+        icon: Megaphone,
+        description: "Dated announcement banners shown on the booking site.",
+      },
+    ],
   },
 ];
+
+const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
+const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
 export default function PMSPropertySetup() {
   const { propertyId, properties, loading } = usePmsPropertyId();
   const property = properties.find((p) => p.id === propertyId);
-  const [activeTab, setActiveTab] = useState<TabKey>("rates");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const initialTab = (() => {
+    const q = searchParams.get("section") as TabKey | null;
+    return q && VALID_TABS.has(q) ? q : "rates";
+  })();
+
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [iframeHeight, setIframeHeight] = useState<number>(720);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Keep URL ?section= in sync with the active tab for deep-linking.
+  useEffect(() => {
+    const current = searchParams.get("section");
+    if (current !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("section", activeTab);
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // React to external ?section= changes (e.g. deep links from /edit-property CTA).
+  useEffect(() => {
+    const q = searchParams.get("section") as TabKey | null;
+    if (q && VALID_TABS.has(q) && q !== activeTab) {
+      setActiveTab(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const iframeSrc = useMemo(() => {
     if (!propertyId) return "";
@@ -118,6 +193,8 @@ export default function PMSPropertySetup() {
     );
   }
 
+  const activeSection = ALL_SECTIONS.find((s) => s.key === activeTab);
+
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -132,7 +209,8 @@ export default function PMSPropertySetup() {
                 <span className="font-medium text-foreground">{property.name}</span> ·{" "}
               </>
             ) : null}
-            Everything the booking engine needs — rates, packages, specials and addons — lives here.
+            Everything the booking engine and guest experience needs — rates, packages, specials,
+            addons, house rules, templates and announcements — lives here.
           </p>
         </div>
         <Button
@@ -146,48 +224,55 @@ export default function PMSPropertySetup() {
         </Button>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
         {/* Left rail */}
-        <nav className="space-y-1">
-          {SECTIONS.map((s) => {
-            const Icon = s.icon;
-            const active = activeTab === s.key;
-            return (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setActiveTab(s.key)}
-                className={cn(
-                  "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
-                  active
-                    ? "border-primary/50 bg-primary/10 text-foreground"
-                    : "border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon className={cn("h-3.5 w-3.5", active ? "text-primary" : "text-muted-foreground")} />
-                  <span className="font-medium">{s.label}</span>
-                </div>
-                <p className="mt-1 text-[10px] leading-tight opacity-80">{s.description}</p>
-                {active && s.hints && (
-                  <ul className="mt-2 flex flex-wrap gap-1">
-                    {s.hints.map((h) => {
-                      const HIcon = h.icon;
-                      return (
-                        <li
-                          key={h.key}
-                          className="flex items-center gap-1 rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-[9px] text-muted-foreground"
-                        >
-                          <HIcon className="h-2.5 w-2.5" />
-                          {h.label}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </button>
-            );
-          })}
+        <nav className="space-y-4">
+          {SECTION_GROUPS.map((group) => (
+            <div key={group.label} className="space-y-1">
+              <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.label}
+              </div>
+              {group.sections.map((s) => {
+                const Icon = s.icon;
+                const active = activeTab === s.key;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setActiveTab(s.key)}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                      active
+                        ? "border-primary/50 bg-primary/10 text-foreground"
+                        : "border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("h-3.5 w-3.5", active ? "text-primary" : "text-muted-foreground")} />
+                      <span className="font-medium">{s.label}</span>
+                    </div>
+                    <p className="mt-1 text-[10px] leading-tight opacity-80">{s.description}</p>
+                    {active && s.hints && (
+                      <ul className="mt-2 flex flex-wrap gap-1">
+                        {s.hints.map((h) => {
+                          const HIcon = h.icon;
+                          return (
+                            <li
+                              key={h.key}
+                              className="flex items-center gap-1 rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                            >
+                              <HIcon className="h-2.5 w-2.5" />
+                              {h.label}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Editor pane — inline via same-origin iframe */}
@@ -197,7 +282,7 @@ export default function PMSPropertySetup() {
               ref={iframeRef}
               key={iframeSrc}
               src={iframeSrc}
-              title={`${SECTIONS.find((s) => s.key === activeTab)?.label ?? "Editor"} — ${property?.name ?? ""}`}
+              title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
               className="block w-full border-0"
               style={{ height: iframeHeight }}
             />
@@ -214,3 +299,4 @@ export default function PMSPropertySetup() {
     </div>
   );
 }
+
