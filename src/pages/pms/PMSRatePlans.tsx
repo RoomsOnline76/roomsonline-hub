@@ -640,7 +640,7 @@ export default function PMSRatePlans() {
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
                     {(() => {
-                      const scopePropId = editingPlan?.property_id || propertyId;
+                      const scopePropId = editingPlan?.property_id || form.target_property_id || propertyId;
                       const scopedRoomTypes = roomTypes.filter(rt => rt.property_id === scopePropId);
                       if (scopedRoomTypes.length === 0) {
                         return <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>;
