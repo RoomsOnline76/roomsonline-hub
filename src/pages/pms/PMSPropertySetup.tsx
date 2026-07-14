@@ -161,7 +161,7 @@ const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
 const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
 export default function PMSPropertySetup() {
-  const { propertyId, properties, loading } = usePmsPropertyId();
+  const { propertyId, properties } = usePmsPropertyId();
   const property = properties.find((p) => p.id === propertyId);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -214,14 +214,6 @@ export default function PMSPropertySetup() {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <p className="text-sm text-muted-foreground">Loading property…</p>
-      </div>
-    );
-  }
 
   if (!propertyId) {
     return (
