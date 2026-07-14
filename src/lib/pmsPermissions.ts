@@ -31,7 +31,8 @@ export type PmsModule =
   | "messaging"
   | "portfolio"
   | "revenue"
-  | "command-centre";
+  | "command-centre"
+  | "property-setup";
 
 export interface ModuleAccess {
   visible: boolean;
