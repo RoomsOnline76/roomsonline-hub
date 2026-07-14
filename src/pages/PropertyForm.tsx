@@ -3553,8 +3553,9 @@ export default function PropertyForm() {
   return (
     <Shell>
       <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
-          {/* Breadcrumb Navigation */}
+          {/* Breadcrumb + Header — hidden in embed mode */}
           {!embedded && (
+          <>
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
               onClick={() => navigate("/admin/property-overview")}
