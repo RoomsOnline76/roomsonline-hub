@@ -61,7 +61,19 @@ interface SectionGroup {
 
 const SECTION_GROUPS: SectionGroup[] = [
   {
+    label: "Property profile",
+    sections: [
+      {
+        key: "info-facilities",
+        label: "Info & Facilities",
+        icon: Building2,
+        description: "Star rating, accommodation type, facilities checklist, self-catering, breakfast options and property-level info.",
+      },
+    ],
+  },
+  {
     label: "Booking backend",
+
     sections: [
       {
         key: "rates",
