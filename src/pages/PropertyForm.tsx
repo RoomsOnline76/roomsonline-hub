@@ -4363,8 +4363,17 @@ export default function PropertyForm() {
                                 Google ID <Info className="h-3 w-3 text-muted-foreground" />
                               </Label>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">Google Place ID for reviews & maps</p>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-xs font-medium mb-1">Google Place ID</p>
+                              <p className="text-[11px] text-muted-foreground mb-1">
+                                Used for reviews and Maps embed.
+                              </p>
+                              <ol className="text-[11px] list-decimal pl-4 space-y-0.5">
+                                <li>Open Google Maps and search your property.</li>
+                                <li>Click your property so its panel opens.</li>
+                                <li>Copy the full URL from the address bar.</li>
+                                <li>Click <strong>Paste Google URL</strong> and paste.</li>
+                              </ol>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -4376,7 +4385,13 @@ export default function PropertyForm() {
                             setIsDirty(true);
                           }}
                           placeholder="ChIJ... or numeric"
-                          className="h-7 text-xs w-28"
+                          className="h-7 text-xs w-40"
+                        />
+                        <GooglePlaceIdPastePopover
+                          onExtract={(id) => {
+                            setGooglePlaceId(id);
+                            setIsDirty(true);
+                          }}
                         />
                       </div>
                       <div className="flex items-center gap-2">
