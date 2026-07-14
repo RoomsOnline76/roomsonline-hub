@@ -181,7 +181,6 @@ export default function PMSPropertySetup() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [iframeHeight, setIframeHeight] = useState<number>(720);
-  const [editorSrc, setEditorSrc] = useState<string>("");
   const editorFrameRef = useRef<HTMLIFrameElement | null>(null);
   const appliedEditorSrcRef = useRef<string>("");
 
@@ -213,19 +212,13 @@ export default function PMSPropertySetup() {
   }, [propertyId, activeTab]);
 
   useEffect(() => {
-    if (iframeSrc && iframeSrc !== editorSrc) {
-      setEditorSrc(iframeSrc);
-    }
-  }, [editorSrc, iframeSrc]);
-
-  useEffect(() => {
     const frame = editorFrameRef.current;
-    if (!frame || !editorSrc) return;
-    if (appliedEditorSrcRef.current !== editorSrc) {
-      appliedEditorSrcRef.current = editorSrc;
-      frame.setAttribute("src", editorSrc);
+    if (!frame || !iframeSrc) return;
+    if (appliedEditorSrcRef.current !== iframeSrc) {
+      appliedEditorSrcRef.current = iframeSrc;
+      frame.setAttribute("src", iframeSrc);
     }
-  }, [editorSrc]);
+  }, [iframeSrc]);
 
 
   // Auto-size the iframe based on messages from the embedded PropertyForm.
@@ -345,10 +338,10 @@ export default function PMSPropertySetup() {
           <iframe
             ref={editorFrameRef}
             title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
-            className={cn("block w-full border-0", !editorSrc && "hidden")}
+            className={cn("block w-full border-0", !iframeSrc && "hidden")}
             style={{ height: iframeHeight }}
           />
-          {!editorSrc && (
+          {!iframeSrc && (
             <div className="p-6 text-sm text-muted-foreground">Loading property…</div>
           )}
         </div>
