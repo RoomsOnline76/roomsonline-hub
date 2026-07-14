@@ -24,6 +24,7 @@ import {
   Building2,
   Gauge,
   Radar,
+  SlidersHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
