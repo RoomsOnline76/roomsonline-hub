@@ -235,10 +235,6 @@ export const Navbar = () => {
                       <Calendar className="mr-2 h-4 w-4" />
                       Calendar
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/admin/promotion')}>
-                      <Megaphone className="mr-2 h-4 w-4" />
-                      Promotion
-                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/admin/bookings')}>
                       <BookOpen className="mr-2 h-4 w-4" />
                       Bookings
