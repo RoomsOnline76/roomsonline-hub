@@ -175,7 +175,7 @@ export function GeneralTab(props: GeneralTabProps) {
     handleNavigate, propertyId, isEditMode, isRolProperty, setIsRolProperty,
     isTestProperty, setIsTestProperty, isAccommodation, setIsAccommodation,
     isVenues, isEvent, isConference, handleVenuesChange, handleEventChange,
-    handleConferenceChange, lekkeslaapUuid, setLekkeslaapUuid, selectedPMS,
+    handleConferenceChange, selectedPMS,
     setSelectedPMS, availablePMSSystems, bensonPropertyCode, setBensonPropertyCode,
     cloudbedsPropertyId, setCloudbedsPropertyId, littlehotelierChannelCode,
     setLittlehotelierChannelCode, littlehotelierRegion, setLittlehotelierRegion,
