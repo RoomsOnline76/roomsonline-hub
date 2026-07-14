@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { Badge } from "@/components/ui/badge";
@@ -160,23 +160,6 @@ const SECTION_GROUPS: SectionGroup[] = [
 const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
 const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
-interface EditorFrameProps {
-  src: string;
-  title: string;
-  height: number;
-}
-
-const EditorFrame = memo(function EditorFrame({ src, title, height }: EditorFrameProps) {
-  return (
-    <iframe
-      src={src}
-      title={title}
-      className="block w-full border-0"
-      style={{ height }}
-    />
-  );
-});
-
 export default function PMSPropertySetup() {
   const { propertyId: resolvedPropertyId, properties } = usePmsPropertyId();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -199,6 +182,7 @@ export default function PMSPropertySetup() {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [iframeHeight, setIframeHeight] = useState<number>(720);
   const [editorSrc, setEditorSrc] = useState<string>("");
+  const editorFrameRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     const section = searchParams.get("section") as TabKey | null;
@@ -232,6 +216,14 @@ export default function PMSPropertySetup() {
       setEditorSrc(iframeSrc);
     }
   }, [editorSrc, iframeSrc]);
+
+  useEffect(() => {
+    const frame = editorFrameRef.current;
+    if (!frame || !editorSrc) return;
+    if (frame.getAttribute("src") !== editorSrc) {
+      frame.setAttribute("src", editorSrc);
+    }
+  }, [editorSrc]);
 
 
   // Auto-size the iframe based on messages from the embedded PropertyForm.
@@ -348,13 +340,13 @@ export default function PMSPropertySetup() {
 
         {/* Editor pane — inline via same-origin iframe */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
-          {editorSrc ? (
-            <EditorFrame
-              src={editorSrc}
-              title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
-              height={iframeHeight}
-            />
-          ) : (
+          <iframe
+            ref={editorFrameRef}
+            title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
+            className={cn("block w-full border-0", !editorSrc && "hidden")}
+            style={{ height: iframeHeight }}
+          />
+          {!editorSrc && (
             <div className="p-6 text-sm text-muted-foreground">Loading property…</div>
           )}
         </div>
