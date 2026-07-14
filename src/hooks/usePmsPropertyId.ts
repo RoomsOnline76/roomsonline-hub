@@ -205,18 +205,20 @@ export function usePmsPropertyId() {
       // Sync URL
       if (propertyId !== paramId) {
         setSearchParams((prev) => {
-          prev.set("property", propertyId);
-          return prev;
+          const next = new URLSearchParams(prev);
+          next.set("property", propertyId);
+          return next;
         }, { replace: true });
       }
     }
-  }, [propertyId]);
+  }, [propertyId, paramId, setSearchParams]);
 
   const switchProperty = useCallback((id: string) => {
     setSelectedId(id);
     setSearchParams((prev) => {
-      prev.set("property", id);
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set("property", id);
+      return next;
     }, { replace: true });
   }, [setSearchParams]);
 

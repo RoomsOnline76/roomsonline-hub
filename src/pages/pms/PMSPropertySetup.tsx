@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
+import PropertyForm from "@/pages/PropertyForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,8 +33,7 @@ import {
 /**
  * ROLOS "Property Setup" hub.
  *
- * Renders the same-origin admin editor (`/admin/edit-property/:id`) inline
- * via an iframe running in `?embed=1` mode. This is the source of truth for
+ * Renders the admin editor inline in embed mode. This is the source of truth for
  * ROLOS-PMS booking-backend + guest-experience data (Rates, Packages,
  * Specials, Addons, House Rules, Templates, Announcements). The public
  * book. OTA reads the same tables — no dual writes.
@@ -161,9 +161,18 @@ const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
 const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
 export default function PMSPropertySetup() {
-  const { propertyId, properties, loading } = usePmsPropertyId();
-  const property = properties.find((p) => p.id === propertyId);
+  const { propertyId: resolvedPropertyId, properties } = usePmsPropertyId();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [stablePropertyId, setStablePropertyId] = useState<string | null>(() => searchParams.get("property"));
+
+  useEffect(() => {
+    if (resolvedPropertyId && resolvedPropertyId !== stablePropertyId) {
+      setStablePropertyId(resolvedPropertyId);
+    }
+  }, [resolvedPropertyId, stablePropertyId]);
+
+  const propertyId = stablePropertyId ?? resolvedPropertyId;
+  const property = properties.find((p) => p.id === propertyId);
 
   const initialTab = (() => {
     const q = searchParams.get("section") as TabKey | null;
@@ -171,8 +180,13 @@ export default function PMSPropertySetup() {
   })();
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
-  const [iframeHeight, setIframeHeight] = useState<number>(720);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    const section = searchParams.get("section") as TabKey | null;
+    if (section && VALID_TABS.has(section) && section !== activeTab) {
+      setActiveTab(section);
+    }
+  }, [activeTab, searchParams]);
 
   // Change active tab AND URL together on user click. No mount-time URL writes,
   // no cross-effects with usePmsPropertyId's own ?property= sync — that combo
@@ -181,39 +195,13 @@ export default function PMSPropertySetup() {
     setActiveTab(key);
     setSearchParams(
       (prev) => {
-        prev.set("section", key);
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set("section", key);
+        return next;
       },
       { replace: true },
     );
   }, [setSearchParams]);
-
-  const iframeSrc = useMemo(() => {
-    if (!propertyId) return "";
-    return `/admin/edit-property/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
-  }, [propertyId, activeTab]);
-
-
-  // Auto-size the iframe based on messages from the embedded PropertyForm.
-  useEffect(() => {
-    const onMessage = (evt: MessageEvent) => {
-      if (evt.origin !== window.location.origin) return;
-      const data = evt.data as { type?: string; height?: number } | null;
-      if (data?.type === "rolos-embed-height" && typeof data.height === "number") {
-        setIframeHeight(Math.max(600, Math.min(data.height + 40, 4000)));
-      }
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <p className="text-sm text-muted-foreground">Loading property…</p>
-      </div>
-    );
-  }
 
   if (!propertyId) {
     return (
@@ -253,7 +241,7 @@ export default function PMSPropertySetup() {
             // Per project domain policy: always link to the production ROLOS
             // domain (never lovable.dev / lovable.app / lovableproject.com),
             // otherwise the admin route 404s in the Lovable editor origin.
-            const url = `https://sleepinafrica.roomsonline.co.za/admin/edit-property/${propertyId}?tab=${activeTab}`;
+            const url = `https://sleepinafrica.roomsonline.co.za/admin/properties/${propertyId}?tab=${activeTab}`;
             window.open(url, "_blank", "noopener");
           }}
 
@@ -314,18 +302,14 @@ export default function PMSPropertySetup() {
           ))}
         </nav>
 
-        {/* Editor pane — inline via same-origin iframe */}
+        {/* Editor pane — inline embedded PropertyForm */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
-          {iframeSrc && (
-            <iframe
-              ref={iframeRef}
-              key={iframeSrc}
-              src={iframeSrc}
-              title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
-              className="block w-full border-0"
-              style={{ height: iframeHeight }}
-            />
-          )}
+          <PropertyForm
+            embeddedPropertyId={propertyId}
+            embeddedInitialTab={activeTab}
+            embeddedOverride={true}
+            forceTabsOverride={true}
+          />
         </div>
       </div>
 
