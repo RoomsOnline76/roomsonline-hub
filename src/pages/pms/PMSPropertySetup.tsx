@@ -212,7 +212,14 @@ export default function PMSPropertySetup() {
           variant="outline"
           size="sm"
           className="h-7 gap-1 text-xs"
-          onClick={() => window.open(`/admin/edit-property/${propertyId}?tab=${activeTab}`, "_blank", "noopener")}
+          onClick={() => {
+            // Per project domain policy: always link to the production ROLOS
+            // domain (never lovable.dev / lovable.app / lovableproject.com),
+            // otherwise the admin route 404s in the Lovable editor origin.
+            const url = `https://sleepinafrica.roomsonline.co.za/admin/edit-property/${propertyId}?tab=${activeTab}`;
+            window.open(url, "_blank", "noopener");
+          }}
+
         >
           <ExternalLink className="h-3 w-3" />
           Open full editor
