@@ -183,6 +183,7 @@ export default function PMSPropertySetup() {
   const [iframeHeight, setIframeHeight] = useState<number>(720);
   const [editorSrc, setEditorSrc] = useState<string>("");
   const editorFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const appliedEditorSrcRef = useRef<string>("");
 
   useEffect(() => {
     const section = searchParams.get("section") as TabKey | null;
@@ -220,7 +221,8 @@ export default function PMSPropertySetup() {
   useEffect(() => {
     const frame = editorFrameRef.current;
     if (!frame || !editorSrc) return;
-    if (frame.getAttribute("src") !== editorSrc) {
+    if (appliedEditorSrcRef.current !== editorSrc) {
+      appliedEditorSrcRef.current = editorSrc;
       frame.setAttribute("src", editorSrc);
     }
   }, [editorSrc]);
