@@ -1202,7 +1202,7 @@ serve(async (req) => {
         .eq("integration_type", "wordpress")
         .maybeSingle();
 
-      const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+      const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
 
       const { data: property } = await supabase
         .from("properties")
@@ -1311,7 +1311,7 @@ The ROL'OS Plugin connects your WordPress site to the ROL'OS Property Management
       .eq("integration_type", "wordpress")
       .maybeSingle();
 
-    const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+    const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
     const downloadUrl = `${updateUrl}?download=${property_id}`;
 
     if (action === "check") {

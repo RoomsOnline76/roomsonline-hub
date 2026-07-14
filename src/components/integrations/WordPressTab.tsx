@@ -78,7 +78,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     },
   });
 
-  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
   const wl = useWhitelabel(property.id);
