@@ -3547,10 +3547,14 @@ export default function PropertyForm() {
     }
   };
 
+  const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+    embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
+
   return (
-    <AppLayout>
-      <div className="property-form-container w-full">
+    <Shell>
+      <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
           {/* Breadcrumb Navigation */}
+          {!embedded && (
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
               onClick={() => navigate("/admin/property-overview")}
