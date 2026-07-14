@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
+import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
 import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
