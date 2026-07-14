@@ -1860,8 +1860,9 @@ export default function PropertyForm() {
     enabled: true,
   });
 
-  // Active tab state
-  const [activeTab, setActiveTab] = useState("general");
+  // Active tab state. In ROLOS embed mode, /pms/property-setup passes ?tab=
+  // so the iframe opens the migrated source-of-truth section directly.
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "general");
 
   // Quality gate blocker awareness
   const { data: activationReadiness } = useActivationReadiness(propertyId || '');
