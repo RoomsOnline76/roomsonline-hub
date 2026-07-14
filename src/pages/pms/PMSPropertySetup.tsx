@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { Badge } from "@/components/ui/badge";
@@ -137,30 +137,25 @@ export default function PMSPropertySetup() {
   const [iframeHeight, setIframeHeight] = useState<number>(720);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  // Keep URL ?section= in sync with the active tab for deep-linking.
-  useEffect(() => {
-    const current = searchParams.get("section");
-    if (current !== activeTab) {
-      const next = new URLSearchParams(searchParams);
-      next.set("section", activeTab);
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-  // React to external ?section= changes (e.g. deep links from /edit-property CTA).
-  useEffect(() => {
-    const q = searchParams.get("section") as TabKey | null;
-    if (q && VALID_TABS.has(q) && q !== activeTab) {
-      setActiveTab(q);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  // Change active tab AND URL together on user click. No mount-time URL writes,
+  // no cross-effects with usePmsPropertyId's own ?property= sync — that combo
+  // was causing the page to appear to reload continuously.
+  const handleSelectTab = useCallback((key: TabKey) => {
+    setActiveTab(key);
+    setSearchParams(
+      (prev) => {
+        prev.set("section", key);
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const iframeSrc = useMemo(() => {
     if (!propertyId) return "";
     return `/admin/edit-property/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
   }, [propertyId, activeTab]);
+
 
   // Auto-size the iframe based on messages from the embedded PropertyForm.
   useEffect(() => {
@@ -217,7 +212,14 @@ export default function PMSPropertySetup() {
           variant="outline"
           size="sm"
           className="h-7 gap-1 text-xs"
-          onClick={() => window.open(`/admin/edit-property/${propertyId}?tab=${activeTab}`, "_blank", "noopener")}
+          onClick={() => {
+            // Per project domain policy: always link to the production ROLOS
+            // domain (never lovable.dev / lovable.app / lovableproject.com),
+            // otherwise the admin route 404s in the Lovable editor origin.
+            const url = `https://sleepinafrica.roomsonline.co.za/admin/edit-property/${propertyId}?tab=${activeTab}`;
+            window.open(url, "_blank", "noopener");
+          }}
+
         >
           <ExternalLink className="h-3 w-3" />
           Open full editor
@@ -239,7 +241,7 @@ export default function PMSPropertySetup() {
                   <button
                     key={s.key}
                     type="button"
-                    onClick={() => setActiveTab(s.key)}
+                    onClick={() => handleSelectTab(s.key)}
                     className={cn(
                       "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
                       active
