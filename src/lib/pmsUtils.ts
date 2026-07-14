@@ -10,6 +10,20 @@ import type {
   AdapterResponse,
 } from "@/lib/schemas/pms";
 
+// ── ROLOS PMS detection ─────────────────────────────────────────────────────
+
+/**
+ * Returns true when a property uses ROLOS as its PMS.
+ * ROLOS PMS is the internal booking-backend source of truth; when active,
+ * Rates / Packages / Specials / Addons are managed from the ROLOS dashboard
+ * (see /pms/property-setup), not the admin property editor.
+ */
+export function isRolosPms(pmsType?: string | null): boolean {
+  if (!pmsType) return false;
+  const v = pmsType.toLowerCase();
+  return v === "rolos" || v === "roomsonline";
+}
+
 // ── Adapter response unwrapping ─────────────────────────────────────────────
 
 /**
