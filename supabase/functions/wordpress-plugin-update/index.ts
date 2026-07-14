@@ -533,10 +533,39 @@ class Rolos_Shortcodes {
         add_shortcode('rolos_booking', array(\$this, 'booking_shortcode'));
         add_shortcode('rolos_property_grid', array(\$this, 'property_grid_shortcode'));
         add_shortcode('rolos_availability', array(\$this, 'availability_shortcode'));
+        add_shortcode('rolos_portfolio_booking', array(\$this, 'portfolio_booking_shortcode'));
     }
 
     /**
-     * [rolos_booking property="slug" property_id="uuid" color="#e91e63" height="520px"]
+     * Resolve the embed host, honouring the shortcode 'host' attr and the
+     * per-site white-label option. Falls back to the ROL'OS public domain.
+     */
+    private function resolve_host(\$attr_host) {
+        \$attr_host = trim((string) \$attr_host);
+        if (\$attr_host !== '') {
+            \$parsed = wp_parse_url(\$attr_host);
+            if (!empty(\$parsed['host'])) {
+                \$scheme = !empty(\$parsed['scheme']) ? \$parsed['scheme'] : 'https';
+                return \$scheme . '://' . \$parsed['host'];
+            }
+        }
+        \$opt = trim((string) get_option('rolos_wl_host', ''));
+        if (\$opt !== '') {
+            return untrailingslashit(\$opt);
+        }
+        return '${PUBLIC_DOMAIN}';
+    }
+
+    private function is_whitelabel(\$attr) {
+        \$attr = (string) \$attr;
+        if (\$attr === '1' || strtolower(\$attr) === 'true' || strtolower(\$attr) === 'yes') return true;
+        // Site-wide toggle
+        return (bool) get_option('rolos_wl_enabled', false);
+    }
+
+    /**
+     * [rolos_booking property="slug" property_id="uuid" color="#e91e63" height="520px"
+     *   whitelabel="1" host="https://book.mylodge.com"]
      */
     public function booking_shortcode(\$atts) {
         \$atts = shortcode_atts(array(
@@ -544,18 +573,60 @@ class Rolos_Shortcodes {
             'property_id' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
             'color' => ROLOS_DEFAULT_BRAND_COLOR,
             'height' => '520px',
+            'whitelabel' => '',
+            'host' => '',
         ), \$atts, 'rolos_booking');
 
-        \$base_url = '${PUBLIC_DOMAIN}';
-        \$src = esc_url(\$base_url . '/embed/property/' . \$atts['property']
-            . '?integration=wordpress&property_id=' . \$atts['property_id']
+        \$base_url = \$this->resolve_host(\$atts['host']);
+        \$wl = \$this->is_whitelabel(\$atts['whitelabel']);
+        \$query = '?integration=wordpress&property_id=' . rawurlencode(\$atts['property_id'])
             . '&brand_color=' . rawurlencode(\$atts['color'])
-            . '&mode=embedded');
+            . '&mode=embedded';
+        if (\$wl) {
+            \$query .= '&wl=1&hide_chrome=1';
+        }
+        \$src = esc_url(\$base_url . '/embed/property/' . rawurlencode(\$atts['property']) . \$query);
 
-        return '<div class="rolos-booking-widget">'
+        return '<div class="rolos-booking-widget' . (\$wl ? ' rolos-wl' : '') . '">'
             . '<iframe src="' . \$src . '" '
             . 'style="width:100%;height:' . esc_attr(\$atts['height']) . ';border:none;border-radius:8px;" '
             . 'title="Book Now" loading="lazy" allow="payment"></iframe>'
+            . '</div>';
+    }
+
+    /**
+     * [rolos_portfolio_booking portfolio="slug" portfolio_id="uuid" height="720px"
+     *   whitelabel="1" host="https://book.mylodge.com"]
+     */
+    public function portfolio_booking_shortcode(\$atts) {
+        \$atts = shortcode_atts(array(
+            'portfolio' => '',
+            'portfolio_id' => '',
+            'height' => '720px',
+            'whitelabel' => '',
+            'host' => '',
+        ), \$atts, 'rolos_portfolio_booking');
+
+        if (empty(\$atts['portfolio'])) {
+            return '<p class="rolos-error">Set the <code>portfolio</code> slug on the [rolos_portfolio_booking] shortcode.</p>';
+        }
+
+        \$base_url = \$this->resolve_host(\$atts['host']);
+        \$wl = \$this->is_whitelabel(\$atts['whitelabel']);
+        \$query_parts = array('integration=wordpress');
+        if (!empty(\$atts['portfolio_id'])) {
+            \$query_parts[] = 'ref_portfolio=' . rawurlencode(\$atts['portfolio_id']);
+        }
+        if (\$wl) {
+            \$query_parts[] = 'wl=1';
+            \$query_parts[] = 'hide_chrome=1';
+        }
+        \$src = esc_url(\$base_url . '/embed/portfolio/' . rawurlencode(\$atts['portfolio']) . '?' . implode('&', \$query_parts));
+
+        return '<div class="rolos-portfolio-widget' . (\$wl ? ' rolos-wl' : '') . '">'
+            . '<iframe src="' . \$src . '" '
+            . 'style="width:100%;height:' . esc_attr(\$atts['height']) . ';border:none;border-radius:12px;" '
+            . 'title="Book from portfolio" loading="lazy" allow="payment"></iframe>'
             . '</div>';
     }
 
@@ -606,17 +677,26 @@ class Rolos_Shortcodes {
     }
 
     /**
-     * [rolos_availability property_id="uuid"]
+     * [rolos_availability property_id="uuid" whitelabel="1" host="https://book.mylodge.com"]
      */
     public function availability_shortcode(\$atts) {
         \$atts = shortcode_atts(array(
             'property_id' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+            'whitelabel' => '',
+            'host' => '',
         ), \$atts, 'rolos_availability');
 
         \$id = 'rolos-avail-' . wp_rand(1000, 9999);
         wp_enqueue_script('rolos-availability', ROLOS_CDN_BASE . '/rolos-availability.min.js', array(), ROLOS_VERSION, true);
 
-        return '<div id="' . esc_attr(\$id) . '" class="rolos-availability-widget" data-property-id="' . esc_attr(\$atts['property_id']) . '"></div>';
+        \$host = \$this->resolve_host(\$atts['host']);
+        \$wl = \$this->is_whitelabel(\$atts['whitelabel']) ? '1' : '0';
+
+        return '<div id="' . esc_attr(\$id) . '" class="rolos-availability-widget'
+            . (\$wl === '1' ? ' rolos-wl' : '') . '"'
+            . ' data-property-id="' . esc_attr(\$atts['property_id']) . '"'
+            . ' data-host="' . esc_attr(\$host) . '"'
+            . ' data-wl="' . esc_attr(\$wl) . '"></div>';
     }
 }
 `;
@@ -847,12 +927,30 @@ class Rolos_Elementor_Booking_Widget extends \\Elementor\\Widget_Base {
             'default' => '',
         ));
 
+        \$this->add_control('whitelabel', array(
+            'label'        => 'White-label mode',
+            'type'         => \\Elementor\\Controls_Manager::SWITCHER,
+            'default'      => get_option('rolos_wl_enabled', false) ? 'yes' : '',
+            'description'  => 'Hide ROL\\'OS chrome and load from your branded host.',
+            'return_value' => 'yes',
+        ));
+
+        \$this->add_control('host', array(
+            'label'       => 'Branded Host (optional)',
+            'type'        => \\Elementor\\Controls_Manager::TEXT,
+            'default'     => get_option('rolos_wl_host', ''),
+            'placeholder' => 'https://book.mylodge.com',
+            'condition'   => array('whitelabel' => 'yes'),
+        ));
+
         \$this->end_controls_section();
     }
 
     protected function render() {
         \$s = \$this->get_settings_for_display();
-        echo do_shortcode('[rolos_booking_widget property_id="' . esc_attr(\$s['property_id']) . '" height="' . esc_attr(\$s['height']) . '" color="' . esc_attr(\$s['brand_color']) . '" layout="' . esc_attr(\$s['layout']) . '"]');
+        \$wl = (isset(\$s['whitelabel']) && \$s['whitelabel'] === 'yes') ? '1' : '';
+        \$host = isset(\$s['host']) ? trim(\$s['host']) : '';
+        echo do_shortcode('[rolos_booking property_id="' . esc_attr(\$s['property_id']) . '" height="' . esc_attr(\$s['height']) . '" color="' . esc_attr(\$s['brand_color']) . '" whitelabel="' . esc_attr(\$wl) . '" host="' . esc_attr(\$host) . '"]');
     }
 }
 
@@ -1104,7 +1202,7 @@ serve(async (req) => {
         .eq("integration_type", "wordpress")
         .maybeSingle();
 
-      const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+      const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
 
       const { data: property } = await supabase
         .from("properties")
@@ -1213,7 +1311,7 @@ The ROL'OS Plugin connects your WordPress site to the ROL'OS Property Management
       .eq("integration_type", "wordpress")
       .maybeSingle();
 
-    const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+    const pluginVersion = (config?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
     const downloadUrl = `${updateUrl}?download=${property_id}`;
 
     if (action === "check") {

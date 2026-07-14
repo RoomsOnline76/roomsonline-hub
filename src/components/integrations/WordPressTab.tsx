@@ -78,13 +78,42 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     },
   });
 
-  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.0.0";
+  const currentVersion = (integrationConfig?.config as Record<string, unknown>)?.plugin_version as string || "2.1.0";
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
   const wl = useWhitelabel(property.id);
   const wlAttrs = wl.enabled ? ` whitelabel="1"${wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : ""}` : "";
   const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"${wlAttrs}]`;
   const gridShortcode = `[rolos_property_grid limit="12" columns="3"]`;
+
+  // Portfolio membership → surface a portfolio-level shortcode when applicable
+  const { data: portfolio } = useQuery({
+    queryKey: ["wp-portfolio-for-property", property.id],
+    queryFn: async () => {
+      const { data: mem } = await supabase
+        .from("property_portfolio_members")
+        .select("portfolio_id")
+        .eq("property_id", property.id)
+        .limit(1)
+        .maybeSingle();
+      if (!mem?.portfolio_id) return null;
+      const { data: p } = await supabase
+        .from("property_portfolios")
+        .select("id, name, slug")
+        .eq("id", mem.portfolio_id)
+        .maybeSingle();
+      return (p as { id: string; name: string; slug: string | null } | null) ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const portfolioShortcode = portfolio?.slug
+    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}" portfolio_id="${portfolio.id}"${wlAttrs}]`
+    : null;
+
+  // White-label-aware webhook URL suggestion
+  const webhookPlaceholder = wl.enabled && wl.domainStatus === "active" && wl.domain
+    ? `https://${wl.domain}/wp-json/rolos/v1/webhook`
+    : "https://yoursite.com/wp-json/rolos/v1/webhook";
 
   const handleDownloadZip = async () => {
     // Download from edge function for multi-file plugin
@@ -282,6 +311,13 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <h4 className="text-sm font-medium">Shortcodes</h4>
             <CodeSnippetBlock code={shortcode} language="text" title="Booking Widget" />
             <CodeSnippetBlock code={gridShortcode} language="text" title="Property Grid" />
+            {portfolioShortcode && (
+              <CodeSnippetBlock
+                code={portfolioShortcode}
+                language="text"
+                title={`Portfolio Booking — ${portfolio?.name ?? "Portfolio"}`}
+              />
+            )}
           </div>
 
           {/* Installation Steps */}
@@ -322,7 +358,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <div className="space-y-1.5">
               <Label>Webhook URL</Label>
               <Input
-                placeholder="https://yoursite.com/wp-json/rolos/v1/webhook"
+                placeholder={webhookPlaceholder}
                 value={webhookUrl || webhookSub?.url || ""}
                 onChange={(e) => setWebhookUrl(e.target.value)}
               />
