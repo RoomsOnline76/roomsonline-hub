@@ -199,6 +199,10 @@ export default function PropertyForm() {
   const { id } = useParams(); // Can be UUID or slug
   const [searchParams] = useSearchParams();
   const forceTabs = searchParams.get("forceTabs") === "1";
+  // Embed mode: renders PropertyForm without page chrome (breadcrumb, header,
+  // outer tab strip) and only the tab in `?tab=`. Used by /pms/property-setup
+  // to mount the editor inline via a same-origin iframe. Save path is unchanged.
+  const embedded = searchParams.get("embed") === "1";
   const { toast } = useToast();
   const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
@@ -225,6 +229,28 @@ export default function PropertyForm() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
+
+  // When embedded in the ROLOS hub, broadcast our scroll height to the parent
+  // so the iframe can auto-size (avoids double scrollbars).
+  useEffect(() => {
+    if (!embedded) return;
+    const post = () => {
+      try {
+        window.parent?.postMessage(
+          { type: "rolos-embed-height", height: document.body.scrollHeight },
+          window.location.origin,
+        );
+      } catch { /* cross-origin — ignore */ }
+    };
+    post();
+    const ro = new ResizeObserver(post);
+    ro.observe(document.body);
+    window.addEventListener("resize", post);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", post);
+    };
+  }, [embedded]);
 
   // Helper to navigate with unsaved changes check (uses a styled AlertDialog
   // instead of window.confirm so the browser doesn't leak the embedded iframe URL).
@@ -3521,10 +3547,15 @@ export default function PropertyForm() {
     }
   };
 
+  const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) =>
+    embedded ? <>{children}</> : <AppLayout>{children}</AppLayout>;
+
   return (
-    <AppLayout>
-      <div className="property-form-container w-full">
-          {/* Breadcrumb Navigation */}
+    <Shell>
+      <div className={embedded ? "property-form-container w-full p-3" : "property-form-container w-full"}>
+          {/* Breadcrumb + Header — hidden in embed mode */}
+          {!embedded && (
+          <>
           <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
             <button
               onClick={() => navigate("/admin/property-overview")}
@@ -3641,6 +3672,12 @@ export default function PropertyForm() {
               )}
             </div>
           </div>
+          </>
+          )}
+
+
+
+
 
           {/* Blocker Banner */}
           {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
@@ -3658,7 +3695,7 @@ export default function PropertyForm() {
             </Alert>
           )}
 
-          {isRolosPms(selectedPMS) && !forceTabs && propertyId && (
+          {!embedded && isRolosPms(selectedPMS) && !forceTabs && propertyId && (
             <Alert className="border-primary/40 bg-primary/5">
               <Sparkles className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
@@ -3675,7 +3712,7 @@ export default function PropertyForm() {
           )}
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
-            <TabsList className="bg-secondary h-8">
+            <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
               {[
                 { value: "onboarding", icon: Sparkles, label: "Onboarding", highlight: false, highlightBlue: true, onboardingOnly: true },
                 { value: "general", icon: Home, label: "General", highlight: false },
@@ -7786,7 +7823,19 @@ export default function PropertyForm() {
               </TabsContent>
             )}
           </Tabs>
+
+          {/* Embed-mode sticky Save bar */}
+          {embedded && isDirty && (
+            <div className="sticky bottom-0 left-0 right-0 mt-3 flex items-center justify-end gap-2 border-t bg-background/95 px-3 py-2 backdrop-blur">
+              <span className="text-xs text-muted-foreground">Unsaved changes</span>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                <Save className="mr-1 h-3 w-3" />
+                {loading ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          )}
         </div>
+
 
       {/* Manage Announcements Dialog */}
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
@@ -8467,6 +8516,6 @@ export default function PropertyForm() {
         }}
       />
 
-    </AppLayout>
+    </Shell>
   );
 }
