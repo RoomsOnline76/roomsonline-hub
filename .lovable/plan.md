@@ -1,52 +1,54 @@
 
 ## Goal
 
-Bring three more `/edit-property` tabs into the ROLOS Property Setup hub — **House Rules**, **Templates**, **Announcements** — and make ROLOS the single source of truth. Once live in ROLOS, hide them on the standalone `/edit-property` page for ROLOS-PMS properties so operators only edit them in one place.
+Migrate the `/edit-property` **Info & Facilities** tab into the ROLOS **Property Setup** hub, integrated with the previous migrations (Rates/Packages/Specials/Addons, House Rules/Templates/Announcements, Rooms). ROLOS becomes the single source of truth; the tab is hidden in `/edit-property` for ROLOS-PMS properties.
 
-The existing hub (`src/pages/pms/PMSPropertySetup.tsx`) already embeds `PropertyForm` via same-origin iframe (`?embed=1&forceTabs=1&tab=<key>`), and `PropertyForm` already hides its own tab strip when `embed=1`. That plumbing is reused — no new save cycle, no data-hook extraction. This is a scoped, presentational change on top of the current embed strategy.
+### Consolidation check
+
+I searched ROLOS PMS pages for an existing Info/Facilities/Amenities screen and there is **no dedicated equivalent** — the only hits are:
+
+- `PMSBranding.tsx` — writes `amenities.review_platforms` only (branding-scoped, unrelated to property info/facilities selection).
+- `PMSRoomTypes.tsx` — writes `amenities.room_types` and `amenities.pms_rate_types` only.
+
+Both touch the `properties.amenities` JSONB column but on entirely different keys than the Info & Facilities tab (which manages `amenities.facilities`, star rating, accommodation label, self-catering flag, breakfast options, and general property info fields). **Nothing to merge or consolidate** — this is a clean migration of the existing `InfoFacilitiesTab` component, same iframe pattern as before.
 
 ## Scope
 
-### 1. Extend the hub with three new sections
+### 1. Add "Info & Facilities" to the hub
 
 `src/pages/pms/PMSPropertySetup.tsx`:
 
-- Widen `TabKey` to `"rates" | "packages" | "specials" | "addons" | "house-rules" | "templates" | "announcements"`.
-- Append three entries to `SECTIONS` (icons: `FileText`, `Mail`, `Megaphone` or similar `lucide-react` glyphs already in use):
-  - **House Rules** — check-in/out times, child/pet/smoking policy, deposit rules, cancellation policy inputs.
-  - **Templates** — confirmation, pre-stay, post-stay mailer editors (uses `ExperienceEmailDesigner` when the flag is on, otherwise legacy template forms — same as `/edit-property`).
-  - **Announcements** — dated/ordered announcement banners shown on the booking site.
-- Group the left rail into two lightweight buckets so it doesn't get crowded (visual grouping only, no state change):
-  - "Booking backend": Rates, Packages, Specials, Addons
-  - "Guest experience": House Rules, Templates, Announcements
-- Keep the "Open full editor" button pointing at `/admin/edit-property/:id?tab=<activeTab>` for the current tab.
+- Widen `TabKey` with `"info-facilities"` (matches the existing `TabsContent value` in `PropertyForm.tsx` line 5802, so `?tab=info-facilities` deep-links correctly).
+- Add a new **"Property profile"** left-rail group (new bucket for property-identity content, keeps the rail organised as it grows) with one section for now:
+  - key: `info-facilities`
+  - label: **Info & Facilities**
+  - icon: `Building2` from `lucide-react` (same icon used in the current `/edit-property` tab strip)
+  - description: "Star rating, accommodation type, facilities checklist, self-catering, breakfast options and property-level info."
+- Left-rail order becomes:
+  1. Property profile → Info & Facilities
+  2. Booking backend → Rooms · Rates · Packages · Specials · Addons
+  3. Guest experience → House Rules · Templates · Announcements
 
-Each tab value must match the `TabsContent value=...` already used in `PropertyForm.tsx` (`house-rules`, `templates`, `announcements`) so the existing `?tab=` deep-link mechanism just works — no `PropertyForm` changes needed for rendering.
+Alternative: fold it into the existing "Guest experience" group as the top item, if the user prefers fewer buckets. Default: new "Property profile" group per above.
 
-### 2. Hide the three tabs in `/edit-property` for ROLOS-PMS properties
+### 2. Hide the tab in `/edit-property` for ROLOS-PMS
 
 `src/pages/PropertyForm.tsx`:
 
-- Add a `hiddenInRolos` set: `{"house-rules", "templates", "announcements"}` (rates/packages/specials/addons are already handled by the existing `isRolosPms && !forceTabs` CTA at line ~3698).
-- In the tab trigger list (~line 3722), filter out these three entries when `isRolosPms(selectedPMS) && !embedded && !forceTabs`.
-- Extend the existing "Booking-backend tabs live in ROLOS" CTA card at line ~3698 to also cover these three (or add a sibling notice) so users landing directly on `/edit-property` see a clear pointer to the ROLOS Property Setup hub with a link to `/pms/property-setup?section=<tab>` (or the current hub route — confirmed during implementation).
-- When `?forceTabs=1` is present (used by the hub's iframe and by admins who need the legacy view), keep the tabs visible so the embed still works and there's an escape hatch.
-- Leave the underlying state, load, and `handleSubmit` paths untouched — data still writes to the same rows via the same `PropertyForm.handleSubmit`, just now driven from within the hub's iframe.
-
-### 3. Deep-link parity
-
-- `PMSPropertySetup` already reads `activeTab` from local state; add optional `?section=house-rules|templates|announcements` URL sync so the hub can be linked to directly from the CTA in `/edit-property` and from anywhere else in ROLOS.
+- Add `"info-facilities"` to the existing ROLOS-PMS filter (line ~3740) alongside `rates`, `addons`, `specials`, `packages`, `rooms`, `house-rules`, `templates`, `announcements`.
+- Update the CTA text at line ~3702 to include Info & Facilities in the "managed in ROLOS" list.
+- Keep the `?forceTabs=1` escape hatch so the hub's iframe still renders `TabsContent value="info-facilities"`.
+- Non-ROLOS-PMS properties keep the tab exactly as it is on `/edit-property`.
 
 ### Out of scope
 
-- No changes to save cycles, RLS, edge functions, or database schema. All three tabs already persist through `PropertyForm.handleSubmit` into the existing `properties` / `amenities` JSON columns.
-- Not touching Rates/Packages/Specials/Addons behavior.
-- Not removing the tabs from `/edit-property` entirely — only hiding them for ROLOS-PMS. Non-ROLOS-PMS properties keep the legacy tabs so nothing regresses.
-- The deeper "extract editors into standalone components" refactor from the earlier plan stays deferred.
+- No changes to `InfoFacilitiesTab.tsx` internals or its props — data still flows through `PropertyForm.handleSubmit` writing `properties.amenities` / `properties.*` columns.
+- No schema, RLS, or edge-function changes.
+- No touching of `PMSBranding` / `PMSRoomTypes` amenities writes — different keys, no overlap.
+- The deferred "extract editors into standalone save cycle" refactor stays deferred.
 
 ## Technical notes
 
-- `TabKey` widening + `SECTIONS` extension is the only structural change in the hub file; the iframe render loop is already generic.
-- Because `PropertyForm` broadcasts scroll height via `postMessage` (`rolos-embed-height`), the hub auto-sizes for the new tabs without extra work.
-- The "hide in /edit-property" filter must be gated on **both** `isRolosPms(selectedPMS)` **and** `!forceTabs` so the iframe path continues to render the tab bodies (even though the tab strip itself is hidden by `embedded` styling).
-- Verification: open ROLOS Property Setup → House Rules / Templates / Announcements each load, edit + save works from the embedded save bar (already present at line ~7828), then confirm `/admin/edit-property/:id` (no `forceTabs`) for a ROLOS-PMS property no longer shows those three triggers and instead shows the "manage in ROLOS" CTA.
+- `?tab=info-facilities` already resolves the correct `TabsContent`, and the iframe's `TabsList` is hidden via `embedded ? "hidden" : ...`, so no PropertyForm render changes are needed inside the tab body.
+- The `postMessage` height-sync (`rolos-embed-height`) auto-sizes the iframe for the tab's content (~1200–1600px typical).
+- Verification: from ROLOS Property Setup → Info & Facilities, toggle a facility, change star rating, save via the embedded save bar; then confirm `/admin/edit-property/:id` for a ROLOS-PMS property no longer shows the Info & Facilities trigger and the CTA lists it.
