@@ -387,6 +387,7 @@ const App = () => (
                           <Route path="portfolio" element={<PMSPortfolio />} />
                           <Route path="revenue" element={<PMSRevenue />} />
                           <Route path="command-centre" element={<PMSCommandCentre />} />
+                          <Route path="property-setup" element={<PMSPropertySetup />} />
                         </Route>
 
                         {/* ═══ Connect portal (/connect path) ════════════ */}
