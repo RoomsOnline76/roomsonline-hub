@@ -335,9 +335,10 @@ export default function PMSRatePlans() {
   };
 
   const handleSave = async () => {
-    // When editing in portfolio view, the plan's own property_id must be preserved.
-    const targetPropertyId = editingPlan?.property_id || propertyId;
-    if (!targetPropertyId || !form.name) return;
+    // When editing, preserve the plan's own property_id. When creating, use the selected target.
+    const targetPropertyId = editingPlan?.property_id || form.target_property_id || propertyId;
+    if (!targetPropertyId) { toast.error("Select a property for this rate plan"); return; }
+    if (!form.name) return;
 
     const baseRate = form.base_rate ? parseFloat(form.base_rate) : 0;
 
