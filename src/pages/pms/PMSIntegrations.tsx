@@ -194,7 +194,7 @@ export default function PMSIntegrations() {
 
               {/* Direct Links */}
               <TabsContent value="portfolio_direct" className="space-y-4">
-                <PortfolioDirectLinks propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
+                <PortfolioDirectLinks propertyId={propertyId} portfolioIds={portfolioIds} portfolioProperties={portfolioProperties || []} />
                 <PortfolioPerPropertyCards title="Direct Link Details" description="Full direct link configuration per property.">
                   {(portfolioProperties || []).map((pp) => (
                     <PortfolioPropertyCard key={pp.id} name={pp.name}>
@@ -412,7 +412,15 @@ export default function PMSIntegrations() {
 }
 
 /* Portfolio Direct Links — lists each property's direct booking link */
-function PortfolioDirectLinks({ propertyId, portfolioProperties }: { propertyId: string; portfolioProperties: { id: string; name: string; slug?: string }[] }) {
+function PortfolioDirectLinks({
+  propertyId,
+  portfolioIds,
+  portfolioProperties,
+}: {
+  propertyId: string;
+  portfolioIds: string[];
+  portfolioProperties: { id: string; name: string; slug?: string }[];
+}) {
   const { toast } = useToast();
   const BASE = "https://book.sleepinafrica.roomsonline.co.za";
 
@@ -421,6 +429,29 @@ function PortfolioDirectLinks({ propertyId, portfolioProperties }: { propertyId:
     toast({ title: "Copied!", description: "Link copied to clipboard" });
   };
 
+  // Fetch the portfolio slug so we can expose the single portfolio-level URL.
+  const { data: portfolio } = useQuery({
+    queryKey: ["pms-portfolio-slug", portfolioIds],
+    queryFn: async () => {
+      if (!portfolioIds || portfolioIds.length === 0) return null;
+      const { data, error } = await supabase
+        .from("property_portfolios" as any)
+        .select("id, name, slug")
+        .eq("id", portfolioIds[0])
+        .maybeSingle();
+      if (error) {
+        console.error("[PortfolioDirectLinks] portfolio slug error:", error);
+        return null;
+      }
+      return data as unknown as { id: string; name: string; slug: string | null } | null;
+    },
+    enabled: portfolioIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const portfolioUrl =
+    portfolio?.slug ? `${BASE}/embed/portfolio/${portfolio.slug}?ref_portfolio=${portfolio.id}` : null;
+
   return (
     <Card>
       <CardHeader>
@@ -428,9 +459,37 @@ function PortfolioDirectLinks({ propertyId, portfolioProperties }: { propertyId:
           <Link2 className="h-4 w-4 text-primary" />
           Direct Booking Links
         </CardTitle>
-        <CardDescription className="text-xs">Direct links for each property in the portfolio.</CardDescription>
+        <CardDescription className="text-xs">
+          One link opens the full portfolio booking page. Per-property links go straight to each property.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
+        {/* Portfolio-level direct link */}
+        {portfolioUrl ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-primary/40 bg-primary/5 p-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <Building2 className="h-3 w-3 text-primary" />
+                {portfolio?.name || "Portfolio"} · Portfolio Link
+              </p>
+              <code className="text-[11px] text-muted-foreground block truncate">{portfolioUrl}</code>
+            </div>
+            <div className="flex gap-1.5 shrink-0">
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => copy(portfolioUrl)}>
+                <Copy className="h-3 w-3" /> Copy
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => window.open(portfolioUrl, "_blank")}>
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+        ) : portfolioIds.length > 0 ? (
+          <div className="rounded-md border border-dashed p-3 text-[11px] text-muted-foreground">
+            Portfolio direct link unavailable — this portfolio has no public slug yet. Set a slug in Portfolio settings to enable it.
+          </div>
+        ) : null}
+
+        {/* Per-property direct links */}
         {portfolioProperties.map((pp) => {
           const slug = (pp as any).slug;
           if (!slug) return null;
