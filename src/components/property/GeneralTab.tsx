@@ -64,8 +64,6 @@ interface GeneralTabProps {
   handleVenuesChange: (checked: boolean) => void;
   handleEventChange: (checked: boolean) => void;
   handleConferenceChange: (checked: boolean) => void;
-  lekkeslaapUuid: string;
-  setLekkeslaapUuid: (v: string) => void;
 
   // PMS
   selectedPMS: string;
