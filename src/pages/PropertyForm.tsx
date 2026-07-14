@@ -2519,6 +2519,7 @@ export default function PropertyForm() {
     setIsManageAnnouncementOpen(false);
     setEditingAnnouncementId(null);
     setAnnouncementForm({ announcement: "", order: 0, startDate: undefined, endDate: undefined, enabled: true });
+    setIsDirty(true);
   };
 
   const editAnnouncement = (a: any) => {
@@ -2536,11 +2537,14 @@ export default function PropertyForm() {
   const deleteAnnouncement = (id: string) => {
     setAnnouncements(announcements.filter((a) => a.id !== id));
     toast({ title: "Announcement deleted", description: "The announcement has been removed." });
+    setIsDirty(true);
   };
 
   const toggleAnnouncementEnabled = (id: string) => {
     setAnnouncements(announcements.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a)));
+    setIsDirty(true);
   };
+
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -3699,7 +3703,7 @@ export default function PropertyForm() {
             <Alert className="border-primary/40 bg-primary/5">
               <Sparkles className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
-                <span className="font-medium">Info &amp; Facilities, Rates, Packages, Specials, Addons, House Rules, Templates &amp; Announcements are managed in ROLOS.</span>{" "}
+                <span className="font-medium">Info &amp; Facilities, Rooms, Rates, Packages, Specials, Addons, House Rules, Templates &amp; Announcements are managed in ROLOS.</span>{" "}
                 <button
                   type="button"
                   className="underline underline-offset-2 text-primary hover:opacity-80"
@@ -3738,9 +3742,10 @@ export default function PropertyForm() {
                     // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
                     // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
                     if (isRolosPms(selectedPMS) && !forceTabs) {
-                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages" || tab.value === "house-rules" || tab.value === "templates" || tab.value === "announcements" || tab.value === "info-facilities") {
+                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages" || tab.value === "house-rules" || tab.value === "templates" || tab.value === "announcements" || tab.value === "info-facilities" || tab.value === "rooms") {
                         return false;
                       }
+
 
 
                     }

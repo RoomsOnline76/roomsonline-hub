@@ -22,7 +22,11 @@ import {
   Mail,
   Megaphone,
   Building2,
+  BedDouble,
+  ListChecks,
+  Image as ImageIcon,
 } from "lucide-react";
+
 
 
 /**
@@ -37,6 +41,7 @@ import {
 
 type TabKey =
   | "info-facilities"
+  | "rooms"
   | "rates"
   | "packages"
   | "specials"
@@ -44,6 +49,7 @@ type TabKey =
   | "house-rules"
   | "templates"
   | "announcements";
+
 
 
 interface Section {
@@ -76,6 +82,21 @@ const SECTION_GROUPS: SectionGroup[] = [
 
     sections: [
       {
+        key: "rooms",
+        label: "Rooms",
+        icon: BedDouble,
+        description: "Room types, rate-type links, facilities, amenities, images and per-room agreements.",
+        hints: [
+          { key: "type", label: "Type", icon: Layers },
+          { key: "rate-types", label: "Rate Types", icon: DollarSign },
+          { key: "facilities", label: "Facilities", icon: ListChecks },
+          { key: "amenities", label: "Amenities", icon: Sparkles },
+          { key: "images", label: "Images", icon: ImageIcon },
+          { key: "agreement", label: "Agreement", icon: FileText },
+        ],
+      },
+      {
+
         key: "rates",
         label: "Rates",
         icon: DollarSign,
