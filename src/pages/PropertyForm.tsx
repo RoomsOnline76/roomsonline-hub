@@ -3671,6 +3671,9 @@ export default function PropertyForm() {
               )}
             </div>
           </div>
+          )}
+
+
 
           {/* Blocker Banner */}
           {activationReadiness && !activationReadiness.passed && activationReadiness.blockers.length > 0 && (
