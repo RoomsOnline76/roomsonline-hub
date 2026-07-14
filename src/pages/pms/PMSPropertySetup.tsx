@@ -41,6 +41,7 @@ import {
 
 type TabKey =
   | "info-facilities"
+  | "rooms"
   | "rates"
   | "packages"
   | "specials"
@@ -48,6 +49,7 @@ type TabKey =
   | "house-rules"
   | "templates"
   | "announcements";
+
 
 
 interface Section {
