@@ -927,12 +927,30 @@ class Rolos_Elementor_Booking_Widget extends \\Elementor\\Widget_Base {
             'default' => '',
         ));
 
+        \$this->add_control('whitelabel', array(
+            'label'        => 'White-label mode',
+            'type'         => \\Elementor\\Controls_Manager::SWITCHER,
+            'default'      => get_option('rolos_wl_enabled', false) ? 'yes' : '',
+            'description'  => 'Hide ROL\\'OS chrome and load from your branded host.',
+            'return_value' => 'yes',
+        ));
+
+        \$this->add_control('host', array(
+            'label'       => 'Branded Host (optional)',
+            'type'        => \\Elementor\\Controls_Manager::TEXT,
+            'default'     => get_option('rolos_wl_host', ''),
+            'placeholder' => 'https://book.mylodge.com',
+            'condition'   => array('whitelabel' => 'yes'),
+        ));
+
         \$this->end_controls_section();
     }
 
     protected function render() {
         \$s = \$this->get_settings_for_display();
-        echo do_shortcode('[rolos_booking_widget property_id="' . esc_attr(\$s['property_id']) . '" height="' . esc_attr(\$s['height']) . '" color="' . esc_attr(\$s['brand_color']) . '" layout="' . esc_attr(\$s['layout']) . '"]');
+        \$wl = (isset(\$s['whitelabel']) && \$s['whitelabel'] === 'yes') ? '1' : '';
+        \$host = isset(\$s['host']) ? trim(\$s['host']) : '';
+        echo do_shortcode('[rolos_booking property_id="' . esc_attr(\$s['property_id']) . '" height="' . esc_attr(\$s['height']) . '" color="' . esc_attr(\$s['brand_color']) . '" whitelabel="' . esc_attr(\$wl) . '" host="' . esc_attr(\$host) . '"]');
     }
 }
 
