@@ -194,7 +194,7 @@ export default function PMSIntegrations() {
 
               {/* Direct Links */}
               <TabsContent value="portfolio_direct" className="space-y-4">
-                <PortfolioDirectLinks propertyId={propertyId} portfolioProperties={portfolioProperties || []} />
+                <PortfolioDirectLinks propertyId={propertyId} portfolioIds={portfolioIds} portfolioProperties={portfolioProperties || []} />
                 <PortfolioPerPropertyCards title="Direct Link Details" description="Full direct link configuration per property.">
                   {(portfolioProperties || []).map((pp) => (
                     <PortfolioPropertyCard key={pp.id} name={pp.name}>
