@@ -3695,7 +3695,7 @@ export default function PropertyForm() {
             </Alert>
           )}
 
-          {isRolosPms(selectedPMS) && !forceTabs && propertyId && (
+          {!embedded && isRolosPms(selectedPMS) && !forceTabs && propertyId && (
             <Alert className="border-primary/40 bg-primary/5">
               <Sparkles className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
