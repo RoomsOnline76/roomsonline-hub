@@ -199,6 +199,10 @@ export default function PropertyForm() {
   const { id } = useParams(); // Can be UUID or slug
   const [searchParams] = useSearchParams();
   const forceTabs = searchParams.get("forceTabs") === "1";
+  // Embed mode: renders PropertyForm without page chrome (breadcrumb, header,
+  // outer tab strip) and only the tab in `?tab=`. Used by /pms/property-setup
+  // to mount the editor inline via a same-origin iframe. Save path is unchanged.
+  const embedded = searchParams.get("embed") === "1";
   const { toast } = useToast();
   const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
