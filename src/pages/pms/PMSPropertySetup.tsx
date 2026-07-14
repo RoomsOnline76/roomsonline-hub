@@ -1,95 +1,104 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 import {
   DollarSign,
   Package,
-  Calendar,
   Sparkles,
-  ArrowRight,
+  ExternalLink,
   CalendarRange,
   Layers,
+  Calendar,
+  LayoutList,
   Wallet,
   ShieldCheck,
   CreditCard,
-  LayoutList,
   Receipt,
 } from "lucide-react";
 
 /**
- * ROLOS "Property Setup" hub — source of truth for the booking backend.
+ * ROLOS "Property Setup" hub.
  *
- * Rates / Packages / Specials / Addons are managed here for ROLOS-PMS
- * properties. Each editor is the same one used by /admin/edit-property,
- * opened with ?forceTabs=1 so ROLOS-hidden tabs remain reachable through
- * this hub. That guarantees ROLOS and the admin OTA read the same rows.
+ * Renders the same-origin admin editor (`/admin/edit-property/:id`) inline
+ * via an iframe running in `?embed=1` mode. This is the source of truth for
+ * ROLOS-PMS booking-backend data (Rates, Packages, Specials, Addons). The
+ * public book. OTA reads the same tables — no dual writes.
  */
 
-interface SubSection {
-  key: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  hint: string;
-}
+type TabKey = "rates" | "packages" | "specials" | "addons";
 
 interface Section {
-  tab: "rates" | "packages" | "specials" | "addons";
-  title: string;
+  key: TabKey;
+  label: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
-  subsections?: SubSection[];
+  hints?: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
 }
 
 const SECTIONS: Section[] = [
   {
-    tab: "rates",
-    title: "Rates",
+    key: "rates",
+    label: "Rates",
     icon: DollarSign,
-    description: "Seasons, rate types, calendar pricing, charges, cancellation policies and payment providers.",
-    subsections: [
-      { key: "seasons", label: "Seasons", icon: CalendarRange, hint: "Define seasonal date ranges" },
-      { key: "types", label: "Rate Types", icon: Layers, hint: "Rate plans applied per season" },
-      { key: "calendar", label: "Calendar", icon: Calendar, hint: "Per-night rate calendar view" },
-      { key: "breakdown", label: "Rate Breakdown", icon: LayoutList, hint: "Adult / teen / child tiers" },
-      { key: "charges", label: "Charges", icon: Wallet, hint: "Mandatory & optional charges" },
-      { key: "policies", label: "Policies", icon: ShieldCheck, hint: "Cancellation & booking rules" },
-      { key: "payment-providers", label: "Payment Providers", icon: CreditCard, hint: "Gateway configuration" },
-      { key: "overview", label: "Overview", icon: Receipt, hint: "Summary of all rate settings" },
+    description: "Seasons, rate types, calendar, breakdown, charges, policies and payment providers.",
+    hints: [
+      { key: "seasons", label: "Seasons", icon: CalendarRange },
+      { key: "types", label: "Rate Types", icon: Layers },
+      { key: "calendar", label: "Calendar", icon: Calendar },
+      { key: "breakdown", label: "Breakdown", icon: LayoutList },
+      { key: "charges", label: "Charges", icon: Wallet },
+      { key: "policies", label: "Policies", icon: ShieldCheck },
+      { key: "providers", label: "Providers", icon: CreditCard },
+      { key: "overview", label: "Overview", icon: Receipt },
     ],
   },
   {
-    tab: "packages",
-    title: "Packages",
+    key: "packages",
+    label: "Packages",
     icon: Package,
     description: "Curated stay packages that combine rooms with experiences or inclusions.",
   },
   {
-    tab: "specials",
-    title: "Specials",
+    key: "specials",
+    label: "Specials",
     icon: Sparkles,
     description: "Time-boxed promotional offers and discounted rate plans.",
   },
   {
-    tab: "addons",
-    title: "Addons",
+    key: "addons",
+    label: "Addons",
     icon: Package,
     description: "Optional guest add-ons: breakfast, transfers, activities, gifts.",
   },
 ];
 
 export default function PMSPropertySetup() {
-  const navigate = useNavigate();
   const { propertyId, properties, loading } = usePmsPropertyId();
-
   const property = properties.find((p) => p.id === propertyId);
+  const [activeTab, setActiveTab] = useState<TabKey>("rates");
+  const [iframeHeight, setIframeHeight] = useState<number>(720);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const openEditor = (tab: Section["tab"]) => {
-    if (!propertyId) return;
-    navigate(`/admin/edit-property/${propertyId}?forceTabs=1&tab=${tab}&from=pms-setup`);
-  };
+  const iframeSrc = useMemo(() => {
+    if (!propertyId) return "";
+    return `/admin/edit-property/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
+  }, [propertyId, activeTab]);
+
+  // Auto-size the iframe based on messages from the embedded PropertyForm.
+  useEffect(() => {
+    const onMessage = (evt: MessageEvent) => {
+      if (evt.origin !== window.location.origin) return;
+      const data = evt.data as { type?: string; height?: number } | null;
+      if (data?.type === "rolos-embed-height" && typeof data.height === "number") {
+        setIframeHeight(Math.max(600, Math.min(data.height + 40, 4000)));
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   if (loading) {
     return (
@@ -110,69 +119,96 @@ export default function PMSPropertySetup() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
-      <header className="space-y-1">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Property Setup</h1>
-          <Badge variant="outline" className="text-[10px]">ROLOS source of truth</Badge>
+    <div className="flex h-full flex-col gap-4 p-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight">Property Setup</h1>
+            <Badge variant="outline" className="text-[10px]">ROLOS source of truth</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {property?.name ? (
+              <>
+                <span className="font-medium text-foreground">{property.name}</span> ·{" "}
+              </>
+            ) : null}
+            Everything the booking engine needs — rates, packages, specials and addons — lives here.
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {property?.name ? <><span className="font-medium text-foreground">{property.name}</span> · </> : null}
-          Everything the booking engine needs — rates, packages, specials and addons — is managed here.
-          The public book. OTA reads the same data.
-        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          onClick={() => window.open(`/admin/edit-property/${propertyId}?tab=${activeTab}`, "_blank", "noopener")}
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open full editor
+        </Button>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {SECTIONS.map((section) => {
-          const Icon = section.icon;
-          return (
-            <Card key={section.tab} className="flex flex-col">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="rounded-md bg-primary/10 p-2">
-                      <Icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <CardTitle className="text-lg">{section.title}</CardTitle>
-                  </div>
-                  <Button size="sm" onClick={() => openEditor(section.tab)}>
-                    Manage
-                    <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </Button>
+      <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+        {/* Left rail */}
+        <nav className="space-y-1">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const active = activeTab === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => setActiveTab(s.key)}
+                className={cn(
+                  "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
+                  active
+                    ? "border-primary/50 bg-primary/10 text-foreground"
+                    : "border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className={cn("h-3.5 w-3.5", active ? "text-primary" : "text-muted-foreground")} />
+                  <span className="font-medium">{s.label}</span>
                 </div>
-                <CardDescription className="pt-1">{section.description}</CardDescription>
-              </CardHeader>
-              {section.subsections && (
-                <CardContent className="pt-0">
-                  <ul className="grid grid-cols-2 gap-2">
-                    {section.subsections.map((sub) => {
-                      const SubIcon = sub.icon;
+                <p className="mt-1 text-[10px] leading-tight opacity-80">{s.description}</p>
+                {active && s.hints && (
+                  <ul className="mt-2 flex flex-wrap gap-1">
+                    {s.hints.map((h) => {
+                      const HIcon = h.icon;
                       return (
                         <li
-                          key={sub.key}
-                          className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1.5"
+                          key={h.key}
+                          className="flex items-center gap-1 rounded border border-border/50 bg-background/60 px-1.5 py-0.5 text-[9px] text-muted-foreground"
                         >
-                          <SubIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-medium truncate">{sub.label}</div>
-                            <div className="text-[10px] text-muted-foreground truncate">{sub.hint}</div>
-                          </div>
+                          <HIcon className="h-2.5 w-2.5" />
+                          {h.label}
                         </li>
                       );
                     })}
                   </ul>
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Editor pane — inline via same-origin iframe */}
+        <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
+          {iframeSrc && (
+            <iframe
+              ref={iframeRef}
+              key={iframeSrc}
+              src={iframeSrc}
+              title={`${SECTIONS.find((s) => s.key === activeTab)?.label ?? "Editor"} — ${property?.name ?? ""}`}
+              className="block w-full border-0"
+              style={{ height: iframeHeight }}
+            />
+          )}
+        </div>
       </div>
 
       <Alert>
-        <AlertDescription className="text-xs text-muted-foreground">
-          Changes made in Property Setup are stored in the same tables the admin editor uses, so the
-          book. OTA and ROLOS operations always stay in sync.
+        <AlertDescription className="text-[11px] text-muted-foreground">
+          Changes are written to the same tables the admin editor uses, so the book. OTA and ROLOS operations
+          always stay in sync.
         </AlertDescription>
       </Alert>
     </div>
