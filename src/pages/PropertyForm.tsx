@@ -230,6 +230,28 @@ export default function PropertyForm() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
+  // When embedded in the ROLOS hub, broadcast our scroll height to the parent
+  // so the iframe can auto-size (avoids double scrollbars).
+  useEffect(() => {
+    if (!embedded) return;
+    const post = () => {
+      try {
+        window.parent?.postMessage(
+          { type: "rolos-embed-height", height: document.body.scrollHeight },
+          window.location.origin,
+        );
+      } catch { /* cross-origin — ignore */ }
+    };
+    post();
+    const ro = new ResizeObserver(post);
+    ro.observe(document.body);
+    window.addEventListener("resize", post);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", post);
+    };
+  }, [embedded]);
+
   // Helper to navigate with unsaved changes check (uses a styled AlertDialog
   // instead of window.confirm so the browser doesn't leak the embedded iframe URL).
   const [pendingNavPath, setPendingNavPath] = useState<string | null>(null);
