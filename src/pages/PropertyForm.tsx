@@ -194,15 +194,28 @@ const createPropertySchema = (noStreetAddress: boolean) =>
 const propertySchema = createPropertySchema(false);
 type PropertyFormData = z.infer<typeof propertySchema>;
 
-export default function PropertyForm() {
+interface PropertyFormProps {
+  embeddedPropertyId?: string | null;
+  embeddedInitialTab?: string;
+  embeddedOverride?: boolean;
+  forceTabsOverride?: boolean;
+}
+
+export default function PropertyForm({
+  embeddedPropertyId,
+  embeddedInitialTab,
+  embeddedOverride,
+  forceTabsOverride,
+}: PropertyFormProps = {}) {
   const navigate = useNavigate();
-  const { id } = useParams(); // Can be UUID or slug
+  const routeParams = useParams(); // Can be UUID or slug
+  const id = embeddedPropertyId ?? routeParams.id;
   const [searchParams] = useSearchParams();
-  const forceTabs = searchParams.get("forceTabs") === "1";
+  const forceTabs = forceTabsOverride ?? searchParams.get("forceTabs") === "1";
   // Embed mode: renders PropertyForm without page chrome (breadcrumb, header,
   // outer tab strip) and only the tab in `?tab=`. Used by /pms/property-setup
   // to mount the editor inline via a same-origin iframe. Save path is unchanged.
-  const embedded = searchParams.get("embed") === "1";
+  const embedded = embeddedOverride ?? searchParams.get("embed") === "1";
   const { toast } = useToast();
   const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
@@ -1860,9 +1873,16 @@ export default function PropertyForm() {
     enabled: true,
   });
 
-  // Active tab state. In ROLOS embed mode, /pms/property-setup passes ?tab=
-  // so the iframe opens the migrated source-of-truth section directly.
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "general");
+  // Active tab state. In ROLOS embed mode, /pms/property-setup passes the tab
+  // directly so the migrated source-of-truth section opens without an iframe.
+  const requestedInitialTab = embeddedInitialTab || searchParams.get("tab") || "general";
+  const [activeTab, setActiveTab] = useState(requestedInitialTab);
+
+  useEffect(() => {
+    if (embedded && requestedInitialTab && requestedInitialTab !== activeTab) {
+      setActiveTab(requestedInitialTab);
+    }
+  }, [activeTab, embedded, requestedInitialTab]);
 
   // Quality gate blocker awareness
   const { data: activationReadiness } = useActivationReadiness(propertyId || '');
