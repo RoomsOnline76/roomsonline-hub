@@ -358,7 +358,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <div className="space-y-1.5">
               <Label>Webhook URL</Label>
               <Input
-                placeholder="https://yoursite.com/wp-json/rolos/v1/webhook"
+                placeholder={webhookPlaceholder}
                 value={webhookUrl || webhookSub?.url || ""}
                 onChange={(e) => setWebhookUrl(e.target.value)}
               />
