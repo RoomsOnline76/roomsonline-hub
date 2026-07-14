@@ -76,7 +76,7 @@ const workspaceSection: NavSection = {
     { id: 'properties', title: 'My Properties', icon: Building2, href: '/admin/property-overview', minRole: 'owner' },
     { id: 'calendar', title: 'Calendar', icon: CalendarDays, href: '/admin/calendar/accommodation', minRole: 'owner' },
     { id: 'bookings', title: 'Bookings', icon: BookOpen, href: '/admin/bookings', minRole: 'owner' },
-    { id: 'promotion', title: 'Promotion', icon: Megaphone, href: '/admin/promotion', minRole: 'owner', description: 'Marketing campaigns' },
+    
     { id: 'integrations', title: 'Integrations', icon: Code2, href: '/admin/integrations', minRole: 'owner', description: 'Website booking widgets & API' },
   ],
 };

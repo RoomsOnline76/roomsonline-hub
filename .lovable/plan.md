@@ -1,45 +1,82 @@
+
 ## Goal
-On the booking/checkout flow for ROLOS-native properties (like Dassiesingel), quote each unit using its per-season **room rate from the admin Rates Calendar** first, and only fall back to the ROLOS **Rate Plan base rate** when no seasonal rate exists for that room+date.
 
-## Findings
-- Per-room seasonal rates shown in `/admin/edit property/rates/calendar` (e.g. BOSBOK R700, DASSIE R550, GRYSBOK R550, STEENBOK R1000) are stored in `properties.amenities.season_rates`, keyed by:
-  - amenity room id (timestamp, matches `rolos_room_types.linked_overview_id`)
-  - sub-key `"{seasonId}-{rateTypeId}"` → `{ roomAmount, adultAmount, teenAmount, childAmount, infantAmount }`
-  - active seasons live in `amenities.seasons` with `from`/`to` (or `start_date`/`end_date`).
-- The new normalized `rolos_rate_prices` table exists but is currently empty for Dassiesingel — the calendar UI still writes to `amenities.season_rates`, so it is the authoritative source today.
-- `booking-orchestrator-api → resolveRolosRates` currently only reads `hostfully_room_types.daily_rate` and the linked `rolos_rate_plans.base_rate`. It never looks at `amenities.season_rates`, so per-room seasonal rates from the admin calendar are ignored on the book page.
-- The book-page date-picker preview in `src/pages/Booking.tsx` also only uses the first wizard room's linked rate type, so it misses per-room seasonal rates.
+Make ROLOS PMS the source of truth for booking-backend data (Rates, Packages, Specials, Addons). For ROLOS-PMS properties, hide those tabs in `/admin/edit-property` and have the admin OTA book page read the same data from ROLOS. Also remove `/admin/promotion` from the navigation.
 
-## Implementation plan
+## Scope
 
-1. **Backend: teach the orchestrator to read seasonal room rates first**
-   - In `supabase/functions/booking-orchestrator-api/index.ts → resolveRolosRates`:
-     - Fetch `properties.amenities` (seasons + season_rates) alongside the existing `hostfully_room_types` query.
-     - Also fetch `rolos_room_types (id, linked_overview_id)` for the property so each hostfully mirror row can map to its amenity room id via `linked_rolos_id → rolos_room_types.id → linked_overview_id`.
-     - Build a resolver `getDailyRoomAmount(amenityRoomId, dateStr)` with priority:
-       1. If a season contains `dateStr`, look up `season_rates[amenityRoomId]["{seasonId}-{ratePlanId}"]` for the linked active rate plan; then any `"{seasonId}-*"` sub-key with `roomAmount > 0`.
-       2. Also try `season_rates[rolosRoomTypeId]` and `season_rates[roomName]` as secondary keys (matches existing PMSDashboard fallback order).
-       3. Otherwise use `rolos_rate_plans.base_rate` (linked plan) as today.
-       4. Finally `hostfully_room_types.daily_rate` (last-resort legacy).
-     - Use that resolver when building the `dailyRates` array per date so each night's `room_amount` reflects the correct season+room, not one flat rate. Preserve existing `rolos_rate_plan_stop_sell` stop-sell handling.
-     - Return `pricing_model` from the linked rate plan (per-room vs per-person) unchanged.
+**In:** Navigation change, tab visibility rules on Property Form, new ROLOS "Property Setup" hub with mirrored master editors, data pointer alignment (both admin and ROLOS write to the same tables so `/admin/edit-property` stays functional as read source for the book. OTA).
+**Out:** Rewriting the booking engine, migrating rates for non-ROLOS PMS properties, redesigning existing admin editors.
 
-2. **Frontend: align book-page calendar preview**
-   - In `src/pages/Booking.tsx` (`fetchAvailability` effect, ~L370-510) for `roomsonline` properties:
-     - When a room is preselected (`preSelectedRoomTypeId`/`preSelectedRoomTypeName`), pick that wizard room; otherwise iterate over wizard rooms and aggregate.
-     - Replace the flat `baseRate` per date with the same seasonal resolver as step 1 (walk `amenities.seasons` + `season_rates` per date, keyed by that room), falling back to linked rate-plan/room base rate.
-   - Keep other logic (blocked dates from `property_availability`, calendar map shape) untouched.
+---
 
-3. **Frontend: safety net in checkout total**
-   - In `Booking.tsx → calculateCost` zero-total fallback (~L1174-1217), extend the wizard fallback so it also consults `amenities.season_rates` for the current stay dates before returning the room's flat base rate. Rate-plan base_rate remains the last resort.
+## 1. Detect "ROLOS as PMS"
 
-4. **Out of scope**
-   - Existing PMS-backed paths (Hostfully/Benson/Hotelbeds/HyperGuest) — no changes.
-   - Portfolio "from R" price — already fixed in the earlier change.
-   - No DB schema changes; no migration of `season_rates` into `rolos_rate_prices`.
-   - No change to VAT, charges, vouchers, or payment flow.
+Add a single helper `isRolosPms(property)` that returns true when `property.pms_type === 'rolos'` (or the equivalent `pms_provider`/native flag already used elsewhere — confirm during build by reading `src/lib/pmsUtils.ts`). Used by both PropertyForm tab filter and Navbar guard.
 
-## Validation
-- Book Dassiesingel from the portfolio: BOSBOK should quote R700/night (currently R1,000), DASSIE/GRYSBOK R550/night, STEENBOK R1,000/night for the "10-11 Jul" test dates.
-- Selecting different date ranges spanning another season row must reflect that season's per-room rate.
-- A property with only a rate plan (no `season_rates`) must still quote correctly via the plan's `base_rate`.
+## 2. Hide tabs in `/admin/edit-property`
+
+`src/pages/PropertyForm.tsx` (tab list around line 3659–3687): when `isRolosPms(property)` is true, filter out:
+- `rates`
+- `addons`
+- `specials`
+- `packages`
+
+Show a small info banner at the top of the form for ROLOS-PMS properties: "Rates, Packages, Specials and Addons are managed in ROLOS → Property Setup" with a link to the ROLOS hub. Keep the tab code intact for non-ROLOS properties.
+
+## 3. Remove `/admin/promotion` from menu
+
+- `src/config/navigation.ts` line 79: remove the `promotion` entry.
+- `src/components/Navbar.tsx` line 238: remove the DropdownMenuItem.
+- Leave the route/page mounted so any existing deep links still resolve (no dead-link risk).
+
+## 4. New ROLOS "Property Setup" hub (source of truth)
+
+New page `src/pages/pms/PMSPropertySetup.tsx` mounted at `/pms/property-setup`, added to the ROLOS sidebar. Top-level tabs mirror the admin structure so owners have one place to configure everything:
+
+```text
+Property Setup
+├── Rates
+│   ├── Seasons
+│   ├── Rate Types
+│   ├── Calendar
+│   ├── Rate Breakdown
+│   ├── Charges
+│   ├── Policies
+│   ├── Payment Providers
+│   └── Overview
+├── Packages
+├── Specials
+└── Addons
+```
+
+**Implementation strategy — reuse, don't rewrite:** each sub-tab imports the same editor components already used inside `PropertyForm.tsx`. To do this cleanly:
+
+1. Extract each block from `PropertyForm.tsx` into a standalone component under `src/components/property/setup/` (RatesSeasons, RatesTypes, RatesCalendar, RatesBreakdown, RatesCharges, RatesPolicies, RatesPaymentProviders, RatesOverview, PackagesEditor, SpecialsEditor, AddonsEditor). Each takes `{ propertyId, readOnly? }` and owns its own data loading via existing hooks (`usePropertyCharges`, `useReservationPolicies`, etc.).
+2. `PropertyForm.tsx` renders those same components inside its existing tabs — no behavioural change for non-ROLOS properties.
+3. `PMSPropertySetup.tsx` renders the same components for the currently selected ROLOS property (`usePmsPropertyId`).
+
+This guarantees ROLOS and admin edit the exact same rows in the exact same tables — no divergence, no dual writes.
+
+## 5. Admin book. OTA continues to work
+
+Because the underlying tables are unchanged, `book.sleepinafrica.roomsonline.co.za` and the `booking-orchestrator-api` keep reading the same season/rate/charge/policy/package/special/addon rows. No edge-function changes required.
+
+## 6. Verification
+
+- Load a ROLOS-PMS property in `/admin/edit-property` → the 4 tabs are hidden, banner shows.
+- Load a non-ROLOS property → tabs render exactly as today.
+- Open `/pms/property-setup` for the ROLOS property → all sub-editors load current data and saves reflect in `/admin/edit-property` for that same property.
+- `/admin/promotion` no longer appears in the admin menu.
+
+## Technical notes
+
+- Files touched: `src/pages/PropertyForm.tsx`, `src/config/navigation.ts`, `src/components/Navbar.tsx`, `src/lib/pmsUtils.ts` (add helper if missing), new `src/pages/pms/PMSPropertySetup.tsx`, new `src/components/property/setup/*`, `src/App.tsx` route, `src/pages/pms/index.ts`.
+- No DB migration required — same tables, same RLS.
+- Extraction is the biggest task; done tab-by-tab to keep diffs reviewable. Suggest tackling in this order: Addons → Specials → Packages → Rates sub-tabs (Rates is the largest).
+
+## Open questions before build
+
+1. Confirm the flag: is `properties.pms_type === 'rolos'` the correct signal, or should I use `pms_provider` / a native-mode boolean?
+2. Should the ROLOS Property Setup hub live as one new page with internal tabs (proposed), or be split into 4 sidebar items (Rates / Packages / Specials / Addons)?
+3. For non-ROLOS properties, should the new ROLOS Property Setup page be hidden entirely, or shown read-only?

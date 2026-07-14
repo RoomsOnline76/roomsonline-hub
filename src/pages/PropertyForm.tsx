@@ -3,7 +3,8 @@ import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { isRolosPms } from "@/lib/pmsUtils";
 import { useAuth } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -195,6 +196,8 @@ type PropertyFormData = z.infer<typeof propertySchema>;
 export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
+  const [searchParams] = useSearchParams();
+  const forceTabs = searchParams.get("forceTabs") === "1";
   const { toast } = useToast();
   const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
@@ -3654,6 +3657,22 @@ export default function PropertyForm() {
             </Alert>
           )}
 
+          {isRolosPms(selectedPMS) && !forceTabs && propertyId && (
+            <Alert className="border-primary/40 bg-primary/5">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-sm">
+                <span className="font-medium">Rates, Packages, Specials &amp; Addons are managed in ROLOS.</span>{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 text-primary hover:opacity-80"
+                  onClick={() => navigate(`/pms/property-setup?property=${propertyId}`)}
+                >
+                  Open Property Setup →
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
@@ -3677,6 +3696,13 @@ export default function PropertyForm() {
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
+                    // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
+                    // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
+                    if (isRolosPms(selectedPMS) && !forceTabs) {
+                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages") {
+                        return false;
+                      }
+                    }
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
