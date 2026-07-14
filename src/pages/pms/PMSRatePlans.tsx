@@ -97,6 +97,7 @@ export default function PMSRatePlans() {
     base_rate: "",
     pricing_model: "per_room",
     linkedRoomTypeIds: [] as string[],
+    target_property_id: "" as string,
   });
 
   // Auto-sync rate plans from amenities.pms_rate_types on load
@@ -305,7 +306,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [] });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [], target_property_id: "" });
     setEditingPlan(null);
   };
 
@@ -321,17 +322,23 @@ export default function PMSRatePlans() {
         base_rate: plan.base_rate ? String(plan.base_rate) : "",
         pricing_model: plan.pricing_model || "per_room",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
+        target_property_id: plan.property_id,
       });
     } else {
       resetForm();
+      // Pre-select current property when not in portfolio view
+      if (!isPortfolio && propertyId) {
+        setForm(p => ({ ...p, target_property_id: propertyId }));
+      }
     }
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    // When editing in portfolio view, the plan's own property_id must be preserved.
-    const targetPropertyId = editingPlan?.property_id || propertyId;
-    if (!targetPropertyId || !form.name) return;
+    // When editing, preserve the plan's own property_id. When creating, use the selected target.
+    const targetPropertyId = editingPlan?.property_id || form.target_property_id || propertyId;
+    if (!targetPropertyId) { toast.error("Select a property for this rate plan"); return; }
+    if (!form.name) return;
 
     const baseRate = form.base_rate ? parseFloat(form.base_rate) : 0;
 
@@ -586,13 +593,26 @@ export default function PMSRatePlans() {
             </Button>
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()} disabled={isPortfolio} title={isPortfolio ? "Switch to a single property to create a new rate plan" : undefined}>
+                <Button onClick={() => handleOpenDialog()}>
                   <Plus className="h-4 w-4 mr-2" />New Rate Plan
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>{editingPlan ? "Edit Rate Plan" : "Create Rate Plan"}</DialogTitle></DialogHeader>
                 <div className="space-y-4">
+                  {!editingPlan && isPortfolio && (
+                    <div>
+                      <Label>Property *</Label>
+                      <Select value={form.target_property_id || undefined} onValueChange={v => setForm(p => ({ ...p, target_property_id: v, linkedRoomTypeIds: [] }))}>
+                        <SelectTrigger><SelectValue placeholder="Select a property" /></SelectTrigger>
+                        <SelectContent>
+                          {scopeProperties.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div><Label>Name *</Label><Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
                   <div><Label>Code</Label><Input value={form.code} onChange={e => setForm(p => ({ ...p, code: e.target.value }))} placeholder="e.g. BAR, PROMO" /></div>
                   <div><Label>Description</Label><Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} /></div>
@@ -620,7 +640,7 @@ export default function PMSRatePlans() {
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" />Linked Room Types</Label>
                     {(() => {
-                      const scopePropId = editingPlan?.property_id || propertyId;
+                      const scopePropId = editingPlan?.property_id || form.target_property_id || propertyId;
                       const scopedRoomTypes = roomTypes.filter(rt => rt.property_id === scopePropId);
                       if (scopedRoomTypes.length === 0) {
                         return <p className="text-sm text-muted-foreground">No room types found. Add room types first.</p>;
