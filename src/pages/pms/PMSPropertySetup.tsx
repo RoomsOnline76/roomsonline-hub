@@ -189,6 +189,7 @@ export default function PMSPropertySetup() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [iframeHeight, setIframeHeight] = useState<number>(720);
+  const [editorSrc, setEditorSrc] = useState<string>("");
 
   useEffect(() => {
     const section = searchParams.get("section") as TabKey | null;
@@ -216,6 +217,12 @@ export default function PMSPropertySetup() {
     if (!propertyId) return "";
     return `/admin/properties/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
   }, [propertyId, activeTab]);
+
+  useEffect(() => {
+    if (iframeSrc && iframeSrc !== editorSrc) {
+      setEditorSrc(iframeSrc);
+    }
+  }, [editorSrc, iframeSrc]);
 
 
   // Auto-size the iframe based on messages from the embedded PropertyForm.
@@ -332,12 +339,14 @@ export default function PMSPropertySetup() {
 
         {/* Editor pane — inline via same-origin iframe */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
-          {iframeSrc && (
+          {editorSrc ? (
             <EditorFrame
-              src={iframeSrc}
+              src={editorSrc}
               title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
               height={iframeHeight}
             />
+          ) : (
+            <div className="p-6 text-sm text-muted-foreground">Loading property…</div>
           )}
         </div>
       </div>
