@@ -3680,6 +3680,13 @@ export default function PropertyForm() {
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
+                    // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
+                    // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
+                    if (isRolosPms(selectedPMS) && !forceTabs) {
+                      if (tab.value === "rates" || tab.value === "addons" || tab.value === "specials" || tab.value === "packages") {
+                        return false;
+                      }
+                    }
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
