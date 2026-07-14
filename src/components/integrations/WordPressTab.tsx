@@ -311,6 +311,13 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             <h4 className="text-sm font-medium">Shortcodes</h4>
             <CodeSnippetBlock code={shortcode} language="text" title="Booking Widget" />
             <CodeSnippetBlock code={gridShortcode} language="text" title="Property Grid" />
+            {portfolioShortcode && (
+              <CodeSnippetBlock
+                code={portfolioShortcode}
+                language="text"
+                title={`Portfolio Booking — ${portfolio?.name ?? "Portfolio"}`}
+              />
+            )}
           </div>
 
           {/* Installation Steps */}
