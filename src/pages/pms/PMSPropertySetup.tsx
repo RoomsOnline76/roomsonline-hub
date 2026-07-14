@@ -241,7 +241,7 @@ export default function PMSPropertySetup() {
                   <button
                     key={s.key}
                     type="button"
-                    onClick={() => setActiveTab(s.key)}
+                    onClick={() => handleSelectTab(s.key)}
                     className={cn(
                       "w-full rounded-md border px-3 py-2 text-left text-xs transition-colors",
                       active
