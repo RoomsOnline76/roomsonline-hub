@@ -64,8 +64,6 @@ interface GeneralTabProps {
   handleVenuesChange: (checked: boolean) => void;
   handleEventChange: (checked: boolean) => void;
   handleConferenceChange: (checked: boolean) => void;
-  lekkeslaapUuid: string;
-  setLekkeslaapUuid: (v: string) => void;
 
   // PMS
   selectedPMS: string;
@@ -177,7 +175,7 @@ export function GeneralTab(props: GeneralTabProps) {
     handleNavigate, propertyId, isEditMode, isRolProperty, setIsRolProperty,
     isTestProperty, setIsTestProperty, isAccommodation, setIsAccommodation,
     isVenues, isEvent, isConference, handleVenuesChange, handleEventChange,
-    handleConferenceChange, lekkeslaapUuid, setLekkeslaapUuid, selectedPMS,
+    handleConferenceChange, selectedPMS,
     setSelectedPMS, availablePMSSystems, bensonPropertyCode, setBensonPropertyCode,
     cloudbedsPropertyId, setCloudbedsPropertyId, littlehotelierChannelCode,
     setLittlehotelierChannelCode, littlehotelierRegion, setLittlehotelierRegion,
@@ -263,12 +261,6 @@ export function GeneralTab(props: GeneralTabProps) {
                 </div>
               </div>
 
-              {selectedPMS === "roomsonline" && (
-                <div className="flex items-center gap-2 mt-3">
-                  <Label htmlFor="lekkeslaap_uuid" className="text-xs whitespace-nowrap">Lekkeslaap UUID</Label>
-                  <Input id="lekkeslaap_uuid" value={lekkeslaapUuid} onChange={(e) => { setLekkeslaapUuid(e.target.value); setIsDirty(true); }} placeholder="e.g. 12345-abcde-..." className="h-7 text-xs max-w-[280px]" />
-                </div>
-              )}
               <Separator className="my-3" />
             </>
           )}
