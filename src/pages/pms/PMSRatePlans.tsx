@@ -97,6 +97,7 @@ export default function PMSRatePlans() {
     base_rate: "",
     pricing_model: "per_room",
     linkedRoomTypeIds: [] as string[],
+    target_property_id: "" as string,
   });
 
   // Auto-sync rate plans from amenities.pms_rate_types on load
