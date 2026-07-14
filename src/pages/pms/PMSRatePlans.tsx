@@ -306,7 +306,7 @@ export default function PMSRatePlans() {
     roomTypes.find(rt => rt.id === id)?.name || id;
 
   const resetForm = () => {
-    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [] });
+    setForm({ name: "", code: "", description: "", min_stay: "1", requires_deposit: false, base_rate: "", pricing_model: "per_room", linkedRoomTypeIds: [], target_property_id: "" });
     setEditingPlan(null);
   };
 
@@ -322,9 +322,14 @@ export default function PMSRatePlans() {
         base_rate: plan.base_rate ? String(plan.base_rate) : "",
         pricing_model: plan.pricing_model || "per_room",
         linkedRoomTypeIds: getLinkedRoomTypes(plan.id),
+        target_property_id: plan.property_id,
       });
     } else {
       resetForm();
+      // Pre-select current property when not in portfolio view
+      if (!isPortfolio && propertyId) {
+        setForm(p => ({ ...p, target_property_id: propertyId }));
+      }
     }
     setDialogOpen(true);
   };
