@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { PromoCodesTab } from "@/components/property/PromoCodesTab";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
+import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
 import { Beds24PropertyLookup } from "@/components/property/Beds24PropertyLookup";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
@@ -4236,7 +4237,8 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {(selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                      {/* HyperGuest is currently parked — UI hidden but state and save paths preserved. */}
+                      {false && (selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
                             HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}
@@ -4271,7 +4273,8 @@ export default function PropertyForm() {
                           )}
                         </div>)}
 
-                      {(selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                      {/* Beds24 lookup + ID hidden per request; state and save paths preserved. */}
+                      {false && (selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="beds24_property_id" className="text-xs whitespace-nowrap">
                             Beds24 Property ID{selectedPMS === "beds24" ? " *" : ""}
@@ -4361,8 +4364,17 @@ export default function PropertyForm() {
                                 Google ID <Info className="h-3 w-3 text-muted-foreground" />
                               </Label>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="text-xs">Google Place ID for reviews & maps</p>
+                            <TooltipContent className="max-w-xs">
+                              <p className="text-xs font-medium mb-1">Google Place ID</p>
+                              <p className="text-[11px] text-muted-foreground mb-1">
+                                Used for reviews and Maps embed.
+                              </p>
+                              <ol className="text-[11px] list-decimal pl-4 space-y-0.5">
+                                <li>Open Google Maps and search your property.</li>
+                                <li>Click your property so its panel opens.</li>
+                                <li>Copy the full URL from the address bar.</li>
+                                <li>Click <strong>Paste Google URL</strong> and paste.</li>
+                              </ol>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -4374,7 +4386,13 @@ export default function PropertyForm() {
                             setIsDirty(true);
                           }}
                           placeholder="ChIJ... or numeric"
-                          className="h-7 text-xs w-28"
+                          className="h-7 text-xs w-40"
+                        />
+                        <GooglePlaceIdPastePopover
+                          onExtract={(id) => {
+                            setGooglePlaceId(id);
+                            setIsDirty(true);
+                          }}
                         />
                       </div>
                       <div className="flex items-center gap-2">
