@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +160,23 @@ const SECTION_GROUPS: SectionGroup[] = [
 const ALL_SECTIONS: Section[] = SECTION_GROUPS.flatMap((g) => g.sections);
 const VALID_TABS = new Set<TabKey>(ALL_SECTIONS.map((s) => s.key));
 
+interface EditorFrameProps {
+  src: string;
+  title: string;
+  height: number;
+}
+
+const EditorFrame = memo(function EditorFrame({ src, title, height }: EditorFrameProps) {
+  return (
+    <iframe
+      src={src}
+      title={title}
+      className="block w-full border-0"
+      style={{ height }}
+    />
+  );
+});
+
 export default function PMSPropertySetup() {
   const { propertyId, properties } = usePmsPropertyId();
   const property = properties.find((p) => p.id === propertyId);
@@ -172,7 +189,6 @@ export default function PMSPropertySetup() {
 
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [iframeHeight, setIframeHeight] = useState<number>(720);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     const section = searchParams.get("section") as TabKey | null;
@@ -317,12 +333,10 @@ export default function PMSPropertySetup() {
         {/* Editor pane — inline via same-origin iframe */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
           {iframeSrc && (
-            <iframe
-              ref={iframeRef}
+            <EditorFrame
               src={iframeSrc}
               title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
-              className="block w-full border-0"
-              style={{ height: iframeHeight }}
+              height={iframeHeight}
             />
           )}
         </div>
