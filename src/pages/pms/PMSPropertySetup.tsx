@@ -21,7 +21,9 @@ import {
   FileText,
   Mail,
   Megaphone,
+  Building2,
 } from "lucide-react";
+
 
 /**
  * ROLOS "Property Setup" hub.
@@ -34,6 +36,7 @@ import {
  */
 
 type TabKey =
+  | "info-facilities"
   | "rates"
   | "packages"
   | "specials"
@@ -41,6 +44,7 @@ type TabKey =
   | "house-rules"
   | "templates"
   | "announcements";
+
 
 interface Section {
   key: TabKey;
@@ -57,7 +61,19 @@ interface SectionGroup {
 
 const SECTION_GROUPS: SectionGroup[] = [
   {
+    label: "Property profile",
+    sections: [
+      {
+        key: "info-facilities",
+        label: "Info & Facilities",
+        icon: Building2,
+        description: "Star rating, accommodation type, facilities checklist, self-catering, breakfast options and property-level info.",
+      },
+    ],
+  },
+  {
     label: "Booking backend",
+
     sections: [
       {
         key: "rates",
