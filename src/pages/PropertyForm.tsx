@@ -7823,7 +7823,19 @@ export default function PropertyForm() {
               </TabsContent>
             )}
           </Tabs>
+
+          {/* Embed-mode sticky Save bar */}
+          {embedded && isDirty && (
+            <div className="sticky bottom-0 left-0 right-0 mt-3 flex items-center justify-end gap-2 border-t bg-background/95 px-3 py-2 backdrop-blur">
+              <span className="text-xs text-muted-foreground">Unsaved changes</span>
+              <Button size="sm" className="h-7 text-xs" onClick={handleSubmit} disabled={loading}>
+                <Save className="mr-1 h-3 w-3" />
+                {loading ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
+          )}
         </div>
+
 
       {/* Manage Announcements Dialog */}
       <Dialog open={isManageAnnouncementOpen} onOpenChange={setIsManageAnnouncementOpen}>
