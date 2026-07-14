@@ -443,7 +443,7 @@ function PortfolioDirectLinks({
         console.error("[PortfolioDirectLinks] portfolio slug error:", error);
         return null;
       }
-      return data as { id: string; name: string; slug: string | null } | null;
+      return data as unknown as { id: string; name: string; slug: string | null } | null;
     },
     enabled: portfolioIds.length > 0,
     staleTime: 5 * 60 * 1000,
