@@ -677,17 +677,26 @@ class Rolos_Shortcodes {
     }
 
     /**
-     * [rolos_availability property_id="uuid"]
+     * [rolos_availability property_id="uuid" whitelabel="1" host="https://book.mylodge.com"]
      */
     public function availability_shortcode(\$atts) {
         \$atts = shortcode_atts(array(
             'property_id' => get_option('rolos_property_id', ROLOS_DEFAULT_PROPERTY_ID),
+            'whitelabel' => '',
+            'host' => '',
         ), \$atts, 'rolos_availability');
 
         \$id = 'rolos-avail-' . wp_rand(1000, 9999);
         wp_enqueue_script('rolos-availability', ROLOS_CDN_BASE . '/rolos-availability.min.js', array(), ROLOS_VERSION, true);
 
-        return '<div id="' . esc_attr(\$id) . '" class="rolos-availability-widget" data-property-id="' . esc_attr(\$atts['property_id']) . '"></div>';
+        \$host = \$this->resolve_host(\$atts['host']);
+        \$wl = \$this->is_whitelabel(\$atts['whitelabel']) ? '1' : '0';
+
+        return '<div id="' . esc_attr(\$id) . '" class="rolos-availability-widget'
+            . (\$wl === '1' ? ' rolos-wl' : '') . '"'
+            . ' data-property-id="' . esc_attr(\$atts['property_id']) . '"'
+            . ' data-host="' . esc_attr(\$host) . '"'
+            . ' data-wl="' . esc_attr(\$wl) . '"></div>';
     }
 }
 `;
