@@ -196,6 +196,8 @@ type PropertyFormData = z.infer<typeof propertySchema>;
 export default function PropertyForm() {
   const navigate = useNavigate();
   const { id } = useParams(); // Can be UUID or slug
+  const [searchParams] = useSearchParams();
+  const forceTabs = searchParams.get("forceTabs") === "1";
   const { toast } = useToast();
   const { isDev, isAdmin, isFearlessLeader, user, profile, loading: authLoading } = useAuth();
   const { data: featureFlags } = useFeatureFlags();
