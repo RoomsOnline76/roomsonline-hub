@@ -22,7 +22,11 @@ import {
   Mail,
   Megaphone,
   Building2,
+  BedDouble,
+  ListChecks,
+  Image as ImageIcon,
 } from "lucide-react";
+
 
 
 /**
