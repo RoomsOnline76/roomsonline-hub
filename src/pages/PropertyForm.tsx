@@ -3699,7 +3699,7 @@ export default function PropertyForm() {
             <Alert className="border-primary/40 bg-primary/5">
               <Sparkles className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm">
-                <span className="font-medium">Rates, Packages, Specials &amp; Addons are managed in ROLOS.</span>{" "}
+                <span className="font-medium">Rates, Packages, Specials, Addons, House Rules, Templates &amp; Announcements are managed in ROLOS.</span>{" "}
                 <button
                   type="button"
                   className="underline underline-offset-2 text-primary hover:opacity-80"
@@ -3710,6 +3710,7 @@ export default function PropertyForm() {
               </AlertDescription>
             </Alert>
           )}
+
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className={embedded ? "hidden" : "bg-secondary h-8"}>
