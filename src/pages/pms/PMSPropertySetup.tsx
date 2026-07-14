@@ -233,22 +233,6 @@ export default function PMSPropertySetup() {
             addons, house rules, templates and announcements — lives here.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1 text-xs"
-          onClick={() => {
-            // Per project domain policy: always link to the production ROLOS
-            // domain (never lovable.dev / lovable.app / lovableproject.com),
-            // otherwise the admin route 404s in the Lovable editor origin.
-            const url = `https://sleepinafrica.roomsonline.co.za/admin/properties/${propertyId}?tab=${activeTab}`;
-            window.open(url, "_blank", "noopener");
-          }}
-
-        >
-          <ExternalLink className="h-3 w-3" />
-          Open full editor
-        </Button>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
