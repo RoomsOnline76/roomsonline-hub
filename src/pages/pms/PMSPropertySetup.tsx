@@ -9,7 +9,6 @@ import {
   DollarSign,
   Package,
   Sparkles,
-  ExternalLink,
   CalendarRange,
   Layers,
   Calendar,
