@@ -3657,6 +3657,22 @@ export default function PropertyForm() {
             </Alert>
           )}
 
+          {isRolosPms(selectedPMS) && !forceTabs && propertyId && (
+            <Alert className="border-primary/40 bg-primary/5">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-sm">
+                <span className="font-medium">Rates, Packages, Specials &amp; Addons are managed in ROLOS.</span>{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 text-primary hover:opacity-80"
+                  onClick={() => navigate(`/pms/property-setup?property=${propertyId}`)}
+                >
+                  Open Property Setup →
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
             <TabsList className="bg-secondary h-8">
               {[
