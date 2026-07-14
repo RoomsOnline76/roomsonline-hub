@@ -32,7 +32,7 @@ import {
 /**
  * ROLOS "Property Setup" hub.
  *
- * Renders the same-origin admin editor (`/admin/edit-property/:id`) inline
+ * Renders the same-origin admin editor (`/admin/properties/:id`) inline
  * via an iframe running in `?embed=1` mode. This is the source of truth for
  * ROLOS-PMS booking-backend + guest-experience data (Rates, Packages,
  * Specials, Addons, House Rules, Templates, Announcements). The public
@@ -174,6 +174,13 @@ export default function PMSPropertySetup() {
   const [iframeHeight, setIframeHeight] = useState<number>(720);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
+  useEffect(() => {
+    const section = searchParams.get("section") as TabKey | null;
+    if (section && VALID_TABS.has(section) && section !== activeTab) {
+      setActiveTab(section);
+    }
+  }, [activeTab, searchParams]);
+
   // Change active tab AND URL together on user click. No mount-time URL writes,
   // no cross-effects with usePmsPropertyId's own ?property= sync — that combo
   // was causing the page to appear to reload continuously.
@@ -181,8 +188,9 @@ export default function PMSPropertySetup() {
     setActiveTab(key);
     setSearchParams(
       (prev) => {
-        prev.set("section", key);
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set("section", key);
+        return next;
       },
       { replace: true },
     );
@@ -190,7 +198,7 @@ export default function PMSPropertySetup() {
 
   const iframeSrc = useMemo(() => {
     if (!propertyId) return "";
-    return `/admin/edit-property/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
+    return `/admin/properties/${propertyId}?forceTabs=1&embed=1&tab=${activeTab}`;
   }, [propertyId, activeTab]);
 
 
@@ -253,7 +261,7 @@ export default function PMSPropertySetup() {
             // Per project domain policy: always link to the production ROLOS
             // domain (never lovable.dev / lovable.app / lovableproject.com),
             // otherwise the admin route 404s in the Lovable editor origin.
-            const url = `https://sleepinafrica.roomsonline.co.za/admin/edit-property/${propertyId}?tab=${activeTab}`;
+            const url = `https://sleepinafrica.roomsonline.co.za/admin/properties/${propertyId}?tab=${activeTab}`;
             window.open(url, "_blank", "noopener");
           }}
 
@@ -319,7 +327,6 @@ export default function PMSPropertySetup() {
           {iframeSrc && (
             <iframe
               ref={iframeRef}
-              key={iframeSrc}
               src={iframeSrc}
               title={`${activeSection?.label ?? "Editor"} — ${property?.name ?? ""}`}
               className="block w-full border-0"
