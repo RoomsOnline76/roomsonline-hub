@@ -178,9 +178,18 @@ const EditorFrame = memo(function EditorFrame({ src, title, height }: EditorFram
 });
 
 export default function PMSPropertySetup() {
-  const { propertyId, properties } = usePmsPropertyId();
-  const property = properties.find((p) => p.id === propertyId);
+  const { propertyId: resolvedPropertyId, properties } = usePmsPropertyId();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [stablePropertyId, setStablePropertyId] = useState<string | null>(() => searchParams.get("property"));
+
+  useEffect(() => {
+    if (resolvedPropertyId && resolvedPropertyId !== stablePropertyId) {
+      setStablePropertyId(resolvedPropertyId);
+    }
+  }, [resolvedPropertyId, stablePropertyId]);
+
+  const propertyId = stablePropertyId ?? resolvedPropertyId;
+  const property = properties.find((p) => p.id === propertyId);
 
   const initialTab = (() => {
     const q = searchParams.get("section") as TabKey | null;
