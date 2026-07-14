@@ -4236,7 +4236,8 @@ export default function PropertyForm() {
                         </div>
                       )}
 
-                      {(selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                      {/* HyperGuest is currently parked — UI hidden but state and save paths preserved. */}
+                      {false && (selectedPMS === "hyperguest" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="hyperguest_hotel_id" className="text-xs whitespace-nowrap">
                             HyperGuest Hotel ID{selectedPMS === "hyperguest" ? " *" : ""}
@@ -4271,7 +4272,8 @@ export default function PropertyForm() {
                           )}
                         </div>)}
 
-                      {(selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
+                      {/* Beds24 lookup + ID hidden per request; state and save paths preserved. */}
+                      {false && (selectedPMS === "beds24" || selectedPMS === "rolos" || selectedPMS === "roomsonline") && (
                         <div className="flex items-center gap-2">
                           <Label htmlFor="beds24_property_id" className="text-xs whitespace-nowrap">
                             Beds24 Property ID{selectedPMS === "beds24" ? " *" : ""}
