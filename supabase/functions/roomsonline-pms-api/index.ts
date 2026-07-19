@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
         result = handleGetCapabilities();
         break;
       case "health_check":
-        result = handleHealthCheck(supabase);
+        result = await handleHealthCheck(supabase);
         break;
       case "fetch_availability":
         result = await handleFetchAvailability(body, supabase);
