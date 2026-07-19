@@ -86,25 +86,25 @@ async function fetchFromExchangeRateAPI(): Promise<Rates> {
 }
 
 async function fetchRatesWithFallback(): Promise<Rates> {
-  // Try primary source
-  try {
-    return await fetchFromFrankfurter();
-  } catch (e) {
-    console.warn('Frankfurter API failed, trying fallback...', e);
-  }
-
-  // Try secondary source
+  // Try CORS-friendly CDN source first for embedded/white-label domains
   try {
     return await fetchFromFawazahmed();
   } catch (e) {
     console.warn('Fawazahmed API failed, trying fallback...', e);
   }
 
-  // Try tertiary source
+  // Try secondary source
   try {
     return await fetchFromExchangeRateAPI();
   } catch (e) {
-    console.warn('ExchangeRate API failed', e);
+    console.warn('ExchangeRate API failed, trying fallback...', e);
+  }
+
+  // Try tertiary source
+  try {
+    return await fetchFromFrankfurter();
+  } catch (e) {
+    console.warn('Frankfurter API failed', e);
   }
 
   throw new Error('All rate APIs failed');

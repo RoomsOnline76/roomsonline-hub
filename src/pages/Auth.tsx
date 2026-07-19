@@ -757,9 +757,23 @@ function AuthContent() {
 // Wrapper that checks if reCAPTCHA is available
 export default function Auth() {
   const { data: siteKey, isLoading } = useRecaptchaSiteKey();
+
+  if (isLoading) {
+    return (
+      <PublicLayout>
+        <div className="min-h-screen flex items-center justify-center px-4 py-12">
+          <Card className="w-full max-w-md">
+            <CardContent className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </CardContent>
+          </Card>
+        </div>
+      </PublicLayout>
+    );
+  }
   
   // If no site key configured, render without reCAPTCHA protection
-  if (!isLoading && !siteKey) {
+  if (!siteKey) {
     return <AuthContentFallback />;
   }
   
