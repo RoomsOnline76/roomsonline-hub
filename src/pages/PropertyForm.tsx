@@ -4542,32 +4542,36 @@ export default function PropertyForm({
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="flex items-center gap-2 pt-5">
-                            <Checkbox
-                              id="is_rol_property"
-                              checked={isRolProperty}
-                              onCheckedChange={(checked) => {
-                                setIsRolProperty(checked as boolean);
-                                setIsDirty(true);
-                              }}
-                            />
-                            <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
-                              ROL Property
-                            </Label>
-                          </div>
-                          <div className="flex items-center gap-2 pt-1">
-                            <Checkbox
-                              id="is_test_property"
-                              checked={isTestProperty}
-                              onCheckedChange={(checked) => {
-                                setIsTestProperty(checked as boolean);
-                                setIsDirty(true);
-                              }}
-                            />
-                            <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
-                              ⚠ Test / Sandbox
-                            </Label>
-                          </div>
+                          {(isAdmin || isDev || isFearlessLeader) && (
+                            <>
+                              <div className="flex items-center gap-2 pt-5">
+                                <Checkbox
+                                  id="is_rol_property"
+                                  checked={isRolProperty}
+                                  onCheckedChange={(checked) => {
+                                    setIsRolProperty(checked as boolean);
+                                    setIsDirty(true);
+                                  }}
+                                />
+                                <Label htmlFor="is_rol_property" className="text-xs cursor-pointer">
+                                  ROL Property
+                                </Label>
+                              </div>
+                              <div className="flex items-center gap-2 pt-1">
+                                <Checkbox
+                                  id="is_test_property"
+                                  checked={isTestProperty}
+                                  onCheckedChange={(checked) => {
+                                    setIsTestProperty(checked as boolean);
+                                    setIsDirty(true);
+                                  }}
+                                />
+                                <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-orange-600">
+                                  ⚠ Test / Sandbox
+                                </Label>
+                              </div>
+                            </>
+                          )}
                           <div className="flex flex-col gap-1">
                             <Label htmlFor="telephone" className="text-xs">
                               Telephone
