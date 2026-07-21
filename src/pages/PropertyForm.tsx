@@ -94,6 +94,7 @@ import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-rea
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
+import { AdminOverviewTab } from "@/components/property/AdminOverviewTab";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
