@@ -98,7 +98,7 @@ const SECTION_GROUPS: SectionGroup[] = [
         key: "rates",
         label: "Rates",
         icon: DollarSign,
-        description: "Seasons, rate types, calendar, breakdown, charges, policies and payment providers.",
+        description: "Seasons, rate types, calendar, breakdown, charges and policies.",
         hints: [
           { key: "seasons", label: "Seasons", icon: CalendarRange },
           { key: "types", label: "Rate Types", icon: Layers },
