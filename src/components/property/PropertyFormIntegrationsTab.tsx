@@ -19,6 +19,7 @@ import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPayme
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
 import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
