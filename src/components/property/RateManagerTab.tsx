@@ -270,7 +270,7 @@ export function RateManagerTab({
             <TabsTrigger value="charges">Charges</TabsTrigger>
             {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
             <TabsTrigger value="policies">Policies</TabsTrigger>
-            <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>
+            {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>}
             <TabsTrigger value="overview">Overview</TabsTrigger>
             {(isDev || isFearlessLeader) && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
           </TabsList>
