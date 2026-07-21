@@ -623,6 +623,25 @@ function PortfolioPropertyCard({ name, children }: { name: string; children: Rea
   );
 }
 
+/* Per-property white-label panel wrapper — fetches WL state for each portfolio property */
+function PortfolioWhitelabelPanel({ propertyId }: { propertyId: string }) {
+  const wl = useWhitelabel(propertyId);
+  if (!wl.enabled) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        White-label not enabled for this property.
+      </p>
+    );
+  }
+  return (
+    <WhiteLabelDomainPanel
+      propertyId={propertyId}
+      currentDomain={wl.domain}
+      currentStatus={wl.domainStatus}
+    />
+  );
+}
+
 // Re-export needed icons for inline components
 import { Copy, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
