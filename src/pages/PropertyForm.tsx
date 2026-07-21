@@ -7855,11 +7855,18 @@ export default function PropertyForm({
                     Admin-only controls. These settings define what capabilities the property owner sees in ROLOS (white-label, custom payment providers, commission/billing model). Owners never see this tab.
                   </AlertDescription>
                 </Alert>
-                <Tabs defaultValue="billing" className="w-full">
+                <Tabs defaultValue="overview" className="w-full" value={adminSubTab} onValueChange={setAdminSubTab}>
                   <TabsList>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="billing">Billing Config</TabsTrigger>
                     <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="overview" className="mt-3">
+                    <AdminOverviewTab
+                      propertyId={propertyId}
+                      onNavigate={(t) => setAdminSubTab(t)}
+                    />
+                  </TabsContent>
                   <TabsContent value="billing" className="mt-3">
                     <BillingConfigTab propertyId={propertyId} />
                     <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
