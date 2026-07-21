@@ -90,7 +90,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import RichTextEditor from "@/components/RichTextEditor";
 import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Sparkles, Globe, Palette } from "lucide-react";
+import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
+import { BillingConfigTab } from "@/components/property/BillingConfigTab";
+import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
+import { ReferralSection } from "@/components/property/ReferralSection";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
@@ -3755,11 +3758,14 @@ export default function PropertyForm({
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
                 { value: "integrations", icon: Link, label: "Integrations", highlight: false },
+                { value: "admin", icon: ShieldCheck, label: "Admin", highlight: false, highlightAdmin: true, adminOnly: true },
               ]
                 .filter(
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
+                    // Admin-only tab: hidden from owners
+                    if ((tab as any).adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
                     // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
                     // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
                     if (isRolosPms(selectedPMS) && !forceTabs) {
@@ -3773,7 +3779,7 @@ export default function PropertyForm({
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations" || tab.value === "admin";
                     }
                     return true;
                   }
@@ -7836,6 +7842,36 @@ export default function PropertyForm({
                     brand_primary_color: brandingData.brand_primary_color || null
                   }} 
                 />
+              </TabsContent>
+            )}
+
+            {/* Admin Tab - Admin/Dev/FearlessLeader only */}
+            {propertyId && (isAdmin || isDev || isFearlessLeader) && (
+              <TabsContent value="admin" className="space-y-3">
+                <Alert className="border-amber-500/40 bg-amber-500/5">
+                  <ShieldCheck className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-xs">
+                    Admin-only controls. These settings define what capabilities the property owner sees in ROLOS (white-label, custom payment providers, commission/billing model). Owners never see this tab.
+                  </AlertDescription>
+                </Alert>
+                <Tabs defaultValue="billing" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="billing">Billing Config</TabsTrigger>
+                    <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="billing" className="mt-3">
+                    <BillingConfigTab propertyId={propertyId} />
+                    <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
+                  </TabsContent>
+                  <TabsContent value="payment-providers" className="mt-3 p-0">
+                    <PaymentProvidersTab
+                      propertyId={propertyId}
+                      isAdmin={!!isAdmin}
+                      isDev={!!isDev}
+                      isFearlessLeader={!!isFearlessLeader}
+                    />
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
             )}
           </Tabs>

@@ -17,10 +17,7 @@ import { ACCOMMODATION_LABEL_OPTIONS } from "@/lib/accommodationLabels";
 import { AdditionalChargesManager } from "@/components/charges";
 import SeasonsCalendar from "@/components/property/SeasonsCalendar";
 import { SyncRatesDialog } from "@/components/property/SyncRatesDialog";
-import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PoliciesTab } from "@/components/property/PoliciesTab";
-import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
-import { ReferralSection } from "@/components/property/ReferralSection";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -268,9 +265,7 @@ export function RateManagerTab({
             <TabsTrigger value="seasons-calendar">Calendar</TabsTrigger>
             <TabsTrigger value="rate-breakdown">Rate Breakdown</TabsTrigger>
             <TabsTrigger value="charges">Charges</TabsTrigger>
-            {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="billing">Billing</TabsTrigger>}
             <TabsTrigger value="policies">Policies</TabsTrigger>
-            {(isAdmin || isDev || isFearlessLeader) && <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>}
             <TabsTrigger value="overview">Overview</TabsTrigger>
             {(isDev || isFearlessLeader) && <TabsTrigger value="data-explorer">Data Explorer</TabsTrigger>}
           </TabsList>
@@ -905,28 +900,10 @@ export function RateManagerTab({
             </div>
           </TabsContent>
 
-          {/* ── Billing Sub-tab ────────────────────────────────────────────── */}
-          {(isAdmin || isDev || isFearlessLeader) && (
-            <TabsContent value="billing">
-              <BillingConfigTab propertyId={propertyId} onSwitchTab={setActiveTab} />
-              <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
-            </TabsContent>
-          )}
-
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
           <TabsContent value="policies" className="p-6">
             {propertyId && <PoliciesTab propertyId={propertyId} />}
             {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
-          </TabsContent>
-
-          {/* ── Payment Providers Sub-tab ────────────────────────────────── */}
-          <TabsContent value="payment-providers" className="p-0">
-            <PaymentProvidersTab
-              propertyId={propertyId}
-              isAdmin={!!isAdmin}
-              isDev={!!isDev}
-              isFearlessLeader={!!isFearlessLeader}
-            />
           </TabsContent>
 
 
