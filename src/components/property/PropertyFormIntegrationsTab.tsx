@@ -33,6 +33,8 @@ interface PropertyFormIntegrationsTabProps {
 export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegrationsTabProps) {
   const navigate = useNavigate();
   const wl = useWhitelabel(property.id);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
 
   return (
     <div className="space-y-4">
