@@ -706,6 +706,7 @@ export default function PropertyForm({
   const [starRating, setStarRating] = useState(0);
   const [isRolProperty, setIsRolProperty] = useState(false);
   const [isTestProperty, setIsTestProperty] = useState(false);
+  const [adminSubTab, setAdminSubTab] = useState<string>("overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
