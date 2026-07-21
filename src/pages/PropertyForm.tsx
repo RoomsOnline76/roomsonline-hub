@@ -3758,11 +3758,14 @@ export default function PropertyForm({
                 { value: "packages", icon: Package, label: "Packages", highlight: false },
                 { value: "announcements", icon: Bell, label: "Announcements", highlight: false },
                 { value: "integrations", icon: Link, label: "Integrations", highlight: false },
+                { value: "admin", icon: ShieldCheck, label: "Admin", highlight: false, highlightAdmin: true, adminOnly: true },
               ]
                 .filter(
                   (tab) => {
                     // Hide onboarding tab for new properties
                     if (tab.value === "onboarding" && !propertyId) return false;
+                    // Admin-only tab: hidden from owners
+                    if ((tab as any).adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
                     // ROLOS PMS: booking-backend tabs live in /pms/property-setup (source of truth).
                     // Bypass with ?forceTabs=1 (used by the ROLOS setup hub when it embeds these editors).
                     if (isRolosPms(selectedPMS) && !forceTabs) {
@@ -3776,7 +3779,7 @@ export default function PropertyForm({
                     // NightsBridge filtering
                     if (selectedPMS === "nightsbridge") {
                       return tab.value === "general" || tab.value === "rol-spec" || 
-                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations";
+                             tab.value === "branding" || tab.value === "images" || tab.value === "rooms" || tab.value === "rates" || tab.value === "onboarding" || tab.value === "integrations" || tab.value === "admin";
                     }
                     return true;
                   }
