@@ -182,6 +182,10 @@ export default function PMSIntegrations() {
                   <LayoutTemplate className="h-3.5 w-3.5" />
                   Payment
                 </TabsTrigger>
+                <TabsTrigger value="portfolio_domains" className="gap-1.5 text-xs">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Domains
+                </TabsTrigger>
               </TabsList>
 
               {/* Smart Button — per property */}
