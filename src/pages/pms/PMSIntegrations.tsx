@@ -5,7 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks, Building2 } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks, Building2, ShieldCheck } from "lucide-react";
+import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
+import { useWhitelabel } from "@/hooks/useWhitelabel";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
@@ -24,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 export default function PMSIntegrations() {
   const { propertyId, properties, portfolioProperties, portfolioIds, loading: propertyLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
+  const wl = useWhitelabel(propertyId);
 
   const hasPortfolio = showPortfolioToggle;
 
@@ -138,7 +141,7 @@ export default function PMSIntegrations() {
 
             {/* Portfolio Tabs */}
             <Tabs defaultValue="smart_button" className="space-y-4">
-              <TabsList className="grid grid-cols-5 lg:grid-cols-10 w-full max-w-5xl">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-11 w-full max-w-5xl">
                 <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
                   <Sparkles className="h-3.5 w-3.5" />
                   Smart Button
@@ -178,6 +181,10 @@ export default function PMSIntegrations() {
                 <TabsTrigger value="portfolio_payment" className="gap-1.5 text-xs">
                   <LayoutTemplate className="h-3.5 w-3.5" />
                   Payment
+                </TabsTrigger>
+                <TabsTrigger value="portfolio_domains" className="gap-1.5 text-xs">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Domains
                 </TabsTrigger>
               </TabsList>
 
@@ -296,6 +303,20 @@ export default function PMSIntegrations() {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Domains — WL subdomain per property */}
+              <TabsContent value="portfolio_domains" className="space-y-4">
+                <PortfolioPerPropertyCards
+                  title="White-label Subdomains"
+                  description="Configure a custom booking subdomain per property. Only shown when white-label is enabled for that property."
+                >
+                  {(portfolioProperties || []).map((pp) => (
+                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
+                      <PortfolioWhitelabelPanel propertyId={pp.id} />
+                    </PortfolioPropertyCard>
+                  ))}
+                </PortfolioPerPropertyCards>
+              </TabsContent>
             </Tabs>
           </div>
         ) : (
@@ -303,7 +324,7 @@ export default function PMSIntegrations() {
             {/* Single Property Mode — existing behavior */}
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="py-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Badge variant="secondary" className="gap-1.5">
                     <Code2 className="h-3 w-3" />
                     {property.name}
@@ -311,9 +332,22 @@ export default function PMSIntegrations() {
                   <span className="text-sm text-muted-foreground">
                     Slug: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{property.slug}</code>
                   </span>
+                  {wl.enabled && (
+                    <Badge variant="secondary" className="gap-1">
+                      <ShieldCheck className="h-3 w-3" /> White-label mode
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {wl.enabled && (
+              <WhiteLabelDomainPanel
+                propertyId={propertyId}
+                currentDomain={wl.domain}
+                currentStatus={wl.domainStatus}
+              />
+            )}
 
             <GatedPaymentProviderSelect propertyId={propertyId} />
 
@@ -586,6 +620,25 @@ function PortfolioPropertyCard({ name, children }: { name: string; children: Rea
       </h4>
       {children}
     </div>
+  );
+}
+
+/* Per-property white-label panel wrapper — fetches WL state for each portfolio property */
+function PortfolioWhitelabelPanel({ propertyId }: { propertyId: string }) {
+  const wl = useWhitelabel(propertyId);
+  if (!wl.enabled) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        White-label not enabled for this property.
+      </p>
+    );
+  }
+  return (
+    <WhiteLabelDomainPanel
+      propertyId={propertyId}
+      currentDomain={wl.domain}
+      currentStatus={wl.domainStatus}
+    />
   );
 }
 

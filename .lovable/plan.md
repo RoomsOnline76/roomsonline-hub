@@ -1,27 +1,37 @@
+## Problem
+
+`/admin/edit-property/:id` → **Integrations** tab renders the **WhiteLabelDomainPanel** ("Your own booking subdomain" — save/verify DNS, CNAME/A record snippet) and a "White-label mode" badge in the header, both driven by `useWhitelabel(propertyId)`.
+
+`/rolos/integrations` (`src/pages/pms/PMSIntegrations.tsx`) does **not** import `useWhitelabel` or `WhiteLabelDomainPanel` at all, so ROLOS users can't see or configure their own subdomain from the ROLOS shell.
+
 ## Plan
 
-1. **Fix the embedded editor URL**
-   - Change the ROLOS Property Setup iframe from the non-existent `/admin/edit-property/:id` route to the actual editor route `/admin/properties/:id`.
-   - Update the inline documentation/comment so it matches the real route.
+Add the same white-label surface to `PMSIntegrations.tsx`, matching `PropertyFormIntegrationsTab.tsx`:
 
-2. **Fix the “Open full editor” link**
-   - Keep using the required production domain `https://sleepinafrica.roomsonline.co.za`.
-   - Change the path to `/admin/properties/:id?tab=<activeTab>` so it no longer opens a 404.
+1. **Wire up the hook**
+   - Import `useWhitelabel` and call `const wl = useWhitelabel(propertyId)` alongside the existing property query.
 
-3. **Stop iframe remount/reload churn**
-   - Remove the `key={iframeSrc}` remount trigger from the iframe unless it is proven necessary; changing `src` is enough and avoids forced React unmount/mount cycles.
-   - Keep tab clicks updating state + URL in one callback.
+2. **Single-property mode** (the current-route case)
+   - In the property context card (around line 304), add a "White-label mode" `Badge` (ShieldCheck icon) next to the property name when `wl.enabled`.
+   - Directly below that card, render `<WhiteLabelDomainPanel propertyId={propertyId} currentDomain={wl.domain} currentStatus={wl.domainStatus} />` when `wl.enabled` — same conditional as in `PropertyFormIntegrationsTab`.
 
-4. **Preserve URL parameters safely**
-   - Ensure `section` updates do not drop `property` and vice versa.
-   - Avoid mutating the `URLSearchParams` object directly in updater callbacks; clone it before setting values to reduce router-state edge cases.
+3. **Portfolio mode**
+   - Add a new **"Domains"** tab (Globe icon) to the portfolio `TabsList` that renders one `WhiteLabelDomainPanel` per portfolio property inside `PortfolioPerPropertyCards`, so multi-property owners can manage every subdomain in one place. Gated per-property by each property's own `useWhitelabel` result (small inline wrapper component to fetch WL state per card).
 
-5. **Verify with browser automation**
-   - Open `/pms/property-setup` with an authenticated session.
-   - Watch the main URL and iframe document navigations for several seconds.
-   - Confirm the iframe loads `/admin/properties/:id?...` once/stably, not `/admin/edit-property/:id`, and the page no longer repeatedly reloads.
+4. **No behavior changes** to `WhiteLabelDomainPanel`, `useWhitelabel`, or the verify edge function — this is purely surfacing existing functionality in the ROLOS shell.
 
-## Technical notes
+### Files touched
 
-- The reproduced loop is the iframe repeatedly navigating to `/admin/edit-property/<id>?forceTabs=1&embed=1&tab=rates`, which is not registered in `App.tsx`; it hits `NotFound`, logs a 404, then keeps reloading inside the iframe.
-- The actual registered route is `/admin/properties/:id`.
+- `src/pages/pms/PMSIntegrations.tsx` — imports, badge, panel in single mode, new Domains tab in portfolio mode.
+
+### Out of scope
+
+- Any changes to the `/admin/edit-property` Integrations tab (already correct).
+- DNS / verification logic.
+- Payment provider / other tabs (already present in both surfaces).
+
+## Verification
+
+- Load `/rolos/integrations` on a WL-enabled property → "White-label mode" badge + subdomain panel appear, matching `/admin/edit-property/:id` Integrations tab.
+- Load on a non-WL property → panel hidden, no regression.
+- Portfolio toggle → new **Domains** tab lists one panel per WL-enabled sibling.
