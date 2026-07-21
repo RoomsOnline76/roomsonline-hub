@@ -94,6 +94,7 @@ import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-rea
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
 import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
 import { ReferralSection } from "@/components/property/ReferralSection";
+import { AdminOverviewTab } from "@/components/property/AdminOverviewTab";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
 import { BrandingTab, BrandingData } from "@/components/property/BrandingTab";
 import { BrandVoiceCard } from "@/components/property/BrandVoiceCard";
@@ -705,6 +706,7 @@ export default function PropertyForm({
   const [starRating, setStarRating] = useState(0);
   const [isRolProperty, setIsRolProperty] = useState(false);
   const [isTestProperty, setIsTestProperty] = useState(false);
+  const [adminSubTab, setAdminSubTab] = useState<string>("overview");
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [selectedBreakfastOptions, setSelectedBreakfastOptions] = useState<string[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
@@ -7854,11 +7856,18 @@ export default function PropertyForm({
                     Admin-only controls. These settings define what capabilities the property owner sees in ROLOS (white-label, custom payment providers, commission/billing model). Owners never see this tab.
                   </AlertDescription>
                 </Alert>
-                <Tabs defaultValue="billing" className="w-full">
+                <Tabs defaultValue="overview" className="w-full" value={adminSubTab} onValueChange={setAdminSubTab}>
                   <TabsList>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="billing">Billing Config</TabsTrigger>
                     <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="overview" className="mt-3">
+                    <AdminOverviewTab
+                      propertyId={propertyId}
+                      onNavigate={(t) => setAdminSubTab(t)}
+                    />
+                  </TabsContent>
                   <TabsContent value="billing" className="mt-3">
                     <BillingConfigTab propertyId={propertyId} />
                     <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
