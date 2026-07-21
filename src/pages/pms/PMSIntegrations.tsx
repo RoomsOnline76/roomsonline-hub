@@ -306,7 +306,7 @@ export default function PMSIntegrations() {
             {/* Single Property Mode — existing behavior */}
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="py-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <Badge variant="secondary" className="gap-1.5">
                     <Code2 className="h-3 w-3" />
                     {property.name}
@@ -314,9 +314,22 @@ export default function PMSIntegrations() {
                   <span className="text-sm text-muted-foreground">
                     Slug: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">{property.slug}</code>
                   </span>
+                  {wl.enabled && (
+                    <Badge variant="secondary" className="gap-1">
+                      <ShieldCheck className="h-3 w-3" /> White-label mode
+                    </Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
+
+            {wl.enabled && (
+              <WhiteLabelDomainPanel
+                propertyId={propertyId}
+                currentDomain={wl.domain}
+                currentStatus={wl.domainStatus}
+              />
+            )}
 
             <GatedPaymentProviderSelect propertyId={propertyId} />
 
