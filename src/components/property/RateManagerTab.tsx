@@ -903,28 +903,10 @@ export function RateManagerTab({
             </div>
           </TabsContent>
 
-          {/* ── Billing Sub-tab ────────────────────────────────────────────── */}
-          {(isAdmin || isDev || isFearlessLeader) && (
-            <TabsContent value="billing">
-              <BillingConfigTab propertyId={propertyId} onSwitchTab={setActiveTab} />
-              <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
-            </TabsContent>
-          )}
-
           {/* ── Policies Sub-tab ──────────────────────────────────────────── */}
           <TabsContent value="policies" className="p-6">
             {propertyId && <PoliciesTab propertyId={propertyId} />}
             {!propertyId && <p className="text-sm text-muted-foreground">Save the property first to configure policies.</p>}
-          </TabsContent>
-
-          {/* ── Payment Providers Sub-tab ────────────────────────────────── */}
-          <TabsContent value="payment-providers" className="p-0">
-            <PaymentProvidersTab
-              propertyId={propertyId}
-              isAdmin={!!isAdmin}
-              isDev={!!isDev}
-              isFearlessLeader={!!isFearlessLeader}
-            />
           </TabsContent>
 
 
