@@ -19,6 +19,7 @@ import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPayme
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
 import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
 import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PropertyFormIntegrationsTabProps {
   property: {
@@ -32,6 +33,8 @@ interface PropertyFormIntegrationsTabProps {
 export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegrationsTabProps) {
   const navigate = useNavigate();
   const wl = useWhitelabel(property.id);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
 
   return (
     <div className="space-y-4">
@@ -39,7 +42,7 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
       <PushToRentalsUnited propertyId={property.id} propertyName={property.name} />
 
       {/* Payment Provider */}
-      <GatedPaymentProviderSelect propertyId={property.id} />
+      <GatedPaymentProviderSelect propertyId={property.id} bypassGate={isAdmin} />
 
       {/* Header */}
       <Card className="bg-primary/5 border-primary/20">
