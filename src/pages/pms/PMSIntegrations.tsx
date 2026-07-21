@@ -141,7 +141,7 @@ export default function PMSIntegrations() {
 
             {/* Portfolio Tabs */}
             <Tabs defaultValue="smart_button" className="space-y-4">
-              <TabsList className="grid grid-cols-5 lg:grid-cols-10 w-full max-w-5xl">
+              <TabsList className="grid grid-cols-5 lg:grid-cols-11 w-full max-w-5xl">
                 <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
                   <Sparkles className="h-3.5 w-3.5" />
                   Smart Button
