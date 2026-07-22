@@ -191,7 +191,6 @@ async function cfCreateHostname(hostname: string): Promise<CFResult<CFHostname>>
   const body = {
     hostname,
     custom_origin_server: EXPECTED_CNAME_HOSTS[0],
-    custom_origin_sni: EXPECTED_CNAME_HOSTS[0],
     ssl: { method: "http", type: "dv", settings: { min_tls_version: "1.2" } },
   };
   const r = await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames`, {
