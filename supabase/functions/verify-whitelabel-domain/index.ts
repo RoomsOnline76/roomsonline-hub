@@ -27,6 +27,9 @@ const EXPECTED_A_RECORD = "185.158.133.1";
 const CF_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") || "";
 const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
+const ORIGIN_RULESET_PHASE = "http_request_origin";
+const ORIGIN_RULESET_NAME = "RoomsOnline white-label origin routing";
+const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
 
 type Status =
   | "active"
@@ -100,9 +103,95 @@ interface CFResult<T> {
   result?: T;
 }
 
+interface CFRulesetRule {
+  id?: string;
+  ref?: string;
+  expression: string;
+  description?: string;
+  action: string;
+  action_parameters?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+interface CFRuleset {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  phase: string;
+  rules: CFRulesetRule[];
+}
+
+function cfSafeRef(hostname: string): string {
+  return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
+async function cfEnsureOriginRoute(hostname: string): Promise<{ ok: boolean; error: string | null }> {
+  const ref = cfSafeRef(hostname);
+  const desiredRule: CFRulesetRule = {
+    ref,
+    expression: `http.host eq "${hostname}"`,
+    description: `Route ${hostname} to ${EXPECTED_CNAME_HOSTS[0]} for Vercel fallback hosting`,
+    action: "route",
+    action_parameters: {
+      host_header: EXPECTED_CNAME_HOSTS[0],
+      origin: { host: EXPECTED_CNAME_HOSTS[0] },
+    },
+  };
+
+  const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
+  const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
+  if (!listed.success || !listed.result) {
+    return { ok: false, error: `Cloudflare origin routing check failed: ${cfErrorMessage(listed)}` };
+  }
+
+  let ruleset = listed.result.find((r) => r.kind === "zone" && r.phase === ORIGIN_RULESET_PHASE) ?? null;
+  if (!ruleset) {
+    const createdResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`, {
+      method: "POST",
+      body: JSON.stringify({
+        name: ORIGIN_RULESET_NAME,
+        description: "Routes white-label booking domains to the shared Vercel fallback origin.",
+        kind: "zone",
+        phase: ORIGIN_RULESET_PHASE,
+        rules: [desiredRule],
+      }),
+    });
+    const created = (await createdResponse.json()) as CFResult<CFRuleset>;
+    if (!created.success || !created.result) {
+      return { ok: false, error: `Cloudflare origin routing create failed: ${cfErrorMessage(created)}` };
+    }
+    return { ok: true, error: null };
+  }
+
+  const existingRules = Array.isArray(ruleset.rules) ? ruleset.rules : [];
+  const ruleIndex = existingRules.findIndex((r) => r.ref === ref || r.expression === desiredRule.expression);
+  const nextRules = ruleIndex >= 0
+    ? existingRules.map((r, i) => (i === ruleIndex ? { ...r, ...desiredRule } : r))
+    : [...existingRules, desiredRule];
+
+  const updatedResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: ruleset.name || ORIGIN_RULESET_NAME,
+      description: ruleset.description || "Routes white-label booking domains to the shared Vercel fallback origin.",
+      kind: "zone",
+      phase: ORIGIN_RULESET_PHASE,
+      rules: nextRules,
+    }),
+  });
+  const updated = (await updatedResponse.json()) as CFResult<CFRuleset>;
+  if (!updated.success || !updated.result) {
+    return { ok: false, error: `Cloudflare origin routing update failed: ${cfErrorMessage(updated)}` };
+  }
+  return { ok: true, error: null };
+}
+
 async function cfCreateHostname(hostname: string): Promise<CFResult<CFHostname>> {
   const body = {
     hostname,
+    custom_origin_server: EXPECTED_CNAME_HOSTS[0],
+    custom_origin_sni: EXPECTED_CNAME_HOSTS[0],
     ssl: { method: "http", type: "dv", settings: { min_tls_version: "1.2" } },
   };
   const r = await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames`, {
@@ -244,8 +333,14 @@ Deno.serve(async (req) => {
           cfHostnameStatus = got.result.status;
           cfSslStatus = got.result.ssl?.status ?? null;
           if (got.result.status === "active" && cfSslStatus === "active") {
-            status = "active";
-            lastError = null;
+            const originRoute = await cfEnsureOriginRoute(normalized);
+            if (originRoute.ok) {
+              status = "active";
+              lastError = null;
+            } else {
+              status = "pending_ssl";
+              lastError = originRoute.error;
+            }
           } else {
             status = "pending_ssl";
             const sslErr = got.result.ssl?.validation_errors?.map((e) => e.message).join("; ") || "";
