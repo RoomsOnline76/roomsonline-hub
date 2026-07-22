@@ -8,7 +8,7 @@ export interface WhitelabelState {
   /** Optional custom subdomain (e.g. `book.mylodge.com`) the property has configured. */
   domain: string | null;
   /** DNS verification status for the domain. */
-  domainStatus: "unconfigured" | "pending" | "active" | "failed";
+  domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   /**
    * The host to use in generated integration URLs.
    * Falls back to `PUBLIC_DOMAIN` when no custom domain is Active.
@@ -98,7 +98,7 @@ export function useWhitelabel(propertyId: string | undefined) {
 
 export interface PortfolioWhitelabelState {
   domain: string | null;
-  domainStatus: "unconfigured" | "pending" | "active" | "failed";
+  domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   host: string;
 }
 

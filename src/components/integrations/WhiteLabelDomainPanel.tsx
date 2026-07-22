@@ -15,7 +15,7 @@ interface WhiteLabelDomainPanelProps {
   propertyId?: string;
   portfolioId?: string;
   currentDomain: string | null;
-  currentStatus: "unconfigured" | "pending" | "active" | "failed";
+  currentStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   /** Scope label rendered in the header. */
   scopeLabel?: string;
   /** Shown as a small inheritance note under the header. */
