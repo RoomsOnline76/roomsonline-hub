@@ -483,7 +483,7 @@ const Dashboard = () => {
       yoyRevpar: calcYoY(revpar, prevRevpar),
       yoyOccupancy: occupancy - prevOccupancy, // Absolute difference for occupancy
     };
-  }, [filteredBookings, filteredPrevYearBookings, properties, dateRange, selectedPropertyId]);
+  }, [filteredBookings, filteredPrevYearBookings, properties, roomsByProperty, dateRange, selectedPropertyId]);
 
   // Property breakdown for pie charts
   const propertyBreakdown = useMemo(() => {
