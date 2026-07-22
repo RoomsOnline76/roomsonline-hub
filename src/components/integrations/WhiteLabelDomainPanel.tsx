@@ -109,7 +109,7 @@ export function WhiteLabelDomainPanel({
     else toast.warning("DNS points elsewhere", { description: "Add the CNAME or A record shown below." });
   }
 
-  const dnsSnippet = `Type: CNAME\nName: ${domain || "book"}\nValue: ${CNAME_TARGET}\n\n— OR (if your DNS provider doesn't allow CNAME at that name) —\n\nType: A\nName: ${domain || "book"}\nValue: ${A_TARGET}`;
+  const dnsSnippet = `Type: CNAME\nName: ${domain || "book"}\nValue: ${CNAME_TARGET}\n\n(SSL is terminated at your CDN / reverse proxy — not on our hosting.)`;
 
   return (
     <Card className="border-primary/30 bg-primary/5">
