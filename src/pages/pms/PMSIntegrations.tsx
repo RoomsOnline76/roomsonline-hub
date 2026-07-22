@@ -637,9 +637,11 @@ function PortfolioDomainsSection({
           portfolioId={portfolioId}
           currentDomain={portfolioWl.domain}
           currentStatus={portfolioWl.domainStatus}
+          lastError={portfolioWl.lastError ?? null}
           scopeLabel="Portfolio booking subdomain"
         />
       )}
+
       <PortfolioPerPropertyCards
         title="Per-property overrides"
         description="Each property inherits the portfolio subdomain. Configure a different one here only if a property should use its own domain."
