@@ -119,6 +119,7 @@ const baseRequestSchema = z.object({
     "backfill_inventory",
     // Static Content
     "get_cancellation_policies",
+    "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
     // UI Configurator
