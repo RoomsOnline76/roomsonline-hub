@@ -89,6 +89,11 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
     ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
     : "";
 
+  // Preview always renders from the canonical published host so it doesn't
+  // depend on the customer's white-label SSL/proxy. The copyable snippets
+  // below keep the WL host so end-user URLs stay branded.
+  const previewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}`;
+
   const wlAttrs = wl.enabled
     ? `\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}`
     : "";
@@ -321,7 +326,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
               height={360}
             >
               <iframe
-                src={embedUrl}
+                src={previewUrl}
                 className="w-full h-full border-none"
                 title="Portfolio preview"
               />

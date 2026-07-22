@@ -109,7 +109,7 @@ export function WhiteLabelDomainPanel({
     else toast.warning("DNS points elsewhere", { description: "Add the CNAME or A record shown below." });
   }
 
-  const dnsSnippet = `Type: CNAME\nName: ${domain || "book"}\nValue: ${CNAME_TARGET}\n\n— OR (if your DNS provider doesn't allow CNAME at that name) —\n\nType: A\nName: ${domain || "book"}\nValue: ${A_TARGET}`;
+  const dnsSnippet = `Type: CNAME\nName: ${domain || "book"}\nValue: ${CNAME_TARGET}\n\n(SSL is terminated at your CDN / reverse proxy — not on our hosting.)`;
 
   return (
     <Card className="border-primary/30 bg-primary/5">
@@ -194,8 +194,10 @@ export function WhiteLabelDomainPanel({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              SSL is provisioned automatically once DNS resolves. Verification usually succeeds within minutes but
-              full propagation can take up to 72 hours. Reach out to support if the status stays Failed after that.
+              Point a CNAME from your branded host to <code className="font-mono">{CNAME_TARGET}</code> and terminate
+              SSL at your own CDN or reverse proxy (Cloudflare, Fastly, nginx, etc.). The widget always loads from the
+              canonical host — your branded domain is only what customers see in the URL. No registration on our
+              hosting is required.
             </p>
           </>
         )}
