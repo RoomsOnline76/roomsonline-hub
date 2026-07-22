@@ -340,6 +340,12 @@ export default function PMSIntegrations() {
                 currentDomain={wl.domain}
                 currentStatus={wl.domainStatus}
                 lastError={wl.lastError ?? null}
+                inherited={!!wl.inherited}
+                inheritedNote={
+                  wl.inherited
+                    ? `This subdomain is inherited from the parent portfolio. To change or remove it, open the portfolio's Integrations → Domains tab.`
+                    : undefined
+                }
               />
             )}
 

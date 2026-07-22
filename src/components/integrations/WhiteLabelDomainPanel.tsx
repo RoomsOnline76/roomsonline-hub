@@ -29,6 +29,8 @@ interface WhiteLabelDomainPanelProps {
   inheritedNote?: string;
   readOnly?: boolean;
   lastError?: string | null;
+  /** True when currentDomain/status is inherited from a parent portfolio and cannot be edited here. */
+  inherited?: boolean;
 }
 
 const CNAME_TARGET = "fallback.roomsonline.co.za";
@@ -51,7 +53,9 @@ export function WhiteLabelDomainPanel({
   inheritedNote,
   readOnly = false,
   lastError,
+  inherited = false,
 }: WhiteLabelDomainPanelProps) {
+  const effectiveReadOnly = readOnly || inherited;
   const [domain, setDomain] = useState(currentDomain || "");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -283,13 +287,13 @@ export function WhiteLabelDomainPanel({
               onChange={(e) => setDomain(e.target.value)}
               placeholder="book.yourhotel.com"
               className="h-9"
-              disabled={readOnly}
+              disabled={effectiveReadOnly}
             />
           </div>
-          <Button size="sm" variant="outline" onClick={save} disabled={saving || readOnly}>
+          <Button size="sm" variant="outline" onClick={save} disabled={saving || effectiveReadOnly}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
           </Button>
-          <Button size="sm" onClick={verify} disabled={verifying || !domain || readOnly}>
+          <Button size="sm" onClick={verify} disabled={verifying || !domain || effectiveReadOnly}>
             {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
             Verify
           </Button>
@@ -356,7 +360,7 @@ export function WhiteLabelDomainPanel({
           </>
         )}
 
-        {(currentDomain || domain) && !readOnly && (
+        {(currentDomain || domain) && !effectiveReadOnly && (
           <div className="flex justify-end">
             <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={() => setConfirmRemove(true)} disabled={removing}>
               {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
