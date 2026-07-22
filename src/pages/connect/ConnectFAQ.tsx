@@ -17,7 +17,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "What is ROL'OS?",
-        a: "ROL'OS (Rooms Online Operating System) is a native property management system and booking engine built specifically for the African hospitality market. It provides a complete REST API with 40+ actions, WordPress integration, embeddable widgets, and white-label capabilities.",
+        a: "ROL'OS (Rooms Online Operating System) is a native property management system and booking engine built specifically for the African hospitality market. It provides a complete REST API with 50+ actions, WordPress integration, embeddable widgets, and white-label capabilities.",
       },
       {
         q: "Who is ROL'OS for?",
@@ -25,7 +25,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "What PMS systems do you support?",
-        a: "ROL'OS has its own native PMS with full feature coverage. We also have adapters for Hostfully (vacation rentals) and NightsBridge (South African market). Custom adapters can be built using our standardised interface.",
+        a: "ROL'OS ships its own native PMS. We also have first-class adapters for Hostfully (vacation rentals), Benson (South African PMS), and Rentals United (60+ rental channels). Custom adapters can be built using our standardised interface.",
       },
       {
         q: "How is ROL'OS different from other PMS platforms?",
