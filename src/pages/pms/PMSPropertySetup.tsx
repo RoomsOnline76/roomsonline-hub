@@ -237,7 +237,7 @@ export default function PMSPropertySetup() {
               </>
             ) : null}
             Everything the booking engine and guest experience needs — rates, packages, specials,
-            addons, house rules, templates and announcements — lives here.
+            addons, house rules, templates, announcements and contacts — lives here.
           </p>
         </div>
       </header>
