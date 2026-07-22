@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { storagePath, minAge, maxAge } = await req.json();
+    const { storagePath, requestId, minAge, maxAge } = await req.json();
 
     if (!storagePath) {
       return new Response(JSON.stringify({ error: "storagePath is required" }), {
@@ -27,6 +27,43 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Validate the upload session if a request id is provided
+    if (requestId) {
+      const { data: request, error: requestError } = await supabase
+        .from("verification_requests")
+        .select("id, status, expires_at, storage_path")
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (requestError || !request) {
+        return new Response(JSON.stringify({ error: "Invalid verification request" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (request.status !== "pending" && request.status !== "uploaded") {
+        return new Response(JSON.stringify({ error: "Verification request already processed" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (new Date(request.expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Verification request expired" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (request.storage_path !== storagePath) {
+        return new Response(JSON.stringify({ error: "Storage path does not match request" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const { data: fileData, error: downloadError } = await supabase.storage
       .from("id-verifications")
