@@ -117,6 +117,10 @@ const baseRequestSchema = z.object({
     "update_inventory",
     "check_inventory",
     "backfill_inventory",
+    // Static Content
+    "get_cancellation_policies",
+    "get_payment_methods",
+    "get_property_contact_details",
     // UI Configurator
     "get_ui_config",
     // Webhooks
