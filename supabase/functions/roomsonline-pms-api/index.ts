@@ -140,6 +140,7 @@ const baseRequestSchema = z.object({
 const staticContentSchema = baseRequestSchema.extend({
   action: z.enum([
     "get_cancellation_policies",
+    "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
   ]),
