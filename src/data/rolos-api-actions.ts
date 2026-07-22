@@ -25,6 +25,7 @@ export const API_CATEGORIES = [
   { key: "reservations", label: "Reservations", icon: "🛎️" },
   { key: "rooms", label: "Rooms & Room Types", icon: "🏠" },
   { key: "rates", label: "Rates & Pricing", icon: "💰" },
+  { key: "static_content", label: "Static Content", icon: "📚" },
   { key: "guests", label: "Guest CRM", icon: "👤" },
   { key: "folios", label: "Folios & Billing", icon: "📄" },
   { key: "housekeeping", label: "Housekeeping", icon: "🧹" },
