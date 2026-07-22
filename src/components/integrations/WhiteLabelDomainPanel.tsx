@@ -358,12 +358,29 @@ export function WhiteLabelDomainPanel({
 
         {(currentDomain || domain) && !readOnly && (
           <div className="flex justify-end">
-            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={remove} disabled={removing}>
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={() => setConfirmRemove(true)} disabled={removing}>
               {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               Remove custom domain
             </Button>
           </div>
         )}
+
+        <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove custom booking subdomain?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Guests will fall back to the canonical booking URL. You can re-add the domain at any time.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={remove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Remove domain
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
