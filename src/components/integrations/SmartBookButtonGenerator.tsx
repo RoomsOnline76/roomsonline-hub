@@ -228,7 +228,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
     }
 
     return "";
-  }, [solutionType, platform, bookingUrl, embedUrl, target, inlineStyles, buttonText, buttonColor, size, property.name]);
+  }, [solutionType, platform, bookingUrl, embedUrl, linkTarget, inlineStyles, buttonText, buttonColor, size, targetLabel]);
 
   // Live preview styles
   const previewStyle: React.CSSProperties = useMemo(() => {
