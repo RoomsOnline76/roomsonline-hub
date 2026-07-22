@@ -60,7 +60,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color, payment_providers, payment_provider")
+      .select("id, name, slug, property_type, address, city, country, description, short_description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color, payment_providers, payment_provider, bedrooms, bathrooms, max_guests, timezone")
       .eq("is_active", true)
       .in("id", propertyIds);
 
