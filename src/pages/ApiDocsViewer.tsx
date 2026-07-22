@@ -64,6 +64,14 @@ const API_SECTIONS = [
     ],
   },
   {
+    title: "Static Content",
+    actions: [
+      { method: "POST", action: "get_cancellation_policies", desc: "Get property cancellation policies" },
+      { method: "POST", action: "get_payment_methods", desc: "List accepted payment methods" },
+      { method: "POST", action: "get_property_contact_details", desc: "Get public contact details" },
+    ],
+  },
+  {
     title: "System",
     actions: [
       { method: "POST", action: "get_capabilities", desc: "Get adapter capabilities" },
