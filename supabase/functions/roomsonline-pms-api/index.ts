@@ -511,6 +511,15 @@ Deno.serve(async (req) => {
       case "backfill_inventory":
         result = await handleBackfillInventory(body, supabase);
         break;
+      case "get_cancellation_policies":
+        result = await handleGetCancellationPolicies(body, supabase);
+        break;
+      case "get_payment_methods":
+        result = await handleGetPaymentMethods(body, supabase);
+        break;
+      case "get_property_contact_details":
+        result = await handleGetPropertyContactDetails(body, supabase);
+        break;
       case "get_ui_config":
         result = await handleGetUiConfig(body, supabase);
         break;
