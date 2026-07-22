@@ -305,6 +305,19 @@ Deno.serve(async (req) => {
       originRouteError = originRoute.error;
 
       // 2) Register on Cloudflare if not already, otherwise poll.
+      // Always try to adopt an existing hostname by name first — avoids
+      // duplicate-create errors and self-heals stale IDs after manual edits.
+      if (!hostnameId) {
+        const existing = await cfFindHostnameByName(normalized);
+        if (existing) {
+          hostnameId = existing.id;
+          console.log("[verify-whitelabel-domain] adopted existing Cloudflare hostname", {
+            hostname: normalized,
+            hostname_id: hostnameId,
+          });
+        }
+      }
+
       if (!hostnameId) {
         const created = await cfCreateHostname(normalized);
         if (!created.success || !created.result) {
@@ -319,32 +332,52 @@ Deno.serve(async (req) => {
             ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
             : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
         }
-      } else {
+      }
+
+      if (hostnameId && status !== "failed") {
         const got = await cfGetHostname(hostnameId);
         if (!got.success || !got.result) {
-          // Stale ID or transient — treat as retry-needed.
+          // Stale ID — try to adopt by name and re-fetch.
           const msg = cfErrorMessage(got);
           if (msg.includes("1436") || msg.includes("not found")) {
-            // Recreate.
-            const created = await cfCreateHostname(normalized);
-            if (!created.success || !created.result) {
-              status = "failed";
-              lastError = cfErrorMessage(created);
-              hostnameId = null;
+            const existing = await cfFindHostnameByName(normalized);
+            if (existing) {
+              hostnameId = existing.id;
+              cfHostnameStatus = existing.status;
+              cfSslStatus = existing.ssl?.status ?? null;
+              console.log("[verify-whitelabel-domain] re-adopted after stale ID", {
+                hostname: normalized,
+                hostname_id: hostnameId,
+                hostname_status: cfHostnameStatus,
+                ssl_status: cfSslStatus,
+              });
+              if (cfHostnameStatus === "active" && cfSslStatus === "active") {
+                status = "active";
+                lastError = originRouteError;
+              } else {
+                status = "pending_ssl";
+                lastError = `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
+              }
             } else {
-              hostnameId = created.result.id;
-              cfHostnameStatus = created.result.status;
-              cfSslStatus = created.result.ssl?.status ?? null;
-              status = "pending_ssl";
-              lastError = originRouteError
-                ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
-                : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+              const created = await cfCreateHostname(normalized);
+              if (!created.success || !created.result) {
+                status = "failed";
+                lastError = cfErrorMessage(created);
+                hostnameId = null;
+              } else {
+                hostnameId = created.result.id;
+                cfHostnameStatus = created.result.status;
+                cfSslStatus = created.result.ssl?.status ?? null;
+                status = "pending_ssl";
+                lastError = "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+              }
             }
           } else {
             status = "pending_ssl";
             lastError = `Cloudflare check failed: ${msg}`;
           }
         } else {
+
           cfHostnameStatus = got.result.status;
           cfSslStatus = got.result.ssl?.status ?? null;
           console.log("[verify-whitelabel-domain] Cloudflare hostname raw response", {
