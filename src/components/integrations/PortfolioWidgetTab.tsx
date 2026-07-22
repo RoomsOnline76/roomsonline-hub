@@ -12,7 +12,7 @@ import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshC
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useWhitelabel, usePortfolioWhitelabel } from "@/hooks/useWhitelabel";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface PortfolioWidgetTabProps {
