@@ -53,7 +53,9 @@ export function WhiteLabelDomainPanel({
   inheritedNote,
   readOnly = false,
   lastError,
+  inherited = false,
 }: WhiteLabelDomainPanelProps) {
+  const effectiveReadOnly = readOnly || inherited;
   const [domain, setDomain] = useState(currentDomain || "");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
