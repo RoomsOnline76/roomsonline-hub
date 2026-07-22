@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy } from "lucide-react";
+import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 
 interface WhiteLabelDomainPanelProps {
