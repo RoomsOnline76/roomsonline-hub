@@ -1681,10 +1681,36 @@ async function handleGetRolosRoomTypes(body: any, supabase: any): Promise<Respon
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_rolos_room_types")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  const { data, error } = await supabase.from("rolos_room_types").select("*").eq("property_id", body.propertyId).eq("is_active", true);
+  const [{ data, error }, { data: property }] = await Promise.all([
+    supabase.from("rolos_room_types").select("*").eq("property_id", body.propertyId).eq("is_active", true),
+    supabase.from("properties").select("amenities").eq("id", body.propertyId).maybeSingle(),
+  ]);
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_rolos_room_types")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ room_types: data || [] }, "get_rolos_room_types")),
+
+  const legacyRooms: any[] = Array.isArray(property?.amenities?.room_types) ? property.amenities.room_types : [];
+  const findLegacy = (rt: any) => legacyRooms.find((lr) =>
+    (lr.name && rt.name && String(lr.name).toLowerCase() === String(rt.name).toLowerCase()) ||
+    (lr.id && rt.code && String(lr.id) === String(rt.code))
+  ) || {};
+
+  const enriched = (data || []).map((rt: any) => {
+    const legacy = findLegacy(rt);
+    return {
+      ...rt,
+      standard_occupancy: rt.base_occupancy ?? legacy.maxAdults ?? null,
+      bathrooms: legacy.bathrooms ?? null,
+      bed_configuration: legacy.bedConfiguration ?? null,
+      room_size: legacy.roomSize ?? null,
+      min_stay: legacy.minStay ?? null,
+      max_stay: legacy.maxStay ?? null,
+      max_adults: legacy.maxAdults ?? null,
+      max_children: legacy.maxChildren ?? null,
+      num_rooms: legacy.numRooms ?? null,
+    };
+  });
+
+  return new Response(JSON.stringify(createSuccessResponse({ room_types: enriched }, "get_rolos_room_types")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
