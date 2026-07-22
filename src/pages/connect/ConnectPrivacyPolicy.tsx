@@ -52,7 +52,7 @@ This Privacy Policy explains how we collect, process, store, and protect your in
       {
         subtitle: "2.3 Data from Third Parties",
         items: [
-          "PMS platform data synced via authorised integrations (Hostfully, NightsBridge, Benson)",
+          "PMS platform data synced via authorised integrations (Hostfully, Benson, Rentals United)",
           "Payment processor confirmations and settlement data",
           "Publicly available business information for property verification",
         ],
