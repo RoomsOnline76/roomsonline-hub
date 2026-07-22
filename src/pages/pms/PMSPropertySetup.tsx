@@ -293,14 +293,18 @@ export default function PMSPropertySetup() {
           ))}
         </nav>
 
-        {/* Editor pane — inline embedded PropertyForm */}
+        {/* Editor pane — inline embedded PropertyForm, or standalone contacts editor */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
-          <PropertyForm
-            embeddedPropertyId={propertyId}
-            embeddedInitialTab={activeTab}
-            embeddedOverride={true}
-            forceTabsOverride={true}
-          />
+          {activeTab === "contacts" ? (
+            <PropertyContactDetails propertyId={propertyId} />
+          ) : (
+            <PropertyForm
+              embeddedPropertyId={propertyId}
+              embeddedInitialTab={activeTab}
+              embeddedOverride={true}
+              forceTabsOverride={true}
+            />
+          )}
         </div>
       </div>
 
