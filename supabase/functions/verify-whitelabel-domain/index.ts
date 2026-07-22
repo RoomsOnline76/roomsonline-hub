@@ -205,6 +205,14 @@ async function cfGetHostname(id: string): Promise<CFResult<CFHostname>> {
   return await r.json();
 }
 
+async function cfFindHostnameByName(hostname: string): Promise<CFHostname | null> {
+  const r = await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames?hostname=${encodeURIComponent(hostname)}`);
+  const json = (await r.json()) as CFResult<CFHostname[]>;
+  if (!json.success || !json.result || json.result.length === 0) return null;
+  return json.result.find((h) => h.hostname.toLowerCase() === hostname.toLowerCase()) ?? json.result[0];
+}
+
+
 function cfErrorMessage(res: CFResult<unknown>): string {
   if (!res.errors?.length) return "Unknown Cloudflare error";
   return res.errors.map((e) => `[${e.code}] ${e.message}`).join("; ");
@@ -297,6 +305,19 @@ Deno.serve(async (req) => {
       originRouteError = originRoute.error;
 
       // 2) Register on Cloudflare if not already, otherwise poll.
+      // Always try to adopt an existing hostname by name first — avoids
+      // duplicate-create errors and self-heals stale IDs after manual edits.
+      if (!hostnameId) {
+        const existing = await cfFindHostnameByName(normalized);
+        if (existing) {
+          hostnameId = existing.id;
+          console.log("[verify-whitelabel-domain] adopted existing Cloudflare hostname", {
+            hostname: normalized,
+            hostname_id: hostnameId,
+          });
+        }
+      }
+
       if (!hostnameId) {
         const created = await cfCreateHostname(normalized);
         if (!created.success || !created.result) {
@@ -311,42 +332,70 @@ Deno.serve(async (req) => {
             ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
             : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
         }
-      } else {
+      }
+
+      if (hostnameId && status !== "failed") {
         const got = await cfGetHostname(hostnameId);
         if (!got.success || !got.result) {
-          // Stale ID or transient — treat as retry-needed.
+          // Stale ID — try to adopt by name and re-fetch.
           const msg = cfErrorMessage(got);
           if (msg.includes("1436") || msg.includes("not found")) {
-            // Recreate.
-            const created = await cfCreateHostname(normalized);
-            if (!created.success || !created.result) {
-              status = "failed";
-              lastError = cfErrorMessage(created);
-              hostnameId = null;
+            const existing = await cfFindHostnameByName(normalized);
+            if (existing) {
+              hostnameId = existing.id;
+              cfHostnameStatus = existing.status;
+              cfSslStatus = existing.ssl?.status ?? null;
+              console.log("[verify-whitelabel-domain] re-adopted after stale ID", {
+                hostname: normalized,
+                hostname_id: hostnameId,
+                hostname_status: cfHostnameStatus,
+                ssl_status: cfSslStatus,
+              });
+              if (cfHostnameStatus === "active" && cfSslStatus === "active") {
+                status = "active";
+                lastError = originRouteError;
+              } else {
+                status = "pending_ssl";
+                lastError = `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
+              }
             } else {
-              hostnameId = created.result.id;
-              cfHostnameStatus = created.result.status;
-              cfSslStatus = created.result.ssl?.status ?? null;
-              status = "pending_ssl";
-              lastError = originRouteError
-                ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
-                : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+              const created = await cfCreateHostname(normalized);
+              if (!created.success || !created.result) {
+                status = "failed";
+                lastError = cfErrorMessage(created);
+                hostnameId = null;
+              } else {
+                hostnameId = created.result.id;
+                cfHostnameStatus = created.result.status;
+                cfSslStatus = created.result.ssl?.status ?? null;
+                status = "pending_ssl";
+                lastError = "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+              }
             }
           } else {
             status = "pending_ssl";
             lastError = `Cloudflare check failed: ${msg}`;
           }
         } else {
+
           cfHostnameStatus = got.result.status;
           cfSslStatus = got.result.ssl?.status ?? null;
+          console.log("[verify-whitelabel-domain] Cloudflare hostname raw response", {
+            hostname: normalized,
+            hostname_id: hostnameId,
+            hostname_status: cfHostnameStatus,
+            ssl_status: cfSslStatus,
+            ssl_validation_errors: got.result.ssl?.validation_errors ?? null,
+            verification_errors: got.result.verification_errors ?? null,
+            origin_route_error: originRouteError,
+          });
           if (got.result.status === "active" && cfSslStatus === "active") {
-            if (!originRouteError) {
-              status = "active";
-              lastError = null;
-            } else {
-              status = "pending_ssl";
-              lastError = originRouteError;
-            }
+            // Cert is live. Origin routing via a Rulesets rule is a nice-to-have
+            // (needs a Rulesets:Edit token); the custom_origin_server on the
+            // hostname already points CF at the fallback origin, so treat the
+            // domain as active and surface any routing error as a soft warning.
+            status = "active";
+            lastError = originRouteError;
           } else {
             status = "pending_ssl";
             const sslErr = got.result.ssl?.validation_errors?.map((e) => e.message).join("; ") || "";
@@ -359,6 +408,7 @@ Deno.serve(async (req) => {
                 : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
           }
         }
+
       }
     }
 
