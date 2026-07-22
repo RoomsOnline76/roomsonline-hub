@@ -29,6 +29,8 @@ interface WhiteLabelDomainPanelProps {
   inheritedNote?: string;
   readOnly?: boolean;
   lastError?: string | null;
+  /** True when currentDomain/status is inherited from a parent portfolio and cannot be edited here. */
+  inherited?: boolean;
 }
 
 const CNAME_TARGET = "fallback.roomsonline.co.za";
