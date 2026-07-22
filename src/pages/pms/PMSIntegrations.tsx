@@ -354,7 +354,8 @@ export default function PMSIntegrations() {
             <GatedPaymentProviderSelect propertyId={propertyId} />
 
             <Tabs defaultValue="smart_button" className="space-y-4">
-              <TabsList className="grid grid-cols-9 w-full max-w-5xl">
+              <div className="overflow-x-auto -mx-1 px-1 pb-1">
+                <TabsList className="inline-flex w-max min-w-full">
                 <TabsTrigger value="smart_button" className="gap-1.5 text-xs relative smart-button-tab">
                   <Sparkles className="h-3.5 w-3.5" />
                   Smart Button
@@ -395,7 +396,8 @@ export default function PMSIntegrations() {
                   <Building2 className="h-3.5 w-3.5" />
                   Portfolio
                 </TabsTrigger>
-              </TabsList>
+                </TabsList>
+              </div>
 
               <TabsContent value="smart_button" className="space-y-4">
                 <SmartBookButtonGenerator property={property} />
