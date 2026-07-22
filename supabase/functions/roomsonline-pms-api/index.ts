@@ -136,6 +136,15 @@ const baseRequestSchema = z.object({
   offset: z.number().int().min(0).optional(),
 });
 
+const staticContentSchema = baseRequestSchema.extend({
+  action: z.enum([
+    "get_cancellation_policies",
+    "get_payment_methods",
+    "get_property_contact_details",
+  ]),
+  propertyId: z.string().uuid(),
+});
+
 const fetchAvailabilitySchema = baseRequestSchema.extend({
   action: z.literal("fetch_availability"),
   propertyId: z.string().uuid(),
