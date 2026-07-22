@@ -200,7 +200,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
   <iframe 
     src="${embedUrl}" 
     style="width:100%;min-height:700px;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);"
-    title="Book ${property.name}"
+    title="Book ${targetLabel}"
     loading="lazy"
     allow="payment">
   </iframe>
