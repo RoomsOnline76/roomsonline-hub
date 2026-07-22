@@ -2,7 +2,22 @@ import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, CheckCircle2 } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Building2,
+  Home,
+  Landmark,
+  Network,
+  Wrench,
+  Sparkles,
+  Calendar,
+  CreditCard,
+  FileText,
+  MapPin,
+  Image as ImageIcon,
+  ShieldCheck,
+} from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
@@ -13,6 +28,7 @@ const INTEGRATIONS = [
   {
     name: "ROL'OS Native",
     status: "Full Feature Set",
+    icon: Sparkles,
     desc: "The complete PMS experience. All 40+ API actions, housekeeping, folios, night audit, guest CRM, channel management, and revenue analytics.",
     features: ["All API actions", "Real-time sync", "Housekeeping", "Folios", "Night audit", "Guest CRM"],
     badge: "Recommended",
@@ -20,48 +36,42 @@ const INTEGRATIONS = [
   {
     name: "Hostfully",
     status: "Vacation Rentals",
+    icon: Home,
     desc: "For vacation rental managers using Hostfully. Syncs property listings, availability, and reservations with automatic room type mapping.",
     features: ["Property sync", "Availability", "Reservations", "Room types", "Image sideloading"],
   },
   {
-    name: "NightsBridge",
-    status: "South African Market",
-    desc: "Native integration with NightsBridge for the South African hospitality market. Booking session tracking and revenue attribution.",
-    features: ["Booking sessions", "Revenue tracking", "Agent codes", "Currency support"],
+    name: "Benson",
+    status: "South African PMS",
+    icon: Landmark,
+    desc: "Native adapter for Benson-powered properties. Canonical rate hydration, 45-day rolling availability window, and background sync keep inventory live without hammering the source.",
+    features: ["Rate hydration", "Availability window", "Reservation sync", "Room type mapping", "Background caching"],
+  },
+  {
+    name: "Rentals United",
+    status: "60+ Rental Channels",
+    icon: Network,
+    desc: "XML-based adapter for vacation rental distribution. Connect to Airbnb, Vrbo, and 60+ rental channels through a single standardised integration.",
+    features: ["XML adapter", "Property sync", "Availability", "Dynamic pricing", "Reservations"],
   },
   {
     name: "Custom Adapter",
     status: "Build Your Own",
+    icon: Wrench,
     desc: "The ROL'OS API follows an adapter pattern. Build a custom adapter for any PMS using our standardised interface and documentation.",
     features: ["Adapter pattern", "Standardised interface", "Full documentation", "Technical support"],
   },
 ];
 
-const DISTRIBUTION_CHANNELS = [
-  {
-    name: "HyperGuest",
-    flow: "ROL'OS → HyperGuest → OTAs",
-    desc: "PULL-model distribution channel connecting your inventory to Booking.com, Expedia, and other major OTAs via HyperGuest's connectivity hub.",
-    features: ["Live availability", "Prebook validation", "Reservation sync", "Static data push", "Multi-OTA reach"],
-  },
-  {
-    name: "HotelBeds",
-    flow: "ROL'OS → HotelBeds → Bedbank Network",
-    desc: "Global bedbank distribution. Push rates and inventory to HotelBeds' network of 60,000+ travel buyers worldwide.",
-    features: ["Rate distribution", "Inventory push", "Multi-currency", "Global reach", "B2B network"],
-  },
-  {
-    name: "Rentals United",
-    flow: "ROL'OS → Rentals United → 60+ Channels",
-    desc: "XML-based adapter for vacation rental distribution. Connect to Airbnb, Vrbo, and 60+ rental channels through a single integration.",
-    features: ["XML adapter", "Property sync", "Availability", "Dynamic pricing", "Reservations"],
-  },
-  {
-    name: "ProfitRoom",
-    flow: "ROL'OS → ProfitRoom → CRS & Engine",
-    desc: "Central reservation system and booking engine integration. Sync rate plans and availability with ProfitRoom's hotel commerce platform.",
-    features: ["Booking engine", "Channel manager", "Rate plans", "Availability sync", "Revenue tools"],
-  },
+const API_CAPABILITIES = [
+  { icon: Building2, title: "Property & Rooms", desc: "Static content, room types, bed configs, capacities and amenities." },
+  { icon: ImageIcon, title: "Media", desc: "Property and room images with automatic fallback pooling." },
+  { icon: Calendar, title: "Rates & Availability", desc: "Live inventory, seasonal rates, and multi-plan pricing." },
+  { icon: ShieldCheck, title: "Policies", desc: "Authored cancellation and reservation policies with rate-plan links." },
+  { icon: CreditCard, title: "Payment Methods", desc: "Configured gateways per property, ready for checkout." },
+  { icon: FileText, title: "Bookings", desc: "Create, modify and cancel reservations through a single contract." },
+  { icon: MapPin, title: "Location & Contacts", desc: "Geo, address, check-in instructions and reception details." },
+  { icon: Sparkles, title: "Guest Experience", desc: "Reviews, specials, add-ons and journey-ready content." },
 ];
 
 const ADAPTER_STEPS = [
@@ -82,14 +92,15 @@ export default function ConnectIntegrations() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="text-4xl sm:text-5xl font-bold tracking-tight"
           >
-            Works With Your PMS
+            One API. Every PMS.
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            ROL'OS uses an adapter pattern that normalises data from any PMS into a unified API. One integration, consistent output.
+            ROL'OS uses an adapter pattern that normalises data from any PMS into a unified API.
+            One integration, consistent output — regardless of the system behind it.
           </motion.p>
         </div>
       </section>
@@ -121,80 +132,84 @@ export default function ConnectIntegrations() {
         </div>
       </section>
 
-      {/* Distribution Channels */}
+      {/* Native PMS Integrations */}
       <section className="py-20 border-b">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold">Distribution &amp; Channel Partners</h2>
+            <h2 className="text-2xl font-bold">Native PMS Integrations</h2>
             <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
-              These partners extend your reach to global OTAs and distribution networks. ROL'OS connects to them — they connect you to the world.
+              Purpose-built adapters that map every PMS into the same clean, predictable API surface.
             </p>
           </div>
           <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {DISTRIBUTION_CHANNELS.map((channel) => (
-              <motion.div
-                key={channel.name}
-                variants={fadeUp}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-xl border bg-accent/30 p-6 relative"
-              >
-                <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground font-medium">
-                  Distribution
-                </span>
-                <h3 className="text-lg font-semibold">{channel.name}</h3>
-                <p className="text-xs text-primary font-medium mt-1 tracking-wide">{channel.flow}</p>
-                <p className="text-sm text-muted-foreground mt-3 mb-4">{channel.desc}</p>
-                <ul className="space-y-1.5">
-                  {channel.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
+            {INTEGRATIONS.map((integration) => {
+              const Icon = integration.icon;
+              return (
+                <motion.div
+                  key={integration.name}
+                  variants={fadeUp}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  className="rounded-xl border bg-card p-6 relative flex flex-col"
+                >
+                  {integration.badge && (
+                    <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                      {integration.badge}
+                    </span>
+                  )}
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-semibold">{integration.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{integration.status}</p>
+                  <p className="text-sm text-muted-foreground mt-3 mb-4">{integration.desc}</p>
+                  <ul className="space-y-1.5 mt-auto">
+                    {integration.features.map((f) => (
+                      <li key={f} className="flex items-center gap-2 text-sm">
+                        <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </div>
       </section>
 
-      {/* Integration cards */}
-      <section className="py-20">
+      {/* What You Get */}
+      <section className="py-20 border-b bg-accent/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-bold">What You Get Through The Unified API</h2>
+            <p className="mt-3 text-muted-foreground max-w-2xl mx-auto">
+              Every adapter delivers the same core building blocks — so anything you build on ROL'OS works across every connected PMS.
+            </p>
+          </div>
           <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
-            variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 gap-6"
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
+            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
           >
-            {INTEGRATIONS.map((integration) => (
-              <motion.div
-                key={integration.name}
-                variants={fadeUp}
-                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-xl border bg-card p-6 relative"
-              >
-                {integration.badge && (
-                  <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                    {integration.badge}
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold">{integration.name}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{integration.status}</p>
-                <p className="text-sm text-muted-foreground mt-3 mb-4">{integration.desc}</p>
-                <ul className="space-y-1.5">
-                  {integration.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm">
-                      <Check className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </motion.div>
-            ))}
+            {API_CAPABILITIES.map((cap) => {
+              const Icon = cap.icon;
+              return (
+                <motion.div
+                  key={cap.title}
+                  variants={fadeUp}
+                  transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                  className="rounded-lg border bg-card p-5"
+                >
+                  <Icon className="h-5 w-5 text-primary mb-3" />
+                  <h3 className="font-semibold text-sm">{cap.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">{cap.desc}</p>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </div>
       </section>
