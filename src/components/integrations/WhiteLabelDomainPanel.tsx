@@ -92,6 +92,29 @@ export function WhiteLabelDomainPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProvisioning, domain, portfolioId, propertyId]);
 
+  // One-shot migration: legacy `dns_ok_tls_pending` rows were written by the
+  // pre-Cloudflare-for-SaaS verifier. Re-invoke verify on mount so they either
+  // flip to `active` (cert already live) or move into the new `pending_ssl`
+  // lifecycle without the user needing to click.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current) return;
+    if (currentStatus !== "dns_ok_tls_pending") return;
+    const clean = (currentDomain || "").trim().toLowerCase();
+    if (!clean) return;
+    migratedRef.current = true;
+    const body: Record<string, string> = { domain: clean };
+    if (portfolioId) body.portfolio_id = portfolioId;
+    else if (propertyId) body.property_id = propertyId;
+    supabase.functions.invoke("verify-whitelabel-domain", { body })
+      .then(({ data }) => {
+        setLiveError((data as any)?.last_error ?? null);
+        invalidate();
+      })
+      .catch(() => { /* silent — user can click Verify manually */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStatus, currentDomain, portfolioId, propertyId]);
+
   function invalidate() {
     if (portfolioId) qc.invalidateQueries({ queryKey: ["whitelabel-portfolio", portfolioId] });
     if (propertyId) qc.invalidateQueries({ queryKey: ["whitelabel", propertyId] });
