@@ -117,7 +117,7 @@ export default function ApiDocsViewer() {
                 Rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-*</code>) are included on every response.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio_id=&lt;id&gt;&include_static_content=true</code> returns cancellation policies, payment methods and contacts alongside properties.
+                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio=&lt;slug&gt;&amp;include_static_content=true</code> returns <code className="bg-muted px-1 rounded">cancellation_policies</code>, <code className="bg-muted px-1 rounded">reservation_policies</code>, <code className="bg-muted px-1 rounded">policy_rate_plan_links</code>, <code className="bg-muted px-1 rounded">payment_methods</code> and <code className="bg-muted px-1 rounded">contacts</code> on each property.
               </p>
             </CardContent>
           </Card>
