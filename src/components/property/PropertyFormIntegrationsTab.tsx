@@ -81,8 +81,10 @@ export function PropertyFormIntegrationsTab({ property }: PropertyFormIntegratio
           propertyId={property.id}
           currentDomain={wl.domain}
           currentStatus={wl.domainStatus}
+          lastError={wl.lastError ?? null}
         />
       )}
+
 
       {/* Integration Tabs */}
       <Tabs defaultValue="smart_button" className="space-y-4">
