@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
+import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import {
   BedDouble,
   ListChecks,
   Image as ImageIcon,
+  Phone,
 } from "lucide-react";
 
 
