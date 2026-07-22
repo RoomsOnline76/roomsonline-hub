@@ -105,7 +105,7 @@ export function useWhitelabel(propertyId: string | undefined) {
 
 export interface PortfolioWhitelabelState {
   domain: string | null;
-  domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
+  domainStatus: "unconfigured" | "pending" | "pending_ssl" | "active" | "failed" | "dns_ok_tls_pending";
   host: string;
   lastError?: string | null;
 }
