@@ -2548,6 +2548,170 @@ async function handleGetUiConfig(body: any, supabase: any): Promise<Response> {
 }
 
 // ============================================================================
+// STATIC CONTENT HANDLERS
+// ============================================================================
+
+// deno-lint-ignore no-explicit-any
+async function handleGetCancellationPolicies(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_cancellation_policies")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: policies, error } = await supabase
+    .from("rolos_reservation_policies")
+    .select("id, name, kind, rule, is_default, created_at, updated_at")
+    .eq("property_id", propertyId)
+    .order("is_default", { ascending: false });
+
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_cancellation_policies")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  let fallbackText: string | null = null;
+  if (!policies || policies.length === 0) {
+    const { data: hostfullyRoom } = await supabase
+      .from("hostfully_room_types")
+      .select("cancellation_policy")
+      .eq("property_id", propertyId)
+      .not("cancellation_policy", "is", null)
+      .limit(1)
+      .maybeSingle();
+    fallbackText = hostfullyRoom?.cancellation_policy || null;
+  }
+
+  const formatted = (policies || []).map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    kind: p.kind,
+    is_default: p.is_default,
+    rule: p.rule,
+    description: typeof p.rule === "object" && p.rule?.description ? p.rule.description : null,
+  }));
+
+  return new Response(
+    JSON.stringify(createSuccessResponse({ policies: formatted, fallback_text: fallbackText }, "get_cancellation_policies")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetPaymentMethods(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_payment_methods")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: property, error: propertyError } = await supabase
+    .from("properties")
+    .select("payment_providers, payment_provider, allow_custom_payment_provider")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (propertyError) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, propertyError.message, "get_payment_methods")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  if (!property) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", "get_payment_methods")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  }
+
+  const keys = Array.isArray(property.payment_providers) && property.payment_providers.length > 0
+    ? property.payment_providers
+    : property.payment_provider
+      ? [property.payment_provider]
+      : [];
+
+  const { data: registry, error: registryError } = await supabase
+    .from("payment_gateway_registry")
+    .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url")
+    .in("gateway_key", keys.length > 0 ? keys : ["__none__"]);
+
+  if (registryError) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, registryError.message, "get_payment_methods")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  const registryMap = new Map((registry || []).map((r: any) => [r.gateway_key, r]));
+
+  const methods = keys.map((key: string) => {
+    const reg = registryMap.get(key);
+    return {
+      key,
+      name: reg?.display_name || key,
+      methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
+      currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
+      countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
+      is_active: reg?.is_active ?? true,
+      website_url: reg?.website_url || null,
+    };
+  });
+
+  return new Response(
+    JSON.stringify(createSuccessResponse({ payment_methods: methods, allow_custom_payment_provider: !!property.allow_custom_payment_provider }, "get_payment_methods")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetPropertyContactDetails(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_property_contact_details")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: contacts, error } = await supabase
+    .from("property_contact_details")
+    .select("id, role, name, email, phone, hours, sort_order")
+    .eq("property_id", propertyId)
+    .eq("is_public", true)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_property_contact_details")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  let mergedContacts = contacts || [];
+
+  // Fallback: if no reception/manager row exists but amenities.contact_email is present, surface it
+  if (!mergedContacts.some((c: any) => ["reception", "manager", "concierge"].includes(c.role))) {
+    const { data: property } = await supabase
+      .from("properties")
+      .select("amenities")
+      .eq("id", propertyId)
+      .maybeSingle();
+
+    const contactEmail = property?.amenities?.contact_email || property?.amenities?.email;
+    if (contactEmail) {
+      mergedContacts = [
+        {
+          id: "fallback",
+          role: "reception",
+          name: property?.amenities?.contact_name || null,
+          email: contactEmail,
+          phone: property?.amenities?.contact_phone || null,
+          hours: property?.amenities?.reception_hours || null,
+          sort_order: 0,
+        },
+        ...mergedContacts,
+      ];
+    }
+  }
+
+  return new Response(
+    JSON.stringify(createSuccessResponse({ contacts: mergedContacts }, "get_property_contact_details")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+// ============================================================================
 // WEBHOOK HELPERS & HANDLERS
 // ============================================================================
 
