@@ -2703,7 +2703,7 @@ async function handleGetPaymentMethods(body: any, supabase: any): Promise<Respon
 
   const { data: registry, error: registryError } = await supabase
     .from("payment_gateway_registry")
-    .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url")
+    .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url, edge_function_name, docs_url")
     .in("gateway_key", keys.length > 0 ? keys : ["__none__"]);
 
   if (registryError) {
@@ -2717,12 +2717,15 @@ async function handleGetPaymentMethods(body: any, supabase: any): Promise<Respon
     const reg = registryMap.get(key);
     return {
       key,
+      logo_key: key,
       name: reg?.display_name || key,
       methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
       currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
       countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
       is_active: reg?.is_active ?? true,
       website_url: reg?.website_url || null,
+      docs_url: reg?.docs_url || null,
+      edge_function_name: reg?.edge_function_name || null,
     };
   });
 
