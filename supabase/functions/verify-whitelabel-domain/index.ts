@@ -282,6 +282,7 @@ Deno.serve(async (req) => {
     let hostnameId: string | null = existingHostnameId;
     let cfHostnameStatus: string | null = null;
     let cfSslStatus: string | null = null;
+    let originRouteError: string | null = null;
 
     if (!dnsOk) {
       if (dnsMissing) {
@@ -292,6 +293,9 @@ Deno.serve(async (req) => {
         lastError = `DNS points elsewhere (CNAME: ${cnameTargets.join(", ") || "none"}, A: ${ips.join(", ") || "none"}).`;
       }
     } else {
+      const originRoute = await cfEnsureOriginRoute(normalized);
+      originRouteError = originRoute.error;
+
       // 2) Register on Cloudflare if not already, otherwise poll.
       if (!hostnameId) {
         const created = await cfCreateHostname(normalized);
@@ -303,7 +307,9 @@ Deno.serve(async (req) => {
           cfHostnameStatus = created.result.status;
           cfSslStatus = created.result.ssl?.status ?? null;
           status = "pending_ssl";
-          lastError = "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+          lastError = originRouteError
+            ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
+            : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
         }
       } else {
         const got = await cfGetHostname(hostnameId);
@@ -322,7 +328,9 @@ Deno.serve(async (req) => {
               cfHostnameStatus = created.result.status;
               cfSslStatus = created.result.ssl?.status ?? null;
               status = "pending_ssl";
-              lastError = "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
+              lastError = originRouteError
+                ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
+                : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
             }
           } else {
             status = "pending_ssl";
@@ -332,13 +340,12 @@ Deno.serve(async (req) => {
           cfHostnameStatus = got.result.status;
           cfSslStatus = got.result.ssl?.status ?? null;
           if (got.result.status === "active" && cfSslStatus === "active") {
-            const originRoute = await cfEnsureOriginRoute(normalized);
-            if (originRoute.ok) {
+            if (!originRouteError) {
               status = "active";
               lastError = null;
             } else {
               status = "pending_ssl";
-              lastError = originRoute.error;
+              lastError = originRouteError;
             }
           } else {
             status = "pending_ssl";
@@ -347,7 +354,9 @@ Deno.serve(async (req) => {
             const detail = [sslErr, verErr].filter(Boolean).join(" | ");
             lastError = detail
               ? `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus} — ${detail}`
-              : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
+              : originRouteError
+                ? `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}. Origin routing: ${originRouteError}`
+                : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
           }
         }
       }
