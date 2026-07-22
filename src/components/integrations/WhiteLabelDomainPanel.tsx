@@ -114,25 +114,49 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
           </Button>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <Label className="text-xs">Add this DNS record at your registrar</Label>
+        {isActive && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-green-600/30 bg-green-600/10 px-3 py-2">
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <span>
+                Domain verified — <code className="font-mono text-xs">{domain}</code> is live.
+              </span>
+            </div>
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 gap-1 text-xs"
-              onClick={() => { navigator.clipboard.writeText(CNAME_TARGET); toast.success("CNAME target copied"); }}
+              className="h-7 gap-1 text-xs"
+              onClick={() => setShowDns((v) => !v)}
             >
-              <Copy className="h-3 w-3" /> Copy target
+              {showDns ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {showDns ? "Hide DNS record" : "Show DNS record"}
             </Button>
           </div>
-          <CodeSnippetBlock code={dnsSnippet} language="text" title="DNS record" />
-        </div>
+        )}
 
-        <p className="text-xs text-muted-foreground">
-          SSL is provisioned automatically once DNS resolves. Verification usually succeeds within minutes but
-          full propagation can take up to 72 hours. Reach out to support if the status stays Failed after that.
-        </p>
+        {showDns && (
+          <>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <Label className="text-xs">Add this DNS record at your registrar</Label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 text-xs"
+                  onClick={() => { navigator.clipboard.writeText(CNAME_TARGET); toast.success("CNAME target copied"); }}
+                >
+                  <Copy className="h-3 w-3" /> Copy target
+                </Button>
+              </div>
+              <CodeSnippetBlock code={dnsSnippet} language="text" title="DNS record" />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              SSL is provisioned automatically once DNS resolves. Verification usually succeeds within minutes but
+              full propagation can take up to 72 hours. Reach out to support if the status stays Failed after that.
+            </p>
+          </>
+        )}
       </CardContent>
     </Card>
   );
