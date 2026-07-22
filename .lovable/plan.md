@@ -1,47 +1,38 @@
-# Fix Property Pulse "Rooms" count
+## Goal
+Produce a single .docx matrix that lists every billing configuration currently in the system, its current value, the target value from the attached WhatsApp price sheet, and the required adjustment. Where no default currently exists but the price sheet requires one, mark it clearly.
 
-## Diagnosis (verified against the DB)
+## Source of truth
+**Attached price sheet (authoritative):**
+- ROL'OS PMS tiered subscription: 0–9 rooms = R450/mo · 10–19 = R600/mo · 20–50 = R750/mo · 51+ = R925/mo
+- ROL'OS Website – Booking Engine: no set-up, no monthly fee, **2% commission** on confirmed bookings
+- Channel Manager (Booking.com, Airbnb, LekkeSlaap, Expedia): **R70 per unit per month**
 
-- Active properties on the dashboard: **72** ✅ (matches `SELECT count(*) FROM properties WHERE is_active` = 72). The 32 inactive/archived rows are already excluded — no `deleted_at` column exists on `properties`.
-- Dashboard "Rooms" today: `sum(GREATEST(1, bedrooms))` over active properties = **268**. That is the `properties.bedrooms` field, which stores "typical bedrooms per unit" and undercounts every multi-unit property.
-- Actual room inventory for the same 72 active properties:
-  - `rolos_rooms` (physical rooms): **146**
-  - `rolos_room_types` (active types, no `total_units` column exists): **166**
-  - `hostfully_room_types`: **156**
+**Current DB (`billing_global_defaults`):**
+| Strategy | Commission | Sub fee | Tiers (0-9/10-19/20-50/51+) | White-label | PayFac |
+|---|---|---|---|---|---|
+| default | 10% | — | — | R0 | 2.5% |
+| widget | 8% | — | — | R0 | 2.5% |
+| rolos_pms | 2% | R500 | 350 / 450 / 600 / 750 | R0 | 2.5% |
+| portfolio_aggregator | 5% | — | — | R0 | 2.5% |
+| enterprise_white_label | 0% | R2500 | — | R500 | 2.5% |
+| volume_tiered | 8% | — | 350 / 450 / 600 / 750 | R0 | 2.5% |
+| payment_facilitator | — | — | — | R0 | 2.5% |
 
-The property filter is fine — the room number is wrong because it reads the wrong column.
+## Deliverable
+`/mnt/documents/rolos-billing-matrix.docx` containing:
 
-## Fix
+1. **Header + intro** — purpose, source, date.
+2. **Table 1 — ROL'OS PMS tiered subscription**: columns = Tier · Current default (R) · Target (attached) · Δ · Status. Rows for each of the 4 tiers, applied to both `rolos_pms` and `volume_tiered` strategies. Highlights that all four tiers need increases (e.g. 0–9 R350→R450, 51+ R750→R925), and flags the extra `R500` flat `subscription_fee_monthly` on `rolos_pms` as redundant vs. tiers.
+3. **Table 2 — ROL'OS Website Booking Engine**: rows for commission (current 10% on `default` → target 2%), set-up fee (none / none), monthly fee (none / none). Flags mismatch on `default` strategy.
+4. **Table 3 — Channel Manager (per-unit)**: notes **no current default exists** for a per-unit channel manager fee. Target R70/unit/month. Action = add a new billing line item / column (proposed: `channel_manager_per_unit_fee` on `billing_global_defaults`, or a new `channel_manager` strategy row).
+5. **Table 4 — Other strategies (informational)**: `widget`, `portfolio_aggregator`, `enterprise_white_label`, `payment_facilitator` — current values shown, marked "not covered by attached sheet — retain or review".
+6. **Legend**: ✅ aligned · ⚠️ needs update · ❌ missing default.
+7. **Summary of required changes** (bulleted): concrete list of DB updates to run.
 
-In `src/pages/Dashboard.tsx`, replace the `bedrooms`-based room total with a real room count sourced from the same room tables the rest of ROLOS uses. For each active property, pick the first non-zero value from this cascade:
+## Technical
+- Build with `docx-js` per xlsx/docx skill; US Letter, Arial, brand pink `#E91E8C` accents on headings/table header rows, charcoal text.
+- Tables use DXA widths with `columnWidths` matching cell widths; `ShadingType.CLEAR`; cell margins 80/80/120/120.
+- QA: convert to PDF via LibreOffice and view every page image before delivery.
+- Emit `<presentation-artifact>` tag on completion.
 
-```text
-1. rolos_rooms         (count of physical room records for the property)
-2. rolos_room_types    (count of active room types — units aren't tracked as a column)
-3. hostfully_room_types (count of Hostfully room-type records)
-4. properties.bedrooms  (legacy fallback, min 1)
-```
-
-Sum those per-property values to produce **Total Rooms** and **Nights denominator** (`totalRooms × dateRange days`). Archived/inactive properties stay excluded because the base `properties` query is already `.eq("is_active", true)`.
-
-### Implementation
-
-1. Add three lightweight parallel queries alongside the existing `dashboard-properties` query, each returning `property_id → count` for active properties only:
-   - `rolos_rooms`: `select('property_id')` then group in JS.
-   - `rolos_room_types`: `select('property_id').eq('is_active', true)`.
-   - `hostfully_room_types`: `select('property_id')`.
-   Scope every query to `property_id IN (activePropertyIds)` so RLS + payload stay small.
-2. Build a `roomsByProperty: Map<string, number>` using the cascade above.
-3. In the `metrics` `useMemo`, replace:
-   ```ts
-   const totalRooms = relevantProperties.reduce((s, p) => s + Math.max(1, p.bedrooms || 1), 0);
-   ```
-   with a sum over `roomsByProperty` for the same `relevantProperties`. Everything downstream (ADR, RevPAR, occupancy denominator, "0/xxxx nights" label) keeps using `totalRooms` and self-corrects.
-4. Add `roomsByProperty` to the `useMemo` deps.
-
-No schema changes, no other components touched, only the Rooms/nights denominator visibly changes on Property Pulse.
-
-## Verification
-
-- After the change, expect roughly ~166 rooms and `nights ≈ 166 × days_in_selected_range` (e.g. "0/5146" for July 2026) instead of 268 / 8308.
-- Spot-check a known multi-unit property (e.g. Jongensfontein members) to confirm its per-property contribution matches its ROLOS room count.
+No code or DB changes — document only.
