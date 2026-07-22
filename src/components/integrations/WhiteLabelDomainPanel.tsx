@@ -148,22 +148,52 @@ export function WhiteLabelDomainPanel({
       toast.error("Enter a domain like book.yourhotel.com");
       return;
     }
+    const previous = (currentDomain || "").trim().toLowerCase();
+    const isRename = !!previous && previous !== clean;
     setSaving(true);
+
+    // If the domain changed, best-effort cleanup of the previous Cloudflare
+    // Custom Hostname so we don't leave orphaned certs / origin rules behind.
+    if (isRename) {
+      const delBody: Record<string, string> = {};
+      if (portfolioId) delBody.portfolio_id = portfolioId;
+      else if (propertyId) delBody.property_id = propertyId;
+      try {
+        await supabase.functions.invoke("delete-whitelabel-domain", { body: delBody });
+      } catch { /* non-blocking */ }
+    }
+
+    const resetPayload = {
+      white_label_domain: clean,
+      white_label_domain_status: "pending",
+      cloudflare_custom_hostname_id: null,
+      white_label_domain_last_error: null,
+      custom_domain_error: null,
+    } as any;
+
     let error;
     if (portfolioId) {
       ({ error } = await supabase
         .from("property_portfolios")
-        .update({ white_label_domain: clean, white_label_domain_status: "pending" } as any)
+        .update(resetPayload)
         .eq("id", portfolioId));
     } else if (propertyId) {
       ({ error } = await supabase
         .from("property_billing_configs")
-        .update({ white_label_domain: clean, white_label_domain_status: "pending" } as any)
+        .update(resetPayload)
         .eq("property_id", propertyId));
     }
     setSaving(false);
     if (error) return toast.error("Could not save", { description: error.message });
-    toast.success("Domain saved — now click Verify");
+
+    // Reset local UI state so the panel starts clean for the new domain.
+    setLiveError(null);
+    setShowDns(true);
+    migratedRef.current = false;
+    toast.dismiss(`wl-provisioning-${propertyId ?? portfolioId ?? previous}`);
+    toast.dismiss(`wl-provisioning-${propertyId ?? portfolioId ?? clean}`);
+
+    toast.success(isRename ? "New domain saved — verification reset" : "Domain saved — now click Verify");
     invalidate();
   }
 
