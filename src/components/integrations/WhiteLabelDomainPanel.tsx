@@ -56,6 +56,7 @@ export function WhiteLabelDomainPanel({
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [showDns, setShowDns] = useState(currentStatus !== "active");
   const [liveError, setLiveError] = useState<string | null>(lastError ?? null);
   const qc = useQueryClient();
