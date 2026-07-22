@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks, Building2, ShieldCheck } from "lucide-react";
 import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
-import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useWhitelabel, usePortfolioWhitelabel } from "@/hooks/useWhitelabel";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { DirectLinkTab } from "@/components/integrations/DirectLinkTab";
 import { WidgetTab } from "@/components/integrations/WidgetTab";
