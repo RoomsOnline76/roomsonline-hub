@@ -298,15 +298,15 @@ Deno.serve(async (req) => {
           });
 
         if (!uploadErr) {
-          const { data: publicUrl } = supabase.storage
+          const { data: signedUrlData, error: signedUrlErr } = await supabase.storage
             .from("invoices")
-            .getPublicUrl(filePath);
+            .createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 days
 
-          if (publicUrl?.publicUrl) {
+          if (!signedUrlErr && signedUrlData?.signedUrl) {
             await supabase.from("rolos_invoices")
-              .update({ pdf_url: publicUrl.publicUrl })
+              .update({ pdf_url: signedUrlData.signedUrl })
               .eq("id", invoice.id);
-            invoice.pdf_url = publicUrl.publicUrl;
+            invoice.pdf_url = signedUrlData.signedUrl;
           }
         }
 
