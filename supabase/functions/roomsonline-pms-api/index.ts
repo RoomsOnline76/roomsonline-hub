@@ -516,6 +516,9 @@ Deno.serve(async (req) => {
       case "get_cancellation_policies":
         result = await handleGetCancellationPolicies(body, supabase);
         break;
+      case "get_reservation_policies":
+        result = await handleGetReservationPolicies(body, supabase);
+        break;
       case "get_payment_methods":
         result = await handleGetPaymentMethods(body, supabase);
         break;
