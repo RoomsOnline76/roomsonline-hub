@@ -154,6 +154,12 @@ const SECTION_GROUPS: SectionGroup[] = [
         icon: Megaphone,
         description: "Dated announcement banners shown on the booking site.",
       },
+      {
+        key: "contacts",
+        label: "Contacts",
+        icon: Phone,
+        description: "Public reception, reservations and emergency contact details exposed via the API.",
+      },
     ],
   },
 ];
