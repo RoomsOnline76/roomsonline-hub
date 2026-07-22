@@ -122,6 +122,8 @@ const baseRequestSchema = z.object({
     "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
+    "get_contact_details",
+    "get_property_profile",
     // UI Configurator
     "get_ui_config",
     // Webhooks
