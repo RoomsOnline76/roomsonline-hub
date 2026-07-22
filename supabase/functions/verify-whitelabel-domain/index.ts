@@ -339,14 +339,22 @@ Deno.serve(async (req) => {
         } else {
           cfHostnameStatus = got.result.status;
           cfSslStatus = got.result.ssl?.status ?? null;
+          console.log("[verify-whitelabel-domain] Cloudflare hostname raw response", {
+            hostname: normalized,
+            hostname_id: hostnameId,
+            hostname_status: cfHostnameStatus,
+            ssl_status: cfSslStatus,
+            ssl_validation_errors: got.result.ssl?.validation_errors ?? null,
+            verification_errors: got.result.verification_errors ?? null,
+            origin_route_error: originRouteError,
+          });
           if (got.result.status === "active" && cfSslStatus === "active") {
-            if (!originRouteError) {
-              status = "active";
-              lastError = null;
-            } else {
-              status = "pending_ssl";
-              lastError = originRouteError;
-            }
+            // Cert is live. Origin routing via a Rulesets rule is a nice-to-have
+            // (needs a Rulesets:Edit token); the custom_origin_server on the
+            // hostname already points CF at the fallback origin, so treat the
+            // domain as active and surface any routing error as a soft warning.
+            status = "active";
+            lastError = originRouteError;
           } else {
             status = "pending_ssl";
             const sslErr = got.result.ssl?.validation_errors?.map((e) => e.message).join("; ") || "";
@@ -359,6 +367,7 @@ Deno.serve(async (req) => {
                 : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
           }
         }
+
       }
     }
 
