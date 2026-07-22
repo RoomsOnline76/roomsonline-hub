@@ -234,14 +234,24 @@ export function WhiteLabelDomainPanel({
   async function remove() {
     setConfirmRemove(false);
     setRemoving(true);
+    // Stop any auto-poll immediately so an in-flight verify can't race the delete.
+    if (pollTimer.current) {
+      window.clearTimeout(pollTimer.current);
+      pollTimer.current = null;
+    }
+    toast.dismiss(`wl-provisioning-${propertyId ?? portfolioId ?? domain}`);
+    const previous = domain;
+    setDomain("");
     const body: Record<string, string> = {};
     if (portfolioId) body.portfolio_id = portfolioId;
     else if (propertyId) body.property_id = propertyId;
     const { error } = await supabase.functions.invoke("delete-whitelabel-domain", { body });
     setRemoving(false);
-    if (error) return toast.error("Could not remove", { description: error.message });
+    if (error) {
+      setDomain(previous);
+      return toast.error("Could not remove", { description: error.message });
+    }
     toast.success("Custom domain removed");
-    setDomain("");
     setLiveError(null);
     invalidate();
   }
