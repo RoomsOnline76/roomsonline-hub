@@ -126,6 +126,42 @@ const Dashboard = () => {
     enabled: !!user && (isAdmin || !!profile?.email),
   });
 
+  // Real room inventory for active properties: cascade rolos_rooms → rolos_room_types → hostfully_room_types → bedrooms
+  const activePropertyIds = useMemo(() => properties.map((p: any) => p.id), [properties]);
+  const { data: roomsByProperty = new Map<string, number>() } = useQuery({
+    queryKey: ["dashboard-rooms-by-property", activePropertyIds.join(",")],
+    enabled: activePropertyIds.length > 0,
+    queryFn: async () => {
+      const [rr, rrt, hrt] = await Promise.all([
+        supabase.from("rolos_rooms").select("property_id").in("property_id", activePropertyIds),
+        supabase.from("rolos_room_types").select("property_id, is_active").in("property_id", activePropertyIds),
+        supabase.from("hostfully_room_types").select("property_id").in("property_id", activePropertyIds),
+      ]);
+      const tally = (rows: any[] | null, filter?: (r: any) => boolean) => {
+        const m = new Map<string, number>();
+        (rows || []).forEach((r) => {
+          if (filter && !filter(r)) return;
+          m.set(r.property_id, (m.get(r.property_id) || 0) + 1);
+        });
+        return m;
+      };
+      const rrMap = tally(rr.data);
+      const rrtMap = tally(rrt.data, (r) => r.is_active !== false);
+      const hrtMap = tally(hrt.data);
+      const bedroomsMap = new Map<string, number>(
+        properties.map((p: any) => [p.id, Math.max(1, Number(p.bedrooms) || 1)]),
+      );
+      const out = new Map<string, number>();
+      activePropertyIds.forEach((id) => {
+        out.set(
+          id,
+          rrMap.get(id) || rrtMap.get(id) || hrtMap.get(id) || bedroomsMap.get(id) || 1,
+        );
+      });
+      return out;
+    },
+  });
+
 
   // Fetch NightsBridge booking sessions (intent tracking)
   const { data: nbSessions = [] } = useQuery({
