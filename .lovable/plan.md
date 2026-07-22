@@ -1,33 +1,49 @@
-## Goal
-Make the white-label domain UX consistent across ROL Admin (`/admin/edit-property → Integrations`) and ROLOS (`/pms/integrations`, single + portfolio views):
+## Problem
 
-1. When the domain status is **active** (verified), replace the DNS instructions block with a compact green-tick confirmation. Instructions collapse behind a "Show DNS record" toggle (collapsed by default).
-2. Until verified, keep the DNS instructions visible (as today).
-3. In ROLOS **Portfolio view → Domains tab**, DNS instructions currently do not appear because the per-property panel bails out when `wl.enabled` is false. Show the same DNS panel for every portfolio property until its status is active, matching single-property behaviour.
+`https://book.synful.co.za/embed/...` fails with "site can't be reached". Confirmed live:
 
-## Changes
+- DNS: `book.synful.co.za` CNAMEs to `sleepinafrica.roomsonline.co.za` → Vercel edge (correct).
+- HTTPS: the Vercel edge has no certificate for `book.synful.co.za`, so the TLS handshake never completes. `https://sleepinafrica.roomsonline.co.za/embed/portfolio/jongensfontein` returns 200 fine.
 
-### 1. `src/components/integrations/WhiteLabelDomainPanel.tsx`
-- Add local `showDns` state, defaulted to `currentStatus !== "active"`.
-- When `currentStatus === "active"`:
-  - Render a success row: green `ShieldCheck` + "Domain verified — `{domain}` is live" + a small "Show DNS record" toggle button.
-  - Hide the DNS record block, the "Copy target" button, and the propagation helper text unless `showDns` is toggled on.
-  - Keep the Save/Verify controls available (so an admin can re-verify after DNS changes) but de-emphasised.
-- When `currentStatus !== "active"`:
-  - Keep current layout (input, Save, Verify, DNS snippet, helper text) exactly as-is.
-- Tone the header badge for `active` to a green/success style (use existing `default` variant with a `text-green-600` icon — no new tokens).
+Our current verifier only checks that DNS resolves to the canonical host, so it marked the domain **active** even though nothing terminates TLS for it. Any branded URL we generate (portfolio embed, smart button, property embed) is therefore broken end-to-end.
 
-Used by both `PropertyFormIntegrationsTab` (ROL admin) and `PMSIntegrations` (ROLOS), so both pages inherit the collapse behaviour automatically.
+Since we've decided **not** to register customer domains on our hosting, the customer must terminate TLS themselves (Cloudflare orange-cloud proxy or their own CDN/reverse proxy) and forward to the canonical host. The product needs to reflect that reality instead of hiding it.
 
-### 2. `src/pages/pms/PMSIntegrations.tsx` — `PortfolioWhitelabelPanel`
-- Remove the early-return that hides the panel when `wl.enabled` is false.
-- Always render `<WhiteLabelDomainPanel>` for each portfolio property, so DNS instructions are visible until each property's domain status becomes `active`.
-- Keep a small inline note above the panel when `!wl.enabled` (e.g. "White-label mode is off for this property — configuring a domain here will enable it once verified") so the state is still explicit.
+## Plan
 
-No other pages touched. No backend, schema, or edge-function changes.
+### 1. Verifier probes HTTPS, not just DNS
+Update `supabase/functions/verify-whitelabel-domain/index.ts` so a domain only becomes `active` when BOTH conditions hold:
+- CNAME resolves to `sleepinafrica.roomsonline.co.za` (existing check), AND
+- `https://<domain>/healthz` (or `/`) responds with a valid TLS handshake and 2xx/3xx within a short timeout.
 
-## Verification
-- ROL Admin Integrations for a property with `active` status → DNS block collapsed, green tick shown, toggle expands it.
-- ROL Admin Integrations for a property with `pending`/`unconfigured`/`failed` → DNS block visible as before.
-- ROLOS single-property Integrations → same behaviour as Admin (same component).
-- ROLOS Portfolio → Domains tab → every property card shows the DNS panel; verified ones show the collapsed green-tick state.
+New intermediate status `dns_ok_tls_pending` when DNS is right but HTTPS fails (certificate error, connection refused, timeout). Persist that status on both `property_billing_configs` and `property_portfolios`.
+
+### 2. Panel reflects the real state
+`src/components/integrations/WhiteLabelDomainPanel.tsx`:
+- Green tick + collapsed instructions only when status is `active` (TLS confirmed).
+- Amber "DNS OK — HTTPS not reachable" state that keeps instructions expanded and explains that the customer must terminate TLS via Cloudflare proxy or their own CDN.
+- Show the exact failure reason from the verifier (no cert / timeout / non-2xx).
+
+### 3. Concrete TLS-termination guidance
+In the DNS instructions block add a short "TLS termination" section with two supported options:
+- **Cloudflare (recommended):** create the CNAME with the orange cloud on, set SSL/TLS mode to "Full", done. Cloudflare issues the edge cert and forwards to our canonical host.
+- **Own CDN / reverse proxy:** point origin at `sleepinafrica.roomsonline.co.za`, forward `Host` header of `sleepinafrica.roomsonline.co.za`, manage cert yourself.
+
+Remove any wording that implies verification is complete once DNS resolves.
+
+### 4. Stop advertising broken branded URLs
+Everywhere we build branded URLs (`PortfolioWidgetTab`, `SmartBookButtonGenerator`, `PMSIntegrations` portfolio/property domain cards):
+- If effective white-label status is not `active` (TLS-confirmed), copy snippets and the "Open" button use the canonical host, with a small note "Branded host will be used once HTTPS is reachable."
+- Preview iframe stays on canonical host (already the case).
+
+### 5. Fix the Jongensfontein data
+Re-run the new verifier against `book.synful.co.za` on the portfolio row. Expected result: status flips from `active` to `dns_ok_tls_pending` until Cloudflare proxy is enabled on Synful's side. No destructive migration — just a status correction via the edge function.
+
+### Technical notes
+- The HTTPS probe runs from the edge function using `fetch(https://<domain>/healthz, { redirect: 'manual' })` inside a 5s `AbortController`. Any TLS error, DNS mismatch, or non-2xx/3xx becomes `dns_ok_tls_pending` with a reason string stored in a new `white_label_domain_last_error` column (nullable text) on both tables.
+- `useWhitelabel` inheritance logic keeps working; it just now treats `dns_ok_tls_pending` as "not usable" and falls back to canonical.
+- Verifier is idempotent and safe to call from both admin and ROLOS panels; existing UI trigger points don't change.
+
+### Out of scope
+- Automatic Cloudflare API integration.
+- Registering white-label domains on our own hosting.

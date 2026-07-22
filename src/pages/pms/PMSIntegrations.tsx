@@ -339,8 +339,10 @@ export default function PMSIntegrations() {
                 propertyId={propertyId}
                 currentDomain={wl.domain}
                 currentStatus={wl.domainStatus}
+                lastError={wl.lastError ?? null}
               />
             )}
+
 
             <GatedPaymentProviderSelect propertyId={propertyId} />
 
@@ -635,9 +637,11 @@ function PortfolioDomainsSection({
           portfolioId={portfolioId}
           currentDomain={portfolioWl.domain}
           currentStatus={portfolioWl.domainStatus}
+          lastError={portfolioWl.lastError ?? null}
           scopeLabel="Portfolio booking subdomain"
         />
       )}
+
       <PortfolioPerPropertyCards
         title="Per-property overrides"
         description="Each property inherits the portfolio subdomain. Configure a different one here only if a property should use its own domain."
@@ -658,7 +662,7 @@ function PortfolioWhitelabelPanel({
   portfolioWl,
 }: {
   propertyId: string;
-  portfolioWl?: { domain: string | null; domainStatus: "unconfigured" | "pending" | "active" | "failed" };
+  portfolioWl?: { domain: string | null; domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending" };
 }) {
   const wl = useWhitelabel(propertyId);
   const usingInherited = wl.inherited && wl.domainStatus === "active";
@@ -673,6 +677,7 @@ function PortfolioWhitelabelPanel({
         propertyId={propertyId}
         currentDomain={wl.domain}
         currentStatus={wl.domainStatus}
+        lastError={wl.lastError ?? null}
         inheritedNote={
           usingInherited
             ? `Inheriting the portfolio domain (${wl.domain}). Set a value below only to override.`
@@ -681,6 +686,7 @@ function PortfolioWhitelabelPanel({
               : undefined
         }
       />
+
     </div>
   );
 }

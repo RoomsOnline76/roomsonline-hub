@@ -4408,6 +4408,7 @@ export type Database = {
           volume_tier_json: Json | null
           white_label_allowed: boolean | null
           white_label_domain: string | null
+          white_label_domain_last_error: string | null
           white_label_domain_status: string
           white_label_domain_verified_at: string | null
           white_label_monthly_fee: number | null
@@ -4432,6 +4433,7 @@ export type Database = {
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
           white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
@@ -4456,6 +4458,7 @@ export type Database = {
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
           white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
@@ -5085,6 +5088,7 @@ export type Database = {
           slug: string | null
           updated_at: string | null
           white_label_domain: string | null
+          white_label_domain_last_error: string | null
           white_label_domain_status: string
           white_label_domain_verified_at: string | null
         }
@@ -5098,6 +5102,7 @@ export type Database = {
           slug?: string | null
           updated_at?: string | null
           white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
         }
@@ -5111,6 +5116,7 @@ export type Database = {
           slug?: string | null
           updated_at?: string | null
           white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
         }

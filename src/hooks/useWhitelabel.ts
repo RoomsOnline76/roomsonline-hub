@@ -8,7 +8,7 @@ export interface WhitelabelState {
   /** Optional custom subdomain (e.g. `book.mylodge.com`) the property has configured. */
   domain: string | null;
   /** DNS verification status for the domain. */
-  domainStatus: "unconfigured" | "pending" | "active" | "failed";
+  domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   /**
    * The host to use in generated integration URLs.
    * Falls back to `PUBLIC_DOMAIN` when no custom domain is Active.
@@ -18,7 +18,10 @@ export interface WhitelabelState {
   inherited?: boolean;
   /** Portfolio id that provided the inherited domain (when inherited=true). */
   inheritedFromPortfolioId?: string | null;
+  /** Last verifier error, if any. */
+  lastError?: string | null;
 }
+
 
 const DEFAULT: WhitelabelState = {
   enabled: false,
@@ -42,13 +45,14 @@ export function useWhitelabel(propertyId: string | undefined) {
 
       const { data: pbc } = await supabase
         .from("property_billing_configs")
-        .select("white_label_allowed, white_label_domain, white_label_domain_status")
+        .select("white_label_allowed, white_label_domain, white_label_domain_status, white_label_domain_last_error")
         .eq("property_id", propertyId)
         .maybeSingle();
 
       const enabled = !!pbc?.white_label_allowed;
       const ownStatus = ((pbc as any)?.white_label_domain_status || "unconfigured") as WhitelabelState["domainStatus"];
       const ownDomain = (((pbc as any)?.white_label_domain || "") as string).trim() || null;
+      const ownError = ((pbc as any)?.white_label_domain_last_error as string | null) ?? null;
       const ownActive = ownStatus === "active" && !!ownDomain;
 
       if (ownActive) {
@@ -57,6 +61,7 @@ export function useWhitelabel(propertyId: string | undefined) {
           domain: ownDomain,
           domainStatus: ownStatus,
           host: `https://${ownDomain}`,
+          lastError: ownError,
         };
       }
 
@@ -87,8 +92,10 @@ export function useWhitelabel(propertyId: string | undefined) {
         domain: ownDomain,
         domainStatus: ownStatus,
         host: PUBLIC_DOMAIN,
+        lastError: ownError,
       };
     },
+
     enabled: !!propertyId,
     staleTime: 60_000,
   });
@@ -98,8 +105,9 @@ export function useWhitelabel(propertyId: string | undefined) {
 
 export interface PortfolioWhitelabelState {
   domain: string | null;
-  domainStatus: "unconfigured" | "pending" | "active" | "failed";
+  domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   host: string;
+  lastError?: string | null;
 }
 
 const PORTFOLIO_DEFAULT: PortfolioWhitelabelState = {
@@ -116,16 +124,18 @@ export function usePortfolioWhitelabel(portfolioId: string | undefined) {
       if (!portfolioId) return PORTFOLIO_DEFAULT;
       const { data } = await supabase
         .from("property_portfolios")
-        .select("white_label_domain, white_label_domain_status")
+        .select("white_label_domain, white_label_domain_status, white_label_domain_last_error")
         .eq("id", portfolioId)
         .maybeSingle();
       const status = ((data as any)?.white_label_domain_status || "unconfigured") as PortfolioWhitelabelState["domainStatus"];
       const domain = (((data as any)?.white_label_domain || "") as string).trim() || null;
+      const lastError = ((data as any)?.white_label_domain_last_error as string | null) ?? null;
       const active = status === "active" && !!domain;
       return {
         domain,
         domainStatus: status,
         host: active ? `https://${domain}` : PUBLIC_DOMAIN,
+        lastError,
       };
     },
     enabled: !!portfolioId,
@@ -133,3 +143,4 @@ export function usePortfolioWhitelabel(portfolioId: string | undefined) {
   });
   return q.data ?? PORTFOLIO_DEFAULT;
 }
+
