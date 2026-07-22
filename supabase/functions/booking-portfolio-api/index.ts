@@ -7,6 +7,76 @@ const corsHeaders = {
   "Cache-Control": "public, max-age=300, s-maxage=300",
 };
 
+// Build a rich property profile from properties + amenities JSONB
+// Kept in sync with roomsonline-pms-api buildPropertyProfile
+// deno-lint-ignore no-explicit-any
+function buildProfile(p: any): Record<string, unknown> {
+  const amenities = p?.amenities || {};
+  const addr = amenities.address_details || {};
+  const rules = amenities.house_rules || {};
+  const facilities: string[] = Array.isArray(amenities.facilities)
+    ? amenities.facilities.filter((x: any) => typeof x === "string") : [];
+  const flagKeys: string[] = [];
+  const skipGroups = new Set(["address_details","house_rules","contact","house_style","banking","external_ids","room_types","seasons","packages","addons","cancellation_policies","templates","offerings","meal_types","facilities","announcements"]);
+  for (const [k, v] of Object.entries(amenities)) {
+    if (skipGroups.has(k)) continue;
+    if (v === true) flagKeys.push(k);
+    else if (v && typeof v === "object" && !Array.isArray(v)) {
+      for (const [sk, sv] of Object.entries(v as Record<string, unknown>)) {
+        if (sv === true) flagKeys.push(sk);
+      }
+    }
+  }
+  const allAmenities = Array.from(new Set([...facilities, ...flagKeys]));
+  return {
+    property_type: p.property_type || null,
+    short_description: p.short_description || null,
+    timezone: p.timezone || null,
+    location: {
+      address: p.address || null,
+      city: p.city || null,
+      country: p.country || null,
+      postal_code: addr.postal_code || null,
+      suburb: addr.suburb || null,
+      latitude: p.latitude ?? null,
+      longitude: p.longitude ?? null,
+      google_maps_link: addr.google_maps_link || null,
+    },
+    occupancy: {
+      max_guests: p.max_guests ?? null,
+      standard_guests: p.max_guests ?? null,
+      bedrooms: p.bedrooms ?? null,
+      bathrooms: p.bathrooms ?? null,
+    },
+    check_in: {
+      from: rules.check_in_from || null,
+      to: rules.check_in_to || null,
+      is_24h: !!rules.check_in_24h,
+    },
+    check_out: {
+      from: rules.check_out_from || null,
+      to: rules.check_out_to || null,
+    },
+    house_rules: {
+      pets_allowed: !!rules.pets_allowed,
+      smoking_allowed: !!rules.smoking_allowed,
+      parties_allowed: !!rules.parties_allowed,
+      children_allowed: rules.children_allowed !== false,
+      children_policy: rules.children_policy || null,
+    },
+    arrival_instructions: rules.arrival_instructions
+      || (rules.check_in_24h
+          ? "Self check-in available 24/7."
+          : (rules.check_in_from && rules.check_in_to
+              ? `Check-in from ${rules.check_in_from} to ${rules.check_in_to}.`
+              : null)),
+    amenities_flat: allAmenities,
+    meal_types: Array.isArray(amenities.meal_types) ? amenities.meal_types : [],
+    star_rating: amenities.star_rating || null,
+  };
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -60,7 +130,7 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color, payment_providers, payment_provider")
+      .select("id, name, slug, property_type, address, city, country, description, short_description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color, payment_providers, payment_provider, bedrooms, bathrooms, max_guests, timezone")
       .eq("is_active", true)
       .in("id", propertyIds);
 
@@ -305,6 +375,7 @@ serve(async (req) => {
               };
             });
           })(),
+          profile: buildProfile(p),
         } : {}),
       };
     });

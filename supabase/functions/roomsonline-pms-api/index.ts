@@ -122,6 +122,8 @@ const baseRequestSchema = z.object({
     "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
+    "get_contact_details",
+    "get_property_profile",
     // UI Configurator
     "get_ui_config",
     // Webhooks
@@ -523,7 +525,11 @@ Deno.serve(async (req) => {
         result = await handleGetPaymentMethods(body, supabase);
         break;
       case "get_property_contact_details":
+      case "get_contact_details":
         result = await handleGetPropertyContactDetails(body, supabase);
+        break;
+      case "get_property_profile":
+        result = await handleGetPropertyProfile(body, supabase);
         break;
       case "get_ui_config":
         result = await handleGetUiConfig(body, supabase);
@@ -1675,10 +1681,36 @@ async function handleGetRolosRoomTypes(body: any, supabase: any): Promise<Respon
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId is required", "get_rolos_room_types")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  const { data, error } = await supabase.from("rolos_room_types").select("*").eq("property_id", body.propertyId).eq("is_active", true);
+  const [{ data, error }, { data: property }] = await Promise.all([
+    supabase.from("rolos_room_types").select("*").eq("property_id", body.propertyId).eq("is_active", true),
+    supabase.from("properties").select("amenities").eq("id", body.propertyId).maybeSingle(),
+  ]);
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_rolos_room_types")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-  return new Response(JSON.stringify(createSuccessResponse({ room_types: data || [] }, "get_rolos_room_types")),
+
+  const legacyRooms: any[] = Array.isArray(property?.amenities?.room_types) ? property.amenities.room_types : [];
+  const findLegacy = (rt: any) => legacyRooms.find((lr) =>
+    (lr.name && rt.name && String(lr.name).toLowerCase() === String(rt.name).toLowerCase()) ||
+    (lr.id && rt.code && String(lr.id) === String(rt.code))
+  ) || {};
+
+  const enriched = (data || []).map((rt: any) => {
+    const legacy = findLegacy(rt);
+    return {
+      ...rt,
+      standard_occupancy: rt.base_occupancy ?? legacy.maxAdults ?? null,
+      bathrooms: legacy.bathrooms ?? null,
+      bed_configuration: legacy.bedConfiguration ?? null,
+      room_size: legacy.roomSize ?? null,
+      min_stay: legacy.minStay ?? null,
+      max_stay: legacy.maxStay ?? null,
+      max_adults: legacy.maxAdults ?? null,
+      max_children: legacy.maxChildren ?? null,
+      num_rooms: legacy.numRooms ?? null,
+    };
+  });
+
+  return new Response(JSON.stringify(createSuccessResponse({ room_types: enriched }, "get_rolos_room_types")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
@@ -2787,6 +2819,120 @@ async function handleGetPropertyContactDetails(body: any, supabase: any): Promis
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
+
+// deno-lint-ignore no-explicit-any
+export function buildPropertyProfile(property: any): Record<string, unknown> {
+  const amenities = property?.amenities || {};
+  const addr = amenities.address_details || {};
+  const rules = amenities.house_rules || {};
+
+  // Flatten amenities into a de-duped string list
+  const facilities: string[] = Array.isArray(amenities.facilities)
+    ? amenities.facilities.filter((x: any) => typeof x === "string")
+    : [];
+  const flagKeys: string[] = [];
+  const skipGroups = new Set(["address_details", "house_rules", "contact", "house_style", "banking", "external_ids", "room_types", "seasons", "packages", "addons", "cancellation_policies", "templates", "offerings", "meal_types", "facilities", "announcements"]);
+  for (const [k, v] of Object.entries(amenities)) {
+    if (skipGroups.has(k)) continue;
+    if (v === true) flagKeys.push(k);
+    else if (v && typeof v === "object" && !Array.isArray(v)) {
+      for (const [sk, sv] of Object.entries(v as Record<string, unknown>)) {
+        if (sv === true) flagKeys.push(sk);
+      }
+    }
+  }
+  const allAmenities = Array.from(new Set([...facilities, ...flagKeys]));
+
+  const bathrooms = property?.bathrooms ?? null;
+  const bedrooms = property?.bedrooms ?? null;
+
+  return {
+    id: property.id,
+    name: property.name,
+    slug: property.slug,
+    property_type: property.property_type || null,
+    description: property.description || null,
+    short_description: property.short_description || null,
+    timezone: property.timezone || null,
+    location: {
+      address: property.address || null,
+      city: property.city || null,
+      country: property.country || null,
+      postal_code: addr.postal_code || null,
+      suburb: addr.suburb || null,
+      latitude: property.latitude ?? null,
+      longitude: property.longitude ?? null,
+      google_maps_link: addr.google_maps_link || null,
+      no_street_address: !!addr.no_street_address,
+    },
+    occupancy: {
+      max_guests: property.max_guests ?? null,
+      standard_guests: property.max_guests ?? null,
+      bedrooms,
+      bathrooms,
+    },
+    check_in: {
+      from: rules.check_in_from || null,
+      to: rules.check_in_to || null,
+      is_24h: !!rules.check_in_24h,
+      same_day_cutoff: rules.same_day_cutoff || null,
+    },
+    check_out: {
+      from: rules.check_out_from || null,
+      to: rules.check_out_to || null,
+    },
+    house_rules: {
+      pets_allowed: !!rules.pets_allowed,
+      smoking_allowed: !!rules.smoking_allowed,
+      parties_allowed: !!rules.parties_allowed,
+      children_allowed: rules.children_allowed !== false,
+      children_policy: rules.children_policy || null,
+      same_day_bookings: !!rules.same_day_bookings,
+    },
+    arrival_instructions: rules.arrival_instructions
+      || (rules.check_in_24h
+        ? "Self check-in available 24/7."
+        : (rules.check_in_from && rules.check_in_to
+            ? `Check-in from ${rules.check_in_from} to ${rules.check_in_to}.`
+            : null)),
+    amenities: allAmenities,
+    meal_types: Array.isArray(amenities.meal_types) ? amenities.meal_types : [],
+    currency: amenities.currency || null,
+    star_rating: amenities.star_rating || null,
+    images: Array.isArray(property.images) ? property.images : [],
+  };
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetPropertyProfile(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_property_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: property, error } = await supabase
+    .from("properties")
+    .select("id, name, slug, property_type, description, short_description, address, city, country, latitude, longitude, timezone, images, amenities, bedrooms, bathrooms, max_guests")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_property_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+  if (!property) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Property not found", "get_property_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
+  }
+
+  return new Response(
+    JSON.stringify(createSuccessResponse({ property: buildPropertyProfile(property) }, "get_property_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+
 
 // ============================================================================
 // WEBHOOK HELPERS & HANDLERS

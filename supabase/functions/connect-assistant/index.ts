@@ -50,7 +50,7 @@ Availability: fetch_availability, set_availability
 Reservations: get_reservations, create_reservation, modify_reservation, cancel_reservation, check_in, check_out
 Rooms: get_room_types, get_rolos_room_types, create_rolos_room_type, update_rolos_room_type, get_physical_rooms, create_physical_room, update_room_status
 Rates: get_rate_types, set_rates, get_rate_plans, create_rate_plan, get_rate_seasons, create_rate_season, set_rate_prices
-Static Content: get_cancellation_policies (with linked_rate_plans), get_reservation_policies (deposit/guarantee), get_payment_methods (display name, logo_key, currencies, docs_url, edge_function_name), get_contact_details (reception, landlord, emergency)
+Static Content: get_property_profile (name, type, description, address/city/country/postal_code, geo, occupancy, check-in/out times, arrival instructions, amenities, meal types, images), get_cancellation_policies (with linked_rate_plans), get_reservation_policies (deposit/guarantee), get_payment_methods (display name, logo_key, currencies, docs_url, edge_function_name), get_contact_details (reception, landlord, emergency)
 Guests: get_guest_profiles, get_guest_profile, create_guest_profile, update_guest_profile
 Folios: get_folio, add_folio_charge, process_folio_payment
 Housekeeping: get_housekeeping_board, assign_housekeeping_task, complete_housekeeping_task
@@ -92,7 +92,7 @@ COMMON QUESTIONS TO GUIDE TOWARD:
 - "Do you have a partner program?" → Yes! Referral commissions for property acquisitions
 - "How do promo codes work?" → Properties can create voucher codes with percentage/fixed discounts, validated during booking
 - "How do I embed the booking engine?" → Direct property/portfolio links, booking widgets, Smart Book buttons, full embeds, WordPress plugin (with the [rolos_portfolio_booking] shortcode), Elementor widget, or the REST API
-- "What static content can I pull?" → Property name/type/location, images (with room fallback), rooms/rates/availability, cancellation & reservation policies (with linked_rate_plans), payment methods, and contact details — all via roomsonline-pms-api actions or in one shot from booking-portfolio-api with include_static_content=true
+- "What static content can I pull?" → Everything a booking flow needs: property name & type, address/city/country/postal code, geo & Google Maps link, images (with automatic room-image fallback), check-in/out times, arrival instructions, amenities, meal types, max & standard guest counts, bedrooms/bathrooms, rooms with bed compositions, rates & live availability, cancellation & reservation policies (with linked_rate_plans), payment methods, and reception/landlord contact details — via get_property_profile + get_rolos_room_types + get_cancellation_policies + get_reservation_policies + get_payment_methods + get_contact_details, or in one shot from booking-portfolio-api?include_static_content=true (each property gets a profile block plus enriched room fields)
 - "Can guests plan multi-stop trips?" → Yes! The Itinerary Builder supports multi-property trip planning with map, timeline, and PDF brochures
 
 GUIDELINES:
