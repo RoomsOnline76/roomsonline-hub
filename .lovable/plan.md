@@ -1,53 +1,47 @@
-# Integrations Code Cookbook — DOCX Document
+# Fix Property Pulse "Rooms" count
 
-Build a downloadable Word document that lists **every integration snippet** the ROLOS Integrations page can generate, filled in for:
+## Diagnosis (verified against the DB)
 
-- **Single property:** `Fonteinhutte Self-Catering Chalets` (only "Fontein" property in the workspace — no separate "fonteinsingle" exists)
-- **Portfolio:** `Jongensfontein.com` (members: Fonteinhutte, Dassiesingel, SEESIG, Tidal Pools)
+- Active properties on the dashboard: **72** ✅ (matches `SELECT count(*) FROM properties WHERE is_active` = 72). The 32 inactive/archived rows are already excluded — no `deleted_at` column exists on `properties`.
+- Dashboard "Rooms" today: `sum(GREATEST(1, bedrooms))` over active properties = **268**. That is the `properties.bedrooms` field, which stores "typical bedrooms per unit" and undercounts every multi-unit property.
+- Actual room inventory for the same 72 active properties:
+  - `rolos_rooms` (physical rooms): **146**
+  - `rolos_room_types` (active types, no `total_units` column exists): **166**
+  - `hostfully_room_types`: **156**
 
-Each snippet is named exactly as it appears on the Integrations page, with a short "what it is / where to paste it" caption followed by the code block a customer would copy from the UI.
+The property filter is fine — the room number is wrong because it reads the wrong column.
 
-## Sections in the document
+## Fix
 
-**Part A — Fonteinhutte (single property)**
-1. Direct Booking Link — Booking URL (rooms entry)
-2. Direct Booking Link — HTML Book Now button (solid / md, brand colour)
-3. Floating Booking Bar — HTML + calendar (bottom position, brand colour)
-4. Embedded Booking Widget — One-line `rol-embed.js` snippet
-5. Embedded Booking Widget — Advanced (event listener)
-6. Embedded Booking Widget — iframe fallback
-7. Full Booking Engine — iframe (default 800px)
-8. Smart Book Button Generator — Book Now button (HTML)
-9. Smart Book Button Generator — Button + date pickers bar
-10. Smart Book Button Generator — Embedded widget
-11. Smart Book Button Generator — Button + hidden widget combo
-12. Smart Book Button Generator — WordPress shortcode variant
-13. WordPress Plugin — Booking shortcode `[rolos_booking …]`
-14. WordPress Plugin — Property grid shortcode
-15. WordPress Plugin — Portfolio booking shortcode (Jongensfontein)
-16. Elementor — Booking Widget shortcode
-17. Elementor — Property Card shortcode
-18. Elementor — Availability Grid shortcode
+In `src/pages/Dashboard.tsx`, replace the `bedrooms`-based room total with a real room count sourced from the same room tables the rest of ROLOS uses. For each active property, pick the first non-zero value from this cascade:
 
-**Part B — Jongensfontein Portfolio**
-1. Direct Portfolio Link (shareable URL)
-2. Portfolio Widget — One-line `rol-embed.js` (grid layout, brand colour)
-3. Portfolio Widget — Iframe fallback
-4. Portfolio Origin Tracking tag (drop-on-landing script)
-5. Smart Button — targeted at portfolio (HTML button)
-6. Smart Button — Portfolio + widget combo
-7. WordPress — Portfolio booking shortcode
+```text
+1. rolos_rooms         (count of physical room records for the property)
+2. rolos_room_types    (count of active room types — units aren't tracked as a column)
+3. hostfully_room_types (count of Hostfully room-type records)
+4. properties.bedrooms  (legacy fallback, min 1)
+```
 
-Each snippet uses the canonical published host (`sleepinafrica.roomsonline.co.za`) with `ref_property` / `ref_portfolio` and `brand_color` params that match what the live UI generates. White-label variants are noted where they change the snippet, but the copy in the document uses the default (non-WL) form because Fonteinhutte has no verified branded subdomain configured today.
+Sum those per-property values to produce **Total Rooms** and **Nights denominator** (`totalRooms × dateRange days`). Archived/inactive properties stay excluded because the base `properties` query is already `.eq("is_active", true)`.
 
-## Delivery
+### Implementation
 
-- Format: `.docx`, US Letter, 1" margins, Arial, TOC linking to every snippet section
-- Code blocks: monospaced (Courier New 9pt) inside a light-grey shaded table cell so it renders cleanly in Word and Google Docs
-- Written to `/mnt/documents/rolos-integrations-cookbook-jongensfontein.docx` and surfaced with a `<presentation-artifact>` tag
+1. Add three lightweight parallel queries alongside the existing `dashboard-properties` query, each returning `property_id → count` for active properties only:
+   - `rolos_rooms`: `select('property_id')` then group in JS.
+   - `rolos_room_types`: `select('property_id').eq('is_active', true)`.
+   - `hostfully_room_types`: `select('property_id')`.
+   Scope every query to `property_id IN (activePropertyIds)` so RLS + payload stay small.
+2. Build a `roomsByProperty: Map<string, number>` using the cascade above.
+3. In the `metrics` `useMemo`, replace:
+   ```ts
+   const totalRooms = relevantProperties.reduce((s, p) => s + Math.max(1, p.bedrooms || 1), 0);
+   ```
+   with a sum over `roomsByProperty` for the same `relevantProperties`. Everything downstream (ADR, RevPAR, occupancy denominator, "0/xxxx nights" label) keeps using `totalRooms` and self-corrects.
+4. Add `roomsByProperty` to the `useMemo` deps.
 
-## Technical details
+No schema changes, no other components touched, only the Rooms/nights denominator visibly changes on Property Pulse.
 
-1. Compute every snippet in a Node script by importing the same string templates the UI uses (buildEntryUrl for the property; portfolio URL builder inline) so the doc stays in sync with what the app produces. Property inputs pulled from DB: id `00015d06-a9cb-4e82-a62e-a7685e5d7c33`, slug `fonteinhutte-self-catering-chalets`, brand colour fallback `#e91e8c`. Portfolio inputs: id `22a7d374-7e2e-4194-8d32-aa870813359e`, slug `jongensfontein`.
-2. Use `docx-js` (per docx skill) to emit the file: Heading 1 per Part, Heading 2 per snippet, small caption Paragraph, then a single-cell Table containing the code (avoids Word treating angle brackets as fields).
-3. Validate with `python /tmp/validate_document.py`, then convert to PDF → page images and visually QA every page before delivering.
+## Verification
+
+- After the change, expect roughly ~166 rooms and `nights ≈ 166 × days_in_selected_range` (e.g. "0/5146" for July 2026) instead of 268 / 8308.
+- Spot-check a known multi-unit property (e.g. Jongensfontein members) to confirm its per-property contribution matches its ROLOS room count.
