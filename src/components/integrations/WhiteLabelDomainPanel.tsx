@@ -194,8 +194,10 @@ export function WhiteLabelDomainPanel({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              SSL is provisioned automatically once DNS resolves. Verification usually succeeds within minutes but
-              full propagation can take up to 72 hours. Reach out to support if the status stays Failed after that.
+              Point a CNAME from your branded host to <code className="font-mono">{CNAME_TARGET}</code> and terminate
+              SSL at your own CDN or reverse proxy (Cloudflare, Fastly, nginx, etc.). The widget always loads from the
+              canonical host — your branded domain is only what customers see in the URL. No registration on our
+              hosting is required.
             </p>
           </>
         )}
