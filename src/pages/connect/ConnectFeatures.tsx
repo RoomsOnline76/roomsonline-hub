@@ -39,7 +39,7 @@ const FEATURE_SECTIONS = [
     subtitle: "Your brand, your website, your way",
     features: [
       { icon: Blocks, title: "WordPress Plugin", desc: "Gutenberg blocks for availability grids, booking widgets, and property cards. No developer needed." },
-      { icon: Zap, title: "REST API", desc: "40+ endpoints covering every PMS operation. Build custom integrations or let us help." },
+      { icon: Zap, title: "REST API", desc: "50+ endpoints covering every PMS operation — including static content, cancellation & reservation policies, payment methods, and contact details." },
       { icon: Home, title: "Embeddable Widgets", desc: "Booking bars, availability calendars, and Smart Book buttons for any website." },
       { icon: Shield, title: "White-Label", desc: "Full branding control: logos, colours, email templates, and custom domains. It looks like yours." },
     ],
