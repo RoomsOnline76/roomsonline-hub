@@ -197,8 +197,14 @@ serve(async (req) => {
     if (minAge != null && age < minAge) eligible = false;
     if (maxAge != null && age > maxAge) eligible = false;
 
-    // Clean up the uploaded file
+    // Clean up the uploaded file and mark request as verified
     await supabase.storage.from("id-verifications").remove([storagePath]);
+    if (requestId) {
+      await supabase
+        .from("verification_requests")
+        .update({ status: eligible ? "verified" : "rejected", updated_at: new Date().toISOString() })
+        .eq("id", requestId);
+    }
 
     return new Response(
       JSON.stringify({ eligible, extractedAge: age, dob, confidence }),
