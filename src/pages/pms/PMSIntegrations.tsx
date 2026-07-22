@@ -668,25 +668,25 @@ function PortfolioWhitelabelPanel({
   const usingInherited = wl.inherited && wl.domainStatus === "active";
   return (
     <div className="space-y-2">
-      {!wl.enabled && (
-        <p className="text-xs text-muted-foreground">
-          White-label mode is off for this property — configuring a domain here will enable it once verified.
+      {!wl.enabled ? (
+        <p className="text-xs text-muted-foreground italic">
+          White-label is not enabled for this property by admin. A custom booking subdomain can only be configured once white-label mode is allowed.
         </p>
+      ) : (
+        <WhiteLabelDomainPanel
+          propertyId={propertyId}
+          currentDomain={wl.domain}
+          currentStatus={wl.domainStatus}
+          lastError={wl.lastError ?? null}
+          inheritedNote={
+            usingInherited
+              ? `Inheriting the portfolio domain (${wl.domain}). Set a value below only to override.`
+              : portfolioWl?.domainStatus === "active" && portfolioWl.domain
+                ? `Portfolio domain available: ${portfolioWl.domain}. Leave blank to inherit.`
+                : undefined
+          }
+        />
       )}
-      <WhiteLabelDomainPanel
-        propertyId={propertyId}
-        currentDomain={wl.domain}
-        currentStatus={wl.domainStatus}
-        lastError={wl.lastError ?? null}
-        inheritedNote={
-          usingInherited
-            ? `Inheriting the portfolio domain (${wl.domain}). Set a value below only to override.`
-            : portfolioWl?.domainStatus === "active" && portfolioWl.domain
-              ? `Portfolio domain available: ${portfolioWl.domain}. Leave blank to inherit.`
-              : undefined
-        }
-      />
-
     </div>
   );
 }
