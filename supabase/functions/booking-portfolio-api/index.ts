@@ -234,6 +234,27 @@ serve(async (req) => {
         brand_muted_text_color: p.brand_muted_text_color || null,
         brand_light_bg_color: p.brand_light_bg_color || null,
         brand_dark_bg_color: p.brand_dark_bg_color || null,
+        ...(includeStaticContent ? {
+          cancellation_policies: policiesByProperty[p.id] || [],
+          contacts: contactsByProperty[p.id] || [],
+          payment_methods: (() => {
+            const keys = Array.isArray(p.payment_providers) && p.payment_providers.length > 0
+              ? p.payment_providers
+              : p.payment_provider ? [p.payment_provider] : [];
+            return keys.map((key: string) => {
+              const reg = registryMap.get(key);
+              return {
+                key,
+                name: reg?.display_name || key,
+                methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
+                currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
+                countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
+                is_active: reg?.is_active ?? true,
+                website_url: reg?.website_url || null,
+              };
+            });
+          })(),
+        } : {}),
       };
     });
 
