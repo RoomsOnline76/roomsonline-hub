@@ -282,7 +282,9 @@ serve(async (req) => {
         brand_light_bg_color: p.brand_light_bg_color || null,
         brand_dark_bg_color: p.brand_dark_bg_color || null,
         ...(includeStaticContent ? {
-          cancellation_policies: policiesByProperty[p.id] || [],
+          cancellation_policies: cancellationByProperty[p.id] || [],
+          reservation_policies: reservationPolByProperty[p.id] || [],
+          policy_rate_plan_links: policyLinksByProperty[p.id] || [],
           contacts: contactsByProperty[p.id] || [],
           payment_methods: (() => {
             const keys = Array.isArray(p.payment_providers) && p.payment_providers.length > 0
@@ -292,12 +294,14 @@ serve(async (req) => {
               const reg = registryMap.get(key);
               return {
                 key,
+                logo_key: key,
                 name: reg?.display_name || key,
                 methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
                 currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
                 countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
                 is_active: reg?.is_active ?? true,
                 website_url: reg?.website_url || null,
+                docs_url: reg?.docs_url || null,
               };
             });
           })(),
