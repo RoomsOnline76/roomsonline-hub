@@ -152,35 +152,38 @@ export default function AdminIntegrations() {
 
             {/* Integration tabs */}
             <Tabs defaultValue="direct" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-9">
-                <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
-                  <Link2 className="h-3.5 w-3.5" /> Direct Link
-                </TabsTrigger>
-                <TabsTrigger value="widget" className="flex items-center gap-1.5 text-xs">
-                  <Code2 className="h-3.5 w-3.5" /> Widget
-                </TabsTrigger>
-                <TabsTrigger value="booking_bar" className="flex items-center gap-1.5 text-xs">
-                  <LayoutTemplate className="h-3.5 w-3.5" /> Booking Bar
-                </TabsTrigger>
-                <TabsTrigger value="full_embed" className="flex items-center gap-1.5 text-xs">
-                  <Globe className="h-3.5 w-3.5" /> Full Embed
-                </TabsTrigger>
-                <TabsTrigger value="smart_button" className="flex items-center gap-1.5 text-xs">
-                  <Sparkles className="h-3.5 w-3.5" /> Smart Button
-                </TabsTrigger>
-                <TabsTrigger value="wordpress" className="flex items-center gap-1.5 text-xs">
-                  <Puzzle className="h-3.5 w-3.5" /> WordPress
-                </TabsTrigger>
-                <TabsTrigger value="elementor" className="flex items-center gap-1.5 text-xs">
-                  <Blocks className="h-3.5 w-3.5" /> Elementor
-                </TabsTrigger>
-                <TabsTrigger value="api" className="flex items-center gap-1.5 text-xs">
-                  <Terminal className="h-3.5 w-3.5" /> API
-                </TabsTrigger>
-                <TabsTrigger value="portfolio" className="flex items-center gap-1.5 text-xs">
-                  <Building2 className="h-3.5 w-3.5" /> Portfolio
-                </TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto -mx-1 px-1 pb-1">
+                <TabsList className="inline-flex w-max min-w-full">
+                  <TabsTrigger value="direct" className="flex items-center gap-1.5 text-xs">
+                    <Link2 className="h-3.5 w-3.5" /> Direct Link
+                  </TabsTrigger>
+                  <TabsTrigger value="widget" className="flex items-center gap-1.5 text-xs">
+                    <Code2 className="h-3.5 w-3.5" /> Widget
+                  </TabsTrigger>
+                  <TabsTrigger value="booking_bar" className="flex items-center gap-1.5 text-xs">
+                    <LayoutTemplate className="h-3.5 w-3.5" /> Booking Bar
+                  </TabsTrigger>
+                  <TabsTrigger value="full_embed" className="flex items-center gap-1.5 text-xs">
+                    <Globe className="h-3.5 w-3.5" /> Full Embed
+                  </TabsTrigger>
+                  <TabsTrigger value="smart_button" className="flex items-center gap-1.5 text-xs">
+                    <Sparkles className="h-3.5 w-3.5" /> Smart Button
+                  </TabsTrigger>
+                  <TabsTrigger value="wordpress" className="flex items-center gap-1.5 text-xs">
+                    <Puzzle className="h-3.5 w-3.5" /> WordPress
+                  </TabsTrigger>
+                  <TabsTrigger value="elementor" className="flex items-center gap-1.5 text-xs">
+                    <Blocks className="h-3.5 w-3.5" /> Elementor
+                  </TabsTrigger>
+                  <TabsTrigger value="api" className="flex items-center gap-1.5 text-xs">
+                    <Terminal className="h-3.5 w-3.5" /> API
+                  </TabsTrigger>
+                  <TabsTrigger value="portfolio" className="flex items-center gap-1.5 text-xs">
+                    <Building2 className="h-3.5 w-3.5" /> Portfolio
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
 
               <TabsContent value="direct">
                 <DirectLinkTab property={currentProperty} />
