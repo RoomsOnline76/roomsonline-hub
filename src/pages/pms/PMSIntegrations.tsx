@@ -141,7 +141,8 @@ export default function PMSIntegrations() {
 
             {/* Portfolio Tabs */}
             <Tabs defaultValue="smart_button" className="space-y-4">
-              <TabsList className="grid grid-cols-5 lg:grid-cols-11 w-full max-w-5xl">
+              <div className="overflow-x-auto -mx-1 px-1 pb-1">
+                <TabsList className="inline-flex w-max min-w-full">
                 <TabsTrigger value="smart_button" className="gap-1.5 text-xs">
                   <Sparkles className="h-3.5 w-3.5" />
                   Smart Button
@@ -186,7 +187,8 @@ export default function PMSIntegrations() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Domains
                 </TabsTrigger>
-              </TabsList>
+                </TabsList>
+              </div>
 
               {/* Smart Button — per property */}
               <TabsContent value="smart_button" className="space-y-4">
