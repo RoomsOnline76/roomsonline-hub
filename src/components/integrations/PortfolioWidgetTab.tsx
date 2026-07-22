@@ -326,7 +326,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
               height={360}
             >
               <iframe
-                src={embedUrl}
+                src={previewUrl}
                 className="w-full h-full border-none"
                 title="Portfolio preview"
               />
