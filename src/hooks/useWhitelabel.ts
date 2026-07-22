@@ -107,6 +107,7 @@ export interface PortfolioWhitelabelState {
   domain: string | null;
   domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
   host: string;
+  lastError?: string | null;
 }
 
 const PORTFOLIO_DEFAULT: PortfolioWhitelabelState = {
@@ -123,16 +124,18 @@ export function usePortfolioWhitelabel(portfolioId: string | undefined) {
       if (!portfolioId) return PORTFOLIO_DEFAULT;
       const { data } = await supabase
         .from("property_portfolios")
-        .select("white_label_domain, white_label_domain_status")
+        .select("white_label_domain, white_label_domain_status, white_label_domain_last_error")
         .eq("id", portfolioId)
         .maybeSingle();
       const status = ((data as any)?.white_label_domain_status || "unconfigured") as PortfolioWhitelabelState["domainStatus"];
       const domain = (((data as any)?.white_label_domain || "") as string).trim() || null;
+      const lastError = ((data as any)?.white_label_domain_last_error as string | null) ?? null;
       const active = status === "active" && !!domain;
       return {
         domain,
         domainStatus: status,
         host: active ? `https://${domain}` : PUBLIC_DOMAIN,
+        lastError,
       };
     },
     enabled: !!portfolioId,
@@ -140,3 +143,4 @@ export function usePortfolioWhitelabel(portfolioId: string | undefined) {
   });
   return q.data ?? PORTFOLIO_DEFAULT;
 }
+
