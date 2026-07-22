@@ -228,7 +228,7 @@ export function WhiteLabelDomainPanel({
   }
 
   async function remove() {
-    if (!confirm("Remove this custom booking subdomain? Guests will fall back to the canonical URL.")) return;
+    setConfirmRemove(false);
     setRemoving(true);
     const body: Record<string, string> = {};
     if (portfolioId) body.portfolio_id = portfolioId;
