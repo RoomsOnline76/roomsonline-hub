@@ -339,8 +339,10 @@ export default function PMSIntegrations() {
                 propertyId={propertyId}
                 currentDomain={wl.domain}
                 currentStatus={wl.domainStatus}
+                lastError={wl.lastError ?? null}
               />
             )}
+
 
             <GatedPaymentProviderSelect propertyId={propertyId} />
 
