@@ -306,18 +306,9 @@ export default function PMSIntegrations() {
                 </Card>
               </TabsContent>
 
-              {/* Domains — WL subdomain per property */}
+              {/* Domains — Portfolio-wide + WL subdomain per property */}
               <TabsContent value="portfolio_domains" className="space-y-4">
-                <PortfolioPerPropertyCards
-                  title="White-label Subdomains"
-                  description="Configure a custom booking subdomain per property. Only shown when white-label is enabled for that property."
-                >
-                  {(portfolioProperties || []).map((pp) => (
-                    <PortfolioPropertyCard key={pp.id} name={pp.name}>
-                      <PortfolioWhitelabelPanel propertyId={pp.id} />
-                    </PortfolioPropertyCard>
-                  ))}
-                </PortfolioPerPropertyCards>
+                <PortfolioDomainsSection portfolioId={portfolioIds[0]} portfolioProperties={portfolioProperties || []} />
               </TabsContent>
             </Tabs>
           </div>
