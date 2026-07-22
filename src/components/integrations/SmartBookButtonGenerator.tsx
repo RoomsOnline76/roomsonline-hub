@@ -105,6 +105,10 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   }, [hasPortfolios, target]);
 
   const selectedPortfolio = availablePortfolios.find((p) => p.id === selectedPortfolioId);
+  const portfolioWl = usePortfolioWhitelabel(selectedPortfolioId);
+  // Portfolio target should honour the portfolio's own verified WL domain so a
+  // subdomain configured once on the portfolio propagates to every button.
+  const portfolioBase = portfolioWl.domainStatus === "active" ? portfolioWl.host : (wl.host || PUBLIC_DOMAIN);
   const BASE = wl.host || PUBLIC_DOMAIN;
   const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
 
@@ -121,10 +125,10 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   }, wlOpts);
 
   const portfolioBookingUrl = selectedPortfolio
-    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
     : propertyBookingUrl;
   const portfolioEmbedUrl = selectedPortfolio
-    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
     : propertyEmbedUrl;
 
   const isPortfolio = target === "portfolio" && !!selectedPortfolio;
