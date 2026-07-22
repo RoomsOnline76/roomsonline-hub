@@ -153,7 +153,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   // Generate code based on solution type
   const generatedCode = useMemo(() => {
     if (solutionType === "button") {
-      const htmlSnippet = `<a href="${bookingUrl}"${target} style="${inlineStyles}">${buttonText}</a>`;
+      const htmlSnippet = `<a href="${bookingUrl}"${linkTarget} style="${inlineStyles}">${buttonText}</a>`;
       if (platform === "wordpress") {
         return `<!-- Option 1: Paste in a Custom HTML block -->
 ${htmlSnippet}
