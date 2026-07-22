@@ -34,25 +34,42 @@ export function AgeVerificationUpload({ special, propertyId, onVerified }: AgeVe
 
     setStatus("uploading");
 
-    const storagePath = `${propertyId}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("id-verifications")
-      .upload(storagePath, file, { contentType: file.type });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      toast.error("Failed to upload document");
-      setStatus("idle");
-      return;
-    }
-
-    setStatus("verifying");
-
     try {
+      const { data: session, error: sessionError } = await supabase.functions.invoke("request-id-upload", {
+        body: {
+          property_id: propertyId,
+          booking_reference: null,
+          min_age: special.min_age ?? undefined,
+          max_age: special.max_age ?? undefined,
+        },
+      });
+
+      if (sessionError || !session?.signed_url || !session?.storage_path) {
+        console.error("Session error:", sessionError, session);
+        toast.error("Failed to start secure upload session");
+        setStatus("idle");
+        return;
+      }
+
+      const uploadRes = await fetch(session.signed_url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+
+      if (!uploadRes.ok) {
+        console.error("Signed upload error:", uploadRes.status, await uploadRes.text());
+        toast.error("Failed to upload document");
+        setStatus("idle");
+        return;
+      }
+
+      setStatus("verifying");
+
       const { data, error } = await supabase.functions.invoke("verify-age-document", {
         body: {
-          storagePath,
+          storagePath: session.storage_path,
+          requestId: session.request_id,
           minAge: special.min_age,
           maxAge: special.max_age,
         },
