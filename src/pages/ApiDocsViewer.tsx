@@ -64,6 +64,14 @@ const API_SECTIONS = [
     ],
   },
   {
+    title: "Static Content",
+    actions: [
+      { method: "POST", action: "get_cancellation_policies", desc: "Get property cancellation policies" },
+      { method: "POST", action: "get_payment_methods", desc: "List accepted payment methods" },
+      { method: "POST", action: "get_property_contact_details", desc: "Get public contact details" },
+    ],
+  },
+  {
     title: "System",
     actions: [
       { method: "POST", action: "get_capabilities", desc: "Get adapter capabilities" },
@@ -106,6 +114,9 @@ export default function ApiDocsViewer() {
               <p className="text-xs text-muted-foreground mt-2">
                 All requests are POST with JSON body containing <code className="bg-muted px-1 rounded">action</code> and <code className="bg-muted px-1 rounded">propertyId</code>.
                 Rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-*</code>) are included on every response.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio_id=&lt;id&gt;&include_static_content=true</code> returns cancellation policies, payment methods and contacts alongside properties.
               </p>
             </CardContent>
           </Card>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
+import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import {
   BedDouble,
   ListChecks,
   Image as ImageIcon,
+  Phone,
 } from "lucide-react";
 
 
@@ -46,7 +48,8 @@ type TabKey =
   | "addons"
   | "house-rules"
   | "templates"
-  | "announcements";
+  | "announcements"
+  | "contacts";
 
 
 
@@ -151,6 +154,12 @@ const SECTION_GROUPS: SectionGroup[] = [
         icon: Megaphone,
         description: "Dated announcement banners shown on the booking site.",
       },
+      {
+        key: "contacts",
+        label: "Contacts",
+        icon: Phone,
+        description: "Public reception, reservations and emergency contact details exposed via the API.",
+      },
     ],
   },
 ];
@@ -228,7 +237,7 @@ export default function PMSPropertySetup() {
               </>
             ) : null}
             Everything the booking engine and guest experience needs — rates, packages, specials,
-            addons, house rules, templates and announcements — lives here.
+            addons, house rules, templates, announcements and contacts — lives here.
           </p>
         </div>
       </header>
@@ -284,14 +293,18 @@ export default function PMSPropertySetup() {
           ))}
         </nav>
 
-        {/* Editor pane — inline embedded PropertyForm */}
+        {/* Editor pane — inline embedded PropertyForm, or standalone contacts editor */}
         <div className="min-w-0 overflow-hidden rounded-lg border bg-background">
-          <PropertyForm
-            embeddedPropertyId={propertyId}
-            embeddedInitialTab={activeTab}
-            embeddedOverride={true}
-            forceTabsOverride={true}
-          />
+          {activeTab === "contacts" ? (
+            <PropertyContactDetails propertyId={propertyId} />
+          ) : (
+            <PropertyForm
+              embeddedPropertyId={propertyId}
+              embeddedInitialTab={activeTab}
+              embeddedOverride={true}
+              forceTabsOverride={true}
+            />
+          )}
         </div>
       </div>
 

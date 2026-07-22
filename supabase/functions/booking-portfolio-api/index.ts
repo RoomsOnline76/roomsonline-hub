@@ -60,9 +60,56 @@ serve(async (req) => {
     // Fetch properties
     const { data: properties } = await supabase
       .from("properties")
-      .select("id, name, slug, city, description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color")
+      .select("id, name, slug, city, description, images, brand_primary_color, brand_secondary_color, external_system, latitude, longitude, amenities, hero_video_url, brand_heading_text_color, brand_body_text_color, brand_muted_text_color, brand_light_bg_color, brand_dark_bg_color, payment_providers, payment_provider")
       .eq("is_active", true)
       .in("id", propertyIds);
+
+    const includeStaticContent = url.searchParams.get("include_static_content") === "true";
+
+    // --- Static content enrichment (optional) ---
+    let policiesByProperty: Record<string, any[]> = {};
+    let contactsByProperty: Record<string, any[]> = {};
+    let registryMap = new Map<string, any>();
+
+    if (includeStaticContent && propertyIds.length > 0) {
+      const [
+        { data: policies },
+        { data: contacts },
+        { data: registry },
+      ] = await Promise.all([
+        supabase
+          .from("rolos_reservation_policies")
+          .select("property_id, id, name, kind, rule, is_default")
+          .in("property_id", propertyIds)
+          .order("is_default", { ascending: false }),
+        supabase
+          .from("property_contact_details")
+          .select("property_id, id, role, name, email, phone, hours, sort_order")
+          .in("property_id", propertyIds)
+          .eq("is_public", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("payment_gateway_registry")
+          .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url"),
+      ]);
+
+      (policies || []).forEach((p: any) => {
+        (policiesByProperty[p.property_id] ||= []).push({
+          id: p.id,
+          name: p.name,
+          kind: p.kind,
+          is_default: p.is_default,
+          rule: p.rule,
+          description: p.rule?.description || null,
+        });
+      });
+
+      (contacts || []).forEach((c: any) => {
+        (contactsByProperty[c.property_id] ||= []).push(c);
+      });
+
+      (registry || []).forEach((r: any) => registryMap.set(r.gateway_key, r));
+    }
 
     // --- Rate resolver (tiered) ---
     // 1) rolos_rate_prices.base_rate  (season-priced native rates)
@@ -187,6 +234,27 @@ serve(async (req) => {
         brand_muted_text_color: p.brand_muted_text_color || null,
         brand_light_bg_color: p.brand_light_bg_color || null,
         brand_dark_bg_color: p.brand_dark_bg_color || null,
+        ...(includeStaticContent ? {
+          cancellation_policies: policiesByProperty[p.id] || [],
+          contacts: contactsByProperty[p.id] || [],
+          payment_methods: (() => {
+            const keys = Array.isArray(p.payment_providers) && p.payment_providers.length > 0
+              ? p.payment_providers
+              : p.payment_provider ? [p.payment_provider] : [];
+            return keys.map((key: string) => {
+              const reg = registryMap.get(key);
+              return {
+                key,
+                name: reg?.display_name || key,
+                methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
+                currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
+                countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
+                is_active: reg?.is_active ?? true,
+                website_url: reg?.website_url || null,
+              };
+            });
+          })(),
+        } : {}),
       };
     });
 

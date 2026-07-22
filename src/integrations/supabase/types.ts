@@ -4771,6 +4771,70 @@ export type Database = {
           },
         ]
       }
+      property_contact_details: {
+        Row: {
+          created_at: string
+          email: string | null
+          hours: string | null
+          id: string
+          is_public: boolean
+          name: string | null
+          phone: string | null
+          property_id: string
+          role: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          hours?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string | null
+          phone?: string | null
+          property_id: string
+          role: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          hours?: string | null
+          id?: string
+          is_public?: boolean
+          name?: string | null
+          phone?: string | null
+          property_id?: string
+          role?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_contact_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_contact_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_contact_details_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_contracts: {
         Row: {
           created_at: string | null

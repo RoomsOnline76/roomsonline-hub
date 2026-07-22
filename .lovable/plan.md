@@ -1,33 +1,118 @@
 ## Goal
-When the booking subdomain is changed to a new value, automatically reset the verification lifecycle so the old Cloudflare Custom Hostname is cleaned up and the panel starts from "Pending DNS" for the new domain — instead of inheriting the old row's `active`/`pending_ssl` state and stale `cloudflare_custom_hostname_id`.
+Close the three static-content gaps identified in the API checklist by adding dedicated, read-only actions to `roomsonline-pms-api`:
+1. Cancellation policies
+2. Accepted payment methods
+3. Property contact details (landlord / reception)
 
-## Current behaviour
-`WhiteLabelDomainPanel.save()` writes the new `white_label_domain` and sets `white_label_domain_status = 'pending'`, but:
-- The previous `cloudflare_custom_hostname_id` is left in the row, so the next `verify` call polls the *old* hostname on Cloudflare and can flip straight back to `active` against the wrong domain.
-- `white_label_domain_last_error` / `custom_domain_error` are not cleared.
-- The old Cloudflare Custom Hostname (and its Origin Rule) is never deleted, leaving orphaned certificates in the CF account.
-- On the portfolio scope the same problem exists on `property_portfolios`.
+## Current state (verified)
+- `roomsonline-pms-api` already exposes property core data, room types, rates, availability, reservations, folios, etc.
+- Cancellation data lives in `rolos_reservation_policies` and `hostfully_room_types.cancellation_policy`, but no API action returns it.
+- Payment configuration lives in `properties.payment_providers` (text array) and `payment_gateway_registry`, but no API action lists accepted methods.
+- Contact data is fragmented (`properties.owner_email`, `amenities.contact_email`, `property_staff`). There is no public, structured contact-details API.
 
-## Changes
+## Proposed changes
 
-### 1. `WhiteLabelDomainPanel.tsx` — detect domain change on save
-- In `save()`, compare the cleaned new value to `currentDomain`.
-- If it differs and there was a previous `currentDomain`, first call the existing `delete-whitelabel-domain` edge function for the old domain (best-effort — swallow errors so a stuck CF row doesn't block the rename).
-- Then write the new domain with a full reset payload:
-  - `white_label_domain = <new>`
-  - `white_label_domain_status = 'pending'`
-  - `cloudflare_custom_hostname_id = null`
-  - `white_label_domain_last_error = null`
-  - `custom_domain_error = null`
-- Reset local UI state: `setLiveError(null)`, `setShowDns(true)`, dismiss any lingering provisioning toast (`toast.dismiss(\`wl-provisioning-${…}\`)`), and reset `migratedRef.current = false` so the one-shot legacy migration doesn't skip the new domain.
-- Toast copy switches from "Domain saved — now click Verify" to "New domain saved — verification reset" when a rename happened.
+### 1. Database: structured property contact details
+Create a new table `property_contact_details` so contact info is explicit, multi-role, and public/private controllable.
 
-### 2. `verify-whitelabel-domain` edge function — defensive guard
-- Before polling Cloudflare, if the DB row's `white_label_domain` no longer matches the `hostname` on the stored `cloudflare_custom_hostname_id`, treat the stored id as stale: null it out and fall through to the existing `cfFindHostnameByName` / create path. This protects against races where the client updates the row but the delete call to CF failed.
+```sql
+CREATE TABLE public.property_contact_details (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  property_id UUID NOT NULL REFERENCES public.properties(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('reception','landlord','emergency','manager','concierge')),
+  name TEXT,
+  email TEXT,
+  phone TEXT,
+  hours TEXT,
+  is_public BOOLEAN NOT NULL DEFAULT true,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
-### 3. No schema changes
-All fields already exist on `property_billing_configs` and `property_portfolios` from the earlier Cloudflare-for-SaaS migration.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.property_contact_details TO authenticated;
+GRANT ALL ON public.property_contact_details TO service_role;
+GRANT SELECT ON public.property_contact_details TO anon;
+
+ALTER TABLE public.property_contact_details ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public can view public contact details"
+  ON public.property_contact_details FOR SELECT TO anon, authenticated
+  USING (is_public = true);
+
+CREATE POLICY "Owners/admins can manage contact details"
+  ON public.property_contact_details FOR ALL TO authenticated
+  USING (
+    public.has_role(auth.uid(), 'admin') OR
+    public.has_role(auth.uid(), 'dev') OR
+    public.has_role(auth.uid(), 'fearless_leader') OR
+    public.is_property_owner(property_id, auth.uid()) OR
+    public.is_linked_owner(property_id, auth.uid())
+  );
+```
+
+Also add an `updated_at` trigger.
+
+### 2. Edge function: three new API actions in `roomsonline-pms-api`
+Add to the allowed `actions` set and implement handlers:
+
+#### `get_cancellation_policies`
+- Input: `propertyId` (required)
+- Returns all `rolos_reservation_policies` for the property, marking the default.
+- Falls back to `hostfully_room_types.cancellation_policy` when no ROL policies exist.
+- Response shape:
+  ```json
+  {
+    "policies": [
+      { "id": "uuid", "name": "...", "kind": "custom", "is_default": true, "rule": {...}, "description": "..." }
+    ],
+    "fallback_text": "..."
+  }
+  ```
+
+#### `get_payment_methods`
+- Input: `propertyId` (required)
+- Reads `properties.payment_providers` and joins `payment_gateway_registry` for display names, currencies, and method types.
+- Returns:
+  ```json
+  {
+    "payment_methods": [
+      { "key": "payfast", "name": "PayFast", "methods": ["card","instant_eft"], "currencies": ["ZAR"], "is_active": true }
+    ]
+  }
+  ```
+
+#### `get_property_contact_details`
+- Input: `propertyId` (required)
+- Returns public rows from `property_contact_details`.
+- Also surfaces legacy `amenities.contact_email` if present and no manager/reception row exists.
+- Response shape:
+  ```json
+  {
+    "contacts": [
+      { "role": "reception", "name": "...", "email": "...", "phone": "...", "hours": "..." }
+    ]
+  }
+  ```
+
+### 3. Update public API documentation
+- Add the three new actions to `src/pages/ApiDocsViewer.tsx` under a new "Static Content" section.
+- Update `public/docs/ROLOS-Developer-REST-API-v3.docx` (or its generated equivalent) with request/response examples.
+
+### 4. Optional: enrich booking portfolio widget
+- Extend `booking-portfolio-api` to optionally include `cancellation_policy`, `payment_methods`, and `contacts` in the property payload when a new flag `include_static_content=true` is passed.
+- This lets direct booking links render terms and contact info without a second API call.
+
+### 5. Frontend admin UI for contact details
+- Add a "Contact Details" sub-section inside `PMSPropertySetup.tsx` (or the existing property form) so owners can manage reception/landlord contacts.
+- Only needed if the new `property_contact_details` table is created.
 
 ## Out of scope
-- No changes to snippet generation, `useWhitelabel`, or the Cloudflare origin-routing helper — those already key off the current row and will pick up the reset automatically.
-- No confirmation dialog on rename; the existing "Save" button click is treated as intent.
+- Modifying cancellation-policy authoring (already implemented in ROLOS Rate Manager → Policies).
+- Modifying payment-provider selection (already configured in ROLOS Integrations / Admin tab).
+
+## Verification
+- Deploy updated edge function.
+- Test each new action via `supabase--curl_edge_functions` with a real `propertyId`.
+- Confirm `ApiDocsViewer.tsx` lists the new actions.
+- Confirm `booking-portfolio-api` returns the extra fields when requested (if step 4 is included).
