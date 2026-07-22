@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,31 +7,27 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2, Building2, AlertTriangle } from "lucide-react";
+import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2, Building2, AlertTriangle, ExternalLink, Trash2 } from "lucide-react";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 
 interface WhiteLabelDomainPanelProps {
-  /** Either propertyId or portfolioId must be provided (portfolioId wins if both). */
   propertyId?: string;
   portfolioId?: string;
   currentDomain: string | null;
-  currentStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending";
-  /** Scope label rendered in the header. */
+  currentStatus: "unconfigured" | "pending" | "pending_ssl" | "active" | "failed" | "dns_ok_tls_pending";
   scopeLabel?: string;
-  /** Shown as a small inheritance note under the header. */
   inheritedNote?: string;
-  /** Disable editing (used when panel is showing inherited state). */
   readOnly?: boolean;
-  /** Last verifier error message, when available. */
   lastError?: string | null;
 }
 
-const CNAME_TARGET = "sleepinafrica.roomsonline.co.za";
+const CNAME_TARGET = "fallback.roomsonline.co.za";
 
 const STATUS_META = {
   unconfigured: { label: "Not configured", icon: ShieldQuestion, tone: "secondary" as const },
   pending: { label: "Pending DNS", icon: Loader2, tone: "outline" as const },
-  dns_ok_tls_pending: { label: "DNS OK — HTTPS not reachable", icon: AlertTriangle, tone: "outline" as const },
+  pending_ssl: { label: "Issuing certificate…", icon: Loader2, tone: "outline" as const },
+  dns_ok_tls_pending: { label: "Issuing certificate…", icon: Loader2, tone: "outline" as const },
   active: { label: "Active", icon: ShieldCheck, tone: "default" as const },
   failed: { label: "Failed", icon: ShieldAlert, tone: "destructive" as const },
 };
@@ -49,13 +45,15 @@ export function WhiteLabelDomainPanel({
   const [domain, setDomain] = useState(currentDomain || "");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [showDns, setShowDns] = useState(currentStatus !== "active");
   const [liveError, setLiveError] = useState<string | null>(lastError ?? null);
   const qc = useQueryClient();
+  const pollTimer = useRef<number | null>(null);
   const status = STATUS_META[currentStatus] || STATUS_META.unconfigured;
   const StatusIcon = status.icon;
   const isActive = currentStatus === "active";
-  const isTlsPending = currentStatus === "dns_ok_tls_pending";
+  const isProvisioning = currentStatus === "pending_ssl" || currentStatus === "dns_ok_tls_pending";
   const isPortfolioScope = !!portfolioId;
 
   useEffect(() => {
@@ -64,14 +62,48 @@ export function WhiteLabelDomainPanel({
     setLiveError(lastError ?? null);
   }, [currentDomain, currentStatus, lastError]);
 
+  // Auto-poll while a certificate is being issued.
+  useEffect(() => {
+    if (!isProvisioning || !domain) return;
+    let cancelled = false;
+    const started = Date.now();
+    const tick = async () => {
+      if (cancelled) return;
+      // Give up after ~10 minutes of polling.
+      if (Date.now() - started > 10 * 60 * 1000) return;
+      const body: Record<string, string> = { domain };
+      if (portfolioId) body.portfolio_id = portfolioId;
+      else if (propertyId) body.property_id = propertyId;
+      try {
+        const { data } = await supabase.functions.invoke("verify-whitelabel-domain", { body });
+        if (cancelled) return;
+        setLiveError((data as any)?.last_error ?? null);
+        invalidate();
+        const s = (data as any)?.status;
+        if (s === "active" || s === "failed") return;
+      } catch { /* keep polling */ }
+      pollTimer.current = window.setTimeout(tick, 15_000);
+    };
+    pollTimer.current = window.setTimeout(tick, 15_000);
+    return () => {
+      cancelled = true;
+      if (pollTimer.current) window.clearTimeout(pollTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProvisioning, domain, portfolioId, propertyId]);
+
   function invalidate() {
     if (portfolioId) qc.invalidateQueries({ queryKey: ["whitelabel-portfolio", portfolioId] });
     if (propertyId) qc.invalidateQueries({ queryKey: ["whitelabel", propertyId] });
     qc.invalidateQueries({ queryKey: ["whitelabel"] });
   }
 
+  function cleanDomain(): string {
+    return domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  }
+
   async function save() {
-    const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const clean = cleanDomain();
     if (!clean) {
       toast.error("Enter a domain like book.yourhotel.com");
       return;
@@ -96,7 +128,7 @@ export function WhiteLabelDomainPanel({
   }
 
   async function verify() {
-    const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const clean = cleanDomain();
     if (!clean) return toast.error("Save a domain first");
     setVerifying(true);
     const body: Record<string, string> = { domain: clean };
@@ -108,10 +140,25 @@ export function WhiteLabelDomainPanel({
     setLiveError((data as any)?.last_error ?? null);
     invalidate();
     const s = (data as any)?.status;
-    if (s === "active") toast.success("Domain verified — HTTPS live");
-    else if (s === "dns_ok_tls_pending") toast.warning("DNS OK, but HTTPS not reachable", { description: (data as any)?.last_error });
+    if (s === "active") toast.success("Domain verified — HTTPS is live");
+    else if (s === "pending_ssl") toast.info("DNS verified — Cloudflare is issuing your certificate (usually 1-2 minutes).");
     else if (s === "pending") toast.info("No DNS records found yet — try again in a few minutes");
     else toast.warning("DNS points elsewhere", { description: (data as any)?.last_error });
+  }
+
+  async function remove() {
+    if (!confirm("Remove this custom booking subdomain? Guests will fall back to the canonical URL.")) return;
+    setRemoving(true);
+    const body: Record<string, string> = {};
+    if (portfolioId) body.portfolio_id = portfolioId;
+    else if (propertyId) body.property_id = propertyId;
+    const { error } = await supabase.functions.invoke("delete-whitelabel-domain", { body });
+    setRemoving(false);
+    if (error) return toast.error("Could not remove", { description: error.message });
+    toast.success("Custom domain removed");
+    setDomain("");
+    setLiveError(null);
+    invalidate();
   }
 
   const dnsHost = (() => {
@@ -132,15 +179,15 @@ export function WhiteLabelDomainPanel({
               {scopeLabel || (isPortfolioScope ? "Portfolio booking subdomain" : "Your own booking subdomain")}
             </CardTitle>
           </div>
-          <Badge variant={status.tone} className={`gap-1 ${isActive ? "bg-green-600 hover:bg-green-600 text-white" : ""} ${isTlsPending ? "border-amber-500 text-amber-700" : ""}`}>
-            <StatusIcon className={`h-3 w-3 ${currentStatus === "pending" ? "animate-spin" : ""}`} />
+          <Badge variant={status.tone} className={`gap-1 ${isActive ? "bg-green-600 hover:bg-green-600 text-white" : ""} ${isProvisioning ? "border-amber-500 text-amber-700" : ""}`}>
+            <StatusIcon className={`h-3 w-3 ${isProvisioning || currentStatus === "pending" ? "animate-spin" : ""}`} />
             {status.label}
           </Badge>
         </div>
         <CardDescription>
           {isPortfolioScope
-            ? <>Point a subdomain (for example <code>book.yourbrand.com</code>) at our canonical host and terminate TLS on your side. Every property in this portfolio will use it automatically for Smart Buttons, widgets and embeds.</>
-            : <>Point a subdomain of your own site (for example <code>book.yourhotel.com</code>) at our canonical host and terminate TLS on your side. Once verified, every integration snippet below automatically uses this domain.</>}
+            ? <>Point a subdomain (for example <code>book.yourbrand.com</code>) at our servers — we provision HTTPS for you automatically. Every property in this portfolio will use it for Smart Buttons, widgets and embeds.</>
+            : <>Point a subdomain of your own site (for example <code>book.yourhotel.com</code>) at our servers — we provision HTTPS for you automatically. Once verified, every integration snippet below uses this domain.</>}
         </CardDescription>
         {inheritedNote && (
           <p className="text-xs text-muted-foreground mt-1">{inheritedNote}</p>
@@ -168,28 +215,35 @@ export function WhiteLabelDomainPanel({
         </div>
 
         {isActive && (
-          <div className="flex items-center justify-between gap-2 rounded-md border border-green-600/30 bg-green-600/10 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-green-600/30 bg-green-600/10 px-3 py-2">
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
               <span>Domain verified — <code className="font-mono text-xs">{domain}</code> is live over HTTPS.</span>
             </div>
-            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setShowDns((v) => !v)}>
-              {showDns ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {showDns ? "Hide DNS record" : "Show DNS record"}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" asChild>
+                <a href={`https://${domain}/`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3 w-3" /> Open
+                </a>
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setShowDns((v) => !v)}>
+                {showDns ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {showDns ? "Hide DNS record" : "Show DNS record"}
+              </Button>
+            </div>
           </div>
         )}
 
-        {isTlsPending && (
+        {isProvisioning && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm space-y-1">
             <div className="flex items-center gap-2 font-medium text-amber-800">
-              <AlertTriangle className="h-4 w-4" />
-              DNS is pointing at us, but HTTPS is not reachable at <code className="font-mono text-xs">{domain}</code>.
+              <Loader2 className="h-4 w-4 animate-spin" />
+              DNS verified — issuing HTTPS certificate for <code className="font-mono text-xs">{domain}</code>.
             </div>
-            {liveError && <p className="text-xs text-amber-900/80">{liveError}</p>}
             <p className="text-xs text-amber-900/80">
-              We don't host TLS certificates for customer domains — you need to terminate SSL on your side. See the two supported options below. Until this is fixed, integration snippets fall back to the canonical host so guests can still book.
+              This usually takes 1-2 minutes. This page will refresh automatically. Guests can keep booking on the canonical URL in the meantime.
             </p>
+            {liveError && <p className="text-xs text-amber-900/80">{liveError}</p>}
           </div>
         )}
 
@@ -203,7 +257,7 @@ export function WhiteLabelDomainPanel({
           <>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs">1. Add this DNS record at your registrar</Label>
+                <Label className="text-xs">Add this DNS record at your registrar</Label>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -214,34 +268,20 @@ export function WhiteLabelDomainPanel({
                 </Button>
               </div>
               <CodeSnippetBlock code={dnsSnippet} language="text" title="DNS record" />
+              <p className="text-xs text-muted-foreground mt-2">
+                That's it — we provision the HTTPS certificate for you via Cloudflare. You don't need to run a proxy or manage TLS on your side.
+              </p>
             </div>
-
-            <div className="space-y-2 rounded-md border bg-background/60 p-3">
-              <Label className="text-xs">2. Terminate TLS on your side (pick one)</Label>
-
-              <div className="text-xs space-y-1">
-                <div className="font-medium">Option A · Cloudflare proxy (recommended)</div>
-                <ol className="list-decimal ml-4 space-y-0.5 text-muted-foreground">
-                  <li>Create the CNAME above in Cloudflare with the <b>orange cloud on</b> (proxied).</li>
-                  <li>SSL/TLS → Overview → set mode to <b>Full</b>.</li>
-                  <li>Cloudflare will issue an edge certificate for <code className="font-mono">{domain || "book.yourhotel.com"}</code> automatically and forward requests to us.</li>
-                </ol>
-              </div>
-
-              <div className="text-xs space-y-1">
-                <div className="font-medium">Option B · Your own CDN / reverse proxy</div>
-                <ol className="list-decimal ml-4 space-y-0.5 text-muted-foreground">
-                  <li>Point the origin at <code className="font-mono">{CNAME_TARGET}</code>.</li>
-                  <li>Manage your own TLS certificate for the branded host.</li>
-                  <li>Forward the <code className="font-mono">Host</code> header as <code className="font-mono">{CNAME_TARGET}</code>.</li>
-                </ol>
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              The widget always loads from our canonical host — your branded domain is only what customers see in the URL bar. No registration on our hosting is required, but a valid TLS certificate served for the branded host is.
-            </p>
           </>
+        )}
+
+        {(currentDomain || domain) && !readOnly && (
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={remove} disabled={removing}>
+              {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              Remove custom domain
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
