@@ -18,7 +18,10 @@ export interface WhitelabelState {
   inherited?: boolean;
   /** Portfolio id that provided the inherited domain (when inherited=true). */
   inheritedFromPortfolioId?: string | null;
+  /** Last verifier error, if any. */
+  lastError?: string | null;
 }
+
 
 const DEFAULT: WhitelabelState = {
   enabled: false,
