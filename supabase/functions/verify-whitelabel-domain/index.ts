@@ -205,6 +205,14 @@ async function cfGetHostname(id: string): Promise<CFResult<CFHostname>> {
   return await r.json();
 }
 
+async function cfFindHostnameByName(hostname: string): Promise<CFHostname | null> {
+  const r = await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames?hostname=${encodeURIComponent(hostname)}`);
+  const json = (await r.json()) as CFResult<CFHostname[]>;
+  if (!json.success || !json.result || json.result.length === 0) return null;
+  return json.result.find((h) => h.hostname.toLowerCase() === hostname.toLowerCase()) ?? json.result[0];
+}
+
+
 function cfErrorMessage(res: CFResult<unknown>): string {
   if (!res.errors?.length) return "Unknown Cloudflare error";
   return res.errors.map((e) => `[${e.code}] ${e.message}`).join("; ");
