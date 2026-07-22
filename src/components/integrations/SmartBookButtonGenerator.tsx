@@ -11,7 +11,7 @@ import { CodeSnippetBlock } from "./CodeSnippetBlock";
 import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers, Building2, Home } from "lucide-react";
 
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
-import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useWhitelabel, usePortfolioWhitelabel } from "@/hooks/useWhitelabel";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 import { ShieldCheck } from "lucide-react";
 
