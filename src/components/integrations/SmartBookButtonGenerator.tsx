@@ -1,14 +1,18 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
-import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers } from "lucide-react";
+import { Sparkles, Globe, Code2, Puzzle, LayoutTemplate, Eye, MousePointerClick, CalendarDays, Monitor, Layers, Building2, Home } from "lucide-react";
 
 import { EntryPointSelector, buildEntryUrl, type EntryPointOptions } from "./EntryPointSelector";
 import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 import { ShieldCheck } from "lucide-react";
 
 interface SmartBookButtonGeneratorProps {
@@ -62,6 +66,8 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const [target, setTarget] = useState<"property" | "portfolio">("property");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
 
   // Sync color when property data loads/changes
   useEffect(() => {
@@ -73,18 +79,60 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const wl = useWhitelabel(property.id);
   const wlOpts = wl.enabled ? { enabled: true, host: wl.host } : undefined;
 
-  const bookingUrl = buildEntryUrl(property, entryOpts, {
+  // Portfolios this property is a member of
+  const { data: memberOf = [] } = useQuery({
+    queryKey: ["smart-btn-portfolio-membership", property.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("portfolio_id, property_portfolios:portfolio_id(id, name, slug)")
+        .eq("property_id", property.id);
+      return (data || []) as any[];
+    },
+  });
+  const availablePortfolios = memberOf
+    .map((m: any) => m.property_portfolios)
+    .filter((p: any): p is { id: string; name: string; slug: string } => !!p?.id);
+  const hasPortfolios = availablePortfolios.length > 0;
+
+  useEffect(() => {
+    if (!selectedPortfolioId && availablePortfolios.length > 0) {
+      setSelectedPortfolioId(availablePortfolios[0].id);
+    }
+  }, [availablePortfolios, selectedPortfolioId]);
+  useEffect(() => {
+    if (!hasPortfolios && target === "portfolio") setTarget("property");
+  }, [hasPortfolios, target]);
+
+  const selectedPortfolio = availablePortfolios.find((p) => p.id === selectedPortfolioId);
+  const BASE = wl.host || PUBLIC_DOMAIN;
+  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+
+  const propertyBookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "smart_button",
     property_id: property.id,
     brand_color: buttonColor,
   }, wlOpts);
-  const embedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
+  const propertyEmbedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
     integration: "smart_widget",
     property_id: property.id,
     brand_color: buttonColor,
   }, wlOpts);
-  const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
+
+  const portfolioBookingUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    : propertyBookingUrl;
+  const portfolioEmbedUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    : propertyEmbedUrl;
+
+  const isPortfolio = target === "portfolio" && !!selectedPortfolio;
+  const bookingUrl = isPortfolio ? portfolioBookingUrl : propertyBookingUrl;
+  const embedUrl = isPortfolio ? portfolioEmbedUrl : propertyEmbedUrl;
+  const targetLabel = isPortfolio ? selectedPortfolio!.name : property.name;
+  const linkTarget = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
+
   const size = SIZE_MAP[buttonSize];
 
   const showButtonCustomisation = solutionType === "button" || solutionType === "button_dates" || solutionType === "combo";
@@ -105,7 +153,7 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   // Generate code based on solution type
   const generatedCode = useMemo(() => {
     if (solutionType === "button") {
-      const htmlSnippet = `<a href="${bookingUrl}"${target} style="${inlineStyles}">${buttonText}</a>`;
+      const htmlSnippet = `<a href="${bookingUrl}"${linkTarget} style="${inlineStyles}">${buttonText}</a>`;
       if (platform === "wordpress") {
         return `<!-- Option 1: Paste in a Custom HTML block -->
 ${htmlSnippet}
@@ -152,7 +200,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
   <iframe 
     src="${embedUrl}" 
     style="width:100%;min-height:700px;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);"
-    title="Book ${property.name}"
+    title="Book ${targetLabel}"
     loading="lazy"
     allow="payment">
   </iframe>
@@ -172,7 +220,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
   <iframe 
     src="${embedUrl}" 
     style="width:100%;min-height:700px;border:none;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.08);"
-    title="Book ${property.name}"
+    title="Book ${targetLabel}"
     loading="lazy"
     allow="payment">
   </iframe>
@@ -180,7 +228,7 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
     }
 
     return "";
-  }, [solutionType, platform, bookingUrl, embedUrl, target, inlineStyles, buttonText, buttonColor, size, property.name]);
+  }, [solutionType, platform, bookingUrl, embedUrl, linkTarget, inlineStyles, buttonText, buttonColor, size, targetLabel]);
 
   // Live preview styles
   const previewStyle: React.CSSProperties = useMemo(() => {
@@ -227,12 +275,76 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
             <div>
               <h3 className="font-semibold">Smart Integration Generator</h3>
               <p className="text-sm text-muted-foreground">
-                Choose your integration type and customise for <strong>{property.name}</strong>
+                Choose your integration type and customise for <strong>{targetLabel}</strong>
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Target: property vs portfolio */}
+      {hasPortfolios && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Badge variant="secondary" className="h-5 w-5 p-0 flex items-center justify-center text-[10px]">•</Badge>
+              What should the button open?
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Link guests to just this property, or to a full portfolio of properties.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setTarget("property")}
+                className={`flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                  target === "property"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
+                }`}
+              >
+                <Home className={`h-5 w-5 shrink-0 ${target === "property" ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium leading-tight">This Property</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">{property.name}</div>
+                </div>
+              </button>
+              <button
+                onClick={() => setTarget("portfolio")}
+                className={`flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                  target === "portfolio"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
+                }`}
+              >
+                <Building2 className={`h-5 w-5 shrink-0 ${target === "portfolio" ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium leading-tight">Portfolio</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                    {availablePortfolios.length} available
+                  </div>
+                </div>
+              </button>
+            </div>
+            {target === "portfolio" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Portfolio</Label>
+                <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select a portfolio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePortfolios.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Step 0: Solution Type */}
       <Card>
