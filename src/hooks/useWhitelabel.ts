@@ -14,6 +14,10 @@ export interface WhitelabelState {
    * Falls back to `PUBLIC_DOMAIN` when no custom domain is Active.
    */
   host: string;
+  /** True when the active domain was inherited from a parent portfolio. */
+  inherited?: boolean;
+  /** Portfolio id that provided the inherited domain (when inherited=true). */
+  inheritedFromPortfolioId?: string | null;
 }
 
 const DEFAULT: WhitelabelState = {
@@ -24,31 +28,65 @@ const DEFAULT: WhitelabelState = {
 };
 
 /**
- * Reads the white-label configuration for a property from `property_billing_configs`.
- * When `white_label_allowed` is true integration cards should switch to the WL
- * variants (hidden ROL chrome, `wl=1` embed param, and — if the domain is
- * Active — the property's own host).
+ * Reads the white-label configuration for a property. Own configuration on
+ * `property_billing_configs` wins; when the property has no verified domain,
+ * we inherit an active domain from any portfolio the property belongs to so
+ * every integration (Smart Button, embed, portfolio widget, …) uses the same
+ * white-label host across the whole portfolio.
  */
 export function useWhitelabel(propertyId: string | undefined) {
   const q = useQuery({
     queryKey: ["whitelabel", propertyId],
     queryFn: async (): Promise<WhitelabelState> => {
       if (!propertyId) return DEFAULT;
-      const { data } = await supabase
+
+      const { data: pbc } = await supabase
         .from("property_billing_configs")
         .select("white_label_allowed, white_label_domain, white_label_domain_status")
         .eq("property_id", propertyId)
         .maybeSingle();
 
-      if (!data) return DEFAULT;
-      const status = (data as any).white_label_domain_status || "unconfigured";
-      const domain = ((data as any).white_label_domain || "").trim() || null;
-      const useCustom = status === "active" && !!domain;
+      const enabled = !!pbc?.white_label_allowed;
+      const ownStatus = ((pbc as any)?.white_label_domain_status || "unconfigured") as WhitelabelState["domainStatus"];
+      const ownDomain = (((pbc as any)?.white_label_domain || "") as string).trim() || null;
+      const ownActive = ownStatus === "active" && !!ownDomain;
+
+      if (ownActive) {
+        return {
+          enabled,
+          domain: ownDomain,
+          domainStatus: ownStatus,
+          host: `https://${ownDomain}`,
+        };
+      }
+
+      // Fall back to any portfolio the property belongs to
+      const { data: memberships } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("portfolio_id, property_portfolios:portfolio_id(id, white_label_domain, white_label_domain_status)")
+        .eq("property_id", propertyId);
+
+      const inheritedRow = (memberships as any[] | null)
+        ?.map((m) => m.property_portfolios)
+        .find((p) => p && p.white_label_domain_status === "active" && p.white_label_domain);
+
+      if (inheritedRow) {
+        const dom = String(inheritedRow.white_label_domain).trim();
+        return {
+          enabled,
+          domain: dom,
+          domainStatus: "active",
+          host: `https://${dom}`,
+          inherited: true,
+          inheritedFromPortfolioId: inheritedRow.id,
+        };
+      }
+
       return {
-        enabled: !!data.white_label_allowed,
-        domain,
-        domainStatus: status,
-        host: useCustom ? `https://${domain}` : PUBLIC_DOMAIN,
+        enabled,
+        domain: ownDomain,
+        domainStatus: ownStatus,
+        host: PUBLIC_DOMAIN,
       };
     },
     enabled: !!propertyId,
@@ -56,4 +94,42 @@ export function useWhitelabel(propertyId: string | undefined) {
   });
 
   return q.data ?? DEFAULT;
+}
+
+export interface PortfolioWhitelabelState {
+  domain: string | null;
+  domainStatus: "unconfigured" | "pending" | "active" | "failed";
+  host: string;
+}
+
+const PORTFOLIO_DEFAULT: PortfolioWhitelabelState = {
+  domain: null,
+  domainStatus: "unconfigured",
+  host: PUBLIC_DOMAIN,
+};
+
+/** Reads the white-label domain configured directly on a portfolio. */
+export function usePortfolioWhitelabel(portfolioId: string | undefined) {
+  const q = useQuery({
+    queryKey: ["whitelabel-portfolio", portfolioId],
+    queryFn: async (): Promise<PortfolioWhitelabelState> => {
+      if (!portfolioId) return PORTFOLIO_DEFAULT;
+      const { data } = await supabase
+        .from("property_portfolios")
+        .select("white_label_domain, white_label_domain_status")
+        .eq("id", portfolioId)
+        .maybeSingle();
+      const status = ((data as any)?.white_label_domain_status || "unconfigured") as PortfolioWhitelabelState["domainStatus"];
+      const domain = (((data as any)?.white_label_domain || "") as string).trim() || null;
+      const active = status === "active" && !!domain;
+      return {
+        domain,
+        domainStatus: status,
+        host: active ? `https://${domain}` : PUBLIC_DOMAIN,
+      };
+    },
+    enabled: !!portfolioId,
+    staleTime: 60_000,
+  });
+  return q.data ?? PORTFOLIO_DEFAULT;
 }
