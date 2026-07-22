@@ -525,7 +525,11 @@ Deno.serve(async (req) => {
         result = await handleGetPaymentMethods(body, supabase);
         break;
       case "get_property_contact_details":
+      case "get_contact_details":
         result = await handleGetPropertyContactDetails(body, supabase);
+        break;
+      case "get_property_profile":
+        result = await handleGetPropertyProfile(body, supabase);
         break;
       case "get_ui_config":
         result = await handleGetUiConfig(body, supabase);
