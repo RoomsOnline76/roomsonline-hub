@@ -105,7 +105,11 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Is there a free trial?",
-        a: "Yes! All plans come with a 30-day free trial. No credit card required. Full API access from day one.",
+        a: "Yes! All plans come with a 60-day free trial. No credit card required. Full API access from day one.",
+      },
+      {
+        q: "What static content can I pull for a property?",
+        a: "Everything you need to render a rich booking flow: property name, type, location & geo, images (with automatic room-image fallback), room types with bed configs and capacities, amenities, rates and live availability, cancellation policies (with linked rate plans), reservation (deposit/guarantee) policies, accepted payment methods, and reception/landlord contact details. Add ?include_static_content=true to the Portfolio API to get it all in one call.",
       },
       {
         q: "Where can I report issues?",
