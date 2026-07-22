@@ -273,7 +273,6 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
           <div className="flex items-center gap-3">
             <Sparkles className="h-5 w-5 text-primary" />
             <div>
-            <div>
               <h3 className="font-semibold">Smart Integration Generator</h3>
               <p className="text-sm text-muted-foreground">
                 Choose your integration type and customise for <strong>{targetLabel}</strong>
