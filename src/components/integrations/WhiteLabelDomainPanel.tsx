@@ -67,10 +67,18 @@ export function WhiteLabelDomainPanel({
     if (!isProvisioning || !domain) return;
     let cancelled = false;
     const started = Date.now();
+    const toastId = `wl-provisioning-${propertyId ?? portfolioId ?? domain}`;
+    toast.loading("Issuing HTTPS certificate…", {
+      id: toastId,
+      description: "Cloudflare usually finishes within 1-2 minutes.",
+    });
     const tick = async () => {
       if (cancelled) return;
       // Give up after ~10 minutes of polling.
-      if (Date.now() - started > 10 * 60 * 1000) return;
+      if (Date.now() - started > 10 * 60 * 1000) {
+        toast.dismiss(toastId);
+        return;
+      }
       const body: Record<string, string> = { domain };
       if (portfolioId) body.portfolio_id = portfolioId;
       else if (propertyId) body.property_id = propertyId;
@@ -80,7 +88,14 @@ export function WhiteLabelDomainPanel({
         setLiveError((data as any)?.last_error ?? null);
         invalidate();
         const s = (data as any)?.status;
-        if (s === "active" || s === "failed") return;
+        if (s === "active") {
+          toast.success("Domain verified — HTTPS is live", { id: toastId });
+          return;
+        }
+        if (s === "failed") {
+          toast.error("Verification failed", { id: toastId, description: (data as any)?.last_error });
+          return;
+        }
       } catch { /* keep polling */ }
       pollTimer.current = window.setTimeout(tick, 15_000);
     };
@@ -88,9 +103,11 @@ export function WhiteLabelDomainPanel({
     return () => {
       cancelled = true;
       if (pollTimer.current) window.clearTimeout(pollTimer.current);
+      toast.dismiss(toastId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProvisioning, domain, portfolioId, propertyId]);
+
 
   // One-shot migration: legacy `dns_ok_tls_pending` rows were written by the
   // pre-Cloudflare-for-SaaS verifier. Re-invoke verify on mount so they either
