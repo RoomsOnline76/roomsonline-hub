@@ -677,6 +677,7 @@ function PortfolioWhitelabelPanel({
         propertyId={propertyId}
         currentDomain={wl.domain}
         currentStatus={wl.domainStatus}
+        lastError={wl.lastError ?? null}
         inheritedNote={
           usingInherited
             ? `Inheriting the portfolio domain (${wl.domain}). Set a value below only to override.`
@@ -685,6 +686,7 @@ function PortfolioWhitelabelPanel({
               : undefined
         }
       />
+
     </div>
   );
 }
