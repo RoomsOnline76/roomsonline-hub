@@ -618,9 +618,50 @@ function PortfolioPropertyCard({ name, children }: { name: string; children: Rea
   );
 }
 
+/* Portfolio-wide domain section: one shared subdomain for the whole portfolio,
+   plus per-property override cards that show inherited status. */
+function PortfolioDomainsSection({
+  portfolioId,
+  portfolioProperties,
+}: {
+  portfolioId: string | undefined;
+  portfolioProperties: Array<{ id: string; name: string }>;
+}) {
+  const portfolioWl = usePortfolioWhitelabel(portfolioId);
+  return (
+    <div className="space-y-4">
+      {portfolioId && (
+        <WhiteLabelDomainPanel
+          portfolioId={portfolioId}
+          currentDomain={portfolioWl.domain}
+          currentStatus={portfolioWl.domainStatus}
+          scopeLabel="Portfolio booking subdomain"
+        />
+      )}
+      <PortfolioPerPropertyCards
+        title="Per-property overrides"
+        description="Each property inherits the portfolio subdomain. Configure a different one here only if a property should use its own domain."
+      >
+        {portfolioProperties.map((pp) => (
+          <PortfolioPropertyCard key={pp.id} name={pp.name}>
+            <PortfolioWhitelabelPanel propertyId={pp.id} portfolioWl={portfolioWl} />
+          </PortfolioPropertyCard>
+        ))}
+      </PortfolioPerPropertyCards>
+    </div>
+  );
+}
+
 /* Per-property white-label panel wrapper — fetches WL state for each portfolio property */
-function PortfolioWhitelabelPanel({ propertyId }: { propertyId: string }) {
+function PortfolioWhitelabelPanel({
+  propertyId,
+  portfolioWl,
+}: {
+  propertyId: string;
+  portfolioWl?: { domain: string | null; domainStatus: "unconfigured" | "pending" | "active" | "failed" };
+}) {
   const wl = useWhitelabel(propertyId);
+  const usingInherited = wl.inherited && wl.domainStatus === "active";
   return (
     <div className="space-y-2">
       {!wl.enabled && (
@@ -632,6 +673,13 @@ function PortfolioWhitelabelPanel({ propertyId }: { propertyId: string }) {
         propertyId={propertyId}
         currentDomain={wl.domain}
         currentStatus={wl.domainStatus}
+        inheritedNote={
+          usingInherited
+            ? `Inheriting the portfolio domain (${wl.domain}). Set a value below only to override.`
+            : portfolioWl?.domainStatus === "active" && portfolioWl.domain
+              ? `Portfolio domain available: ${portfolioWl.domain}. Leave blank to inherit.`
+              : undefined
+        }
       />
     </div>
   );
