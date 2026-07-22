@@ -114,7 +114,13 @@ export function WhiteLabelDomainPanel({
     else toast.warning("DNS points elsewhere", { description: (data as any)?.last_error });
   }
 
-  const dnsSnippet = `Type: CNAME\nName: ${domain || "book"}\nValue: ${CNAME_TARGET}`;
+  const dnsHost = (() => {
+    const d = (domain || "").trim().toLowerCase();
+    if (!d) return "book";
+    const parts = d.split(".");
+    return parts.length > 2 ? parts[0] : d;
+  })();
+  const dnsSnippet = `Type: CNAME\nName: ${dnsHost}\nValue: ${CNAME_TARGET}`;
 
   return (
     <Card className="border-primary/30 bg-primary/5">
