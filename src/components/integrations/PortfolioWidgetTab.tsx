@@ -12,7 +12,7 @@ import { Copy, ExternalLink, Building2, Check, Palette, Plus, Sparkles, RefreshC
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { WidgetPreviewFrame } from "./WidgetPreviewFrame";
-import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { useWhitelabel, usePortfolioWhitelabel } from "@/hooks/useWhitelabel";
 import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface PortfolioWidgetTabProps {
@@ -75,7 +75,12 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const portfolioSlug = selectedPortfolio?.slug || "my-portfolio";
 
   const wl = useWhitelabel(property.id);
-  const BASE = wl.host || PUBLIC_DOMAIN;
+  const portfolioWl = usePortfolioWhitelabel(selectedPortfolioId);
+  // Prefer the portfolio's own verified WL domain when we're generating a
+  // portfolio widget — otherwise fall back to the property's inherited host.
+  const wlHost = portfolioWl.domainStatus === "active" ? portfolioWl.host : wl.host;
+  const wlDomain = portfolioWl.domainStatus === "active" ? portfolioWl.domain : (wl.domainStatus === "active" ? wl.domain : null);
+  const BASE = wlHost || PUBLIC_DOMAIN;
   const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
   const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
   // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
@@ -85,7 +90,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
     : "";
 
   const wlAttrs = wl.enabled
-    ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
+    ? `\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}`
     : "";
   const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
 

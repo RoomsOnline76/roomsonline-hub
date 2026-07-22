@@ -1,7 +1,8 @@
-// Verifies a property's custom white-label subdomain by resolving DNS via
-// Cloudflare's DNS-over-HTTPS API and checking that the CNAME (or the resolved
-// A record) points at our hosting target. Updates
-// `property_billing_configs.white_label_domain_status` accordingly.
+// Verifies a property's or portfolio's custom white-label subdomain by
+// resolving DNS via Cloudflare's DNS-over-HTTPS API and checking that the
+// CNAME (or the resolved A record) points at our hosting target. Updates
+// `property_billing_configs.white_label_domain_status` (property scope) or
+// `property_portfolios.white_label_domain_status` (portfolio scope).
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
@@ -13,8 +14,11 @@ const EXPECTED_CNAME_HOSTS = [
 const EXPECTED_A_RECORD = "185.158.133.1";
 
 const BodySchema = z.object({
-  property_id: z.string().uuid(),
+  property_id: z.string().uuid().optional(),
+  portfolio_id: z.string().uuid().optional(),
   domain: z.string().min(4).max(255).regex(/^[a-z0-9.-]+$/i),
+}).refine((v) => !!v.property_id || !!v.portfolio_id, {
+  message: "property_id or portfolio_id is required",
 });
 
 interface DohRecord {
@@ -47,10 +51,9 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    const { property_id, domain } = parsed.data;
+    const { property_id, portfolio_id, domain } = parsed.data;
     const normalized = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
 
-    // Resolve CNAME first; fall back to A record.
     const cnames = await doh(normalized, "CNAME");
     const aRecords = await doh(normalized, "A");
     const cnameTargets = cnames.map((r) => r.data.replace(/\.$/, "").toLowerCase());
@@ -69,14 +72,25 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    await supabase
-      .from("property_billing_configs")
-      .update({
-        white_label_domain: normalized,
-        white_label_domain_status: status,
-        white_label_domain_verified_at: verified ? new Date().toISOString() : null,
-      } as any)
-      .eq("property_id", property_id);
+    if (portfolio_id) {
+      await supabase
+        .from("property_portfolios")
+        .update({
+          white_label_domain: normalized,
+          white_label_domain_status: status,
+          white_label_domain_verified_at: verified ? new Date().toISOString() : null,
+        } as any)
+        .eq("id", portfolio_id);
+    } else if (property_id) {
+      await supabase
+        .from("property_billing_configs")
+        .update({
+          white_label_domain: normalized,
+          white_label_domain_status: status,
+          white_label_domain_verified_at: verified ? new Date().toISOString() : null,
+        } as any)
+        .eq("property_id", property_id);
+    }
 
     return new Response(
       JSON.stringify({

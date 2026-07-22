@@ -7,13 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2, Building2 } from "lucide-react";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
 
 interface WhiteLabelDomainPanelProps {
-  propertyId: string;
+  /** Either propertyId or portfolioId must be provided (portfolioId wins if both). */
+  propertyId?: string;
+  portfolioId?: string;
   currentDomain: string | null;
   currentStatus: "unconfigured" | "pending" | "active" | "failed";
+  /** Scope label rendered in the header. */
+  scopeLabel?: string;
+  /** Shown as a small inheritance note under the header. */
+  inheritedNote?: string;
+  /** Disable editing (used when panel is showing inherited state). */
+  readOnly?: boolean;
 }
 
 const CNAME_TARGET = "sleepinafrica.roomsonline.co.za";
@@ -26,7 +34,15 @@ const STATUS_META = {
   failed: { label: "Failed", icon: ShieldAlert, tone: "destructive" as const },
 };
 
-export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus }: WhiteLabelDomainPanelProps) {
+export function WhiteLabelDomainPanel({
+  propertyId,
+  portfolioId,
+  currentDomain,
+  currentStatus,
+  scopeLabel,
+  inheritedNote,
+  readOnly = false,
+}: WhiteLabelDomainPanelProps) {
   const [domain, setDomain] = useState(currentDomain || "");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -35,8 +51,16 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
   const status = STATUS_META[currentStatus] || STATUS_META.unconfigured;
   const StatusIcon = status.icon;
   const isActive = currentStatus === "active";
+  const isPortfolioScope = !!portfolioId;
 
   useEffect(() => { setDomain(currentDomain || ""); setShowDns(currentStatus !== "active"); }, [currentDomain, currentStatus]);
+
+  function invalidate() {
+    if (portfolioId) qc.invalidateQueries({ queryKey: ["whitelabel-portfolio", portfolioId] });
+    if (propertyId) qc.invalidateQueries({ queryKey: ["whitelabel", propertyId] });
+    // Property-level inheritance may change for portfolio siblings — invalidate broadly.
+    qc.invalidateQueries({ queryKey: ["whitelabel"] });
+  }
 
   async function save() {
     const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -45,29 +69,41 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from("property_billing_configs")
-      .update({
-        white_label_domain: clean,
-        white_label_domain_status: "pending",
-      } as any)
-      .eq("property_id", propertyId);
+    let error;
+    if (portfolioId) {
+      ({ error } = await supabase
+        .from("property_portfolios")
+        .update({
+          white_label_domain: clean,
+          white_label_domain_status: "pending",
+        } as any)
+        .eq("id", portfolioId));
+    } else if (propertyId) {
+      ({ error } = await supabase
+        .from("property_billing_configs")
+        .update({
+          white_label_domain: clean,
+          white_label_domain_status: "pending",
+        } as any)
+        .eq("property_id", propertyId));
+    }
     setSaving(false);
     if (error) return toast.error("Could not save", { description: error.message });
     toast.success("Domain saved — now click Verify DNS");
-    qc.invalidateQueries({ queryKey: ["whitelabel", propertyId] });
+    invalidate();
   }
 
   async function verify() {
     const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     if (!clean) return toast.error("Save a domain first");
     setVerifying(true);
-    const { data, error } = await supabase.functions.invoke("verify-whitelabel-domain", {
-      body: { property_id: propertyId, domain: clean },
-    });
+    const body: Record<string, string> = { domain: clean };
+    if (portfolioId) body.portfolio_id = portfolioId;
+    else if (propertyId) body.property_id = propertyId;
+    const { data, error } = await supabase.functions.invoke("verify-whitelabel-domain", { body });
     setVerifying(false);
     if (error) return toast.error("Verification failed", { description: error.message });
-    qc.invalidateQueries({ queryKey: ["whitelabel", propertyId] });
+    invalidate();
     if (data?.status === "active") toast.success("Domain verified — WL host is live");
     else if (data?.status === "pending") toast.info("No DNS records found yet — try again in a few minutes");
     else toast.warning("DNS points elsewhere", { description: "Add the CNAME or A record shown below." });
@@ -80,8 +116,10 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Your own booking subdomain</CardTitle>
+            {isPortfolioScope ? <Building2 className="h-5 w-5 text-primary" /> : <Globe className="h-5 w-5 text-primary" />}
+            <CardTitle className="text-lg">
+              {scopeLabel || (isPortfolioScope ? "Portfolio booking subdomain" : "Your own booking subdomain")}
+            </CardTitle>
           </div>
           <Badge variant={status.tone} className={`gap-1 ${isActive ? "bg-green-600 hover:bg-green-600 text-white" : ""}`}>
             <StatusIcon className={`h-3 w-3 ${currentStatus === "pending" ? "animate-spin" : ""}`} />
@@ -89,10 +127,13 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
           </Badge>
         </div>
         <CardDescription>
-          Point a subdomain of your own site (for example <code>book.yourhotel.com</code>) at our hosting so the
-          entire booking flow lives on your URL. Once verified, every integration snippet below automatically
-          uses this domain — guests never see the ROL'OS URL.
+          {isPortfolioScope
+            ? <>Point a subdomain (for example <code>book.yourbrand.com</code>) at our hosting. Every property in this portfolio will use it automatically for Smart Buttons, widgets and embeds — guests never see the ROL'OS URL.</>
+            : <>Point a subdomain of your own site (for example <code>book.yourhotel.com</code>) at our hosting so the entire booking flow lives on your URL. Once verified, every integration snippet below automatically uses this domain — guests never see the ROL'OS URL.</>}
         </CardDescription>
+        {inheritedNote && (
+          <p className="text-xs text-muted-foreground mt-1">{inheritedNote}</p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr,auto,auto] gap-2 items-end">
@@ -103,12 +144,13 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
               onChange={(e) => setDomain(e.target.value)}
               placeholder="book.yourhotel.com"
               className="h-9"
+              disabled={readOnly}
             />
           </div>
-          <Button size="sm" variant="outline" onClick={save} disabled={saving}>
+          <Button size="sm" variant="outline" onClick={save} disabled={saving || readOnly}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
           </Button>
-          <Button size="sm" onClick={verify} disabled={verifying || !domain}>
+          <Button size="sm" onClick={verify} disabled={verifying || !domain || readOnly}>
             {verifying ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
             Verify DNS
           </Button>

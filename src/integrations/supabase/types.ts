@@ -5084,6 +5084,9 @@ export type Database = {
           parent_portfolio_id: string | null
           slug: string | null
           updated_at: string | null
+          white_label_domain: string | null
+          white_label_domain_status: string
+          white_label_domain_verified_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -5094,6 +5097,9 @@ export type Database = {
           parent_portfolio_id?: string | null
           slug?: string | null
           updated_at?: string | null
+          white_label_domain?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -5104,6 +5110,9 @@ export type Database = {
           parent_portfolio_id?: string | null
           slug?: string | null
           updated_at?: string | null
+          white_label_domain?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
         }
         Relationships: [
           {
