@@ -245,32 +245,54 @@ Deno.serve(async (req) => {
     );
 
     // Read existing row so we know if a CF hostname is already registered.
+    // CRITICAL: if the row no longer stores a domain (user just clicked Remove
+    // while an auto-poll request was already in flight), we must NOT recreate
+    // the Cloudflare hostname or write the domain back — otherwise the removed
+    // domain silently reappears a few seconds later.
     let existingHostnameId: string | null = null;
+    let storedDomain: string | null = null;
+    let rowExists = false;
     if (portfolio_id) {
       const { data } = await supabase
         .from("property_portfolios")
         .select("cloudflare_custom_hostname_id, white_label_domain")
         .eq("id", portfolio_id)
         .maybeSingle();
+      rowExists = !!data;
       existingHostnameId = (data as any)?.cloudflare_custom_hostname_id ?? null;
-      // If the domain changed, drop the stale CF hostname first.
-      const existingDomain = ((data as any)?.white_label_domain || "").toLowerCase();
-      if (existingHostnameId && existingDomain && existingDomain !== normalized) {
-        await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames/${existingHostnameId}`, { method: "DELETE" }).catch(() => null);
-        existingHostnameId = null;
-      }
+      storedDomain = ((data as any)?.white_label_domain || "").toLowerCase() || null;
     } else if (property_id) {
       const { data } = await supabase
         .from("property_billing_configs")
         .select("cloudflare_custom_hostname_id, white_label_domain")
         .eq("property_id", property_id)
         .maybeSingle();
+      rowExists = !!data;
       existingHostnameId = (data as any)?.cloudflare_custom_hostname_id ?? null;
-      const existingDomain = ((data as any)?.white_label_domain || "").toLowerCase();
-      if (existingHostnameId && existingDomain && existingDomain !== normalized) {
-        await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames/${existingHostnameId}`, { method: "DELETE" }).catch(() => null);
-        existingHostnameId = null;
-      }
+      storedDomain = ((data as any)?.white_label_domain || "").toLowerCase() || null;
+    }
+
+    // Guard: if the caller is verifying a domain that is no longer the one
+    // stored (or the row has been cleared), do nothing. This prevents races
+    // between Remove/Save and any concurrent polling.
+    if (rowExists && (!storedDomain || storedDomain !== normalized)) {
+      return new Response(
+        JSON.stringify({
+          status: storedDomain ? "pending" : "cleared",
+          last_error: null,
+          skipped: true,
+          reason: storedDomain
+            ? "Stored domain differs from requested — ignoring stale verify call."
+            : "Domain was removed — ignoring stale verify call.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // If the domain changed vs an existing CF hostname on this row, drop the stale one.
+    if (existingHostnameId && storedDomain && storedDomain !== normalized) {
+      await cfFetch(`/zones/${CF_ZONE_ID}/custom_hostnames/${existingHostnameId}`, { method: "DELETE" }).catch(() => null);
+      existingHostnameId = null;
     }
 
     // 1) DNS check
