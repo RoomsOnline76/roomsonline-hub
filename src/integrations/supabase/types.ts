@@ -4391,8 +4391,10 @@ export type Database = {
         Row: {
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          cloudflare_custom_hostname_id: string | null
           commission_rate: number | null
           created_at: string | null
+          custom_domain_error: string | null
           custom_overrides: Json | null
           id: string
           linked_contract_id: string | null
@@ -4416,8 +4418,10 @@ export type Database = {
         Insert: {
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
+          custom_domain_error?: string | null
           custom_overrides?: Json | null
           id?: string
           linked_contract_id?: string | null
@@ -4441,8 +4445,10 @@ export type Database = {
         Update: {
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
+          custom_domain_error?: string | null
           custom_overrides?: Json | null
           id?: string
           linked_contract_id?: string | null
@@ -5079,7 +5085,9 @@ export type Database = {
       }
       property_portfolios: {
         Row: {
+          cloudflare_custom_hostname_id: string | null
           created_at: string | null
+          custom_domain_error: string | null
           id: string
           metadata: Json | null
           name: string
@@ -5093,7 +5101,9 @@ export type Database = {
           white_label_domain_verified_at: string | null
         }
         Insert: {
+          cloudflare_custom_hostname_id?: string | null
           created_at?: string | null
+          custom_domain_error?: string | null
           id?: string
           metadata?: Json | null
           name: string
@@ -5107,7 +5117,9 @@ export type Database = {
           white_label_domain_verified_at?: string | null
         }
         Update: {
+          cloudflare_custom_hostname_id?: string | null
           created_at?: string | null
+          custom_domain_error?: string | null
           id?: string
           metadata?: Json | null
           name?: string

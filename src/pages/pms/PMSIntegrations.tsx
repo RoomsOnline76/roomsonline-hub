@@ -662,7 +662,7 @@ function PortfolioWhitelabelPanel({
   portfolioWl,
 }: {
   propertyId: string;
-  portfolioWl?: { domain: string | null; domainStatus: "unconfigured" | "pending" | "active" | "failed" | "dns_ok_tls_pending" };
+  portfolioWl?: { domain: string | null; domainStatus: "unconfigured" | "pending" | "pending_ssl" | "active" | "failed" | "dns_ok_tls_pending" };
 }) {
   const wl = useWhitelabel(propertyId);
   const usingInherited = wl.inherited && wl.domainStatus === "active";
