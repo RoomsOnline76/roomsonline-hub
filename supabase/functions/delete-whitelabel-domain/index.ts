@@ -7,6 +7,8 @@ import { z } from "npm:zod@3";
 const CF_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") || "";
 const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
+const ORIGIN_RULESET_PHASE = "http_request_origin";
+const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
 
 const BodySchema = z.object({
   property_id: z.string().uuid().optional(),
@@ -34,6 +36,80 @@ async function cfDelete(id: string): Promise<void> {
   }
 }
 
+interface CFRulesetRule {
+  id?: string;
+  ref?: string;
+  expression: string;
+  description?: string;
+  action: string;
+  action_parameters?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+interface CFRuleset {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  phase: string;
+  rules: CFRulesetRule[];
+}
+
+interface CFResult<T> {
+  success: boolean;
+  result?: T;
+}
+
+function cfSafeRef(hostname: string): string {
+  return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
+async function cfFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    return await fetch(`${CF_API_BASE}${path}`, {
+      ...init,
+      signal: ctrl.signal,
+      headers: {
+        Authorization: `Bearer ${CF_API_TOKEN}`,
+        "Content-Type": "application/json",
+        ...(init.headers || {}),
+      },
+    });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function cfDeleteOriginRoute(hostname: string): Promise<void> {
+  try {
+    const ref = cfSafeRef(hostname);
+    const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
+    const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
+    const ruleset = listed.result?.find((r) => r.kind === "zone" && r.phase === ORIGIN_RULESET_PHASE);
+    if (!listed.success || !ruleset) return;
+
+    const nextRules = (ruleset.rules || []).filter((rule) =>
+      rule.ref !== ref && rule.expression !== `http.host eq "${hostname}"`
+    );
+    if (nextRules.length === (ruleset.rules || []).length) return;
+
+    await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: ruleset.name,
+        description: ruleset.description,
+        kind: "zone",
+        phase: ORIGIN_RULESET_PHASE,
+        rules: nextRules,
+      }),
+    });
+  } catch (err) {
+    console.warn("cfDeleteOriginRoute failed (ignored)", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -53,24 +129,30 @@ Deno.serve(async (req) => {
     );
 
     let hostnameId: string | null = null;
+    let hostname: string | null = null;
     if (portfolio_id) {
       const { data } = await supabase
         .from("property_portfolios")
-        .select("cloudflare_custom_hostname_id")
+        .select("cloudflare_custom_hostname_id, white_label_domain")
         .eq("id", portfolio_id)
         .maybeSingle();
       hostnameId = (data as any)?.cloudflare_custom_hostname_id ?? null;
+      hostname = (data as any)?.white_label_domain ?? null;
     } else if (property_id) {
       const { data } = await supabase
         .from("property_billing_configs")
-        .select("cloudflare_custom_hostname_id")
+        .select("cloudflare_custom_hostname_id, white_label_domain")
         .eq("property_id", property_id)
         .maybeSingle();
       hostnameId = (data as any)?.cloudflare_custom_hostname_id ?? null;
+      hostname = (data as any)?.white_label_domain ?? null;
     }
 
     if (hostnameId && CF_ZONE_ID && CF_API_TOKEN) {
       await cfDelete(hostnameId);
+    }
+    if (hostname && CF_ZONE_ID && CF_API_TOKEN) {
+      await cfDeleteOriginRoute(hostname.toLowerCase());
     }
 
     const patch = {
