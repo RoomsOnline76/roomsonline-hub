@@ -30,11 +30,13 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
   const [domain, setDomain] = useState(currentDomain || "");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDns, setShowDns] = useState(currentStatus !== "active");
   const qc = useQueryClient();
   const status = STATUS_META[currentStatus] || STATUS_META.unconfigured;
   const StatusIcon = status.icon;
+  const isActive = currentStatus === "active";
 
-  useEffect(() => { setDomain(currentDomain || ""); }, [currentDomain]);
+  useEffect(() => { setDomain(currentDomain || ""); setShowDns(currentStatus !== "active"); }, [currentDomain, currentStatus]);
 
   async function save() {
     const clean = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
