@@ -925,6 +925,109 @@ console.log(config.snippet.simple);`,
       data: { properties: [{ id: "uuid", name: "Mountain Lodge" }], total: 1 }
     }, null, 2),
   },
+
+  // ─── Static Content ───────────────────────────────────────────────────
+  {
+    action: "get_cancellation_policies",
+    category: "static_content",
+    title: "Get Cancellation Policies",
+    description: "Returns the ROL'OS-authored cancellation policy library for a property, including which rate plans each policy is linked to. Use this to render accurate cancellation terms at checkout and in confirmations.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        cancellation_policies: [
+          {
+            id: "uuid",
+            name: "Flexible 24h",
+            rule: { window_hours: 24, forfeiture_percent: 0, tiers: [] },
+            linked_rate_plans: ["rate-plan-uuid-1", "rate-plan-uuid-2"],
+          },
+        ],
+      },
+    }, null, 2),
+    curlExample: curl("get_cancellation_policies"),
+    jsExample: js("get_cancellation_policies"),
+    phpExample: php("get_cancellation_policies"),
+  },
+  {
+    action: "get_reservation_policies",
+    category: "static_content",
+    title: "Get Reservation Policies",
+    description: "Returns the reservation policy library (deposit and guarantee terms) for a property with `linked_rate_plans` mapping. Distinct from cancellation policies.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        reservation_policies: [
+          {
+            id: "uuid",
+            name: "50% deposit on booking",
+            kind: "deposit",
+            rule: { percent: 50, due: "on_booking" },
+            is_default: true,
+            linked_rate_plans: ["rate-plan-uuid-1"],
+          },
+        ],
+      },
+    }, null, 2),
+    curlExample: curl("get_reservation_policies"),
+    jsExample: js("get_reservation_policies"),
+    phpExample: php("get_reservation_policies"),
+  },
+  {
+    action: "get_payment_methods",
+    category: "static_content",
+    title: "Get Payment Methods",
+    description: "Returns the payment gateways configured on a property, including display name, logo key, supported currencies, docs URL, and the underlying edge-function name.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        payment_methods: [
+          {
+            provider: "payfast",
+            display_name: "PayFast",
+            logo_key: "payfast",
+            currencies: ["ZAR"],
+            docs_url: "https://developers.payfast.co.za",
+            edge_function_name: "payfast-checkout",
+          },
+        ],
+      },
+    }, null, 2),
+    curlExample: curl("get_payment_methods"),
+    jsExample: js("get_payment_methods"),
+    phpExample: php("get_payment_methods"),
+  },
+  {
+    action: "get_contact_details",
+    category: "static_content",
+    title: "Get Contact Details",
+    description: "Returns reception, landlord, and support contact details for a property (phone, email, WhatsApp, hours). Use for arrival instructions and post-booking communications.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        contacts: {
+          reception: { name: "Front Desk", phone: "+27 21 000 0000", email: "stay@example.com", hours: "24/7" },
+          landlord: { name: "Owner", phone: "+27 82 000 0000", email: "owner@example.com" },
+          emergency: { phone: "+27 82 111 2222" },
+        },
+      },
+    }, null, 2),
+    curlExample: curl("get_contact_details"),
+    jsExample: js("get_contact_details"),
+    phpExample: php("get_contact_details"),
+  },
 ];
 export function getActionsByCategory(category: string): ApiAction[] {
   return API_ACTIONS.filter(a => a.category === category);
