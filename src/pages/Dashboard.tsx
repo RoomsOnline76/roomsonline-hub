@@ -410,11 +410,11 @@ const Dashboard = () => {
       ? Math.max(1, differenceInDays(dateRange.to, dateRange.from) + 1) 
       : 1;
     
-    // Calculate total rooms (use bedrooms as proxy, default to 1 per property)
-    const relevantProperties = selectedPropertyId === "all" 
-      ? properties 
+    // Calculate total rooms from real inventory (rolos_rooms / room_types / hostfully), excluding archived properties
+    const relevantProperties = selectedPropertyId === "all"
+      ? properties
       : properties.filter(p => p.id === selectedPropertyId);
-    const totalRooms = relevantProperties.reduce((sum, p) => sum + Math.max(1, p.bedrooms || 1), 0);
+    const totalRooms = relevantProperties.reduce((sum, p) => sum + (roomsByProperty.get(p.id) || 1), 0);
     
     // ADR (Average Daily Rate) = Revenue / Bookings
     const adr = activeBookings.length > 0 ? totalRevenue / activeBookings.length : 0;
