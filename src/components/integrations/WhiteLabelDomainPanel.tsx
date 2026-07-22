@@ -9,6 +9,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2, Building2, AlertTriangle, ExternalLink, Trash2 } from "lucide-react";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface WhiteLabelDomainPanelProps {
   propertyId?: string;
@@ -46,6 +56,7 @@ export function WhiteLabelDomainPanel({
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [showDns, setShowDns] = useState(currentStatus !== "active");
   const [liveError, setLiveError] = useState<string | null>(lastError ?? null);
   const qc = useQueryClient();
@@ -217,7 +228,7 @@ export function WhiteLabelDomainPanel({
   }
 
   async function remove() {
-    if (!confirm("Remove this custom booking subdomain? Guests will fall back to the canonical URL.")) return;
+    setConfirmRemove(false);
     setRemoving(true);
     const body: Record<string, string> = {};
     if (portfolioId) body.portfolio_id = portfolioId;
@@ -347,12 +358,29 @@ export function WhiteLabelDomainPanel({
 
         {(currentDomain || domain) && !readOnly && (
           <div className="flex justify-end">
-            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={remove} disabled={removing}>
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={() => setConfirmRemove(true)} disabled={removing}>
               {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
               Remove custom domain
             </Button>
           </div>
         )}
+
+        <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove custom booking subdomain?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Guests will fall back to the canonical booking URL. You can re-add the domain at any time.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={remove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Remove domain
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );
