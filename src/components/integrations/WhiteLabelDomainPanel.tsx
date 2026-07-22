@@ -9,6 +9,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Globe, Loader2, ShieldCheck, ShieldAlert, ShieldQuestion, Copy, ChevronDown, ChevronUp, CheckCircle2, Building2, AlertTriangle, ExternalLink, Trash2 } from "lucide-react";
 import { CodeSnippetBlock } from "./CodeSnippetBlock";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface WhiteLabelDomainPanelProps {
   propertyId?: string;
