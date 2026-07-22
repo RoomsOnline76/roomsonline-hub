@@ -115,6 +115,9 @@ export default function ApiDocsViewer() {
                 All requests are POST with JSON body containing <code className="bg-muted px-1 rounded">action</code> and <code className="bg-muted px-1 rounded">propertyId</code>.
                 Rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-*</code>) are included on every response.
               </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio_id=&lt;id&gt;&include_static_content=true</code> returns cancellation policies, payment methods and contacts alongside properties.
+              </p>
             </CardContent>
           </Card>
 
