@@ -305,6 +305,7 @@ serve(async (req) => {
               };
             });
           })(),
+          profile: buildProfile(p),
         } : {}),
       };
     });
