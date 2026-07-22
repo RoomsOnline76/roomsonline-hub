@@ -119,6 +119,7 @@ const baseRequestSchema = z.object({
     "backfill_inventory",
     // Static Content
     "get_cancellation_policies",
+    "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
     // UI Configurator
@@ -139,6 +140,7 @@ const baseRequestSchema = z.object({
 const staticContentSchema = baseRequestSchema.extend({
   action: z.enum([
     "get_cancellation_policies",
+    "get_reservation_policies",
     "get_payment_methods",
     "get_property_contact_details",
   ]),
@@ -513,6 +515,9 @@ Deno.serve(async (req) => {
         break;
       case "get_cancellation_policies":
         result = await handleGetCancellationPolicies(body, supabase);
+        break;
+      case "get_reservation_policies":
+        result = await handleGetReservationPolicies(body, supabase);
         break;
       case "get_payment_methods":
         result = await handleGetPaymentMethods(body, supabase);
@@ -2551,6 +2556,35 @@ async function handleGetUiConfig(body: any, supabase: any): Promise<Response> {
 // STATIC CONTENT HANDLERS
 // ============================================================================
 
+// Helper: resolve linked_rate_plans[] for a set of policy ids (via rolos_policy_rate_links)
+// deno-lint-ignore no-explicit-any
+async function fetchPolicyRatePlanLinks(supabase: any, propertyId: string, policyIds: string[]): Promise<Record<string, { id: string; name: string; channel: string | null }[]>> {
+  const result: Record<string, { id: string; name: string; channel: string | null }[]> = {};
+  if (policyIds.length === 0) return result;
+  const { data: links } = await supabase
+    .from("rolos_policy_rate_links")
+    .select("policy_id, rate_plan_id, channel")
+    .in("policy_id", policyIds);
+  const planIds = Array.from(new Set((links || []).map((l: any) => l.rate_plan_id)));
+  const planMap = new Map<string, string>();
+  if (planIds.length > 0) {
+    const { data: plans } = await supabase
+      .from("rolos_rate_plans")
+      .select("id, name")
+      .eq("property_id", propertyId)
+      .in("id", planIds);
+    (plans || []).forEach((p: any) => planMap.set(p.id, p.name));
+  }
+  (links || []).forEach((l: any) => {
+    (result[l.policy_id] ||= []).push({
+      id: l.rate_plan_id,
+      name: planMap.get(l.rate_plan_id) || "(unknown)",
+      channel: l.channel || null,
+    });
+  });
+  return result;
+}
+
 // deno-lint-ignore no-explicit-any
 async function handleGetCancellationPolicies(body: any, supabase: any): Promise<Response> {
   const { propertyId } = body;
@@ -2560,10 +2594,10 @@ async function handleGetCancellationPolicies(body: any, supabase: any): Promise<
   }
 
   const { data: policies, error } = await supabase
-    .from("rolos_reservation_policies")
-    .select("id, name, kind, rule, is_default, created_at, updated_at")
+    .from("rolos_policies")
+    .select("id, policy_type, rule, is_ai_generated, last_evaluated_at, created_at, updated_at")
     .eq("property_id", propertyId)
-    .order("is_default", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_cancellation_policies")),
@@ -2582,17 +2616,57 @@ async function handleGetCancellationPolicies(body: any, supabase: any): Promise<
     fallbackText = hostfullyRoom?.cancellation_policy || null;
   }
 
+  const linksByPolicy = await fetchPolicyRatePlanLinks(supabase, propertyId, (policies || []).map((p: any) => p.id));
+
   const formatted = (policies || []).map((p: any) => ({
     id: p.id,
-    name: p.name,
-    kind: p.kind,
-    is_default: p.is_default,
+    policy_type: p.policy_type,
+    name: (typeof p.rule === "object" && p.rule?.name) || p.policy_type,
     rule: p.rule,
-    description: typeof p.rule === "object" && p.rule?.description ? p.rule.description : null,
+    description: (typeof p.rule === "object" && p.rule?.description) || null,
+    is_ai_generated: !!p.is_ai_generated,
+    linked_rate_plans: linksByPolicy[p.id] || [],
   }));
 
   return new Response(
     JSON.stringify(createSuccessResponse({ policies: formatted, fallback_text: fallbackText }, "get_cancellation_policies")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleGetReservationPolicies(body: any, supabase: any): Promise<Response> {
+  const { propertyId } = body;
+  if (!propertyId) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "propertyId required", "get_reservation_policies")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+
+  const { data: policies, error } = await supabase
+    .from("rolos_reservation_policies")
+    .select("id, name, kind, rule, is_default, created_at, updated_at")
+    .eq("property_id", propertyId)
+    .order("is_default", { ascending: false });
+
+  if (error) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "get_reservation_policies")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  }
+
+  const linksByPolicy = await fetchPolicyRatePlanLinks(supabase, propertyId, (policies || []).map((p: any) => p.id));
+
+  const formatted = (policies || []).map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    kind: p.kind,
+    is_default: !!p.is_default,
+    rule: p.rule,
+    description: (typeof p.rule === "object" && p.rule?.description) || null,
+    linked_rate_plans: linksByPolicy[p.id] || [],
+  }));
+
+  return new Response(
+    JSON.stringify(createSuccessResponse({ policies: formatted }, "get_reservation_policies")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 }
@@ -2629,7 +2703,7 @@ async function handleGetPaymentMethods(body: any, supabase: any): Promise<Respon
 
   const { data: registry, error: registryError } = await supabase
     .from("payment_gateway_registry")
-    .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url")
+    .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url, edge_function_name, docs_url")
     .in("gateway_key", keys.length > 0 ? keys : ["__none__"]);
 
   if (registryError) {
@@ -2643,12 +2717,15 @@ async function handleGetPaymentMethods(body: any, supabase: any): Promise<Respon
     const reg = registryMap.get(key);
     return {
       key,
+      logo_key: key,
       name: reg?.display_name || key,
       methods: Array.isArray(reg?.payment_method) ? reg.payment_method : (reg?.payment_method ? [reg.payment_method] : []),
       currencies: Array.isArray(reg?.supported_currencies) ? reg.supported_currencies : [],
       countries: Array.isArray(reg?.supported_countries) ? reg.supported_countries : [],
       is_active: reg?.is_active ?? true,
       website_url: reg?.website_url || null,
+      docs_url: reg?.docs_url || null,
+      edge_function_name: reg?.edge_function_name || null,
     };
   });
 

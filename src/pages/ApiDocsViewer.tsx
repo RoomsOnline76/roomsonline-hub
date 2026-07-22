@@ -66,9 +66,10 @@ const API_SECTIONS = [
   {
     title: "Static Content",
     actions: [
-      { method: "POST", action: "get_cancellation_policies", desc: "Get property cancellation policies" },
-      { method: "POST", action: "get_payment_methods", desc: "List accepted payment methods" },
-      { method: "POST", action: "get_property_contact_details", desc: "Get public contact details" },
+      { method: "POST", action: "get_cancellation_policies", desc: "Cancellation policies + linked rate plans" },
+      { method: "POST", action: "get_reservation_policies", desc: "Reservation (deposit/guarantee) policies + linked rate plans" },
+      { method: "POST", action: "get_payment_methods", desc: "Accepted payment methods (provider display name, logo_key, currencies)" },
+      { method: "POST", action: "get_property_contact_details", desc: "Public contact details (reception, reservations, landlord)" },
     ],
   },
   {
@@ -116,7 +117,7 @@ export default function ApiDocsViewer() {
                 Rate limit headers (<code className="bg-muted px-1 rounded">X-RateLimit-*</code>) are included on every response.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio_id=&lt;id&gt;&include_static_content=true</code> returns cancellation policies, payment methods and contacts alongside properties.
+                Portfolio API: <code className="bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio=&lt;slug&gt;&amp;include_static_content=true</code> returns <code className="bg-muted px-1 rounded">cancellation_policies</code>, <code className="bg-muted px-1 rounded">reservation_policies</code>, <code className="bg-muted px-1 rounded">policy_rate_plan_links</code>, <code className="bg-muted px-1 rounded">payment_methods</code> and <code className="bg-muted px-1 rounded">contacts</code> on each property.
               </p>
             </CardContent>
           </Card>
