@@ -1,82 +1,108 @@
+# Static Content API Coverage — Gap Closure
 
-## Goal
-Bring the entire `connect.roomsonline.co.za` surface — 13 marketing pages + legal docs + the TOBI Connect assistant — into alignment with the current API and PMS reality.
+## Verification against the checklist
 
-## Confirmed drift (from a pre-plan scan)
+I audited `roomsonline-pms-api`, `booking-portfolio-api`, and the `properties` / `rolos_room_types` schema. The **source data exists** for every checklist item (mostly on `properties` columns + the `properties.amenities` JSONB, plus `rolos_room_types` and `property_contact_details`), but the **API surface has gaps** and one **naming inconsistency in the public docs**.
 
-**PMS/adapter list is stale everywhere.** Recent rework kept only ROL'OS Native, Hostfully, Benson, Rentals United, Custom. Stale copy still names NightsBridge, Checkfront, HyperGuest, HotelBeds, ProfitRoom in:
-- `ConnectHome.tsx` (`TRUST_LOGOS`), `ConnectFAQ.tsx` (Q on supported PMS), `ConnectGetStarted.tsx` (form placeholder), `ConnectPrivacyPolicy.tsx`, `ConnectTermsOfService.tsx`, and the TOBI system prompt in `supabase/functions/connect-assistant/index.ts`.
+### Coverage matrix (checklist → today's API)
 
-**Free-trial length inconsistent.** Site copy says **60 days** (Home hero, Home CTA, Pricing card CTAs & bullets, Features CTAs, GetStarted headline). TOBI + `ConnectFAQ` still say **30 days**. Needs one number (60 per marketing pages) applied everywhere.
+| Checklist item | Source | `roomsonline-pms-api` | `booking-portfolio-api?include_static_content=true` |
+|---|---|---|---|
+| Property Name | `properties.name` | ✅ via `get_capabilities` / room actions | ✅ |
+| Property type (apartment/villa/…) | `properties.property_type` | ❌ not returned by any get_* | ❌ not in payload |
+| Location geocoordinates | `properties.latitude/longitude` | ❌ | ✅ |
+| Property address line | `properties.address` | ❌ | ❌ |
+| Property city | `properties.city` | ❌ | ✅ |
+| Property country | `properties.country` | ❌ | ❌ |
+| Zipcode / Postal code | `properties.amenities.address_details.postal_code` | ❌ | ❌ |
+| Photos | `properties.images` (+ room fallback) | ❌ (property-level) | ✅ |
+| Check-in & check-out time | `properties.amenities.house_rules.check_in_from/to`, `check_out_from/to`, `check_in_24h` | ❌ | ❌ |
+| Amenities | `properties.amenities.facilities` (+ nested flags) | ❌ | Partial (only `space_description`, `key_highlights`) |
+| Room types (bedrooms/bathrooms/kitchen) | `rolos_room_types` + `amenities.room_types[]` | ✅ `get_rolos_room_types` (name, base/max occupancy, images, amenities) — but missing bathrooms/bedConfiguration | ❌ not per-room |
+| Beds compositions | `amenities.room_types[].bedConfiguration` | ❌ | ❌ |
+| Cancellation policies | `rolos_policies` | ✅ `get_cancellation_policies` | ✅ |
+| Payment methods | `properties.payment_providers` + registry | ✅ `get_payment_methods` | ✅ |
+| Maximum number of guests | `properties.max_guests`, `rolos_room_types.max_occupancy` | Partial (per room only) | Partial (per room only) |
+| Standard number of guests (base included) | `rolos_room_types.base_occupancy`, `amenities.room_types[].maxAdults` | Partial (via `get_rolos_room_types`) | ❌ |
+| Arrival information & instructions | `amenities.house_rules.*` (no dedicated field) | ❌ | ❌ |
+| Landlord / Reception contact details | `property_contact_details` (+ `amenities.contact`) | ✅ **but action is named `get_property_contact_details`** — public docs & TOBI advertise it as `get_contact_details` | ✅ (as `contacts`) |
 
-**API surface is out of date.** Public docs and TOBI advertise "40+ actions" and never mention the new static-content endpoints that already ship in `roomsonline-pms-api` / `booking-portfolio-api`:
-- `get_cancellation_policies` (with `linked_rate_plans`)
-- `get_reservation_policies`
-- `get_payment_methods` (with `logo_key`, `docs_url`, `edge_function_name`)
-- `get_contact_details`
-- Portfolio API `?include_static_content=true` returning `cancellation_policies`, `reservation_policies`, `policy_rate_plan_links`, `payment_methods`, `contacts` per property.
+### Verdict
 
-The public docs are driven by `src/data/rolos-api-actions.ts` (~fewer than the internal `ApiDocsViewer` list) so it must be updated for the new actions to appear in `/docs`.
+Roughly **half the checklist is fully covered**, but the two headline gaps are:
 
-**Integration methods count.** TOBI still claims "9 integration methods" — need to reconcile with what the Integrations page + WordPress guide actually show today.
+1. **Core property profile fields** (`property_type`, `address`, `country`, `postal_code`, `check_in_time`, `check_out_time`, `arrival_instructions`, top-level `amenities`, `max_guests`, `standard_guests`) are not returned anywhere — even though the data exists on `properties` / `properties.amenities`.
+2. **Naming drift**: real action = `get_property_contact_details`; public docs (`src/data/rolos-api-actions.ts`) and TOBI system prompt say `get_contact_details`. Any integrator following the docs will get "invalid action".
 
-## Scope of changes (files only)
+## What this plan changes
 
-### 1. TOBI Connect assistant — `supabase/functions/connect-assistant/index.ts`
-Rewrite the system prompt so it reflects the shipped platform:
-- **Supported PMS adapters:** ROL'OS Native, Hostfully, Benson, Rentals United, Custom (drop NightsBridge, Checkfront).
-- **Free trial:** 60 days (aligns with marketing pages).
-- **API overview:** add the Static Content group (`get_cancellation_policies`, `get_reservation_policies`, `get_payment_methods`, `get_contact_details`) and the Portfolio API `include_static_content=true` behaviour with the returned keys.
-- Update action count from "40+" to the true current count.
-- Refresh the "How do I embed" answer to the current integration set on the Integrations page.
-- Keep persona, tone, pricing tiers, billing model, partner program copy as-is.
+### 1. New API action: `get_property_profile` (roomsonline-pms-api)
 
-### 2. `src/data/rolos-api-actions.ts` (drives the public API Reference)
-Add the four missing static-content actions, mirroring the schema entries already in `ApiDocsViewer.tsx`:
-- `get_cancellation_policies` (returns `linked_rate_plans`)
-- `get_reservation_policies` (deposit/guarantee)
-- `get_payment_methods` (provider display name, `logo_key`, currencies)
-- `get_contact_details`
+Returns everything a booking flow needs to render a property page in one call, drawn from `properties` + `properties.amenities`:
 
-Add a new "Static Content" category so the sidebar surfaces them. Include `curl`, JS, PHP and response examples in the same shape as existing entries.
+```json
+{
+  "property": {
+    "id": "...", "name": "...", "slug": "...", "property_type": "villa",
+    "description": "...", "short_description": "...", "timezone": "...",
+    "location": {
+      "address": "...", "city": "...", "country": "...",
+      "postal_code": "...", "suburb": "...",
+      "latitude": -33.9, "longitude": 18.4,
+      "google_maps_link": "..."
+    },
+    "occupancy": { "max_guests": 8, "standard_guests": 4, "bedrooms": 3, "bathrooms": 2 },
+    "check_in": { "from": "15:00", "to": "20:00", "is_24h": false },
+    "check_out": { "from": "06:00", "to": "11:00" },
+    "amenities": ["wifi", "pool", ...],       // flattened from amenities.facilities + nested flags
+    "meal_types": ["Self Catering"],
+    "arrival_instructions": "...",             // amenities.house_rules.arrival_instructions (fallback to check_in copy)
+    "images": [...]                            // property images; room fallback preserved
+  }
+}
+```
 
-### 3. `src/pages/connect/ConnectDocs.tsx`
-- Replace the hard-coded "40+ actions for complete property management" subtitle with a value derived from `API_ACTIONS.length` (single source of truth).
-- Add a small callout under the header noting the Portfolio API `include_static_content` bundle so devs discover it without hunting through actions.
+### 2. Enrich `get_rolos_room_types` output
 
-### 4. `src/pages/connect/ConnectHome.tsx`
-- `TRUST_LOGOS`: replace `NightsBridge` with `Benson`; add `Rentals United`. Result: `["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"]`.
-- Comparison table row "REST API (40+ actions)" → derive count from the same source as Docs (or use "50+" once the new actions land) — keep language consistent with Docs.
-- Verify all trial mentions remain 60-day (they already do).
+Add `bathrooms`, `bed_configuration`, `standard_occupancy`, `room_size`, `min_stay`, `max_stay` per room (join `rolos_room_types` with the matching entry in `amenities.room_types[]` by name/code). No new columns — pull from existing JSONB.
 
-### 5. `src/pages/connect/ConnectFeatures.tsx`
-- REST API tile: same count fix as Home.
-- No PMS name changes required (spot-checked).
+### 3. Enrich `booking-portfolio-api?include_static_content=true`
 
-### 6. `src/pages/connect/ConnectFAQ.tsx`
-- "What PMS integrations are supported?" → rewrite to: ROL'OS Native + Hostfully (vacation rentals) + Benson (SA PMS) + Rentals United (60+ rental channels) + Custom via adapter pattern. Drop NightsBridge.
-- "Is there a free trial?" → change "30-day" to "60-day" for consistency.
-- Add a new Q&A: "What static content can I pull for a property?" listing name, media, rooms, rates, availability, cancellation policies, reservation policies, payment methods, contact details.
+For each property in the response, add the same fields as `get_property_profile` under `profile: {...}`, plus expand room objects with `bed_configuration`, `bathrooms`, `standard_occupancy`, `max_occupancy`, `room_size`. This keeps the "one call, everything a booking flow needs" promise honest.
 
-### 7. `src/pages/connect/ConnectGetStarted.tsx`
-- PMS input placeholder: replace `NightsBridge` with `Benson`.
+### 4. Add a docs-compatible alias `get_contact_details`
 
-### 8. `src/pages/connect/ConnectPrivacyPolicy.tsx` & `ConnectTermsOfService.tsx`
-- Both list synced PMS platforms as `Hostfully, NightsBridge, Benson`. Change to `Hostfully, Benson, Rentals United` (matches supported adapters).
+Register `get_contact_details` in the action dispatch as an alias of `get_property_contact_details` so both work. The public docs already advertise `get_contact_details` — this avoids a doc rewrite and keeps back-compat for the existing action name.
 
-### 9. `src/pages/connect/ConnectQuickstart.tsx`
-- Update the closing "40+ actions" line to the new count and mention the Portfolio static-content bundle as a follow-up read.
+### 5. Documentation sync (`src/data/rolos-api-actions.ts`)
 
-### 10. Static file check — `public/docs/ROLOS-Developer-REST-API-v3.docx`
-Do **not** edit the binary. Add a short "What's new" note in `ConnectDocs.tsx` and TOBI stating the linked `.docx` may lag behind the on-page reference; on-page reference is authoritative. (Regenerating the docx is out of scope unless the user asks.)
+- Add `get_property_profile` and the updated `get_rolos_room_types` (bathrooms / bed_configuration / standard_occupancy) entries under the **Static Content** category.
+- Keep `get_contact_details` as the documented name (backed by the new alias).
+- Update the Portfolio API entry to note the new `profile` block and enriched room fields.
+
+### 6. TOBI system prompt (`connect-assistant/index.ts`)
+
+- Add `get_property_profile` to the Static Content action list.
+- Update the "What static content can I pull?" answer to mention property_type, address/country/postal_code, check-in/out times, arrival instructions, standard vs max guests, and bed compositions.
+
+## Technical details
+
+- All reads are additive; no schema migrations. Everything comes from `properties` columns, `properties.amenities` JSONB (`address_details`, `house_rules`, `contact`, `facilities`, `meal_types`, `room_types`), `rolos_room_types`, and `property_contact_details`.
+- `amenities` flattening rule: union of `amenities.facilities[]` (string list) with `true`-valued boolean keys under known sub-objects (e.g. `wifi`, `pool`, `parking`), de-duplicated. Unknown keys pass through as-is.
+- `standard_guests` fallback order: `rolos_room_types.base_occupancy` → `amenities.room_types[].maxAdults` → `max_guests`.
+- `arrival_instructions` fallback: explicit `amenities.house_rules.arrival_instructions` → composed string from `check_in_from/to` + `check_in_24h` flag.
+- `get_contact_details` alias is dispatch-only (single `case "get_contact_details":` falling through to the existing handler). Action-name string in the response stays `get_property_contact_details` so telemetry is unaffected.
+- No changes to the WordPress plugin or Portfolio API query params — existing `include_static_content=true` continues to be the single opt-in flag.
+
+## Files touched
+
+- `supabase/functions/roomsonline-pms-api/index.ts` — new `get_property_profile` handler, enriched `get_rolos_room_types`, `get_contact_details` alias.
+- `supabase/functions/booking-portfolio-api/index.ts` — add `profile` block and expanded room fields when `include_static_content=true`.
+- `src/data/rolos-api-actions.ts` — 1 new action entry, 1 updated entry, Portfolio API note.
+- `supabase/functions/connect-assistant/index.ts` — action list + static-content Q&A.
 
 ## Out of scope
-- `ConnectAbout.tsx`, `ConnectPricing.tsx`, `ConnectJournal.tsx`, `ConnectWordPress.tsx` — no drift found in the scan; will only touch them if a new drift surfaces during implementation.
-- Non-Connect pages (admin, ROLOS PMS ops).
-- Backend adapter code, database, routes, layout, nav.
-- Rewriting the `.docx` download.
 
-## Verification after implementation
-- Grep the Connect page tree for `NightsBridge`, `Checkfront`, `HyperGuest`, `HotelBeds`, `ProfitRoom`, `30-day` → expect zero hits.
-- Confirm `/connect/docs` sidebar shows the new "Static Content" category with 4 actions.
-- Run typecheck; smoke-load Home, Docs, FAQ, Get Started, Terms, Privacy locally.
+- No new database columns or migrations.
+- No changes to authoring UIs (contacts/policies/payments are already manageable in ROLOS).
+- No changes to booking checkout consumption or channel push.
