@@ -928,6 +928,38 @@ console.log(config.snippet.simple);`,
 
   // ─── Static Content ───────────────────────────────────────────────────
   {
+    action: "get_property_profile",
+    category: "static_content",
+    title: "Get Property Profile",
+    description: "Returns the full static profile for a property in one call: name, type, description, location (address, city, country, postal code, geo, Google Maps link), occupancy (max/standard guests, bedrooms, bathrooms), check-in/out windows, house rules, arrival instructions, amenities (flattened), meal types, star rating, and images. This is the fastest way to render a property page.",
+    params: [
+      { name: "propertyId", type: "UUID", required: true, description: "Property identifier" },
+    ],
+    responseExample: JSON.stringify({
+      success: true,
+      data: {
+        property: {
+          id: "uuid",
+          name: "Ocean Villa",
+          slug: "ocean-villa",
+          property_type: "villa",
+          description: "…",
+          location: { address: "12 Beach Rd", city: "Cape Town", country: "ZA", postal_code: "8001", latitude: -33.9, longitude: 18.4, google_maps_link: "https://…" },
+          occupancy: { max_guests: 8, standard_guests: 4, bedrooms: 3, bathrooms: 2 },
+          check_in: { from: "15:00", to: "20:00", is_24h: false },
+          check_out: { from: "06:00", to: "11:00" },
+          arrival_instructions: "Check-in from 15:00 to 20:00.",
+          amenities: ["wifi", "pool", "parking"],
+          meal_types: ["Self Catering"],
+          images: ["https://…"],
+        },
+      },
+    }, null, 2),
+    curlExample: curl("get_property_profile"),
+    jsExample: js("get_property_profile"),
+    phpExample: php("get_property_profile"),
+  },
+  {
     action: "get_cancellation_policies",
     category: "static_content",
     title: "Get Cancellation Policies",
