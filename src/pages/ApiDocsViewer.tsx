@@ -66,9 +66,10 @@ const API_SECTIONS = [
   {
     title: "Static Content",
     actions: [
-      { method: "POST", action: "get_cancellation_policies", desc: "Get property cancellation policies" },
-      { method: "POST", action: "get_payment_methods", desc: "List accepted payment methods" },
-      { method: "POST", action: "get_property_contact_details", desc: "Get public contact details" },
+      { method: "POST", action: "get_cancellation_policies", desc: "Cancellation policies + linked rate plans" },
+      { method: "POST", action: "get_reservation_policies", desc: "Reservation (deposit/guarantee) policies + linked rate plans" },
+      { method: "POST", action: "get_payment_methods", desc: "Accepted payment methods (provider display name, logo_key, currencies)" },
+      { method: "POST", action: "get_property_contact_details", desc: "Public contact details (reception, reservations, landlord)" },
     ],
   },
   {
