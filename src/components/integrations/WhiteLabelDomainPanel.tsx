@@ -83,7 +83,7 @@ export function WhiteLabelDomainPanel({ propertyId, currentDomain, currentStatus
             <Globe className="h-5 w-5 text-primary" />
             <CardTitle className="text-lg">Your own booking subdomain</CardTitle>
           </div>
-          <Badge variant={status.tone} className="gap-1">
+          <Badge variant={status.tone} className={`gap-1 ${isActive ? "bg-green-600 hover:bg-green-600 text-white" : ""}`}>
             <StatusIcon className={`h-3 w-3 ${currentStatus === "pending" ? "animate-spin" : ""}`} />
             {status.label}
           </Badge>
