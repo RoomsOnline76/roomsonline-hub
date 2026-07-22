@@ -1,108 +1,53 @@
-# Static Content API Coverage — Gap Closure
+# Integrations Code Cookbook — DOCX Document
 
-## Verification against the checklist
+Build a downloadable Word document that lists **every integration snippet** the ROLOS Integrations page can generate, filled in for:
 
-I audited `roomsonline-pms-api`, `booking-portfolio-api`, and the `properties` / `rolos_room_types` schema. The **source data exists** for every checklist item (mostly on `properties` columns + the `properties.amenities` JSONB, plus `rolos_room_types` and `property_contact_details`), but the **API surface has gaps** and one **naming inconsistency in the public docs**.
+- **Single property:** `Fonteinhutte Self-Catering Chalets` (only "Fontein" property in the workspace — no separate "fonteinsingle" exists)
+- **Portfolio:** `Jongensfontein.com` (members: Fonteinhutte, Dassiesingel, SEESIG, Tidal Pools)
 
-### Coverage matrix (checklist → today's API)
+Each snippet is named exactly as it appears on the Integrations page, with a short "what it is / where to paste it" caption followed by the code block a customer would copy from the UI.
 
-| Checklist item | Source | `roomsonline-pms-api` | `booking-portfolio-api?include_static_content=true` |
-|---|---|---|---|
-| Property Name | `properties.name` | ✅ via `get_capabilities` / room actions | ✅ |
-| Property type (apartment/villa/…) | `properties.property_type` | ❌ not returned by any get_* | ❌ not in payload |
-| Location geocoordinates | `properties.latitude/longitude` | ❌ | ✅ |
-| Property address line | `properties.address` | ❌ | ❌ |
-| Property city | `properties.city` | ❌ | ✅ |
-| Property country | `properties.country` | ❌ | ❌ |
-| Zipcode / Postal code | `properties.amenities.address_details.postal_code` | ❌ | ❌ |
-| Photos | `properties.images` (+ room fallback) | ❌ (property-level) | ✅ |
-| Check-in & check-out time | `properties.amenities.house_rules.check_in_from/to`, `check_out_from/to`, `check_in_24h` | ❌ | ❌ |
-| Amenities | `properties.amenities.facilities` (+ nested flags) | ❌ | Partial (only `space_description`, `key_highlights`) |
-| Room types (bedrooms/bathrooms/kitchen) | `rolos_room_types` + `amenities.room_types[]` | ✅ `get_rolos_room_types` (name, base/max occupancy, images, amenities) — but missing bathrooms/bedConfiguration | ❌ not per-room |
-| Beds compositions | `amenities.room_types[].bedConfiguration` | ❌ | ❌ |
-| Cancellation policies | `rolos_policies` | ✅ `get_cancellation_policies` | ✅ |
-| Payment methods | `properties.payment_providers` + registry | ✅ `get_payment_methods` | ✅ |
-| Maximum number of guests | `properties.max_guests`, `rolos_room_types.max_occupancy` | Partial (per room only) | Partial (per room only) |
-| Standard number of guests (base included) | `rolos_room_types.base_occupancy`, `amenities.room_types[].maxAdults` | Partial (via `get_rolos_room_types`) | ❌ |
-| Arrival information & instructions | `amenities.house_rules.*` (no dedicated field) | ❌ | ❌ |
-| Landlord / Reception contact details | `property_contact_details` (+ `amenities.contact`) | ✅ **but action is named `get_property_contact_details`** — public docs & TOBI advertise it as `get_contact_details` | ✅ (as `contacts`) |
+## Sections in the document
 
-### Verdict
+**Part A — Fonteinhutte (single property)**
+1. Direct Booking Link — Booking URL (rooms entry)
+2. Direct Booking Link — HTML Book Now button (solid / md, brand colour)
+3. Floating Booking Bar — HTML + calendar (bottom position, brand colour)
+4. Embedded Booking Widget — One-line `rol-embed.js` snippet
+5. Embedded Booking Widget — Advanced (event listener)
+6. Embedded Booking Widget — iframe fallback
+7. Full Booking Engine — iframe (default 800px)
+8. Smart Book Button Generator — Book Now button (HTML)
+9. Smart Book Button Generator — Button + date pickers bar
+10. Smart Book Button Generator — Embedded widget
+11. Smart Book Button Generator — Button + hidden widget combo
+12. Smart Book Button Generator — WordPress shortcode variant
+13. WordPress Plugin — Booking shortcode `[rolos_booking …]`
+14. WordPress Plugin — Property grid shortcode
+15. WordPress Plugin — Portfolio booking shortcode (Jongensfontein)
+16. Elementor — Booking Widget shortcode
+17. Elementor — Property Card shortcode
+18. Elementor — Availability Grid shortcode
 
-Roughly **half the checklist is fully covered**, but the two headline gaps are:
+**Part B — Jongensfontein Portfolio**
+1. Direct Portfolio Link (shareable URL)
+2. Portfolio Widget — One-line `rol-embed.js` (grid layout, brand colour)
+3. Portfolio Widget — Iframe fallback
+4. Portfolio Origin Tracking tag (drop-on-landing script)
+5. Smart Button — targeted at portfolio (HTML button)
+6. Smart Button — Portfolio + widget combo
+7. WordPress — Portfolio booking shortcode
 
-1. **Core property profile fields** (`property_type`, `address`, `country`, `postal_code`, `check_in_time`, `check_out_time`, `arrival_instructions`, top-level `amenities`, `max_guests`, `standard_guests`) are not returned anywhere — even though the data exists on `properties` / `properties.amenities`.
-2. **Naming drift**: real action = `get_property_contact_details`; public docs (`src/data/rolos-api-actions.ts`) and TOBI system prompt say `get_contact_details`. Any integrator following the docs will get "invalid action".
+Each snippet uses the canonical published host (`sleepinafrica.roomsonline.co.za`) with `ref_property` / `ref_portfolio` and `brand_color` params that match what the live UI generates. White-label variants are noted where they change the snippet, but the copy in the document uses the default (non-WL) form because Fonteinhutte has no verified branded subdomain configured today.
 
-## What this plan changes
+## Delivery
 
-### 1. New API action: `get_property_profile` (roomsonline-pms-api)
-
-Returns everything a booking flow needs to render a property page in one call, drawn from `properties` + `properties.amenities`:
-
-```json
-{
-  "property": {
-    "id": "...", "name": "...", "slug": "...", "property_type": "villa",
-    "description": "...", "short_description": "...", "timezone": "...",
-    "location": {
-      "address": "...", "city": "...", "country": "...",
-      "postal_code": "...", "suburb": "...",
-      "latitude": -33.9, "longitude": 18.4,
-      "google_maps_link": "..."
-    },
-    "occupancy": { "max_guests": 8, "standard_guests": 4, "bedrooms": 3, "bathrooms": 2 },
-    "check_in": { "from": "15:00", "to": "20:00", "is_24h": false },
-    "check_out": { "from": "06:00", "to": "11:00" },
-    "amenities": ["wifi", "pool", ...],       // flattened from amenities.facilities + nested flags
-    "meal_types": ["Self Catering"],
-    "arrival_instructions": "...",             // amenities.house_rules.arrival_instructions (fallback to check_in copy)
-    "images": [...]                            // property images; room fallback preserved
-  }
-}
-```
-
-### 2. Enrich `get_rolos_room_types` output
-
-Add `bathrooms`, `bed_configuration`, `standard_occupancy`, `room_size`, `min_stay`, `max_stay` per room (join `rolos_room_types` with the matching entry in `amenities.room_types[]` by name/code). No new columns — pull from existing JSONB.
-
-### 3. Enrich `booking-portfolio-api?include_static_content=true`
-
-For each property in the response, add the same fields as `get_property_profile` under `profile: {...}`, plus expand room objects with `bed_configuration`, `bathrooms`, `standard_occupancy`, `max_occupancy`, `room_size`. This keeps the "one call, everything a booking flow needs" promise honest.
-
-### 4. Add a docs-compatible alias `get_contact_details`
-
-Register `get_contact_details` in the action dispatch as an alias of `get_property_contact_details` so both work. The public docs already advertise `get_contact_details` — this avoids a doc rewrite and keeps back-compat for the existing action name.
-
-### 5. Documentation sync (`src/data/rolos-api-actions.ts`)
-
-- Add `get_property_profile` and the updated `get_rolos_room_types` (bathrooms / bed_configuration / standard_occupancy) entries under the **Static Content** category.
-- Keep `get_contact_details` as the documented name (backed by the new alias).
-- Update the Portfolio API entry to note the new `profile` block and enriched room fields.
-
-### 6. TOBI system prompt (`connect-assistant/index.ts`)
-
-- Add `get_property_profile` to the Static Content action list.
-- Update the "What static content can I pull?" answer to mention property_type, address/country/postal_code, check-in/out times, arrival instructions, standard vs max guests, and bed compositions.
+- Format: `.docx`, US Letter, 1" margins, Arial, TOC linking to every snippet section
+- Code blocks: monospaced (Courier New 9pt) inside a light-grey shaded table cell so it renders cleanly in Word and Google Docs
+- Written to `/mnt/documents/rolos-integrations-cookbook-jongensfontein.docx` and surfaced with a `<presentation-artifact>` tag
 
 ## Technical details
 
-- All reads are additive; no schema migrations. Everything comes from `properties` columns, `properties.amenities` JSONB (`address_details`, `house_rules`, `contact`, `facilities`, `meal_types`, `room_types`), `rolos_room_types`, and `property_contact_details`.
-- `amenities` flattening rule: union of `amenities.facilities[]` (string list) with `true`-valued boolean keys under known sub-objects (e.g. `wifi`, `pool`, `parking`), de-duplicated. Unknown keys pass through as-is.
-- `standard_guests` fallback order: `rolos_room_types.base_occupancy` → `amenities.room_types[].maxAdults` → `max_guests`.
-- `arrival_instructions` fallback: explicit `amenities.house_rules.arrival_instructions` → composed string from `check_in_from/to` + `check_in_24h` flag.
-- `get_contact_details` alias is dispatch-only (single `case "get_contact_details":` falling through to the existing handler). Action-name string in the response stays `get_property_contact_details` so telemetry is unaffected.
-- No changes to the WordPress plugin or Portfolio API query params — existing `include_static_content=true` continues to be the single opt-in flag.
-
-## Files touched
-
-- `supabase/functions/roomsonline-pms-api/index.ts` — new `get_property_profile` handler, enriched `get_rolos_room_types`, `get_contact_details` alias.
-- `supabase/functions/booking-portfolio-api/index.ts` — add `profile` block and expanded room fields when `include_static_content=true`.
-- `src/data/rolos-api-actions.ts` — 1 new action entry, 1 updated entry, Portfolio API note.
-- `supabase/functions/connect-assistant/index.ts` — action list + static-content Q&A.
-
-## Out of scope
-
-- No new database columns or migrations.
-- No changes to authoring UIs (contacts/policies/payments are already manageable in ROLOS).
-- No changes to booking checkout consumption or channel push.
+1. Compute every snippet in a Node script by importing the same string templates the UI uses (buildEntryUrl for the property; portfolio URL builder inline) so the doc stays in sync with what the app produces. Property inputs pulled from DB: id `00015d06-a9cb-4e82-a62e-a7685e5d7c33`, slug `fonteinhutte-self-catering-chalets`, brand colour fallback `#e91e8c`. Portfolio inputs: id `22a7d374-7e2e-4194-8d32-aa870813359e`, slug `jongensfontein`.
+2. Use `docx-js` (per docx skill) to emit the file: Heading 1 per Part, Heading 2 per snippet, small caption Paragraph, then a single-cell Table containing the code (avoids Word treating angle brackets as fields).
+3. Validate with `python /tmp/validate_document.py`, then convert to PDF → page images and visually QA every page before delivering.
