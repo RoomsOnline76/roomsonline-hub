@@ -42,7 +42,7 @@ const COMPARISON = [
   { feature: "Rooms & Reservations", rolos: true, others: true, othersNote: "" },
   { feature: "Channel Manager (OTAs)", rolos: true, others: false, othersNote: "R 2,000+/mo extra" },
   { feature: "AI Assistant (TOBI)", rolos: true, others: false, othersNote: "Not available" },
-  { feature: "REST API (40+ actions)", rolos: true, others: false, othersNote: "R 1,500+/mo extra" },
+  { feature: "REST API (50+ actions)", rolos: true, others: false, othersNote: "R 1,500+/mo extra" },
   { feature: "WordPress Plugin", rolos: true, others: false, othersNote: "Not available" },
   { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
   { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
@@ -50,7 +50,7 @@ const COMPARISON = [
   { feature: "Negotiable Pricing", rolos: true, others: false, othersNote: "Fixed tiers only" },
 ];
 
-const TRUST_LOGOS = ["Hostfully", "NightsBridge", "WordPress", "Elementor"];
+const TRUST_LOGOS = ["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"];
 
 export default function ConnectHome() {
   const openTobi = () => {
