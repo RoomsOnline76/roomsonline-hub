@@ -66,6 +66,51 @@ serve(async (req) => {
 
     const includeStaticContent = url.searchParams.get("include_static_content") === "true";
 
+    // --- Static content enrichment (optional) ---
+    let policiesByProperty: Record<string, any[]> = {};
+    let contactsByProperty: Record<string, any[]> = {};
+    let registryMap = new Map<string, any>();
+
+    if (includeStaticContent && propertyIds.length > 0) {
+      const [
+        { data: policies },
+        { data: contacts },
+        { data: registry },
+      ] = await Promise.all([
+        supabase
+          .from("rolos_reservation_policies")
+          .select("property_id, id, name, kind, rule, is_default")
+          .in("property_id", propertyIds)
+          .order("is_default", { ascending: false }),
+        supabase
+          .from("property_contact_details")
+          .select("property_id, id, role, name, email, phone, hours, sort_order")
+          .in("property_id", propertyIds)
+          .eq("is_public", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("payment_gateway_registry")
+          .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url"),
+      ]);
+
+      (policies || []).forEach((p: any) => {
+        (policiesByProperty[p.property_id] ||= []).push({
+          id: p.id,
+          name: p.name,
+          kind: p.kind,
+          is_default: p.is_default,
+          rule: p.rule,
+          description: p.rule?.description || null,
+        });
+      });
+
+      (contacts || []).forEach((c: any) => {
+        (contactsByProperty[c.property_id] ||= []).push(c);
+      });
+
+      (registry || []).forEach((r: any) => registryMap.set(r.gateway_key, r));
+    }
+
     // --- Rate resolver (tiered) ---
     // 1) rolos_rate_prices.base_rate  (season-priced native rates)
     // 2) rolos_rate_plans.base_rate   (native plan default)
