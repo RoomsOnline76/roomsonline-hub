@@ -146,7 +146,10 @@ export default function ConnectDocs() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold">API Reference</h1>
-              <p className="text-muted-foreground mt-1">40+ actions for complete property management</p>
+              <p className="text-muted-foreground mt-1">{API_ACTIONS.length}+ actions for complete property management</p>
+              <p className="text-xs text-muted-foreground mt-2 max-w-2xl">
+                Tip: fetch everything in one call with the Portfolio API — <code className="font-mono bg-muted px-1 rounded">GET /functions/v1/booking-portfolio-api?portfolio=&lt;slug&gt;&amp;include_static_content=true</code> returns <code className="font-mono">cancellation_policies</code>, <code className="font-mono">reservation_policies</code>, <code className="font-mono">policy_rate_plan_links</code>, <code className="font-mono">payment_methods</code> and <code className="font-mono">contacts</code> on every property. The on-page reference is authoritative; the downloadable .docx may trail.
+              </p>
             </div>
             <div className="flex gap-2">
               <a href="/docs/ROLOS-Developer-REST-API-v3.docx" download>

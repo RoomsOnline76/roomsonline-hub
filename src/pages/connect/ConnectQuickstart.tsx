@@ -161,7 +161,7 @@ export default function ConnectQuickstart() {
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">You're Ready to Build</h2>
           <p className="text-muted-foreground mb-6">
-            Explore the full API reference for all 40+ actions, or install the WordPress plugin for instant integration.
+            Explore the full API reference for all 50+ actions — including static content, cancellation & reservation policies, payment methods and contact details — or install the WordPress plugin for instant integration.
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link to={connectPath("/connect/docs")}><Button size="lg" className="gap-2">Full API Reference <ArrowRight className="h-4 w-4" /></Button></Link>

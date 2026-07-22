@@ -141,7 +141,7 @@ export default function ConnectGetStarted() {
                 </div>
                 <div>
                   <Label htmlFor="pms">Current PMS (if any)</Label>
-                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. Hostfully, NightsBridge, None — I'm just getting started" className="mt-1" />
+                  <Input id="pms" value={form.current_pms} onChange={(e) => setForm(f => ({ ...f, current_pms: e.target.value }))} placeholder="e.g. Hostfully, Benson, Rentals United, None — I'm just getting started" className="mt-1" />
                 </div>
                 <div>
                   <Label htmlFor="message">Tell us about your integration needs</Label>
