@@ -10558,6 +10558,70 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_requests: {
+        Row: {
+          booking_reference: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          max_age: number | null
+          min_age: number | null
+          property_id: string | null
+          status: string
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_reference?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          max_age?: number | null
+          min_age?: number | null
+          property_id?: string | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_reference?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          max_age?: number | null
+          min_age?: number | null
+          property_id?: string | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "verification_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wizard_audit_log: {
         Row: {
           action: string | null
