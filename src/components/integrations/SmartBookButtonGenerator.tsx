@@ -66,6 +66,8 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
+  const [target, setTarget] = useState<"property" | "portfolio">("property");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
 
   // Sync color when property data loads/changes
   useEffect(() => {
@@ -77,18 +79,60 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const wl = useWhitelabel(property.id);
   const wlOpts = wl.enabled ? { enabled: true, host: wl.host } : undefined;
 
-  const bookingUrl = buildEntryUrl(property, entryOpts, {
+  // Portfolios this property is a member of
+  const { data: memberOf = [] } = useQuery({
+    queryKey: ["smart-btn-portfolio-membership", property.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_portfolio_members" as any)
+        .select("portfolio_id, property_portfolios:portfolio_id(id, name, slug)")
+        .eq("property_id", property.id);
+      return (data || []) as any[];
+    },
+  });
+  const availablePortfolios = memberOf
+    .map((m: any) => m.property_portfolios)
+    .filter((p: any): p is { id: string; name: string; slug: string } => !!p?.id);
+  const hasPortfolios = availablePortfolios.length > 0;
+
+  useEffect(() => {
+    if (!selectedPortfolioId && availablePortfolios.length > 0) {
+      setSelectedPortfolioId(availablePortfolios[0].id);
+    }
+  }, [availablePortfolios, selectedPortfolioId]);
+  useEffect(() => {
+    if (!hasPortfolios && target === "portfolio") setTarget("property");
+  }, [hasPortfolios, target]);
+
+  const selectedPortfolio = availablePortfolios.find((p) => p.id === selectedPortfolioId);
+  const BASE = wl.host || PUBLIC_DOMAIN;
+  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+
+  const propertyBookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "smart_button",
     property_id: property.id,
     brand_color: buttonColor,
   }, wlOpts);
-  const embedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
+  const propertyEmbedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
     integration: "smart_widget",
     property_id: property.id,
     brand_color: buttonColor,
   }, wlOpts);
-  const target = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
+
+  const portfolioBookingUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    : propertyBookingUrl;
+  const portfolioEmbedUrl = selectedPortfolio
+    ? `${BASE}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    : propertyEmbedUrl;
+
+  const isPortfolio = target === "portfolio" && !!selectedPortfolio;
+  const bookingUrl = isPortfolio ? portfolioBookingUrl : propertyBookingUrl;
+  const embedUrl = isPortfolio ? portfolioEmbedUrl : propertyEmbedUrl;
+  const targetLabel = isPortfolio ? selectedPortfolio!.name : property.name;
+  const linkTarget = openNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
+
   const size = SIZE_MAP[buttonSize];
 
   const showButtonCustomisation = solutionType === "button" || solutionType === "button_dates" || solutionType === "combo";
