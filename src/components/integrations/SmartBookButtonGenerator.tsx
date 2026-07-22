@@ -273,14 +273,79 @@ add_shortcode('rolos_button', 'rolos_book_button_shortcode');
           <div className="flex items-center gap-3">
             <Sparkles className="h-5 w-5 text-primary" />
             <div>
+            <div>
               <h3 className="font-semibold">Smart Integration Generator</h3>
               <p className="text-sm text-muted-foreground">
-                Choose your integration type and customise for <strong>{property.name}</strong>
+                Choose your integration type and customise for <strong>{targetLabel}</strong>
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Target: property vs portfolio */}
+      {hasPortfolios && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Badge variant="secondary" className="h-5 w-5 p-0 flex items-center justify-center text-[10px]">•</Badge>
+              What should the button open?
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Link guests to just this property, or to a full portfolio of properties.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setTarget("property")}
+                className={`flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                  target === "property"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
+                }`}
+              >
+                <Home className={`h-5 w-5 shrink-0 ${target === "property" ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium leading-tight">This Property</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">{property.name}</div>
+                </div>
+              </button>
+              <button
+                onClick={() => setTarget("portfolio")}
+                className={`flex items-center gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                  target === "portfolio"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:border-muted-foreground/30 hover:bg-muted/30"
+                }`}
+              >
+                <Building2 className={`h-5 w-5 shrink-0 ${target === "portfolio" ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium leading-tight">Portfolio</div>
+                  <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                    {availablePortfolios.length} available
+                  </div>
+                </div>
+              </button>
+            </div>
+            {target === "portfolio" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Portfolio</Label>
+                <Select value={selectedPortfolioId} onValueChange={setSelectedPortfolioId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select a portfolio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePortfolios.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Step 0: Solution Type */}
       <Card>
