@@ -67,16 +67,24 @@ serve(async (req) => {
     const includeStaticContent = url.searchParams.get("include_static_content") === "true";
 
     // --- Static content enrichment (optional) ---
-    let policiesByProperty: Record<string, any[]> = {};
+    let cancellationByProperty: Record<string, any[]> = {};
+    let reservationPolByProperty: Record<string, any[]> = {};
     let contactsByProperty: Record<string, any[]> = {};
+    let policyLinksByProperty: Record<string, { rate_plan_id: string; policy_id: string; policy_kind: "cancellation" | "reservation"; channel: string | null }[]> = {};
     let registryMap = new Map<string, any>();
 
     if (includeStaticContent && propertyIds.length > 0) {
       const [
-        { data: policies },
+        { data: cancellationPolicies },
+        { data: reservationPolicies },
         { data: contacts },
         { data: registry },
+        { data: plans },
       ] = await Promise.all([
+        supabase
+          .from("rolos_policies")
+          .select("property_id, id, policy_type, rule, is_ai_generated")
+          .in("property_id", propertyIds),
         supabase
           .from("rolos_reservation_policies")
           .select("property_id, id, name, kind, rule, is_default")
@@ -90,17 +98,56 @@ serve(async (req) => {
           .order("sort_order", { ascending: true }),
         supabase
           .from("payment_gateway_registry")
-          .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url"),
+          .select("gateway_key, display_name, payment_method, supported_currencies, supported_countries, is_active, website_url, docs_url"),
+        supabase
+          .from("rolos_rate_plans")
+          .select("id, property_id")
+          .in("property_id", propertyIds),
       ]);
 
-      (policies || []).forEach((p: any) => {
-        (policiesByProperty[p.property_id] ||= []).push({
+      const cancellationIds = (cancellationPolicies || []).map((p: any) => p.id);
+      const reservationIds = (reservationPolicies || []).map((p: any) => p.id);
+      const planToProperty = new Map<string, string>();
+      (plans || []).forEach((p: any) => planToProperty.set(p.id, p.property_id));
+
+      const allPolicyIds = [...cancellationIds, ...reservationIds];
+      if (allPolicyIds.length > 0) {
+        const { data: links } = await supabase
+          .from("rolos_policy_rate_links")
+          .select("policy_id, rate_plan_id, channel")
+          .in("policy_id", allPolicyIds);
+        const cancellationSet = new Set(cancellationIds);
+        (links || []).forEach((l: any) => {
+          const pid = planToProperty.get(l.rate_plan_id);
+          if (!pid) return;
+          (policyLinksByProperty[pid] ||= []).push({
+            rate_plan_id: l.rate_plan_id,
+            policy_id: l.policy_id,
+            policy_kind: cancellationSet.has(l.policy_id) ? "cancellation" : "reservation",
+            channel: l.channel || null,
+          });
+        });
+      }
+
+      (cancellationPolicies || []).forEach((p: any) => {
+        (cancellationByProperty[p.property_id] ||= []).push({
+          id: p.id,
+          policy_type: p.policy_type,
+          name: (typeof p.rule === "object" && p.rule?.name) || p.policy_type,
+          rule: p.rule,
+          description: (typeof p.rule === "object" && p.rule?.description) || null,
+          is_ai_generated: !!p.is_ai_generated,
+        });
+      });
+
+      (reservationPolicies || []).forEach((p: any) => {
+        (reservationPolByProperty[p.property_id] ||= []).push({
           id: p.id,
           name: p.name,
           kind: p.kind,
-          is_default: p.is_default,
+          is_default: !!p.is_default,
           rule: p.rule,
-          description: p.rule?.description || null,
+          description: (typeof p.rule === "object" && p.rule?.description) || null,
         });
       });
 
