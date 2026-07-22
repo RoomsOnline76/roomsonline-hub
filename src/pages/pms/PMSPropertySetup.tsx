@@ -48,7 +48,8 @@ type TabKey =
   | "addons"
   | "house-rules"
   | "templates"
-  | "announcements";
+  | "announcements"
+  | "contacts";
 
 
 
