@@ -238,7 +238,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           )}
           <p className="text-[11px] text-muted-foreground mt-2">
             Strategy: <span className="font-medium">{strategyLabel}</span>
-            {config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
+            {strategy === "widget"
+              ? " · commission tiered by monthly volume (variable, not included)"
+              : config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
           </p>
         </CardContent>
       </Card>
