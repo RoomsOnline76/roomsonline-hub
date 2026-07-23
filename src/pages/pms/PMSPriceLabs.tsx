@@ -226,13 +226,16 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-md border p-3">
             <div>
-              <Label className="text-base">Enabled</Label>
-              <p className="text-sm text-muted-foreground">Show suggestions and allow syncing.</p>
+              <Label className="text-sm">Add-on status</Label>
+              <p className="text-xs text-muted-foreground">Controlled by an administrator in the property's Billing settings.</p>
             </div>
-            <Switch checked={!!editing.enabled} disabled={!canManage} onCheckedChange={(v) => updateCfg({ enabled: v })} />
+            <Badge variant={pricelabsAllowed ? "default" : "secondary"}>
+              {pricelabsAllowed ? "Enabled by admin" : "Not enabled"}
+            </Badge>
           </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
