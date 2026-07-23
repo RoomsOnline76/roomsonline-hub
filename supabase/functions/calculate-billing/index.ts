@@ -150,6 +150,29 @@ serve(async (req) => {
       }
     }
 
+    // Log PriceLabs add-on fee as separate transaction if enabled
+    if ((config as any)?.pricelabs_allowed && event_type === 'subscription') {
+      const plFee = resolve(
+        (config as any)?.pricelabs_monthly_fee,
+        (globalDefaults as any)?.pricelabs_monthly_fee,
+        0
+      );
+      if (plFee > 0) {
+        await supabase
+          .from("billing_transactions")
+          .insert({
+            property_id,
+            owner_id: config?.owner_id || null,
+            type: 'pricelabs_fee',
+            amount: plFee,
+            currency: 'ZAR',
+            calculated_by: 'billing-calc-pricelabs',
+            metadata: { source: 'pricelabs_addon', monthly_fee: plFee },
+          });
+      }
+    }
+
+
     // Also update booking commission fields if this is a booking event
     if (booking_id && result.type === 'commission') {
       await supabase
