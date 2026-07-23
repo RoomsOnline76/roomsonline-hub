@@ -22,11 +22,12 @@ const STRATEGY_LABELS: Record<string, { label: string; description: string }> = 
   default: { label: "Default (Commission)", description: "Standard listing / PMS commission model" },
   widget: { label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows" },
   rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager (2% PMS commission)" },
-  portfolio_aggregator: { label: "Portfolio Aggregator", description: "Shared subscription across multiple properties, blended commission" },
   enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup, zero commission" },
   volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units" },
   payment_facilitator: { label: "Payment Facilitator Only", description: "No listing/PMS fees — transaction fee on PayFast only" },
 };
+const HIDDEN_STRATEGIES = new Set(["portfolio_aggregator"]);
+
 
 function toStr(v: number | null | undefined): string {
   return v == null ? "" : String(v);
