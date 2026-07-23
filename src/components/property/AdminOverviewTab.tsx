@@ -346,6 +346,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
             value={wlDomain?.pricelabs_monthly_fee != null ? `R ${wlDomain.pricelabs_monthly_fee}` : <Empty />}
           />
         </CardContent>
+      </Card>
+
+
 
 
       {/* Referral / Sales rep */}
