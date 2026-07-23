@@ -389,15 +389,8 @@ async function calcRolosPms(
   };
 }
 
-async function calcPortfolio(
-  amount: number, config: any, globals: any, resolve: ResolveFn
-): Promise<BillingResult> {
-  const rate = resolve(config?.commission_rate, globals?.default_commission_rate, 5);
-  return {
-    amount: amount * (rate / 100),
-    type: 'commission',
-    metadata: { rate, source: 'portfolio_aggregator' },
-  };
+// (Legacy calcPortfolio removed — Portfolio Aggregator is now an add-on, not a strategy.)
+
 }
 
 async function calcEnterprise(config: any, globals: any, resolve: ResolveFn, eventType: string): Promise<BillingResult> {
