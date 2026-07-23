@@ -56,6 +56,17 @@ async function pl(method: "GET" | "POST", path: string, name: string, token: str
   return { ok: res.ok, status: res.status, body: json };
 }
 
+function stringifyBody(b: unknown): string {
+  if (b == null) return "";
+  if (typeof b === "string") return b;
+  try { return JSON.stringify(b); } catch { return String(b); }
+}
+
+function plError(prefix: string, r: { status: number; body: unknown }): string {
+  const bodyStr = stringifyBody(r.body);
+  return `${prefix} (PriceLabs ${r.status})${bodyStr ? `: ${bodyStr.slice(0, 500)}` : ""}`;
+}
+
 // -------------------------------------------------------------------
 // High-level ROLOS-specific actions
 // -------------------------------------------------------------------
@@ -98,9 +109,10 @@ async function buildListingsPayload(supabase: SB, propertyId: string) {
 
 async function syncPropertyToPricelabs(supabase: SB, propertyId: string, name: string, token: string) {
   const { property, listings, roomTypes } = await buildListingsPayload(supabase, propertyId);
-  if (listings.length === 0) return { success: false, reason: "no_active_room_types" };
+  if (listings.length === 0) return { success: false, status: 400, error: "No active room types found for this property. Add rooms in ROLOS → Room Types before pushing to PriceLabs." };
 
   const listingsRes = await pl("POST", "/listings", name, token, { listings });
+  if (!listingsRes.ok) return { success: false, status: listingsRes.status, error: plError("Listings push failed", listingsRes) };
 
   // Push last 730 days of reservations. Room-type mapping lives on rolos_reservation_rooms.
   const since = new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
@@ -150,11 +162,11 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
     .eq("property_id", propertyId)
     .eq("is_active", true);
 
-  if (!roomTypes || roomTypes.length === 0) return { success: false, reason: "no_room_types" };
+  if (!roomTypes || roomTypes.length === 0) return { success: false, status: 400, error: "No active room types for this property. Sync a property to PriceLabs before pulling suggestions." };
 
   const listingIds = roomTypes.map((rt) => `rolos_${propertyId}_${rt.id}`);
   const priced = await pl("POST", "/get_prices", name, token, { listing_ids: listingIds });
-  if (!priced.ok) return { success: false, status: priced.status, error: priced.body };
+  if (!priced.ok) return { success: false, status: priced.status, error: plError("Pull suggestions failed", priced) };
 
   const body = (priced.body as Json | null) ?? {};
   const listingsOut = (body.listings as Array<Json> | undefined) ?? (body.data as Array<Json> | undefined) ?? [];
@@ -238,7 +250,7 @@ async function applySuggestions(
     .in("id", suggestionIds)
     .eq("property_id", propertyId);
 
-  if (!suggestions || suggestions.length === 0) return { success: false, reason: "no_suggestions" };
+  if (!suggestions || suggestions.length === 0) return { success: false, status: 400, error: "No matching suggestions to apply. Pull latest suggestions first." };
 
   let applied = 0;
   const errors: string[] = [];
@@ -337,13 +349,19 @@ Deno.serve(async (req) => {
       case "sync_property_to_pricelabs": {
         if (!propertyId) return json({ error: "property_id required" }, 400);
         const res = await syncPropertyToPricelabs(supabase, propertyId, name, token);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "pull_price_suggestions": {
         if (!propertyId) return json({ error: "property_id required" }, 400);
         const res = await pullPriceSuggestions(supabase, propertyId, name, token);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "apply_suggestions": {
@@ -351,7 +369,10 @@ Deno.serve(async (req) => {
         const ids = (payload.suggestion_ids as string[]) ?? [];
         if (ids.length === 0) return json({ error: "suggestion_ids required" }, 400);
         const res = await applySuggestions(supabase, propertyId, ids, userId);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "get_listings": {
