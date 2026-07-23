@@ -21,7 +21,6 @@ const STRATEGY_OPTIONS = [
   { value: "default", label: "Default — Listing Commission", description: "10% commission on direct bookings via ROL widgets. No fixed monthly fees." },
   { value: "widget", label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows. No subscription." },
   { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager. Reduced 2% PMS commission on bookings." },
-  { value: "portfolio_aggregator", label: "Portfolio Aggregator", description: "Shared subscription across multiple properties with blended, reduced commission." },
   { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup fee. Zero commission on bookings." },
   { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units. No booking commission." },
   { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees — only the payment transaction fee on Rooms Online PayFast." },
