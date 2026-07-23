@@ -1,56 +1,30 @@
-## Update ROLOS Billing Matrix (v3)
+## Problem
 
-Produce `/mnt/documents/rolos-billing-matrix-v3.docx` (versioned; keeps v2 intact).
+Clicking **Pull latest suggestions** in ROLOS → PriceLabs shows `Pull failed: [object Object]`. The real error from PriceLabs never reaches the toast.
 
-### 1. Add PriceLabs add-on row to every strategy
+## Root cause
 
-New "Revenue Add-ons" row inserted into each of the 7 strategy tables (Default, Widget, ROL'OS PMS, Portfolio Aggregator, Enterprise White-Label, Volume Tiered, Payment Facilitator):
+Two layers swallow the message:
 
-- **Default per-property fee:** R250 / property / month (billed alongside subscription line).
-- **Portfolio sliding scale** (applied when admin toggles "Apply to all in portfolio"):
-  - 1–5 properties: R250 each (R250 flat)
-  - 6–15: R200 each
-  - 16–30: R160 each
-  - 31–60: R130 each
-  - 61+: R100 each
-- Notes: gated by admin `pricelabs_allowed`, billed as separate `pricelabs_fee` transaction.
+1. `supabase/functions/pricelabs-api/index.ts` — `pullPriceSuggestions` returns `{ success: false, status, error: priced.body }` with a 200 HTTP status when PriceLabs itself rejects the call (401, 404, invalid listing_ids, etc.). `priced.body` is an **object**, not a string.
+2. `src/pages/pms/PMSPriceLabs.tsx` — `callApi` only throws when `data.error` is truthy and passes it straight into `new Error(...)`. When `error` is an object it stringifies to `[object Object]`; when the response is `{ success: false, error: {...} }` (no top-level `error` string check for the object case) it also isn't handled uniformly. `apply_suggestions` has the same weakness.
 
-### 2. Side-by-side sales rep commission column
+Also `sync_property_to_pricelabs` returns `{ success: false, reason: "..." }` in several branches — the UI currently reports these as successes.
 
-Add a **Sales Rep Commission** column to each strategy table, showing what a rep earns *per that revenue derivative*, split by tier:
+## Fix
 
-| Tier | Year 1 (of ROL'OS-collected revenue) | Residual | Duration |
-|------|--------------------------------------|----------|----------|
-| Base | 20% | 5% | 12 mo |
-| Accelerated | 25% | 7.5% | 18 mo |
-| Elite | 30% | 10% | 24 mo |
+Edge function `supabase/functions/pricelabs-api/index.ts`:
+- In `pullPriceSuggestions`, `syncPropertyToPricelabs`, and `applySuggestions`, normalise failure returns to `{ success: false, status, error: <string> }`, stringifying upstream JSON bodies with `JSON.stringify` when they aren't already strings, and prefixing with the PriceLabs status (e.g. `PriceLabs 401: {"message":"Invalid API key"}`).
+- In the action dispatcher, when the handler returns `success === false`, respond with HTTP `502` (upstream) or `400` (validation) so the client's `error` branch fires with a readable message, while still including the JSON body.
 
-For each strategy, list what portions are commissionable (subscription, transaction %, PriceLabs add-on, white-label fee, etc.) and which are pass-through (payment processing fees).
+Frontend `src/pages/pms/PMSPriceLabs.tsx`:
+- Rewrite `callApi` so it (a) reads `error.context?.response` from `FunctionsHttpError` to extract the JSON body, (b) treats `data.success === false` as a failure, (c) coerces any non-string `error`/`reason` to a string via `JSON.stringify`, and (d) throws a single `Error` with that string.
+- Apply the same success/failure gate to `pushProperty` and `applySelected` so silent `success:false` responses stop looking like wins.
 
-### 3. Addendum — Sales rep earnings worked examples
+## Out of scope
 
-New "Addendum A: Rep Earnings Scenarios" section with:
+No schema changes, no PriceLabs credential changes, no changes to the pull cadence or applied-price logic.
 
-**A. Per-model single-property examples** (Base / Accelerated / Elite side-by-side)
-- Widget-only property (R120k/yr GMV)
-- ROL'OS PMS property (R450 base + 2% × R900k GMV + R250 PriceLabs)
-- ROL'OS PMS + White-label buy-in
-- Portfolio Aggregator (10 properties at R650 each)
-- Enterprise White-Label (R925 × 20 properties + PriceLabs sliding)
+## Verify
 
-**B. Real-world mix scenario (ROLOS-weighted)** — the "expected" rep book:
-- 70% ROL'OS PMS clients (target aquisition focus)
-- 15% Widget-only
-- 10% Portfolio properties
-- 5% Enterprise white-label
-- 60% adopt PriceLabs
-
-Show 12-month and 24-month cumulative earnings for a rep who closes 3 / 6 / 12 accounts per quarter, at each tier. Include a "primary ROLOS focus" summary row highlighting the earnings advantage of driving ROL'OS PMS signups vs widget-only.
-
-### 4. Formatting
-
-Match v2 styles (Instrument Sans / Geist Mono where used, brand pink `#E91E8C` for headers), keep same 8.5×11 layout. Add a change-log note referencing v2.
-
-### QA
-
-After generation, convert all pages to images and inspect each for layout/overflow before delivering.
+After the fix, retriggering **Pull latest suggestions** on Dassiesingle should show the real PriceLabs error text (or a "no listings pushed yet" style message) instead of `[object Object]`, and the edge-function log will contain the same string.
