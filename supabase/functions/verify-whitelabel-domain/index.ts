@@ -30,6 +30,10 @@ const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 const ORIGIN_RULESET_PHASE = "http_request_origin";
 const ORIGIN_RULESET_NAME = "RoomsOnline white-label origin routing";
 const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
+const REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
+const REDIRECT_RULESET_NAME = "RoomsOnline white-label canonical redirects";
+const REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
+const CANONICAL_BOOKING_HOST = "sleepinafrica.roomsonline.co.za";
 
 type Status =
   | "active"
@@ -124,6 +128,82 @@ interface CFRuleset {
 
 function cfSafeRef(hostname: string): string {
   return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
+function cfSafeRedirectRef(hostname: string): string {
+  return `${REDIRECT_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
+function requiresRedirectFallback(error: string | null): boolean {
+  if (!error) return false;
+  const lower = error.toLowerCase();
+  return lower.includes("not entitled") || lower.includes("hostheader override") || lower.includes("host header");
+}
+
+async function cfEnsureCanonicalRedirect(hostname: string): Promise<{ ok: boolean; error: string | null }> {
+  const ref = cfSafeRedirectRef(hostname);
+  const desiredRule: CFRulesetRule = {
+    ref,
+    expression: `http.host eq "${hostname}"`,
+    description: `Redirect ${hostname} to the canonical RoomsOnline booking host`,
+    action: "redirect",
+    action_parameters: {
+      from_value: {
+        status_code: 302,
+        preserve_query_string: true,
+        target_url: {
+          expression: `concat("https://${CANONICAL_BOOKING_HOST}", http.request.uri.path)`,
+        },
+      },
+    },
+  };
+
+  const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
+  const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
+  if (!listed.success || !listed.result) {
+    return { ok: false, error: `Cloudflare redirect check failed: ${cfErrorMessage(listed)}` };
+  }
+
+  let ruleset = listed.result.find((r) => r.kind === "zone" && r.phase === REDIRECT_RULESET_PHASE) ?? null;
+  if (!ruleset) {
+    const createdResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`, {
+      method: "POST",
+      body: JSON.stringify({
+        name: REDIRECT_RULESET_NAME,
+        description: "Keeps white-label booking domains functional when host-header origin routing is unavailable.",
+        kind: "zone",
+        phase: REDIRECT_RULESET_PHASE,
+        rules: [desiredRule],
+      }),
+    });
+    const created = (await createdResponse.json()) as CFResult<CFRuleset>;
+    if (!created.success || !created.result) {
+      return { ok: false, error: `Cloudflare redirect create failed: ${cfErrorMessage(created)}` };
+    }
+    return { ok: true, error: null };
+  }
+
+  const existingRules = Array.isArray(ruleset.rules) ? ruleset.rules : [];
+  const ruleIndex = existingRules.findIndex((r) => r.ref === ref || r.expression === desiredRule.expression);
+  const nextRules = ruleIndex >= 0
+    ? existingRules.map((r, i) => (i === ruleIndex ? { ...r, ...desiredRule } : r))
+    : [...existingRules, desiredRule];
+
+  const updatedResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: ruleset.name || REDIRECT_RULESET_NAME,
+      description: ruleset.description || "Keeps white-label booking domains functional when host-header origin routing is unavailable.",
+      kind: "zone",
+      phase: REDIRECT_RULESET_PHASE,
+      rules: nextRules,
+    }),
+  });
+  const updated = (await updatedResponse.json()) as CFResult<CFRuleset>;
+  if (!updated.success || !updated.result) {
+    return { ok: false, error: `Cloudflare redirect update failed: ${cfErrorMessage(updated)}` };
+  }
+  return { ok: true, error: null };
 }
 
 async function cfEnsureOriginRoute(hostname: string): Promise<{ ok: boolean; error: string | null }> {
@@ -313,6 +393,8 @@ Deno.serve(async (req) => {
     let cfHostnameStatus: string | null = null;
     let cfSslStatus: string | null = null;
     let originRouteError: string | null = null;
+    let redirectRouteError: string | null = null;
+    let routingMode: "origin" | "redirect" | null = null;
 
     if (!dnsOk) {
       if (dnsMissing) {
@@ -325,6 +407,13 @@ Deno.serve(async (req) => {
     } else {
       const originRoute = await cfEnsureOriginRoute(normalized);
       originRouteError = originRoute.error;
+      if (originRoute.ok) {
+        routingMode = "origin";
+      } else if (requiresRedirectFallback(originRouteError)) {
+        const redirectRoute = await cfEnsureCanonicalRedirect(normalized);
+        redirectRouteError = redirectRoute.error;
+        if (redirectRoute.ok) routingMode = "redirect";
+      }
 
       // 2) Register on Cloudflare if not already, otherwise poll.
       // Always try to adopt an existing hostname by name first — avoids
@@ -412,12 +501,17 @@ Deno.serve(async (req) => {
             origin_route_error: originRouteError,
           });
           if (got.result.status === "active" && cfSslStatus === "active") {
-            // Cert is live. Origin routing via a Rulesets rule is a nice-to-have
-            // (needs a Rulesets:Edit token); the custom_origin_server on the
-            // hostname already points CF at the fallback origin, so treat the
-            // domain as active and surface any routing error as a soft warning.
-            status = "active";
-            lastError = originRouteError;
+            // Cert is live. The hostname is only usable if we can either route
+            // Cloudflare to the shared fallback origin or redirect it to the
+            // canonical app host. Without one of these, Vercel returns
+            // DEPLOYMENT_NOT_FOUND for the customer hostname.
+            if (routingMode) {
+              status = "active";
+              lastError = null;
+            } else {
+              status = "failed";
+              lastError = redirectRouteError || originRouteError || "Domain certificate is active, but routing to the booking app could not be configured.";
+            }
           } else {
             status = "pending_ssl";
             const sslErr = got.result.ssl?.validation_errors?.map((e) => e.message).join("; ") || "";
@@ -425,8 +519,8 @@ Deno.serve(async (req) => {
             const detail = [sslErr, verErr].filter(Boolean).join(" | ");
             lastError = detail
               ? `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus} — ${detail}`
-              : originRouteError
-                ? `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}. Origin routing: ${originRouteError}`
+              : redirectRouteError || (originRouteError && !routingMode)
+                ? `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}. Routing: ${redirectRouteError || originRouteError}`
                 : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
           }
         }
@@ -461,6 +555,9 @@ Deno.serve(async (req) => {
           hostname_id: hostnameId,
           hostname_status: cfHostnameStatus,
           ssl_status: cfSslStatus,
+          routing_mode: routingMode,
+          origin_route_error: originRouteError,
+          redirect_route_error: redirectRouteError,
         },
         expected: { cname: EXPECTED_CNAME_HOSTS, a: EXPECTED_A_RECORD },
       }),
