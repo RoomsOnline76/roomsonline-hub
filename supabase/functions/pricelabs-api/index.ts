@@ -3,7 +3,7 @@
 // Docs: https://help.pricelabs.co/portal/en/kb/articles/building-an-integration-with-pricelabs
 // Swagger: https://app.swaggerhub.com/apis/PriceLabs/price-labs_connector/2.0.0
 // ============================================================================
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2/cors";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const BASE = "https://api.pricelabs.co/v2/integration/api";
