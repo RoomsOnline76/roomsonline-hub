@@ -295,13 +295,29 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
             {cfg.last_pull_at && <span className="block text-xs mt-1">Last pull: {format(new Date(cfg.last_pull_at), "PPp")}</span>}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !cfg.enabled}>
-            <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
-          </Button>
-          <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !cfg.enabled}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
-          </Button>
+        <CardContent className="space-y-3">
+          {!cfg.enabled && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>PriceLabs is disabled for this property</AlertTitle>
+              <AlertDescription className="flex items-center justify-between gap-3">
+                <span>Enable the integration above to push listings and pull suggestions.</span>
+                {canManage && (
+                  <Button size="sm" onClick={() => saveConfig.mutate({ ...cfg, enabled: true })} disabled={saveConfig.isPending}>
+                    Enable now
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !cfg.enabled || !canManage}>
+              <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
+            </Button>
+            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !cfg.enabled || !canManage}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
