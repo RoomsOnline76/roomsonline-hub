@@ -119,7 +119,7 @@ export default function PMSPriceLabs() {
     mutationFn: async (next: PriceLabsConfig) => {
       const { error } = await supabase
         .from("properties")
-        .update({ pricelabs_config: next })
+        .update({ pricelabs_config: next as unknown as Record<string, unknown> })
         .eq("id", propertyId!);
       if (error) throw error;
     },
