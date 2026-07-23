@@ -5,6 +5,10 @@ import { toast } from "sonner";
 export interface BillingDefault {
   id: string;
   strategy: string;
+  preset_name: string | null;
+  preset_description: string | null;
+  is_preset: boolean | null;
+  sort_order: number | null;
   default_commission_rate: number | null;
   default_subscription_fee: number | null;
   default_transaction_fee: number | null;
@@ -22,7 +26,6 @@ export interface BillingDefault {
   portfolio_aggregator_monthly_default?: number | null;
   portfolio_aggregator_setup_default?: number | null;
   sales_rep_tier_criteria_json?: any;
-  payment_facilitator_fee: number | null;
   byo_gateway_monthly_fee?: number | null;
   referral_first_year_rate: number | null;
   referral_residual_rate: number | null;
@@ -34,6 +37,19 @@ export interface BillingDefault {
   updated_by: string | null;
 }
 
+export function presetLabel(row: Pick<BillingDefault, "preset_name" | "strategy">): string {
+  return row.preset_name?.trim() || row.strategy;
+}
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60) || `preset_${Date.now()}`;
+}
+
 export function useBillingDefaults() {
   const queryClient = useQueryClient();
 
@@ -43,7 +59,8 @@ export function useBillingDefaults() {
       const { data, error } = await supabase
         .from("billing_global_defaults")
         .select("*")
-        .order("strategy");
+        .order("sort_order", { ascending: true })
+        .order("strategy", { ascending: true });
 
       if (error) throw error;
       return data as unknown as BillingDefault[];
@@ -65,10 +82,61 @@ export function useBillingDefaults() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing-global-defaults"] });
-      toast.success("Global defaults updated");
+      toast.success("Preset saved");
     },
     onError: (error) => {
-      toast.error("Failed to update defaults", { description: error.message });
+      toast.error("Failed to save preset", { description: (error as Error).message });
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: async (payload: Partial<BillingDefault> & { preset_name: string }) => {
+      const rawSlug = (payload.strategy && payload.strategy.trim()) || slugify(payload.preset_name);
+      // ensure uniqueness
+      const existing = query.data ?? [];
+      let slug = rawSlug;
+      let n = 1;
+      while (existing.some((d) => d.strategy === slug)) {
+        n += 1;
+        slug = `${rawSlug}_${n}`;
+      }
+      const insertRow: any = {
+        ...payload,
+        strategy: slug,
+        preset_name: payload.preset_name,
+        is_preset: true,
+        sort_order: payload.sort_order ?? (existing.length + 1) * 10,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await supabase
+        .from("billing_global_defaults")
+        .insert(insertRow)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as BillingDefault;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing-global-defaults"] });
+      toast.success("Preset created");
+    },
+    onError: (error) => {
+      toast.error("Failed to create preset", { description: (error as Error).message });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("billing_global_defaults").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["billing-global-defaults"] });
+      toast.success("Preset deleted");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete preset", { description: (error as Error).message });
     },
   });
 
@@ -81,6 +149,8 @@ export function useBillingDefaults() {
     isLoading: query.isLoading,
     error: query.error,
     update,
+    create,
+    remove,
     getDefaultsForStrategy,
   };
 }
