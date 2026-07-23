@@ -30,6 +30,8 @@ export interface BillingContractVariables {
   white_label_clause: string;
   payment_facilitator_fee: string;
   payment_facilitator_clause: string;
+  byo_gateway_fee: string;
+  byo_gateway_clause: string;
   volume_tier_clause: string;
   tier_monthly_fee: string;
   tier_room_count: string;
