@@ -179,9 +179,14 @@ export default function AdminPortfolios() {
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const { data: user } = await supabase.auth.getUser();
+      const aggPayload = {
+        aggregator_billing_mode: aggMode,
+        aggregator_monthly_fee: aggMode === "monthly" ? (aggMonthly === "" ? null : Number(aggMonthly)) : null,
+        aggregator_setup_fee: aggMode === "once_off" ? (aggSetup === "" ? null : Number(aggSetup)) : null,
+      };
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding } } as any)
+        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding }, ...aggPayload } as any)
         .select()
         .single();
       if (error) throw error;
