@@ -91,15 +91,18 @@ serve(async (req) => {
       const commissionType = isFirstYear ? "first_year" : "residual";
       const rate = isFirstYear ? tier.firstYear : tier.residual;
 
-      // Get platform revenue for this property in the period (from billing_transactions)
+      // Get platform revenue for this property in the period (from billing_transactions).
+      // Reps do NOT earn on facilitator surcharge (pass-through payment fee) or BYO gateway add-ons.
       const { data: transactions } = await supabase
         .from("billing_transactions")
-        .select("amount")
+        .select("amount, type")
         .eq("property_id", referral.property_id)
+        .not("type", "in", "(transaction_fee,byo_gateway_fee,facilitator_surcharge)")
         .gte("created_at", periodStartStr)
         .lte("created_at", periodEndStr + "T23:59:59Z");
 
       const baseRevenue = (transactions || []).reduce((sum, t) => sum + (t.amount || 0), 0);
+
       if (baseRevenue <= 0) continue;
 
       const amount = baseRevenue * (rate / 100);

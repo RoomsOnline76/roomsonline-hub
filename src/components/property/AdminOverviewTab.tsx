@@ -329,7 +329,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
               value={
                 config?.transaction_fee_percentage != null ? `${config.transaction_fee_percentage}%` : <Empty />
               }
-              hint="Applied to every booking taken via ROL's payment facilitator."
+              hint="Applied per booking on the booking total only; stacks on commission. Sales reps do not earn on this fee."
             />
           )}
           {customProvider && (
