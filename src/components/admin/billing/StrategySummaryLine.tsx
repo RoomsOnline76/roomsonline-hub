@@ -21,10 +21,14 @@ export function summarizeStrategy(d: BillingDefault): string {
   if (d.default_subscription_fee != null) parts.push(`R${d.default_subscription_fee}/mo subscription`);
   if (d.default_transaction_fee != null) parts.push(`${d.default_transaction_fee}% booking surcharge (ROL facilitator)`);
   if ((d as any).byo_gateway_monthly_fee != null) parts.push(`R${(d as any).byo_gateway_monthly_fee}/mo BYO gateway add-on`);
-  const tiers = (d as any).tier_pricing_json as Array<{ min_rooms: number; max_rooms: number | null; monthly_fee: number }> | null;
+  const tiers = (d as any).tier_pricing_json as Array<{ min_rooms: number; max_rooms: number | null; max_properties?: number | null; monthly_fee: number }> | null;
   if (tiers && tiers.length) {
     const summary = tiers
-      .map((t) => `${t.min_rooms}${t.max_rooms == null ? "+" : `–${t.max_rooms}`} rooms: R${t.monthly_fee}`)
+      .map((t) => {
+        const rooms = `${t.min_rooms}${t.max_rooms == null ? "+" : `–${t.max_rooms}`} rooms`;
+        const props = t.max_properties == null ? "any props" : `≤${t.max_properties} props`;
+        return `${rooms} · ${props}: R${t.monthly_fee}`;
+      })
       .join(" · ");
     parts.push(`tiers ${summary}`);
   }
