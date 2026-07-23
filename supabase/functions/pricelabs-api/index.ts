@@ -165,7 +165,16 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
   if (!roomTypes || roomTypes.length === 0) return { success: false, status: 400, error: "No active room types for this property. Sync a property to PriceLabs before pulling suggestions." };
 
   const listingIds = roomTypes.map((rt) => `rolos_${propertyId}_${rt.id}`);
-  const priced = await pl("POST", "/get_prices", name, token, { listing_ids: listingIds });
+  const today = new Date().toISOString().slice(0, 10);
+  const endDate = new Date(Date.now() + 365 * 86400_000).toISOString().slice(0, 10);
+  const syncBody = {
+    sync: {
+      listing_ids: listingIds,
+      date_from: today,
+      date_to: endDate,
+    },
+  };
+  const priced = await pl("POST", "/get_prices", name, token, syncBody);
   if (!priced.ok) return { success: false, status: priced.status, error: plError("Pull suggestions failed", priced) };
 
   const body = (priced.body as Json | null) ?? {};
@@ -382,7 +391,8 @@ Deno.serve(async (req) => {
       }
 
       case "get_prices": {
-        const r = await pl("POST", "/get_prices", name, token, payload.body ?? { listing_ids: payload.listing_ids ?? [] });
+        const body = payload.body ?? { sync: { listing_ids: payload.listing_ids ?? [] } };
+        const r = await pl("POST", "/get_prices", name, token, body);
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
