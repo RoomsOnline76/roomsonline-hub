@@ -250,7 +250,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               className="text-xs"
             />
             <p className="text-[10px] text-muted-foreground">
-              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS, Portfolio Aggregator and Volume Tiered strategies.
+              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS and Volume Tiered strategies.
             </p>
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
