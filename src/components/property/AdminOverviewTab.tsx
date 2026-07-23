@@ -293,7 +293,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
         </CardHeader>
         <CardContent className="pt-0">
           <Row label="Strategy" value={<Badge variant="outline">{strategyLabel}</Badge>} />
-          {["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy) && (
+          {["default", "widget", "rolos_pms", "volume_tiered"].includes(strategy) && (
             <Row
               label="Commission (booking %)"
               value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}
