@@ -463,7 +463,7 @@ export default function AdminBillingDefaults() {
 
           <TabsContent value="strategies" className="mt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {defaults.map((item) => (
+              {defaults.filter((d) => !HIDDEN_STRATEGIES.has(d.strategy)).map((item) => (
                 <StrategyCard key={item.id} item={item} onSave={(d) => update.mutate(d)} saving={update.isPending} />
               ))}
             </div>
