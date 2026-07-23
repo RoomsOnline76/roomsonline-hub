@@ -9,6 +9,8 @@ const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 const ORIGIN_RULESET_PHASE = "http_request_origin";
 const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
+const REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
+const REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
 
 const BodySchema = z.object({
   property_id: z.string().uuid().optional(),
@@ -64,6 +66,10 @@ function cfSafeRef(hostname: string): string {
   return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
 }
 
+function cfSafeRedirectRef(hostname: string): string {
+  return `${REDIRECT_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
 async function cfFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 10_000);
@@ -110,6 +116,34 @@ async function cfDeleteOriginRoute(hostname: string): Promise<void> {
   }
 }
 
+async function cfDeleteCanonicalRedirect(hostname: string): Promise<void> {
+  try {
+    const ref = cfSafeRedirectRef(hostname);
+    const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
+    const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
+    const ruleset = listed.result?.find((r) => r.kind === "zone" && r.phase === REDIRECT_RULESET_PHASE);
+    if (!listed.success || !ruleset) return;
+
+    const nextRules = (ruleset.rules || []).filter((rule) =>
+      rule.ref !== ref && rule.expression !== `http.host eq "${hostname}"`
+    );
+    if (nextRules.length === (ruleset.rules || []).length) return;
+
+    await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: ruleset.name,
+        description: ruleset.description,
+        kind: "zone",
+        phase: REDIRECT_RULESET_PHASE,
+        rules: nextRules,
+      }),
+    });
+  } catch (err) {
+    console.warn("cfDeleteCanonicalRedirect failed (ignored)", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -153,6 +187,7 @@ Deno.serve(async (req) => {
     }
     if (hostname && CF_ZONE_ID && CF_API_TOKEN) {
       await cfDeleteOriginRoute(hostname.toLowerCase());
+      await cfDeleteCanonicalRedirect(hostname.toLowerCase());
     }
 
     const patch = {
