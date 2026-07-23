@@ -89,7 +89,8 @@ export async function resolveBillingContractVariables(
   const whiteLabel = config?.white_label_allowed;
   const whiteLabelFee = config?.white_label_monthly_fee ?? globals?.white_label_monthly_fee;
   const payFacEnabled = config?.payment_facilitator_enabled;
-  const payFacFee = config?.transaction_fee_percentage ?? globals?.payment_facilitator_fee;
+  const payFacFee = config?.transaction_fee_percentage ?? globals?.default_transaction_fee;
+  const byoFee = config?.byo_gateway_monthly_fee ?? globals?.byo_gateway_monthly_fee;
 
   const words = numberToWords(Math.round(commissionRate));
 
