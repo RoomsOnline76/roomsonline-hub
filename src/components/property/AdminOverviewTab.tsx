@@ -79,7 +79,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
       const { data, error } = await supabase
         .from("properties")
         .select(
-          "id,name,is_rol_property,is_test_property,allow_custom_payment_provider,brand_override_enabled,show_on_website,status"
+          "id,name,is_rol_property,is_test_property,allow_custom_payment_provider,brand_override_enabled,show_on_website,status,pms_system,pricelabs_config"
         )
         .eq("id", propertyId)
         .maybeSingle();
@@ -166,10 +166,13 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "Branding add-on setup", amount: Number(wlDomain.branding_addon_setup_fee), once: true });
   }
 
-  if (wlDomain?.pricelabs_allowed && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
+  const isRolos = (property?.pms_system ?? "").toLowerCase() === "rolos";
+  const pricelabsActivated = !!property?.pricelabs_config?.enabled;
+  const pricelabsBillable = !!wlDomain?.pricelabs_allowed && isRolos && pricelabsActivated;
+  if (pricelabsBillable && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
     costLines.push({ label: "PriceLabs add-on", amount: Number(wlDomain.pricelabs_monthly_fee) });
   }
-  if (wlDomain?.pricelabs_allowed && Number(wlDomain?.pricelabs_setup_fee ?? 0) > 0) {
+  if (pricelabsBillable && Number(wlDomain?.pricelabs_setup_fee ?? 0) > 0) {
     costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
   }
 

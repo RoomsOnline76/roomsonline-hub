@@ -95,15 +95,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("allow_custom_payment_provider")
+        .select("allow_custom_payment_provider, pms_system")
         .eq("id", propertyId)
         .maybeSingle();
       if (error) throw error;
-      return data as { allow_custom_payment_provider?: boolean } | null;
+      return data as { allow_custom_payment_provider?: boolean; pms_system?: string | null } | null;
     },
     enabled: !!propertyId,
   });
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
+  const isRolosPms = (propertyFlag?.pms_system ?? "").toLowerCase() === "rolos";
 
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
@@ -157,8 +158,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       white_label_monthly_fee: builder.white_label_enabled ? toNum(builder.white_label_monthly_fee) : null,
       white_label_setup_fee: builder.white_label_enabled ? toNum(builder.white_label_setup_fee) : null,
       white_label_billing_mode: builder.white_label_enabled ? builder.white_label_billing_mode : null,
-      pricelabs_allowed: builder.pricelabs_enabled,
-      pricelabs_monthly_fee: builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
+      pricelabs_allowed: isRolosPms ? builder.pricelabs_enabled : false,
+      pricelabs_monthly_fee: isRolosPms && builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
       tier_pricing_json: builder.volume_tiers_enabled ? (builder.tier_pricing_json as any) : null,
       billing_start_date: billingStartDate || null,
     } as any);
@@ -247,6 +248,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             }}
             scope="property"
             placeholders={placeholders}
+            disabledAddons={{
+              pricelabs: {
+                disabled: !isRolosPms,
+                reason: "Available only when this property's PMS is ROL'OS.",
+              },
+            }}
           />
 
           {/* Live summary */}

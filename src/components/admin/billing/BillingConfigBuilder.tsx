@@ -74,6 +74,8 @@ interface BuilderProps {
   placeholders?: Partial<Record<keyof BillingConfigValue, string | number>>;
   /** Show the "Payment model" separator context. Defaults to true. */
   showPaymentInfo?: boolean;
+  /** Add-ons to disable (property-scope gating), keyed by short name. */
+  disabledAddons?: { pricelabs?: { disabled: boolean; reason?: string } };
 }
 
 function ToggleRow({
@@ -82,30 +84,38 @@ function ToggleRow({
   enabled,
   onToggle,
   children,
+  disabled,
+  disabledReason,
 }: {
   title: string;
   description?: string;
   enabled: boolean;
   onToggle: (v: boolean) => void;
   children?: React.ReactNode;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   return (
-    <div className={`rounded-md border p-3 space-y-3 ${enabled ? "" : "bg-muted/20"}`}>
+    <div className={`rounded-md border p-3 space-y-3 ${enabled && !disabled ? "" : "bg-muted/20"} ${disabled ? "opacity-70" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Label className="text-sm font-medium">{title}</Label>
           {description && <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>}
+          {disabled && disabledReason && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">{disabledReason}</p>
+          )}
         </div>
-        <Switch checked={enabled} onCheckedChange={onToggle} />
+        <Switch checked={enabled && !disabled} disabled={disabled} onCheckedChange={onToggle} />
       </div>
-      {enabled && children ? <div className="pt-1 space-y-2">{children}</div> : null}
+      {enabled && !disabled && children ? <div className="pt-1 space-y-2">{children}</div> : null}
     </div>
   );
 }
 
-export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true }: BuilderProps) {
+export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons }: BuilderProps) {
   const set = <K extends keyof BillingConfigValue>(key: K, v: BillingConfigValue[K]) =>
     onChange({ ...value, [key]: v });
+  const pricelabsDisabled = !!disabledAddons?.pricelabs?.disabled;
 
   const tiers = value.tier_pricing_json ?? [];
   const updateTier = (idx: number, patch: Partial<PricingTier>) => {
@@ -338,10 +348,12 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 
       {/* ── PriceLabs add-on ───────────────────────────────────────── */}
       <ToggleRow
-        title="PriceLabs revenue management"
-        description="Dynamic pricing suggestions surfaced in ROL'OS. Flat per activated property."
+        title="PriceLabs revenue management (ROL'OS only)"
+        description="Allow this property to enable PriceLabs from the ROL'OS revenue tab. Only applicable when PMS = ROL'OS. Fee bills only after the client activates it in ROL'OS."
         enabled={value.pricelabs_enabled}
         onToggle={(v) => set("pricelabs_enabled", v)}
+        disabled={pricelabsDisabled}
+        disabledReason={disabledAddons?.pricelabs?.reason}
       >
         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
           <Input
@@ -353,6 +365,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           />
           <span className="text-xs text-muted-foreground">ZAR/mo</span>
         </div>
+        <p className="text-[10px] text-muted-foreground">Charged only once the property activates PriceLabs in ROL'OS.</p>
       </ToggleRow>
     </div>
   );

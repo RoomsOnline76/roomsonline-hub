@@ -187,25 +187,34 @@ serve(async (req) => {
       }
     }
 
-    // Log PriceLabs add-on fee as separate transaction if enabled
+    // Log PriceLabs add-on fee — only when admin-allowed AND client activated in ROL'OS AND PMS = ROL'OS
     if ((config as any)?.pricelabs_allowed && event_type === 'subscription') {
-      const plFee = resolve(
-        (config as any)?.pricelabs_monthly_fee,
-        (globalDefaults as any)?.pricelabs_monthly_fee,
-        0
-      );
-      if (plFee > 0) {
-        await supabase
-          .from("billing_transactions")
-          .insert({
-            property_id,
-            owner_id: config?.owner_id || null,
-            type: 'pricelabs_fee',
-            amount: plFee,
-            currency: 'ZAR',
-            calculated_by: 'billing-calc-pricelabs',
-            metadata: { source: 'pricelabs_addon', monthly_fee: plFee },
-          });
+      const { data: propRow } = await supabase
+        .from("properties")
+        .select("pms_system, pricelabs_config")
+        .eq("id", property_id)
+        .maybeSingle();
+      const isRolos = ((propRow as any)?.pms_system ?? "").toLowerCase() === "rolos";
+      const activated = !!((propRow as any)?.pricelabs_config?.enabled);
+      if (isRolos && activated) {
+        const plFee = resolve(
+          (config as any)?.pricelabs_monthly_fee,
+          (globalDefaults as any)?.pricelabs_monthly_fee,
+          0
+        );
+        if (plFee > 0) {
+          await supabase
+            .from("billing_transactions")
+            .insert({
+              property_id,
+              owner_id: config?.owner_id || null,
+              type: 'pricelabs_fee',
+              amount: plFee,
+              currency: 'ZAR',
+              calculated_by: 'billing-calc-pricelabs',
+              metadata: { source: 'pricelabs_addon', monthly_fee: plFee, activated: true },
+            });
+        }
       }
     }
 
