@@ -27,12 +27,13 @@ interface AdminOverviewTabProps {
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
-  default: "Default (Commission)",
-  widget: "Widget (Tiered)",
-  rolos_pms: "ROL'OS PMS (Subscription)",
+  default: "Default — Listing Commission",
+  widget: "Widget — Tiered Commission",
+  rolos_pms: "ROL'OS PMS — Subscription",
   portfolio_aggregator: "Portfolio Aggregator",
   enterprise_white_label: "Enterprise White-Label",
-  volume_tiered: "Volume Tiered",
+  volume_tiered: "Volume Tiered (Per Unit)",
+  payment_facilitator: "Payment Facilitator Only",
 };
 
 const DOMAIN_STATUS_META: Record<
