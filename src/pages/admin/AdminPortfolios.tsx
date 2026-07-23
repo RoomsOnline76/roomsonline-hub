@@ -304,6 +304,9 @@ export default function AdminPortfolios() {
     setBrandHeroVideoUrl(b?.hero_video_url || "");
     setPinnedFeaturedIds(b?.pinned_featured_ids || []);
     setAllowPropertyBrandOverride(b?.allow_property_brand_override || false);
+    setAggMode((p.aggregator_billing_mode as any) || "none");
+    setAggMonthly(p.aggregator_monthly_fee != null ? String(p.aggregator_monthly_fee) : "");
+    setAggSetup(p.aggregator_setup_fee != null ? String(p.aggregator_setup_fee) : "");
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
