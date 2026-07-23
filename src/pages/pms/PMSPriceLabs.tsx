@@ -25,6 +25,8 @@ interface PriceLabsConfig {
   min_price_floor?: number;
   max_price_ceiling?: number;
   last_pull_at?: string;
+  last_push_at?: string;
+  needs_repush?: boolean;
   credentials?: { integration_name?: string; integration_token?: string };
 }
 
