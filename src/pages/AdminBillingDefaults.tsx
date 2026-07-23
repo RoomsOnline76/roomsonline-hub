@@ -15,6 +15,7 @@ import { DEFAULT_TIERS, PricingTier, normalizeTiers, isTierStrategy } from "@/li
 import { FieldToggleRow } from "@/components/admin/billing/FieldToggleRow";
 import { MonthlyAnnualSetup, MonthlyAnnualSetupValue } from "@/components/admin/billing/MonthlyAnnualSetup";
 import { TierCriteriaEditor, RepTierCriteria, DEFAULT_TIER_CRITERIA } from "@/components/admin/billing/TierCriteriaEditor";
+import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLine";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
