@@ -293,20 +293,26 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
         </CardHeader>
         <CardContent className="pt-0">
           <Row label="Strategy" value={<Badge variant="outline">{strategyLabel}</Badge>} />
-          <Row
-            label="Commission"
-            value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}
-          />
+          {["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy) && (
+            <Row
+              label="Commission (booking %)"
+              value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}
+              hint="ROL's share of the booking value."
+            />
+          )}
           <Row
             label="Subscription (monthly)"
             value={config?.subscription_fee_monthly != null ? `R ${config.subscription_fee_monthly}` : <Empty />}
           />
-          <Row
-            label="Transaction fee"
-            value={
-              config?.transaction_fee_percentage != null ? `${config.transaction_fee_percentage}%` : <Empty />
-            }
-          />
+          {facilitator && (
+            <Row
+              label="Payment facilitator fee (transaction %)"
+              value={
+                config?.transaction_fee_percentage != null ? `${config.transaction_fee_percentage}%` : <Empty />
+              }
+              hint="Applies only when Rooms Online PayFast processes the payment."
+            />
+          )}
           <Row label="Billing start" value={config?.billing_start_date || <Empty />} />
           {config?.tier_scope && (
             <Row label="Tier scope" value={<Badge variant="outline">{config.tier_scope}</Badge>} />

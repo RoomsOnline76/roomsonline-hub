@@ -199,7 +199,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
   const showCommission = ["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy);
   const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
-  const showTransactionFee = ["payment_facilitator"].includes(strategy);
+  const showTransactionFee = facilitatorActive || strategy === "payment_facilitator";
   const showVolumeTiers = strategy === "volume_tiered";
 
   return (
@@ -229,10 +229,17 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </Select>
         </div>
 
+        {/* Fees info banner */}
+        {(showCommission || showTransactionFee) && (
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">Commission</strong> and <strong className="text-foreground">Payment Facilitator fee</strong> are separate charges and can both apply on the same booking.
+          </div>
+        )}
+
         {/* Commission Rate */}
         {showCommission && (
           <div className="space-y-1">
-            <Label>Commission Rate (%)</Label>
+            <Label>Commission rate (% of booking)</Label>
             <Input
               type="number"
               step="0.5"
@@ -243,6 +250,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               placeholder={globalDefaults?.default_commission_rate?.toString() ?? (strategy === "default" ? "10" : "5")}
               className="text-xs"
             />
+            <p className="text-[10px] text-muted-foreground">
+              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS, Portfolio Aggregator and Volume Tiered strategies.
+            </p>
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
         )}
@@ -350,7 +360,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         {/* Transaction Fee */}
         {showTransactionFee && (
           <div className="space-y-1">
-            <Label>Transaction Fee (%)</Label>
+            <Label>Payment facilitator fee (% of transaction)</Label>
             <Input
               type="number"
               step="0.1"
@@ -361,6 +371,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
               className="text-xs"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Card/gateway pass-through — charged only when Rooms Online PayFast processes the payment.
+            </p>
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
           </div>
         )}

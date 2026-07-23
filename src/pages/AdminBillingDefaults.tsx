@@ -87,7 +87,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       </CardHeader>
       <CardContent className="space-y-1">
         <FieldToggleRow
-          label="Commission rate" unit="%" step="0.5" max="100"
+          label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
           value={commission} onChange={setCommission}
           suggested={item.strategy === "default" ? 10 : 5}
         />
@@ -97,12 +97,12 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
           suggested={item.strategy === "rolos_pms" ? 450 : null}
         />
         <FieldToggleRow
-          label="Transaction fee" unit="%" step="0.1" max="100"
+          label="Default transaction fee (facilitator fallback %)" unit="%" step="0.1" max="100"
           value={transaction} onChange={setTransaction}
           suggested={2.5}
         />
         <FieldToggleRow
-          label="Payment facilitator fee" unit="%" step="0.1" max="100"
+          label="Payment facilitator fee (contract display %)" unit="%" step="0.1" max="100"
           value={payFac} onChange={setPayFac}
           suggested={2.5}
         />
