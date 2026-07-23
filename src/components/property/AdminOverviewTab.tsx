@@ -30,7 +30,6 @@ const STRATEGY_LABELS: Record<string, string> = {
   default: "Default (Commission)",
   widget: "Widget — Tiered Commission",
   rolos_pms: "ROL'OS PMS — Subscription",
-  enterprise_white_label: "Enterprise White-Label",
   volume_tiered: "Volume Tiered (Per Unit)",
   payment_facilitator: "Payment Facilitator Only",
   portfolio_aggregator: "Default (Commission)", // legacy alias
@@ -140,8 +139,8 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const costLines: { label: string; amount: number; once?: boolean }[] = [];
 
   const subMonthly = Number(config?.subscription_fee_monthly ?? 0);
-  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
-    costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy]})`, amount: subMonthly });
+  if (subMonthly > 0) {
+    costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, amount: subMonthly });
   }
 
   const cmFee = Number(wlDomain?.channel_manager_per_unit_fee ?? 60);
