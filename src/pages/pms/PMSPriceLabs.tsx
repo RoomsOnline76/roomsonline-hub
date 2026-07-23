@@ -190,7 +190,8 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 space-y-6"}>
+
       <div className="flex items-center gap-3">
         <Sparkles className="h-6 w-6 text-primary" />
         <div>
