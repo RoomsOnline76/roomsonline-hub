@@ -245,7 +245,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── ROL facilitator surcharge ──────────────────────────────── */}
       <ToggleRow
         title="ROL payment facilitator surcharge"
-        description="Per-booking % added when ROL processes payments via PayFast. Mutually exclusive with the BYO gateway add-on — exactly one must be enabled."
+        description="Per-booking % added when ROL processes payments via PayFast. Charged on the booking amount only — does not compound on commission or add-ons. Stacks on top of commission. Sales reps do not earn commission on this fee. Mutually exclusive with the BYO gateway add-on — exactly one must be enabled."
         enabled={value.facilitator_surcharge_enabled}
         onToggle={(v) => {
           if (v) {
