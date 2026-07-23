@@ -109,9 +109,10 @@ async function buildListingsPayload(supabase: SB, propertyId: string) {
 
 async function syncPropertyToPricelabs(supabase: SB, propertyId: string, name: string, token: string) {
   const { property, listings, roomTypes } = await buildListingsPayload(supabase, propertyId);
-  if (listings.length === 0) return { success: false, reason: "no_active_room_types" };
+  if (listings.length === 0) return { success: false, status: 400, error: "No active room types found for this property. Add rooms in ROLOS → Room Types before pushing to PriceLabs." };
 
   const listingsRes = await pl("POST", "/listings", name, token, { listings });
+  if (!listingsRes.ok) return { success: false, status: listingsRes.status, error: plError("Listings push failed", listingsRes) };
 
   // Push last 730 days of reservations. Room-type mapping lives on rolos_reservation_rooms.
   const since = new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
