@@ -66,6 +66,20 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
 
   const cfg = (property?.pricelabs_config ?? {}) as PriceLabsConfig;
 
+  const { data: adminGate } = useQuery({
+    queryKey: ["pricelabs-admin-gate", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_billing_configs")
+        .select("pricelabs_allowed, pricelabs_monthly_fee")
+        .eq("property_id", propertyId!)
+        .maybeSingle();
+      return (data ?? { pricelabs_allowed: false, pricelabs_monthly_fee: null }) as { pricelabs_allowed: boolean; pricelabs_monthly_fee: number | null };
+    },
+  });
+  const pricelabsAllowed = !!adminGate?.pricelabs_allowed;
+
   const { data: roomTypes = [] } = useQuery({
     queryKey: ["pricelabs-room-types", propertyId],
     enabled: !!propertyId,
