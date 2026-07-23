@@ -90,11 +90,18 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
         <CardDescription className="text-xs">{meta.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
-        <FieldToggleRow
-          label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
-          value={commission} onChange={setCommission}
-          suggested={item.strategy === "default" ? 10 : 5}
-        />
+        {item.strategy !== "widget" && (
+          <FieldToggleRow
+            label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
+            value={commission} onChange={setCommission}
+            suggested={item.strategy === "default" ? 10 : 5}
+          />
+        )}
+        {item.strategy === "widget" && (
+          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+            Commission for the Widget strategy is defined by the volume tiers below — no flat rate applies.
+          </div>
+        )}
         <FieldToggleRow
           label="Monthly subscription" unit="ZAR/mo" step="100"
           value={subscription} onChange={setSubscription}
