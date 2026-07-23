@@ -162,11 +162,11 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
     .eq("property_id", propertyId)
     .eq("is_active", true);
 
-  if (!roomTypes || roomTypes.length === 0) return { success: false, reason: "no_room_types" };
+  if (!roomTypes || roomTypes.length === 0) return { success: false, status: 400, error: "No active room types for this property. Sync a property to PriceLabs before pulling suggestions." };
 
   const listingIds = roomTypes.map((rt) => `rolos_${propertyId}_${rt.id}`);
   const priced = await pl("POST", "/get_prices", name, token, { listing_ids: listingIds });
-  if (!priced.ok) return { success: false, status: priced.status, error: priced.body };
+  if (!priced.ok) return { success: false, status: priced.status, error: plError("Pull suggestions failed", priced) };
 
   const body = (priced.body as Json | null) ?? {};
   const listingsOut = (body.listings as Array<Json> | undefined) ?? (body.data as Array<Json> | undefined) ?? [];
