@@ -270,6 +270,40 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
           </div>
         </div>
       </div>
+      <div className="rounded-md border p-3 space-y-2">
+        <div>
+          <Label className="text-sm font-medium flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            Portfolio Aggregator (listing multiple owners together)
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            Charged at the <strong>portfolio</strong> level (not per property). Member properties keep their own primary billing strategy.
+            Actual mode &amp; fees are set on each portfolio in <Badge variant="outline" className="text-[10px]">/admin/portfolios</Badge>; the values below are the platform-wide defaults.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Default mode</Label>
+            <select
+              value={aggMode}
+              onChange={(e) => setAggMode(e.target.value as any)}
+              className="h-8 w-full text-sm rounded-md border border-input bg-background px-2"
+            >
+              <option value="none">Disabled (no aggregator fee)</option>
+              <option value="monthly">Monthly fee</option>
+              <option value="once_off">Once-off listing fee</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly default (ZAR/mo)</Label>
+            <Input type="number" min="0" step="50" value={aggMonthly} onChange={(e) => setAggMonthly(e.target.value)} placeholder="0" disabled={aggMode !== "monthly"} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Once-off default (ZAR)</Label>
+            <Input type="number" min="0" step="50" value={aggSetup} onChange={(e) => setAggSetup(e.target.value)} placeholder="0" disabled={aggMode !== "once_off"} className="h-8 text-sm" />
+          </div>
+        </div>
+      </div>
       <Button onClick={handleSave} disabled={saving} className="w-full">
         {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
         Save Add-on Defaults
