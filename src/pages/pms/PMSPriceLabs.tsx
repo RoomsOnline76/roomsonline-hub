@@ -323,13 +323,14 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
             </Alert>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !pricelabsAllowed || !cfg.enabled || !canManage}>
+            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !pricelabsAllowed || !canManage}>
               <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
             </Button>
-            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !pricelabsAllowed || !cfg.enabled || !canManage}>
+            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !pricelabsAllowed || !canManage}>
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
