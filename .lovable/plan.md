@@ -1,25 +1,39 @@
-Enforce two rules across the billing engine:
-
-1. **Facilitator surcharge stacks on commission**, computed off the raw booking amount only (never off commission or other fees).
-2. **Sales-rep commissions ignore facilitator surcharge revenue** — reps earn only on ROL's commission/subscription revenue.
+## Goal
+Restrict the **PriceLabs add-on** to properties whose PMS is ROL'OS. Admin still configures the price/allowance in Billing Defaults + per-property Billing config, but the actual **on/off activation moves back into the ROL'OS PriceLabs tab** — only usable once admin has "allowed" it.
 
 ## Changes
 
-### `supabase/functions/calculate-billing/index.ts`
-- On every `event_type === 'booking'`, after the strategy calculator runs, if the property's payment model is "ROL facilitator" (i.e. `payment_facilitator_enabled` true / BYO off), additionally compute and log a `transaction_fee` transaction:
-  - `rate = resolve(config.transaction_fee_percentage, globals.default_transaction_fee, 2.5)`
-  - `amount = bookingAmount * rate / 100` (booking total only — not stacked on commission or add-ons)
-  - `metadata: { rate, source: 'facilitator_surcharge', base: 'booking_amount' }`
-- Keep the existing `payment_facilitator` strategy path but treat it as commission-less: it emits only the surcharge (no double-log). For all other strategies where facilitator is enabled, surcharge is emitted as a second transaction alongside the commission.
-- Guard: if BYO gateway is active, do NOT emit surcharge (BYO monthly fee handled separately in subscription cycle).
+### 1. `src/components/admin/billing/BillingConfigBuilder.tsx`
+- Relabel the PriceLabs ToggleRow:
+  - Title: *"PriceLabs revenue management (ROL'OS only)"*
+  - Description: *"Allow this property to enable PriceLabs from the ROL'OS revenue tab. Only applicable when PMS = ROL'OS. Fee bills only after the client activates in ROL'OS."*
+- Add a small helper caption under the fee input: *"Charged only once the property activates PriceLabs in ROL'OS."*
+- (No hard-disable here — the builder is also used to author generic presets. Property-level gating happens in `BillingConfigTab`.)
 
-### `supabase/functions/calculate-rep-commissions/index.ts` (line 95-102)
-- Filter `billing_transactions` query with `.not('type', 'in', '(transaction_fee,facilitator_surcharge)')` so `baseRevenue` excludes facilitator income.
-- Also exclude pass-through add-ons that aren't ROL earnings on the platform side: leave `commission`, `subscription`, `white_label_fee`, `pricelabs_fee`, `portfolio_aggregator_fee`, `portfolio_aggregator_setup` in scope; exclude `transaction_fee` and any `byo_gateway_fee` if later emitted.
+### 2. `src/components/property/BillingConfigTab.tsx`
+- Read `pms_system` from the property record.
+- Compute `isRolos = pms_system === 'rolos'`.
+- Pass a new `disabledAddons={{ pricelabs: !isRolos }}` prop into `BillingConfigBuilder`, and when disabled, force `pricelabs_enabled` off on save and render the toggle as disabled with an inline note *"Available only when PMS is ROL'OS."*
+- `BillingConfigBuilder` gains an optional `disabledAddons` prop and applies `disabled` to the switch + fee input for any listed add-on.
 
-### UI touch-ups (small, non-behavioural)
-- `AdminOverviewTab.tsx` "Estimated Client Cost" already lists surcharge separately; add a one-line note under the surcharge row: *"Applied per booking on booking total only; stacks on commission."*
-- `BillingConfigBuilder.tsx` facilitator toggle helper text: clarify "Charged per booking on the booking amount only. Does not compound on commission or add-ons. Sales reps do not earn commission on this fee."
+### 3. `src/pages/pms/PMSPriceLabs.tsx` — client-side activation
+- Current state: `pricelabsAllowed` (admin gate) is read, but there's no user-side on/off. Add a **"Enable PriceLabs for this property"** switch shown only when `pricelabsAllowed === true`.
+- Switch is bound to `properties.pricelabs_config.enabled` (already in the `PriceLabsConfig` type, currently unused). Toggling writes via the existing `saveConfig` mutation.
+- When `pricelabsAllowed` is false → show the existing "Not enabled by admin" alert (already present).
+- When `pricelabsAllowed` is true but `cfg.enabled !== true` → show a soft banner *"PriceLabs is available for this property. Enable it to start pulling suggestions."* and gate the Push / Pull / apply actions behind `cfg.enabled === true`.
+- Add an outbound note in the header: fee (`R{pricelabs_monthly_fee}/mo`) begins on activation.
+
+### 4. Billing emission — `supabase/functions/calculate-billing/index.ts`
+- Existing `pricelabs_fee` emission currently keys off `config.pricelabs_allowed` + `pricelabs_monthly_fee`. Change to require BOTH:
+  - `config.pricelabs_allowed === true` AND
+  - `properties.pricelabs_config.enabled === true`
+- Also skip emission if `properties.pms_system !== 'rolos'` (belt-and-braces).
+- Fetch `pms_system` and `pricelabs_config` alongside the existing property read (single extra column pair).
+
+### 5. `src/components/property/AdminOverviewTab.tsx` — Estimated Client Cost
+- PriceLabs recurring/setup lines: only include when `pricelabs_allowed` AND the property's `pricelabs_config.enabled` AND `pms_system === 'rolos'`. Otherwise show a muted "PriceLabs — allowed, awaiting client activation" note under the surcharge/add-ons list (no rand amount added to total).
 
 ## Out of scope
-No schema changes. No changes to contract templates. Widget/volume-tiered strategies keep their existing rate resolution — surcharge simply layers on top when ROL facilitates.
+- No schema changes (uses existing `properties.pricelabs_config` JSONB and `property_billing_configs.pricelabs_allowed`).
+- No changes to the `pricelabs-api` edge function or the suggestions data flow — the gate is purely on activation + billing emission.
+- No changes to Sales Rep commission logic (PriceLabs fee remains in `baseRevenue` per the current preset behaviour).
