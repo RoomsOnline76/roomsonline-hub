@@ -238,7 +238,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           )}
           <p className="text-[11px] text-muted-foreground mt-2">
             Strategy: <span className="font-medium">{strategyLabel}</span>
-            {config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
+            {strategy === "widget"
+              ? " · commission tiered by monthly volume (variable, not included)"
+              : config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
           </p>
         </CardContent>
       </Card>
@@ -305,7 +307,13 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
         </CardHeader>
         <CardContent className="pt-0">
           <Row label="Strategy" value={<Badge variant="outline">{strategyLabel}</Badge>} />
-          {["default", "widget", "rolos_pms", "volume_tiered"].includes(strategy) && (
+          {strategy === "widget" ? (
+            <Row
+              label="Commission (booking %)"
+              value={<span className="text-xs text-muted-foreground">Tiered by monthly volume</span>}
+              hint="Configured in Admin → Billing Defaults → Widget tiers."
+            />
+          ) : ["default", "rolos_pms", "volume_tiered"].includes(strategy) && (
             <Row
               label="Commission (booking %)"
               value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}

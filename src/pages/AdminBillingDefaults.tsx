@@ -20,7 +20,7 @@ import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLin
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
   default: { label: "Default (Commission)", description: "Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
-  widget: { label: "Widget — Tiered Commission", description: "Bookings taken through the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  widget: { label: "Widget — Tiered Commission", description: "Property uses ROL's booking engine (WBE) on their own site. Commission is tiered by monthly booking volume — configure the tiers below. Optional white-label domain and/or BYO gateway add-ons can layer on top." },
   rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
   enterprise_white_label: { label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
   volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
@@ -90,11 +90,18 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
         <CardDescription className="text-xs">{meta.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
-        <FieldToggleRow
-          label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
-          value={commission} onChange={setCommission}
-          suggested={item.strategy === "default" ? 10 : 5}
-        />
+        {item.strategy !== "widget" && (
+          <FieldToggleRow
+            label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
+            value={commission} onChange={setCommission}
+            suggested={item.strategy === "default" ? 10 : 5}
+          />
+        )}
+        {item.strategy === "widget" && (
+          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+            Commission for the Widget strategy is defined by the volume tiers below — no flat rate applies.
+          </div>
+        )}
         <FieldToggleRow
           label="Monthly subscription" unit="ZAR/mo" step="100"
           value={subscription} onChange={setSubscription}

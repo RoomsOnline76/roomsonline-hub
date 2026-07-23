@@ -19,7 +19,7 @@ import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAU
 
 const STRATEGY_OPTIONS = [
   { value: "default", label: "Default (Commission)", description: "Listed on ROL, paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
-  { value: "widget", label: "Widget — Tiered Commission", description: "Bookings via the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  { value: "widget", label: "Widget — Tiered Commission", description: "Property uses ROL's booking engine (WBE) on their own site. Commission is tiered by monthly booking volume — configured centrally in Admin → Billing Defaults. Optional white-label domain and/or BYO gateway add-ons can layer on top." },
   { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base + R60/unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
   { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
   { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
@@ -199,7 +199,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     );
   }
 
-  const showCommission = ["default", "widget", "rolos_pms", "volume_tiered"].includes(strategy);
+ const showCommission = ["default", "rolos_pms", "volume_tiered"].includes(strategy);
+ const widgetTiersInfo = strategy === "widget";
   const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
   const showTransactionFee = facilitatorActive || strategy === "payment_facilitator";
   const showVolumeTiers = strategy === "volume_tiered";
@@ -256,6 +257,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS and Volume Tiered strategies.
             </p>
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
+          </div>
+        )}
+
+        {widgetTiersInfo && (
+          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">Commission is tiered.</strong> The effective % is determined by monthly booking volume against the Widget tiers configured centrally in <em>Admin → Billing Defaults</em>. Optional white-label and BYO gateway add-ons (below) layer on top.
           </div>
         )}
 
