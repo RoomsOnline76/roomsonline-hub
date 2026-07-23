@@ -649,6 +649,56 @@ export default function AdminPortfolios() {
         )}
       </div>
 
+      {/* Portfolio Aggregator billing (admin add-on) */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <Label className="text-xs font-semibold">Portfolio Aggregator Billing</Label>
+        <p className="text-[10px] text-muted-foreground">
+          Charged at the portfolio level in addition to each member property's own billing strategy.
+          Choose <strong>Monthly</strong> for a recurring listing fee or <strong>Once-off</strong> for a one-time setup fee.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Mode</Label>
+            <select
+              value={aggMode}
+              onChange={(e) => setAggMode(e.target.value as any)}
+              className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+            >
+              <option value="none">Disabled</option>
+              <option value="monthly">Monthly fee</option>
+              <option value="once_off">Once-off listing fee</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Monthly (ZAR)</Label>
+            <Input
+              type="number" min="0" step="50"
+              value={aggMonthly}
+              onChange={(e) => setAggMonthly(e.target.value)}
+              disabled={aggMode !== "monthly"}
+              className="h-8 text-xs"
+              placeholder="0"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Once-off (ZAR)</Label>
+            <Input
+              type="number" min="0" step="50"
+              value={aggSetup}
+              onChange={(e) => setAggSetup(e.target.value)}
+              disabled={aggMode !== "once_off"}
+              className="h-8 text-xs"
+              placeholder="0"
+            />
+          </div>
+        </div>
+        {editPortfolio?.aggregator_activated_at && aggMode === "once_off" && (
+          <p className="text-[10px] text-amber-600">
+            Once-off fee already billed on {new Date(editPortfolio.aggregator_activated_at).toLocaleDateString()} — no further charges.
+          </p>
+        )}
+      </div>
+
       {renderPropertyPicker()}
 
       {/* Review Platforms — per property */}
