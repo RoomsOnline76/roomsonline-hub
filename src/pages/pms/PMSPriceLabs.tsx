@@ -43,8 +43,7 @@ interface Suggestion {
   pulled_at: string;
 }
 
-export default function PMSPriceLabs() {
-  const { propertyId, loading: propLoading } = usePmsPropertyId();
+export function PriceLabsPanel({ propertyId, loading: propLoading = false, embedded = false }: { propertyId: string | null | undefined; loading?: boolean; embedded?: boolean }) {
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const canManage = isAdmin || isDev || isFearlessLeader;
   const qc = useQueryClient();
@@ -191,16 +190,19 @@ export default function PMSPriceLabs() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Sparkles className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold">PriceLabs Revenue Management</h1>
-          <p className="text-sm text-muted-foreground">
-            AI-driven dynamic pricing suggestions for {property?.name}. Suggestions never change your rates automatically — click Apply to promote.
-          </p>
+    <div className={embedded ? "space-y-6" : "p-4 md:p-6 space-y-6"}>
+
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <Sparkles className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-semibold">PriceLabs Revenue Management</h1>
+            <p className="text-sm text-muted-foreground">
+              AI-driven dynamic pricing suggestions for {property?.name}. Suggestions never change your rates automatically — click Apply to promote.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -388,3 +390,9 @@ export default function PMSPriceLabs() {
     </div>
   );
 }
+
+export default function PMSPriceLabs() {
+  const { propertyId, loading } = usePmsPropertyId();
+  return <PriceLabsPanel propertyId={propertyId} loading={loading} />;
+}
+

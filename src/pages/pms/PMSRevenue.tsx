@@ -26,8 +26,9 @@ import {
 import {
   TrendingUp, TrendingDown, AlertTriangle, Lightbulb, DollarSign,
   Calendar, Target, ArrowUpRight, ArrowDownRight, Minus, History, BarChart3,
-  Plus, Trash2, Settings2, Zap,
+  Plus, Trash2, Settings2, Zap, Sparkles,
 } from "lucide-react";
+import { PriceLabsPanel } from "./PMSPriceLabs";
 
 // ============================================================================
 // Yield Rules Hook
@@ -762,6 +763,7 @@ export default function PMSRevenue() {
             <TabsTrigger value="forecast"><Calendar className="w-4 h-4 mr-1" />Demand Forecast</TabsTrigger>
             <TabsTrigger value="performance"><History className="w-4 h-4 mr-1" />Performance</TabsTrigger>
             <TabsTrigger value="suggestions"><Lightbulb className="w-4 h-4 mr-1" />Rate Suggestions</TabsTrigger>
+            <TabsTrigger value="pricelabs"><Sparkles className="w-4 h-4 mr-1" />PriceLabs</TabsTrigger>
             <TabsTrigger value="plans"><DollarSign className="w-4 h-4 mr-1" />Active Plans</TabsTrigger>
             <TabsTrigger value="yield"><Zap className="w-4 h-4 mr-1" />Yield Rules</TabsTrigger>
             <TabsTrigger value="strategies"><Settings2 className="w-4 h-4 mr-1" />Rate Strategies</TabsTrigger>
@@ -1084,6 +1086,23 @@ export default function PMSRevenue() {
               </Card>
             ) : (
               <YieldRulesTab propertyId={propertyId!} />
+            )}
+          </TabsContent>
+
+          {/* === PRICELABS TAB === */}
+          <TabsContent value="pricelabs" className="space-y-4">
+            {isPortfolioMode ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <Sparkles className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">PriceLabs is configured per property.</p>
+                  <Button size="sm" variant="outline" onClick={() => setViewMode("single")}>
+                    Switch to single-property view
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <PriceLabsPanel propertyId={propertyId} embedded />
             )}
           </TabsContent>
 
