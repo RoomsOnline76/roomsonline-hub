@@ -1089,6 +1089,23 @@ export default function PMSRevenue() {
             )}
           </TabsContent>
 
+          {/* === PRICELABS TAB === */}
+          <TabsContent value="pricelabs" className="space-y-4">
+            {isPortfolioMode ? (
+              <Card>
+                <CardContent className="py-10 text-center space-y-3">
+                  <Sparkles className="h-10 w-10 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">PriceLabs is configured per property.</p>
+                  <Button size="sm" variant="outline" onClick={() => setViewMode("single")}>
+                    Switch to single-property view
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <PriceLabsPanel propertyId={propertyId} embedded />
+            )}
+          </TabsContent>
+
           {/* === RATE STRATEGIES TAB === */}
           <TabsContent value="strategies" className="space-y-4">
             {isPortfolioMode ? (
