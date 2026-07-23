@@ -129,6 +129,42 @@ serve(async (req) => {
       console.error("Failed to log billing transaction:", txError);
     }
 
+    // Facilitator surcharge stacks on commission strategies when ROL processes payment.
+    // Base = booking amount only (never compounds on commission or add-ons).
+    // Skipped when strategy is 'payment_facilitator' (already surcharge-only) or when BYO gateway is active.
+    if (
+      event_type === 'booking' &&
+      booking_id &&
+      strategy !== 'payment_facilitator' &&
+      config?.payment_facilitator_enabled === true &&
+      !(config?.byo_gateway_monthly_fee > 0)
+    ) {
+      const surchargeRate = resolve(
+        config?.transaction_fee_percentage,
+        globalDefaults?.default_transaction_fee,
+        2.5
+      );
+      if (surchargeRate > 0 && bookingAmount > 0) {
+        const surchargeAmount = bookingAmount * (surchargeRate / 100);
+        await supabase.from("billing_transactions").insert({
+          property_id,
+          owner_id: config?.owner_id || null,
+          type: 'transaction_fee',
+          amount: surchargeAmount,
+          currency: 'ZAR',
+          reference_id: booking_id,
+          calculated_by: 'billing-calc-facilitator-surcharge',
+          metadata: {
+            rate: surchargeRate,
+            source: 'facilitator_surcharge',
+            base: 'booking_amount',
+            booking_amount: bookingAmount,
+          },
+        });
+      }
+    }
+
+
     // Log white-label fee as separate transaction if enabled
     if (config?.white_label_allowed && event_type === 'subscription') {
       const wlFee = resolve(
