@@ -48,6 +48,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
   const [subscription, setSubscription] = useState(toStr(item.default_subscription_fee));
   const [transaction, setTransaction] = useState(toStr(item.default_transaction_fee));
   const [payFac, setPayFac] = useState(toStr(item.payment_facilitator_fee));
+  const [byoGateway, setByoGateway] = useState(toStr((item as any).byo_gateway_monthly_fee ?? null));
   const [channelPerUnit, setChannelPerUnit] = useState(toStr(item.channel_manager_per_unit_fee ?? null));
   const [notes, setNotes] = useState(item.notes ?? "");
   const [tiers, setTiers] = useState<PricingTier[]>(() => {
