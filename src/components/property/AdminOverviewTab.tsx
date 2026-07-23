@@ -30,10 +30,10 @@ const STRATEGY_LABELS: Record<string, string> = {
   default: "Default — Listing Commission",
   widget: "Widget — Tiered Commission",
   rolos_pms: "ROL'OS PMS — Subscription",
-  portfolio_aggregator: "Portfolio Aggregator",
   enterprise_white_label: "Enterprise White-Label",
   volume_tiered: "Volume Tiered (Per Unit)",
   payment_facilitator: "Payment Facilitator Only",
+  portfolio_aggregator: "Default — Listing Commission", // legacy alias
 };
 
 const DOMAIN_STATUS_META: Record<
