@@ -52,7 +52,7 @@ export function emptyBuilderValue(): BillingConfigValue {
     channel_per_unit: "",
     volume_tiers_enabled: false,
     tier_pricing_json: null,
-    facilitator_surcharge_enabled: false,
+    facilitator_surcharge_enabled: true,
     transaction_fee: "",
     byo_gateway_enabled: false,
     byo_gateway_fee: "",
@@ -245,9 +245,17 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── ROL facilitator surcharge ──────────────────────────────── */}
       <ToggleRow
         title="ROL payment facilitator surcharge"
-        description="Per-booking % added when ROL processes payments via PayFast."
+        description="Per-booking % added when ROL processes payments via PayFast. Mutually exclusive with the BYO gateway add-on — exactly one must be enabled."
         enabled={value.facilitator_surcharge_enabled}
-        onToggle={(v) => set("facilitator_surcharge_enabled", v)}
+        onToggle={(v) => {
+          if (v) {
+            // Turning on facilitator → turn off BYO
+            onChange({ ...value, facilitator_surcharge_enabled: true, byo_gateway_enabled: false });
+          } else {
+            // Cannot turn off if BYO is also off — auto-flip to BYO
+            onChange({ ...value, facilitator_surcharge_enabled: false, byo_gateway_enabled: true });
+          }
+        }}
       >
         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
           <Input
@@ -264,9 +272,15 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── BYO gateway add-on ─────────────────────────────────────── */}
       <ToggleRow
         title="BYO payment gateway add-on"
-        description="Flat monthly fee when the owner connects their own gateway. ROL does not handle the money."
+        description="Flat monthly fee when the owner connects their own gateway. ROL does not handle the money. Mutually exclusive with the ROL facilitator surcharge."
         enabled={value.byo_gateway_enabled}
-        onToggle={(v) => set("byo_gateway_enabled", v)}
+        onToggle={(v) => {
+          if (v) {
+            onChange({ ...value, byo_gateway_enabled: true, facilitator_surcharge_enabled: false });
+          } else {
+            onChange({ ...value, byo_gateway_enabled: false, facilitator_surcharge_enabled: true });
+          }
+        }}
       >
         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
           <Input
