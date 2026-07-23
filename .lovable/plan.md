@@ -1,45 +1,42 @@
-# PriceLabs pull failures — diagnose before fixing
+## Goal
+1. Rewrite the seven billing strategy dropdown labels/descriptions in **/edit property → Admin → Billing Config** so each option accurately reflects the current v3 billing matrix (setup fees, monthly base, per-unit, commission split).
+2. Add an **Estimated Cost to Client** panel to the **Admin → Overview** tab summarising the recurring monthly and once-off charges *excluding* variable commission/transaction fees.
 
-## Why we're not touching push/pull payloads yet
+## Changes
 
-The latest error is a **404 from PriceLabs** on every listing id: *"the listing_id you are trying to update does not exist or has not been added in PriceLabs"*. That is a different failure mode than the earlier 400s — PriceLabs is telling us the listings we're asking about aren't in their system at all. Any further guess at payload shape is likely to shift the error again without fixing the root cause.
+### 1. `src/components/property/BillingConfigTab.tsx`
+Update the `STRATEGIES` array (lines 21–28) with clearer, matrix-aligned descriptions. Proposed copy:
 
-We need to see PriceLabs' actual state for the affected property (Dassiesingle) before changing anything else.
+| value | label | description |
+|---|---|---|
+| default | Default — Listing Commission | 10% on direct bookings via ROL widgets. No fixed fees. |
+| widget | Widget — Tiered Commission | Commission scales down with monthly booking volume. No monthly fee. |
+| rolos_pms | ROL'OS PMS — Subscription | Monthly base + R60/unit channel manager. Reduced 2% PMS commission. |
+| portfolio_aggregator | Portfolio Aggregator | Discounted rate for multi-property owners (shared subscription, blended commission). |
+| enterprise_white_label | Enterprise White-Label | Flat monthly licence + setup fee. Zero commission on bookings. |
+| volume_tiered | Volume Tiered (Per Unit) | Sliding R/unit/month based on total active units. No commission. |
+| payment_facilitator | Payment Facilitator Only | No listing/PMS fees. Charges only the payment transaction fee on Rooms Online PayFast. |
 
-## What this plan builds
+Also refresh the mirrored label maps in:
+- `src/pages/AdminBillingDefaults.tsx` (lines 22–27)
+- `src/components/property/AdminOverviewTab.tsx` (lines 28–35, add `payment_facilitator`)
 
-A single read-only action added to `supabase/functions/pricelabs-api/index.ts`, plus a small "Debug" button in `src/pages/pms/PMSPriceLabs.tsx` behind the dev/admin gate.
+### 2. `src/components/property/AdminOverviewTab.tsx` — add Cost Estimate card
+Insert a new card above "Property Flags" titled **Estimated Client Cost** with:
+- **Monthly recurring (excl. commission):** sum of
+  - `subscription_fee_monthly` (if strategy uses it)
+  - `channel_manager_per_unit_fee × active_unit_count` for `rolos_pms`
+  - `white_label_monthly_fee` (if white-label active)
+  - `pricelabs_monthly_fee` (if pricelabs allowed)
+  - `volume_tiered` per-unit computed monthly
+- **Once-off setup:** sum of white-label setup fee + any strategy setup fee from `property_billing_configs` / defaults.
+- Small breakdown list (one row per component) so admins see composition.
+- Footer note: *"Excludes commission and per-transaction payment fees."*
 
-### 1. Edge-function action: `debug_pricelabs`
+Fetch active unit count via existing hook or a light query on `rolos_rooms`/`hostfully_room_types` (mirrors Dashboard logic) — reuse existing `useBillingConfig` values; extend `wlDomain` query to also select `white_label_setup_fee`, `channel_manager_per_unit_fee`, and any strategy-specific setup field already present.
 
-New action handler that performs three read-only calls against PriceLabs for the current property and returns the raw responses side by side:
+No schema changes; purely UI/derivation.
 
-- `GET /listings` — full account listing dump (no filter), so we can see every listing PriceLabs has for our API key and what its `pms` value is.
-- `GET /listings?listing_id=<one of ours>` — targeted lookup for the first room-type's expected `listing_id` (`rolos_<propertyId>_<roomTypeId>`). Confirms whether the ID our code generates matches anything on PriceLabs.
-- Local snapshot: the `listings` payload our `buildListingsPayload` would send today (from `rolos_room_types`), so we can diff local ↔ remote in one glance.
-
-The response is a JSON blob: `{ account_listings, matched_listing, local_payload, generated_ids }`. No writes, no side effects.
-
-### 2. Frontend: "Diagnose PriceLabs" button
-
-In `PMSPriceLabs.tsx`, next to the existing Push / Pull buttons, add a small **Diagnose** button (dev/admin-only, matches the existing `isDev || isFearlessLeader` gate). Clicking it:
-
-- Calls the new `debug_pricelabs` action.
-- Renders the JSON result inside a collapsible `<pre>` block on the page with a "Copy" button.
-- Does not toast on failure — displays the raw error body inline so we can read PriceLabs' words verbatim.
-
-### 3. What we will learn (and next-turn fix)
-
-The debug output will tell us exactly one of:
-
-- **PriceLabs has zero listings for us** → our `POST /listings` returns 200 but silently rejects everything. Next turn: parse the per-listing status in the `/listings` response, surface failures, and add whichever field PriceLabs is complaining about (likely `pms`).
-- **PriceLabs has listings under different IDs** → our `listing_id` composition is wrong. Fix the ID scheme to match what PriceLabs stored.
-- **Listings are there but under a different `pms`** → add `pms: <that value>` to both push and `get_prices`.
-
-Only then do we edit push or pull. No blind payload changes this turn.
-
-## Technical notes
-
-- The three PriceLabs calls all use the existing `pl()` helper and the account's stored `X-API-Key` — no new secrets required.
-- `debug_pricelabs` runs behind the same admin gate as `push`/`pull` on the client; the edge function itself still requires the caller to own the property (existing pattern).
-- No DB migrations. No schema changes. No changes to `syncPropertyToPricelabs` or `pullPriceSuggestions` in this plan.
+## Out of scope
+- No backend billing-engine changes.
+- No changes to how fees are actually invoiced — only the descriptive UI and the admin-facing estimate.

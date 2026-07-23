@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldQuestion,
   Pencil,
+  Calculator,
 } from "lucide-react";
 
 interface AdminOverviewTabProps {
@@ -26,12 +27,13 @@ interface AdminOverviewTabProps {
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
-  default: "Default (Commission)",
-  widget: "Widget (Tiered)",
-  rolos_pms: "ROL'OS PMS (Subscription)",
+  default: "Default — Listing Commission",
+  widget: "Widget — Tiered Commission",
+  rolos_pms: "ROL'OS PMS — Subscription",
   portfolio_aggregator: "Portfolio Aggregator",
   enterprise_white_label: "Enterprise White-Label",
-  volume_tiered: "Volume Tiered",
+  volume_tiered: "Volume Tiered (Per Unit)",
+  payment_facilitator: "Payment Facilitator Only",
 };
 
 const DOMAIN_STATUS_META: Record<
@@ -93,11 +95,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,pricelabs_allowed,pricelabs_monthly_fee")
+        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,white_label_setup_fee,white_label_billing_mode,branding_addon_enabled,branding_addon_monthly_fee,branding_addon_setup_fee,pricelabs_allowed,pricelabs_monthly_fee,pricelabs_setup_fee,channel_manager_enabled,channel_manager_per_unit_fee")
         .eq("property_id", propertyId)
         .maybeSingle();
       if (error) throw error;
       return data as any;
+    },
+    enabled: !!propertyId,
+  });
+
+  const { data: unitCount } = useQuery({
+    queryKey: ["admin-overview-unit-count", propertyId],
+    queryFn: async () => {
+      const [rolosRooms, rolosTypes, hostfully] = await Promise.all([
+        supabase.from("rolos_rooms").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+        supabase.from("rolos_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+        supabase.from("hostfully_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+      ]);
+      return (rolosRooms.count ?? 0) + (rolosTypes.count ?? 0) + (hostfully.count ?? 0);
     },
     enabled: !!propertyId,
   });
@@ -120,8 +135,102 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const WlIcon = wlMeta.Icon;
   const activeReferral = referrals?.[0];
 
+  // ── Estimated cost calculation (excludes commission / transaction fees) ──
+  const units = unitCount ?? 0;
+  const costLines: { label: string; amount: number; once?: boolean }[] = [];
+
+  const subMonthly = Number(config?.subscription_fee_monthly ?? 0);
+  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "portfolio_aggregator" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
+    costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy]})`, amount: subMonthly });
+  }
+
+  const cmFee = Number(wlDomain?.channel_manager_per_unit_fee ?? 60);
+  if (strategy === "rolos_pms" && wlDomain?.channel_manager_enabled && units > 0) {
+    costLines.push({ label: `Channel Manager (${units} unit${units === 1 ? "" : "s"} × R${cmFee})`, amount: cmFee * units });
+  }
+
+  if (wlAllowed && wlDomain?.white_label_monthly_fee != null && Number(wlDomain.white_label_monthly_fee) > 0) {
+    const mode = wlDomain?.white_label_billing_mode === "annual" ? " (annual/12)" : "";
+    const monthly = wlDomain?.white_label_billing_mode === "annual"
+      ? Number(wlDomain.white_label_monthly_fee) / 12
+      : Number(wlDomain.white_label_monthly_fee);
+    costLines.push({ label: `White-Label licence${mode}`, amount: monthly });
+  }
+  if (wlAllowed && wlDomain?.white_label_setup_fee != null && Number(wlDomain.white_label_setup_fee) > 0) {
+    costLines.push({ label: "White-Label setup", amount: Number(wlDomain.white_label_setup_fee), once: true });
+  }
+
+  if (wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_monthly_fee ?? 0) > 0) {
+    costLines.push({ label: "Branding add-on", amount: Number(wlDomain.branding_addon_monthly_fee) });
+  }
+  if (wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_setup_fee ?? 0) > 0) {
+    costLines.push({ label: "Branding add-on setup", amount: Number(wlDomain.branding_addon_setup_fee), once: true });
+  }
+
+  if (wlDomain?.pricelabs_allowed && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
+    costLines.push({ label: "PriceLabs add-on", amount: Number(wlDomain.pricelabs_monthly_fee) });
+  }
+  if (wlDomain?.pricelabs_allowed && Number(wlDomain?.pricelabs_setup_fee ?? 0) > 0) {
+    costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
+  }
+
+  const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
+  const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
+  const fmt = (n: number) => `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
   return (
     <div className="space-y-3">
+      {/* Estimated client cost */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm">Estimated Client Cost</CardTitle>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.("billing")}>
+              <Pencil className="mr-1 h-3 w-3" /> Edit
+            </Button>
+          </div>
+          <CardDescription className="text-xs">
+            Fixed recurring and once-off charges. Excludes commission and per-transaction payment fees.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="flex items-baseline justify-between border-b pb-2 mb-2">
+            <div>
+              <div className="text-xs text-muted-foreground">Monthly recurring</div>
+              <div className="text-lg font-semibold">{fmt(monthlyTotal)}<span className="text-xs font-normal text-muted-foreground"> / mo</span></div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Once-off setup</div>
+              <div className="text-lg font-semibold">{fmt(setupTotal)}</div>
+            </div>
+          </div>
+          {costLines.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No fixed fees on the current strategy — client is charged commission / transaction fees only.
+            </p>
+          ) : (
+            <div className="space-y-0.5">
+              {costLines.map((l, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    {l.label}
+                    {l.once && <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0">once</Badge>}
+                  </span>
+                  <span className="font-mono">{fmt(l.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Strategy: <span className="font-medium">{strategyLabel}</span>
+            {config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Property flags */}
       <Card>
         <CardHeader className="pb-2">
