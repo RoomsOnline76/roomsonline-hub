@@ -55,6 +55,8 @@ export async function resolveBillingContractVariables(
     white_label_clause: "",
     payment_facilitator_fee: "",
     payment_facilitator_clause: "",
+    byo_gateway_fee: "",
+    byo_gateway_clause: "<!-- N/A -->",
     volume_tier_clause: "",
     tier_monthly_fee: "",
     tier_room_count: "",
