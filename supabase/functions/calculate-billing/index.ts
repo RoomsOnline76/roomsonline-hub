@@ -95,7 +95,8 @@ serve(async (req) => {
         result = await calcRolosPms(bookingAmount, config, globalDefaults, resolve, event_type);
         break;
       case 'portfolio_aggregator':
-        result = await calcPortfolio(bookingAmount, config, globalDefaults, resolve);
+        // Legacy strategy — aggregator is now a portfolio-level add-on; route booking commission through default.
+        result = await calcDefault(supabase, property_id, booking, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'enterprise_white_label':
         result = await calcEnterprise(config, globalDefaults, resolve, event_type);
