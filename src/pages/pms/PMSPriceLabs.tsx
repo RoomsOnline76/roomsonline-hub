@@ -388,3 +388,9 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
     </div>
   );
 }
+
+export default function PMSPriceLabs() {
+  const { propertyId, loading } = usePmsPropertyId();
+  return <PriceLabsPanel propertyId={propertyId} loading={loading} />;
+}
+
