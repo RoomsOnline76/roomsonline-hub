@@ -52,7 +52,7 @@ export function emptyBuilderValue(): BillingConfigValue {
     channel_per_unit: "",
     volume_tiers_enabled: false,
     tier_pricing_json: null,
-    facilitator_surcharge_enabled: false,
+    facilitator_surcharge_enabled: true,
     transaction_fee: "",
     byo_gateway_enabled: false,
     byo_gateway_fee: "",
