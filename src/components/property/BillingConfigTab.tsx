@@ -88,6 +88,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setSubscriptionFee(config.subscription_fee_monthly?.toString() || "");
       setTransactionFee(config.transaction_fee_percentage?.toString() || "");
       setPaymentFacilitator(config.payment_facilitator_enabled || false);
+      setByoGatewayFee((config as any).byo_gateway_monthly_fee?.toString() || "");
       setWhiteLabel(config.white_label_allowed || false);
       setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
       setPricelabsAllowed((config as any).pricelabs_allowed || false);
