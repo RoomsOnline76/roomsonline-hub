@@ -112,9 +112,10 @@ function ToggleRow({
   );
 }
 
-export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true }: BuilderProps) {
+export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons }: BuilderProps) {
   const set = <K extends keyof BillingConfigValue>(key: K, v: BillingConfigValue[K]) =>
     onChange({ ...value, [key]: v });
+  const pricelabsDisabled = !!disabledAddons?.pricelabs?.disabled;
 
   const tiers = value.tier_pricing_json ?? [];
   const updateTier = (idx: number, patch: Partial<PricingTier>) => {
