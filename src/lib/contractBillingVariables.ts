@@ -124,6 +124,8 @@ export async function resolveBillingContractVariables(
     white_label_clause: whiteLabel ? "" : "<!-- N/A -->",
     payment_facilitator_fee: payFacFee ? String(payFacFee) : "",
     payment_facilitator_clause: payFacEnabled ? "" : "<!-- N/A -->",
+    byo_gateway_fee: byoFee ? String(byoFee) : "",
+    byo_gateway_clause: !payFacEnabled && byoFee ? "" : "<!-- N/A -->",
     volume_tier_clause: strategy === "volume_tiered" ? "" : "<!-- N/A -->",
     tier_monthly_fee: tierMonthlyFee,
     tier_room_count: tierRoomCount,
