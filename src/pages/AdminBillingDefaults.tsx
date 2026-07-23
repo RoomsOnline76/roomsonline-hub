@@ -118,6 +118,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
             hint="Billed monthly per active room/unit when a ROL'OS PMS property has channel manager enabled."
           />
         )}
+        {item.strategy === "widget" && <WidgetTierEditor />}
         {tieredStrategy && (
           <div className="border-t pt-3 mt-2">
             <div className="flex items-center justify-between mb-2">
