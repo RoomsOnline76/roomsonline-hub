@@ -56,6 +56,17 @@ async function pl(method: "GET" | "POST", path: string, name: string, token: str
   return { ok: res.ok, status: res.status, body: json };
 }
 
+function stringifyBody(b: unknown): string {
+  if (b == null) return "";
+  if (typeof b === "string") return b;
+  try { return JSON.stringify(b); } catch { return String(b); }
+}
+
+function plError(prefix: string, r: { status: number; body: unknown }): string {
+  const bodyStr = stringifyBody(r.body);
+  return `${prefix} (PriceLabs ${r.status})${bodyStr ? `: ${bodyStr.slice(0, 500)}` : ""}`;
+}
+
 // -------------------------------------------------------------------
 // High-level ROLOS-specific actions
 // -------------------------------------------------------------------
