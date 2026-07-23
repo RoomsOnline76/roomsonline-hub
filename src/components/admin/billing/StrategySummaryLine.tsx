@@ -14,7 +14,11 @@ const STRATEGY_INTRO: Record<string, string> = {
 export function summarizeStrategy(d: BillingDefault): string {
   const name = STRATEGY_INTRO[d.strategy] ?? d.strategy;
   const parts: string[] = [];
-  if (d.default_commission_rate != null) parts.push(`${d.default_commission_rate}% commission`);
+  if (d.strategy === "widget") {
+    parts.push("tiered commission by monthly booking volume");
+  } else if (d.default_commission_rate != null) {
+    parts.push(`${d.default_commission_rate}% commission`);
+  }
   if (d.default_subscription_fee != null) parts.push(`R${d.default_subscription_fee}/mo subscription`);
   if (d.default_transaction_fee != null) parts.push(`${d.default_transaction_fee}% booking surcharge (ROL facilitator)`);
   if ((d as any).byo_gateway_monthly_fee != null) parts.push(`R${(d as any).byo_gateway_monthly_fee}/mo BYO gateway add-on`);
