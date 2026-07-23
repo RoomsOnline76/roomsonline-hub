@@ -327,6 +327,11 @@ export type Database = {
       }
       billing_global_defaults: {
         Row: {
+          branding_addon_allowed: boolean | null
+          branding_addon_billing_mode: string | null
+          branding_addon_monthly_fee: number | null
+          branding_addon_setup_fee: number | null
+          channel_manager_per_unit_fee: number | null
           default_commission_rate: number | null
           default_subscription_fee: number | null
           default_transaction_fee: number | null
@@ -334,17 +339,26 @@ export type Database = {
           notes: string | null
           payment_facilitator_fee: number | null
           pricelabs_monthly_fee: number | null
+          pricelabs_setup_fee: number | null
           referral_clawback_days: number | null
           referral_first_year_rate: number | null
           referral_residual_months: number | null
           referral_residual_rate: number | null
+          sales_rep_tier_criteria_json: Json | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
           tier_pricing_json: Json | null
           updated_at: string | null
           updated_by: string | null
+          white_label_billing_mode: string | null
           white_label_monthly_fee: number | null
+          white_label_setup_fee: number | null
         }
         Insert: {
+          branding_addon_allowed?: boolean | null
+          branding_addon_billing_mode?: string | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          channel_manager_per_unit_fee?: number | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
@@ -352,17 +366,26 @@ export type Database = {
           notes?: string | null
           payment_facilitator_fee?: number | null
           pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
           referral_first_year_rate?: number | null
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
+          sales_rep_tier_criteria_json?: Json | null
           strategy: Database["public"]["Enums"]["billing_strategy"]
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
+          white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
         }
         Update: {
+          branding_addon_allowed?: boolean | null
+          branding_addon_billing_mode?: string | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          channel_manager_per_unit_fee?: number | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
@@ -370,15 +393,19 @@ export type Database = {
           notes?: string | null
           payment_facilitator_fee?: number | null
           pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
           referral_first_year_rate?: number | null
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
+          sales_rep_tier_criteria_json?: Json | null
           strategy?: Database["public"]["Enums"]["billing_strategy"]
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
+          white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
         }
         Relationships: [
           {
@@ -4499,6 +4526,12 @@ export type Database = {
         Row: {
           billing_start_date: string | null
           billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode: string | null
+          branding_addon_enabled: boolean | null
+          branding_addon_monthly_fee: number | null
+          branding_addon_setup_fee: number | null
+          channel_manager_enabled: boolean | null
+          channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
           commission_rate: number | null
           created_at: string | null
@@ -4510,6 +4543,7 @@ export type Database = {
           payment_facilitator_enabled: boolean | null
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
+          pricelabs_setup_fee: number | null
           property_id: string
           room_count_override: number | null
           subscription_fee_monthly: number | null
@@ -4519,15 +4553,23 @@ export type Database = {
           updated_at: string | null
           volume_tier_json: Json | null
           white_label_allowed: boolean | null
+          white_label_billing_mode: string | null
           white_label_domain: string | null
           white_label_domain_last_error: string | null
           white_label_domain_status: string
           white_label_domain_verified_at: string | null
           white_label_monthly_fee: number | null
+          white_label_setup_fee: number | null
         }
         Insert: {
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode?: string | null
+          branding_addon_enabled?: boolean | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          channel_manager_enabled?: boolean | null
+          channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
@@ -4539,6 +4581,7 @@ export type Database = {
           payment_facilitator_enabled?: boolean | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
           property_id: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
@@ -4548,15 +4591,23 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_billing_mode?: string | null
           white_label_domain?: string | null
           white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
         }
         Update: {
           billing_start_date?: string | null
           billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode?: string | null
+          branding_addon_enabled?: boolean | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          channel_manager_enabled?: boolean | null
+          channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
@@ -4568,6 +4619,7 @@ export type Database = {
           payment_facilitator_enabled?: boolean | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
           property_id?: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
@@ -4577,11 +4629,13 @@ export type Database = {
           updated_at?: string | null
           volume_tier_json?: Json | null
           white_label_allowed?: boolean | null
+          white_label_billing_mode?: string | null
           white_label_domain?: string | null
           white_label_domain_last_error?: string | null
           white_label_domain_status?: string
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
         }
         Relationships: [
           {

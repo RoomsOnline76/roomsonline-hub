@@ -13,8 +13,17 @@ export interface BillingConfig {
   payment_facilitator_enabled: boolean;
   white_label_allowed: boolean;
   white_label_monthly_fee?: number | null;
+  white_label_setup_fee?: number | null;
+  white_label_billing_mode?: "monthly" | "annual" | null;
+  branding_addon_enabled?: boolean | null;
+  branding_addon_monthly_fee?: number | null;
+  branding_addon_setup_fee?: number | null;
+  branding_addon_billing_mode?: "monthly" | "annual" | null;
   pricelabs_allowed?: boolean;
   pricelabs_monthly_fee?: number | null;
+  pricelabs_setup_fee?: number | null;
+  channel_manager_enabled?: boolean | null;
+  channel_manager_per_unit_fee?: number | null;
   volume_tier_json: Record<string, number> | null;
   tier_pricing_json: Array<{ min_rooms: number; max_rooms: number | null; monthly_fee: number }> | null;
   tier_scope: "property" | "portfolio" | null;
