@@ -349,13 +349,19 @@ Deno.serve(async (req) => {
       case "sync_property_to_pricelabs": {
         if (!propertyId) return json({ error: "property_id required" }, 400);
         const res = await syncPropertyToPricelabs(supabase, propertyId, name, token);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "pull_price_suggestions": {
         if (!propertyId) return json({ error: "property_id required" }, 400);
         const res = await pullPriceSuggestions(supabase, propertyId, name, token);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "apply_suggestions": {
@@ -363,7 +369,10 @@ Deno.serve(async (req) => {
         const ids = (payload.suggestion_ids as string[]) ?? [];
         if (ids.length === 0) return json({ error: "suggestion_ids required" }, 400);
         const res = await applySuggestions(supabase, propertyId, ids, userId);
-        return json(res);
+        const status = (res as { success?: boolean }).success === false
+          ? (Number((res as { status?: number }).status) >= 400 && Number((res as { status?: number }).status) < 600 ? Number((res as { status?: number }).status) : 502)
+          : 200;
+        return json(res, status);
       }
 
       case "get_listings": {
