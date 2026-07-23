@@ -104,6 +104,9 @@ export default function AdminPortfolios() {
   const [pinnedFeaturedIds, setPinnedFeaturedIds] = useState<string[]>([]);
   const [allowPropertyBrandOverride, setAllowPropertyBrandOverride] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
+  const [aggMode, setAggMode] = useState<"none" | "monthly" | "once_off">("none");
+  const [aggMonthly, setAggMonthly] = useState<string>("");
+  const [aggSetup, setAggSetup] = useState<string>("");
   const logoInputRef = useRef<HTMLInputElement>(null);
   const heroVideoInputRef = useRef<HTMLInputElement>(null);
 
