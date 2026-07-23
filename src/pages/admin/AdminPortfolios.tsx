@@ -279,6 +279,9 @@ export default function AdminPortfolios() {
     setPinnedFeaturedIds([]);
     setAllowPropertyBrandOverride(false);
     setReviewIds({});
+    setAggMode("none");
+    setAggMonthly("");
+    setAggSetup("");
   };
 
   const openEdit = (p: Portfolio) => {
