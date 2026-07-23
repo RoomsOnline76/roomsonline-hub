@@ -6,8 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 // The admin domain for admin panel URLs (ROLOS PMS, staff login, contracts, onboarding)
 export const ADMIN_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
-// The public-facing domain for property and room showcase URLs
-export const PUBLIC_DOMAIN = "https://book.sleepinafrica.roomsonline.co.za";
+// The public-facing domain for property and room showcase URLs.
+// NOTE: The `book.` subdomain is not provisioned on the deployment. The
+// canonical host for all shareable embed/booking links is the same domain
+// that serves the app (sleepinafrica.roomsonline.co.za).
+export const PUBLIC_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
 // The survey domain for project discovery questionnaire
 export const SURVEY_DOMAIN = "https://survey.roomsonline.co.za";

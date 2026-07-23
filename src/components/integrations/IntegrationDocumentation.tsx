@@ -237,7 +237,7 @@ Full-page example:
         content: `Listen for booking completion events:
         
 window.addEventListener('message', function(event) {
-  if (event.origin !== 'https://book.sleepinafrica.roomsonline.co.za') return;
+  if (event.origin !== 'https://sleepinafrica.roomsonline.co.za') return;
   
   if (event.data.type === 'rolos_booking_complete') {
     // Redirect to thank-you page or trigger analytics

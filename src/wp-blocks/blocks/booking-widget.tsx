@@ -32,7 +32,7 @@ export function registerBookingWidgetBlock() {
     edit: (props: any) => {
       const { attributes, setAttributes } = props;
       const blockProps = useBlockProps();
-      const domain = rolosBlocksConfig?.publicDomain || "https://book.sleepinafrica.roomsonline.co.za";
+      const domain = rolosBlocksConfig?.publicDomain || "https://sleepinafrica.roomsonline.co.za";
 
       const iframeSrc = attributes.propertySlug
         ? `${domain}/embed/property/${attributes.propertySlug}?integration=wordpress&property_id=${attributes.propertyId}&brand_color=${encodeURIComponent(attributes.brandColor)}&mode=embedded`
@@ -107,7 +107,7 @@ export function registerBookingWidgetBlock() {
 
     save: (props: any) => {
       const { attributes } = props;
-      const domain = rolosBlocksConfig?.publicDomain || "https://book.sleepinafrica.roomsonline.co.za";
+      const domain = rolosBlocksConfig?.publicDomain || "https://sleepinafrica.roomsonline.co.za";
       const src = `${domain}/embed/property/${attributes.propertySlug}?integration=wordpress&property_id=${attributes.propertyId}&brand_color=${encodeURIComponent(attributes.brandColor)}&mode=embedded`;
 
       return wp.element.createElement("div", { className: "rolos-booking-widget" },

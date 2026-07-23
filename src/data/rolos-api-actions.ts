@@ -863,7 +863,7 @@ export const API_ACTIONS: ApiAction[] = [
       },
       rooms: [{ id: "uuid", name: "Deluxe Suite", daily_rate: 2500, max_guests: 4 }],
       widget_enabled: true,
-      embed_url: "https://book.sleepinafrica.roomsonline.co.za/embed/property/ocean-view-lodge",
+      embed_url: "https://sleepinafrica.roomsonline.co.za/embed/property/ocean-view-lodge",
       snippet: {
         simple: '<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>\n<div data-rolos-property="ocean-view-lodge"></div>',
       },
