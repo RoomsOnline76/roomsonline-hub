@@ -535,15 +535,24 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         </div>
 
 
-        {/* Payment Facilitator charge warning */}
-        {facilitatorActive && (
+        {/* Payment model summary warning */}
+        {facilitatorActive ? (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              This property will be charged <strong>{transactionFee || globalDefaults?.payment_facilitator_fee || globalDefaults?.default_transaction_fee || 2.5}%</strong> per transaction as payment facilitator fee.
+              ROL facilitates payments. This property will be charged{" "}
+              <strong>{transactionFee || globalDefaults?.default_transaction_fee || 2.5}%</strong> booking surcharge per transaction.
             </p>
           </div>
-        )}
+        ) : customProviderEnabled ? (
+          <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              Owner uses their own gateway. Flat BYO add-on:{" "}
+              <strong>R{byoGatewayFee || (globalDefaults as any)?.byo_gateway_monthly_fee || 250}/month</strong>. No per-booking surcharge.
+            </p>
+          </div>
+        ) : null}
 
         {/* Billing Start Date */}
         <div className="space-y-2">
