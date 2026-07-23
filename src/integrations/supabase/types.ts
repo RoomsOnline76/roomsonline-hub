@@ -3796,6 +3796,108 @@ export type Database = {
           },
         ]
       }
+      pricelabs_price_suggestions: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          applied_price: number | null
+          created_at: string
+          current_price: number | null
+          date: string
+          demand_signal: string | null
+          id: string
+          listing_id: string | null
+          max_price: number | null
+          min_price: number | null
+          occupancy: number | null
+          property_id: string
+          pulled_at: string
+          rate_plan_id: string | null
+          raw: Json | null
+          room_type_id: string | null
+          suggested_price: number
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          applied_price?: number | null
+          created_at?: string
+          current_price?: number | null
+          date: string
+          demand_signal?: string | null
+          id?: string
+          listing_id?: string | null
+          max_price?: number | null
+          min_price?: number | null
+          occupancy?: number | null
+          property_id: string
+          pulled_at?: string
+          rate_plan_id?: string | null
+          raw?: Json | null
+          room_type_id?: string | null
+          suggested_price: number
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          applied_price?: number | null
+          created_at?: string
+          current_price?: number | null
+          date?: string
+          demand_signal?: string | null
+          id?: string
+          listing_id?: string | null
+          max_price?: number | null
+          min_price?: number | null
+          occupancy?: number | null
+          property_id?: string
+          pulled_at?: string
+          rate_plan_id?: string | null
+          raw?: Json | null
+          room_type_id?: string | null
+          suggested_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricelabs_price_suggestions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "pricelabs_price_suggestions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricelabs_price_suggestions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricelabs_price_suggestions_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricelabs_price_suggestions_room_type_id_fkey"
+            columns: ["room_type_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_room_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -3973,6 +4075,7 @@ export type Database = {
           pms_readiness: string | null
           pms_sync_status: string | null
           price_per_night: number
+          pricelabs_config: Json
           property_type: string
           property_url: string | null
           rentalsunited_building_id: string | null
@@ -4064,6 +4167,7 @@ export type Database = {
           pms_readiness?: string | null
           pms_sync_status?: string | null
           price_per_night: number
+          pricelabs_config?: Json
           property_type: string
           property_url?: string | null
           rentalsunited_building_id?: string | null
@@ -4155,6 +4259,7 @@ export type Database = {
           pms_readiness?: string | null
           pms_sync_status?: string | null
           price_per_night?: number
+          pricelabs_config?: Json
           property_type?: string
           property_url?: string | null
           rentalsunited_building_id?: string | null
