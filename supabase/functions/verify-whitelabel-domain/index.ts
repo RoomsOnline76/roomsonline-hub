@@ -31,6 +31,10 @@ const CF_ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 const CANONICAL_BOOKING_HOST = "sleepinafrica.roomsonline.co.za";
 const WORKER_SCRIPT_NAME = Deno.env.get("CLOUDFLARE_WHITELABEL_WORKER") || "roomsonline-whitelabel-proxy";
+const LEGACY_ORIGIN_RULESET_PHASE = "http_request_origin";
+const LEGACY_ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
+const LEGACY_REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
+const LEGACY_REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
 
 type Status =
   | "active"
@@ -110,6 +114,36 @@ interface CFWorkerRoute {
   script: string | null;
 }
 
+interface CFZone {
+  id: string;
+  account?: { id?: string };
+}
+
+interface CFLegacyRulesetRule {
+  ref?: string;
+  expression: string;
+}
+
+interface CFLegacyRuleset {
+  id: string;
+  name: string;
+  description?: string;
+  kind: string;
+  phase: string;
+  rules: CFLegacyRulesetRule[];
+}
+
+function legacySafeRef(prefix: string, hostname: string): string {
+  return `${prefix}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
+}
+
+async function cfResolveAccountId(): Promise<string | null> {
+  if (CF_ACCOUNT_ID) return CF_ACCOUNT_ID;
+  const zoneResponse = await cfFetch(`/zones/${CF_ZONE_ID}`);
+  const zone = (await zoneResponse.json()) as CFResult<CFZone>;
+  return zone.success ? zone.result?.account?.id ?? null : null;
+}
+
 function workerScriptSource(): string {
   return `const CANONICAL_ORIGIN = "https://${CANONICAL_BOOKING_HOST}";
 
@@ -165,14 +199,15 @@ async function proxyToCanonical(request) {
 }
 
 async function cfEnsureWorkerScript(): Promise<{ ok: boolean; error: string | null }> {
-  if (!CF_ACCOUNT_ID) {
+  const accountId = await cfResolveAccountId();
+  if (!accountId) {
     return {
       ok: false,
-      error: "Cloudflare account id is not configured. Add CLOUDFLARE_ACCOUNT_ID so the scalable white-label Worker can be deployed.",
+      error: "Cloudflare account id could not be resolved from the configured zone. The API token must allow zone read and Workers script access.",
     };
   }
 
-  const uploadedResponse = await cfFetch(`/accounts/${CF_ACCOUNT_ID}/workers/scripts/${WORKER_SCRIPT_NAME}`, {
+  const uploadedResponse = await cfFetch(`/accounts/${accountId}/workers/scripts/${WORKER_SCRIPT_NAME}`, {
     method: "PUT",
     headers: { "Content-Type": "application/javascript" },
     body: workerScriptSource(),
@@ -182,6 +217,40 @@ async function cfEnsureWorkerScript(): Promise<{ ok: boolean; error: string | nu
     return { ok: false, error: `Cloudflare Worker deploy failed: ${cfErrorMessage(uploaded)}` };
   }
   return { ok: true, error: null };
+}
+
+async function cfDeleteLegacyRules(hostname: string): Promise<void> {
+  try {
+    const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
+    const listed = (await listResponse.json()) as CFResult<CFLegacyRuleset[]>;
+    if (!listed.success || !listed.result) return;
+
+    const refs = new Set([
+      legacySafeRef(LEGACY_ORIGIN_RULE_REF_PREFIX, hostname),
+      legacySafeRef(LEGACY_REDIRECT_RULE_REF_PREFIX, hostname),
+    ]);
+    const expressions = new Set([`http.host eq "${hostname}"`]);
+    const phases = new Set([LEGACY_ORIGIN_RULESET_PHASE, LEGACY_REDIRECT_RULESET_PHASE]);
+
+    for (const ruleset of listed.result) {
+      if (ruleset.kind !== "zone" || !phases.has(ruleset.phase)) continue;
+      const rules = Array.isArray(ruleset.rules) ? ruleset.rules : [];
+      const nextRules = rules.filter((rule) => !refs.has(rule.ref || "") && !expressions.has(rule.expression));
+      if (nextRules.length === rules.length) continue;
+      await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: ruleset.name,
+          description: ruleset.description,
+          kind: ruleset.kind,
+          phase: ruleset.phase,
+          rules: nextRules,
+        }),
+      }).catch(() => null);
+    }
+  } catch (err) {
+    console.warn("cfDeleteLegacyRules failed (ignored)", err);
+  }
 }
 
 async function cfEnsureWorkerRoute(hostname: string): Promise<{ ok: boolean; error: string | null }> {
@@ -348,6 +417,7 @@ Deno.serve(async (req) => {
         lastError = `DNS points elsewhere (CNAME: ${cnameTargets.join(", ") || "none"}, A: ${ips.join(", ") || "none"}).`;
       }
     } else {
+      await cfDeleteLegacyRules(normalized);
       const workerRoute = await cfEnsureWorkerRoute(normalized);
       workerRouteError = workerRoute.error;
       if (workerRoute.ok) routingMode = "worker";
