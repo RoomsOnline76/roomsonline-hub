@@ -144,11 +144,32 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
   });
 
   const callApi = async (action: string, body: Record<string, unknown> = {}) => {
+    const toStr = (v: unknown): string => {
+      if (v == null) return "";
+      if (typeof v === "string") return v;
+      try { return JSON.stringify(v); } catch { return String(v); }
+    };
     const { data, error } = await supabase.functions.invoke("pricelabs-api", {
       body: { action, property_id: propertyId, ...body },
     });
-    if (error) throw error;
-    if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+    if (error) {
+      // Try to pull the JSON body out of a FunctionsHttpError so the real reason surfaces.
+      let detail = "";
+      const ctxResp = (error as { context?: { response?: Response } }).context?.response;
+      if (ctxResp) {
+        try {
+          const j = await ctxResp.clone().json();
+          detail = toStr((j as { error?: unknown; reason?: unknown }).error ?? (j as { reason?: unknown }).reason ?? j);
+        } catch {
+          try { detail = await ctxResp.clone().text(); } catch { /* ignore */ }
+        }
+      }
+      throw new Error(detail || (error as Error).message || "Edge function error");
+    }
+    const d = (data ?? {}) as { success?: boolean; error?: unknown; reason?: unknown };
+    if (d.success === false || d.error) {
+      throw new Error(toStr(d.error ?? d.reason ?? d) || "Request failed");
+    }
     return data;
   };
 
