@@ -71,6 +71,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [paymentFacilitator, setPaymentFacilitator] = useState(false);
   const [whiteLabel, setWhiteLabel] = useState(false);
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
+  const [pricelabsAllowed, setPricelabsAllowed] = useState(false);
+  const [pricelabsFee, setPricelabsFee] = useState("");
+  const [pricelabsApplyPortfolio, setPricelabsApplyPortfolio] = useState(false);
+  const [pricelabsBulkPending, setPricelabsBulkPending] = useState(false);
   const [volumeTiers, setVolumeTiers] = useState("");
   const [billingStartDate, setBillingStartDate] = useState("");
   const [tierScope, setTierScope] = useState<"portfolio" | "property">("portfolio");
@@ -86,6 +90,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setPaymentFacilitator(config.payment_facilitator_enabled || false);
       setWhiteLabel(config.white_label_allowed || false);
       setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
+      setPricelabsAllowed((config as any).pricelabs_allowed || false);
+      setPricelabsFee((config as any).pricelabs_monthly_fee?.toString() || "");
       setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
       setBillingStartDate(config.billing_start_date || "");
       setTierScope(((config as any).tier_scope as "portfolio" | "property") || "portfolio");
@@ -123,14 +129,49 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       payment_facilitator_enabled: facilitatorActive,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
+      pricelabs_allowed: pricelabsAllowed,
+      pricelabs_monthly_fee: pricelabsFee ? parseFloat(pricelabsFee) : null,
       volume_tier_json: volumeTierJson,
       billing_start_date: billingStartDate || null,
       tier_scope: tieredStrategy ? tierScope : null,
       room_count_override: tieredStrategy && roomCountOverride ? parseInt(roomCountOverride) : null,
       tier_pricing_json: tieredStrategy ? (tierPricing as any) : null,
-    } as any);
+    } as any, {
+      onSuccess: async () => {
+        if (pricelabsApplyPortfolio && pricelabsAllowed) {
+          try {
+            setPricelabsBulkPending(true);
+            const { data: memberships } = await supabase
+              .from("property_portfolio_members")
+              .select("portfolio_id")
+              .eq("property_id", propertyId);
+            const portfolioIds = (memberships || []).map((m: any) => m.portfolio_id);
+            if (portfolioIds.length) {
+              const { data: siblings } = await supabase
+                .from("property_portfolio_members")
+                .select("property_id")
+                .in("portfolio_id", portfolioIds);
+              const ids = Array.from(new Set((siblings || []).map((s: any) => s.property_id))).filter((id) => id !== propertyId);
+              if (ids.length) {
+                const fee = pricelabsFee ? parseFloat(pricelabsFee) : null;
+                await supabase
+                  .from("property_billing_configs")
+                  .update({ pricelabs_allowed: true, pricelabs_monthly_fee: fee } as any)
+                  .in("property_id", ids);
+              }
+            }
+          } catch (e) {
+            console.error("Portfolio PriceLabs bulk enable failed", e);
+          } finally {
+            setPricelabsBulkPending(false);
+            setPricelabsApplyPortfolio(false);
+          }
+        }
+      },
+    });
     setTimeout(() => refetchResolved(), 500);
   };
+
 
   const updateTier = (idx: number, patch: Partial<PricingTier>) => {
     setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).map((t, i) => (i === idx ? { ...t, ...patch } : t)));
@@ -404,6 +445,53 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             </div>
           </div>
         )}
+
+        {/* Revenue Add-ons: PriceLabs */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label className="text-sm font-medium">Revenue Add-ons</Label>
+              <p className="text-[11px] text-muted-foreground">Optional revenue tools this property can access.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={pricelabsAllowed} onCheckedChange={setPricelabsAllowed} />
+            <Label className="text-xs cursor-pointer">Allow PriceLabs (dynamic pricing)</Label>
+          </div>
+          {pricelabsAllowed && (
+            <div className="space-y-2 pl-1">
+              <div className="space-y-1">
+                <Label className="text-xs">PriceLabs Monthly Fee (ZAR)</Label>
+                <Input
+                  type="number"
+                  step="50"
+                  min="0"
+                  value={pricelabsFee}
+                  onChange={(e) => setPricelabsFee(e.target.value)}
+                  placeholder="0"
+                  className="text-xs"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3"
+                  checked={pricelabsApplyPortfolio}
+                  onChange={(e) => setPricelabsApplyPortfolio(e.target.checked)}
+                />
+                Also enable for all other properties in this property's portfolio(s)
+                {pricelabsBulkPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              </label>
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  This property will be charged <strong>R{pricelabsFee || 0}/month</strong> for the PriceLabs add-on.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
 
         {/* Payment Facilitator charge warning */}
         {facilitatorActive && (

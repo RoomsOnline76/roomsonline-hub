@@ -435,6 +435,20 @@ export default function PMSRevenue() {
   const activeIdsKey = activeIds.join(",");
   const queryEnabled = activeIds.length > 0;
 
+  const { data: pricelabsGate } = useQuery({
+    queryKey: ["pricelabs-tab-gate", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_billing_configs")
+        .select("pricelabs_allowed")
+        .eq("property_id", propertyId!)
+        .maybeSingle();
+      return !!(data as any)?.pricelabs_allowed;
+    },
+  });
+  const pricelabsAllowed = !!pricelabsGate;
+
   const today = format(new Date(), "yyyy-MM-dd");
   const futureEnd = format(addDays(new Date(), forecastDays), "yyyy-MM-dd");
   const past30 = format(subDays(new Date(), 30), "yyyy-MM-dd");
@@ -763,7 +777,7 @@ export default function PMSRevenue() {
             <TabsTrigger value="forecast"><Calendar className="w-4 h-4 mr-1" />Demand Forecast</TabsTrigger>
             <TabsTrigger value="performance"><History className="w-4 h-4 mr-1" />Performance</TabsTrigger>
             <TabsTrigger value="suggestions"><Lightbulb className="w-4 h-4 mr-1" />Rate Suggestions</TabsTrigger>
-            <TabsTrigger value="pricelabs"><Sparkles className="w-4 h-4 mr-1" />PriceLabs</TabsTrigger>
+            {pricelabsAllowed && <TabsTrigger value="pricelabs"><Sparkles className="w-4 h-4 mr-1" />PriceLabs</TabsTrigger>}
             <TabsTrigger value="plans"><DollarSign className="w-4 h-4 mr-1" />Active Plans</TabsTrigger>
             <TabsTrigger value="yield"><Zap className="w-4 h-4 mr-1" />Yield Rules</TabsTrigger>
             <TabsTrigger value="strategies"><Settings2 className="w-4 h-4 mr-1" />Rate Strategies</TabsTrigger>

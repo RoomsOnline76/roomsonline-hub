@@ -66,6 +66,20 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
 
   const cfg = (property?.pricelabs_config ?? {}) as PriceLabsConfig;
 
+  const { data: adminGate } = useQuery({
+    queryKey: ["pricelabs-admin-gate", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_billing_configs")
+        .select("pricelabs_allowed, pricelabs_monthly_fee")
+        .eq("property_id", propertyId!)
+        .maybeSingle();
+      return (data ?? { pricelabs_allowed: false, pricelabs_monthly_fee: null }) as { pricelabs_allowed: boolean; pricelabs_monthly_fee: number | null };
+    },
+  });
+  const pricelabsAllowed = !!adminGate?.pricelabs_allowed;
+
   const { data: roomTypes = [] } = useQuery({
     queryKey: ["pricelabs-room-types", propertyId],
     enabled: !!propertyId,
@@ -212,13 +226,16 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between rounded-md border p-3">
             <div>
-              <Label className="text-base">Enabled</Label>
-              <p className="text-sm text-muted-foreground">Show suggestions and allow syncing.</p>
+              <Label className="text-sm">Add-on status</Label>
+              <p className="text-xs text-muted-foreground">Controlled by an administrator in the property's Billing settings.</p>
             </div>
-            <Switch checked={!!editing.enabled} disabled={!canManage} onCheckedChange={(v) => updateCfg({ enabled: v })} />
+            <Badge variant={pricelabsAllowed ? "default" : "secondary"}>
+              {pricelabsAllowed ? "Enabled by admin" : "Not enabled"}
+            </Badge>
           </div>
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -296,30 +313,27 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!cfg.enabled && (
+          {!pricelabsAllowed && (
             <Alert>
               <Info className="h-4 w-4" />
-              <AlertTitle>PriceLabs is disabled for this property</AlertTitle>
-              <AlertDescription className="flex items-center justify-between gap-3">
-                <span>Enable the integration above to push listings and pull suggestions.</span>
-                {canManage && (
-                  <Button size="sm" onClick={() => saveConfig.mutate({ ...cfg, enabled: true })} disabled={saveConfig.isPending}>
-                    Enable now
-                  </Button>
-                )}
+              <AlertTitle>PriceLabs is not enabled for this property</AlertTitle>
+              <AlertDescription>
+                An administrator must enable the PriceLabs add-on in Admin → Billing before this property can push listings or pull suggestions.
               </AlertDescription>
             </Alert>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !cfg.enabled || !canManage}>
+            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !pricelabsAllowed || !canManage}>
               <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
             </Button>
-            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !cfg.enabled || !canManage}>
+            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !pricelabsAllowed || !canManage}>
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
           </div>
+
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

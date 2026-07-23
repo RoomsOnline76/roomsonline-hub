@@ -93,7 +93,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee")
+        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,pricelabs_allowed,pricelabs_monthly_fee")
         .eq("property_id", propertyId)
         .maybeSingle();
       if (error) throw error;
@@ -315,6 +315,41 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           />
         </CardContent>
       </Card>
+
+      {/* Revenue Add-ons */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm">Revenue Add-ons</CardTitle>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onNavigate?.("billing")}>
+              <Pencil className="mr-1 h-3 w-3" /> Edit
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <Row
+            label="PriceLabs"
+            value={
+              wlDomain?.pricelabs_allowed ? (
+                <Badge variant="default">Enabled</Badge>
+              ) : (
+                <Badge variant="secondary">Not enabled</Badge>
+              )
+            }
+            hint="Dynamic pricing suggestions (surface in ROL'OS → Revenue)."
+          />
+          <Row
+            label="PriceLabs monthly fee"
+            value={wlDomain?.pricelabs_monthly_fee != null ? `R ${wlDomain.pricelabs_monthly_fee}` : <Empty />}
+          />
+        </CardContent>
+      </Card>
+
+
+
 
       {/* Referral / Sales rep */}
       <Card>

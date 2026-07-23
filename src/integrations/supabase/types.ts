@@ -333,6 +333,7 @@ export type Database = {
           id: string
           notes: string | null
           payment_facilitator_fee: number | null
+          pricelabs_monthly_fee: number | null
           referral_clawback_days: number | null
           referral_first_year_rate: number | null
           referral_residual_months: number | null
@@ -350,6 +351,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          pricelabs_monthly_fee?: number | null
           referral_clawback_days?: number | null
           referral_first_year_rate?: number | null
           referral_residual_months?: number | null
@@ -367,6 +369,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          pricelabs_monthly_fee?: number | null
           referral_clawback_days?: number | null
           referral_first_year_rate?: number | null
           referral_residual_months?: number | null
@@ -4505,6 +4508,8 @@ export type Database = {
           linked_contract_id: string | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
+          pricelabs_allowed: boolean
+          pricelabs_monthly_fee: number | null
           property_id: string
           room_count_override: number | null
           subscription_fee_monthly: number | null
@@ -4532,6 +4537,8 @@ export type Database = {
           linked_contract_id?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pricelabs_allowed?: boolean
+          pricelabs_monthly_fee?: number | null
           property_id: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
@@ -4559,6 +4566,8 @@ export type Database = {
           linked_contract_id?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
+          pricelabs_allowed?: boolean
+          pricelabs_monthly_fee?: number | null
           property_id?: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
@@ -5262,6 +5271,7 @@ export type Database = {
           name: string
           owner_id: string | null
           parent_portfolio_id: string | null
+          pricelabs_monthly_fee: number | null
           slug: string | null
           updated_at: string | null
           white_label_domain: string | null
@@ -5278,6 +5288,7 @@ export type Database = {
           name: string
           owner_id?: string | null
           parent_portfolio_id?: string | null
+          pricelabs_monthly_fee?: number | null
           slug?: string | null
           updated_at?: string | null
           white_label_domain?: string | null
@@ -5294,6 +5305,7 @@ export type Database = {
           name?: string
           owner_id?: string | null
           parent_portfolio_id?: string | null
+          pricelabs_monthly_fee?: number | null
           slug?: string | null
           updated_at?: string | null
           white_label_domain?: string | null
