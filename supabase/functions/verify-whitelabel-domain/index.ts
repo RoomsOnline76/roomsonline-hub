@@ -29,12 +29,6 @@ const CF_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") || "";
 const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
 const CF_ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
-const ORIGIN_RULESET_PHASE = "http_request_origin";
-const ORIGIN_RULESET_NAME = "RoomsOnline white-label origin routing";
-const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
-const REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
-const REDIRECT_RULESET_NAME = "RoomsOnline white-label canonical redirects";
-const REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
 const CANONICAL_BOOKING_HOST = "sleepinafrica.roomsonline.co.za";
 const WORKER_SCRIPT_NAME = Deno.env.get("CLOUDFLARE_WHITELABEL_WORKER") || "roomsonline-whitelabel-proxy";
 
@@ -110,43 +104,10 @@ interface CFResult<T> {
   result?: T;
 }
 
-interface CFRulesetRule {
-  id?: string;
-  ref?: string;
-  expression: string;
-  description?: string;
-  action: string;
-  action_parameters?: Record<string, unknown>;
-  enabled?: boolean;
-}
-
-interface CFRuleset {
-  id: string;
-  name: string;
-  description?: string;
-  kind: string;
-  phase: string;
-  rules: CFRulesetRule[];
-}
-
 interface CFWorkerRoute {
   id: string;
   pattern: string;
   script: string | null;
-}
-
-function cfSafeRef(hostname: string): string {
-  return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
-}
-
-function cfSafeRedirectRef(hostname: string): string {
-  return `${REDIRECT_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
-}
-
-function requiresRedirectFallback(error: string | null): boolean {
-  if (!error) return false;
-  const lower = error.toLowerCase();
-  return lower.includes("not entitled") || lower.includes("hostheader override") || lower.includes("host header");
 }
 
 function workerScriptSource(): string {
@@ -246,133 +207,6 @@ async function cfEnsureWorkerRoute(hostname: string): Promise<{ ok: boolean; err
   const routed = (await routeResponse.json()) as CFResult<CFWorkerRoute>;
   if (!routed.success || !routed.result) {
     return { ok: false, error: `Cloudflare Worker route failed: ${cfErrorMessage(routed)}` };
-  }
-  return { ok: true, error: null };
-}
-
-async function cfEnsureCanonicalRedirect(hostname: string): Promise<{ ok: boolean; error: string | null }> {
-  const ref = cfSafeRedirectRef(hostname);
-  const desiredRule: CFRulesetRule = {
-    ref,
-    expression: `http.host eq "${hostname}"`,
-    description: `Redirect ${hostname} to the canonical RoomsOnline booking host`,
-    action: "redirect",
-    action_parameters: {
-      from_value: {
-        status_code: 302,
-        preserve_query_string: true,
-        target_url: {
-          expression: `concat("https://${CANONICAL_BOOKING_HOST}", http.request.uri.path)`,
-        },
-      },
-    },
-  };
-
-  const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
-  const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
-  if (!listed.success || !listed.result) {
-    return { ok: false, error: `Cloudflare redirect check failed: ${cfErrorMessage(listed)}` };
-  }
-
-  let ruleset = listed.result.find((r) => r.kind === "zone" && r.phase === REDIRECT_RULESET_PHASE) ?? null;
-  if (!ruleset) {
-    const createdResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`, {
-      method: "POST",
-      body: JSON.stringify({
-        name: REDIRECT_RULESET_NAME,
-        description: "Keeps white-label booking domains functional when host-header origin routing is unavailable.",
-        kind: "zone",
-        phase: REDIRECT_RULESET_PHASE,
-        rules: [desiredRule],
-      }),
-    });
-    const created = (await createdResponse.json()) as CFResult<CFRuleset>;
-    if (!created.success || !created.result) {
-      return { ok: false, error: `Cloudflare redirect create failed: ${cfErrorMessage(created)}` };
-    }
-    return { ok: true, error: null };
-  }
-
-  const existingRules = Array.isArray(ruleset.rules) ? ruleset.rules : [];
-  const ruleIndex = existingRules.findIndex((r) => r.ref === ref || r.expression === desiredRule.expression);
-  const nextRules = ruleIndex >= 0
-    ? existingRules.map((r, i) => (i === ruleIndex ? { ...r, ...desiredRule } : r))
-    : [...existingRules, desiredRule];
-
-  const updatedResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      name: ruleset.name || REDIRECT_RULESET_NAME,
-      description: ruleset.description || "Keeps white-label booking domains functional when host-header origin routing is unavailable.",
-      kind: "zone",
-      phase: REDIRECT_RULESET_PHASE,
-      rules: nextRules,
-    }),
-  });
-  const updated = (await updatedResponse.json()) as CFResult<CFRuleset>;
-  if (!updated.success || !updated.result) {
-    return { ok: false, error: `Cloudflare redirect update failed: ${cfErrorMessage(updated)}` };
-  }
-  return { ok: true, error: null };
-}
-
-async function cfEnsureOriginRoute(hostname: string): Promise<{ ok: boolean; error: string | null }> {
-  const ref = cfSafeRef(hostname);
-  const desiredRule: CFRulesetRule = {
-    ref,
-    expression: `http.host eq "${hostname}"`,
-    description: `Route ${hostname} to ${EXPECTED_CNAME_HOSTS[0]} for Vercel fallback hosting`,
-    action: "route",
-    action_parameters: {
-      host_header: EXPECTED_CNAME_HOSTS[0],
-      origin: { host: EXPECTED_CNAME_HOSTS[0] },
-    },
-  };
-
-  const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`);
-  const listed = (await listResponse.json()) as CFResult<CFRuleset[]>;
-  if (!listed.success || !listed.result) {
-    return { ok: false, error: `Cloudflare origin routing check failed: ${cfErrorMessage(listed)}` };
-  }
-
-  let ruleset = listed.result.find((r) => r.kind === "zone" && r.phase === ORIGIN_RULESET_PHASE) ?? null;
-  if (!ruleset) {
-    const createdResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets`, {
-      method: "POST",
-      body: JSON.stringify({
-        name: ORIGIN_RULESET_NAME,
-        description: "Routes white-label booking domains to the shared Vercel fallback origin.",
-        kind: "zone",
-        phase: ORIGIN_RULESET_PHASE,
-        rules: [desiredRule],
-      }),
-    });
-    const created = (await createdResponse.json()) as CFResult<CFRuleset>;
-    if (!created.success || !created.result) {
-      return { ok: false, error: `Cloudflare origin routing create failed: ${cfErrorMessage(created)}` };
-    }
-    return { ok: true, error: null };
-  }
-
-  const existingRules = Array.isArray(ruleset.rules) ? ruleset.rules : [];
-  const ruleIndex = existingRules.findIndex((r) => r.ref === ref || r.expression === desiredRule.expression);
-  const nextRules = ruleIndex >= 0
-    ? existingRules.map((r, i) => (i === ruleIndex ? { ...r, ...desiredRule } : r))
-    : [...existingRules, desiredRule];
-
-  const updatedResponse = await cfFetch(`/zones/${CF_ZONE_ID}/rulesets/${ruleset.id}`, {
-    method: "PUT",
-    body: JSON.stringify({
-      name: ruleset.name || ORIGIN_RULESET_NAME,
-      description: ruleset.description || "Routes white-label booking domains to the shared Vercel fallback origin.",
-      kind: "zone",
-      phase: ORIGIN_RULESET_PHASE,
-      rules: nextRules,
-    }),
-  });
-  const updated = (await updatedResponse.json()) as CFResult<CFRuleset>;
-  if (!updated.success || !updated.result) {
-    return { ok: false, error: `Cloudflare origin routing update failed: ${cfErrorMessage(updated)}` };
   }
   return { ok: true, error: null };
 }
