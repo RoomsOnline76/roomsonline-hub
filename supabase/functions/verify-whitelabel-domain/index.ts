@@ -1,10 +1,11 @@
 // White-label domain lifecycle handler.
 //
 // Flow: customer points a CNAME at CLOUDFLARE_FALLBACK_ORIGIN and clicks
-// Verify. We check DNS, then register the hostname on Cloudflare for SaaS
-// (Custom Hostnames) so Cloudflare provisions a real DV TLS cert. The
-// endpoint is idempotent — subsequent calls poll Cloudflare status and flip
-// the row to `active` once the certificate is live.
+// Verify. We check DNS, register the hostname on Cloudflare for SaaS
+// (Custom Hostnames) so Cloudflare provisions a real DV TLS cert, then attach
+// a single reusable Worker reverse-proxy route for the hostname. This scales to
+// hundreds of customer domains without adding each domain to Vercel and without
+// requiring Cloudflare Origin Rules / HostHeader override entitlement.
 //
 // Statuses:
 //   unconfigured       — no domain saved
@@ -26,6 +27,7 @@ const EXPECTED_A_RECORD = "185.158.133.1";
 
 const CF_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") || "";
 const CF_API_TOKEN = Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
+const CF_ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") || "";
 const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 const ORIGIN_RULESET_PHASE = "http_request_origin";
 const ORIGIN_RULESET_NAME = "RoomsOnline white-label origin routing";
@@ -34,6 +36,7 @@ const REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
 const REDIRECT_RULESET_NAME = "RoomsOnline white-label canonical redirects";
 const REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
 const CANONICAL_BOOKING_HOST = "sleepinafrica.roomsonline.co.za";
+const WORKER_SCRIPT_NAME = Deno.env.get("CLOUDFLARE_WHITELABEL_WORKER") || "roomsonline-whitelabel-proxy";
 
 type Status =
   | "active"
@@ -126,6 +129,12 @@ interface CFRuleset {
   rules: CFRulesetRule[];
 }
 
+interface CFWorkerRoute {
+  id: string;
+  pattern: string;
+  script: string | null;
+}
+
 function cfSafeRef(hostname: string): string {
   return `${ORIGIN_RULE_REF_PREFIX}${hostname.replace(/[^a-z0-9_]/gi, "_").toLowerCase()}`.slice(0, 128);
 }
@@ -138,6 +147,107 @@ function requiresRedirectFallback(error: string | null): boolean {
   if (!error) return false;
   const lower = error.toLowerCase();
   return lower.includes("not entitled") || lower.includes("hostheader override") || lower.includes("host header");
+}
+
+function workerScriptSource(): string {
+  return `const CANONICAL_ORIGIN = "https://${CANONICAL_BOOKING_HOST}";
+
+addEventListener("fetch", (event) => {
+  event.respondWith(proxyToCanonical(event.request));
+});
+
+async function proxyToCanonical(request) {
+  const incomingUrl = new URL(request.url);
+  const targetUrl = new URL(incomingUrl.pathname + incomingUrl.search, CANONICAL_ORIGIN);
+  const headers = new Headers(request.headers);
+
+  headers.set("x-rooms-original-host", incomingUrl.hostname);
+  headers.set("x-forwarded-host", incomingUrl.hostname);
+  headers.set("x-forwarded-proto", incomingUrl.protocol.replace(":", ""));
+  headers.delete("host");
+
+  const init = {
+    method: request.method,
+    headers,
+    redirect: "manual",
+  };
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+  }
+
+  const response = await fetch(targetUrl.toString(), init);
+  const responseHeaders = new Headers(response.headers);
+  const location = responseHeaders.get("location");
+
+  if (location) {
+    try {
+      const locationUrl = new URL(location, targetUrl.toString());
+      if (locationUrl.hostname === new URL(CANONICAL_ORIGIN).hostname) {
+        locationUrl.protocol = incomingUrl.protocol;
+        locationUrl.hostname = incomingUrl.hostname;
+        responseHeaders.set("location", locationUrl.toString());
+      }
+    } catch (_err) {
+      // Keep the original location header if it is not parseable.
+    }
+  }
+
+  responseHeaders.set("x-rooms-whitelabel-proxy", "worker");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: responseHeaders,
+  });
+}
+`;
+}
+
+async function cfEnsureWorkerScript(): Promise<{ ok: boolean; error: string | null }> {
+  if (!CF_ACCOUNT_ID) {
+    return {
+      ok: false,
+      error: "Cloudflare account id is not configured. Add CLOUDFLARE_ACCOUNT_ID so the scalable white-label Worker can be deployed.",
+    };
+  }
+
+  const uploadedResponse = await cfFetch(`/accounts/${CF_ACCOUNT_ID}/workers/scripts/${WORKER_SCRIPT_NAME}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/javascript" },
+    body: workerScriptSource(),
+  });
+  const uploaded = (await uploadedResponse.json()) as CFResult<unknown>;
+  if (!uploaded.success) {
+    return { ok: false, error: `Cloudflare Worker deploy failed: ${cfErrorMessage(uploaded)}` };
+  }
+  return { ok: true, error: null };
+}
+
+async function cfEnsureWorkerRoute(hostname: string): Promise<{ ok: boolean; error: string | null }> {
+  const script = await cfEnsureWorkerScript();
+  if (!script.ok) return script;
+
+  const pattern = `${hostname}/*`;
+  const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/workers/routes?per_page=100`);
+  const listed = (await listResponse.json()) as CFResult<CFWorkerRoute[]>;
+  if (!listed.success || !listed.result) {
+    return { ok: false, error: `Cloudflare Worker route check failed: ${cfErrorMessage(listed)}` };
+  }
+
+  const existing = listed.result.find((route) => route.pattern.toLowerCase() === pattern.toLowerCase()) ?? null;
+  const payload = { pattern, script: WORKER_SCRIPT_NAME };
+  const routeResponse = await cfFetch(
+    existing ? `/zones/${CF_ZONE_ID}/workers/routes/${existing.id}` : `/zones/${CF_ZONE_ID}/workers/routes`,
+    {
+      method: existing ? "PUT" : "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+  const routed = (await routeResponse.json()) as CFResult<CFWorkerRoute>;
+  if (!routed.success || !routed.result) {
+    return { ok: false, error: `Cloudflare Worker route failed: ${cfErrorMessage(routed)}` };
+  }
+  return { ok: true, error: null };
 }
 
 async function cfEnsureCanonicalRedirect(hostname: string): Promise<{ ok: boolean; error: string | null }> {
