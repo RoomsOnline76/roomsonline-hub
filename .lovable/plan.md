@@ -1,89 +1,45 @@
-## Rework `/admin/billing-defaults` + align per-property billing UI
+# PriceLabs pull failures — diagnose before fixing
 
-Goal: turn Billing Defaults into a single, opinionated source-of-truth screen that (a) drives sane per-property defaults for every fee we bill, (b) makes zero-value fields collapse behind an "Enable" toggle, and (c) exposes the same shape in the property Admin tab and the ROLOS overview.
+## Why we're not touching push/pull payloads yet
 
-### 1. Schema additions
+The latest error is a **404 from PriceLabs** on every listing id: *"the listing_id you are trying to update does not exist or has not been added in PriceLabs"*. That is a different failure mode than the earlier 400s — PriceLabs is telling us the listings we're asking about aren't in their system at all. Any further guess at payload shape is likely to shift the error again without fixing the root cause.
 
-New migration on `billing_global_defaults` and `property_billing_configs` (mirror both, so per-property override always exists):
+We need to see PriceLabs' actual state for the affected property (Dassiesingle) before changing anything else.
 
-- `white_label_setup_fee` numeric — once-off
-- `white_label_billing_mode` text: `"monthly" | "annual"` (defaults to monthly)
-- `branding_addon_allowed` boolean (non-white-label branding pack)
-- `branding_addon_monthly_fee` numeric
-- `branding_addon_setup_fee` numeric
-- `branding_addon_billing_mode` text
-- `pricelabs_setup_fee` numeric  *(PriceLabs stays per-property, flat — never portfolio-scaled)*
-- `channel_manager_per_unit_fee` numeric (default R60) on defaults
-- On `property_billing_configs`: `channel_manager_enabled` boolean, `channel_manager_per_unit_fee` numeric (override)
-- On `billing_global_defaults`: `sales_rep_tier_criteria_json` jsonb — stores the Base / Accelerated / Elite definitions (thresholds + rate overrides), single row on the `default` strategy or a dedicated `sales_rep_config` singleton row.
+## What this plan builds
 
-Grants + timestamps handled per project rules.
+A single read-only action added to `supabase/functions/pricelabs-api/index.ts`, plus a small "Debug" button in `src/pages/pms/PMSPriceLabs.tsx` behind the dev/admin gate.
 
-### 2. `AdminBillingDefaults.tsx` rework
+### 1. Edge-function action: `debug_pricelabs`
 
-Convert from "grid of near-identical strategy cards" to a **tabbed page**:
+New action handler that performs three read-only calls against PriceLabs for the current property and returns the raw responses side by side:
 
-```text
-┌ Summary ─ Strategies ─ Add-ons ─ Sales Reps ─ Notes ┐
-```
+- `GET /listings` — full account listing dump (no filter), so we can see every listing PriceLabs has for our API key and what its `pms` value is.
+- `GET /listings?listing_id=<one of ours>` — targeted lookup for the first room-type's expected `listing_id` (`rolos_<propertyId>_<roomTypeId>`). Confirms whether the ID our code generates matches anything on PriceLabs.
+- Local snapshot: the `listings` payload our `buildListingsPayload` would send today (from `rolos_room_types`), so we can diff local ↔ remote in one glance.
 
-**Strategies tab** — one card per strategy, but each fee row uses a `<FieldToggleRow>`:
-- If value is 0/null → collapsed to a switch "Enable {field}".
-- Toggling on reveals the numeric input pre-filled with the platform suggested default.
-- Fields per strategy stay the same set (commission, subscription, transaction, tier table) — irrelevant ones are hidden per existing `showX` logic.
-- ROLOS PMS card gets a new **Channel Manager per-unit fee** field (default R60/unit/month) with the same toggle pattern.
+The response is a JSON blob: `{ account_listings, matched_listing, local_payload, generated_ids }`. No writes, no side effects.
 
-**Add-ons tab** — global defaults for cross-strategy modules, each with monthly/annual/setup + toggle:
-- White-Label (monthly OR annual + setup fee)
-- Branding pack (non-white-label look-and-feel override) — monthly/annual + setup
-- PriceLabs — flat per-property monthly + optional setup. Copy explicitly states: *"Applied per activated property regardless of owner/portfolio size — no volume scaling."* Remove/hide the sliding-scale UI here.
-- Channel Manager per-unit (mirror of ROLOS PMS card for quick reference)
+### 2. Frontend: "Diagnose PriceLabs" button
 
-**Sales Reps tab** — existing First-Year / Residual / Duration / Clawback fields, plus a new `TierCriteriaEditor` with three rows (Base / Accelerated / Elite). Each row: min properties signed, min monthly recurring, first-year rate override, residual override, notes. Persisted to `sales_rep_tier_criteria_json`.
+In `PMSPriceLabs.tsx`, next to the existing Push / Pull buttons, add a small **Diagnose** button (dev/admin-only, matches the existing `isDev || isFearlessLeader` gate). Clicking it:
 
-**Summary tab** — replaces today's dense grid. Presented as a plain-language digest, grouped:
-- *"How we make money"*: one sentence per active strategy (e.g. "Widget: 10% on the first R50k GMV/mo, dropping to 5% above.").
-- *"Platform add-ons"*: three lines (White-Label R… + setup, Branding R…, PriceLabs R…).
-- *"ROL'OS PMS"*: subscription + per-unit channel manager fee.
-- *"Sales rep economics"*: current default first-year %, residual %, months, clawback, and tier thresholds.
-- Each block has an "Edit" button jumping to the relevant tab.
+- Calls the new `debug_pricelabs` action.
+- Renders the JSON result inside a collapsible `<pre>` block on the page with a "Copy" button.
+- Does not toast on failure — displays the raw error body inline so we can read PriceLabs' words verbatim.
 
-**Notes tab** — merged free-text notes per strategy (kept for internal ops).
+### 3. What we will learn (and next-turn fix)
 
-Shared components introduced under `src/components/admin/billing/`:
-- `FieldToggleRow.tsx` — the "zero → toggle" pattern.
-- `MonthlyAnnualSetup.tsx` — three-input combo for add-ons.
-- `TierCriteriaEditor.tsx` — sales-rep tier grid.
-- `StrategySummaryLine.tsx` — natural-language line per strategy.
+The debug output will tell us exactly one of:
 
-### 3. Per-property parity
+- **PriceLabs has zero listings for us** → our `POST /listings` returns 200 but silently rejects everything. Next turn: parse the per-listing status in the `/listings` response, surface failures, and add whichever field PriceLabs is complaining about (likely `pms`).
+- **PriceLabs has listings under different IDs** → our `listing_id` composition is wrong. Fix the ID scheme to match what PriceLabs stored.
+- **Listings are there but under a different `pms`** → add `pms: <that value>` to both push and `get_prices`.
 
-`src/components/property/BillingConfigTab.tsx`:
-- Add PropertyLevel toggles for White-Label (monthly + setup), Branding add-on, Channel Manager per-unit enable, PriceLabs — all seeded from `getDefaultsForStrategy(...)` or the new add-on defaults.
-- Reuse `FieldToggleRow` and `MonthlyAnnualSetup` so the property screen looks identical to the defaults screen.
-- Remove the existing "Apply to portfolio" checkbox for PriceLabs (feature is per-property by policy).
+Only then do we edit push or pull. No blind payload changes this turn.
 
-`src/components/property/AdminOverviewTab.tsx`:
-- Extend "Revenue Add-ons" and "White-Label" rows to show setup fee, billing mode, and branding pack status.
-- Add new "Channel Manager" row (fee/unit × active units estimate).
+## Technical notes
 
-### 4. ROLOS mirror
-
-`src/pages/pms/PMSPropertySetup.tsx` (and any owner-facing billing summary) reads the same `property_billing_configs` fields via the existing `useBillingConfig` hook — no owner-editable controls, just a read-only mirror of what admin enabled. Update `useBillingConfig` / `BillingConfig` type to include the new columns.
-
-### 5. Billing engine
-
-`supabase/functions/calculate-billing/index.ts` (and `contractBillingVariables.ts` for the contract template):
-- Line-item any of the new fees when their enable flag is true.
-- Channel Manager fee = `per_unit_fee × active_room_count` for ROLOS PMS properties.
-- Setup fees emitted only in the first billing period after `billing_start_date`.
-
-### Technical notes
-- `useBillingDefaults` and `useBillingConfig` types extended; no breaking rename of existing columns.
-- Sales-rep tier JSON shape: `{ base:{min_props,min_mrr,first_year_rate,residual_rate}, accelerated:{…}, elite:{…} }`.
-- All new numeric fields default to `null`, matching the "zero → hidden with toggle" UX (null = disabled).
-- No changes to PMS adapters or booking flow.
-
-### Out of scope
-- No changes to invoicing/PDF layout beyond adding new line items.
-- Sales-rep payout calculation refactor (separate task) — this only stores criteria + rates.
+- The three PriceLabs calls all use the existing `pl()` helper and the account's stored `X-API-Key` — no new secrets required.
+- `debug_pricelabs` runs behind the same admin gate as `push`/`pull` on the client; the edge function itself still requires the caller to own the property (existing pattern).
+- No DB migrations. No schema changes. No changes to `syncPropertyToPricelabs` or `pullPriceSuggestions` in this plan.

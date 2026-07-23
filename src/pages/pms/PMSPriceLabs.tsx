@@ -50,6 +50,10 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
   const canManage = isAdmin || isDev || isFearlessLeader;
   const qc = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugData, setDebugData] = useState<unknown>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   // Load property + config
   const { data: property, isLoading: pLoading } = useQuery({
@@ -413,10 +417,69 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
+            {(isDev || isFearlessLeader) && (
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  setDebugOpen(true);
+                  setDebugLoading(true);
+                  setDebugData(null);
+                  setDebugError(null);
+                  try {
+                    const res = await callApi("debug_pricelabs");
+                    setDebugData(res);
+                  } catch (e) {
+                    setDebugError((e as Error).message);
+                  } finally {
+                    setDebugLoading(false);
+                  }
+                }}
+                disabled={!propertyId}
+                title="Read-only: dumps PriceLabs listings + local payload so we can see what PriceLabs actually has"
+              >
+                <Info className="h-4 w-4 mr-2" /> Diagnose
+              </Button>
+            )}
           </div>
+
+          {debugOpen && (
+            <div className="mt-3 rounded-md border bg-muted/30 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium">PriceLabs diagnostic (dev/admin only)</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const payload = debugError ? `ERROR: ${debugError}` : JSON.stringify(debugData, null, 2);
+                      navigator.clipboard.writeText(payload);
+                      toast.success("Copied diagnostic to clipboard");
+                    }}
+                    disabled={debugLoading || (!debugData && !debugError)}
+                  >
+                    Copy
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDebugOpen(false)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+              {debugLoading ? (
+                <p className="text-xs text-muted-foreground">Probing PriceLabs…</p>
+              ) : debugError ? (
+                <pre className="text-[11px] whitespace-pre-wrap break-all text-destructive">{debugError}</pre>
+              ) : (
+                <pre className="text-[11px] whitespace-pre-wrap break-all max-h-96 overflow-auto">
+                  {JSON.stringify(debugData, null, 2)}
+                </pre>
+              )}
+            </div>
+          )}
 
         </CardContent>
       </Card>
+
 
 
       <Card>

@@ -430,6 +430,61 @@ Deno.serve(async (req) => {
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
+      case "debug_pricelabs": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+
+        // 1. Build the payload our push would send today (no side effects).
+        let localPayload: unknown = null;
+        let localErr: string | null = null;
+        try {
+          localPayload = (await buildListingsPayload(supabase, propertyId)).listings;
+        } catch (e) {
+          localErr = (e as Error).message;
+        }
+        const generatedIds = Array.isArray(localPayload)
+          ? (localPayload as Array<{ listing_id: string }>).map((l) => l.listing_id)
+          : [];
+
+        // 2. Dump every listing PriceLabs has on this account.
+        const accountListingsRes = await pl("GET", "/listings", name, token);
+
+        // 3. Targeted lookup for the first generated id.
+        let matchedListingRes: unknown = null;
+        if (generatedIds[0]) {
+          const r = await pl("GET", `/listings?listing_id=${encodeURIComponent(generatedIds[0])}`, name, token);
+          matchedListingRes = { status: r.status, ok: r.ok, body: r.body };
+        }
+
+        // 4. Cross-reference: which of our generated ids appear in PriceLabs' dump.
+        const accountIds: string[] = (() => {
+          const root = asJson(accountListingsRes.body);
+          const arr =
+            asJsonArray(root?.listings) ||
+            asJsonArray(root?.data) ||
+            (Array.isArray(accountListingsRes.body) ? (accountListingsRes.body as Json[]) : []);
+          return arr
+            .map((l) => (typeof l?.listing_id === "string" ? (l.listing_id as string) : null))
+            .filter((x): x is string => !!x);
+        })();
+        const overlap = generatedIds.filter((id) => accountIds.includes(id));
+
+        return json({
+          success: true,
+          property_id: propertyId,
+          generated_ids: generatedIds,
+          local_payload: localPayload,
+          local_payload_error: localErr,
+          account_listings: {
+            status: accountListingsRes.status,
+            ok: accountListingsRes.ok,
+            body: accountListingsRes.body,
+          },
+          account_listing_ids: accountIds,
+          overlap_with_generated: overlap,
+          matched_listing: matchedListingRes,
+        });
+      }
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }
