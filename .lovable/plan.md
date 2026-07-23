@@ -1,28 +1,38 @@
-## Finding
-`commission_rate` and `transaction_fee_percentage` are **not** the same:
+## Problem
 
-- **Commission rate** — ROL's revenue-share on the booking value (marketplace fee). Applied by `default`, `widget`, `rolos_pms`, `portfolio_aggregator`, `volume_tiered`.
-- **Transaction fee %** — Payment-processing fee charged when Rooms Online PayFast is the payment facilitator (pass-through of card/gateway cost). Applied by `payment_facilitator` strategy and whenever `payment_facilitator_enabled` is on.
+The "Widget — Tiered Commission" strategy shows no tier editor in **Admin → Billing Defaults**, and the tiered fields under a property's **Billing Config** also stay hidden for it. The billing engine (`calcWidget` in `supabase/functions/calculate-billing/index.ts`) already reads widget tiers, but from a different source than the other tiered strategies:
 
-Both can apply on the same booking. Keep both, but clarify the UI so they can't be confused.
+- `rolos_pms` / `volume_tiered` → **room-count tiers** stored as `tier_pricing_json` (min_rooms / max_rooms / monthly_fee). This is what `isTierStrategy()` gates and what `TierCriteriaEditor` edits.
+- `widget` → **monthly-booking-volume tiers** stored as JSON rows in `billing_mappings` (`strategy='widget'`, `field='tier_threshold'`, `value='{"0":10,"20":8,"50":6}'` — threshold → commission %). There is currently no UI anywhere to edit this table.
 
-## Changes
+So the tiers exist in the engine but there is no admin surface to configure them.
 
-### `src/components/property/BillingConfigTab.tsx`
-1. Relabel and add helper text under each input:
-   - **Commission rate** → *"Commission rate (% of booking)"* with hint: *"ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS, Portfolio Aggregator and Volume Tiered strategies."*
-   - **Transaction fee %** → *"Payment facilitator fee (% of transaction)"* with hint: *"Card/gateway pass-through charged only when Rooms Online PayFast processes the payment."*
-2. Conditionally hide the field that doesn't apply to the selected strategy:
-   - Hide **Commission rate** when strategy is `enterprise_white_label` or `payment_facilitator` (they don't take commission).
-   - Hide **Transaction fee %** unless `payment_facilitator_enabled` is true OR strategy is `payment_facilitator`. Otherwise show a read-only note that it's only active when the Payment Facilitator toggle is on.
-3. Add a one-line info banner at the top of the fees section: *"Commission and Payment Facilitator fee are separate charges and can both apply on the same booking."*
+## Plan
 
-### `src/components/property/AdminOverviewTab.tsx`
-Update the existing Billing Model rows to mirror the new labels ("Commission (booking %)" / "Payment facilitator fee (transaction %)") and hide each row when it isn't applicable to the current strategy/facilitator toggle.
+1. **New editor component** `src/components/admin/billing/WidgetTierEditor.tsx`
+   - Rows of `{ min_bookings_per_month, commission_rate_pct }` with add/remove.
+   - Reads and writes `billing_mappings` where `strategy='widget'` and `field='tier_threshold'` (single row whose `value` is the threshold→rate JSON the edge function already parses — no schema change).
+   - Save serialises the rows back to the same `{ threshold: rate }` shape.
 
-### `src/pages/AdminBillingDefaults.tsx`
-Same label refresh on the global defaults inputs (`default_commission_rate`, `default_transaction_fee`) so the terminology is consistent.
+2. **Global defaults page** `src/pages/AdminBillingDefaults.tsx`
+   - In the widget strategy card, render `<WidgetTierEditor />` alongside the existing commission/subscription fields (independent of `isTierStrategy`, which stays room-count only).
+   - Update the strategy description to say "volume-based commission tiers, editable below".
+
+3. **Per-property page** `src/components/property/BillingConfigTab.tsx`
+   - Under the widget strategy, show a read-only summary of the current global widget tiers with a link to Admin Billing Defaults (tiers stay global for widget — matches how `calcWidget` reads them).
+
+4. **Admin overview** `src/components/property/AdminOverviewTab.tsx`
+   - In the "Billing Model" section for widget properties, render the resolved current tier and monthly-volume threshold (using the same JSON) so admins can see which rate is active.
+
+5. No database migration required — `billing_mappings` already has `(strategy, field, value)` and RLS.
+
+## Technical notes
+
+- `TIER_STRATEGIES` in `src/lib/billingTierResolver.ts` stays unchanged; room-count tier logic is not applied to widget.
+- The widget JSON kept as-is (`{ threshold: rate }`) so the edge function needs no changes.
+- Editor upserts one `billing_mappings` row keyed on `(strategy='widget', field='tier_threshold')`.
 
 ## Out of scope
-- No schema changes; both columns stay.
-- No changes to `calculate-billing` / `calculate-commission` edge functions — they already treat these as distinct fees.
+
+- Per-property widget tier overrides (raise as a follow-up if wanted).
+- Backfilling default widget tiers into `billing_mappings` for existing installs — the editor will seed defaults on first save.
