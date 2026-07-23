@@ -50,6 +50,10 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
   const canManage = isAdmin || isDev || isFearlessLeader;
   const qc = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugData, setDebugData] = useState<unknown>(null);
+  const [debugError, setDebugError] = useState<string | null>(null);
 
   // Load property + config
   const { data: property, isLoading: pLoading } = useQuery({
