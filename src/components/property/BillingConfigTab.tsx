@@ -128,6 +128,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
       transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
       payment_facilitator_enabled: facilitatorActive,
+      byo_gateway_monthly_fee: !facilitatorActive && byoGatewayFee ? parseFloat(byoGatewayFee) : null,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       pricelabs_allowed: pricelabsAllowed,
