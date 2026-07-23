@@ -168,11 +168,12 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
   const today = new Date().toISOString().slice(0, 10);
   const endDate = new Date(Date.now() + 365 * 86400_000).toISOString().slice(0, 10);
   const syncBody = {
-    sync: {
-      listing_ids: listingIds,
-      date_from: today,
-      date_to: endDate,
-    },
+    listings: listingIds.map((id) => ({
+      listing_id: id,
+      pms: "rolos",
+      dateFrom: today,
+      dateTo: endDate,
+    })),
   };
   const priced = await pl("POST", "/get_prices", name, token, syncBody);
   if (!priced.ok) return { success: false, status: priced.status, error: plError("Pull suggestions failed", priced) };
@@ -391,7 +392,8 @@ Deno.serve(async (req) => {
       }
 
       case "get_prices": {
-        const body = payload.body ?? { sync: { listing_ids: payload.listing_ids ?? [] } };
+        const ids = (payload.listing_ids as string[]) ?? [];
+        const body = payload.body ?? { listings: ids.map((id) => ({ listing_id: id, pms: "rolos" })) };
         const r = await pl("POST", "/get_prices", name, token, body);
         return json({ success: r.ok, status: r.status, data: r.body });
       }
