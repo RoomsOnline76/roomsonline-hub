@@ -1,0 +1,363 @@
+import { useState, useEffect } from "react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, Info } from "lucide-react";
+import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
+import { DEFAULT_TIERS, PricingTier } from "@/lib/billingTierResolver";
+
+/**
+ * Shape of a billing configuration — either a preset (Admin → Billing Defaults)
+ * or a per-property override. Every dimension is optional and controlled by an
+ * independent toggle.
+ */
+export interface BillingConfigValue {
+  // Listing commission (flat %)
+  commission_enabled: boolean;
+  commission_rate: string;
+  // Widget / WBE tiered commission (uses global widget tiers)
+  widget_tiers_enabled: boolean;
+  // PMS subscription (monthly base + per-unit channel manager fee)
+  pms_enabled: boolean;
+  subscription_fee: string;
+  channel_per_unit: string;
+  // Per-unit volume tier (uses `tier_pricing_json`)
+  volume_tiers_enabled: boolean;
+  tier_pricing_json: PricingTier[] | null;
+  // ROL payment facilitator surcharge (%)
+  facilitator_surcharge_enabled: boolean;
+  transaction_fee: string;
+  // BYO payment gateway monthly add-on (ZAR)
+  byo_gateway_enabled: boolean;
+  byo_gateway_fee: string;
+  // White-label add-on
+  white_label_enabled: boolean;
+  white_label_monthly_fee: string;
+  white_label_setup_fee: string;
+  white_label_billing_mode: "monthly" | "annual";
+  // PriceLabs add-on (property-level)
+  pricelabs_enabled: boolean;
+  pricelabs_monthly_fee: string;
+}
+
+export function emptyBuilderValue(): BillingConfigValue {
+  return {
+    commission_enabled: false,
+    commission_rate: "",
+    widget_tiers_enabled: false,
+    pms_enabled: false,
+    subscription_fee: "",
+    channel_per_unit: "",
+    volume_tiers_enabled: false,
+    tier_pricing_json: null,
+    facilitator_surcharge_enabled: false,
+    transaction_fee: "",
+    byo_gateway_enabled: false,
+    byo_gateway_fee: "",
+    white_label_enabled: false,
+    white_label_monthly_fee: "",
+    white_label_setup_fee: "",
+    white_label_billing_mode: "monthly",
+    pricelabs_enabled: false,
+    pricelabs_monthly_fee: "",
+  };
+}
+
+interface BuilderProps {
+  value: BillingConfigValue;
+  onChange: (next: BillingConfigValue) => void;
+  /** When true, exposes admin-only controls (global widget tier editor). */
+  scope: "preset" | "property";
+  /** Optional platform defaults for placeholders. */
+  placeholders?: Partial<Record<keyof BillingConfigValue, string | number>>;
+  /** Show the "Payment model" separator context. Defaults to true. */
+  showPaymentInfo?: boolean;
+}
+
+function ToggleRow({
+  title,
+  description,
+  enabled,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description?: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={`rounded-md border p-3 space-y-3 ${enabled ? "" : "bg-muted/20"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Label className="text-sm font-medium">{title}</Label>
+          {description && <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>}
+        </div>
+        <Switch checked={enabled} onCheckedChange={onToggle} />
+      </div>
+      {enabled && children ? <div className="pt-1 space-y-2">{children}</div> : null}
+    </div>
+  );
+}
+
+export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true }: BuilderProps) {
+  const set = <K extends keyof BillingConfigValue>(key: K, v: BillingConfigValue[K]) =>
+    onChange({ ...value, [key]: v });
+
+  const tiers = value.tier_pricing_json ?? [];
+  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
+    const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
+    set("tier_pricing_json", base.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+  const addTier = () => {
+    const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
+    const last = base[base.length - 1];
+    const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
+    set("tier_pricing_json", [...base, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }]);
+  };
+  const removeTier = (idx: number) => {
+    const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
+    set("tier_pricing_json", base.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* ── Commission ─────────────────────────────────────────────── */}
+      <ToggleRow
+        title="Listing commission"
+        description="Flat % ROL earns per booking on the standard listing."
+        enabled={value.commission_enabled}
+        onToggle={(v) => set("commission_enabled", v)}
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="0.5" min="0" max="100"
+            value={value.commission_rate}
+            onChange={(e) => set("commission_rate", e.target.value)}
+            placeholder={String(placeholders.commission_rate ?? "10")}
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+        </div>
+      </ToggleRow>
+
+      {/* ── Widget tiered commission ───────────────────────────────── */}
+      <ToggleRow
+        title="Widget — tiered commission"
+        description="Property uses ROL's booking engine (WBE) on their own site. Commission % follows the monthly volume tiers."
+        enabled={value.widget_tiers_enabled}
+        onToggle={(v) => set("widget_tiers_enabled", v)}
+      >
+        {scope === "preset" ? (
+          <WidgetTierEditor />
+        ) : (
+          <div className="rounded-md border border-dashed bg-muted/30 p-2 text-[11px] text-muted-foreground flex items-start gap-1.5">
+            <Info className="h-3 w-3 mt-0.5 shrink-0" />
+            Tier thresholds are managed centrally in Admin → Billing Defaults.
+          </div>
+        )}
+      </ToggleRow>
+
+      {/* ── PMS subscription ───────────────────────────────────────── */}
+      <ToggleRow
+        title="PMS subscription (ROL'OS)"
+        description="Monthly base fee for the ROL'OS PMS. Optional per-unit channel-manager fee."
+        enabled={value.pms_enabled}
+        onToggle={(v) => set("pms_enabled", v)}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.subscription_fee}
+              onChange={(e) => set("subscription_fee", e.target.value)}
+              placeholder={String(placeholders.subscription_fee ?? "450")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Channel mgr / unit / mo</Label>
+            <Input
+              type="number" step="10" min="0"
+              value={value.channel_per_unit}
+              onChange={(e) => set("channel_per_unit", e.target.value)}
+              placeholder={String(placeholders.channel_per_unit ?? "60")}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+      </ToggleRow>
+
+      {/* ── Per-unit volume tiers ──────────────────────────────────── */}
+      <ToggleRow
+        title="Per-unit volume tiers"
+        description="Monthly fee scales with the property's active room/unit count."
+        enabled={value.volume_tiers_enabled}
+        onToggle={(v) => {
+          set("volume_tiers_enabled", v);
+          if (v && (value.tier_pricing_json ?? []).length === 0) {
+            set("tier_pricing_json", [...DEFAULT_TIERS]);
+          }
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-muted-foreground">Configure room-count → monthly fee brackets.</p>
+          <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
+            <Plus className="h-3 w-3 mr-1" /> Add tier
+          </Button>
+        </div>
+        {tiers.length ? (
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+              <span>Min rooms</span><span>Max rooms</span><span>ZAR / mo</span><span />
+            </div>
+            {tiers.map((t, i) => (
+              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
+                <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
+                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] italic text-muted-foreground">Add at least one tier.</p>
+        )}
+      </ToggleRow>
+
+      {/* ── Payment model separator ────────────────────────────────── */}
+      {showPaymentInfo && (
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5 text-[11px] text-blue-900 dark:text-blue-200 flex items-start gap-1.5">
+          <Info className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>
+            <strong>Payment model.</strong> Enable either the <em>facilitator surcharge %</em> (ROL processes payments) or the{" "}
+            <em>BYO gateway add-on</em> (owner uses their own provider) — usually not both.
+          </span>
+        </div>
+      )}
+
+      {/* ── ROL facilitator surcharge ──────────────────────────────── */}
+      <ToggleRow
+        title="ROL payment facilitator surcharge"
+        description="Per-booking % added when ROL processes payments via PayFast."
+        enabled={value.facilitator_surcharge_enabled}
+        onToggle={(v) => set("facilitator_surcharge_enabled", v)}
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="0.1" min="0" max="100"
+            value={value.transaction_fee}
+            onChange={(e) => set("transaction_fee", e.target.value)}
+            placeholder={String(placeholders.transaction_fee ?? "2.5")}
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+        </div>
+      </ToggleRow>
+
+      {/* ── BYO gateway add-on ─────────────────────────────────────── */}
+      <ToggleRow
+        title="BYO payment gateway add-on"
+        description="Flat monthly fee when the owner connects their own gateway. ROL does not handle the money."
+        enabled={value.byo_gateway_enabled}
+        onToggle={(v) => set("byo_gateway_enabled", v)}
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="50" min="0"
+            value={value.byo_gateway_fee}
+            onChange={(e) => set("byo_gateway_fee", e.target.value)}
+            placeholder={String(placeholders.byo_gateway_fee ?? "250")}
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">ZAR/mo</span>
+        </div>
+      </ToggleRow>
+
+      {/* ── White-label add-on ─────────────────────────────────────── */}
+      <ToggleRow
+        title="White-label domain & branding"
+        description="Custom booking subdomain, full brand override on booking, embeds & emails."
+        enabled={value.white_label_enabled}
+        onToggle={(v) => set("white_label_enabled", v)}
+      >
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.white_label_monthly_fee}
+              onChange={(e) => set("white_label_monthly_fee", e.target.value)}
+              placeholder={String(placeholders.white_label_monthly_fee ?? "450")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Setup (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.white_label_setup_fee}
+              onChange={(e) => set("white_label_setup_fee", e.target.value)}
+              placeholder={String(placeholders.white_label_setup_fee ?? "1500")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Billing mode</Label>
+            <select
+              value={value.white_label_billing_mode}
+              onChange={(e) => set("white_label_billing_mode", e.target.value as "monthly" | "annual")}
+              className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+            >
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </select>
+          </div>
+        </div>
+      </ToggleRow>
+
+      {/* ── PriceLabs add-on ───────────────────────────────────────── */}
+      <ToggleRow
+        title="PriceLabs revenue management"
+        description="Dynamic pricing suggestions surfaced in ROL'OS. Flat per activated property."
+        enabled={value.pricelabs_enabled}
+        onToggle={(v) => set("pricelabs_enabled", v)}
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="50" min="0"
+            value={value.pricelabs_monthly_fee}
+            onChange={(e) => set("pricelabs_monthly_fee", e.target.value)}
+            placeholder={String(placeholders.pricelabs_monthly_fee ?? "250")}
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">ZAR/mo</span>
+        </div>
+      </ToggleRow>
+    </div>
+  );
+}
+
+/** One-line human summary of the enabled toggles in a builder value. */
+export function summarizeBuilderValue(v: BillingConfigValue): string {
+  const parts: string[] = [];
+  if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% commission`);
+  if (v.widget_tiers_enabled) parts.push("widget tiered commission");
+  if (v.pms_enabled) {
+    const sub = v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription";
+    const cm = v.channel_per_unit ? ` + R${v.channel_per_unit}/unit` : "";
+    parts.push(sub + cm);
+  }
+  if (v.volume_tiers_enabled) parts.push("per-unit volume tiers");
+  if (v.facilitator_surcharge_enabled && v.transaction_fee) parts.push(`${v.transaction_fee}% ROL surcharge`);
+  if (v.byo_gateway_enabled && v.byo_gateway_fee) parts.push(`R${v.byo_gateway_fee}/mo BYO gateway`);
+  if (v.white_label_enabled && v.white_label_monthly_fee) parts.push(`R${v.white_label_monthly_fee}/${v.white_label_billing_mode === "annual" ? "yr" : "mo"} white-label`);
+  if (v.pricelabs_enabled && v.pricelabs_monthly_fee) parts.push(`R${v.pricelabs_monthly_fee}/mo PriceLabs`);
+  return parts.length ? parts.join(" · ") : "no components enabled";
+}
