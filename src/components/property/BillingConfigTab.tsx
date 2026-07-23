@@ -90,6 +90,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setPaymentFacilitator(config.payment_facilitator_enabled || false);
       setWhiteLabel(config.white_label_allowed || false);
       setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
+      setPricelabsAllowed((config as any).pricelabs_allowed || false);
+      setPricelabsFee((config as any).pricelabs_monthly_fee?.toString() || "");
       setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
       setBillingStartDate(config.billing_start_date || "");
       setTierScope(((config as any).tier_scope as "portfolio" | "property") || "portfolio");
