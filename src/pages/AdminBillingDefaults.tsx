@@ -22,11 +22,12 @@ const STRATEGY_LABELS: Record<string, { label: string; description: string }> = 
   default: { label: "Default (Commission)", description: "Standard listing / PMS commission model" },
   widget: { label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows" },
   rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager (2% PMS commission)" },
-  portfolio_aggregator: { label: "Portfolio Aggregator", description: "Shared subscription across multiple properties, blended commission" },
   enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup, zero commission" },
   volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units" },
   payment_facilitator: { label: "Payment Facilitator Only", description: "No listing/PMS fees — transaction fee on PayFast only" },
 };
+const HIDDEN_STRATEGIES = new Set(["portfolio_aggregator"]);
+
 
 function toStr(v: number | null | undefined): string {
   return v == null ? "" : String(v);
@@ -187,6 +188,12 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   const [pricelabsSetup, setPricelabsSetup] = useState(toStr(row.pricelabs_setup_fee ?? null));
   const [channelPerUnit, setChannelPerUnit] = useState(toStr(row.channel_manager_per_unit_fee ?? null));
 
+  const [aggMode, setAggMode] = useState<"none" | "monthly" | "once_off">(
+    ((row as any).portfolio_aggregator_billing_mode as "none" | "monthly" | "once_off") || "none"
+  );
+  const [aggMonthly, setAggMonthly] = useState(toStr((row as any).portfolio_aggregator_monthly_default ?? null));
+  const [aggSetup, setAggSetup] = useState(toStr((row as any).portfolio_aggregator_setup_default ?? null));
+
   const handleSave = () => {
     onSave({
       id: row.id,
@@ -200,6 +207,9 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
       pricelabs_monthly_fee: toNum(pricelabsMonthly),
       pricelabs_setup_fee: toNum(pricelabsSetup),
       channel_manager_per_unit_fee: toNum(channelPerUnit),
+      portfolio_aggregator_billing_mode: aggMode,
+      portfolio_aggregator_monthly_default: aggMode === "monthly" ? toNum(aggMonthly) : null,
+      portfolio_aggregator_setup_default: aggMode === "once_off" ? toNum(aggSetup) : null,
     } as any);
   };
 
@@ -257,6 +267,40 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
           <div className="space-y-1">
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Fee per unit (ZAR/mo)</Label>
             <Input type="number" min="0" step="10" value={channelPerUnit} onChange={(e) => setChannelPerUnit(e.target.value)} placeholder="60" className="h-8 text-sm" />
+          </div>
+        </div>
+      </div>
+      <div className="rounded-md border p-3 space-y-2">
+        <div>
+          <Label className="text-sm font-medium flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5 text-primary" />
+            Portfolio Aggregator (listing multiple owners together)
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            Charged at the <strong>portfolio</strong> level (not per property). Member properties keep their own primary billing strategy.
+            Actual mode &amp; fees are set on each portfolio in <Badge variant="outline" className="text-[10px]">/admin/portfolios</Badge>; the values below are the platform-wide defaults.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Default mode</Label>
+            <select
+              value={aggMode}
+              onChange={(e) => setAggMode(e.target.value as any)}
+              className="h-8 w-full text-sm rounded-md border border-input bg-background px-2"
+            >
+              <option value="none">Disabled (no aggregator fee)</option>
+              <option value="monthly">Monthly fee</option>
+              <option value="once_off">Once-off listing fee</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly default (ZAR/mo)</Label>
+            <Input type="number" min="0" step="50" value={aggMonthly} onChange={(e) => setAggMonthly(e.target.value)} placeholder="0" disabled={aggMode !== "monthly"} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Once-off default (ZAR)</Label>
+            <Input type="number" min="0" step="50" value={aggSetup} onChange={(e) => setAggSetup(e.target.value)} placeholder="0" disabled={aggMode !== "once_off"} className="h-8 text-sm" />
           </div>
         </div>
       </div>
@@ -462,7 +506,7 @@ export default function AdminBillingDefaults() {
 
           <TabsContent value="strategies" className="mt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {defaults.map((item) => (
+              {defaults.filter((d) => !HIDDEN_STRATEGIES.has(d.strategy)).map((item) => (
                 <StrategyCard key={item.id} item={item} onSave={(d) => update.mutate(d)} saving={update.isPending} />
               ))}
             </div>

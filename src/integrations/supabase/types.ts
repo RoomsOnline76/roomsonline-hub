@@ -338,6 +338,9 @@ export type Database = {
           id: string
           notes: string | null
           payment_facilitator_fee: number | null
+          portfolio_aggregator_billing_mode: string | null
+          portfolio_aggregator_monthly_default: number | null
+          portfolio_aggregator_setup_default: number | null
           pricelabs_monthly_fee: number | null
           pricelabs_setup_fee: number | null
           referral_clawback_days: number | null
@@ -365,6 +368,9 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          portfolio_aggregator_billing_mode?: string | null
+          portfolio_aggregator_monthly_default?: number | null
+          portfolio_aggregator_setup_default?: number | null
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
@@ -392,6 +398,9 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_facilitator_fee?: number | null
+          portfolio_aggregator_billing_mode?: string | null
+          portfolio_aggregator_monthly_default?: number | null
+          portfolio_aggregator_setup_default?: number | null
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
@@ -5317,6 +5326,10 @@ export type Database = {
       }
       property_portfolios: {
         Row: {
+          aggregator_activated_at: string | null
+          aggregator_billing_mode: string
+          aggregator_monthly_fee: number | null
+          aggregator_setup_fee: number | null
           cloudflare_custom_hostname_id: string | null
           created_at: string | null
           custom_domain_error: string | null
@@ -5334,6 +5347,10 @@ export type Database = {
           white_label_domain_verified_at: string | null
         }
         Insert: {
+          aggregator_activated_at?: string | null
+          aggregator_billing_mode?: string
+          aggregator_monthly_fee?: number | null
+          aggregator_setup_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           created_at?: string | null
           custom_domain_error?: string | null
@@ -5351,6 +5368,10 @@ export type Database = {
           white_label_domain_verified_at?: string | null
         }
         Update: {
+          aggregator_activated_at?: string | null
+          aggregator_billing_mode?: string
+          aggregator_monthly_fee?: number | null
+          aggregator_setup_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           created_at?: string | null
           custom_domain_error?: string | null

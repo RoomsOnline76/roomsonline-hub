@@ -47,6 +47,10 @@ interface Portfolio {
   owner_id: string | null;
   created_at: string;
   metadata?: { branding?: PortfolioBranding } | null;
+  aggregator_billing_mode?: "none" | "monthly" | "once_off" | null;
+  aggregator_monthly_fee?: number | null;
+  aggregator_setup_fee?: number | null;
+  aggregator_activated_at?: string | null;
 }
 
 interface PortfolioMember {
@@ -100,6 +104,9 @@ export default function AdminPortfolios() {
   const [pinnedFeaturedIds, setPinnedFeaturedIds] = useState<string[]>([]);
   const [allowPropertyBrandOverride, setAllowPropertyBrandOverride] = useState(false);
   const [reviewIds, setReviewIds] = useState<ReviewIds>({});
+  const [aggMode, setAggMode] = useState<"none" | "monthly" | "once_off">("none");
+  const [aggMonthly, setAggMonthly] = useState<string>("");
+  const [aggSetup, setAggSetup] = useState<string>("");
   const logoInputRef = useRef<HTMLInputElement>(null);
   const heroVideoInputRef = useRef<HTMLInputElement>(null);
 
@@ -172,9 +179,14 @@ export default function AdminPortfolios() {
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const { data: user } = await supabase.auth.getUser();
+      const aggPayload = {
+        aggregator_billing_mode: aggMode,
+        aggregator_monthly_fee: aggMode === "monthly" ? (aggMonthly === "" ? null : Number(aggMonthly)) : null,
+        aggregator_setup_fee: aggMode === "once_off" ? (aggSetup === "" ? null : Number(aggSetup)) : null,
+      };
       const { data: portfolio, error } = await supabase
         .from("property_portfolios" as any)
-        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding } } as any)
+        .insert({ name: formName, slug: autoSlug, owner_id: user?.user?.id, metadata: { branding }, ...aggPayload } as any)
         .select()
         .single();
       if (error) throw error;
@@ -208,9 +220,14 @@ export default function AdminPortfolios() {
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
+      const aggPayload = {
+        aggregator_billing_mode: aggMode,
+        aggregator_monthly_fee: aggMode === "monthly" ? (aggMonthly === "" ? null : Number(aggMonthly)) : null,
+        aggregator_setup_fee: aggMode === "once_off" ? (aggSetup === "" ? null : Number(aggSetup)) : null,
+      };
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding } } as any)
+        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
@@ -262,6 +279,9 @@ export default function AdminPortfolios() {
     setPinnedFeaturedIds([]);
     setAllowPropertyBrandOverride(false);
     setReviewIds({});
+    setAggMode("none");
+    setAggMonthly("");
+    setAggSetup("");
   };
 
   const openEdit = (p: Portfolio) => {
@@ -284,6 +304,9 @@ export default function AdminPortfolios() {
     setBrandHeroVideoUrl(b?.hero_video_url || "");
     setPinnedFeaturedIds(b?.pinned_featured_ids || []);
     setAllowPropertyBrandOverride(b?.allow_property_brand_override || false);
+    setAggMode((p.aggregator_billing_mode as any) || "none");
+    setAggMonthly(p.aggregator_monthly_fee != null ? String(p.aggregator_monthly_fee) : "");
+    setAggSetup(p.aggregator_setup_fee != null ? String(p.aggregator_setup_fee) : "");
     // Populate review IDs from property amenities
     const ids: ReviewIds = {};
     memberPropIds.forEach((pid) => {
@@ -623,6 +646,56 @@ export default function AdminPortfolios() {
               <X className="h-3 w-3" />
             </Button>
           </div>
+        )}
+      </div>
+
+      {/* Portfolio Aggregator billing (admin add-on) */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <Label className="text-xs font-semibold">Portfolio Aggregator Billing</Label>
+        <p className="text-[10px] text-muted-foreground">
+          Charged at the portfolio level in addition to each member property's own billing strategy.
+          Choose <strong>Monthly</strong> for a recurring listing fee or <strong>Once-off</strong> for a one-time setup fee.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Mode</Label>
+            <select
+              value={aggMode}
+              onChange={(e) => setAggMode(e.target.value as any)}
+              className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+            >
+              <option value="none">Disabled</option>
+              <option value="monthly">Monthly fee</option>
+              <option value="once_off">Once-off listing fee</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Monthly (ZAR)</Label>
+            <Input
+              type="number" min="0" step="50"
+              value={aggMonthly}
+              onChange={(e) => setAggMonthly(e.target.value)}
+              disabled={aggMode !== "monthly"}
+              className="h-8 text-xs"
+              placeholder="0"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground">Once-off (ZAR)</Label>
+            <Input
+              type="number" min="0" step="50"
+              value={aggSetup}
+              onChange={(e) => setAggSetup(e.target.value)}
+              disabled={aggMode !== "once_off"}
+              className="h-8 text-xs"
+              placeholder="0"
+            />
+          </div>
+        </div>
+        {editPortfolio?.aggregator_activated_at && aggMode === "once_off" && (
+          <p className="text-[10px] text-amber-600">
+            Once-off fee already billed on {new Date(editPortfolio.aggregator_activated_at).toLocaleDateString()} — no further charges.
+          </p>
         )}
       </div>
 

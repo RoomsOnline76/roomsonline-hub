@@ -95,7 +95,8 @@ serve(async (req) => {
         result = await calcRolosPms(bookingAmount, config, globalDefaults, resolve, event_type);
         break;
       case 'portfolio_aggregator':
-        result = await calcPortfolio(bookingAmount, config, globalDefaults, resolve);
+        // Legacy strategy — aggregator is now a portfolio-level add-on; route booking commission through default.
+        result = await calcDefault(supabase, property_id, booking, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'enterprise_white_label':
         result = await calcEnterprise(config, globalDefaults, resolve, event_type);
@@ -169,6 +170,83 @@ serve(async (req) => {
             calculated_by: 'billing-calc-pricelabs',
             metadata: { source: 'pricelabs_addon', monthly_fee: plFee },
           });
+      }
+    }
+
+    // Portfolio Aggregator add-on: log a monthly / setup fee once per portfolio the property belongs to
+    if (event_type === 'subscription') {
+      try {
+        const { data: memberships } = await supabase
+          .from('property_portfolio_members')
+          .select('portfolio_id')
+          .eq('property_id', property_id);
+        const portfolioIds = (memberships || []).map((m: any) => m.portfolio_id).filter(Boolean);
+        if (portfolioIds.length) {
+          const { data: portfolios } = await supabase
+            .from('property_portfolios')
+            .select('id, aggregator_billing_mode, aggregator_monthly_fee, aggregator_setup_fee, aggregator_activated_at')
+            .in('id', portfolioIds);
+          const { data: aggDefaults } = await supabase
+            .from('billing_global_defaults')
+            .select('portfolio_aggregator_billing_mode, portfolio_aggregator_monthly_default, portfolio_aggregator_setup_default')
+            .limit(1)
+            .maybeSingle();
+          for (const p of portfolios || []) {
+            const mode = (p as any).aggregator_billing_mode || (aggDefaults as any)?.portfolio_aggregator_billing_mode || 'none';
+            if (mode === 'none') continue;
+            // Ensure we only bill each portfolio once per subscription cycle → use the alphabetically first member as the anchor
+            const { data: firstMember } = await supabase
+              .from('property_portfolio_members')
+              .select('property_id')
+              .eq('portfolio_id', (p as any).id)
+              .order('property_id')
+              .limit(1)
+              .maybeSingle();
+            if ((firstMember as any)?.property_id !== property_id) continue;
+
+            if (mode === 'monthly') {
+              const monthly = resolve(
+                (p as any).aggregator_monthly_fee,
+                (aggDefaults as any)?.portfolio_aggregator_monthly_default,
+                0
+              );
+              if (monthly > 0) {
+                await supabase.from('billing_transactions').insert({
+                  property_id,
+                  owner_id: config?.owner_id || null,
+                  type: 'portfolio_aggregator_fee',
+                  amount: monthly,
+                  currency: 'ZAR',
+                  calculated_by: 'billing-calc-portfolio-aggregator',
+                  metadata: { source: 'portfolio_aggregator_addon', portfolio_id: (p as any).id, mode, monthly_fee: monthly },
+                });
+              }
+            } else if (mode === 'once_off' && !(p as any).aggregator_activated_at) {
+              const setup = resolve(
+                (p as any).aggregator_setup_fee,
+                (aggDefaults as any)?.portfolio_aggregator_setup_default,
+                0
+              );
+              if (setup > 0) {
+                await supabase.from('billing_transactions').insert({
+                  property_id,
+                  owner_id: config?.owner_id || null,
+                  type: 'portfolio_aggregator_setup',
+                  amount: setup,
+                  currency: 'ZAR',
+                  calculated_by: 'billing-calc-portfolio-aggregator',
+                  metadata: { source: 'portfolio_aggregator_addon', portfolio_id: (p as any).id, mode, setup_fee: setup },
+                });
+                await supabase
+                  .from('property_portfolios')
+                  .update({ aggregator_activated_at: new Date().toISOString() } as any)
+                  .eq('id', (p as any).id);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('portfolio aggregator billing skipped:', e);
       }
     }
 
@@ -311,15 +389,8 @@ async function calcRolosPms(
   };
 }
 
-async function calcPortfolio(
-  amount: number, config: any, globals: any, resolve: ResolveFn
-): Promise<BillingResult> {
-  const rate = resolve(config?.commission_rate, globals?.default_commission_rate, 5);
-  return {
-    amount: amount * (rate / 100),
-    type: 'commission',
-    metadata: { rate, source: 'portfolio_aggregator' },
-  };
+// (Legacy calcPortfolio removed — Portfolio Aggregator is now an add-on, not a strategy.)
+
 }
 
 async function calcEnterprise(config: any, globals: any, resolve: ResolveFn, eventType: string): Promise<BillingResult> {

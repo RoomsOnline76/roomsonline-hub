@@ -18,6 +18,9 @@ export interface BillingDefault {
   pricelabs_monthly_fee?: number | null;
   pricelabs_setup_fee?: number | null;
   channel_manager_per_unit_fee?: number | null;
+  portfolio_aggregator_billing_mode?: "none" | "monthly" | "once_off" | null;
+  portfolio_aggregator_monthly_default?: number | null;
+  portfolio_aggregator_setup_default?: number | null;
   sales_rep_tier_criteria_json?: any;
   payment_facilitator_fee: number | null;
   referral_first_year_rate: number | null;

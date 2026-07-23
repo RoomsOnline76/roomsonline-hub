@@ -30,10 +30,10 @@ const STRATEGY_LABELS: Record<string, string> = {
   default: "Default — Listing Commission",
   widget: "Widget — Tiered Commission",
   rolos_pms: "ROL'OS PMS — Subscription",
-  portfolio_aggregator: "Portfolio Aggregator",
   enterprise_white_label: "Enterprise White-Label",
   volume_tiered: "Volume Tiered (Per Unit)",
   payment_facilitator: "Payment Facilitator Only",
+  portfolio_aggregator: "Default — Listing Commission", // legacy alias
 };
 
 const DOMAIN_STATUS_META: Record<
@@ -140,7 +140,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const costLines: { label: string; amount: number; once?: boolean }[] = [];
 
   const subMonthly = Number(config?.subscription_fee_monthly ?? 0);
-  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "portfolio_aggregator" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
+  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
     costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy]})`, amount: subMonthly });
   }
 
@@ -293,7 +293,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
         </CardHeader>
         <CardContent className="pt-0">
           <Row label="Strategy" value={<Badge variant="outline">{strategyLabel}</Badge>} />
-          {["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy) && (
+          {["default", "widget", "rolos_pms", "volume_tiered"].includes(strategy) && (
             <Row
               label="Commission (booking %)"
               value={config?.commission_rate != null ? `${config.commission_rate}%` : <Empty />}

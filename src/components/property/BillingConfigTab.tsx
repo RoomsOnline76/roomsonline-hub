@@ -21,7 +21,6 @@ const STRATEGY_OPTIONS = [
   { value: "default", label: "Default — Listing Commission", description: "10% commission on direct bookings via ROL widgets. No fixed monthly fees." },
   { value: "widget", label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows. No subscription." },
   { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager. Reduced 2% PMS commission on bookings." },
-  { value: "portfolio_aggregator", label: "Portfolio Aggregator", description: "Shared subscription across multiple properties with blended, reduced commission." },
   { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup fee. Zero commission on bookings." },
   { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units. No booking commission." },
   { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees — only the payment transaction fee on Rooms Online PayFast." },
@@ -197,7 +196,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     );
   }
 
-  const showCommission = ["default", "widget", "rolos_pms", "portfolio_aggregator", "volume_tiered"].includes(strategy);
+  const showCommission = ["default", "widget", "rolos_pms", "volume_tiered"].includes(strategy);
   const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
   const showTransactionFee = facilitatorActive || strategy === "payment_facilitator";
   const showVolumeTiers = strategy === "volume_tiered";
@@ -251,7 +250,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               className="text-xs"
             />
             <p className="text-[10px] text-muted-foreground">
-              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS, Portfolio Aggregator and Volume Tiered strategies.
+              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS and Volume Tiered strategies.
             </p>
             <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
           </div>
