@@ -174,6 +174,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
   }
 
+  // BYO payment gateway monthly add-on (only when owner uses their own provider)
+  if (customProvider) {
+    const byoFee = Number(
+      (config as any)?.byo_gateway_monthly_fee ??
+        (wlDomain as any)?.byo_gateway_monthly_fee ??
+        0
+    );
+    if (byoFee > 0) {
+      costLines.push({ label: "BYO payment gateway add-on", amount: byoFee });
+    }
+  }
+
   const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
   const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
   const fmt = (n: number) => `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
