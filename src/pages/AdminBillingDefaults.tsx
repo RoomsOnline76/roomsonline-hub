@@ -188,6 +188,12 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   const [pricelabsSetup, setPricelabsSetup] = useState(toStr(row.pricelabs_setup_fee ?? null));
   const [channelPerUnit, setChannelPerUnit] = useState(toStr(row.channel_manager_per_unit_fee ?? null));
 
+  const [aggMode, setAggMode] = useState<"none" | "monthly" | "once_off">(
+    ((row as any).portfolio_aggregator_billing_mode as "none" | "monthly" | "once_off") || "none"
+  );
+  const [aggMonthly, setAggMonthly] = useState(toStr((row as any).portfolio_aggregator_monthly_default ?? null));
+  const [aggSetup, setAggSetup] = useState(toStr((row as any).portfolio_aggregator_setup_default ?? null));
+
   const handleSave = () => {
     onSave({
       id: row.id,
@@ -201,6 +207,9 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
       pricelabs_monthly_fee: toNum(pricelabsMonthly),
       pricelabs_setup_fee: toNum(pricelabsSetup),
       channel_manager_per_unit_fee: toNum(channelPerUnit),
+      portfolio_aggregator_billing_mode: aggMode,
+      portfolio_aggregator_monthly_default: aggMode === "monthly" ? toNum(aggMonthly) : null,
+      portfolio_aggregator_setup_default: aggMode === "once_off" ? toNum(aggSetup) : null,
     } as any);
   };
 
