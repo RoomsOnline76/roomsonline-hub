@@ -359,10 +359,17 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         )}
 
 
-        {/* Transaction Fee */}
-        {showTransactionFee && (
+        {/* Payment model info banner */}
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-[11px] text-blue-900 dark:text-blue-200">
+          <strong>Choose one payment model:</strong> ROL facilitates payments and earns a <em>per-booking surcharge %</em>,{" "}
+          <strong>OR</strong> the owner brings their own gateway (Stripe, Peach, PayGate) and pays a{" "}
+          <em>flat monthly BYO add-on</em>. Toggle "Custom payment provider" on the Payment Providers tab to switch.
+        </div>
+
+        {/* Booking surcharge % — only when ROL facilitates */}
+        {facilitatorActive && (
           <div className="space-y-1">
-            <Label>Payment facilitator fee (% of transaction)</Label>
+            <Label>Booking surcharge % (ROL payment facilitator)</Label>
             <Input
               type="number"
               step="0.1"
@@ -374,9 +381,29 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               className="text-xs"
             />
             <p className="text-[10px] text-muted-foreground">
-              Card/gateway pass-through — charged only when Rooms Online PayFast processes the payment.
+              Added to every booking taken via ROL's PayFast facilitator. Card/gateway pass-through.
             </p>
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
+          </div>
+        )}
+
+        {/* BYO gateway monthly add-on — only when owner uses their own provider */}
+        {customProviderEnabled && (
+          <div className="space-y-1">
+            <Label>BYO payment provider add-on (ZAR/month)</Label>
+            <Input
+              type="number"
+              step="50"
+              min="0"
+              value={byoGatewayFee}
+              onChange={(e) => setByoGatewayFee(e.target.value)}
+              placeholder={((globalDefaults as any)?.byo_gateway_monthly_fee ?? 250).toString()}
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Flat monthly fee — owner processes payments on their own gateway. ROL does not handle the money.
+            </p>
+            <GlobalHint value={(globalDefaults as any)?.byo_gateway_monthly_fee} label=" ZAR/mo" />
           </div>
         )}
 
