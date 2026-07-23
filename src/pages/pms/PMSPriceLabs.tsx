@@ -297,6 +297,24 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
             </Badge>
           </div>
 
+          {pricelabsAllowed && (
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="min-w-0 pr-3">
+                <Label className="text-sm">Activate PriceLabs for this property</Label>
+                <p className="text-xs text-muted-foreground">
+                  Turn this on to start pulling suggestions and pushing rates. Billing at{" "}
+                  <strong>R{adminGate?.pricelabs_monthly_fee ?? 250}/mo</strong> begins on activation.
+                </p>
+              </div>
+              <Switch
+                checked={!!cfg.enabled}
+                disabled={!canManage && !cfg.enabled /* only admins can enable; owner can disable */ }
+                onCheckedChange={(v) => saveConfig.mutate({ ...cfg, enabled: v })}
+              />
+            </div>
+          )}
+
+
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
