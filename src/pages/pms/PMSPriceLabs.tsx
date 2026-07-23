@@ -310,30 +310,26 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!cfg.enabled && (
+          {!pricelabsAllowed && (
             <Alert>
               <Info className="h-4 w-4" />
-              <AlertTitle>PriceLabs is disabled for this property</AlertTitle>
-              <AlertDescription className="flex items-center justify-between gap-3">
-                <span>Enable the integration above to push listings and pull suggestions.</span>
-                {canManage && (
-                  <Button size="sm" onClick={() => saveConfig.mutate({ ...cfg, enabled: true })} disabled={saveConfig.isPending}>
-                    Enable now
-                  </Button>
-                )}
+              <AlertTitle>PriceLabs is not enabled for this property</AlertTitle>
+              <AlertDescription>
+                An administrator must enable the PriceLabs add-on in Admin → Billing before this property can push listings or pull suggestions.
               </AlertDescription>
             </Alert>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !cfg.enabled || !canManage}>
+            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !pricelabsAllowed || !cfg.enabled || !canManage}>
               <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
             </Button>
-            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !cfg.enabled || !canManage}>
+            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !pricelabsAllowed || !cfg.enabled || !canManage}>
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
           </div>
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
