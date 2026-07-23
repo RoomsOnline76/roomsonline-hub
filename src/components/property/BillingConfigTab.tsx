@@ -129,14 +129,49 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       payment_facilitator_enabled: facilitatorActive,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
+      pricelabs_allowed: pricelabsAllowed,
+      pricelabs_monthly_fee: pricelabsFee ? parseFloat(pricelabsFee) : null,
       volume_tier_json: volumeTierJson,
       billing_start_date: billingStartDate || null,
       tier_scope: tieredStrategy ? tierScope : null,
       room_count_override: tieredStrategy && roomCountOverride ? parseInt(roomCountOverride) : null,
       tier_pricing_json: tieredStrategy ? (tierPricing as any) : null,
-    } as any);
+    } as any, {
+      onSuccess: async () => {
+        if (pricelabsApplyPortfolio && pricelabsAllowed) {
+          try {
+            setPricelabsBulkPending(true);
+            const { data: memberships } = await supabase
+              .from("property_portfolio_members")
+              .select("portfolio_id")
+              .eq("property_id", propertyId);
+            const portfolioIds = (memberships || []).map((m: any) => m.portfolio_id);
+            if (portfolioIds.length) {
+              const { data: siblings } = await supabase
+                .from("property_portfolio_members")
+                .select("property_id")
+                .in("portfolio_id", portfolioIds);
+              const ids = Array.from(new Set((siblings || []).map((s: any) => s.property_id))).filter((id) => id !== propertyId);
+              if (ids.length) {
+                const fee = pricelabsFee ? parseFloat(pricelabsFee) : null;
+                await supabase
+                  .from("property_billing_configs")
+                  .update({ pricelabs_allowed: true, pricelabs_monthly_fee: fee } as any)
+                  .in("property_id", ids);
+              }
+            }
+          } catch (e) {
+            console.error("Portfolio PriceLabs bulk enable failed", e);
+          } finally {
+            setPricelabsBulkPending(false);
+            setPricelabsApplyPortfolio(false);
+          }
+        }
+      },
+    });
     setTimeout(() => refetchResolved(), 500);
   };
+
 
   const updateTier = (idx: number, patch: Partial<PricingTier>) => {
     setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).map((t, i) => (i === idx ? { ...t, ...patch } : t)));
