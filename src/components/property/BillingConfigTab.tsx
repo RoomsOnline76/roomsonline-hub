@@ -1,51 +1,94 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Save, ChevronDown, AlertTriangle, ExternalLink, Lock, ShieldCheck, Layers, Plus, Trash2 } from "lucide-react";
+import { Loader2, Save, ChevronDown, ExternalLink, Lock, ShieldCheck } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
-import { useBillingDefaults } from "@/hooks/useBillingDefaults";
+import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { CommissionTab } from "./CommissionTab";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAULT_TIERS } from "@/lib/billingTierResolver";
-
-const STRATEGY_OPTIONS = [
-  { value: "default", label: "Default (Commission)", description: "Listed on ROL, paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
-  { value: "widget", label: "Widget — Tiered Commission", description: "Property uses ROL's booking engine (WBE) on their own site. Commission is tiered by monthly booking volume — configured centrally in Admin → Billing Defaults. Optional white-label domain and/or BYO gateway add-ons can layer on top." },
-  { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base + R60/unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
-  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
-  { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
-  { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as payment facilitator; ROL earns the per-booking surcharge %." },
-];
+import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
+import {
+  BillingConfigBuilder,
+  BillingConfigValue,
+  emptyBuilderValue,
+  summarizeBuilderValue,
+} from "@/components/admin/billing/BillingConfigBuilder";
 
 interface BillingConfigTabProps {
   propertyId: string;
   onSwitchTab?: (tab: string) => void;
 }
 
-function GlobalHint({ value, label }: { value: number | null | undefined; label: string }) {
-  if (value == null) return null;
-  return (
-    <p className="text-[10px] text-muted-foreground">
-      Global default: {value}{label}
-    </p>
-  );
+// ─── Bridge preset row → builder value ─────────────────────────────────────
+function presetToBuilder(row: BillingDefault): BillingConfigValue {
+  const tiers = normalizeTiers((row as any).tier_pricing_json);
+  const v = emptyBuilderValue();
+  v.commission_enabled = row.default_commission_rate != null && row.default_commission_rate > 0 && row.strategy !== "widget";
+  v.commission_rate = row.default_commission_rate != null ? String(row.default_commission_rate) : "";
+  v.widget_tiers_enabled = row.strategy === "widget";
+  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
+  v.subscription_fee = row.default_subscription_fee != null ? String(row.default_subscription_fee) : "";
+  v.channel_per_unit = row.channel_manager_per_unit_fee != null ? String(row.channel_manager_per_unit_fee) : "";
+  v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
+  v.tier_pricing_json = tiers.length ? tiers : null;
+  v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
+  v.transaction_fee = row.default_transaction_fee != null ? String(row.default_transaction_fee) : "";
+  v.byo_gateway_enabled = ((row as any).byo_gateway_monthly_fee ?? 0) > 0;
+  v.byo_gateway_fee = (row as any).byo_gateway_monthly_fee != null ? String((row as any).byo_gateway_monthly_fee) : "";
+  v.white_label_enabled = (row.white_label_monthly_fee ?? 0) > 0 || (row.white_label_setup_fee ?? 0) > 0;
+  v.white_label_monthly_fee = row.white_label_monthly_fee != null ? String(row.white_label_monthly_fee) : "";
+  v.white_label_setup_fee = row.white_label_setup_fee != null ? String(row.white_label_setup_fee) : "";
+  v.white_label_billing_mode = (row.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.pricelabs_enabled = (row.pricelabs_monthly_fee ?? 0) > 0;
+  v.pricelabs_monthly_fee = row.pricelabs_monthly_fee != null ? String(row.pricelabs_monthly_fee) : "";
+  return v;
+}
+
+function configToBuilder(config: BillingConfig | null): BillingConfigValue {
+  if (!config) return emptyBuilderValue();
+  const tiers = normalizeTiers((config as any).tier_pricing_json);
+  const isWidget = config.billing_strategy === "widget";
+  const v = emptyBuilderValue();
+  v.commission_enabled = config.commission_rate != null && !isWidget;
+  v.commission_rate = config.commission_rate != null ? String(config.commission_rate) : "";
+  v.widget_tiers_enabled = isWidget;
+  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
+  v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
+  v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
+  v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
+  v.tier_pricing_json = tiers.length ? tiers : null;
+  v.facilitator_surcharge_enabled = (config.transaction_fee_percentage ?? 0) > 0 && !!config.payment_facilitator_enabled;
+  v.transaction_fee = config.transaction_fee_percentage != null ? String(config.transaction_fee_percentage) : "";
+  v.byo_gateway_enabled = ((config as any).byo_gateway_monthly_fee ?? 0) > 0;
+  v.byo_gateway_fee = (config as any).byo_gateway_monthly_fee != null ? String((config as any).byo_gateway_monthly_fee) : "";
+  v.white_label_enabled = !!config.white_label_allowed;
+  v.white_label_monthly_fee = config.white_label_monthly_fee != null ? String(config.white_label_monthly_fee) : "";
+  v.white_label_setup_fee = config.white_label_setup_fee != null ? String(config.white_label_setup_fee) : "";
+  v.white_label_billing_mode = (config.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.pricelabs_enabled = !!config.pricelabs_allowed;
+  v.pricelabs_monthly_fee = config.pricelabs_monthly_fee != null ? String(config.pricelabs_monthly_fee) : "";
+  return v;
+}
+
+function toNum(v: string): number | null {
+  if (v === "" || v == null) return null;
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabProps) {
   const { config, isLoading, upsert } = useBillingConfig(propertyId);
+  const { defaults, getDefaultsForStrategy } = useBillingDefaults();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
   const [commissionOpen, setCommissionOpen] = useState(false);
-  const { getDefaultsForStrategy } = useBillingDefaults();
 
   const { data: propertyFlag } = useQuery({
     queryKey: ["property-allow-custom-payment", propertyId],
@@ -61,135 +104,65 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     enabled: !!propertyId,
   });
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
-  const facilitatorActive = !customProviderEnabled;
 
-  const [strategy, setStrategy] = useState("default");
-  const [commissionRate, setCommissionRate] = useState("");
-  const [subscriptionFee, setSubscriptionFee] = useState("");
-  const [transactionFee, setTransactionFee] = useState("");
-  const [paymentFacilitator, setPaymentFacilitator] = useState(false);
-  const [byoGatewayFee, setByoGatewayFee] = useState("");
-  const [whiteLabel, setWhiteLabel] = useState(false);
-  const [whiteLabelFee, setWhiteLabelFee] = useState("");
-  const [pricelabsAllowed, setPricelabsAllowed] = useState(false);
-  const [pricelabsFee, setPricelabsFee] = useState("");
-  const [pricelabsApplyPortfolio, setPricelabsApplyPortfolio] = useState(false);
-  const [pricelabsBulkPending, setPricelabsBulkPending] = useState(false);
-  const [volumeTiers, setVolumeTiers] = useState("");
+  const [strategy, setStrategy] = useState<string>("default");
+  const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
-  const [tierScope, setTierScope] = useState<"portfolio" | "property">("portfolio");
-  const [roomCountOverride, setRoomCountOverride] = useState("");
-  const [tierPricing, setTierPricing] = useState<PricingTier[] | null>(null);
+  const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
   useEffect(() => {
     if (config) {
       setStrategy(config.billing_strategy || "default");
-      setCommissionRate(config.commission_rate?.toString() || "");
-      setSubscriptionFee(config.subscription_fee_monthly?.toString() || "");
-      setTransactionFee(config.transaction_fee_percentage?.toString() || "");
-      setPaymentFacilitator(config.payment_facilitator_enabled || false);
-      setByoGatewayFee((config as any).byo_gateway_monthly_fee?.toString() || "");
-      setWhiteLabel(config.white_label_allowed || false);
-      setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
-      setPricelabsAllowed((config as any).pricelabs_allowed || false);
-      setPricelabsFee((config as any).pricelabs_monthly_fee?.toString() || "");
-      setVolumeTiers(config.volume_tier_json ? JSON.stringify(config.volume_tier_json, null, 2) : "");
+      setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
-      setTierScope(((config as any).tier_scope as "portfolio" | "property") || "portfolio");
-      setRoomCountOverride((config as any).room_count_override?.toString() || "");
-      const overrideTiers = normalizeTiers((config as any).tier_pricing_json);
-      setTierPricing(overrideTiers.length ? overrideTiers : null);
     }
   }, [config]);
 
-  const globalDefaults = getDefaultsForStrategy(strategy);
-  const tieredStrategy = isTierStrategy(strategy);
+  const selectedPreset = useMemo(() => getDefaultsForStrategy(strategy), [strategy, defaults]);
+  const placeholders = useMemo(() => {
+    if (!selectedPreset) return {};
+    return {
+      commission_rate: selectedPreset.default_commission_rate ?? undefined,
+      subscription_fee: selectedPreset.default_subscription_fee ?? undefined,
+      channel_per_unit: selectedPreset.channel_manager_per_unit_fee ?? undefined,
+      transaction_fee: selectedPreset.default_transaction_fee ?? undefined,
+      byo_gateway_fee: (selectedPreset as any).byo_gateway_monthly_fee ?? undefined,
+      white_label_monthly_fee: selectedPreset.white_label_monthly_fee ?? undefined,
+      white_label_setup_fee: selectedPreset.white_label_setup_fee ?? undefined,
+      pricelabs_monthly_fee: selectedPreset.pricelabs_monthly_fee ?? undefined,
+    } as any;
+  }, [selectedPreset]);
 
-  const { data: resolved, refetch: refetchResolved } = useQuery({
-    queryKey: ["resolved-tier", propertyId, strategy, tierScope, roomCountOverride, tierPricing],
-    queryFn: () => resolvePropertyTier(propertyId),
-    enabled: !!propertyId && tieredStrategy,
-  });
+  const applyPreset = (slug: string) => {
+    setStrategy(slug);
+    const preset = defaults.find((d) => d.strategy === slug);
+    if (preset) {
+      setBuilder(presetToBuilder(preset));
+      setPresetJustApplied(presetLabel(preset));
+    }
+  };
 
   const handleSave = () => {
-    let volumeTierJson = null;
-    if (volumeTiers.trim()) {
-      try {
-        volumeTierJson = JSON.parse(volumeTiers);
-      } catch {
-        return;
-      }
-    }
-
     upsert.mutate({
       property_id: propertyId,
       billing_strategy: strategy as BillingConfig["billing_strategy"],
-      commission_rate: commissionRate ? parseFloat(commissionRate) : null,
-      subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
-      transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
-      payment_facilitator_enabled: facilitatorActive,
-      byo_gateway_monthly_fee: !facilitatorActive && byoGatewayFee ? parseFloat(byoGatewayFee) : null,
-      white_label_allowed: whiteLabel,
-      white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
-      pricelabs_allowed: pricelabsAllowed,
-      pricelabs_monthly_fee: pricelabsFee ? parseFloat(pricelabsFee) : null,
-      volume_tier_json: volumeTierJson,
+      commission_rate: builder.commission_enabled ? toNum(builder.commission_rate) : null,
+      subscription_fee_monthly: builder.pms_enabled ? toNum(builder.subscription_fee) : null,
+      channel_manager_enabled: builder.pms_enabled,
+      channel_manager_per_unit_fee: builder.pms_enabled ? toNum(builder.channel_per_unit) : null,
+      transaction_fee_percentage: builder.facilitator_surcharge_enabled ? toNum(builder.transaction_fee) : null,
+      payment_facilitator_enabled: !customProviderEnabled,
+      byo_gateway_monthly_fee: builder.byo_gateway_enabled ? toNum(builder.byo_gateway_fee) : null,
+      white_label_allowed: builder.white_label_enabled,
+      white_label_monthly_fee: builder.white_label_enabled ? toNum(builder.white_label_monthly_fee) : null,
+      white_label_setup_fee: builder.white_label_enabled ? toNum(builder.white_label_setup_fee) : null,
+      white_label_billing_mode: builder.white_label_enabled ? builder.white_label_billing_mode : null,
+      pricelabs_allowed: builder.pricelabs_enabled,
+      pricelabs_monthly_fee: builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
+      tier_pricing_json: builder.volume_tiers_enabled ? (builder.tier_pricing_json as any) : null,
       billing_start_date: billingStartDate || null,
-      tier_scope: tieredStrategy ? tierScope : null,
-      room_count_override: tieredStrategy && roomCountOverride ? parseInt(roomCountOverride) : null,
-      tier_pricing_json: tieredStrategy ? (tierPricing as any) : null,
-    } as any, {
-      onSuccess: async () => {
-        if (pricelabsApplyPortfolio && pricelabsAllowed) {
-          try {
-            setPricelabsBulkPending(true);
-            const { data: memberships } = await supabase
-              .from("property_portfolio_members")
-              .select("portfolio_id")
-              .eq("property_id", propertyId);
-            const portfolioIds = (memberships || []).map((m: any) => m.portfolio_id);
-            if (portfolioIds.length) {
-              const { data: siblings } = await supabase
-                .from("property_portfolio_members")
-                .select("property_id")
-                .in("portfolio_id", portfolioIds);
-              const ids = Array.from(new Set((siblings || []).map((s: any) => s.property_id))).filter((id) => id !== propertyId);
-              if (ids.length) {
-                const fee = pricelabsFee ? parseFloat(pricelabsFee) : null;
-                await supabase
-                  .from("property_billing_configs")
-                  .update({ pricelabs_allowed: true, pricelabs_monthly_fee: fee } as any)
-                  .in("property_id", ids);
-              }
-            }
-          } catch (e) {
-            console.error("Portfolio PriceLabs bulk enable failed", e);
-          } finally {
-            setPricelabsBulkPending(false);
-            setPricelabsApplyPortfolio(false);
-          }
-        }
-      },
-    });
-    setTimeout(() => refetchResolved(), 500);
+    } as any);
   };
-
-
-  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
-    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).map((t, i) => (i === idx ? { ...t, ...patch } : t)));
-  };
-  const addTier = () => {
-    setTierPricing((prev) => {
-      const base = prev ?? [...DEFAULT_TIERS];
-      const last = base[base.length - 1];
-      const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
-      return [...base, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }];
-    });
-  };
-  const removeTier = (idx: number) => {
-    setTierPricing((prev) => (prev ?? [...DEFAULT_TIERS]).filter((_, i) => i !== idx));
-  };
-  const resetTiersToGlobal = () => setTierPricing(null);
 
   if (isLoading) {
     return (
@@ -199,402 +172,122 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     );
   }
 
- const showCommission = ["default", "rolos_pms", "volume_tiered"].includes(strategy);
- const widgetTiersInfo = strategy === "widget";
-  const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
-  const showTransactionFee = facilitatorActive || strategy === "payment_facilitator";
-  const showVolumeTiers = strategy === "volume_tiered";
-
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Strategy Selection */}
-        <div className="space-y-2">
-          <Label>Billing Strategy</Label>
-          <Select value={strategy} onValueChange={setStrategy}>
-            <SelectTrigger className="text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STRATEGY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <div>
-                    <span>{opt.label}</span>
-                    <span className="text-xs text-muted-foreground ml-2">— {opt.description}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Fees info banner */}
-        {(showCommission || showTransactionFee) && (
-          <div className="rounded-md border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
-            <strong className="text-foreground">Commission</strong> and <strong className="text-foreground">Payment Facilitator fee</strong> are separate charges and can both apply on the same booking.
-          </div>
-        )}
-
-        {/* Commission Rate */}
-        {showCommission && (
-          <div className="space-y-1">
-            <Label>Commission rate (% of booking)</Label>
-            <Input
-              type="number"
-              step="0.5"
-              min="0"
-              max="100"
-              value={commissionRate}
-              onChange={(e) => setCommissionRate(e.target.value)}
-              placeholder={globalDefaults?.default_commission_rate?.toString() ?? (strategy === "default" ? "10" : "5")}
-              className="text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              ROL's share of the booking value. Used by Default, Widget, ROL'OS PMS and Volume Tiered strategies.
-            </p>
-            <GlobalHint value={globalDefaults?.default_commission_rate} label="%" />
-          </div>
-        )}
-
-        {widgetTiersInfo && (
-          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
-            <strong className="text-foreground">Commission is tiered.</strong> The effective % is determined by monthly booking volume against the Widget tiers configured centrally in <em>Admin → Billing Defaults</em>. Optional white-label and BYO gateway add-ons (below) layer on top.
-          </div>
-        )}
-
-        {/* Subscription Fee */}
-        {showSubscription && (
-          <div className="space-y-1">
-            <Label>Monthly Subscription Fee (ZAR)</Label>
-            <Input
-              type="number"
-              step="100"
-              min="0"
-              value={subscriptionFee}
-              onChange={(e) => setSubscriptionFee(e.target.value)}
-              placeholder={globalDefaults?.default_subscription_fee?.toString() ?? "0"}
-              className="text-xs"
-            />
-            <GlobalHint value={globalDefaults?.default_subscription_fee} label=" ZAR" />
-          </div>
-        )}
-
-        {/* Room-count tier resolver */}
-        {tieredStrategy && (
-          <div className="rounded-md border p-3 space-y-3 bg-muted/30">
-            <div className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-primary" />
-              <Label className="text-xs font-semibold">Room-Count Tier</Label>
-            </div>
-            {resolved?.tier ? (
-              <div className="rounded-md border bg-background p-3">
-                <p className="text-lg font-semibold">
-                  R{resolved.tier.monthly_fee}
-                  <span className="text-xs text-muted-foreground font-normal"> / month</span>
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {resolved.rooms} rooms ({resolved.scope}) • tier {resolved.tier.min_rooms}
-                  {resolved.tier.max_rooms == null ? "+" : `–${resolved.tier.max_rooms}`}
-                  {resolved.usedOverride ? " • custom tiers" : " • global tiers"}
-                </p>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Resolving tier…</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* ── Preset selector ─────────────────────────────────────── */}
+          <div className="space-y-2">
+            <Label>Preset (quick-load defaults)</Label>
+            <Select value={strategy} onValueChange={applyPreset}>
+              <SelectTrigger className="text-xs">
+                <SelectValue placeholder="Choose a preset" />
+              </SelectTrigger>
+              <SelectContent>
+                {defaults.map((d) => (
+                  <SelectItem key={d.id} value={d.strategy}>
+                    <div className="flex flex-col text-left">
+                      <span className="text-xs font-medium">{presetLabel(d)}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {d.preset_description || summarizeBuilderValue(presetToBuilder(d))}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {presetJustApplied && (
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                Loaded defaults from <strong>{presetJustApplied}</strong>. Customize any component below before saving.
+              </p>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Tier Scope</Label>
-                <Select value={tierScope} onValueChange={(v) => setTierScope(v as "portfolio" | "property")}>
-                  <SelectTrigger className="text-xs h-8"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="portfolio">Portfolio (aggregate)</SelectItem>
-                    <SelectItem value="property">This property only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Room Count Override</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={roomCountOverride}
-                  onChange={(e) => setRoomCountOverride(e.target.value)}
-                  placeholder="auto"
-                  className="text-xs h-8"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Custom Tier Table (overrides global)</Label>
-                <div className="flex gap-1">
-                  <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
-                    <Plus className="h-3 w-3 mr-1" /> Add
-                  </Button>
-                  {tierPricing && (
-                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={resetTiersToGlobal}>
-                      Reset
-                    </Button>
+            <p className="text-[10px] text-muted-foreground">
+              Presets seed the toggles below — every component can still be turned on/off or tuned per property.
+            </p>
+          </div>
+
+          {/* ── Payment facilitator status link ─────────────────────── */}
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs">Payment Facilitator</Label>
+                  {!customProviderEnabled ? (
+                    <Badge className="gap-1 h-5 text-[10px]"><ShieldCheck className="h-3 w-3" />ON (default)</Badge>
+                  ) : (
+                    <Badge variant="secondary" className="gap-1 h-5 text-[10px]"><Lock className="h-3 w-3" />OFF — custom provider</Badge>
                   )}
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {!customProviderEnabled
+                    ? "ROL processes guest payments via PayFast. Enable the facilitator surcharge toggle to charge per booking."
+                    : "This property uses its own payment provider. Use the BYO add-on toggle for the flat monthly fee."}
+                </p>
               </div>
-              {tierPricing && tierPricing.length > 0 ? (
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
-                    <span>Min</span><span>Max</span><span>ZAR/mo</span><span />
-                  </div>
-                  {tierPricing.map((t, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
-                      <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
-                      <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
-                      <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
-                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-muted-foreground italic px-1">Using platform defaults. Click Add to override.</p>
+              {onSwitchTab && (
+                <Button
+                  type="button" variant="outline" size="sm" className="gap-1.5 shrink-0"
+                  onClick={() => onSwitchTab("payment-providers")}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Manage
+                </Button>
               )}
             </div>
           </div>
-        )}
 
-
-        {/* Payment model info banner */}
-        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-[11px] text-blue-900 dark:text-blue-200">
-          <strong>Choose one payment model:</strong> ROL facilitates payments and earns a <em>per-booking surcharge %</em>,{" "}
-          <strong>OR</strong> the owner brings their own gateway (Stripe, Peach, PayGate) and pays a{" "}
-          <em>flat monthly BYO add-on</em>. Toggle "Custom payment provider" on the Payment Providers tab to switch.
-        </div>
-
-        {/* Booking surcharge % — only when ROL facilitates */}
-        {facilitatorActive && (
-          <div className="space-y-1">
-            <Label>Booking surcharge % (ROL payment facilitator)</Label>
-            <Input
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={transactionFee}
-              onChange={(e) => setTransactionFee(e.target.value)}
-              placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
-              className="text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Added to every booking taken via ROL's PayFast facilitator. Card/gateway pass-through.
-            </p>
-            <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
-          </div>
-        )}
-
-        {/* BYO gateway monthly add-on — only when owner uses their own provider */}
-        {customProviderEnabled && (
-          <div className="space-y-1">
-            <Label>BYO payment provider add-on (ZAR/month)</Label>
-            <Input
-              type="number"
-              step="50"
-              min="0"
-              value={byoGatewayFee}
-              onChange={(e) => setByoGatewayFee(e.target.value)}
-              placeholder={((globalDefaults as any)?.byo_gateway_monthly_fee ?? 250).toString()}
-              className="text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Flat monthly fee — owner processes payments on their own gateway. ROL does not handle the money.
-            </p>
-            <GlobalHint value={(globalDefaults as any)?.byo_gateway_monthly_fee} label=" ZAR/mo" />
-          </div>
-        )}
-
-        {/* Volume Tiers */}
-        {showVolumeTiers && (
-          <div className="space-y-2">
-            <Label>Volume Tiers (JSON)</Label>
-            <Textarea
-              value={volumeTiers}
-              onChange={(e) => setVolumeTiers(e.target.value)}
-              placeholder='{"0-50": 8, "51-200": 5, "201+": 2}'
-              rows={4}
-              className="font-mono text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground">
-              Keys are unit ranges, values are commission rates
-            </p>
-          </div>
-        )}
-
-        {/* Payment Facilitator status (linked to Payment Providers tab) */}
-        <div className="rounded-md border p-3 space-y-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Payment Facilitator</Label>
-                {facilitatorActive ? (
-                  <Badge className="gap-1 h-5 text-[10px]"><ShieldCheck className="h-3 w-3" />ON (default)</Badge>
-                ) : (
-                  <Badge variant="secondary" className="gap-1 h-5 text-[10px]"><Lock className="h-3 w-3" />OFF — custom provider</Badge>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                {facilitatorActive
-                  ? "Rooms Online processes guest payments via PayFast and charges a transaction fee."
-                  : "This property uses its own payment provider — no facilitator fee applies."}
-              </p>
-            </div>
-            {onSwitchTab && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 shrink-0"
-                onClick={() => onSwitchTab("payment-providers")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Manage in Payment Providers
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* White-label toggle */}
-        <div className="flex items-center gap-2">
-          <Switch checked={whiteLabel} onCheckedChange={setWhiteLabel} />
-          <Label className="text-xs cursor-pointer">White-label Allowed</Label>
-        </div>
-
-        {/* White-label Fee + charge warning */}
-        {whiteLabel && (
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <Label>White-Label Monthly Fee (ZAR)</Label>
-              <Input
-                type="number"
-                step="50"
-                min="0"
-                value={whiteLabelFee}
-                onChange={(e) => setWhiteLabelFee(e.target.value)}
-                placeholder={globalDefaults?.white_label_monthly_fee?.toString() ?? "0"}
-                className="text-xs"
-              />
-              <GlobalHint value={globalDefaults?.white_label_monthly_fee} label=" ZAR" />
-            </div>
-            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800 dark:text-amber-300">
-                This property will be charged <strong>R{whiteLabelFee || globalDefaults?.white_label_monthly_fee || 0}/month</strong> for white-label branding. Branding override will also be enabled.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Revenue Add-ons: PriceLabs */}
-        <div className="rounded-md border p-3 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <Label className="text-sm font-medium">Revenue Add-ons</Label>
-              <p className="text-[11px] text-muted-foreground">Optional revenue tools this property can access.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch checked={pricelabsAllowed} onCheckedChange={setPricelabsAllowed} />
-            <Label className="text-xs cursor-pointer">Allow PriceLabs (dynamic pricing)</Label>
-          </div>
-          {pricelabsAllowed && (
-            <div className="space-y-2 pl-1">
-              <div className="space-y-1">
-                <Label className="text-xs">PriceLabs Monthly Fee (ZAR)</Label>
-                <Input
-                  type="number"
-                  step="50"
-                  min="0"
-                  value={pricelabsFee}
-                  onChange={(e) => setPricelabsFee(e.target.value)}
-                  placeholder="0"
-                  className="text-xs"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="h-3 w-3"
-                  checked={pricelabsApplyPortfolio}
-                  onChange={(e) => setPricelabsApplyPortfolio(e.target.checked)}
-                />
-                Also enable for all other properties in this property's portfolio(s)
-                {pricelabsBulkPending && <Loader2 className="h-3 w-3 animate-spin" />}
-              </label>
-              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  This property will be charged <strong>R{pricelabsFee || 0}/month</strong> for the PriceLabs add-on.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-
-        {/* Payment model summary warning */}
-        {facilitatorActive ? (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-800 dark:text-amber-300">
-              ROL facilitates payments. This property will be charged{" "}
-              <strong>{transactionFee || globalDefaults?.default_transaction_fee || 2.5}%</strong> booking surcharge per transaction.
-            </p>
-          </div>
-        ) : customProviderEnabled ? (
-          <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
-            <ShieldCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-emerald-800 dark:text-emerald-300">
-              Owner uses their own gateway. Flat BYO add-on:{" "}
-              <strong>R{byoGatewayFee || (globalDefaults as any)?.byo_gateway_monthly_fee || 250}/month</strong>. No per-booking surcharge.
-            </p>
-          </div>
-        ) : null}
-
-        {/* Billing Start Date */}
-        <div className="space-y-2">
-          <Label>Billing Start Date</Label>
-          <Input
-            type="date"
-            value={billingStartDate}
-            onChange={(e) => setBillingStartDate(e.target.value)}
-            className="text-xs"
+          {/* ── Builder ─────────────────────────────────────────────── */}
+          <BillingConfigBuilder
+            value={builder}
+            onChange={(next) => {
+              setBuilder(next);
+              setPresetJustApplied(null);
+            }}
+            scope="property"
+            placeholders={placeholders}
           />
-        </div>
 
-        <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
-          {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Save Billing Config
-        </Button>
-      </CardContent>
-    </Card>
+          {/* Live summary */}
+          <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">This property will be billed:</strong> {summarizeBuilderValue(builder)}
+          </div>
 
-    {/* Commission Section (collapsed by default) */}
-    <Collapsible open={commissionOpen} onOpenChange={setCommissionOpen} className="mt-4">
-      <Card>
-        <CollapsibleTrigger className="w-full">
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer">
-            <CardTitle className="text-sm font-medium">Commission Configuration</CardTitle>
-            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${commissionOpen ? "rotate-180" : ""}`} />
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="pt-0">
-            <CommissionTab propertyId={propertyId} isAdmin={isAdmin} />
-          </CardContent>
-        </CollapsibleContent>
+          {/* Billing start date */}
+          <div className="space-y-2">
+            <Label>Billing start date</Label>
+            <Input
+              type="date"
+              value={billingStartDate}
+              onChange={(e) => setBillingStartDate(e.target.value)}
+              className="text-xs"
+            />
+          </div>
+
+          <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
+            {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            Save Billing Config
+          </Button>
+        </CardContent>
       </Card>
-    </Collapsible>
+
+      {/* Commission Section (collapsed by default) */}
+      <Collapsible open={commissionOpen} onOpenChange={setCommissionOpen} className="mt-4">
+        <Card>
+          <CollapsibleTrigger className="w-full">
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between cursor-pointer">
+              <CardTitle className="text-sm font-medium">Commission Configuration</CardTitle>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${commissionOpen ? "rotate-180" : ""}`} />
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <CommissionTab propertyId={propertyId} isAdmin={isAdmin} />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
     </>
   );
 }

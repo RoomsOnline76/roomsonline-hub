@@ -337,11 +337,13 @@ export type Database = {
           default_subscription_fee: number | null
           default_transaction_fee: number | null
           id: string
+          is_preset: boolean
           notes: string | null
-          payment_facilitator_fee: number | null
           portfolio_aggregator_billing_mode: string | null
           portfolio_aggregator_monthly_default: number | null
           portfolio_aggregator_setup_default: number | null
+          preset_description: string | null
+          preset_name: string | null
           pricelabs_monthly_fee: number | null
           pricelabs_setup_fee: number | null
           referral_clawback_days: number | null
@@ -349,7 +351,8 @@ export type Database = {
           referral_residual_months: number | null
           referral_residual_rate: number | null
           sales_rep_tier_criteria_json: Json | null
-          strategy: Database["public"]["Enums"]["billing_strategy"]
+          sort_order: number
+          strategy: string
           tier_pricing_json: Json | null
           updated_at: string | null
           updated_by: string | null
@@ -368,11 +371,13 @@ export type Database = {
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
           id?: string
+          is_preset?: boolean
           notes?: string | null
-          payment_facilitator_fee?: number | null
           portfolio_aggregator_billing_mode?: string | null
           portfolio_aggregator_monthly_default?: number | null
           portfolio_aggregator_setup_default?: number | null
+          preset_description?: string | null
+          preset_name?: string | null
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
@@ -380,7 +385,8 @@ export type Database = {
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
           sales_rep_tier_criteria_json?: Json | null
-          strategy: Database["public"]["Enums"]["billing_strategy"]
+          sort_order?: number
+          strategy: string
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null
@@ -399,11 +405,13 @@ export type Database = {
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
           id?: string
+          is_preset?: boolean
           notes?: string | null
-          payment_facilitator_fee?: number | null
           portfolio_aggregator_billing_mode?: string | null
           portfolio_aggregator_monthly_default?: number | null
           portfolio_aggregator_setup_default?: number | null
+          preset_description?: string | null
+          preset_name?: string | null
           pricelabs_monthly_fee?: number | null
           pricelabs_setup_fee?: number | null
           referral_clawback_days?: number | null
@@ -411,7 +419,8 @@ export type Database = {
           referral_residual_months?: number | null
           referral_residual_rate?: number | null
           sales_rep_tier_criteria_json?: Json | null
-          strategy?: Database["public"]["Enums"]["billing_strategy"]
+          sort_order?: number
+          strategy?: string
           tier_pricing_json?: Json | null
           updated_at?: string | null
           updated_by?: string | null

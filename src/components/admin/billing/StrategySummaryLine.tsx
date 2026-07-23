@@ -5,7 +5,6 @@ const STRATEGY_INTRO: Record<string, string> = {
   widget: "Widget",
   rolos_pms: "ROL'OS PMS",
   portfolio_aggregator: "Portfolio aggregator (legacy)",
-  enterprise_white_label: "Enterprise white-label",
   volume_tiered: "Volume-tiered",
   payment_facilitator: "Payment facilitator",
 };
