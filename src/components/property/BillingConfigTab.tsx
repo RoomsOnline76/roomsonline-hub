@@ -68,6 +68,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [subscriptionFee, setSubscriptionFee] = useState("");
   const [transactionFee, setTransactionFee] = useState("");
   const [paymentFacilitator, setPaymentFacilitator] = useState(false);
+  const [byoGatewayFee, setByoGatewayFee] = useState("");
   const [whiteLabel, setWhiteLabel] = useState(false);
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
   const [pricelabsAllowed, setPricelabsAllowed] = useState(false);
