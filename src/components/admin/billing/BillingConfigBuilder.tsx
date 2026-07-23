@@ -348,10 +348,12 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 
       {/* ── PriceLabs add-on ───────────────────────────────────────── */}
       <ToggleRow
-        title="PriceLabs revenue management"
-        description="Dynamic pricing suggestions surfaced in ROL'OS. Flat per activated property."
+        title="PriceLabs revenue management (ROL'OS only)"
+        description="Allow this property to enable PriceLabs from the ROL'OS revenue tab. Only applicable when PMS = ROL'OS. Fee bills only after the client activates it in ROL'OS."
         enabled={value.pricelabs_enabled}
         onToggle={(v) => set("pricelabs_enabled", v)}
+        disabled={pricelabsDisabled}
+        disabledReason={disabledAddons?.pricelabs?.reason}
       >
         <div className="grid grid-cols-[1fr_auto] items-center gap-2">
           <Input
@@ -363,6 +365,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           />
           <span className="text-xs text-muted-foreground">ZAR/mo</span>
         </div>
+        <p className="text-[10px] text-muted-foreground">Charged only once the property activates PriceLabs in ROL'OS.</p>
       </ToggleRow>
     </div>
   );
