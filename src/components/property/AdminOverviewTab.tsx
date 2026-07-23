@@ -93,7 +93,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee")
+        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,pricelabs_allowed,pricelabs_monthly_fee")
         .eq("property_id", propertyId)
         .maybeSingle();
       if (error) throw error;
