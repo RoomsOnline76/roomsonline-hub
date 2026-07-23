@@ -459,7 +459,7 @@ function PortfolioDirectLinks({
   portfolioProperties: { id: string; name: string; slug?: string }[];
 }) {
   const { toast } = useToast();
-  const BASE = "https://book.sleepinafrica.roomsonline.co.za";
+  const BASE = "https://sleepinafrica.roomsonline.co.za";
 
   const copy = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -556,7 +556,7 @@ function PortfolioDirectLinks({
 /* Portfolio Full Embed — iframe snippets for each property */
 function PortfolioFullEmbed({ propertyId, portfolioProperties }: { propertyId: string; portfolioProperties: { id: string; name: string; slug?: string; brand_primary_color?: string | null }[] }) {
   const { toast } = useToast();
-  const BASE = "https://book.sleepinafrica.roomsonline.co.za";
+  const BASE = "https://sleepinafrica.roomsonline.co.za";
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);

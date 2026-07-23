@@ -34,7 +34,7 @@ export function registerPropertyCardBlock() {
     edit: (props: any) => {
       const { attributes, setAttributes } = props;
       const blockProps = useBlockProps();
-      const domain = rolosBlocksConfig?.publicDomain || "https://book.sleepinafrica.roomsonline.co.za";
+      const domain = rolosBlocksConfig?.publicDomain || "https://sleepinafrica.roomsonline.co.za";
 
       return h(
         "div",
@@ -122,7 +122,7 @@ export function registerPropertyCardBlock() {
 
     save: (props: any) => {
       const { attributes } = props;
-      const domain = rolosBlocksConfig?.publicDomain || "https://book.sleepinafrica.roomsonline.co.za";
+      const domain = rolosBlocksConfig?.publicDomain || "https://sleepinafrica.roomsonline.co.za";
       const bookingUrl = `${domain}/embed/property/${attributes.propertySlug}?integration=wordpress&property_id=${attributes.propertyId}&brand_color=${encodeURIComponent(attributes.brandColor)}&mode=embedded`;
 
       const el = wp.element.createElement;

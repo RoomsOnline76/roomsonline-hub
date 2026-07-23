@@ -55,7 +55,7 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
     });
     if (brandLogo) params.set("brand_logo", brandLogo);
     if (hidePoweredBy) params.set("hide_powered_by", "1");
-    return `https://book.sleepinafrica.roomsonline.co.za/embed/property/${property.slug}?${params}`;
+    return `https://sleepinafrica.roomsonline.co.za/embed/property/${property.slug}?${params}`;
   }, [property.slug, brandColor, brandLogo, layout, hidePoweredBy]);
 
   const platformGuides: Record<PlatformGuide, string> = {
