@@ -95,11 +95,24 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     queryFn: async () => {
       const { data, error } = await supabase
         .from("property_billing_configs")
-        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,pricelabs_allowed,pricelabs_monthly_fee")
+        .select("white_label_domain,white_label_domain_status,white_label_monthly_fee,white_label_setup_fee,white_label_billing_mode,branding_addon_enabled,branding_addon_monthly_fee,branding_addon_setup_fee,pricelabs_allowed,pricelabs_monthly_fee,pricelabs_setup_fee,channel_manager_enabled,channel_manager_per_unit_fee")
         .eq("property_id", propertyId)
         .maybeSingle();
       if (error) throw error;
       return data as any;
+    },
+    enabled: !!propertyId,
+  });
+
+  const { data: unitCount } = useQuery({
+    queryKey: ["admin-overview-unit-count", propertyId],
+    queryFn: async () => {
+      const [rolosRooms, rolosTypes, hostfully] = await Promise.all([
+        supabase.from("rolos_rooms").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+        supabase.from("rolos_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+        supabase.from("hostfully_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+      ]);
+      return (rolosRooms.count ?? 0) + (rolosTypes.count ?? 0) + (hostfully.count ?? 0);
     },
     enabled: !!propertyId,
   });
