@@ -61,12 +61,16 @@ async function pl(method: "GET" | "POST", path: string, name: string, token: str
 // -------------------------------------------------------------------
 
 async function buildListingsPayload(supabase: SB, propertyId: string) {
-  const { data: property } = await supabase
+  const { data: property, error: propErr } = await supabase
     .from("properties")
-    .select("id, name, currency, latitude, longitude, city, country_code")
+    .select("id, name, pricelabs_config, latitude, longitude, city, country")
     .eq("id", propertyId)
     .maybeSingle();
+  if (propErr) throw new Error(`Property lookup failed: ${propErr.message}`);
   if (!property) throw new Error("Property not found");
+
+  const cfg = (property.pricelabs_config ?? {}) as Json;
+  const currency = (typeof cfg.currency === "string" && cfg.currency) || "ZAR";
 
   const { data: roomTypes } = await supabase
     .from("rolos_room_types")
@@ -77,12 +81,12 @@ async function buildListingsPayload(supabase: SB, propertyId: string) {
   const listings = (roomTypes ?? []).map((rt) => ({
     listing_id: `rolos_${propertyId}_${rt.id}`,
     name: `${property.name} — ${rt.name}`,
-    currency: property.currency || "ZAR",
+    currency,
     location: {
       latitude: property.latitude,
       longitude: property.longitude,
       city: property.city,
-      country: property.country_code,
+      country: property.country,
     },
     no_of_bedrooms: 1,
     max_occupancy: rt.max_occupancy ?? 2,
@@ -98,24 +102,28 @@ async function syncPropertyToPricelabs(supabase: SB, propertyId: string, name: s
 
   const listingsRes = await pl("POST", "/listings", name, token, { listings });
 
-  // Push last 730 days of reservations
+  // Push last 730 days of reservations. Room-type mapping lives on rolos_reservation_rooms.
   const since = new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
   const { data: reservations } = await supabase
     .from("rolos_reservations")
-    .select("id, check_in, check_out, total_amount, room_type_id, status")
+    .select("id, check_in, check_out, total_amount, status, rolos_reservation_rooms(room_type_id)")
     .eq("property_id", propertyId)
     .gte("check_in", since);
 
   const reservationPayload = (reservations ?? [])
-    .filter((r) => r.room_type_id)
-    .map((r) => ({
-      listing_id: `rolos_${propertyId}_${r.room_type_id}`,
-      reservation_id: r.id,
-      check_in: r.check_in,
-      check_out: r.check_out,
-      total_price: Number(r.total_amount ?? 0),
-      status: r.status,
-    }));
+    .flatMap((r: Json) => {
+      const rooms = (r.rolos_reservation_rooms as Array<{ room_type_id: string | null }> | null) ?? [];
+      const roomTypeIds = Array.from(new Set(rooms.map((x) => x.room_type_id).filter(Boolean))) as string[];
+      if (roomTypeIds.length === 0) return [];
+      return roomTypeIds.map((rtId) => ({
+        listing_id: `rolos_${propertyId}_${rtId}`,
+        reservation_id: `${r.id}_${rtId}`,
+        check_in: r.check_in,
+        check_out: r.check_out,
+        total_price: Number(r.total_amount ?? 0) / roomTypeIds.length,
+        status: r.status,
+      }));
+    });
 
   let reservationsRes: unknown = null;
   if (reservationPayload.length > 0) {
