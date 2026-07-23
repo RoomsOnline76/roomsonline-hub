@@ -15,6 +15,7 @@ import { DEFAULT_TIERS, PricingTier, normalizeTiers, isTierStrategy } from "@/li
 import { FieldToggleRow } from "@/components/admin/billing/FieldToggleRow";
 import { MonthlyAnnualSetup, MonthlyAnnualSetupValue } from "@/components/admin/billing/MonthlyAnnualSetup";
 import { TierCriteriaEditor, RepTierCriteria, DEFAULT_TIER_CRITERIA } from "@/components/admin/billing/TierCriteriaEditor";
+import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLine";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
@@ -117,6 +118,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
             hint="Billed monthly per active room/unit when a ROL'OS PMS property has channel manager enabled."
           />
         )}
+        {item.strategy === "widget" && <WidgetTierEditor />}
         {tieredStrategy && (
           <div className="border-t pt-3 mt-2">
             <div className="flex items-center justify-between mb-2">
