@@ -101,15 +101,26 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
           suggested={item.strategy === "rolos_pms" ? 450 : null}
         />
         <FieldToggleRow
-          label="Default transaction fee (facilitator fallback %)" unit="%" step="0.1" max="100"
+          label="Booking surcharge % (ROL payment facilitator)" unit="%" step="0.1" max="100"
           value={transaction} onChange={setTransaction}
           suggested={2.5}
+          hint="Added to every booking taken via ROL's PayFast facilitator. Not charged if the owner uses their own payment provider."
         />
         <FieldToggleRow
-          label="Payment facilitator fee (contract display %)" unit="%" step="0.1" max="100"
-          value={payFac} onChange={setPayFac}
-          suggested={2.5}
+          label="BYO payment provider add-on" unit="ZAR/mo" step="50"
+          value={byoGateway} onChange={setByoGateway}
+          suggested={250}
+          hint="Flat monthly fee when the owner connects their own gateway (Stripe, Peach, PayGate, etc.). ROL does not handle the money."
         />
+        {/* Legacy % field retained for one release — hidden from primary UI. */}
+        {item.payment_facilitator_fee != null && item.payment_facilitator_fee <= 20 && (
+          <FieldToggleRow
+            label="Legacy payment facilitator % (deprecated)" unit="%" step="0.1" max="100"
+            value={payFac} onChange={setPayFac}
+            suggested={null}
+            hint="Deprecated. New properties should use the two fields above. Clear this to hide."
+          />
+        )}
         {isRolos && (
           <FieldToggleRow
             label="Channel manager per unit"
