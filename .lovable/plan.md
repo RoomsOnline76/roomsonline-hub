@@ -1,63 +1,35 @@
 
 ## Goal
 
-Clarify two overlapping fields that have confused admins, and rewrite every strategy card description so intent is obvious at a glance.
-
-## Concept correction
-
-Today both fields are stored as percentages and look interchangeable. They aren't:
-
-- **Default Transaction Fee (Facilitator Fallback %)** — ROL handles the money via its PayFast facilitator. This is a **per-booking surcharge %** applied to every booking the property takes through ROL's payment rails. Always relevant unless the owner brings their own gateway.
-- **Payment facilitator fee (contract display %)** — Misnamed. This should be a **flat monthly add-on fee (ZAR/mo)** charged to owners who opt to plug in their **own** payment provider (Stripe/Peach/etc.), because we no longer handle their money but still carry integration/support cost. It is not a percentage of anything.
-
-So: the % lives with ROL-facilitated bookings; the flat fee lives with BYO-gateway properties. They are mutually exclusive per property.
+For the **Widget — Tiered Commission** strategy the commission % is defined entirely by the configurable volume tiers. Showing a separate flat "Commission rate (% of booking)" field is misleading and duplicative. Remove it from the widget strategy in both admin and property UIs, and reflect the tiers wherever commission is summarised. White-label and BYO gateway add-ons remain available and layer on top unchanged.
 
 ## Changes
 
-### 1. Data model
-- Rename semantic of `billing_global_defaults.payment_facilitator_fee` (currently numeric %) → repurpose as **ZAR/mo flat add-on** (`byo_gateway_monthly_fee`). Add the new column, backfill from existing value only if it looks like a ZAR amount (>20), otherwise null. Keep the old column readable for one release; new UI writes to the new column.
-- Add `property_billing_configs.byo_gateway_monthly_fee` (nullable numeric) so admins can override per property.
-- `default_transaction_fee` and `transaction_fee_percentage` stay as-is (they were already correct in intent).
+**1. `src/pages/AdminBillingDefaults.tsx`**
+- Hide the "Commission rate (% of booking)" `FieldToggleRow` when `item.strategy === "widget"`.
+- Keep the field visible for `default` and `rolos_pms` (fixed % strategies).
+- The Widget Tier Editor (`WidgetTierEditor`) already renders below and remains the single source of truth for widget commission.
 
-### 2. Admin Billing Defaults (`src/pages/AdminBillingDefaults.tsx`)
-- Split into two clearly labeled `FieldToggleRow`s:
-  - **"Booking surcharge % (ROL payment facilitator)"** — unit `%`, tooltip: "Added to every booking taken via ROL's PayFast facilitator. Not charged if the owner uses their own payment provider."
-  - **"BYO payment provider add-on"** — unit `ZAR/mo`, tooltip: "Flat monthly fee when the owner connects their own gateway (Stripe, Peach, PayGate, etc.). ROL does not handle the money."
-- Remove any wording that implies both fees stack on the same booking.
+**2. `src/components/property/BillingConfigTab.tsx`**
+- Update `showCommission` to exclude `widget`:
+  ```
+  const showCommission = ["default", "rolos_pms"].includes(strategy);
+  ```
+  (Volume-tiered is per-unit fee only — already conceptually excluded; keeping current behaviour for it.)
+- For `strategy === "widget"`, render a read-only informational block in place of the input that says commission is defined by the volume tiers configured in Admin → Billing Defaults, and lists the current effective tier if resolvable (reuse `resolvePropertyTier` pattern already used for volume-tiered), otherwise a short "Tiers configured centrally" hint.
 
-### 3. Per-property Billing tab (`src/components/property/BillingConfigTab.tsx`)
-- Show the % field only when `facilitatorActive` (ROL handles money).
-- Show the BYO monthly add-on field only when `allow_custom_payment_provider` is on.
-- Info banner near the toggle: "Choose one — ROL facilitates payments (per-booking %) OR the owner brings their own gateway (flat monthly add-on)."
-- Update the yellow summary line at the bottom accordingly.
+**3. `src/components/property/AdminOverviewTab.tsx`**
+- In the summary rows: when `billing_strategy === "widget"`, suppress the flat "Commission %" row and instead show "Commission: tiered (see Widget tiers)".
+- Estimated Client Cost: no numeric change (widget commission is volume-dependent and already excluded from monthly recurring estimate).
 
-### 4. Admin Overview & payout math
-- `AdminOverviewTab.tsx` estimated-cost card: include the BYO monthly add-on in the recurring bucket when custom provider is enabled, drop the % from recurring in that case.
-- `usePropertyPayouts.ts`: apply `transaction_fee_percentage` only when `payment_facilitator_enabled` is true (already correct — verify no double-count with the new field).
+**4. `src/components/admin/billing/StrategySummaryLine.tsx`**
+- For `widget`, drop the `commission_rate` chunk from the summary and append "tiered by monthly volume" instead.
 
-### 5. Contract variables (`src/lib/contractBillingVariables.ts`)
-- `payment_facilitator_fee` (contract token) resolves to the per-booking %.
-- Add `byo_gateway_fee` token resolving to the flat monthly ZAR value + clause block. Existing contracts keep the old token functioning.
+**5. Descriptions**
+- Update the Widget strategy description in `STRATEGY_LABELS` / `STRATEGY_OPTIONS` (both `AdminBillingDefaults.tsx` and `BillingConfigTab.tsx`) to: *"Property uses ROL's booking engine (WBE) on their own site. Commission is tiered by monthly booking volume — configure the tiers in Admin → Billing Defaults. Optional white-label domain and/or BYO gateway add-ons can layer on top."*
 
-### 6. Strategy card copy — rewrite all six
+## Out of scope
 
-| Strategy | New description |
-|---|---|
-| Default (Commission) | Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee. |
-| Widget — Tiered Commission | Bookings taken through the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription. |
-| ROL'OS PMS — Subscription | Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons. |
-| Enterprise White-Label | Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue. |
-| Volume Tiered (Per Unit) | Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %. |
-| Payment Facilitator Only | No listing or PMS fees. Owner uses ROL only as a payment facilitator; ROL earns the per-booking surcharge %. |
-
-Portfolio Aggregator (hidden legacy strategy) — no copy change.
-
-### 7. Contract-facing text
-Update any ContractSign / templates that read `payment_facilitator_fee` to make clear it is a per-booking surcharge, not a monthly line item. Add optional inline BYO gateway clause.
-
-## Technical details
-
-- Migration: add `byo_gateway_monthly_fee numeric` to both `billing_global_defaults` and `property_billing_configs`; conditional backfill; no destructive drops.
-- No changes to `calculate-billing` transaction-fee branch — it already models the per-booking % correctly. Add a subscription-line emitter for the BYO add-on when `allow_custom_payment_provider` is true.
-- Types regenerate after migration approval; UI wiring lands in the follow-up build turn.
-- Files touched: `AdminBillingDefaults.tsx`, `BillingConfigTab.tsx`, `AdminOverviewTab.tsx`, `useBillingConfig.ts`, `useBillingDefaults.ts`, `contractBillingVariables.ts`, `calculate-billing/index.ts`, plus the strategy-label constants in `AdminOverviewTab`, `BillingConfigTab`, and `StrategySummaryLine.tsx`.
+- No schema changes — `commission_rate` column is retained (still used by `default` and `rolos_pms`).
+- No changes to how widget tiers are stored or evaluated.
+- Contract variables: `{commission_rate}` token will resolve to the effective tier % for widget properties via the existing `resolvePropertyTier` path used for tier clauses; no template edits required unless a follow-up asks for it.
