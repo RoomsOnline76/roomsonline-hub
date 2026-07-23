@@ -19,12 +19,12 @@ import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLine";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
-  default: { label: "Default (Commission)", description: "Standard listing / PMS commission model" },
-  widget: { label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows" },
-  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager (2% PMS commission)" },
-  enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup, zero commission" },
-  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units" },
-  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing/PMS fees — transaction fee on PayFast only" },
+  default: { label: "Default (Commission)", description: "Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
+  widget: { label: "Widget — Tiered Commission", description: "Bookings taken through the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
+  enterprise_white_label: { label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
+  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
+  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as a payment facilitator; ROL earns the per-booking surcharge %." },
 };
 const HIDDEN_STRATEGIES = new Set(["portfolio_aggregator"]);
 
