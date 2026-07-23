@@ -43,8 +43,7 @@ interface Suggestion {
   pulled_at: string;
 }
 
-export default function PMSPriceLabs() {
-  const { propertyId, loading: propLoading } = usePmsPropertyId();
+export function PriceLabsPanel({ propertyId, loading: propLoading = false, embedded = false }: { propertyId: string | null | undefined; loading?: boolean; embedded?: boolean }) {
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const canManage = isAdmin || isDev || isFearlessLeader;
   const qc = useQueryClient();
