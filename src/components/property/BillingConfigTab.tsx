@@ -446,6 +446,53 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </div>
         )}
 
+        {/* Revenue Add-ons: PriceLabs */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label className="text-sm font-medium">Revenue Add-ons</Label>
+              <p className="text-[11px] text-muted-foreground">Optional revenue tools this property can access.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={pricelabsAllowed} onCheckedChange={setPricelabsAllowed} />
+            <Label className="text-xs cursor-pointer">Allow PriceLabs (dynamic pricing)</Label>
+          </div>
+          {pricelabsAllowed && (
+            <div className="space-y-2 pl-1">
+              <div className="space-y-1">
+                <Label className="text-xs">PriceLabs Monthly Fee (ZAR)</Label>
+                <Input
+                  type="number"
+                  step="50"
+                  min="0"
+                  value={pricelabsFee}
+                  onChange={(e) => setPricelabsFee(e.target.value)}
+                  placeholder="0"
+                  className="text-xs"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3"
+                  checked={pricelabsApplyPortfolio}
+                  onChange={(e) => setPricelabsApplyPortfolio(e.target.checked)}
+                />
+                Also enable for all other properties in this property's portfolio(s)
+                {pricelabsBulkPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              </label>
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  This property will be charged <strong>R{pricelabsFee || 0}/month</strong> for the PriceLabs add-on.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+
         {/* Payment Facilitator charge warning */}
         {facilitatorActive && (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
