@@ -9,7 +9,16 @@ export interface BillingDefault {
   default_subscription_fee: number | null;
   default_transaction_fee: number | null;
   white_label_monthly_fee: number | null;
+  white_label_setup_fee?: number | null;
+  white_label_billing_mode?: "monthly" | "annual" | null;
+  branding_addon_allowed?: boolean | null;
+  branding_addon_monthly_fee?: number | null;
+  branding_addon_setup_fee?: number | null;
+  branding_addon_billing_mode?: "monthly" | "annual" | null;
   pricelabs_monthly_fee?: number | null;
+  pricelabs_setup_fee?: number | null;
+  channel_manager_per_unit_fee?: number | null;
+  sales_rep_tier_criteria_json?: any;
   payment_facilitator_fee: number | null;
   referral_first_year_rate: number | null;
   referral_residual_rate: number | null;
