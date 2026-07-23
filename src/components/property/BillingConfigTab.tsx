@@ -158,8 +158,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       white_label_monthly_fee: builder.white_label_enabled ? toNum(builder.white_label_monthly_fee) : null,
       white_label_setup_fee: builder.white_label_enabled ? toNum(builder.white_label_setup_fee) : null,
       white_label_billing_mode: builder.white_label_enabled ? builder.white_label_billing_mode : null,
-      pricelabs_allowed: builder.pricelabs_enabled,
-      pricelabs_monthly_fee: builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
+      pricelabs_allowed: isRolosPms ? builder.pricelabs_enabled : false,
+      pricelabs_monthly_fee: isRolosPms && builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
       tier_pricing_json: builder.volume_tiers_enabled ? (builder.tier_pricing_json as any) : null,
       billing_start_date: billingStartDate || null,
     } as any);
@@ -248,6 +248,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             }}
             scope="property"
             placeholders={placeholders}
+            disabledAddons={{
+              pricelabs: {
+                disabled: !isRolosPms,
+                reason: "Available only when this property's PMS is ROL'OS.",
+              },
+            }}
           />
 
           {/* Live summary */}
