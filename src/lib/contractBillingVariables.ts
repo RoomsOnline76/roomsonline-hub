@@ -69,7 +69,7 @@ export async function resolveBillingContractVariables(
   const [configRes, globalsRes] = await Promise.all([
     supabase
       .from("property_billing_configs")
-      .select("billing_strategy, commission_rate, subscription_fee_monthly, transaction_fee_percentage, white_label_monthly_fee, white_label_allowed, payment_facilitator_enabled")
+      .select("billing_strategy, commission_rate, subscription_fee_monthly, transaction_fee_percentage, byo_gateway_monthly_fee, white_label_monthly_fee, white_label_allowed, payment_facilitator_enabled")
       .in("property_id", propertyIds)
       .limit(1)
       .maybeSingle(),
