@@ -26,8 +26,9 @@ import {
 import {
   TrendingUp, TrendingDown, AlertTriangle, Lightbulb, DollarSign,
   Calendar, Target, ArrowUpRight, ArrowDownRight, Minus, History, BarChart3,
-  Plus, Trash2, Settings2, Zap,
+  Plus, Trash2, Settings2, Zap, Sparkles,
 } from "lucide-react";
+import { PriceLabsPanel } from "./PMSPriceLabs";
 
 // ============================================================================
 // Yield Rules Hook
