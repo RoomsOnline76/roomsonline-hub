@@ -126,7 +126,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
     const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
     const last = base[base.length - 1];
     const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
-    set("tier_pricing_json", [...base, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }]);
+    set("tier_pricing_json", [...base, { min_rooms: nextMin, max_rooms: null, max_properties: null, monthly_fee: 0 }]);
   };
   const removeTier = (idx: number) => {
     const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
@@ -222,19 +222,21 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         </div>
         {tiers.length ? (
           <div className="space-y-1.5">
-            <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
-              <span>Min rooms</span><span>Max rooms</span><span>ZAR / mo</span><span />
+            <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+              <span>Min rooms</span><span>Max rooms</span><span>Max props</span><span>ZAR / mo</span><span />
             </div>
             {tiers.map((t, i) => (
-              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 items-center">
                 <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
                 <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                <Input type="number" min="1" value={t.max_properties ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_properties: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
                 <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
             ))}
+            <p className="text-[10px] text-muted-foreground px-1">Leave <em>Max props</em> blank for unlimited. Tier applies when both room count and property count are within its caps.</p>
           </div>
         ) : (
           <p className="text-[11px] italic text-muted-foreground">Add at least one tier.</p>

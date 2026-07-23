@@ -106,8 +106,15 @@ export async function resolveBillingContractVariables(
         tierRoomCount = String(info.rooms);
         const feeWords = numberToWords(Math.round(info.tier.monthly_fee));
         const roomsWords = numberToWords(info.rooms);
+        const propsWords = numberToWords(info.properties);
         const scopeLabel = info.scope === "portfolio" ? "portfolio" : "property";
-        tierClause = `Based on a ${scopeLabel} of ${roomsWords} (${info.rooms}) rooms, the applicable monthly subscription is ${feeWords} Rand (R${info.tier.monthly_fee}) per month.`;
+        const propsPart = info.scope === "portfolio"
+          ? ` across ${propsWords} (${info.properties}) ${info.properties === 1 ? "property" : "properties"}`
+          : "";
+        const bumpNote = info.bumpedByPropertyCount
+          ? ` The portfolio's property count exceeds the room-bracket cap, so the next tier applies.`
+          : "";
+        tierClause = `Based on a ${scopeLabel} of ${roomsWords} (${info.rooms}) rooms${propsPart}, the applicable monthly subscription is ${feeWords} Rand (R${info.tier.monthly_fee}) per month.${bumpNote}`;
       }
     } catch (e) {
       console.warn("[contractBillingVariables] tier resolution failed", e);

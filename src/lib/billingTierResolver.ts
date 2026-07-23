@@ -3,14 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 export interface PricingTier {
   min_rooms: number;
   max_rooms: number | null;
+  /** Maximum number of properties this tier covers. null = unlimited. */
+  max_properties: number | null;
   monthly_fee: number;
 }
 
 export const DEFAULT_TIERS: PricingTier[] = [
-  { min_rooms: 0, max_rooms: 9, monthly_fee: 350 },
-  { min_rooms: 10, max_rooms: 19, monthly_fee: 450 },
-  { min_rooms: 20, max_rooms: 50, monthly_fee: 600 },
-  { min_rooms: 51, max_rooms: null, monthly_fee: 750 },
+  { min_rooms: 0, max_rooms: 10, max_properties: 1, monthly_fee: 1500 },
+  { min_rooms: 11, max_rooms: 50, max_properties: 3, monthly_fee: 4500 },
+  { min_rooms: 51, max_rooms: null, max_properties: null, monthly_fee: 0 },
 ];
 
 export const TIER_STRATEGIES = ["rolos_pms", "volume_tiered"] as const;
@@ -20,11 +21,18 @@ export function isTierStrategy(strategy: string | null | undefined): strategy is
   return !!strategy && (TIER_STRATEGIES as readonly string[]).includes(strategy);
 }
 
-export function resolveTier(rooms: number, tiers: PricingTier[]): PricingTier | null {
+/**
+ * Resolve the applicable tier. A tier matches when the current room count fits
+ * its [min_rooms, max_rooms] range AND the current property count fits its
+ * `max_properties` cap. If property count exceeds every candidate tier's cap,
+ * the highest tier is returned (caller can flag as "bumped by property count").
+ */
+export function resolveTier(rooms: number, tiers: PricingTier[], properties: number = 1): PricingTier | null {
   const sorted = [...tiers].sort((a, b) => a.min_rooms - b.min_rooms);
   for (const t of sorted) {
-    const withinMax = t.max_rooms == null || rooms <= t.max_rooms;
-    if (rooms >= t.min_rooms && withinMax) return t;
+    const withinRooms = rooms >= t.min_rooms && (t.max_rooms == null || rooms <= t.max_rooms);
+    const withinProps = t.max_properties == null || properties <= t.max_properties;
+    if (withinRooms && withinProps) return t;
   }
   return sorted[sorted.length - 1] ?? null;
 }
@@ -38,9 +46,11 @@ export function normalizeTiers(input: unknown): PricingTier[] {
       const min = Number(r.min_rooms);
       const fee = Number(r.monthly_fee);
       const max = r.max_rooms == null || r.max_rooms === "" ? null : Number(r.max_rooms);
+      const maxProps = r.max_properties == null || r.max_properties === "" ? null : Number(r.max_properties);
       if (!Number.isFinite(min) || !Number.isFinite(fee)) return null;
       if (max !== null && !Number.isFinite(max)) return null;
-      return { min_rooms: min, max_rooms: max, monthly_fee: fee };
+      if (maxProps !== null && !Number.isFinite(maxProps)) return null;
+      return { min_rooms: min, max_rooms: max, max_properties: maxProps, monthly_fee: fee };
     })
     .filter((t): t is PricingTier => t !== null);
 }
@@ -124,9 +134,36 @@ export async function getPortfolioRoomCount(propertyId: string): Promise<{
 export interface ResolvedTierInfo {
   tier: PricingTier | null;
   rooms: number;
+  properties: number;
   scope: "portfolio" | "property";
   usedOverride: boolean;
   usedGlobalTiers: boolean;
+  /** True when the resolved tier's max_properties cap is exceeded. */
+  bumpedByPropertyCount: boolean;
+}
+
+/** Count active properties in the same portfolio as `propertyId` (or 1 if standalone). */
+export async function getPortfolioPropertyCount(propertyId: string): Promise<{ count: number; scope: "portfolio" | "property" }> {
+  const { data: membership } = await supabase
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (!membership?.portfolio_id) return { count: 1, scope: "property" };
+
+  const { data: siblings } = await supabase
+    .from("property_portfolio_members")
+    .select("property_id")
+    .eq("portfolio_id", membership.portfolio_id);
+  const ids = Array.from(new Set((siblings ?? []).map((s: any) => s.property_id as string)));
+  if (!ids.length) return { count: 1, scope: "property" };
+
+  const { data: active } = await supabase
+    .from("properties")
+    .select("id")
+    .in("id", ids)
+    .eq("is_active", true);
+  return { count: active?.length ?? ids.length, scope: "portfolio" };
 }
 
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
@@ -167,11 +204,21 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     scope = "property";
   }
 
+  const propInfo = wantsPortfolio
+    ? await getPortfolioPropertyCount(propertyId)
+    : { count: 1, scope: "property" as const };
+  const properties = propInfo.count;
+
+  const tier = resolveTier(rooms, tiers, properties);
+  const bumpedByPropertyCount = !!tier && tier.max_properties != null && properties > tier.max_properties;
+
   return {
-    tier: resolveTier(rooms, tiers),
+    tier,
     rooms,
+    properties,
     scope,
     usedOverride: overrideTiers.length > 0,
     usedGlobalTiers: overrideTiers.length === 0 && globalTiers.length > 0,
+    bumpedByPropertyCount,
   };
 }
