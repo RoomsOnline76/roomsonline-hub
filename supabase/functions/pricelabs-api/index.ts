@@ -250,7 +250,7 @@ async function applySuggestions(
     .in("id", suggestionIds)
     .eq("property_id", propertyId);
 
-  if (!suggestions || suggestions.length === 0) return { success: false, reason: "no_suggestions" };
+  if (!suggestions || suggestions.length === 0) return { success: false, status: 400, error: "No matching suggestions to apply. Pull latest suggestions first." };
 
   let applied = 0;
   const errors: string[] = [];
