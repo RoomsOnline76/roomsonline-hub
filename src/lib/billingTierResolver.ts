@@ -134,9 +134,36 @@ export async function getPortfolioRoomCount(propertyId: string): Promise<{
 export interface ResolvedTierInfo {
   tier: PricingTier | null;
   rooms: number;
+  properties: number;
   scope: "portfolio" | "property";
   usedOverride: boolean;
   usedGlobalTiers: boolean;
+  /** True when the resolved tier's max_properties cap is exceeded. */
+  bumpedByPropertyCount: boolean;
+}
+
+/** Count active properties in the same portfolio as `propertyId` (or 1 if standalone). */
+export async function getPortfolioPropertyCount(propertyId: string): Promise<{ count: number; scope: "portfolio" | "property" }> {
+  const { data: membership } = await supabase
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (!membership?.portfolio_id) return { count: 1, scope: "property" };
+
+  const { data: siblings } = await supabase
+    .from("property_portfolio_members")
+    .select("property_id")
+    .eq("portfolio_id", membership.portfolio_id);
+  const ids = Array.from(new Set((siblings ?? []).map((s: any) => s.property_id as string)));
+  if (!ids.length) return { count: 1, scope: "property" };
+
+  const { data: active } = await supabase
+    .from("properties")
+    .select("id")
+    .in("id", ids)
+    .eq("is_active", true);
+  return { count: active?.length ?? ids.length, scope: "portfolio" };
 }
 
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
@@ -177,11 +204,21 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     scope = "property";
   }
 
+  const propInfo = wantsPortfolio
+    ? await getPortfolioPropertyCount(propertyId)
+    : { count: 1, scope: "property" as const };
+  const properties = propInfo.count;
+
+  const tier = resolveTier(rooms, tiers, properties);
+  const bumpedByPropertyCount = !!tier && tier.max_properties != null && properties > tier.max_properties;
+
   return {
-    tier: resolveTier(rooms, tiers),
+    tier,
     rooms,
+    properties,
     scope,
     usedOverride: overrideTiers.length > 0,
     usedGlobalTiers: overrideTiers.length === 0 && globalTiers.length > 0,
+    bumpedByPropertyCount,
   };
 }
