@@ -1,38 +1,86 @@
-## Goal
-Produce a single .docx matrix that lists every billing configuration currently in the system, its current value, the target value from the attached WhatsApp price sheet, and the required adjustment. Where no default currently exists but the price sheet requires one, mark it clearly.
+# PriceLabs Revenue Management Integration
 
-## Source of truth
-**Attached price sheet (authoritative):**
-- ROL'OS PMS tiered subscription: 0–9 rooms = R450/mo · 10–19 = R600/mo · 20–50 = R750/mo · 51+ = R925/mo
-- ROL'OS Website – Booking Engine: no set-up, no monthly fee, **2% commission** on confirmed bookings
-- Channel Manager (Booking.com, Airbnb, LekkeSlaap, Expedia): **R70 per unit per month**
+Automate dynamic pricing intelligence for ROLOS PMS properties via the PriceLabs IAPI. Owners see AI-driven suggested rates in Rate Manager and choose whether to apply them — ROLOS remains the source of truth.
 
-**Current DB (`billing_global_defaults`):**
-| Strategy | Commission | Sub fee | Tiers (0-9/10-19/20-50/51+) | White-label | PayFac |
-|---|---|---|---|---|---|
-| default | 10% | — | — | R0 | 2.5% |
-| widget | 8% | — | — | R0 | 2.5% |
-| rolos_pms | 2% | R500 | 350 / 450 / 600 / 750 | R0 | 2.5% |
-| portfolio_aggregator | 5% | — | — | R0 | 2.5% |
-| enterprise_white_label | 0% | R2500 | — | R500 | 2.5% |
-| volume_tiered | 8% | — | 350 / 450 / 600 / 750 | R0 | 2.5% |
-| payment_facilitator | — | — | — | R0 | 2.5% |
+## Architecture
 
-## Deliverable
-`/mnt/documents/rolos-billing-matrix.docx` containing:
+```text
+ROLOS property  ──(push listings + reservations + calendar)──▶  PriceLabs
+                ◀──(pull suggested prices via /get_prices)────
+                ▼
+        Rate Manager UI shows: Current | Suggested (Δ%, occupancy signal)
+                ▼
+        Owner clicks "Apply" (single date, range, or bulk) → rolos_rate_prices updated
+```
 
-1. **Header + intro** — purpose, source, date.
-2. **Table 1 — ROL'OS PMS tiered subscription**: columns = Tier · Current default (R) · Target (attached) · Δ · Status. Rows for each of the 4 tiers, applied to both `rolos_pms` and `volume_tiered` strategies. Highlights that all four tiers need increases (e.g. 0–9 R350→R450, 51+ R750→R925), and flags the extra `R500` flat `subscription_fee_monthly` on `rolos_pms` as redundant vs. tiers.
-3. **Table 2 — ROL'OS Website Booking Engine**: rows for commission (current 10% on `default` → target 2%), set-up fee (none / none), monthly fee (none / none). Flags mismatch on `default` strategy.
-4. **Table 3 — Channel Manager (per-unit)**: notes **no current default exists** for a per-unit channel manager fee. Target R70/unit/month. Action = add a new billing line item / column (proposed: `channel_manager_per_unit_fee` on `billing_global_defaults`, or a new `channel_manager` strategy row).
-5. **Table 4 — Other strategies (informational)**: `widget`, `portfolio_aggregator`, `enterprise_white_label`, `payment_facilitator` — current values shown, marked "not covered by attached sheet — retain or review".
-6. **Legend**: ✅ aligned · ⚠️ needs update · ❌ missing default.
-7. **Summary of required changes** (bulleted): concrete list of DB updates to run.
+Suggestions never mutate `rolos_rate_prices` automatically. A per-property auto-apply switch may be enabled later.
 
-## Technical
-- Build with `docx-js` per xlsx/docx skill; US Letter, Arial, brand pink `#E91E8C` accents on headings/table header rows, charcoal text.
-- Tables use DXA widths with `columnWidths` matching cell widths; `ShadingType.CLEAR`; cell margins 80/80/120/120.
-- QA: convert to PDF via LibreOffice and view every page image before delivery.
-- Emit `<presentation-artifact>` tag on completion.
+## Credentials model (admin decides)
 
-No code or DB changes — document only.
+- **Global**: `PRICELABS_INTEGRATION_NAME` / `PRICELABS_INTEGRATION_TOKEN` (existing env in `pricelabs-api`) used as default.
+- **Per-property override**: stored in `integration_configs` (system=`pricelabs`, `property_id`, config=`{integration_name, integration_token}`).
+- The existing `pricelabs-api` edge function already reads global creds — extend `getCreds()` to accept an optional `property_id` and prefer the row scoped to that property.
+
+## Rate-plan scope (admin-configurable per property)
+
+Add a JSON column `pricelabs_config` to `properties`:
+
+```json
+{
+  "enabled": true,
+  "managed_rate_plan_ids": ["<uuid>", "<uuid>"],
+  "managed_room_type_ids": ["<uuid>"],
+  "auto_apply": false,
+  "min_price_floor": 850,
+  "max_price_ceiling": 4500,
+  "last_pull_at": "..."
+}
+```
+
+Admins toggle which rooms/rate plans PriceLabs drives inside **ROLOS → Rate Manager → PriceLabs** (new sub-tab).
+
+## Database changes (single migration)
+
+1. `ALTER TABLE properties ADD COLUMN pricelabs_config JSONB DEFAULT '{}'::jsonb`.
+2. New table `pricelabs_price_suggestions`:
+   - `property_id`, `room_type_id`, `rate_plan_id`, `date`, `suggested_price`, `current_price`, `occupancy`, `demand_signal`, `pulled_at`, `applied_at`, `applied_by`.
+   - Unique on (`property_id`, `room_type_id`, `rate_plan_id`, `date`).
+   - RLS: admin/dev + property staff can read; only admin/dev can write. Full GRANTs to authenticated + service_role.
+3. Reuse existing `integration_configs` for per-property tokens.
+
+## Edge function changes
+
+**Extend `supabase/functions/pricelabs-api/index.ts`:**
+- New action `sync_property_to_pricelabs` — builds listings payload from `rolos_room_types` + `properties`, calls `push_listings`, then `push_reservations` (last 730 days from `rolos_reservations`) and `push_calendar` (365-day forward inventory from `rolos_inventory_calendar`).
+- New action `pull_price_suggestions` — calls `/get_prices` for the property's listing IDs, upserts into `pricelabs_price_suggestions`, updates `pricelabs_config.last_pull_at`.
+- New action `apply_suggestions` — accepts `{property_id, suggestion_ids[]}`, writes to `rolos_rate_prices` respecting `min_price_floor`/`max_price_ceiling`, stamps `applied_at`/`applied_by`.
+- `getCreds(property_id?)` prefers per-property credentials.
+
+**New cron:** `cron-pull-pricelabs-suggestions` — daily 04:00 UTC, iterates properties where `pricelabs_config.enabled = true` and calls `pull_price_suggestions`.
+
+**Webhook (`pricelabs-webhook`)** — already exists; add handler to trigger a targeted `pull_price_suggestions` when PriceLabs signals recalculation for a listing.
+
+## Frontend changes (ROLOS only)
+
+1. **Rate Manager → new "PriceLabs" tab** (`src/pages/pms/PMSRatePlans.tsx` or dedicated `PMSPriceLabs.tsx`):
+   - Enable toggle, credential mode (global/custom), managed rate-plan multiselect, floor/ceiling inputs, auto-apply switch (default off).
+   - "Push property to PriceLabs" button (calls `sync_property_to_pricelabs`).
+   - Suggestions table: room type × date grid, current vs suggested, Δ%, occupancy heat, per-row and bulk **Apply** buttons.
+   - "Pull latest" manual refresh.
+2. **Admin gating** (`src/pages/PropertyForm.tsx` → Admin tab): switch `pricelabs_enabled` at property level so non-admin owners only see the feature when admin allows.
+
+## Files touched (estimate)
+
+- `supabase/migrations/<ts>_pricelabs_suggestions.sql` (new)
+- `supabase/functions/pricelabs-api/index.ts` (extend)
+- `supabase/functions/pricelabs-webhook/index.ts` (extend)
+- `supabase/functions/cron-pull-pricelabs-suggestions/index.ts` (new)
+- `src/pages/pms/PMSPriceLabs.tsx` (new) + route + nav entry
+- `src/components/property/AdminOverviewTab.tsx` / Admin tab (add gating toggle)
+- Docs: `docs/pricelabs-integration.md`
+
+## Out of scope (for later iteration)
+
+- Auto-apply without owner review (flag exists but UI hidden).
+- Portfolio-level PriceLabs strategy roll-ups.
+- Feeding PriceLabs occupancy from non-ROLOS PMS (Hostfully, RU) — future phase.

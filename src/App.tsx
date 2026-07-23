@@ -136,6 +136,7 @@ const PMSPortfolio = lazy(() => import("./pages/pms/PMSPortfolio"));
 const PMSRevenue = lazy(() => import("./pages/pms/PMSRevenue"));
 const PMSCommandCentre = lazy(() => import("./pages/pms/PMSCommandCentre"));
 const PMSPropertySetup = lazy(() => import("./pages/pms/PMSPropertySetup"));
+const PMSPriceLabs = lazy(() => import("./pages/pms/PMSPriceLabs"));
 const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey"));
 
 import { PMSShell } from "./components/layout/PMSShell";
@@ -388,6 +389,7 @@ const App = () => (
                           <Route path="revenue" element={<PMSRevenue />} />
                           <Route path="command-centre" element={<PMSCommandCentre />} />
                           <Route path="property-setup" element={<PMSPropertySetup />} />
+                          <Route path="pricelabs" element={<PMSPriceLabs />} />
                         </Route>
 
                         {/* ═══ Connect portal (/connect path) ════════════ */}

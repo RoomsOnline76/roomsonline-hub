@@ -178,6 +178,7 @@ const pmsSection: NavSection = {
     // Revenue
     { id: 'pms-rate-plans', title: 'Rate Plans', icon: TrendingUp, href: '/pms/rate-plans', minRole: 'owner', description: 'Pricing strategies' },
     { id: 'pms-revenue', title: 'Revenue Mgmt', icon: Gauge, href: '/pms/revenue', minRole: 'owner', description: 'Revenue management' },
+    { id: 'pms-pricelabs', title: 'PriceLabs', icon: Sparkles, href: '/pms/pricelabs', minRole: 'owner', description: 'AI dynamic pricing suggestions' },
     { id: 'pms-channels', title: 'Channels', icon: Radio, href: '/pms/channels', minRole: 'owner', description: 'Channel distribution' },
     { id: 'pms-groups', title: 'Groups', icon: UsersRound, href: '/pms/groups', minRole: 'owner', description: 'Group bookings' },
     { id: 'pms-events', title: 'Events', icon: CalendarHeart, href: '/pms/events', minRole: 'owner', description: 'Events management' },

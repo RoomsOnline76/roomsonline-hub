@@ -10,42 +10,34 @@ const BASE = "https://api.pricelabs.co/v2/integration/api";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-// Token may be rotated via /integration { regenerate_token: true }.
-// We always read latest from `integration_configs` (system='pricelabs'), falling back to env.
 const ENV_NAME = Deno.env.get("PRICELABS_INTEGRATION_NAME") ?? "";
 const ENV_TOKEN = Deno.env.get("PRICELABS_INTEGRATION_TOKEN") ?? "";
 
 type Json = Record<string, unknown>;
+type SB = ReturnType<typeof createClient>;
 
-async function getCreds(supabase: ReturnType<typeof createClient>) {
+async function getCreds(supabase: SB, propertyId?: string) {
   let name = ENV_NAME;
   let token = ENV_TOKEN;
-  try {
-    const { data } = await supabase
-      .from("integration_configs")
-      .select("config")
-      .eq("system", "pricelabs")
-      .eq("config_key", "credentials")
-      .maybeSingle();
-    const cfg = (data?.config ?? {}) as Json;
-    if (typeof cfg.integration_name === "string" && cfg.integration_name) name = cfg.integration_name as string;
-    if (typeof cfg.integration_token === "string" && cfg.integration_token) token = cfg.integration_token as string;
-  } catch (_) { /* table may not exist yet — fall back to env */ }
-  if (!name || !token) throw new Error("PriceLabs credentials missing (PRICELABS_INTEGRATION_NAME / _TOKEN)");
-  return { name, token };
-}
 
-async function persistToken(supabase: ReturnType<typeof createClient>, name: string, token: string) {
-  try {
-    await supabase
-      .from("integration_configs")
-      .upsert(
-        { system: "pricelabs", config_key: "credentials", config: { integration_name: name, integration_token: token, updated_at: new Date().toISOString() } },
-        { onConflict: "system,config_key" },
-      );
-  } catch (e) {
-    console.warn("[pricelabs] persistToken failed:", (e as Error).message);
+  // Per-property override lives in properties.pricelabs_config.credentials
+  if (propertyId) {
+    try {
+      const { data } = await supabase
+        .from("properties")
+        .select("pricelabs_config")
+        .eq("id", propertyId)
+        .maybeSingle();
+      const cfg = ((data?.pricelabs_config ?? {}) as Json).credentials as Json | undefined;
+      if (cfg && typeof cfg.integration_name === "string" && typeof cfg.integration_token === "string") {
+        name = cfg.integration_name;
+        token = cfg.integration_token;
+      }
+    } catch (_) { /* ignore */ }
   }
+
+  if (!name || !token) throw new Error("PriceLabs credentials missing (PRICELABS_INTEGRATION_NAME / _TOKEN or property override)");
+  return { name, token };
 }
 
 async function pl(method: "GET" | "POST", path: string, name: string, token: string, body?: unknown) {
@@ -64,6 +56,243 @@ async function pl(method: "GET" | "POST", path: string, name: string, token: str
   return { ok: res.ok, status: res.status, body: json };
 }
 
+// -------------------------------------------------------------------
+// High-level ROLOS-specific actions
+// -------------------------------------------------------------------
+
+async function buildListingsPayload(supabase: SB, propertyId: string) {
+  const { data: property } = await supabase
+    .from("properties")
+    .select("id, name, currency, latitude, longitude, city, country_code")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (!property) throw new Error("Property not found");
+
+  const { data: roomTypes } = await supabase
+    .from("rolos_room_types")
+    .select("id, name, base_occupancy, max_occupancy, default_rate")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+
+  const listings = (roomTypes ?? []).map((rt) => ({
+    listing_id: `rolos_${propertyId}_${rt.id}`,
+    name: `${property.name} — ${rt.name}`,
+    currency: property.currency || "ZAR",
+    location: {
+      latitude: property.latitude,
+      longitude: property.longitude,
+      city: property.city,
+      country: property.country_code,
+    },
+    no_of_bedrooms: 1,
+    max_occupancy: rt.max_occupancy ?? 2,
+    base_price: Number(rt.default_rate ?? 0),
+  }));
+
+  return { property, listings, roomTypes: roomTypes ?? [] };
+}
+
+async function syncPropertyToPricelabs(supabase: SB, propertyId: string, name: string, token: string) {
+  const { property, listings, roomTypes } = await buildListingsPayload(supabase, propertyId);
+  if (listings.length === 0) return { success: false, reason: "no_active_room_types" };
+
+  const listingsRes = await pl("POST", "/listings", name, token, { listings });
+
+  // Push last 730 days of reservations
+  const since = new Date(Date.now() - 730 * 86400_000).toISOString().slice(0, 10);
+  const { data: reservations } = await supabase
+    .from("rolos_reservations")
+    .select("id, check_in, check_out, total_amount, room_type_id, status")
+    .eq("property_id", propertyId)
+    .gte("check_in", since);
+
+  const reservationPayload = (reservations ?? [])
+    .filter((r) => r.room_type_id)
+    .map((r) => ({
+      listing_id: `rolos_${propertyId}_${r.room_type_id}`,
+      reservation_id: r.id,
+      check_in: r.check_in,
+      check_out: r.check_out,
+      total_price: Number(r.total_amount ?? 0),
+      status: r.status,
+    }));
+
+  let reservationsRes: unknown = null;
+  if (reservationPayload.length > 0) {
+    const r = await pl("POST", "/reservations", name, token, { reservations: reservationPayload });
+    reservationsRes = r.body;
+  }
+
+  return {
+    success: true,
+    property_id: propertyId,
+    property_name: property.name,
+    listings_pushed: listings.length,
+    reservations_pushed: reservationPayload.length,
+    room_type_count: roomTypes.length,
+    listings_response: listingsRes.body,
+    reservations_response: reservationsRes,
+  };
+}
+
+async function pullPriceSuggestions(supabase: SB, propertyId: string, name: string, token: string) {
+  const { data: roomTypes } = await supabase
+    .from("rolos_room_types")
+    .select("id, default_rate")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+
+  if (!roomTypes || roomTypes.length === 0) return { success: false, reason: "no_room_types" };
+
+  const listingIds = roomTypes.map((rt) => `rolos_${propertyId}_${rt.id}`);
+  const priced = await pl("POST", "/get_prices", name, token, { listing_ids: listingIds });
+  if (!priced.ok) return { success: false, status: priced.status, error: priced.body };
+
+  const body = (priced.body as Json | null) ?? {};
+  const listingsOut = (body.listings as Array<Json> | undefined) ?? (body.data as Array<Json> | undefined) ?? [];
+
+  // Load rate plans for the property (used for default association)
+  const { data: ratePlans } = await supabase
+    .from("rolos_rate_plans")
+    .select("id, name")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+
+  const rows: Array<Json> = [];
+  for (const l of listingsOut) {
+    const lid = String(l.listing_id ?? l.id ?? "");
+    const roomTypeId = lid.startsWith(`rolos_${propertyId}_`) ? lid.slice(`rolos_${propertyId}_`.length) : null;
+    if (!roomTypeId) continue;
+
+    const rt = roomTypes.find((r) => r.id === roomTypeId);
+    const prices = (l.prices as Array<Json> | undefined) ?? (l.dates as Array<Json> | undefined) ?? [];
+
+    for (const p of prices) {
+      const date = String(p.date ?? p.day ?? "");
+      const suggested = Number(p.price ?? p.suggested_price ?? 0);
+      if (!date || !suggested) continue;
+      rows.push({
+        property_id: propertyId,
+        room_type_id: roomTypeId,
+        rate_plan_id: ratePlans?.[0]?.id ?? null,
+        listing_id: lid,
+        date,
+        suggested_price: suggested,
+        current_price: rt?.default_rate ?? null,
+        occupancy: p.occupancy ?? p.demand ?? null,
+        demand_signal: (p.demand_level ?? p.demand ?? null) as string | null,
+        min_price: p.min_price ?? null,
+        max_price: p.max_price ?? null,
+        raw: p,
+        pulled_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (rows.length > 0) {
+    // Upsert in batches
+    const chunk = 500;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const batch = rows.slice(i, i + chunk);
+      const { error } = await supabase
+        .from("pricelabs_price_suggestions")
+        .upsert(batch, { onConflict: "property_id,room_type_id,rate_plan_id,date" });
+      if (error) console.error("[pricelabs] upsert error:", error.message);
+    }
+  }
+
+  // Stamp last_pull_at
+  const { data: prop } = await supabase.from("properties").select("pricelabs_config").eq("id", propertyId).maybeSingle();
+  const nextCfg = { ...((prop?.pricelabs_config ?? {}) as Json), last_pull_at: new Date().toISOString() };
+  await supabase.from("properties").update({ pricelabs_config: nextCfg }).eq("id", propertyId);
+
+  return { success: true, suggestions_upserted: rows.length };
+}
+
+async function applySuggestions(
+  supabase: SB,
+  propertyId: string,
+  suggestionIds: string[],
+  userId: string | null,
+) {
+  const { data: property } = await supabase
+    .from("properties")
+    .select("pricelabs_config")
+    .eq("id", propertyId)
+    .maybeSingle();
+  const cfg = (property?.pricelabs_config ?? {}) as Json;
+  const floor = Number(cfg.min_price_floor ?? 0);
+  const ceiling = Number(cfg.max_price_ceiling ?? 0);
+
+  const { data: suggestions } = await supabase
+    .from("pricelabs_price_suggestions")
+    .select("*")
+    .in("id", suggestionIds)
+    .eq("property_id", propertyId);
+
+  if (!suggestions || suggestions.length === 0) return { success: false, reason: "no_suggestions" };
+
+  let applied = 0;
+  const errors: string[] = [];
+
+  for (const s of suggestions) {
+    let price = Number(s.suggested_price);
+    if (floor > 0) price = Math.max(price, floor);
+    if (ceiling > 0) price = Math.min(price, ceiling);
+
+    if (!s.rate_plan_id || !s.room_type_id) {
+      errors.push(`Skipped suggestion ${s.id}: missing rate_plan or room_type`);
+      continue;
+    }
+
+    // Upsert a 1-day season for this rate_plan_id at date s.date
+    const seasonName = `PriceLabs ${s.date}`;
+    // Find existing 1-day season for this plan+date
+    const { data: existingSeason } = await supabase
+      .from("rolos_rate_seasons")
+      .select("id")
+      .eq("rate_plan_id", s.rate_plan_id)
+      .eq("start_date", s.date)
+      .eq("end_date", s.date)
+      .maybeSingle();
+
+    let seasonId = existingSeason?.id as string | undefined;
+    if (!seasonId) {
+      const { data: newSeason, error: sErr } = await supabase
+        .from("rolos_rate_seasons")
+        .insert({
+          rate_plan_id: s.rate_plan_id,
+          name: seasonName,
+          start_date: s.date,
+          end_date: s.date,
+        })
+        .select("id")
+        .single();
+      if (sErr) { errors.push(`Season create failed for ${s.date}: ${sErr.message}`); continue; }
+      seasonId = newSeason.id;
+    }
+
+    const { error: pErr } = await supabase
+      .from("rolos_rate_prices")
+      .upsert(
+        { season_id: seasonId, room_type_id: s.room_type_id, base_rate: price },
+        { onConflict: "season_id,room_type_id" },
+      );
+    if (pErr) { errors.push(`Price upsert failed for ${s.date}: ${pErr.message}`); continue; }
+
+    await supabase
+      .from("pricelabs_price_suggestions")
+      .update({ applied_at: new Date().toISOString(), applied_by: userId, applied_price: price })
+      .eq("id", s.id);
+
+    applied++;
+  }
+
+  return { success: true, applied, total: suggestions.length, errors };
+}
+
+// -------------------------------------------------------------------
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -76,7 +305,19 @@ Deno.serve(async (req) => {
 
     const payload = await req.json().catch(() => ({}));
     const action = (payload.action as string) || "health_check";
-    const { name, token } = await getCreds(supabase);
+    const propertyId = payload.property_id as string | undefined;
+
+    // Resolve user for audit trail (best-effort; verify_jwt disabled)
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const { data } = await supabase.auth.getUser(authHeader.slice(7));
+        userId = data.user?.id ?? null;
+      } catch (_) { /* ignore */ }
+    }
+
+    const { name, token } = await getCreds(supabase, propertyId);
 
     switch (action) {
       case "health_check":
@@ -85,27 +326,24 @@ Deno.serve(async (req) => {
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
-      case "set_integration": {
-        // Configure sync_url, calendar_trigger_url, hook_url, features, optional regenerate_token.
-        const integration: Json = {};
-        for (const k of ["sync_url", "calendar_trigger_url", "hook_url", "features", "regenerate_token"]) {
-          if (payload[k] !== undefined) integration[k] = payload[k];
-        }
-        const r = await pl("POST", "/integration", name, token, { integration });
-        if (r.ok && integration.regenerate_token === true) {
-          const body = (r.body as Json | null) ?? {};
-          const inner = (body.integration as Json | undefined) ?? body;
-          const newToken = (inner?.["integration_token"] ?? inner?.["token"]) as string | undefined;
-          if (newToken) await persistToken(supabase, name, newToken);
-        }
-        return json({ success: r.ok, status: r.status, data: r.body });
+      case "sync_property_to_pricelabs": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+        const res = await syncPropertyToPricelabs(supabase, propertyId, name, token);
+        return json(res);
       }
 
+      case "pull_price_suggestions": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+        const res = await pullPriceSuggestions(supabase, propertyId, name, token);
+        return json(res);
+      }
 
-      case "push_listings": {
-        // payload.listings: array per Swagger schema
-        const r = await pl("POST", "/listings", name, token, { listings: payload.listings ?? [] });
-        return json({ success: r.ok, status: r.status, data: r.body });
+      case "apply_suggestions": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+        const ids = (payload.suggestion_ids as string[]) ?? [];
+        if (ids.length === 0) return json({ error: "suggestion_ids required" }, 400);
+        const res = await applySuggestions(supabase, propertyId, ids, userId);
+        return json(res);
       }
 
       case "get_listings": {
@@ -114,33 +352,8 @@ Deno.serve(async (req) => {
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
-      case "push_calendar": {
-        const r = await pl("POST", "/calendar", name, token, payload.body ?? payload);
-        return json({ success: r.ok, status: r.status, data: r.body });
-      }
-
-      case "get_calendar": {
-        const r = await pl("GET", "/calendar", name, token);
-        return json({ success: r.ok, status: r.status, data: r.body });
-      }
-
       case "get_prices": {
         const r = await pl("POST", "/get_prices", name, token, payload.body ?? { listing_ids: payload.listing_ids ?? [] });
-        return json({ success: r.ok, status: r.status, data: r.body });
-      }
-
-      case "push_reservations": {
-        const r = await pl("POST", "/reservations", name, token, { reservations: payload.reservations ?? [] });
-        return json({ success: r.ok, status: r.status, data: r.body });
-      }
-
-      case "push_rate_plans": {
-        const r = await pl("POST", "/rate_plans", name, token, { rate_plans: payload.rate_plans ?? [] });
-        return json({ success: r.ok, status: r.status, data: r.body });
-      }
-
-      case "get_status": {
-        const r = await pl("POST", "/status", name, token, payload.body ?? {});
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
