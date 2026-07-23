@@ -140,7 +140,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const costLines: { label: string; amount: number; once?: boolean }[] = [];
 
   const subMonthly = Number(config?.subscription_fee_monthly ?? 0);
-  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "portfolio_aggregator" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
+  if (subMonthly > 0 && (strategy === "rolos_pms" || strategy === "enterprise_white_label" || strategy === "volume_tiered")) {
     costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy]})`, amount: subMonthly });
   }
 
