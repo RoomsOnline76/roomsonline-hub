@@ -73,6 +73,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       default_subscription_fee: toNum(subscription),
       default_transaction_fee: toNum(transaction),
       payment_facilitator_fee: toNum(payFac),
+      byo_gateway_monthly_fee: toNum(byoGateway),
       channel_manager_per_unit_fee: isRolos ? toNum(channelPerUnit) : item.channel_manager_per_unit_fee ?? null,
       notes: notes || null,
       ...(tieredStrategy ? { tier_pricing_json: tiers as any } : {}),
