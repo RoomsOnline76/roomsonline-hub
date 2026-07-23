@@ -47,6 +47,10 @@ interface Portfolio {
   owner_id: string | null;
   created_at: string;
   metadata?: { branding?: PortfolioBranding } | null;
+  aggregator_billing_mode?: "none" | "monthly" | "once_off" | null;
+  aggregator_monthly_fee?: number | null;
+  aggregator_setup_fee?: number | null;
+  aggregator_activated_at?: string | null;
 }
 
 interface PortfolioMember {
