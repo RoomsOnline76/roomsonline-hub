@@ -84,23 +84,30 @@ function ToggleRow({
   enabled,
   onToggle,
   children,
+  disabled,
+  disabledReason,
 }: {
   title: string;
   description?: string;
   enabled: boolean;
   onToggle: (v: boolean) => void;
   children?: React.ReactNode;
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   return (
-    <div className={`rounded-md border p-3 space-y-3 ${enabled ? "" : "bg-muted/20"}`}>
+    <div className={`rounded-md border p-3 space-y-3 ${enabled && !disabled ? "" : "bg-muted/20"} ${disabled ? "opacity-70" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Label className="text-sm font-medium">{title}</Label>
           {description && <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>}
+          {disabled && disabledReason && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">{disabledReason}</p>
+          )}
         </div>
-        <Switch checked={enabled} onCheckedChange={onToggle} />
+        <Switch checked={enabled && !disabled} disabled={disabled} onCheckedChange={onToggle} />
       </div>
-      {enabled && children ? <div className="pt-1 space-y-2">{children}</div> : null}
+      {enabled && !disabled && children ? <div className="pt-1 space-y-2">{children}</div> : null}
     </div>
   );
 }
