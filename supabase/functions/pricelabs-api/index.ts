@@ -391,7 +391,8 @@ Deno.serve(async (req) => {
       }
 
       case "get_prices": {
-        const r = await pl("POST", "/get_prices", name, token, payload.body ?? { listing_ids: payload.listing_ids ?? [] });
+        const body = payload.body ?? { sync: { listing_ids: payload.listing_ids ?? [] } };
+        const r = await pl("POST", "/get_prices", name, token, body);
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
