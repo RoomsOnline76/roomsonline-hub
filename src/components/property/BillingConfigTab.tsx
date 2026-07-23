@@ -360,7 +360,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         {/* Transaction Fee */}
         {showTransactionFee && (
           <div className="space-y-1">
-            <Label>Transaction Fee (%)</Label>
+            <Label>Payment facilitator fee (% of transaction)</Label>
             <Input
               type="number"
               step="0.1"
@@ -371,6 +371,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               placeholder={globalDefaults?.default_transaction_fee?.toString() ?? "2.5"}
               className="text-xs"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Card/gateway pass-through — charged only when Rooms Online PayFast processes the payment.
+            </p>
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
           </div>
         )}
