@@ -11,6 +11,7 @@ export interface BillingConfig {
   subscription_fee_monthly: number | null;
   transaction_fee_percentage: number | null;
   payment_facilitator_enabled: boolean;
+  byo_gateway_monthly_fee?: number | null;
   white_label_allowed: boolean;
   white_label_monthly_fee?: number | null;
   white_label_setup_fee?: number | null;
