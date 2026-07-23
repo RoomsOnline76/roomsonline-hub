@@ -18,12 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAULT_TIERS } from "@/lib/billingTierResolver";
 
 const STRATEGY_OPTIONS = [
-  { value: "default", label: "Default — Listing Commission", description: "10% commission on direct bookings via ROL widgets. No fixed monthly fees." },
-  { value: "widget", label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows. No subscription." },
-  { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager. Reduced 2% PMS commission on bookings." },
-  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup fee. Zero commission on bookings." },
-  { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units. No booking commission." },
-  { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees — only the payment transaction fee on Rooms Online PayFast." },
+  { value: "default", label: "Default (Commission)", description: "Listed on ROL, paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
+  { value: "widget", label: "Widget — Tiered Commission", description: "Bookings via the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base + R60/unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
+  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
+  { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
+  { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as payment facilitator; ROL earns the per-booking surcharge %." },
 ];
 
 interface BillingConfigTabProps {
@@ -68,6 +68,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [subscriptionFee, setSubscriptionFee] = useState("");
   const [transactionFee, setTransactionFee] = useState("");
   const [paymentFacilitator, setPaymentFacilitator] = useState(false);
+  const [byoGatewayFee, setByoGatewayFee] = useState("");
   const [whiteLabel, setWhiteLabel] = useState(false);
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
   const [pricelabsAllowed, setPricelabsAllowed] = useState(false);
@@ -87,6 +88,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setSubscriptionFee(config.subscription_fee_monthly?.toString() || "");
       setTransactionFee(config.transaction_fee_percentage?.toString() || "");
       setPaymentFacilitator(config.payment_facilitator_enabled || false);
+      setByoGatewayFee((config as any).byo_gateway_monthly_fee?.toString() || "");
       setWhiteLabel(config.white_label_allowed || false);
       setWhiteLabelFee((config as any).white_label_monthly_fee?.toString() || "");
       setPricelabsAllowed((config as any).pricelabs_allowed || false);
@@ -126,6 +128,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       subscription_fee_monthly: subscriptionFee ? parseFloat(subscriptionFee) : null,
       transaction_fee_percentage: transactionFee ? parseFloat(transactionFee) : null,
       payment_facilitator_enabled: facilitatorActive,
+      byo_gateway_monthly_fee: !facilitatorActive && byoGatewayFee ? parseFloat(byoGatewayFee) : null,
       white_label_allowed: whiteLabel,
       white_label_monthly_fee: whiteLabelFee ? parseFloat(whiteLabelFee) : null,
       pricelabs_allowed: pricelabsAllowed,
@@ -356,10 +359,17 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         )}
 
 
-        {/* Transaction Fee */}
-        {showTransactionFee && (
+        {/* Payment model info banner */}
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-[11px] text-blue-900 dark:text-blue-200">
+          <strong>Choose one payment model:</strong> ROL facilitates payments and earns a <em>per-booking surcharge %</em>,{" "}
+          <strong>OR</strong> the owner brings their own gateway (Stripe, Peach, PayGate) and pays a{" "}
+          <em>flat monthly BYO add-on</em>. Toggle "Custom payment provider" on the Payment Providers tab to switch.
+        </div>
+
+        {/* Booking surcharge % — only when ROL facilitates */}
+        {facilitatorActive && (
           <div className="space-y-1">
-            <Label>Payment facilitator fee (% of transaction)</Label>
+            <Label>Booking surcharge % (ROL payment facilitator)</Label>
             <Input
               type="number"
               step="0.1"
@@ -371,9 +381,29 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               className="text-xs"
             />
             <p className="text-[10px] text-muted-foreground">
-              Card/gateway pass-through — charged only when Rooms Online PayFast processes the payment.
+              Added to every booking taken via ROL's PayFast facilitator. Card/gateway pass-through.
             </p>
             <GlobalHint value={globalDefaults?.default_transaction_fee} label="%" />
+          </div>
+        )}
+
+        {/* BYO gateway monthly add-on — only when owner uses their own provider */}
+        {customProviderEnabled && (
+          <div className="space-y-1">
+            <Label>BYO payment provider add-on (ZAR/month)</Label>
+            <Input
+              type="number"
+              step="50"
+              min="0"
+              value={byoGatewayFee}
+              onChange={(e) => setByoGatewayFee(e.target.value)}
+              placeholder={((globalDefaults as any)?.byo_gateway_monthly_fee ?? 250).toString()}
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Flat monthly fee — owner processes payments on their own gateway. ROL does not handle the money.
+            </p>
+            <GlobalHint value={(globalDefaults as any)?.byo_gateway_monthly_fee} label=" ZAR/mo" />
           </div>
         )}
 
@@ -505,15 +535,24 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         </div>
 
 
-        {/* Payment Facilitator charge warning */}
-        {facilitatorActive && (
+        {/* Payment model summary warning */}
+        {facilitatorActive ? (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-800 dark:text-amber-300">
-              This property will be charged <strong>{transactionFee || globalDefaults?.payment_facilitator_fee || globalDefaults?.default_transaction_fee || 2.5}%</strong> per transaction as payment facilitator fee.
+              ROL facilitates payments. This property will be charged{" "}
+              <strong>{transactionFee || globalDefaults?.default_transaction_fee || 2.5}%</strong> booking surcharge per transaction.
             </p>
           </div>
-        )}
+        ) : customProviderEnabled ? (
+          <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-emerald-800 dark:text-emerald-300">
+              Owner uses their own gateway. Flat BYO add-on:{" "}
+              <strong>R{byoGatewayFee || (globalDefaults as any)?.byo_gateway_monthly_fee || 250}/month</strong>. No per-booking surcharge.
+            </p>
+          </div>
+        ) : null}
 
         {/* Billing Start Date */}
         <div className="space-y-2">

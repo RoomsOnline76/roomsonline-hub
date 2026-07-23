@@ -19,12 +19,12 @@ import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLine";
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
-  default: { label: "Default (Commission)", description: "Standard listing / PMS commission model" },
-  widget: { label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows" },
-  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager (2% PMS commission)" },
-  enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup, zero commission" },
-  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units" },
-  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing/PMS fees — transaction fee on PayFast only" },
+  default: { label: "Default (Commission)", description: "Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
+  widget: { label: "Widget — Tiered Commission", description: "Bookings taken through the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
+  enterprise_white_label: { label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
+  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
+  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as a payment facilitator; ROL earns the per-booking surcharge %." },
 };
 const HIDDEN_STRATEGIES = new Set(["portfolio_aggregator"]);
 
@@ -48,6 +48,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
   const [subscription, setSubscription] = useState(toStr(item.default_subscription_fee));
   const [transaction, setTransaction] = useState(toStr(item.default_transaction_fee));
   const [payFac, setPayFac] = useState(toStr(item.payment_facilitator_fee));
+  const [byoGateway, setByoGateway] = useState(toStr((item as any).byo_gateway_monthly_fee ?? null));
   const [channelPerUnit, setChannelPerUnit] = useState(toStr(item.channel_manager_per_unit_fee ?? null));
   const [notes, setNotes] = useState(item.notes ?? "");
   const [tiers, setTiers] = useState<PricingTier[]>(() => {
@@ -72,6 +73,7 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
       default_subscription_fee: toNum(subscription),
       default_transaction_fee: toNum(transaction),
       payment_facilitator_fee: toNum(payFac),
+      byo_gateway_monthly_fee: toNum(byoGateway),
       channel_manager_per_unit_fee: isRolos ? toNum(channelPerUnit) : item.channel_manager_per_unit_fee ?? null,
       notes: notes || null,
       ...(tieredStrategy ? { tier_pricing_json: tiers as any } : {}),
@@ -99,15 +101,26 @@ function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: 
           suggested={item.strategy === "rolos_pms" ? 450 : null}
         />
         <FieldToggleRow
-          label="Default transaction fee (facilitator fallback %)" unit="%" step="0.1" max="100"
+          label="Booking surcharge % (ROL payment facilitator)" unit="%" step="0.1" max="100"
           value={transaction} onChange={setTransaction}
           suggested={2.5}
+          hint="Added to every booking taken via ROL's PayFast facilitator. Not charged if the owner uses their own payment provider."
         />
         <FieldToggleRow
-          label="Payment facilitator fee (contract display %)" unit="%" step="0.1" max="100"
-          value={payFac} onChange={setPayFac}
-          suggested={2.5}
+          label="BYO payment provider add-on" unit="ZAR/mo" step="50"
+          value={byoGateway} onChange={setByoGateway}
+          suggested={250}
+          hint="Flat monthly fee when the owner connects their own gateway (Stripe, Peach, PayGate, etc.). ROL does not handle the money."
         />
+        {/* Legacy % field retained for one release — hidden from primary UI. */}
+        {item.payment_facilitator_fee != null && item.payment_facilitator_fee <= 20 && (
+          <FieldToggleRow
+            label="Legacy payment facilitator % (deprecated)" unit="%" step="0.1" max="100"
+            value={payFac} onChange={setPayFac}
+            suggested={null}
+            hint="Deprecated. New properties should use the two fields above. Clear this to hide."
+          />
+        )}
         {isRolos && (
           <FieldToggleRow
             label="Channel manager per unit"

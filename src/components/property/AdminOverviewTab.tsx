@@ -27,13 +27,13 @@ interface AdminOverviewTabProps {
 }
 
 const STRATEGY_LABELS: Record<string, string> = {
-  default: "Default — Listing Commission",
+  default: "Default (Commission)",
   widget: "Widget — Tiered Commission",
   rolos_pms: "ROL'OS PMS — Subscription",
   enterprise_white_label: "Enterprise White-Label",
   volume_tiered: "Volume Tiered (Per Unit)",
   payment_facilitator: "Payment Facilitator Only",
-  portfolio_aggregator: "Default — Listing Commission", // legacy alias
+  portfolio_aggregator: "Default (Commission)", // legacy alias
 };
 
 const DOMAIN_STATUS_META: Record<
@@ -174,6 +174,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
   }
 
+  // BYO payment gateway monthly add-on (only when owner uses their own provider)
+  if (customProvider) {
+    const byoFee = Number(
+      (config as any)?.byo_gateway_monthly_fee ??
+        (wlDomain as any)?.byo_gateway_monthly_fee ??
+        0
+    );
+    if (byoFee > 0) {
+      costLines.push({ label: "BYO payment gateway add-on", amount: byoFee });
+    }
+  }
+
   const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
   const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
   const fmt = (n: number) => `R ${n.toLocaleString("en-ZA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -306,11 +318,22 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           />
           {facilitator && (
             <Row
-              label="Payment facilitator fee (transaction %)"
+              label="Booking surcharge % (ROL facilitator)"
               value={
                 config?.transaction_fee_percentage != null ? `${config.transaction_fee_percentage}%` : <Empty />
               }
-              hint="Applies only when Rooms Online PayFast processes the payment."
+              hint="Applied to every booking taken via ROL's payment facilitator."
+            />
+          )}
+          {customProvider && (
+            <Row
+              label="BYO gateway add-on (ZAR/mo)"
+              value={
+                (config as any)?.byo_gateway_monthly_fee != null
+                  ? `R ${(config as any).byo_gateway_monthly_fee}`
+                  : <Empty />
+              }
+              hint="Flat monthly fee — owner uses their own payment gateway."
             />
           )}
           <Row label="Billing start" value={config?.billing_start_date || <Empty />} />

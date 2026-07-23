@@ -30,6 +30,8 @@ export interface BillingContractVariables {
   white_label_clause: string;
   payment_facilitator_fee: string;
   payment_facilitator_clause: string;
+  byo_gateway_fee: string;
+  byo_gateway_clause: string;
   volume_tier_clause: string;
   tier_monthly_fee: string;
   tier_room_count: string;
@@ -53,6 +55,8 @@ export async function resolveBillingContractVariables(
     white_label_clause: "",
     payment_facilitator_fee: "",
     payment_facilitator_clause: "",
+    byo_gateway_fee: "",
+    byo_gateway_clause: "<!-- N/A -->",
     volume_tier_clause: "",
     tier_monthly_fee: "",
     tier_room_count: "",
@@ -65,7 +69,7 @@ export async function resolveBillingContractVariables(
   const [configRes, globalsRes] = await Promise.all([
     supabase
       .from("property_billing_configs")
-      .select("billing_strategy, commission_rate, subscription_fee_monthly, transaction_fee_percentage, white_label_monthly_fee, white_label_allowed, payment_facilitator_enabled")
+      .select("billing_strategy, commission_rate, subscription_fee_monthly, transaction_fee_percentage, byo_gateway_monthly_fee, white_label_monthly_fee, white_label_allowed, payment_facilitator_enabled")
       .in("property_id", propertyIds)
       .limit(1)
       .maybeSingle(),
@@ -85,7 +89,8 @@ export async function resolveBillingContractVariables(
   const whiteLabel = config?.white_label_allowed;
   const whiteLabelFee = config?.white_label_monthly_fee ?? globals?.white_label_monthly_fee;
   const payFacEnabled = config?.payment_facilitator_enabled;
-  const payFacFee = config?.transaction_fee_percentage ?? globals?.payment_facilitator_fee;
+  const payFacFee = config?.transaction_fee_percentage ?? globals?.default_transaction_fee;
+  const byoFee = config?.byo_gateway_monthly_fee ?? globals?.byo_gateway_monthly_fee;
 
   const words = numberToWords(Math.round(commissionRate));
 
@@ -119,6 +124,8 @@ export async function resolveBillingContractVariables(
     white_label_clause: whiteLabel ? "" : "<!-- N/A -->",
     payment_facilitator_fee: payFacFee ? String(payFacFee) : "",
     payment_facilitator_clause: payFacEnabled ? "" : "<!-- N/A -->",
+    byo_gateway_fee: byoFee ? String(byoFee) : "",
+    byo_gateway_clause: !payFacEnabled && byoFee ? "" : "<!-- N/A -->",
     volume_tier_clause: strategy === "volume_tiered" ? "" : "<!-- N/A -->",
     tier_monthly_fee: tierMonthlyFee,
     tier_room_count: tierRoomCount,

@@ -228,6 +228,8 @@ export default function ContractSign() {
           white_label_clause: billingVars.white_label_clause,
           payment_facilitator_fee: billingVars.payment_facilitator_fee,
           payment_facilitator_clause: billingVars.payment_facilitator_clause,
+          byo_gateway_fee: billingVars.byo_gateway_fee,
+          byo_gateway_clause: billingVars.byo_gateway_clause,
           volume_tier_clause: billingVars.volume_tier_clause,
         } : {}),
         // Map v2 template property details fields

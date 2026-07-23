@@ -1,42 +1,63 @@
-## Assessment: the argument is sound
 
-Looking at what `portfolio_aggregator` actually does today:
+## Goal
 
-- **Billing engine** (`calcPortfolio` in `supabase/functions/calculate-billing/index.ts`): identical to `default` — one `commission_rate` on the booking amount, with a 5% fallback instead of 10%. No portfolio membership check, no blending across properties, no shared subscription. The label promises "shared subscription / blended commission" but the code does neither.
-- **UI**: it forces the property into a single strategy slot, which prevents mixing (e.g. a portfolio containing one `rolos_pms` property and one `widget` property — perfectly legitimate — currently can't be represented cleanly).
-- **Concept overlap**: portfolio grouping is already modelled by `property_portfolios` + `property_portfolio_members`, and revenue-sharing between owners is already handled by `portfolio_revenue_share_config` / `portfolio_share_invoices`. The billing strategy adds nothing on top.
+Clarify two overlapping fields that have confused admins, and rewrite every strategy card description so intent is obvious at a glance.
 
-So conceptually the "aggregator" is a **listing / grouping capability**, not a pricing model. Each member property should keep its own strategy; the portfolio itself is what gets billed for existing as an aggregated listing.
+## Concept correction
 
-## Plan
+Today both fields are stored as percentages and look interchangeable. They aren't:
 
-1. **Reframe as a portfolio-level add-on** (no schema migration needed for the toggles — reuse existing billing add-on plumbing):
-   - Add two portfolio-level fields on `property_portfolios`: `aggregator_billing_mode` (`none` | `monthly` | `once_off`), `aggregator_fee` (numeric).
-   - Add matching global defaults on `billing_global_defaults`: `portfolio_aggregator_monthly_default`, `portfolio_aggregator_setup_default`.
+- **Default Transaction Fee (Facilitator Fallback %)** — ROL handles the money via its PayFast facilitator. This is a **per-booking surcharge %** applied to every booking the property takes through ROL's payment rails. Always relevant unless the owner brings their own gateway.
+- **Payment facilitator fee (contract display %)** — Misnamed. This should be a **flat monthly add-on fee (ZAR/mo)** charged to owners who opt to plug in their **own** payment provider (Stripe/Peach/etc.), because we no longer handle their money but still carry integration/support cost. It is not a percentage of anything.
 
-2. **Admin UI — global defaults** (`src/pages/AdminBillingDefaults.tsx` → Add-ons tab):
-   - New "Portfolio Aggregator Listing" card with mode toggle + monthly fee + once-off setup fee inputs, mirroring the White-Label add-on pattern.
+So: the % lives with ROL-facilitated bookings; the flat fee lives with BYO-gateway properties. They are mutually exclusive per property.
 
-3. **Admin UI — per portfolio** (`src/pages/PMSPortfolios.tsx` / portfolio edit dialog and/or `PMSIntegrations` portfolio view):
-   - Admin-only "Aggregator billing" panel: mode select + fee override (falls back to global default).
+## Changes
 
-4. **Billing engine** (`supabase/functions/calculate-billing/index.ts`):
-   - Delete `calcPortfolio` and the `portfolio_aggregator` branch.
-   - Add a new `portfolio_aggregator_fee` add-on evaluator: on `subscription` events, emit one line per portfolio with `aggregator_billing_mode = 'monthly'`; on portfolio creation/first-activation, emit a one-time `setup` line for `once_off` mode. Ledger type: `add_on`.
-   - Member properties continue to be billed on their own strategy.
+### 1. Data model
+- Rename semantic of `billing_global_defaults.payment_facilitator_fee` (currently numeric %) → repurpose as **ZAR/mo flat add-on** (`byo_gateway_monthly_fee`). Add the new column, backfill from existing value only if it looks like a ZAR amount (>20), otherwise null. Keep the old column readable for one release; new UI writes to the new column.
+- Add `property_billing_configs.byo_gateway_monthly_fee` (nullable numeric) so admins can override per property.
+- `default_transaction_fee` and `transaction_fee_percentage` stay as-is (they were already correct in intent).
 
-5. **Migrate away from the strategy enum value**:
-   - Any property currently on `portfolio_aggregator` is switched to `default` (keeps existing `commission_rate`) via a data update inside the migration.
-   - Hide `portfolio_aggregator` from the strategy dropdown in `BillingConfigTab.tsx`, `AdminOverviewTab.tsx` and `AdminBillingDefaults.tsx`.
-   - Leave the enum value in place (don't drop it — Postgres enum removal is disruptive); mark as deprecated in comments.
+### 2. Admin Billing Defaults (`src/pages/AdminBillingDefaults.tsx`)
+- Split into two clearly labeled `FieldToggleRow`s:
+  - **"Booking surcharge % (ROL payment facilitator)"** — unit `%`, tooltip: "Added to every booking taken via ROL's PayFast facilitator. Not charged if the owner uses their own payment provider."
+  - **"BYO payment provider add-on"** — unit `ZAR/mo`, tooltip: "Flat monthly fee when the owner connects their own gateway (Stripe, Peach, PayGate, etc.). ROL does not handle the money."
+- Remove any wording that implies both fees stack on the same booking.
 
-6. **AdminOverviewTab cost estimate**:
-   - Drop `portfolio_aggregator` from the strategy list.
-   - When the property is a portfolio member and the portfolio has `aggregator_billing_mode = 'monthly'`, surface the portfolio's share of the monthly fee (or the full fee at portfolio level) in the estimate breakdown.
+### 3. Per-property Billing tab (`src/components/property/BillingConfigTab.tsx`)
+- Show the % field only when `facilitatorActive` (ROL handles money).
+- Show the BYO monthly add-on field only when `allow_custom_payment_provider` is on.
+- Info banner near the toggle: "Choose one — ROL facilitates payments (per-booking %) OR the owner brings their own gateway (flat monthly add-on)."
+- Update the yellow summary line at the bottom accordingly.
 
-7. **Contract variables** (`src/lib/contractBillingVariables.ts`): add tokens for aggregator fee / mode so contracts can reference them if the owner is billed for their portfolio membership.
+### 4. Admin Overview & payout math
+- `AdminOverviewTab.tsx` estimated-cost card: include the BYO monthly add-on in the recurring bucket when custom provider is enabled, drop the % from recurring in that case.
+- `usePropertyPayouts.ts`: apply `transaction_fee_percentage` only when `payment_facilitator_enabled` is true (already correct — verify no double-count with the new field).
 
-## Out of scope
+### 5. Contract variables (`src/lib/contractBillingVariables.ts`)
+- `payment_facilitator_fee` (contract token) resolves to the per-booking %.
+- Add `byo_gateway_fee` token resolving to the flat monthly ZAR value + clause block. Existing contracts keep the old token functioning.
 
-- Removing the enum value itself (kept for historical `billing_transactions` metadata).
-- Splitting the aggregator fee across member owners — assume the portfolio owner pays it. A separate "cost-share" pass can come later if wanted.
+### 6. Strategy card copy — rewrite all six
+
+| Strategy | New description |
+|---|---|
+| Default (Commission) | Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee. |
+| Widget — Tiered Commission | Bookings taken through the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription. |
+| ROL'OS PMS — Subscription | Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons. |
+| Enterprise White-Label | Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue. |
+| Volume Tiered (Per Unit) | Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %. |
+| Payment Facilitator Only | No listing or PMS fees. Owner uses ROL only as a payment facilitator; ROL earns the per-booking surcharge %. |
+
+Portfolio Aggregator (hidden legacy strategy) — no copy change.
+
+### 7. Contract-facing text
+Update any ContractSign / templates that read `payment_facilitator_fee` to make clear it is a per-booking surcharge, not a monthly line item. Add optional inline BYO gateway clause.
+
+## Technical details
+
+- Migration: add `byo_gateway_monthly_fee numeric` to both `billing_global_defaults` and `property_billing_configs`; conditional backfill; no destructive drops.
+- No changes to `calculate-billing` transaction-fee branch — it already models the per-booking % correctly. Add a subscription-line emitter for the BYO add-on when `allow_custom_payment_provider` is true.
+- Types regenerate after migration approval; UI wiring lands in the follow-up build turn.
+- Files touched: `AdminBillingDefaults.tsx`, `BillingConfigTab.tsx`, `AdminOverviewTab.tsx`, `useBillingConfig.ts`, `useBillingDefaults.ts`, `contractBillingVariables.ts`, `calculate-billing/index.ts`, plus the strategy-label constants in `AdminOverviewTab`, `BillingConfigTab`, and `StrategySummaryLine.tsx`.
