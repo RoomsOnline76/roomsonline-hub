@@ -1,38 +1,42 @@
-## Problem
+## Assessment: the argument is sound
 
-The "Widget — Tiered Commission" strategy shows no tier editor in **Admin → Billing Defaults**, and the tiered fields under a property's **Billing Config** also stay hidden for it. The billing engine (`calcWidget` in `supabase/functions/calculate-billing/index.ts`) already reads widget tiers, but from a different source than the other tiered strategies:
+Looking at what `portfolio_aggregator` actually does today:
 
-- `rolos_pms` / `volume_tiered` → **room-count tiers** stored as `tier_pricing_json` (min_rooms / max_rooms / monthly_fee). This is what `isTierStrategy()` gates and what `TierCriteriaEditor` edits.
-- `widget` → **monthly-booking-volume tiers** stored as JSON rows in `billing_mappings` (`strategy='widget'`, `field='tier_threshold'`, `value='{"0":10,"20":8,"50":6}'` — threshold → commission %). There is currently no UI anywhere to edit this table.
+- **Billing engine** (`calcPortfolio` in `supabase/functions/calculate-billing/index.ts`): identical to `default` — one `commission_rate` on the booking amount, with a 5% fallback instead of 10%. No portfolio membership check, no blending across properties, no shared subscription. The label promises "shared subscription / blended commission" but the code does neither.
+- **UI**: it forces the property into a single strategy slot, which prevents mixing (e.g. a portfolio containing one `rolos_pms` property and one `widget` property — perfectly legitimate — currently can't be represented cleanly).
+- **Concept overlap**: portfolio grouping is already modelled by `property_portfolios` + `property_portfolio_members`, and revenue-sharing between owners is already handled by `portfolio_revenue_share_config` / `portfolio_share_invoices`. The billing strategy adds nothing on top.
 
-So the tiers exist in the engine but there is no admin surface to configure them.
+So conceptually the "aggregator" is a **listing / grouping capability**, not a pricing model. Each member property should keep its own strategy; the portfolio itself is what gets billed for existing as an aggregated listing.
 
 ## Plan
 
-1. **New editor component** `src/components/admin/billing/WidgetTierEditor.tsx`
-   - Rows of `{ min_bookings_per_month, commission_rate_pct }` with add/remove.
-   - Reads and writes `billing_mappings` where `strategy='widget'` and `field='tier_threshold'` (single row whose `value` is the threshold→rate JSON the edge function already parses — no schema change).
-   - Save serialises the rows back to the same `{ threshold: rate }` shape.
+1. **Reframe as a portfolio-level add-on** (no schema migration needed for the toggles — reuse existing billing add-on plumbing):
+   - Add two portfolio-level fields on `property_portfolios`: `aggregator_billing_mode` (`none` | `monthly` | `once_off`), `aggregator_fee` (numeric).
+   - Add matching global defaults on `billing_global_defaults`: `portfolio_aggregator_monthly_default`, `portfolio_aggregator_setup_default`.
 
-2. **Global defaults page** `src/pages/AdminBillingDefaults.tsx`
-   - In the widget strategy card, render `<WidgetTierEditor />` alongside the existing commission/subscription fields (independent of `isTierStrategy`, which stays room-count only).
-   - Update the strategy description to say "volume-based commission tiers, editable below".
+2. **Admin UI — global defaults** (`src/pages/AdminBillingDefaults.tsx` → Add-ons tab):
+   - New "Portfolio Aggregator Listing" card with mode toggle + monthly fee + once-off setup fee inputs, mirroring the White-Label add-on pattern.
 
-3. **Per-property page** `src/components/property/BillingConfigTab.tsx`
-   - Under the widget strategy, show a read-only summary of the current global widget tiers with a link to Admin Billing Defaults (tiers stay global for widget — matches how `calcWidget` reads them).
+3. **Admin UI — per portfolio** (`src/pages/PMSPortfolios.tsx` / portfolio edit dialog and/or `PMSIntegrations` portfolio view):
+   - Admin-only "Aggregator billing" panel: mode select + fee override (falls back to global default).
 
-4. **Admin overview** `src/components/property/AdminOverviewTab.tsx`
-   - In the "Billing Model" section for widget properties, render the resolved current tier and monthly-volume threshold (using the same JSON) so admins can see which rate is active.
+4. **Billing engine** (`supabase/functions/calculate-billing/index.ts`):
+   - Delete `calcPortfolio` and the `portfolio_aggregator` branch.
+   - Add a new `portfolio_aggregator_fee` add-on evaluator: on `subscription` events, emit one line per portfolio with `aggregator_billing_mode = 'monthly'`; on portfolio creation/first-activation, emit a one-time `setup` line for `once_off` mode. Ledger type: `add_on`.
+   - Member properties continue to be billed on their own strategy.
 
-5. No database migration required — `billing_mappings` already has `(strategy, field, value)` and RLS.
+5. **Migrate away from the strategy enum value**:
+   - Any property currently on `portfolio_aggregator` is switched to `default` (keeps existing `commission_rate`) via a data update inside the migration.
+   - Hide `portfolio_aggregator` from the strategy dropdown in `BillingConfigTab.tsx`, `AdminOverviewTab.tsx` and `AdminBillingDefaults.tsx`.
+   - Leave the enum value in place (don't drop it — Postgres enum removal is disruptive); mark as deprecated in comments.
 
-## Technical notes
+6. **AdminOverviewTab cost estimate**:
+   - Drop `portfolio_aggregator` from the strategy list.
+   - When the property is a portfolio member and the portfolio has `aggregator_billing_mode = 'monthly'`, surface the portfolio's share of the monthly fee (or the full fee at portfolio level) in the estimate breakdown.
 
-- `TIER_STRATEGIES` in `src/lib/billingTierResolver.ts` stays unchanged; room-count tier logic is not applied to widget.
-- The widget JSON kept as-is (`{ threshold: rate }`) so the edge function needs no changes.
-- Editor upserts one `billing_mappings` row keyed on `(strategy='widget', field='tier_threshold')`.
+7. **Contract variables** (`src/lib/contractBillingVariables.ts`): add tokens for aggregator fee / mode so contracts can reference them if the owner is billed for their portfolio membership.
 
 ## Out of scope
 
-- Per-property widget tier overrides (raise as a follow-up if wanted).
-- Backfilling default widget tiers into `billing_mappings` for existing installs — the editor will seed defaults on first save.
+- Removing the enum value itself (kept for historical `billing_transactions` metadata).
+- Splitting the aggregator fee across member owners — assume the portfolio owner pays it. A separate "cost-share" pass can come later if wanted.
