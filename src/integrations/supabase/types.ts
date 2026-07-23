@@ -331,6 +331,7 @@ export type Database = {
           branding_addon_billing_mode: string | null
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
+          byo_gateway_monthly_fee: number | null
           channel_manager_per_unit_fee: number | null
           default_commission_rate: number | null
           default_subscription_fee: number | null
@@ -361,6 +362,7 @@ export type Database = {
           branding_addon_billing_mode?: string | null
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
           channel_manager_per_unit_fee?: number | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
@@ -391,6 +393,7 @@ export type Database = {
           branding_addon_billing_mode?: string | null
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
           channel_manager_per_unit_fee?: number | null
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
@@ -4539,6 +4542,7 @@ export type Database = {
           branding_addon_enabled: boolean | null
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
+          byo_gateway_monthly_fee: number | null
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
@@ -4577,6 +4581,7 @@ export type Database = {
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
@@ -4615,6 +4620,7 @@ export type Database = {
           branding_addon_enabled?: boolean | null
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
