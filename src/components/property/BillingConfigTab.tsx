@@ -71,6 +71,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [paymentFacilitator, setPaymentFacilitator] = useState(false);
   const [whiteLabel, setWhiteLabel] = useState(false);
   const [whiteLabelFee, setWhiteLabelFee] = useState("");
+  const [pricelabsAllowed, setPricelabsAllowed] = useState(false);
+  const [pricelabsFee, setPricelabsFee] = useState("");
+  const [pricelabsApplyPortfolio, setPricelabsApplyPortfolio] = useState(false);
+  const [pricelabsBulkPending, setPricelabsBulkPending] = useState(false);
   const [volumeTiers, setVolumeTiers] = useState("");
   const [billingStartDate, setBillingStartDate] = useState("");
   const [tierScope, setTierScope] = useState<"portfolio" | "property">("portfolio");
