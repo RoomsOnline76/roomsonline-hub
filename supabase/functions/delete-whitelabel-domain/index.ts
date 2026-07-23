@@ -11,6 +11,7 @@ const ORIGIN_RULESET_PHASE = "http_request_origin";
 const ORIGIN_RULE_REF_PREFIX = "roomsonline_whitelabel_origin_";
 const REDIRECT_RULESET_PHASE = "http_request_dynamic_redirect";
 const REDIRECT_RULE_REF_PREFIX = "roomsonline_whitelabel_redirect_";
+const WORKER_SCRIPT_NAME = Deno.env.get("CLOUDFLARE_WHITELABEL_WORKER") || "roomsonline-whitelabel-proxy";
 
 const BodySchema = z.object({
   property_id: z.string().uuid().optional(),
@@ -60,6 +61,12 @@ interface CFRuleset {
 interface CFResult<T> {
   success: boolean;
   result?: T;
+}
+
+interface CFWorkerRoute {
+  id: string;
+  pattern: string;
+  script: string | null;
 }
 
 function cfSafeRef(hostname: string): string {
@@ -144,6 +151,23 @@ async function cfDeleteCanonicalRedirect(hostname: string): Promise<void> {
   }
 }
 
+async function cfDeleteWorkerRoute(hostname: string): Promise<void> {
+  try {
+    const pattern = `${hostname}/*`;
+    const listResponse = await cfFetch(`/zones/${CF_ZONE_ID}/workers/routes?per_page=100`);
+    const listed = (await listResponse.json()) as CFResult<CFWorkerRoute[]>;
+    if (!listed.success || !listed.result) return;
+
+    const route = listed.result.find((r) =>
+      r.pattern.toLowerCase() === pattern.toLowerCase() && r.script === WORKER_SCRIPT_NAME
+    );
+    if (!route) return;
+    await cfFetch(`/zones/${CF_ZONE_ID}/workers/routes/${route.id}`, { method: "DELETE" });
+  } catch (err) {
+    console.warn("cfDeleteWorkerRoute failed (ignored)", err);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -186,6 +210,7 @@ Deno.serve(async (req) => {
       await cfDelete(hostnameId);
     }
     if (hostname && CF_ZONE_ID && CF_API_TOKEN) {
+      await cfDeleteWorkerRoute(hostname.toLowerCase());
       await cfDeleteOriginRoute(hostname.toLowerCase());
       await cfDeleteCanonicalRedirect(hostname.toLowerCase());
     }
