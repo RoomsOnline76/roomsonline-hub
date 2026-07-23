@@ -306,11 +306,22 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           />
           {facilitator && (
             <Row
-              label="Payment facilitator fee (transaction %)"
+              label="Booking surcharge % (ROL facilitator)"
               value={
                 config?.transaction_fee_percentage != null ? `${config.transaction_fee_percentage}%` : <Empty />
               }
-              hint="Applies only when Rooms Online PayFast processes the payment."
+              hint="Applied to every booking taken via ROL's payment facilitator."
+            />
+          )}
+          {customProvider && (
+            <Row
+              label="BYO gateway add-on (ZAR/mo)"
+              value={
+                (config as any)?.byo_gateway_monthly_fee != null
+                  ? `R ${(config as any).byo_gateway_monthly_fee}`
+                  : <Empty />
+              }
+              hint="Flat monthly fee — owner uses their own payment gateway."
             />
           )}
           <Row label="Billing start" value={config?.billing_start_date || <Empty />} />
