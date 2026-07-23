@@ -1,20 +1,58 @@
 ## Goal
-Surface PriceLabs Push/Pull and suggestions directly inside **ROL'OS → Revenue Mgmt** as a new tab, so it's discoverable without hunting the sidebar.
+Move PriceLabs enablement from ROLOS (owner-controlled) to Admin-only, with billing implications and portfolio-wide bulk enable.
 
-## Changes
+## Data model (migration)
 
-1. **`src/pages/pms/PMSRevenue.tsx`**
-   - Add a new `TabsTrigger value="pricelabs"` with the Sparkles icon, placed after **Rate Suggestions** in the tab list at line 762–767.
-   - Add a matching `TabsContent value="pricelabs"` that renders the existing PriceLabs UI.
+**`property_billing_configs`** — add:
+- `pricelabs_allowed boolean DEFAULT false` — admin gate per property
+- `pricelabs_monthly_fee numeric` — per-property PriceLabs add-on fee (nullable = use global default)
 
-2. **`src/pages/pms/PMSPriceLabs.tsx`**
-   - Extract the page body (config panel + Push/Pull buttons + suggestions table) into an exported `PriceLabsPanel` component that accepts `propertyId` as a prop.
-   - Keep the default page export as a thin wrapper (`<PriceLabsPanel propertyId={usePmsPropertyId()} />`) so the standalone `/pms/pricelabs` route still works.
-   - The Revenue Mgmt tab imports `PriceLabsPanel` and passes the currently selected property.
+**`billing_global_defaults`** — add:
+- `pricelabs_monthly_fee numeric` — global default add-on cost
 
-3. **`src/config/navigation.ts`** — leave the standalone `pms-pricelabs` nav entry in place (harmless fallback for deep links).
+**`property_portfolios`** — add:
+- `pricelabs_monthly_fee numeric` — portfolio-wide add-on cost override (nullable)
 
-## Result
-- In Revenue Mgmt (Single-property view), a new **PriceLabs** tab appears alongside Demand Forecast, Performance, Rate Suggestions, Active Plans, Yield Rules, Rate Strategies.
-- The tab contains the enable toggle, floor/ceiling settings, credentials override (admin only), Push-to-PriceLabs and Pull-Suggestions buttons, and the per-date suggestions table with Apply actions — identical to the standalone page.
-- No backend or edge-function changes needed; secrets `PRICELABS_INTEGRATION_NAME` / `PRICELABS_INTEGRATION_TOKEN` are already configured.
+No changes to `properties.pricelabs_config`; the per-property `enabled` inside that JSONB stays as the "actively syncing" flag, but the UI to flip it moves out of ROLOS. Actual gating for ROLOS visibility uses `pricelabs_allowed` on the billing config.
+
+## /admin/edit property → Admin tab
+
+**AdminOverviewTab.tsx** — new "Revenue Tools" row showing PriceLabs status (Allowed / Not allowed) with a Pencil shortcut to Billing tab.
+
+**BillingConfigTab.tsx** — new "Revenue Add-ons" section (admin-only, mirrors the white-label block):
+- Switch: **Allow PriceLabs** (writes `pricelabs_allowed`)
+- Input: **Monthly fee** (writes `pricelabs_monthly_fee`, shows global default hint)
+- Note: fee is billed monthly whether or not the owner has enabled sync inside ROLOS
+- Button: **Enable for all properties in this portfolio** — visible when the property has an active portfolio; opens a confirm dialog and bulk-updates `pricelabs_allowed=true` + `pricelabs_monthly_fee` on every `property_billing_configs` row for portfolio members, and sets the portfolio-level `pricelabs_monthly_fee` for reference.
+
+**AdminBillingDefaults.tsx** — add input for global `pricelabs_monthly_fee` under add-ons.
+
+## Billing engine
+
+`calculate-billing` edge function and `usePropertyPayouts` — when `pricelabs_allowed` is true, add the resolved fee (property override → portfolio override → global default) to the monthly SaaS/subscription line as a `pricelabs_addon` charge, similar to how `white_label_monthly_fee` is treated today.
+
+## ROLOS side
+
+**PMSRevenue.tsx** — only render the PriceLabs tab when `pricelabs_allowed` is true for the selected property (fetched alongside existing property data). Portfolio view: show the tab only when every selected property is allowed; otherwise show a small note listing the disallowed properties.
+
+**PMSPriceLabs.tsx** — 
+- Remove the "Enable PriceLabs / Enable now" toggle and its alert.
+- Show a read-only status pill: "Enabled by admin" (green) or, if somehow reached without allowance, "Not enabled — contact admin".
+- Keep the credential override, min/max floor/ceiling, rate-plan mapping, and Push/Pull actions. Push/Pull enabled purely on `pricelabs_allowed`, no longer on `pricelabs_config.enabled`.
+- `pricelabs-api` edge function: treat `pricelabs_allowed` on the billing config as the authoritative gate; reject sync/pull actions with 403 when false.
+
+## Files touched
+
+- `supabase/migrations/<new>.sql` — schema additions above
+- `src/components/property/BillingConfigTab.tsx` — new PriceLabs block + portfolio bulk button
+- `src/components/property/AdminOverviewTab.tsx` — PriceLabs row
+- `src/pages/AdminBillingDefaults.tsx` — global default input
+- `src/hooks/useBillingConfig.ts` / `useBillingDefaults.ts` — surface new fields
+- `src/hooks/usePropertyPayouts.ts` and `supabase/functions/calculate-billing/index.ts` — add PriceLabs add-on to the monthly total
+- `src/pages/pms/PMSRevenue.tsx` — conditional tab
+- `src/pages/pms/PMSPriceLabs.tsx` — remove owner enable toggle, show admin-controlled status, gate actions on `pricelabs_allowed`
+- `supabase/functions/pricelabs-api/index.ts` — server-side gate check
+
+## Out of scope
+- Retroactive invoicing / proration for properties already using PriceLabs (fee starts from the next billing cycle after admin flips the switch).
+- Automated Cloudflare-style provisioning inside PriceLabs; credentials stay as-is.
