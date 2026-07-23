@@ -220,9 +220,14 @@ export default function AdminPortfolios() {
         allow_property_brand_override: allowPropertyBrandOverride || undefined,
       };
       const existingMeta = editPortfolio.metadata || {};
+      const aggPayload = {
+        aggregator_billing_mode: aggMode,
+        aggregator_monthly_fee: aggMode === "monthly" ? (aggMonthly === "" ? null : Number(aggMonthly)) : null,
+        aggregator_setup_fee: aggMode === "once_off" ? (aggSetup === "" ? null : Number(aggSetup)) : null,
+      };
       const { error } = await supabase
         .from("property_portfolios" as any)
-        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding } } as any)
+        .update({ name: formName, slug: autoSlug, metadata: { ...existingMeta, branding }, ...aggPayload } as any)
         .eq("id", editPortfolio.id);
       if (error) throw error;
       // Sync members: delete all then re-insert
