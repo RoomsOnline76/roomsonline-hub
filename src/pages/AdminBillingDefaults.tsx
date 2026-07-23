@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -8,26 +8,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes } from "lucide-react";
-import { useBillingDefaults, BillingDefault } from "@/hooks/useBillingDefaults";
+import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes, Copy } from "lucide-react";
+import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
-import { DEFAULT_TIERS, PricingTier, normalizeTiers, isTierStrategy } from "@/lib/billingTierResolver";
-import { FieldToggleRow } from "@/components/admin/billing/FieldToggleRow";
+import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
 import { MonthlyAnnualSetup, MonthlyAnnualSetupValue } from "@/components/admin/billing/MonthlyAnnualSetup";
 import { TierCriteriaEditor, RepTierCriteria, DEFAULT_TIER_CRITERIA } from "@/components/admin/billing/TierCriteriaEditor";
-import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
-import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLine";
-
-const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
-  default: { label: "Default (Commission)", description: "Property is listed on ROL and paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
-  widget: { label: "Widget — Tiered Commission", description: "Property uses ROL's booking engine (WBE) on their own site. Commission is tiered by monthly booking volume — configure the tiers below. Optional white-label domain and/or BYO gateway add-ons can layer on top." },
-  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base fee + R60 per active unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
-  enterprise_white_label: { label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
-  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
-  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as a payment facilitator; ROL earns the per-booking surcharge %." },
-};
-const HIDDEN_STRATEGIES = new Set(["portfolio_aggregator"]);
-
+import {
+  BillingConfigBuilder,
+  BillingConfigValue,
+  emptyBuilderValue,
+  summarizeBuilderValue,
+} from "@/components/admin/billing/BillingConfigBuilder";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function toStr(v: number | null | undefined): string {
   return v == null ? "" : String(v);
@@ -38,164 +40,290 @@ function toNum(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-// ─── Strategy card ──────────────────────────────────────────────────────────
-function StrategyCard({ item, onSave, saving }: { item: BillingDefault; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
-  const meta = STRATEGY_LABELS[item.strategy] || { label: item.strategy, description: "" };
-  const tieredStrategy = isTierStrategy(item.strategy);
-  const isRolos = item.strategy === "rolos_pms";
+// ─── Preset ↔ builder-value bridge ─────────────────────────────────────────
+function presetToBuilder(row: BillingDefault): BillingConfigValue {
+  const tiers = normalizeTiers((row as any).tier_pricing_json);
+  const v = emptyBuilderValue();
+  v.commission_enabled = row.default_commission_rate != null && row.default_commission_rate > 0 && row.strategy !== "widget";
+  v.commission_rate = toStr(row.default_commission_rate);
+  v.widget_tiers_enabled = row.strategy === "widget";
+  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
+  v.subscription_fee = toStr(row.default_subscription_fee);
+  v.channel_per_unit = toStr(row.channel_manager_per_unit_fee);
+  v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
+  v.tier_pricing_json = tiers.length ? tiers : null;
+  v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
+  v.transaction_fee = toStr(row.default_transaction_fee);
+  v.byo_gateway_enabled = ((row as any).byo_gateway_monthly_fee ?? 0) > 0;
+  v.byo_gateway_fee = toStr((row as any).byo_gateway_monthly_fee ?? null);
+  v.white_label_enabled = (row.white_label_monthly_fee ?? 0) > 0 || (row.white_label_setup_fee ?? 0) > 0;
+  v.white_label_monthly_fee = toStr(row.white_label_monthly_fee);
+  v.white_label_setup_fee = toStr(row.white_label_setup_fee ?? null);
+  v.white_label_billing_mode = (row.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.pricelabs_enabled = (row.pricelabs_monthly_fee ?? 0) > 0;
+  v.pricelabs_monthly_fee = toStr(row.pricelabs_monthly_fee ?? null);
+  return v;
+}
 
-  const [commission, setCommission] = useState(toStr(item.default_commission_rate));
-  const [subscription, setSubscription] = useState(toStr(item.default_subscription_fee));
-  const [transaction, setTransaction] = useState(toStr(item.default_transaction_fee));
-  const [payFac, setPayFac] = useState(toStr(item.payment_facilitator_fee));
-  const [byoGateway, setByoGateway] = useState(toStr((item as any).byo_gateway_monthly_fee ?? null));
-  const [channelPerUnit, setChannelPerUnit] = useState(toStr(item.channel_manager_per_unit_fee ?? null));
-  const [notes, setNotes] = useState(item.notes ?? "");
-  const [tiers, setTiers] = useState<PricingTier[]>(() => {
-    const existing = normalizeTiers((item as any).tier_pricing_json);
-    return existing.length ? existing : tieredStrategy ? DEFAULT_TIERS : [];
-  });
+function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
+  return {
+    default_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
+    default_subscription_fee: v.pms_enabled ? toNum(v.subscription_fee) : null,
+    channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
+    tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
+    default_transaction_fee: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
+    byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
+    white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
+    white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
+    white_label_billing_mode: v.white_label_enabled ? v.white_label_billing_mode : null,
+    pricelabs_monthly_fee: v.pricelabs_enabled ? toNum(v.pricelabs_monthly_fee) : null,
+  } as any;
+}
 
-  const updateTier = (idx: number, patch: Partial<PricingTier>) => {
-    setTiers((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
-  };
-  const addTier = () => {
-    const last = tiers[tiers.length - 1];
-    const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
-    setTiers((prev) => [...prev, { min_rooms: nextMin, max_rooms: null, monthly_fee: 0 }]);
-  };
-  const removeTier = (idx: number) => setTiers((prev) => prev.filter((_, i) => i !== idx));
+// ─── Preset library panel (list + builder) ─────────────────────────────────
+function PresetsPanel({ defaults }: { defaults: BillingDefault[] }) {
+  const { update, create, remove } = useBillingDefaults();
+  const [selectedId, setSelectedId] = useState<string | null>(defaults[0]?.id ?? null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
+  const [notes, setNotes] = useState("");
+  const [newPresetOpen, setNewPresetOpen] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const selected = useMemo(() => defaults.find((d) => d.id === selectedId) ?? null, [defaults, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId && defaults[0]) setSelectedId(defaults[0].id);
+  }, [defaults, selectedId]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setName(presetLabel(selected));
+    setDescription(selected.preset_description ?? "");
+    setBuilder(presetToBuilder(selected));
+    setNotes(selected.notes ?? "");
+  }, [selected]);
 
   const handleSave = () => {
-    onSave({
-      id: item.id,
-      default_commission_rate: toNum(commission),
-      default_subscription_fee: toNum(subscription),
-      default_transaction_fee: toNum(transaction),
-      payment_facilitator_fee: toNum(payFac),
-      byo_gateway_monthly_fee: toNum(byoGateway),
-      channel_manager_per_unit_fee: isRolos ? toNum(channelPerUnit) : item.channel_manager_per_unit_fee ?? null,
+    if (!selected) return;
+    update.mutate({
+      id: selected.id,
+      preset_name: name.trim() || selected.strategy,
+      preset_description: description.trim() || null,
       notes: notes || null,
-      ...(tieredStrategy ? { tier_pricing_json: tiers as any } : {}),
+      ...builderToPatch(builder),
     } as any);
   };
 
+  const handleCreate = () => {
+    if (!newPresetName.trim()) return;
+    create.mutate(
+      {
+        preset_name: newPresetName.trim(),
+        preset_description: null,
+        ...builderToPatch(emptyBuilderValue()),
+      },
+      {
+        onSuccess: (row: any) => {
+          setNewPresetOpen(false);
+          setNewPresetName("");
+          setSelectedId(row.id);
+        },
+      }
+    );
+  };
+
+  const handleDuplicate = () => {
+    if (!selected) return;
+    create.mutate(
+      {
+        preset_name: `${presetLabel(selected)} (copy)`,
+        preset_description: selected.preset_description,
+        notes: selected.notes,
+        ...builderToPatch(builder),
+      },
+      { onSuccess: (row: any) => setSelectedId(row.id) }
+    );
+  };
+
+  const handleDelete = () => {
+    if (!deleteId) return;
+    remove.mutate(deleteId, {
+      onSuccess: () => {
+        setDeleteId(null);
+        if (deleteId === selectedId) {
+          const remaining = defaults.filter((d) => d.id !== deleteId);
+          setSelectedId(remaining[0]?.id ?? null);
+        }
+      },
+    });
+  };
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-primary" />
-          {meta.label}
-        </CardTitle>
-        <CardDescription className="text-xs">{meta.description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {item.strategy !== "widget" && (
-          <FieldToggleRow
-            label="Commission rate (% of booking)" unit="%" step="0.5" max="100"
-            value={commission} onChange={setCommission}
-            suggested={item.strategy === "default" ? 10 : 5}
-          />
-        )}
-        {item.strategy === "widget" && (
-          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
-            Commission for the Widget strategy is defined by the volume tiers below — no flat rate applies.
+    <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
+      {/* Preset library */}
+      <Card className="h-fit">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm">Presets</CardTitle>
+            <CardDescription className="text-[11px]">Saved billing configurations.</CardDescription>
           </div>
-        )}
-        <FieldToggleRow
-          label="Monthly subscription" unit="ZAR/mo" step="100"
-          value={subscription} onChange={setSubscription}
-          suggested={item.strategy === "rolos_pms" ? 450 : null}
-        />
-        <FieldToggleRow
-          label="Booking surcharge % (ROL payment facilitator)" unit="%" step="0.1" max="100"
-          value={transaction} onChange={setTransaction}
-          suggested={2.5}
-          hint="Added to every booking taken via ROL's PayFast facilitator. Not charged if the owner uses their own payment provider."
-        />
-        <FieldToggleRow
-          label="BYO payment provider add-on" unit="ZAR/mo" step="50"
-          value={byoGateway} onChange={setByoGateway}
-          suggested={250}
-          hint="Flat monthly fee when the owner connects their own gateway (Stripe, Peach, PayGate, etc.). ROL does not handle the money."
-        />
-        {/* Legacy % field retained for one release — hidden from primary UI. */}
-        {item.payment_facilitator_fee != null && item.payment_facilitator_fee <= 20 && (
-          <FieldToggleRow
-            label="Legacy payment facilitator % (deprecated)" unit="%" step="0.1" max="100"
-            value={payFac} onChange={setPayFac}
-            suggested={null}
-            hint="Deprecated. New properties should use the two fields above. Clear this to hide."
-          />
-        )}
-        {isRolos && (
-          <FieldToggleRow
-            label="Channel manager per unit"
-            unit="ZAR/unit/mo"
-            step="10"
-            value={channelPerUnit}
-            onChange={setChannelPerUnit}
-            suggested={60}
-            hint="Billed monthly per active room/unit when a ROL'OS PMS property has channel manager enabled."
-          />
-        )}
-        {item.strategy === "widget" && <WidgetTierEditor />}
-        {tieredStrategy && (
-          <div className="border-t pt-3 mt-2">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Layers className="h-3.5 w-3.5" />
-                Room-count pricing tiers
-              </p>
-              <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
-                <Plus className="h-3 w-3 mr-1" /> Add tier
-              </Button>
-            </div>
-            <div className="space-y-1.5">
-              <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
-                <span>Min rooms</span><span>Max rooms</span><span>ZAR / mo</span><span />
-              </div>
-              {tiers.map((t, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
-                  <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
-                  <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
-                  <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
-                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+          <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setNewPresetOpen(true)}>
+            <Plus className="h-3 w-3" /> New
+          </Button>
+        </CardHeader>
+        <CardContent className="p-2 space-y-1">
+          {defaults.length === 0 && (
+            <p className="text-xs text-muted-foreground p-2">No presets yet — create one.</p>
+          )}
+          {defaults.map((d) => {
+            const active = d.id === selectedId;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedId(d.id)}
+                className={`w-full text-left rounded-md px-2 py-1.5 text-xs transition-colors ${
+                  active ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/50 border border-transparent"
+                }`}
+              >
+                <div className="font-medium">{presetLabel(d)}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{d.preset_description || d.strategy}</div>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Builder */}
+      <div className="space-y-3">
+        {selected ? (
+          <>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Preset name</Label>
+                      <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-sm font-medium" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Short description</Label>
+                      <Input
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Shown next to the preset in the property Billing tab."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono">{selected.strategy}</Badge>
+                  </div>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button size="sm" variant="outline" className="gap-1 h-7" onClick={handleDuplicate}>
+                      <Copy className="h-3 w-3" /> Duplicate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 h-7 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteId(selected.id)}
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </Button>
+                  </div>
                 </div>
-              ))}
-              {tiers.length === 0 && (
-                <p className="text-[10px] text-muted-foreground italic px-1">No tiers configured — falls back to flat subscription fee.</p>
-              )}
-            </div>
-          </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <BillingConfigBuilder value={builder} onChange={setBuilder} scope="preset" />
+
+                <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">
+                  <strong className="text-foreground">Summary:</strong> {summarizeBuilderValue(builder)}
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Internal notes</Label>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                    className="text-xs"
+                    placeholder="Notes about when to use this preset…"
+                  />
+                </div>
+
+                <Button onClick={handleSave} disabled={update.isPending} className="w-full">
+                  {update.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save preset
+                </Button>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <Card>
+            <CardContent className="p-6 text-center text-xs text-muted-foreground">
+              Select a preset on the left, or create a new one.
+            </CardContent>
+          </Card>
         )}
-        <div className="space-y-1 pt-2">
-          <Label className="text-xs">Notes</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-xs" placeholder="Internal notes about this strategy's defaults…" />
-        </div>
-        <Button onClick={handleSave} disabled={saving} size="sm" className="w-full mt-2">
-          {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-          Save defaults
-        </Button>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* New preset dialog */}
+      <AlertDialog open={newPresetOpen} onOpenChange={setNewPresetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>New billing preset</AlertDialogTitle>
+            <AlertDialogDescription>
+              Give the preset a name. You can configure its components on the next screen and save when ready.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-xs">Preset name</Label>
+            <Input
+              value={newPresetName}
+              onChange={(e) => setNewPresetName(e.target.value)}
+              placeholder="e.g. Boutique WBE, Enterprise licence"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNewPresetName("")}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreate} disabled={!newPresetName.trim() || create.isPending}>
+              {create.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Create preset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this preset?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Properties currently referencing this preset by slug will keep their fields, but the dropdown entry will disappear.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={remove.isPending}>
+              {remove.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Delete preset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }
 
-// ─── Add-ons tab ────────────────────────────────────────────────────────────
+// ─── Add-ons tab (unchanged behaviour, minus the enterprise strategy) ──────
 function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
   if (!row) {
-    return <p className="text-xs text-muted-foreground">Add-on defaults live on the <strong>default</strong> strategy row — please save it once first.</p>;
+    return <p className="text-xs text-muted-foreground">Add-on defaults live on the primary preset — please save one first.</p>;
   }
-
-  const [whiteLabel, setWhiteLabel] = useState<MonthlyAnnualSetupValue>({
-    enabled: (row.white_label_monthly_fee ?? 0) > 0 || (row.white_label_setup_fee ?? 0) > 0,
-    recurring: toStr(row.white_label_monthly_fee),
-    billingMode: (row.white_label_billing_mode as "monthly" | "annual") || "monthly",
-    setup: toStr(row.white_label_setup_fee ?? null),
-  });
 
   const [branding, setBranding] = useState<MonthlyAnnualSetupValue>({
     enabled: !!row.branding_addon_allowed,
@@ -217,9 +345,6 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   const handleSave = () => {
     onSave({
       id: row.id,
-      white_label_monthly_fee: whiteLabel.enabled ? toNum(whiteLabel.recurring) : null,
-      white_label_setup_fee: whiteLabel.enabled ? toNum(whiteLabel.setup) : null,
-      white_label_billing_mode: whiteLabel.enabled ? whiteLabel.billingMode : null,
       branding_addon_allowed: branding.enabled,
       branding_addon_monthly_fee: branding.enabled ? toNum(branding.recurring) : null,
       branding_addon_setup_fee: branding.enabled ? toNum(branding.setup) : null,
@@ -236,14 +361,6 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   return (
     <div className="space-y-4">
       <MonthlyAnnualSetup
-        title="White-Label Domain & Branding"
-        description="Custom booking subdomain, full brand override on booking, embeds & emails."
-        value={whiteLabel}
-        onChange={setWhiteLabel}
-        suggestedRecurring={450}
-        suggestedSetup={1500}
-      />
-      <MonthlyAnnualSetup
         title="Branding Pack (non-white-label)"
         description="Colour, logo and font overrides on the standard Rooms Online domain — a cheaper alternative to full white-label."
         value={branding}
@@ -255,12 +372,9 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
         <div>
           <Label className="text-sm font-medium flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
-            PriceLabs revenue management
+            PriceLabs revenue management (platform default)
           </Label>
-          <p className="text-[11px] text-muted-foreground">Dynamic pricing suggestions surfaced in ROL'OS.</p>
-          <p className="text-[11px] text-amber-700 dark:text-amber-400 italic mt-1">
-            Charged per activated property regardless of how many properties an owner or portfolio has — no volume scaling.
-          </p>
+          <p className="text-[11px] text-muted-foreground">Charged per activated property — no volume scaling. Presets can override this default.</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
@@ -279,9 +393,7 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
             <Boxes className="h-3.5 w-3.5 text-primary" />
             ROL'OS Channel Manager (per unit)
           </Label>
-          <p className="text-[11px] text-muted-foreground">
-            Billed monthly per active room/unit for properties on the ROL'OS PMS strategy with the channel manager enabled.
-          </p>
+          <p className="text-[11px] text-muted-foreground">Platform default; presets that enable the PMS component may override.</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
@@ -297,8 +409,8 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
             Portfolio Aggregator (listing multiple owners together)
           </Label>
           <p className="text-[11px] text-muted-foreground">
-            Charged at the <strong>portfolio</strong> level (not per property). Member properties keep their own primary billing strategy.
-            Actual mode &amp; fees are set on each portfolio in <Badge variant="outline" className="text-[10px]">/admin/portfolios</Badge>; the values below are the platform-wide defaults.
+            Charged at the <strong>portfolio</strong> level. Member properties keep their own primary preset. Actual mode &amp; fees are set on each portfolio in{" "}
+            <Badge variant="outline" className="text-[10px]">/admin/portfolios</Badge>; the values below are the platform-wide defaults.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -332,9 +444,9 @@ function AddOnsPanel({ row, onSave, saving }: { row: BillingDefault | undefined;
   );
 }
 
-// ─── Sales reps tab ─────────────────────────────────────────────────────────
+// ─── Sales reps tab (unchanged) ────────────────────────────────────────────
 function SalesRepsPanel({ row, onSave, saving }: { row: BillingDefault | undefined; onSave: (d: Partial<BillingDefault> & { id: string }) => void; saving: boolean }) {
-  if (!row) return <p className="text-xs text-muted-foreground">Sales rep defaults live on the <strong>default</strong> strategy row.</p>;
+  if (!row) return <p className="text-xs text-muted-foreground">Sales rep defaults live on the primary preset.</p>;
 
   const [firstYear, setFirstYear] = useState(toStr(row.referral_first_year_rate));
   const [residual, setResidual] = useState(toStr(row.referral_residual_rate));
@@ -401,10 +513,9 @@ function SalesRepsPanel({ row, onSave, saving }: { row: BillingDefault | undefin
   );
 }
 
-// ─── Summary tab ────────────────────────────────────────────────────────────
+// ─── Summary tab ───────────────────────────────────────────────────────────
 function SummaryPanel({ defaults, gotoTab }: { defaults: BillingDefault[]; gotoTab: (t: string) => void }) {
-  const defaultRow = defaults.find((d) => d.strategy === "default");
-  const rolos = defaults.find((d) => d.strategy === "rolos_pms");
+  const defaultRow = defaults.find((d) => d.strategy === "default") ?? defaults[0];
   const criteria = (defaultRow?.sales_rep_tier_criteria_json as RepTierCriteria | undefined) ?? DEFAULT_TIER_CRITERIA;
 
   return (
@@ -412,14 +523,18 @@ function SummaryPanel({ defaults, gotoTab }: { defaults: BillingDefault[]; gotoT
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary" /> How we make money</CardTitle>
-            <CardDescription className="text-xs">One line per billing strategy.</CardDescription>
+            <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-primary" /> Billing presets</CardTitle>
+            <CardDescription className="text-xs">One line per saved preset — pick the closest match on a property, then customize.</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => gotoTab("strategies")}>Edit</Button>
+          <Button variant="ghost" size="sm" onClick={() => gotoTab("presets")}>Manage</Button>
         </CardHeader>
         <CardContent className="space-y-1.5">
+          {defaults.length === 0 && <p className="text-xs text-muted-foreground">No presets yet.</p>}
           {defaults.map((d) => (
-            <p key={d.id} className="text-xs leading-relaxed"><span className="text-muted-foreground">•</span> {summarizeStrategy(d)}</p>
+            <p key={d.id} className="text-xs leading-relaxed">
+              <span className="text-muted-foreground">•</span> <strong>{presetLabel(d)}</strong>:{" "}
+              {summarizeBuilderValue(presetToBuilder(d))}
+            </p>
           ))}
         </CardContent>
       </Card>
@@ -427,30 +542,15 @@ function SummaryPanel({ defaults, gotoTab }: { defaults: BillingDefault[]; gotoT
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Platform add-ons</CardTitle>
-            <CardDescription className="text-xs">Toggled per property from the property Admin tab.</CardDescription>
+            <CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Platform add-on defaults</CardTitle>
+            <CardDescription className="text-xs">Suggested prices. Toggled per property from the property Admin tab.</CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={() => gotoTab("addons")}>Edit</Button>
         </CardHeader>
         <CardContent className="space-y-1.5 text-xs">
-          <p>• <strong>White-Label:</strong> R{defaultRow?.white_label_monthly_fee ?? "—"} / {defaultRow?.white_label_billing_mode ?? "monthly"}{defaultRow?.white_label_setup_fee ? ` + R${defaultRow.white_label_setup_fee} setup` : ""}.</p>
           <p>• <strong>Branding Pack:</strong> {defaultRow?.branding_addon_allowed ? `R${defaultRow.branding_addon_monthly_fee ?? "—"} / ${defaultRow.branding_addon_billing_mode ?? "monthly"}${defaultRow?.branding_addon_setup_fee ? ` + R${defaultRow.branding_addon_setup_fee} setup` : ""}` : "disabled"}.</p>
-          <p>• <strong>PriceLabs:</strong> R{defaultRow?.pricelabs_monthly_fee ?? "—"}/property/mo{defaultRow?.pricelabs_setup_fee ? ` + R${defaultRow.pricelabs_setup_fee} setup` : ""} — flat, per activated property.</p>
-          <p>• <strong>Channel Manager:</strong> R{rolos?.channel_manager_per_unit_fee ?? defaultRow?.channel_manager_per_unit_fee ?? 60}/unit/mo (ROL'OS PMS).</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-sm flex items-center gap-2"><Boxes className="h-4 w-4 text-primary" /> ROL'OS PMS</CardTitle>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => gotoTab("strategies")}>Edit</Button>
-        </CardHeader>
-        <CardContent className="text-xs space-y-1">
-          <p>• Subscription: R{rolos?.default_subscription_fee ?? "—"} / month.</p>
-          <p>• Channel manager: R{rolos?.channel_manager_per_unit_fee ?? 60} per active unit / month.</p>
-          {rolos?.default_commission_rate != null && <p>• Booking commission: {rolos.default_commission_rate}%.</p>}
+          <p>• <strong>PriceLabs:</strong> R{defaultRow?.pricelabs_monthly_fee ?? "—"}/property/mo{defaultRow?.pricelabs_setup_fee ? ` + R${defaultRow.pricelabs_setup_fee} setup` : ""}.</p>
+          <p>• <strong>Channel Manager:</strong> R{defaultRow?.channel_manager_per_unit_fee ?? 60}/unit/mo.</p>
         </CardContent>
       </Card>
 
@@ -472,14 +572,14 @@ function SummaryPanel({ defaults, gotoTab }: { defaults: BillingDefault[]; gotoT
   );
 }
 
-// ─── Page ───────────────────────────────────────────────────────────────────
+// ─── Page ──────────────────────────────────────────────────────────────────
 export default function AdminBillingDefaults() {
   const navigate = useNavigate();
   const { isDev, isFearlessLeader, loading: authLoading } = useAuth();
   const { defaults, isLoading, update } = useBillingDefaults();
   const [tab, setTab] = useState("summary");
 
-  const defaultRow = useMemo(() => defaults.find((d) => d.strategy === "default"), [defaults]);
+  const defaultRow = useMemo(() => defaults.find((d) => d.strategy === "default") ?? defaults[0], [defaults]);
 
   if (authLoading) {
     return (
@@ -502,7 +602,7 @@ export default function AdminBillingDefaults() {
         <div>
           <h1 className="text-xl font-bold">Billing Defaults</h1>
           <p className="text-sm text-muted-foreground">
-            Platform-wide fee defaults. Zero-value fields collapse into a toggle — enable one to set a default. Per-property overrides always win.
+            Configure named billing <strong>presets</strong> from a single toggle-based builder. Presets appear in the dropdown on every property's Billing tab and seed its fields — each toggle can then be tuned per property.
           </p>
         </div>
       </div>
@@ -515,7 +615,7 @@ export default function AdminBillingDefaults() {
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="summary"><Info className="h-3.5 w-3.5 mr-1.5" /> Summary</TabsTrigger>
-            <TabsTrigger value="strategies"><DollarSign className="h-3.5 w-3.5 mr-1.5" /> Strategies</TabsTrigger>
+            <TabsTrigger value="presets"><DollarSign className="h-3.5 w-3.5 mr-1.5" /> Presets</TabsTrigger>
             <TabsTrigger value="addons"><Sparkles className="h-3.5 w-3.5 mr-1.5" /> Add-ons</TabsTrigger>
             <TabsTrigger value="sales-reps"><Users className="h-3.5 w-3.5 mr-1.5" /> Sales Reps</TabsTrigger>
           </TabsList>
@@ -524,12 +624,8 @@ export default function AdminBillingDefaults() {
             <SummaryPanel defaults={defaults} gotoTab={setTab} />
           </TabsContent>
 
-          <TabsContent value="strategies" className="mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {defaults.filter((d) => !HIDDEN_STRATEGIES.has(d.strategy)).map((item) => (
-                <StrategyCard key={item.id} item={item} onSave={(d) => update.mutate(d)} saving={update.isPending} />
-              ))}
-            </div>
+          <TabsContent value="presets" className="mt-4">
+            <PresetsPanel defaults={defaults} />
           </TabsContent>
 
           <TabsContent value="addons" className="mt-4 max-w-3xl">
@@ -537,8 +633,7 @@ export default function AdminBillingDefaults() {
             <Separator className="my-6" />
             <p className="text-[11px] text-muted-foreground">
               These are the platform's suggested prices. Every add-on is toggled on/off per property from
-              <Badge variant="outline" className="mx-1 text-[10px]">/admin/edit property → Admin → Billing</Badge>
-              which mirrors this configuration into the property's ROL'OS view.
+              <Badge variant="outline" className="mx-1 text-[10px]">/admin/edit property → Admin → Billing</Badge>.
             </p>
           </TabsContent>
 
