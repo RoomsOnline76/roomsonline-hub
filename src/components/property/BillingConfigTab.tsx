@@ -18,12 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { isTierStrategy, normalizeTiers, PricingTier, resolvePropertyTier, DEFAULT_TIERS } from "@/lib/billingTierResolver";
 
 const STRATEGY_OPTIONS = [
-  { value: "default", label: "Default — Listing Commission", description: "10% commission on direct bookings via ROL widgets. No fixed monthly fees." },
-  { value: "widget", label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows. No subscription." },
-  { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager. Reduced 2% PMS commission on bookings." },
-  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup fee. Zero commission on bookings." },
-  { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units. No booking commission." },
-  { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees — only the payment transaction fee on Rooms Online PayFast." },
+  { value: "default", label: "Default (Commission)", description: "Listed on ROL, paid via ROL's payment facilitator. ROL earns a % commission per booking; owner pays no monthly fee." },
+  { value: "widget", label: "Widget — Tiered Commission", description: "Bookings via the ROL booking widget. Commission % steps down as monthly booking volume grows. No subscription." },
+  { value: "rolos_pms", label: "ROL'OS PMS — Subscription", description: "Full PMS + channel manager. Monthly base + R60/unit. Reduced 2% booking commission. Optional PriceLabs & white-label add-ons." },
+  { value: "enterprise_white_label", label: "Enterprise White-Label", description: "Fully branded, own-domain deployment. Flat monthly licence + once-off setup. Zero booking commission — owner keeps 100% of revenue." },
+  { value: "volume_tiered", label: "Volume Tiered (Per Unit)", description: "Pure per-unit monthly fee that slides with total active units. No booking commission, no transaction %." },
+  { value: "payment_facilitator", label: "Payment Facilitator Only", description: "No listing or PMS fees. Owner uses ROL only as payment facilitator; ROL earns the per-booking surcharge %." },
 ];
 
 interface BillingConfigTabProps {
