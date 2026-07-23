@@ -4,7 +4,7 @@
 // Swagger: https://app.swaggerhub.com/apis/PriceLabs/price-labs_connector/2.0.0
 // ============================================================================
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const BASE = "https://api.pricelabs.co/v2/integration/api";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -15,6 +15,19 @@ const ENV_TOKEN = Deno.env.get("PRICELABS_INTEGRATION_TOKEN") ?? "";
 
 type Json = Record<string, unknown>;
 type SB = ReturnType<typeof createClient>;
+
+type PriceLabsRoomType = {
+  id: string;
+  default_rate: number | null;
+};
+
+function asJson(value: unknown): Json | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Json : null;
+}
+
+function asJsonArray(value: unknown): Json[] {
+  return Array.isArray(value) ? value.filter((item): item is Json => !!asJson(item)) : [];
+}
 
 async function getCreds(supabase: SB, propertyId?: string) {
   let name = ENV_NAME;
@@ -65,6 +78,23 @@ function stringifyBody(b: unknown): string {
 function plError(prefix: string, r: { status: number; body: unknown }): string {
   const bodyStr = stringifyBody(r.body);
   return `${prefix} (PriceLabs ${r.status})${bodyStr ? `: ${bodyStr.slice(0, 500)}` : ""}`;
+}
+
+function extractPriceRows(body: unknown): Json[] {
+  const root = asJson(body);
+  if (!root) return [];
+
+  const directRows = asJsonArray(root.data);
+  if (directRows.length > 0) return directRows;
+
+  const nestedData = asJson(root.data);
+  const nestedRows = asJsonArray(nestedData?.data);
+  if (nestedRows.length > 0) return nestedRows;
+
+  const pricesRows = asJsonArray(root.prices);
+  if (pricesRows.length > 0) return pricesRows;
+
+  return [];
 }
 
 // -------------------------------------------------------------------
@@ -164,23 +194,6 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
 
   if (!roomTypes || roomTypes.length === 0) return { success: false, status: 400, error: "No active room types for this property. Sync a property to PriceLabs before pulling suggestions." };
 
-  const listingIds = roomTypes.map((rt) => `rolos_${propertyId}_${rt.id}`);
-  const today = new Date().toISOString().slice(0, 10);
-  const endDate = new Date(Date.now() + 365 * 86400_000).toISOString().slice(0, 10);
-  const syncBody = {
-    listings: listingIds.map((id) => ({
-      listing_id: id,
-      pms: "rolos",
-      dateFrom: today,
-      dateTo: endDate,
-    })),
-  };
-  const priced = await pl("POST", "/get_prices", name, token, syncBody);
-  if (!priced.ok) return { success: false, status: priced.status, error: plError("Pull suggestions failed", priced) };
-
-  const body = (priced.body as Json | null) ?? {};
-  const listingsOut = (body.listings as Array<Json> | undefined) ?? (body.data as Array<Json> | undefined) ?? [];
-
   // Load rate plans for the property (used for default association)
   const { data: ratePlans } = await supabase
     .from("rolos_rate_plans")
@@ -189,23 +202,31 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
     .eq("is_active", true);
 
   const rows: Array<Json> = [];
-  for (const l of listingsOut) {
-    const lid = String(l.listing_id ?? l.id ?? "");
-    const roomTypeId = lid.startsWith(`rolos_${propertyId}_`) ? lid.slice(`rolos_${propertyId}_`.length) : null;
-    if (!roomTypeId) continue;
+  const failures: string[] = [];
+  for (const rt of roomTypes as PriceLabsRoomType[]) {
+    const listingId = `rolos_${propertyId}_${rt.id}`;
+    const priced = await pl("POST", "/get_prices", name, token, {
+      sync: {
+        listing_id: listingId,
+        delta_only: false,
+      },
+    });
 
-    const rt = roomTypes.find((r) => r.id === roomTypeId);
-    const prices = (l.prices as Array<Json> | undefined) ?? (l.dates as Array<Json> | undefined) ?? [];
+    if (!priced.ok) {
+      failures.push(plError(`Pull suggestions failed for ${listingId}`, priced));
+      continue;
+    }
 
+    const prices = extractPriceRows(priced.body);
     for (const p of prices) {
       const date = String(p.date ?? p.day ?? "");
       const suggested = Number(p.price ?? p.suggested_price ?? 0);
       if (!date || !suggested) continue;
       rows.push({
         property_id: propertyId,
-        room_type_id: roomTypeId,
+        room_type_id: rt.id,
         rate_plan_id: ratePlans?.[0]?.id ?? null,
-        listing_id: lid,
+        listing_id: listingId,
         date,
         suggested_price: suggested,
         current_price: rt?.default_rate ?? null,
@@ -217,6 +238,10 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
         pulled_at: new Date().toISOString(),
       });
     }
+  }
+
+  if (rows.length === 0 && failures.length > 0) {
+    return { success: false, status: 400, error: failures.slice(0, 3).join(" | ") };
   }
 
   if (rows.length > 0) {
@@ -236,7 +261,7 @@ async function pullPriceSuggestions(supabase: SB, propertyId: string, name: stri
   const nextCfg = { ...((prop?.pricelabs_config ?? {}) as Json), last_pull_at: new Date().toISOString() };
   await supabase.from("properties").update({ pricelabs_config: nextCfg }).eq("id", propertyId);
 
-  return { success: true, suggestions_upserted: rows.length };
+  return { success: true, suggestions_upserted: rows.length, failed_listings: failures.length, errors: failures.slice(0, 5) };
 }
 
 async function applySuggestions(
@@ -393,9 +418,11 @@ Deno.serve(async (req) => {
 
       case "get_prices": {
         const ids = (payload.listing_ids as string[]) ?? [];
-        const body = payload.body ?? { listings: ids.map((id) => ({ listing_id: id, pms: "rolos" })) };
+        const requestedListingId = typeof payload.listing_id === "string" ? payload.listing_id : ids[0];
+        if (!requestedListingId && !payload.body) return json({ error: "listing_id required" }, 400);
+        const body = payload.body ?? { sync: { listing_id: requestedListingId, delta_only: false } };
         const r = await pl("POST", "/get_prices", name, token, body);
-        return json({ success: r.ok, status: r.status, data: r.body });
+        return json({ success: r.ok, status: r.status, data: r.body, error: r.ok ? undefined : plError("Get prices failed", r) }, r.ok ? 200 : r.status);
       }
 
       case "get_sync_status": {
