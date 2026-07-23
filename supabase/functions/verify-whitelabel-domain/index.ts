@@ -502,9 +502,8 @@ Deno.serve(async (req) => {
     let hostnameId: string | null = existingHostnameId;
     let cfHostnameStatus: string | null = null;
     let cfSslStatus: string | null = null;
-    let originRouteError: string | null = null;
-    let redirectRouteError: string | null = null;
-    let routingMode: "origin" | "redirect" | null = null;
+    let workerRouteError: string | null = null;
+    let routingMode: "worker" | null = null;
 
     if (!dnsOk) {
       if (dnsMissing) {
@@ -515,15 +514,9 @@ Deno.serve(async (req) => {
         lastError = `DNS points elsewhere (CNAME: ${cnameTargets.join(", ") || "none"}, A: ${ips.join(", ") || "none"}).`;
       }
     } else {
-      const originRoute = await cfEnsureOriginRoute(normalized);
-      originRouteError = originRoute.error;
-      if (originRoute.ok) {
-        routingMode = "origin";
-      } else if (requiresRedirectFallback(originRouteError)) {
-        const redirectRoute = await cfEnsureCanonicalRedirect(normalized);
-        redirectRouteError = redirectRoute.error;
-        if (redirectRoute.ok) routingMode = "redirect";
-      }
+      const workerRoute = await cfEnsureWorkerRoute(normalized);
+      workerRouteError = workerRoute.error;
+      if (workerRoute.ok) routingMode = "worker";
 
       // 2) Register on Cloudflare if not already, otherwise poll.
       // Always try to adopt an existing hostname by name first — avoids
@@ -549,8 +542,8 @@ Deno.serve(async (req) => {
           cfHostnameStatus = created.result.status;
           cfSslStatus = created.result.ssl?.status ?? null;
           status = "pending_ssl";
-          lastError = originRouteError
-            ? `DNS verified, certificate is issuing, but origin routing needs attention: ${originRouteError}`
+          lastError = workerRouteError
+            ? `DNS verified, certificate is issuing, but white-label proxy routing needs attention: ${workerRouteError}`
             : "DNS verified. Cloudflare is issuing your certificate — this usually takes 1-2 minutes.";
         }
       }
@@ -574,7 +567,7 @@ Deno.serve(async (req) => {
               });
               if (cfHostnameStatus === "active" && cfSslStatus === "active") {
                 status = "active";
-                lastError = originRouteError;
+                lastError = workerRouteError;
               } else {
                 status = "pending_ssl";
                 lastError = `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
@@ -608,19 +601,18 @@ Deno.serve(async (req) => {
             ssl_status: cfSslStatus,
             ssl_validation_errors: got.result.ssl?.validation_errors ?? null,
             verification_errors: got.result.verification_errors ?? null,
-            origin_route_error: originRouteError,
+            worker_route_error: workerRouteError,
           });
           if (got.result.status === "active" && cfSslStatus === "active") {
-            // Cert is live. The hostname is only usable if we can either route
-            // Cloudflare to the shared fallback origin or redirect it to the
-            // canonical app host. Without one of these, Vercel returns
-            // DEPLOYMENT_NOT_FOUND for the customer hostname.
+            // Cert is live. The hostname is usable only when the reusable
+            // Worker proxy route exists; otherwise Vercel still sees the
+            // customer hostname and returns DEPLOYMENT_NOT_FOUND.
             if (routingMode) {
               status = "active";
               lastError = null;
             } else {
               status = "failed";
-              lastError = redirectRouteError || originRouteError || "Domain certificate is active, but routing to the booking app could not be configured.";
+              lastError = workerRouteError || "Domain certificate is active, but the white-label proxy route could not be configured.";
             }
           } else {
             status = "pending_ssl";
@@ -629,8 +621,8 @@ Deno.serve(async (req) => {
             const detail = [sslErr, verErr].filter(Boolean).join(" | ");
             lastError = detail
               ? `Cloudflare: hostname=${cfHostnameStatus}, ssl=${cfSslStatus} — ${detail}`
-              : redirectRouteError || (originRouteError && !routingMode)
-                ? `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}. Routing: ${redirectRouteError || originRouteError}`
+              : workerRouteError && !routingMode
+                ? `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}. Routing: ${workerRouteError}`
                 : `Cloudflare is still working — hostname=${cfHostnameStatus}, ssl=${cfSslStatus}.`;
           }
         }
@@ -666,8 +658,7 @@ Deno.serve(async (req) => {
           hostname_status: cfHostnameStatus,
           ssl_status: cfSslStatus,
           routing_mode: routingMode,
-          origin_route_error: originRouteError,
-          redirect_route_error: redirectRouteError,
+          worker_route_error: workerRouteError,
         },
         expected: { cname: EXPECTED_CNAME_HOSTS, a: EXPECTED_A_RECORD },
       }),
