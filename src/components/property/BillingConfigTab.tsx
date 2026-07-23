@@ -260,6 +260,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </div>
         )}
 
+        {widgetTiersInfo && (
+          <div className="rounded-md border border-dashed bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+            <strong className="text-foreground">Commission is tiered.</strong> The effective % is determined by monthly booking volume against the Widget tiers configured centrally in <em>Admin → Billing Defaults</em>. Optional white-label and BYO gateway add-ons (below) layer on top.
+          </div>
+        )}
+
         {/* Subscription Fee */}
         {showSubscription && (
           <div className="space-y-1">
