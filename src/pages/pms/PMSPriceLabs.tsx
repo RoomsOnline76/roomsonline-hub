@@ -199,9 +199,18 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
     return data;
   };
 
+  const markConfig = async (patch: Partial<PriceLabsConfig>) => {
+    const next = { ...(cfg as PriceLabsConfig), ...patch };
+    await supabase.from("properties").update({ pricelabs_config: next as any }).eq("id", propertyId!);
+    qc.invalidateQueries({ queryKey: ["pricelabs-property", propertyId] });
+  };
+
   const pushProperty = useMutation({
     mutationFn: () => callApi("sync_property_to_pricelabs"),
-    onSuccess: (d: any) => toast.success(`Pushed ${d?.listings_pushed ?? 0} listings, ${d?.reservations_pushed ?? 0} reservations`),
+    onSuccess: async (d: any) => {
+      await markConfig({ last_push_at: new Date().toISOString(), needs_repush: false });
+      toast.success(`Pushed ${d?.listings_pushed ?? 0} listings, ${d?.reservations_pushed ?? 0} reservations. You can now pull suggestions.`);
+    },
     onError: (e: Error) => toast.error(`Push failed: ${e.message}`),
   });
 
@@ -216,8 +225,9 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
 
   const applySelected = useMutation({
     mutationFn: () => callApi("apply_suggestions", { suggestion_ids: Array.from(selectedIds) }),
-    onSuccess: (d: any) => {
-      toast.success(`Applied ${d?.applied ?? 0} price suggestions`);
+    onSuccess: async (d: any) => {
+      await markConfig({ needs_repush: true });
+      toast.success(`Applied ${d?.applied ?? 0} price suggestions. Re-push to PriceLabs to sync the new rates.`);
       setSelectedIds(new Set());
       refetchSuggestions();
     },
