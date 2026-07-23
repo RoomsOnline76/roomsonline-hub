@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, CheckCircle2, Shield, Sparkles } from "lucide-react";
+import { ArrowRight, Check, CheckCircle2, Shield, Sparkles, Palette, Globe, TrendingUp, CreditCard } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
@@ -14,16 +14,19 @@ const TIERS = [
     name: "Starter",
     price: "R 1,500",
     period: "/month",
-    desc: "For individual properties getting started — no PMS experience needed",
+    caps: "Up to 10 rooms · 1 property",
+    desc: "For individual properties getting started — no PMS experience needed.",
     features: [
-      "Up to 10 rooms",
-      "1 property",
-      "Full API access (40+ actions)",
+      "Booking Engine Widgets",
       "WordPress plugin",
-      "Booking engine widgets",
       "Guest CRM",
+      "Rate season management",
+      "Revenue management & analytics",
+      "Folio & billing system",
       "Housekeeping board",
       "TOBI AI assistant",
+      "Night audit automation",
+      "Portfolio analytics dashboard",
       "Email support",
     ],
     cta: "Start 60-Day Free Trial",
@@ -35,35 +38,29 @@ const TIERS = [
     name: "Professional",
     price: "R 4,500",
     period: "/month",
-    desc: "For growing properties and small portfolios — enterprise features included",
+    caps: "Up to 50 rooms · up to 3 properties",
+    desc: "For growing properties and small portfolios — enterprise features included.",
     features: [
-      "Up to 50 rooms",
-      "Up to 3 properties",
       "Everything in Starter",
-      "Revenue management & analytics",
-      "Channel manager (3 OTAs included)",
-      "Night audit automation",
-      "Rate season management",
-      "Folio & billing system",
+      "Portfolio aggregator",
+      "Channel manager (1 OTA included)",
       "Priority support",
     ],
     cta: "Start 60-Day Free Trial",
     popular: true,
     negotiable: true,
-    savings: "Channel manager alone costs R 2,000+/mo elsewhere",
+    savings: "Channel manager alone can cost R 2,000+/mo elsewhere",
   },
   {
     name: "Enterprise",
     price: "Let's Talk",
     period: "",
-    desc: "For hotel groups and management companies — fully customisable",
+    caps: "Unlimited rooms · unlimited properties",
+    desc: "For hotel groups and management companies — fully customisable.",
     features: [
-      "Unlimited rooms",
-      "Unlimited properties",
       "Everything in Professional",
-      "Portfolio analytics dashboard",
       "Unlimited OTA channels",
-      "White-label branding",
+      "Full API access (55+ actions)",
       "Custom API integrations",
       "Dedicated account manager",
       "SLA guarantee",
@@ -71,17 +68,44 @@ const TIERS = [
     cta: "Get Custom Quote",
     popular: false,
     negotiable: true,
-    savings: "Typically 40-60% less than comparable enterprise PMS",
+    savings: "Typically 40–60% less than comparable enterprise PMS",
+  },
+];
+
+const ADD_ONS = [
+  {
+    icon: Palette,
+    name: "Basic Branding",
+    price: "From R 150 / month",
+    desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
+  },
+  {
+    icon: Globe,
+    name: "White-label Branding",
+    price: "From R 450 / month",
+    desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
+  },
+  {
+    icon: TrendingUp,
+    name: "PriceLabs Revenue Management",
+    price: "From R 250 / month",
+    desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
+  },
+  {
+    icon: CreditCard,
+    name: "BYO Payment Gateway",
+    price: "From R 250 / month",
+    desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
   },
 ];
 
 const COMPETITOR_COSTS = [
   { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included from R 1,500" },
-  { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included" },
-  { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included" },
-  { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included" },
+  { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
+  { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
+  { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
   { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
-  { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available" },
+  { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
 ];
 
 const GUARANTEES = [
@@ -156,6 +180,7 @@ export default function ConnectPricing() {
                   <span className="text-3xl font-bold">{tier.price}</span>
                   <span className="text-sm text-muted-foreground">{tier.period}</span>
                 </div>
+                <p className="text-xs font-medium text-primary mt-2">{tier.caps}</p>
                 <p className="text-sm text-muted-foreground mt-2">{tier.desc}</p>
 
                 {tier.savings && (
@@ -184,8 +209,51 @@ export default function ConnectPricing() {
         </div>
       </section>
 
-      {/* What Others Charge */}
+      {/* Optional Add-Ons */}
       <section className="py-16 border-t bg-muted/20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp} transition={{ duration: 0.6 }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-2xl font-bold">Optional Add-Ons</h2>
+            <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
+              Bolt on only what you need. Enabled per property by your ROL admin — cancel or pause any time.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
+            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
+          >
+            {ADD_ONS.map((a) => (
+              <motion.div
+                key={a.name}
+                variants={fadeUp}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-xl border bg-card p-5"
+              >
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                  <a.icon className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-sm font-semibold">{a.name}</h3>
+                <p className="text-xs font-medium text-primary mt-1">{a.price}</p>
+                <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{a.desc}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
+            Add-ons are priced per property and configured by your ROL admin. Final pricing may be adjusted for
+            multi-property portfolios.
+          </p>
+        </div>
+      </section>
+
+      {/* What Others Charge */}
+      <section className="py-16 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
