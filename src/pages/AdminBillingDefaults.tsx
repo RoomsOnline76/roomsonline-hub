@@ -19,12 +19,12 @@ import { summarizeStrategy } from "@/components/admin/billing/StrategySummaryLin
 
 const STRATEGY_LABELS: Record<string, { label: string; description: string }> = {
   default: { label: "Default (Commission)", description: "Standard listing / PMS commission model" },
-  widget: { label: "Widget (Tiered)", description: "Volume-based commission tiers for embeds" },
-  rolos_pms: { label: "ROL'OS PMS", description: "Monthly subscription + per-unit channel manager" },
-  portfolio_aggregator: { label: "Portfolio Aggregator", description: "Reduced rate for multi-property owners" },
-  enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly fee, zero commission" },
-  volume_tiered: { label: "Volume Tiered", description: "Sliding scale based on unit count" },
-  payment_facilitator: { label: "Payment Facilitator", description: "Transaction fee only" },
+  widget: { label: "Widget — Tiered Commission", description: "Commission % scales down as monthly booking volume grows" },
+  rolos_pms: { label: "ROL'OS PMS — Subscription", description: "Monthly base + R60/unit channel manager (2% PMS commission)" },
+  portfolio_aggregator: { label: "Portfolio Aggregator", description: "Shared subscription across multiple properties, blended commission" },
+  enterprise_white_label: { label: "Enterprise White-Label", description: "Flat monthly licence + once-off setup, zero commission" },
+  volume_tiered: { label: "Volume Tiered (Per Unit)", description: "Sliding R/unit/month based on total active units" },
+  payment_facilitator: { label: "Payment Facilitator Only", description: "No listing/PMS fees — transaction fee on PayFast only" },
 };
 
 function toStr(v: number | null | undefined): string {
