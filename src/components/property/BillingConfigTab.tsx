@@ -199,7 +199,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     );
   }
 
-  const showCommission = ["default", "rolos_pms", "volume_tiered"].includes(strategy);
+ const showCommission = ["default", "rolos_pms", "volume_tiered"].includes(strategy);
+ const widgetTiersInfo = strategy === "widget";
   const showSubscription = ["rolos_pms", "enterprise_white_label"].includes(strategy);
   const showTransactionFee = facilitatorActive || strategy === "payment_facilitator";
   const showVolumeTiers = strategy === "volume_tiered";
