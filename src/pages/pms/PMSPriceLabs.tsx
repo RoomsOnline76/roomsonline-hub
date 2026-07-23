@@ -402,7 +402,16 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
               </AlertDescription>
             </Alert>
           )}
-          {pricelabsAllowed && !cfg.last_push_at && (
+          {pricelabsAllowed && !cfg.enabled && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>PriceLabs is available — activate to start</AlertTitle>
+              <AlertDescription>
+                Toggle "Activate PriceLabs for this property" above to enable pushes and pulls. Billing begins on activation.
+              </AlertDescription>
+            </Alert>
+          )}
+          {pricelabsAllowed && cfg.enabled && !cfg.last_push_at && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertTitle>Push required before pulling</AlertTitle>
@@ -411,7 +420,7 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
               </AlertDescription>
             </Alert>
           )}
-          {pricelabsAllowed && cfg.needs_repush && (
+          {pricelabsAllowed && cfg.enabled && cfg.needs_repush && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertTitle>Rates changed — re-push recommended</AlertTitle>
@@ -424,14 +433,14 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
             <Button
               variant={cfg.needs_repush ? "default" : "outline"}
               onClick={() => pushProperty.mutate()}
-              disabled={pushProperty.isPending || !pricelabsAllowed || !canManage}
+              disabled={pushProperty.isPending || !pricelabsAllowed || !cfg.enabled || !canManage}
             >
               <Upload className="h-4 w-4 mr-2" /> {cfg.needs_repush ? "Re-push to PriceLabs" : "Push property to PriceLabs"}
             </Button>
             <Button
               onClick={() => pullSuggestions.mutate()}
-              disabled={pullSuggestions.isPending || !pricelabsAllowed || !canManage || !cfg.last_push_at}
-              title={!cfg.last_push_at ? "Push property to PriceLabs first" : undefined}
+              disabled={pullSuggestions.isPending || !pricelabsAllowed || !cfg.enabled || !canManage || !cfg.last_push_at}
+              title={!cfg.enabled ? "Activate PriceLabs first" : !cfg.last_push_at ? "Push property to PriceLabs first" : undefined}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
