@@ -149,21 +149,45 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
       if (typeof v === "string") return v;
       try { return JSON.stringify(v); } catch { return String(v); }
     };
+    const readFunctionError = async (error: unknown): Promise<string> => {
+      const context = (error as { context?: unknown }).context;
+      const response = context instanceof Response
+        ? context
+        : (context as { response?: unknown } | undefined)?.response instanceof Response
+          ? (context as { response: Response }).response
+          : null;
+
+      if (response) {
+        const bodyText = await response.clone().text().catch(() => "");
+        if (bodyText) {
+          try {
+            const parsed = JSON.parse(bodyText) as { error?: unknown; reason?: unknown; message?: unknown };
+            return toStr(parsed.error ?? parsed.reason ?? parsed.message ?? parsed);
+          } catch {
+            return bodyText;
+          }
+        }
+      }
+
+      if (context && typeof (context as { json?: unknown }).json === "function") {
+        const parsed = await (context as { json: () => Promise<unknown> }).json().catch(() => null);
+        if (parsed) {
+          const body = parsed as { error?: unknown; reason?: unknown; message?: unknown };
+          return toStr(body.error ?? body.reason ?? body.message ?? body);
+        }
+      }
+
+      if (context && typeof (context as { text?: unknown }).text === "function") {
+        return await (context as { text: () => Promise<string> }).text().catch(() => "");
+      }
+
+      return (error as Error)?.message || "";
+    };
     const { data, error } = await supabase.functions.invoke("pricelabs-api", {
       body: { action, property_id: propertyId, ...body },
     });
     if (error) {
-      // Try to pull the JSON body out of a FunctionsHttpError so the real reason surfaces.
-      let detail = "";
-      const ctxResp = (error as { context?: { response?: Response } }).context?.response;
-      if (ctxResp) {
-        try {
-          const j = await ctxResp.clone().json();
-          detail = toStr((j as { error?: unknown; reason?: unknown }).error ?? (j as { reason?: unknown }).reason ?? j);
-        } catch {
-          try { detail = await ctxResp.clone().text(); } catch { /* ignore */ }
-        }
-      }
+      const detail = await readFunctionError(error);
       throw new Error(detail || (error as Error).message || "Edge function error");
     }
     const d = (data ?? {}) as { success?: boolean; error?: unknown; reason?: unknown };
