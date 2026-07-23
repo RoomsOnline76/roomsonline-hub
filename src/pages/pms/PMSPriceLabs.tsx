@@ -365,7 +365,8 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
         <CardHeader>
           <CardTitle>Sync & pull</CardTitle>
           <CardDescription>
-            Push listings + reservations to PriceLabs, then pull optimised prices.
+            Push listings + reservations to PriceLabs first, then pull optimised prices.
+            {cfg.last_push_at && <span className="block text-xs mt-1">Last push: {format(new Date(cfg.last_push_at), "PPp")}</span>}
             {cfg.last_pull_at && <span className="block text-xs mt-1">Last pull: {format(new Date(cfg.last_pull_at), "PPp")}</span>}
           </CardDescription>
         </CardHeader>
@@ -379,11 +380,37 @@ export function PriceLabsPanel({ propertyId, loading: propLoading = false, embed
               </AlertDescription>
             </Alert>
           )}
+          {pricelabsAllowed && !cfg.last_push_at && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Push required before pulling</AlertTitle>
+              <AlertDescription>
+                Pull is disabled until you push this property's listings and reservations to PriceLabs at least once.
+              </AlertDescription>
+            </Alert>
+          )}
+          {pricelabsAllowed && cfg.needs_repush && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Rates changed — re-push recommended</AlertTitle>
+              <AlertDescription>
+                You applied new suggestions since the last push. Re-push to PriceLabs so its model sees the updated rates before the next pull.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => pushProperty.mutate()} disabled={pushProperty.isPending || !pricelabsAllowed || !canManage}>
-              <Upload className="h-4 w-4 mr-2" /> Push property to PriceLabs
+            <Button
+              variant={cfg.needs_repush ? "default" : "outline"}
+              onClick={() => pushProperty.mutate()}
+              disabled={pushProperty.isPending || !pricelabsAllowed || !canManage}
+            >
+              <Upload className="h-4 w-4 mr-2" /> {cfg.needs_repush ? "Re-push to PriceLabs" : "Push property to PriceLabs"}
             </Button>
-            <Button onClick={() => pullSuggestions.mutate()} disabled={pullSuggestions.isPending || !pricelabsAllowed || !canManage}>
+            <Button
+              onClick={() => pullSuggestions.mutate()}
+              disabled={pullSuggestions.isPending || !pricelabsAllowed || !canManage || !cfg.last_push_at}
+              title={!cfg.last_push_at ? "Push property to PriceLabs first" : undefined}
+            >
               <RefreshCw className={`h-4 w-4 mr-2 ${pullSuggestions.isPending ? "animate-spin" : ""}`} /> Pull latest suggestions
             </Button>
           </div>
