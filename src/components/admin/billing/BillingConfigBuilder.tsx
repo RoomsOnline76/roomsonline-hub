@@ -74,6 +74,8 @@ interface BuilderProps {
   placeholders?: Partial<Record<keyof BillingConfigValue, string | number>>;
   /** Show the "Payment model" separator context. Defaults to true. */
   showPaymentInfo?: boolean;
+  /** Add-ons to disable (property-scope gating), keyed by short name. */
+  disabledAddons?: { pricelabs?: { disabled: boolean; reason?: string } };
 }
 
 function ToggleRow({
