@@ -23,6 +23,7 @@ export interface BillingDefault {
   portfolio_aggregator_setup_default?: number | null;
   sales_rep_tier_criteria_json?: any;
   payment_facilitator_fee: number | null;
+  byo_gateway_monthly_fee?: number | null;
   referral_first_year_rate: number | null;
   referral_residual_rate: number | null;
   referral_residual_months: number | null;
