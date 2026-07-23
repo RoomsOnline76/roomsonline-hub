@@ -12,6 +12,9 @@ export interface BillingConfig {
   transaction_fee_percentage: number | null;
   payment_facilitator_enabled: boolean;
   white_label_allowed: boolean;
+  white_label_monthly_fee?: number | null;
+  pricelabs_allowed?: boolean;
+  pricelabs_monthly_fee?: number | null;
   volume_tier_json: Record<string, number> | null;
   tier_pricing_json: Array<{ min_rooms: number; max_rooms: number | null; monthly_fee: number }> | null;
   tier_scope: "property" | "portfolio" | null;
