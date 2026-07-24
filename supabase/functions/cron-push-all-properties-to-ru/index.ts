@@ -40,27 +40,30 @@ Deno.serve(async (req) => {
       console.error(`[cron-push-all] RLNM subscription error:`, err);
     }
 
-    // ── Step 1: Get all properties with an RU connection ──────
+    // ── Step 1: Get all properties with an RU connection (respect ru_push_enabled flag) ──
     // A property qualifies if EITHER:
     //   (a) properties.rentalsunited_property_id is set (single-unit / building-level push), OR
     //   (b) any of its hostfully_room_types rows have rentalsunited_property_id set (multi-unit fan-out)
+    // AND properties.ru_push_enabled is not explicitly false.
     const [{ data: buildingProps, error: buildingErr }, { data: unitRows, error: unitErr }] = await Promise.all([
       supabase
         .from('properties')
-        .select('id, name, rentalsunited_property_id')
+        .select('id, name, rentalsunited_property_id, ru_push_enabled')
         .not('rentalsunited_property_id', 'is', null),
       supabase
         .from('hostfully_room_types')
-        .select('property_id, properties!inner(id, name, rentalsunited_property_id)')
+        .select('property_id, properties!inner(id, name, rentalsunited_property_id, ru_push_enabled)')
         .not('rentalsunited_property_id', 'is', null),
     ]);
 
     const error = buildingErr || unitErr;
-    const propMap = new Map<string, { id: string; name: string; rentalsunited_property_id: string | null }>();
-    for (const p of buildingProps ?? []) propMap.set(p.id, p);
+    const propMap = new Map<string, { id: string; name: string; rentalsunited_property_id: string | null; ru_push_enabled?: boolean }>();
+    for (const p of buildingProps ?? []) {
+      if (p.ru_push_enabled !== false) propMap.set(p.id, p);
+    }
     for (const row of (unitRows ?? []) as any[]) {
       const p = row.properties;
-      if (p && !propMap.has(p.id)) propMap.set(p.id, p);
+      if (p && p.ru_push_enabled !== false && !propMap.has(p.id)) propMap.set(p.id, p);
     }
     const properties = Array.from(propMap.values());
 
