@@ -381,6 +381,27 @@ Deno.serve(async (req) => {
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
+      case "set_integration": {
+        // PriceLabs expects: { integration: { sync_url, calendar_trigger_url, hook_url, regenerate_token } }
+        const integration: Record<string, unknown> = {};
+        if (typeof payload.sync_url === "string" && payload.sync_url) integration.sync_url = payload.sync_url;
+        if (typeof payload.calendar_trigger_url === "string" && payload.calendar_trigger_url) integration.calendar_trigger_url = payload.calendar_trigger_url;
+        if (typeof payload.hook_url === "string" && payload.hook_url) integration.hook_url = payload.hook_url;
+        if (payload.regenerate_token === true) integration.regenerate_token = true;
+
+        if (Object.keys(integration).length === 0) {
+          return json({ success: false, error: "At least one of sync_url, calendar_trigger_url, hook_url is required" }, 400);
+        }
+
+        const r = await pl("POST", "/integration", name, token, { integration });
+        return json({
+          success: r.ok,
+          status: r.status,
+          data: r.body,
+          error: r.ok ? undefined : plError("set_integration failed", r),
+        }, r.ok ? 200 : r.status);
+      }
+
       case "sync_property_to_pricelabs": {
         if (!propertyId) return json({ error: "property_id required" }, 400);
         const res = await syncPropertyToPricelabs(supabase, propertyId, name, token);
