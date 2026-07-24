@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: string; parked?: boolean }> = {
   booking_com: { label: "Booking.com", color: "bg-blue-600", initials: "B" },
   airbnb: { label: "Airbnb", color: "bg-rose-500", initials: "A" },
+  vrbo: { label: "Vrbo", color: "bg-sky-700", initials: "V" },
   expedia: { label: "Expedia", color: "bg-yellow-500", initials: "E" },
   agoda: { label: "Agoda", color: "bg-red-600", initials: "Ag" },
   google_hotels: { label: "Google Travel", color: "bg-emerald-500", initials: "G" },
