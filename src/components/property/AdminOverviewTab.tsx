@@ -151,8 +151,8 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // Enterprise custom PMS fee (>3 properties tier)
   push("Enterprise PMS fee (custom)", c.enterprise_custom_fee);
 
-  // Volume-tiered per-property monthly fee (if a tier resolves to a fixed monthly fee)
-  if (Array.isArray(c.tier_pricing_json) && c.tier_pricing_json.length > 0) {
+  // Volume-tiered per-property monthly fee (only when explicitly enabled)
+  if (c.volume_tiers_enabled && Array.isArray(c.tier_pricing_json) && c.tier_pricing_json.length > 0) {
     const roomCount = c.room_count_override ?? units;
     const tier = c.tier_pricing_json.find((t: any) => {
       const min = Number(t.min_rooms ?? 0);
