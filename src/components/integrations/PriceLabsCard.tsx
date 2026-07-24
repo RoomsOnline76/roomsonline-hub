@@ -126,10 +126,33 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
 
   const fetchSyncStatus = async () => {
     setLoading(true);
-    const r = await callPL("get_sync_status");
+    const r = await callPL("get_sync_status", {
+      ...(propertyId ? { property_id: propertyId } : {}),
+      ...(userToken ? { user_token: userToken } : {}),
+    });
     setLastResponse(r);
     setLoading(false);
     if (r.success) setMetrics(m => ({ ...m, lastSyncAt: new Date().toISOString() }));
+  };
+
+  const saveUserToken = async () => {
+    if (!propertyId) {
+      toast({ title: "Property required", description: "Open a property to save its PriceLabs user_token.", variant: "destructive" });
+      return;
+    }
+    if (!userToken.trim()) {
+      toast({ title: "Enter user_token", description: "Paste the customer's PriceLabs user_token first.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    const r = await callPL("save_user_token", { property_id: propertyId, user_token: userToken.trim() });
+    setLastResponse(r);
+    setLoading(false);
+    toast({
+      title: r.success ? "user_token saved" : "Save failed",
+      description: r.success ? "Stored on this property." : (r.error || `HTTP ${r.status}`),
+      variant: r.success ? "default" : "destructive",
+    });
   };
 
   return (
