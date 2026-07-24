@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import { usePropertyReferrals } from "@/hooks/useRepCommissions";
+import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
 import {
   Loader2,
   Receipt,
@@ -123,6 +124,13 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     enabled: !!propertyId,
   });
 
+  const { data: resolvedTier } = useQuery({
+    queryKey: ["admin-overview-resolved-tier", propertyId],
+    queryFn: () => resolvePropertyTier(propertyId),
+    enabled: !!propertyId,
+  });
+
+
   if (billingLoading || propLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -152,10 +160,23 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     if (n > 0) costLines.push({ label, amount: n, once });
   };
 
-  // PMS subscription
-  push(`Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, c.subscription_fee_monthly);
-
-  // (Legacy enterprise custom PMS fee removed — subscription is now driven purely by room count.)
+  // PMS subscription — for tier-based strategies, resolve fee from room-count tiers;
+  // otherwise fall back to any explicit subscription_fee_monthly on the config.
+  if (isTierStrategy(strategy)) {
+    const tierFee = resolvedTier?.effectiveMonthlyFee ?? null;
+    const rooms = resolvedTier?.rooms ?? 0;
+    const tierLabel = resolvedTier?.tier?.label ? ` — ${resolvedTier.tier.label.toUpperCase()}` : "";
+    if (tierFee != null && tierFee > 0) {
+      push(`PMS Subscription${tierLabel} (${rooms} room${rooms === 1 ? "" : "s"})`, tierFee);
+    } else if (resolvedTier?.requiresCustomFee) {
+      costLines.push({
+        label: `PMS Subscription${tierLabel} — Enterprise (custom fee pending)`,
+        amount: 0,
+      });
+    }
+  } else {
+    push(`Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, c.subscription_fee_monthly);
+  }
 
 
   // Volume-tiered per-property monthly fee (only when explicitly enabled)
