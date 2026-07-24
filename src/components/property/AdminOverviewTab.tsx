@@ -135,66 +135,74 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   const activeReferral = referrals?.[0];
 
   // ── Estimated cost calculation (excludes commission / transaction fees) ──
+  // Use `config` (property_billing_configs) as single source of truth; `wlDomain`
+  // is the same row scoped to WL/domain fields.
+  const c: any = config || {};
   const units = unitCount ?? 0;
   const costLines: { label: string; amount: number; once?: boolean }[] = [];
+  const push = (label: string, amount: number | null | undefined, once = false) => {
+    const n = Number(amount ?? 0);
+    if (n > 0) costLines.push({ label, amount: n, once });
+  };
 
-  const subMonthly = Number(config?.subscription_fee_monthly ?? 0);
-  if (subMonthly > 0) {
-    costLines.push({ label: `Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, amount: subMonthly });
+  // PMS subscription
+  push(`Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, c.subscription_fee_monthly);
+
+  // Enterprise custom PMS fee (>3 properties tier)
+  push("Enterprise PMS fee (custom)", c.enterprise_custom_fee);
+
+  // Volume-tiered per-property monthly fee (if a tier resolves to a fixed monthly fee)
+  if (Array.isArray(c.tier_pricing_json) && c.tier_pricing_json.length > 0) {
+    const roomCount = c.room_count_override ?? units;
+    const tier = c.tier_pricing_json.find((t: any) => {
+      const min = Number(t.min_rooms ?? 0);
+      const max = t.max_rooms == null ? Infinity : Number(t.max_rooms);
+      return roomCount >= min && roomCount <= max;
+    });
+    if (tier && Number(tier.monthly_fee ?? 0) > 0) {
+      push(`Volume tier${tier.label ? ` — ${tier.label}` : ""} (${roomCount} rooms)`, tier.monthly_fee);
+    }
   }
 
-  const cmFee = Number(wlDomain?.channel_manager_per_unit_fee ?? 60);
-  if (strategy === "rolos_pms" && wlDomain?.channel_manager_enabled && units > 0) {
-    costLines.push({ label: `Channel Manager (${units} unit${units === 1 ? "" : "s"} × R${cmFee})`, amount: cmFee * units });
+  // Channel Manager per-unit fee — bill whenever explicitly enabled and units exist
+  if (c.channel_manager_enabled && units > 0 && Number(c.channel_manager_per_unit_fee ?? 0) > 0) {
+    const cmFee = Number(c.channel_manager_per_unit_fee);
+    push(`Channel Manager (${units} unit${units === 1 ? "" : "s"} × R${cmFee})`, cmFee * units);
   }
 
-  if (wlAllowed && wlDomain?.white_label_monthly_fee != null && Number(wlDomain.white_label_monthly_fee) > 0) {
-    const mode = wlDomain?.white_label_billing_mode === "annual" ? " (annual/12)" : "";
-    const monthly = wlDomain?.white_label_billing_mode === "annual"
-      ? Number(wlDomain.white_label_monthly_fee) / 12
-      : Number(wlDomain.white_label_monthly_fee);
-    costLines.push({ label: `White-Label licence${mode}`, amount: monthly });
+  // White-Label licence
+  if (wlAllowed && Number(c.white_label_monthly_fee ?? 0) > 0) {
+    const annual = c.white_label_billing_mode === "annual";
+    const monthly = annual ? Number(c.white_label_monthly_fee) / 12 : Number(c.white_label_monthly_fee);
+    push(`White-Label licence${annual ? " (annual/12)" : ""}`, monthly);
   }
-  if (wlAllowed && wlDomain?.white_label_setup_fee != null && Number(wlDomain.white_label_setup_fee) > 0) {
-    costLines.push({ label: "White-Label setup", amount: Number(wlDomain.white_label_setup_fee), once: true });
-  }
+  if (wlAllowed) push("White-Label setup", c.white_label_setup_fee, true);
 
-  // Branding add-on is included free with White-label — only bill separately when WL is off.
-  if (!wlAllowed && wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_monthly_fee ?? 0) > 0) {
-    costLines.push({ label: "Branding add-on", amount: Number(wlDomain.branding_addon_monthly_fee) });
-  }
-  if (!wlAllowed && wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_setup_fee ?? 0) > 0) {
-    costLines.push({ label: "Branding add-on setup", amount: Number(wlDomain.branding_addon_setup_fee), once: true });
+  // Branding add-on — free when bundled with White-label, otherwise billed
+  if (!wlAllowed && c.branding_addon_enabled) {
+    push("Branding add-on", c.branding_addon_monthly_fee);
+    push("Branding add-on setup", c.branding_addon_setup_fee, true);
   }
   if (wlAllowed) {
     costLines.push({ label: "Basic Branding add-on (included with White-label)", amount: 0 });
   }
 
-  // PriceLabs is a billable Revenue Add-on the moment admin enables it in billing;
-  // activation in the ROL'OS UI is optional and doesn't gate the recurring charge.
-  const pricelabsBillable = !!wlDomain?.pricelabs_allowed;
-  if (pricelabsBillable && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
+  // PriceLabs Revenue add-on — billed when admin has toggled the add-on for this property
+  if (c.pricelabs_allowed) {
     const activated = !!property?.pricelabs_config?.enabled;
-    costLines.push({
-      label: `PriceLabs add-on${activated ? "" : " (enabled — awaiting activation)"}`,
-      amount: Number(wlDomain.pricelabs_monthly_fee),
-    });
-  }
-  if (pricelabsBillable && Number(wlDomain?.pricelabs_setup_fee ?? 0) > 0) {
-    costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
+    const monthly = Number(c.pricelabs_monthly_fee ?? 0);
+    if (monthly > 0) {
+      costLines.push({
+        label: `PriceLabs add-on${activated ? "" : " (enabled — awaiting activation)"}`,
+        amount: monthly,
+      });
+    }
+    push("PriceLabs setup", c.pricelabs_setup_fee, true);
   }
 
   // BYO payment gateway monthly add-on (only when owner uses their own provider)
-  if (customProvider) {
-    const byoFee = Number(
-      (config as any)?.byo_gateway_monthly_fee ??
-        (wlDomain as any)?.byo_gateway_monthly_fee ??
-        0
-    );
-    if (byoFee > 0) {
-      costLines.push({ label: "BYO payment gateway add-on", amount: byoFee });
-    }
-  }
+  if (customProvider) push("BYO payment gateway add-on", c.byo_gateway_monthly_fee);
+
 
   const monthlyTotal = costLines.filter((l) => !l.once).reduce((s, l) => s + l.amount, 0);
   const setupTotal = costLines.filter((l) => l.once).reduce((s, l) => s + l.amount, 0);
