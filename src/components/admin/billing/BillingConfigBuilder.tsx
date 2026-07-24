@@ -478,6 +478,50 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         )}
       </ToggleRow>
 
+      {/* ── Branding pack (standalone, non-white-label) ────────────── */}
+      <ToggleRow
+        title="Branding pack (standalone)"
+        description="Colour, logo & font overrides on the standard Rooms Online domain — a cheaper alternative to full white-label."
+        enabled={value.branding_addon_enabled}
+        onToggle={(v) => set("branding_addon_enabled", v)}
+        disabled={value.white_label_enabled}
+        disabledReason={value.white_label_enabled ? "Included free with White-label." : undefined}
+      >
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.branding_addon_monthly_fee}
+              onChange={(e) => set("branding_addon_monthly_fee", e.target.value)}
+              placeholder={String(placeholders.branding_addon_monthly_fee ?? "150")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Setup (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.branding_addon_setup_fee}
+              onChange={(e) => set("branding_addon_setup_fee", e.target.value)}
+              placeholder={String(placeholders.branding_addon_setup_fee ?? "500")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Billing mode</Label>
+            <select
+              value={value.branding_addon_billing_mode}
+              onChange={(e) => set("branding_addon_billing_mode", e.target.value as "monthly" | "annual")}
+              className="h-8 w-full text-xs rounded-md border border-input bg-background px-2"
+            >
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </select>
+          </div>
+        </div>
+      </ToggleRow>
+
       {/* ── PriceLabs add-on ───────────────────────────────────────── */}
       <ToggleRow
         title="PriceLabs revenue management (ROL'OS only)"
@@ -487,15 +531,27 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         disabled={pricelabsDisabled}
         disabledReason={disabledAddons?.pricelabs?.reason}
       >
-        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
-          <Input
-            type="number" step="50" min="0"
-            value={value.pricelabs_monthly_fee}
-            onChange={(e) => set("pricelabs_monthly_fee", e.target.value)}
-            placeholder={String(placeholders.pricelabs_monthly_fee ?? "250")}
-            className="h-8 text-xs"
-          />
-          <span className="text-xs text-muted-foreground">ZAR/mo</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.pricelabs_monthly_fee}
+              onChange={(e) => set("pricelabs_monthly_fee", e.target.value)}
+              placeholder={String(placeholders.pricelabs_monthly_fee ?? "250")}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Setup (ZAR)</Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.pricelabs_setup_fee}
+              onChange={(e) => set("pricelabs_setup_fee", e.target.value)}
+              placeholder={String(placeholders.pricelabs_setup_fee ?? "0")}
+              className="h-8 text-xs"
+            />
+          </div>
         </div>
         <p className="text-[10px] text-muted-foreground">Charged only once the property activates PriceLabs in ROL'OS.</p>
       </ToggleRow>
