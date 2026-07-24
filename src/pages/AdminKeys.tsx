@@ -4239,7 +4239,7 @@ export default function AdminKeys() {
     const demoId = (tracker?.additional_info as any)?.demo_property_id || "19912";
     const env = tracker?.active_environment || "sandbox";
     return (
-      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4">
+      <AccordionItem key={systemType} value={systemType} className={`border rounded-lg px-4 ${parkedCls(systemType)}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
