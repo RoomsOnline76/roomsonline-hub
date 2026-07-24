@@ -302,6 +302,12 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
+            {autoManaged && (
+              <Badge variant="secondary" className="text-[10px] h-5 gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Auto-managed (ROLOS PMS)
+              </Badge>
+            )}
             {isMultiUnit && (
               editingBuildingId ? (
                 <div className="flex items-center gap-1">
