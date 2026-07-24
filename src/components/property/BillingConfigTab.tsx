@@ -330,6 +330,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
                 reason: "Available only when this property's PMS is ROL'OS.",
               },
             }}
+            pricelabsExtras={
+              builder.pricelabs_enabled && isRolosPms ? (
+                <PriceLabsAdminPushCard
+                  propertyId={propertyId}
+                  pricelabsAllowed={!!builder.pricelabs_enabled}
+                  pricelabsSaved={!!config?.pricelabs_allowed}
+                  isRolosPms={isRolosPms}
+                />
+              ) : null
+            }
           />
 
           {/* Live summary */}
@@ -360,15 +370,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         </CardContent>
       </Card>
 
-      {/* PriceLabs admin activation + push (ROLOS properties only) */}
-      {builder.pricelabs_enabled && (
-        <PriceLabsAdminPushCard
-          propertyId={propertyId}
-          pricelabsAllowed={!!builder.pricelabs_enabled}
-          pricelabsSaved={!!config?.pricelabs_allowed}
-          isRolosPms={isRolosPms}
-        />
-      )}
+
+
 
       {/* Commission Section (collapsed by default) */}
       <Collapsible open={commissionOpen} onOpenChange={setCommissionOpen} className="mt-4">

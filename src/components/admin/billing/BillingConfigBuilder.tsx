@@ -95,6 +95,8 @@ interface BuilderProps {
   showPaymentInfo?: boolean;
   /** Add-ons to disable (property-scope gating), keyed by short name. */
   disabledAddons?: { pricelabs?: { disabled: boolean; reason?: string } };
+  /** Optional slot rendered inside the PriceLabs frame (e.g., admin push button). */
+  pricelabsExtras?: React.ReactNode;
 }
 
 function ToggleRow({
@@ -131,7 +133,7 @@ function ToggleRow({
   );
 }
 
-export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons }: BuilderProps) {
+export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons, pricelabsExtras }: BuilderProps) {
   const set = <K extends keyof BillingConfigValue>(key: K, v: BillingConfigValue[K]) =>
     onChange({ ...value, [key]: v });
   const pricelabsDisabled = !!disabledAddons?.pricelabs?.disabled;
@@ -554,6 +556,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground">Charged only once the property activates PriceLabs in ROL'OS.</p>
+        {pricelabsExtras ? <div className="pt-2 border-t mt-2">{pricelabsExtras}</div> : null}
       </ToggleRow>
     </div>
   );
