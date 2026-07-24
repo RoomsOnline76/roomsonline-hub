@@ -278,7 +278,7 @@ export default function ConnectPricing() {
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold">What you get.</h2>
             <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
-              Every ROL'OS subscription — Starter, Professional and Enterprise — ships with the full
+              Every ROL'OS subscription — from the smallest tier upwards — ships with the full
               operating stack. No feature paywalls on the essentials.
             </p>
           </motion.div>
