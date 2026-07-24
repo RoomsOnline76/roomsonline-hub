@@ -26,6 +26,8 @@ export interface BillingConfigValue {
   pms_enabled: boolean;
   subscription_fee: string;
   channel_per_unit: string;
+  /** Enterprise custom monthly fee (used when property/portfolio > 3 properties). */
+  enterprise_custom_fee: string;
   // Per-unit volume tier (uses `tier_pricing_json`)
   volume_tiers_enabled: boolean;
   tier_pricing_json: PricingTier[] | null;
