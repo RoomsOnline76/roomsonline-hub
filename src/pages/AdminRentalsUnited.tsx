@@ -35,7 +35,7 @@ interface PropertyLite {
   id: string;
   name: string;
   slug: string | null;
-  pms_system: string | null;
+  current_pms: string | null;
   ru_push_enabled: boolean | null;
 }
 
