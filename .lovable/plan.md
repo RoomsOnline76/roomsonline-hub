@@ -1,63 +1,25 @@
 
-## Context: what already exists
+## Problem
 
-`rentalsunited-api` implements every mandatory RU XML action (`Push_PutProperty_RQ`, `Push_PutAvbUnits_RQ`, `Push_PutPrices_RQ`, `LNM_PutHandlerUrl_RQ`, `Pull_ListReservations_RQ`, `Pull_GetLeads_RQ`, `Push_PutLongStayDiscounts_RQ`, `Push_PutLastMinuteDiscounts_RQ`, plus building/user management). `push-property-to-ru` orchestrates the multi-unit push. `ru-reservation-handler` receives RLNM callbacks. `cron-push-all-properties-to-ru` and `cron-pull-ru-reservations` exist as functions.
+`supabase/functions/pricelabs-api/index.ts` is built against the wrong PriceLabs surface:
 
-## Gap analysis vs RU White-Label mandatory requirements
+- **Base URL** is `https://api.pricelabs.co/v2/integration/api` — the Connector API is actually `https://api.pricelabs.co/v1`. That's why `/integration` returned nginx 404 and `/sync_status` slipped through to a different endpoint that demands `user_token`.
+- **`set_integration`** currently POSTs to `/integration`. Per Swagger 2.0.0 the path is `/set_integration`.
+- **`sync_status`** in the Connector API is `GET /sync_status?user_token=<CUSTOMER_KEY>`. The `user_token` is the per-customer PriceLabs API key (issued by PriceLabs to each hotel), distinct from our integration-level `X-Integration-Token`. It must be stored per property and sent as a query param.
 
-| RU requirement | Frequency | Current | Gap |
-|---|---|---|---|
-| `Push_PutProperty_RQ` on change + weekly | weekly | Function exists | **No pg_cron schedule; only fires manually from UI** |
-| `Push_PutAvbUnits_RQ` on change + every 24h | daily | Only pushed inside full property push | **No dedicated daily availability refresh cron** |
-| `Push_PutPrices_RQ` on change + every 24h | daily | Only pushed inside full property push | **No dedicated daily price refresh cron** |
-| `LNM_PutHandlerUrl_RQ` | continuous | Re-subscribed inside weekly push cron | OK once weekly cron scheduled |
-| `Pull_ListReservations_RQ` every 30 min | 30 min | Function exists | **No pg_cron schedule** |
-| Auto-enable RU push when property PMS = ROLOS | — | Manual UI toggle only | **Missing auto-activation trigger** |
-| Minimum content validation (Floor, Space, ZipCode, DetailedLocationID, PaymentMethods, CancellationPolicies, beds ≥ CanSleepMax) | — | Validates only images/amenities/coords | **Pre-push readiness gate incomplete** |
-| Guest Communication REST API | optional | not wired | Deferred to Phase 4 |
-| WL User Management (`create_user`, `fill_company_details`) | as needed | Actions exist in `rentalsunited-api` | UI review only |
+## Fix
 
-## Phased rollout
+Edit only `supabase/functions/pricelabs-api/index.ts`:
 
-### Phase 1 — Cron scheduling (mandatory cadences)
-Create a single migration `supabase/migrations/<ts>_ru_cron_schedules.sql` that uses `net.http_post` via `supabase.insert` (per project rule — user-scoped anon key, not `supabase--migration`). Schedules:
-- `ru-refresh-content-weekly` — Sunday 02:00 UTC → `cron-push-all-properties-to-ru` (full property + RLNM re-subscribe).
-- `ru-refresh-ari-daily` — 03:00 UTC daily → **new** `cron-refresh-ru-ari` edge function (pushes `Push_PutAvbUnits_RQ` + `Push_PutPrices_RQ` for every RU-connected unit; skips full content push).
-- `ru-pull-reservations` — `*/30 * * * *` → `cron-pull-ru-reservations`.
+1. Change `BASE` to `https://api.pricelabs.co/v1`.
+2. In `set_integration` case: POST to `/set_integration` (keep body shape: `integration_name`, `sync_url`, `calendar_trigger_url`, `hook_url`, optional `regenerate_token`). Include `integration_name` in the body as the spec requires.
+3. In `get_sync_status` case: read `user_token` from the request payload, fall back to `properties.pricelabs_config.credentials.user_token`. If missing, return a clear 400 telling the admin to paste the customer's PriceLabs user token first. Otherwise call `GET /sync_status?user_token=...`.
+4. Add a lightweight `save_user_token` action that persists `user_token` into `pricelabs_config.credentials.user_token` for a given `property_id`, so admins can register the per-property token from the UI.
+5. Frontend `PriceLabsCard.tsx`: add a small input for "PriceLabs customer user_token" plus a Save button wired to `save_user_token`, and pass `property_id` on `get_sync_status`. No other UI changes.
 
-### Phase 2 — New / updated edge functions
-- **New** `supabase/functions/cron-refresh-ru-ari/index.ts` — iterates all RU-connected properties/units and invokes `rentalsunited-api` `push_availability` + `push_prices` (365-day window). Adapter-lock aware: reuses payload builders in `push-property-to-ru`, does **not** modify `ru-reservation-handler`.
-- **Update** `cron-push-all-properties-to-ru` — add structured result logging to a new `ru_sync_runs` table for observability (batch id, action, unit id, ok/error, http status, elapsed ms).
-- **Update** `push-property-to-ru` validation: extend `validateUnit()` to enforce Floor, Space, ZipCode, DetailedLocationID, PaymentMethods ≥1, CancellationPolicies ≥1, and total-beds ≥ `CanSleepMax`. Return blocking errors before any RU call.
+No DB migration needed — we reuse the existing `pricelabs_config` JSON column.
 
-### Phase 3 — Auto-activation when PMS = ROLOS
-- **DB trigger** on `properties` (via `supabase--migration`): when `primary_pms`/`external_system` transitions to `rolos` (and property is active), set `ru_push_enabled=true` (new column, default false). Existing rows updated by the same migration.
-- Weekly cron already skips rows without `rentalsunited_property_id`; extend it to first-time-create the RU property when `ru_push_enabled=true` and `rentalsunited_property_id IS NULL` (calls `push-property-to-ru` which already handles create-vs-update).
-- UI: `PushToRentalsUnited.tsx` gets a read-only badge "Auto-managed (ROLOS PMS)" plus a manual "Push now" button; the manual toggle stays for non-ROLOS properties.
+## Out of scope
 
-### Phase 4 — Observability & optional extras
-- New admin page `src/pages/admin/RUSyncStatus.tsx` reading `ru_sync_runs` (last run per action, per property, error surface, "push now" button).
-- Add nightly RLNM health probe (calls `subscribe_notifications` if last confirmed > 20h) inside the daily ARI cron so we don't wait a full week for re-subscription recovery.
-- Guest Communication API wrapper (`rentalsunited-guest-api`) — scaffold only, gated behind admin flag; deferred build until user confirms need.
-
-## Technical notes
-
-- All new RU calls go through `rentalsunited-api` (adapter contract preserved: `{success, data, error}`, snake_case wire, camelCase TS).
-- `push-property-to-ru` and `ru-reservation-handler` remain in `.lovable/ADAPTER_LOCKS.md`; changes limited to (a) validation additions in `push-property-to-ru`, and (b) result logging — both explicitly requested in this turn, satisfying the lock's "same-turn approval" rule. RLNM handler is **not** modified.
-- Cron scheduling uses `supabase--insert` (SQL contains project ref + anon key which mustn't ship as a migration — matches existing pattern in `<schedule-jobs-supabase-edge-functions>`).
-- New table `ru_sync_runs` created with RLS (admin/dev/fearless_leader read; service_role write) via `supabase--migration`.
-
-## Deliverables checklist
-
-```text
-[migration] properties.ru_push_enabled + auto-activation trigger
-[migration] ru_sync_runs table + RLS + grants
-[insert]    3 pg_cron schedules (weekly content, daily ARI, 30-min pulls)
-[edge]      cron-refresh-ru-ari (new)
-[edge]      cron-push-all-properties-to-ru (logging + ARI-skip flag)
-[edge]      push-property-to-ru (extended validation only)
-[ui]        PushToRentalsUnited.tsx (auto-managed badge)
-[ui]        admin/RUSyncStatus.tsx (new)
-```
-
-No changes to `ru-reservation-handler`, no changes to the booking orchestrator, no changes to other PMS adapters.
+- No changes to listing push, price pull, or apply-suggestion flows.
+- No changes to webhook receiver.
