@@ -104,14 +104,21 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   });
 
   const { data: unitCount } = useQuery({
-    queryKey: ["admin-overview-unit-count", propertyId],
+    queryKey: ["admin-overview-unit-count", propertyId, scope.source, ...scope.siblingPropertyIds],
     queryFn: async () => {
-      const [rolosRooms, rolosTypes, hostfully] = await Promise.all([
-        supabase.from("rolos_rooms").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
-        supabase.from("rolos_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
-        supabase.from("hostfully_room_types").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
-      ]);
-      return (rolosRooms.count ?? 0) + (rolosTypes.count ?? 0) + (hostfully.count ?? 0);
+      const ids = scope.source === "portfolio" && scope.siblingPropertyIds.length > 0
+        ? scope.siblingPropertyIds
+        : [propertyId];
+      const countFor = async (pid: string) => {
+        const [rolosRooms, hostfully] = await Promise.all([
+          supabase.from("rolos_rooms").select("id", { count: "exact", head: true }).eq("property_id", pid),
+          supabase.from("hostfully_room_types").select("id", { count: "exact", head: true }).eq("property_id", pid),
+        ]);
+        // Prefer ROLOS physical rooms; fall back to Hostfully unit-types if none.
+        return (rolosRooms.count ?? 0) > 0 ? (rolosRooms.count ?? 0) : (hostfully.count ?? 0);
+      };
+      const counts = await Promise.all(ids.map(countFor));
+      return counts.reduce((a, b) => a + b, 0);
     },
     enabled: !!propertyId,
   });
