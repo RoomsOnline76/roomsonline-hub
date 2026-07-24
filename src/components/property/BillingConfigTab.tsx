@@ -101,16 +101,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("allow_custom_payment_provider, pms_system")
+        .select("allow_custom_payment_provider, is_rol_property")
         .eq("id", propertyId)
         .maybeSingle();
       if (error) throw error;
-      return data as { allow_custom_payment_provider?: boolean; pms_system?: string | null } | null;
+      return data as { allow_custom_payment_provider?: boolean; is_rol_property?: boolean | null } | null;
     },
     enabled: !!propertyId,
   });
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
-  const isRolosPms = (propertyFlag?.pms_system ?? "").toLowerCase() === "rolos";
+  const isRolosPms = !!propertyFlag?.is_rol_property;
 
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
