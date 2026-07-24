@@ -216,7 +216,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── PMS subscription ───────────────────────────────────────── */}
       <ToggleRow
         title="PMS subscription (ROL'OS)"
-        description="Monthly base fee for the ROL'OS PMS. Optional per-unit channel-manager fee."
+        description="Property-count driven tiers: Starter R1,500 (1 property) · Professional R4,500 (up to 3) · Enterprise custom (3+). Optional per-unit channel-manager fee."
         enabled={value.pms_enabled}
         onToggle={(v) => set("pms_enabled", v)}
       >
@@ -227,9 +227,12 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
               type="number" step="50" min="0"
               value={value.subscription_fee}
               onChange={(e) => set("subscription_fee", e.target.value)}
-              placeholder={String(placeholders.subscription_fee ?? "450")}
+              placeholder={String(placeholders.subscription_fee ?? "1500")}
               className="h-8 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Auto-resolves from the tier when left blank. Override to force a fixed fee.
+            </p>
           </div>
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Channel mgr / unit / mo</Label>
@@ -242,12 +245,30 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
             />
           </div>
         </div>
+        {scope === "property" && (
+          <div className="pt-1">
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              Enterprise custom monthly fee (ZAR)
+            </Label>
+            <Input
+              type="number" step="50" min="0"
+              value={value.enterprise_custom_fee}
+              onChange={(e) => set("enterprise_custom_fee", e.target.value)}
+              placeholder="Set when this client has more than 3 properties"
+              className="h-8 text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Applied only when this property (or its portfolio) has &gt; 3 active properties.
+              Billing will skip the base subscription line until this value is set.
+            </p>
+          </div>
+        )}
       </ToggleRow>
 
       {/* ── Per-unit volume tiers ──────────────────────────────────── */}
       <ToggleRow
         title="Per-unit volume tiers"
-        description="Monthly fee scales with the property's active room/unit count."
+        description="Monthly fee scales with the property/portfolio's property count (Starter / Professional / Enterprise)."
         enabled={value.volume_tiers_enabled}
         onToggle={(v) => {
           set("volume_tiers_enabled", v);
@@ -257,33 +278,50 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         }}
       >
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground">Configure room-count → monthly fee brackets.</p>
-          <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
-            <Plus className="h-3 w-3 mr-1" /> Add tier
-          </Button>
+          <p className="text-[11px] text-muted-foreground">Configure property-count → monthly fee brackets.</p>
+          {scope === "preset" && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={addTier}>
+              <Plus className="h-3 w-3 mr-1" /> Add tier
+            </Button>
+          )}
         </div>
         {tiers.length ? (
           <div className="space-y-1.5">
-            <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
-              <span>Min rooms</span><span>Max rooms</span><span>Max props</span><span>ZAR / mo</span><span />
+            <div className="grid grid-cols-[80px_1fr_1fr_1fr_1fr_auto] gap-1.5 text-[10px] font-medium text-muted-foreground px-1">
+              <span>Tier</span><span>Min rooms</span><span>Max rooms</span><span>Max props</span><span>ZAR / mo</span><span />
             </div>
-            {tiers.map((t, i) => (
-              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-1.5 items-center">
-                <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
-                <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
-                <Input type="number" min="1" value={t.max_properties ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_properties: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
-                <Input type="number" min="0" step="50" value={t.monthly_fee} onChange={(e) => updateTier(i, { monthly_fee: parseFloat(e.target.value) || 0 })} className="h-7 text-xs" />
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            <p className="text-[10px] text-muted-foreground px-1">Leave <em>Max props</em> blank for unlimited. Tier applies when both room count and property count are within its caps.</p>
+            {tiers.map((t, i) => {
+              const isEnterprise = t.max_properties == null;
+              return (
+                <div key={i} className="grid grid-cols-[80px_1fr_1fr_1fr_1fr_auto] gap-1.5 items-center">
+                  <span className="text-[10px] font-medium capitalize text-muted-foreground">
+                    {t.label ?? (isEnterprise ? "enterprise" : t.max_properties === 1 ? "starter" : "professional")}
+                  </span>
+                  <Input type="number" min="0" value={t.min_rooms} onChange={(e) => updateTier(i, { min_rooms: parseInt(e.target.value) || 0 })} className="h-7 text-xs" />
+                  <Input type="number" min="0" value={t.max_rooms ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_rooms: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                  <Input type="number" min="1" value={t.max_properties ?? ""} placeholder="∞" onChange={(e) => updateTier(i, { max_properties: e.target.value === "" ? null : parseInt(e.target.value) })} className="h-7 text-xs" />
+                  {isEnterprise ? (
+                    <Input type="text" value="Custom" disabled className="h-7 text-xs italic" />
+                  ) : (
+                    <Input type="number" min="0" step="50" value={t.monthly_fee ?? ""} onChange={(e) => updateTier(i, { monthly_fee: e.target.value === "" ? null : parseFloat(e.target.value) })} className="h-7 text-xs" />
+                  )}
+                  {scope === "preset" ? (
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeTier(i)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  ) : <span />}
+                </div>
+              );
+            })}
+            <p className="text-[10px] text-muted-foreground px-1">
+              Enterprise rows have no fixed monthly fee — set the per-property "Enterprise custom monthly fee" on each client instead.
+            </p>
           </div>
         ) : (
           <p className="text-[11px] italic text-muted-foreground">Add at least one tier.</p>
         )}
       </ToggleRow>
+
 
       {/* ── Payment model separator ────────────────────────────────── */}
       {showPaymentInfo && (
