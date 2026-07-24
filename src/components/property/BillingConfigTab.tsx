@@ -314,34 +314,6 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             </p>
           </div>
 
-          {/* ── Payment facilitator status link ─────────────────────── */}
-          <div className="rounded-md border p-3 space-y-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs">Payment Facilitator</Label>
-                  {!customProviderEnabled ? (
-                    <Badge className="gap-1 h-5 text-[10px]"><ShieldCheck className="h-3 w-3" />ON (default)</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="gap-1 h-5 text-[10px]"><Lock className="h-3 w-3" />OFF — custom provider</Badge>
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {!customProviderEnabled
-                    ? "ROL processes guest payments via PayFast. Enable the facilitator surcharge toggle to charge per booking."
-                    : "This property uses its own payment provider. Use the BYO add-on toggle for the flat monthly fee."}
-                </p>
-              </div>
-              {onSwitchTab && (
-                <Button
-                  type="button" variant="outline" size="sm" className="gap-1.5 shrink-0"
-                  onClick={() => onSwitchTab("payment-providers")}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" /> Manage
-                </Button>
-              )}
-            </div>
-          </div>
 
           {/* ── Builder ─────────────────────────────────────────────── */}
           <BillingConfigBuilder
