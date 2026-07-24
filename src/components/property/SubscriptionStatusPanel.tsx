@@ -25,7 +25,7 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
   const { data } = useQuery({
     queryKey: ["subscription-status", scope, entityId],
     queryFn: async () => {
-      const { data: cfg } = await supabase.from(table)
+      const { data: cfg } = await (supabase as any).from(table)
         .select("subscription_status, current_period_end, billing_start_date, last_invoice_id, cancelled_at")
         .eq(keyCol, entityId).maybeSingle();
       const { data: latest } = await supabase.from("subscription_invoices")
