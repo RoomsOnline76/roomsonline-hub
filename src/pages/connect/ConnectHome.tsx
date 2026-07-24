@@ -62,7 +62,7 @@ export default function ConnectHome() {
     <div>
       {/* ─── Hero ───────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 via-background to-background">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-24 sm:pt-28 sm:pb-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-14 pb-16 sm:pt-24 sm:pb-28">
           <motion.div
             initial="hidden"
             animate="visible"
@@ -78,7 +78,7 @@ export default function ConnectHome() {
             <motion.h1
               variants={fadeUp}
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08]"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]"
               style={{ textWrap: "balance" } as React.CSSProperties}
             >
               Running Your Property on Spreadsheets?{" "}
@@ -88,7 +88,7 @@ export default function ConnectHome() {
             <motion.p
               variants={fadeUp}
               transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto"
+              className="mt-5 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
               style={{ textWrap: "pretty" } as React.CSSProperties}
             >
               ROL'OS gives you enterprise-grade property management at a fraction of enterprise cost.
@@ -98,15 +98,15 @@ export default function ConnectHome() {
             <motion.div
               variants={fadeUp}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3"
+              className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3"
             >
-              <Link to={connectPath("/connect/get-started")}>
-                <Button size="lg" className="gap-2 font-medium px-6">
+              <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
+                <Button size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
                   Start My Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={connectPath("/connect/features")}>
-                <Button variant="outline" size="lg" className="gap-2 font-medium px-6">
+              <Link to={connectPath("/connect/features")} className="w-full sm:w-auto">
+                <Button variant="outline" size="lg" className="gap-2 font-medium px-6 w-full sm:w-auto">
                   See ROL'OS in Action
                 </Button>
               </Link>
@@ -144,20 +144,20 @@ export default function ConnectHome() {
       </section>
 
       {/* ─── Problem / Solution ───────────────────────────────── */}
-      <section className="py-20">
+      <section className="py-12 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid md:grid-cols-2 gap-8"
+            className="grid md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8"
           >
             {/* Pain */}
             <motion.div
               variants={fadeUp}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8"
+              className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 sm:p-8"
             >
               <h2 className="text-xl font-bold mb-1">What You're Doing Now</h2>
               <p className="text-sm text-muted-foreground mb-6">Sound familiar?</p>
@@ -175,7 +175,7 @@ export default function ConnectHome() {
             <motion.div
               variants={fadeUp}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-2xl border border-primary/20 bg-primary/5 p-8"
+              className="rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8"
             >
               <h2 className="text-xl font-bold mb-1">What ROL'OS Gives You</h2>
               <p className="text-sm text-muted-foreground mb-6">From day one, included in every plan.</p>
@@ -209,7 +209,7 @@ export default function ConnectHome() {
       </section>
 
       {/* ─── TOBI Spotlight ──────────────────────────────────── */}
-      <section className="py-20 bg-muted/20">
+      <section className="py-12 sm:py-16 lg:py-20 bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
@@ -217,13 +217,13 @@ export default function ConnectHome() {
             viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-2xl border bg-card p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8"
+            className="rounded-2xl border bg-card p-6 sm:p-10 lg:p-12 flex flex-col md:flex-row items-center gap-6 sm:gap-8"
           >
             <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Cat className="w-10 h-10 text-primary" />
             </div>
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl sm:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 AI Operations Manager</h2>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 AI Operations Manager</h2>
               <p className="text-muted-foreground mb-4 max-w-xl" style={{ textWrap: "pretty" } as React.CSSProperties}>
                 TOBI handles night audits, answers guest queries, generates revenue insights, assists with bookings,
                 and never takes a day off. It's like hiring a full-time operations manager — included free with every plan.
@@ -242,7 +242,7 @@ export default function ConnectHome() {
       </section>
 
       {/* ─── More Than You Expect — Comparison ───────────────── */}
-      <section className="py-20">
+      <section className="py-12 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
@@ -250,10 +250,10 @@ export default function ConnectHome() {
             viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-12"
+            className="text-center mb-8 sm:mb-12"
           >
-            <h2 className="text-3xl font-bold">More Than You Expect</h2>
-            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-bold">More Than You Expect</h2>
+            <p className="text-muted-foreground mt-3 max-w-xl mx-auto text-sm sm:text-base">
               Features that other PMS providers charge extra for? We include them in every plan.
             </p>
           </motion.div>
@@ -264,9 +264,9 @@ export default function ConnectHome() {
             viewport={{ once: true, amount: 0.1 }}
             variants={fadeUp}
             transition={{ duration: 0.5 }}
-            className="overflow-x-auto"
+            className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"
           >
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-3 px-4 font-semibold">Feature</th>
@@ -297,10 +297,10 @@ export default function ConnectHome() {
       </section>
 
       {/* ─── Integration logos ──────────────────────────────── */}
-      <section className="py-16 border-t bg-muted/20">
+      <section className="py-10 sm:py-14 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-sm text-muted-foreground mb-6">Integrates with the tools you already use</p>
-          <div className="flex flex-wrap items-center justify-center gap-8">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6">
             {TRUST_LOGOS.map((name) => (
               <div key={name} className="px-4 py-2 rounded-lg bg-muted/50 text-sm font-medium text-muted-foreground">
                 {name}
@@ -311,7 +311,7 @@ export default function ConnectHome() {
       </section>
 
       {/* ─── CTA ────────────────────────────────────────────── */}
-      <section className="py-20">
+      <section className="py-12 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden"
@@ -319,21 +319,21 @@ export default function ConnectHome() {
             viewport={{ once: true, amount: 0.3 }}
             variants={fadeUp}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-2xl bg-primary/5 border p-10 sm:p-14 text-center"
+            className="rounded-2xl bg-primary/5 border p-6 sm:p-10 lg:p-14 text-center"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
               60-day free trial. No credit card. No setup fees. Full access from day one.
               Pricing is flexible — we'll build a plan that fits your budget.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link to={connectPath("/connect/get-started")}>
-                <Button size="lg" className="gap-2 font-medium">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+              <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
+                <Button size="lg" className="gap-2 font-medium w-full sm:w-auto">
                   Start My Free Trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to={connectPath("/connect/pricing")}>
-                <Button variant="outline" size="lg" className="gap-2 font-medium">
+              <Link to={connectPath("/connect/pricing")} className="w-full sm:w-auto">
+                <Button variant="outline" size="lg" className="gap-2 font-medium w-full sm:w-auto">
                   See Pricing
                 </Button>
               </Link>

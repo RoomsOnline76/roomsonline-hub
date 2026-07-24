@@ -134,7 +134,7 @@ export default function ConnectPricing() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial="hidden" animate="visible" variants={fadeUp}
@@ -147,7 +147,7 @@ export default function ConnectPricing() {
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl font-bold tracking-tight"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
             Enterprise Power.{" "}
             <span className="text-primary">Startup Pricing.</span>
@@ -155,7 +155,7 @@ export default function ConnectPricing() {
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
+            className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             You'll think we made a mistake on the price. No per-API-call fees.
             No hidden charges. Every plan includes what others charge extra for —
@@ -166,7 +166,7 @@ export default function ConnectPricing() {
       </section>
 
       {/* Pricing cards */}
-      <section className="py-20">
+      <section className="py-12 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           {/* Commission-only callout — WBE / Widgets / WordPress */}
           <motion.div
@@ -213,7 +213,7 @@ export default function ConnectPricing() {
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
           >
 
             {tierData.map(({ meta, row, fallbackCaps }) => {
@@ -233,7 +233,7 @@ export default function ConnectPricing() {
                 )}
                 <h3 className="text-lg font-semibold">{meta.name}</h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{price}</span>
+                  <span className="text-2xl sm:text-3xl font-bold">{price}</span>
                   <span className="text-sm text-muted-foreground">{period}</span>
                 </div>
                 <p className="text-xs font-medium text-primary mt-2">{caps}</p>
@@ -261,7 +261,7 @@ export default function ConnectPricing() {
       </section>
 
       {/* Standard — included in every monthly plan */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -316,7 +316,7 @@ export default function ConnectPricing() {
       </section>
 
       {/* Optional Add-Ons */}
-      <section className="py-16 border-t bg-muted/20">
+      <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -359,7 +359,7 @@ export default function ConnectPricing() {
       </section>
 
       {/* What Others Charge */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -400,7 +400,7 @@ export default function ConnectPricing() {
       </section>
 
       {/* Risk-Free Guarantee */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}

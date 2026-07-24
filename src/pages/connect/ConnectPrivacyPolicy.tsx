@@ -198,7 +198,7 @@ export default function ConnectPrivacyPolicy() {
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-b from-muted/60 to-background border-b">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -208,10 +208,10 @@ export default function ConnectPrivacyPolicy() {
               <Shield className="h-3.5 w-3.5" />
               Legal
             </div>
-            <h1 className="font-display text-4xl sm:text-5xl font-semibold tracking-tight text-foreground mb-4">
+            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight text-foreground mb-4">
               Privacy Policy
             </h1>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto leading-relaxed">
+            <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
               How ROL'OS collects, processes, and protects your data across
               every touchpoint of our platform.
             </p>
@@ -223,7 +223,7 @@ export default function ConnectPrivacyPolicy() {
       </section>
 
       {/* Content */}
-      <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+      <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10 sm:py-16 lg:py-24">
         <div className="space-y-16">
           {sections.map((section, i) => {
             const Icon = section.icon;
