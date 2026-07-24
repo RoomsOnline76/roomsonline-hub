@@ -447,7 +447,6 @@ async function calcRolosPms(
 
 // (Legacy calcPortfolio removed — Portfolio Aggregator is now an add-on, not a strategy.)
 
-}
 
 async function calcEnterprise(config: any, globals: any, resolve: ResolveFn, eventType: string): Promise<BillingResult> {
   if (eventType === 'subscription') {
