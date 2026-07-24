@@ -50,6 +50,8 @@ export function emptyBuilderValue(): BillingConfigValue {
     commission_enabled: false,
     commission_rate: "",
     widget_tiers_enabled: false,
+    widget_flat_enabled: false,
+    widget_flat_rate: "",
     pms_enabled: false,
     subscription_fee: "",
     channel_per_unit: "",
