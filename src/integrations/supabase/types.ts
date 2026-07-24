@@ -11870,6 +11870,7 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      nextval_subscription_invoice_number: { Args: never; Returns: number }
       search_audit_logs: {
         Args: {
           date_from?: string
