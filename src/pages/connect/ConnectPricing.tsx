@@ -206,7 +206,7 @@ export default function ConnectPricing() {
                 </span>
                 <h3 className="text-2xl font-bold">WBE, Widgets &amp; WordPress</h3>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-primary">From 2%</span>
+                  <span className="text-3xl font-bold text-primary">From {widgetPctLabel}</span>
                   <span className="text-sm text-muted-foreground">commission per booking</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-3 max-w-xl">
