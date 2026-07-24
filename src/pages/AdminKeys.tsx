@@ -1907,7 +1907,8 @@ export default function AdminKeys() {
   // Excludes roomsonline (internal), recaptcha, maps
   const getProgressStats = () => {
     const trackableSystems = Object.entries(trackerData)
-      .filter(([key]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key));
+      .filter(([key, data]) => !['roomsonline', 'recaptcha', 'google_maps'].includes(key) && data.integration_status !== 'parked');
+
     
     let completedFlags = 0;
     const totalFlags = trackableSystems.length * 11; // 11 flags per system (including modify + cancel)
