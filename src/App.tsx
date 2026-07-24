@@ -299,6 +299,7 @@ const App = () => (
                         {/* ═══ Embed routes (public) ═════════════════════ */}
                         <Route path="/embed/property/:slug" element={<EmbedProperty />} />
                         <Route path="/embed/portfolio/:portfolioSlug" element={<EmbedPortfolio />} />
+                        <Route path="/subscribe/pay/:token" element={<SubscriptionPay />} />
 
                         {/* ═══ Journey routes (public) ═══════════════════ */}
                         <Route path="/journey/builder" element={<ItineraryBuilder />} />
