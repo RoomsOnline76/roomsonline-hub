@@ -52,8 +52,13 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.white_label_monthly_fee = row.white_label_monthly_fee != null ? String(row.white_label_monthly_fee) : "";
   v.white_label_setup_fee = row.white_label_setup_fee != null ? String(row.white_label_setup_fee) : "";
   v.white_label_billing_mode = (row.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.branding_addon_enabled = !!(row as any).branding_addon_allowed;
+  v.branding_addon_monthly_fee = (row as any).branding_addon_monthly_fee != null ? String((row as any).branding_addon_monthly_fee) : "";
+  v.branding_addon_setup_fee = (row as any).branding_addon_setup_fee != null ? String((row as any).branding_addon_setup_fee) : "";
+  v.branding_addon_billing_mode = ((row as any).branding_addon_billing_mode as "monthly" | "annual") || "monthly";
   v.pricelabs_enabled = (row.pricelabs_monthly_fee ?? 0) > 0;
   v.pricelabs_monthly_fee = row.pricelabs_monthly_fee != null ? String(row.pricelabs_monthly_fee) : "";
+  v.pricelabs_setup_fee = (row as any).pricelabs_setup_fee != null ? String((row as any).pricelabs_setup_fee) : "";
   return v;
 }
 
@@ -81,8 +86,13 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.white_label_monthly_fee = config.white_label_monthly_fee != null ? String(config.white_label_monthly_fee) : "";
   v.white_label_setup_fee = config.white_label_setup_fee != null ? String(config.white_label_setup_fee) : "";
   v.white_label_billing_mode = (config.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.branding_addon_enabled = !!(config as any).branding_addon_enabled && !config.white_label_allowed;
+  v.branding_addon_monthly_fee = (config as any).branding_addon_monthly_fee != null ? String((config as any).branding_addon_monthly_fee) : "";
+  v.branding_addon_setup_fee = (config as any).branding_addon_setup_fee != null ? String((config as any).branding_addon_setup_fee) : "";
+  v.branding_addon_billing_mode = ((config as any).branding_addon_billing_mode as "monthly" | "annual") || "monthly";
   v.pricelabs_enabled = !!config.pricelabs_allowed;
   v.pricelabs_monthly_fee = config.pricelabs_monthly_fee != null ? String(config.pricelabs_monthly_fee) : "";
+  v.pricelabs_setup_fee = (config as any).pricelabs_setup_fee != null ? String((config as any).pricelabs_setup_fee) : "";
   return v;
 }
 
@@ -154,11 +164,25 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       byo_gateway_fee: (selectedPreset as any).byo_gateway_monthly_fee ?? undefined,
       white_label_monthly_fee: selectedPreset.white_label_monthly_fee ?? undefined,
       white_label_setup_fee: selectedPreset.white_label_setup_fee ?? undefined,
+      branding_addon_monthly_fee: (selectedPreset as any).branding_addon_monthly_fee ?? undefined,
+      branding_addon_setup_fee: (selectedPreset as any).branding_addon_setup_fee ?? undefined,
       pricelabs_monthly_fee: selectedPreset.pricelabs_monthly_fee ?? undefined,
+      pricelabs_setup_fee: (selectedPreset as any).pricelabs_setup_fee ?? undefined,
     } as any;
   }, [selectedPreset]);
 
   const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string) => {
+    // Sync BYO toggle → property.allow_custom_payment_provider so ROLOS/Integrations
+    // unlocks or locks the gateway configurator accordingly. Replaces the old
+    // dedicated Payment Providers tab.
+    const nextAllowCustom = v.byo_gateway_enabled;
+    if (nextAllowCustom !== customProviderEnabled) {
+      supabase
+        .from("properties")
+        .update({ allow_custom_payment_provider: nextAllowCustom })
+        .eq("id", propertyId)
+        .then(() => { /* silent — surfaced via query invalidation below */ });
+    }
     upsert.mutate({
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
@@ -169,17 +193,25 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
       enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
       transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
-      payment_facilitator_enabled: !customProviderEnabled,
+      // Facilitator surcharge is mutually exclusive with the BYO gateway toggle
+      payment_facilitator_enabled: !v.byo_gateway_enabled,
       byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
       white_label_allowed: v.white_label_enabled,
       white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
       white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
       white_label_billing_mode: v.white_label_enabled ? v.white_label_billing_mode : null,
+      // When WL is on, branding is bundled free; otherwise persist the standalone branding pack.
       ...(v.white_label_enabled
         ? { branding_addon_enabled: true, branding_addon_monthly_fee: 0, branding_addon_setup_fee: 0 }
-        : {}),
+        : {
+            branding_addon_enabled: v.branding_addon_enabled,
+            branding_addon_monthly_fee: v.branding_addon_enabled ? toNum(v.branding_addon_monthly_fee) : null,
+            branding_addon_setup_fee: v.branding_addon_enabled ? toNum(v.branding_addon_setup_fee) : null,
+            branding_addon_billing_mode: v.branding_addon_enabled ? v.branding_addon_billing_mode : null,
+          }),
       pricelabs_allowed: isRolosPms ? v.pricelabs_enabled : false,
       pricelabs_monthly_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_monthly_fee) : null,
+      pricelabs_setup_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_setup_fee) : null,
       tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
       billing_start_date: startDate || null,
     } as any);
