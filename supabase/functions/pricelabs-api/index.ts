@@ -485,6 +485,37 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "set_integration": {
+        // Register / update webhook URLs with PriceLabs, optionally regenerate token.
+        const body: Json = {
+          sync_url: payload.sync_url,
+          calendar_trigger_url: payload.calendar_trigger_url,
+          hook_url: payload.hook_url,
+        };
+        if (payload.regenerate_token) body.regenerate_token = true;
+        const r = await pl("POST", "/set_integration", name, token, body);
+
+        // Persist returned token to property override if provided
+        const resBody = asJson(r.body);
+        const newToken = typeof resBody?.integration_token === "string" ? resBody.integration_token as string : null;
+        if (r.ok && newToken && propertyId) {
+          try {
+            const { data: prop } = await supabase
+              .from("properties")
+              .select("pricelabs_config")
+              .eq("id", propertyId)
+              .maybeSingle();
+            const cfg = (prop?.pricelabs_config ?? {}) as Json;
+            const creds = ((cfg.credentials as Json) ?? {}) as Json;
+            creds.integration_name = name;
+            creds.integration_token = newToken;
+            cfg.credentials = creds;
+            await supabase.from("properties").update({ pricelabs_config: cfg }).eq("id", propertyId);
+          } catch (_) { /* ignore */ }
+        }
+        return json({ success: r.ok, status: r.status, data: r.body, error: r.ok ? undefined : plError("set_integration failed", r) }, r.ok ? 200 : r.status);
+      }
+
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
     }
