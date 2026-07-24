@@ -78,6 +78,12 @@
     if (config.hidePoweredBy || config.whiteLabel) params.set('hide_powered_by', '1');
     if (config.whiteLabel) params.set('wl', '1');
     if (config.lang) params.set('lang', config.lang);
+    if (config.checkin) params.set('check_in', config.checkin);
+    if (config.checkout) params.set('check_out', config.checkout);
+    if (config.adults) params.set('adults', config.adults);
+    if (config.children) params.set('children', config.children);
+    if (config.currency) params.set('currency', config.currency);
+    if (config.theme) params.set('theme', config.theme);
     params.set('embed_version', VERSION);
     return resolveBase(config) + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
   }
