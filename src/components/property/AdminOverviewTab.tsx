@@ -70,7 +70,7 @@ function Empty() {
 }
 
 export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabProps) {
-  const { config, isLoading: billingLoading } = useBillingConfig(propertyId);
+  const { config, isLoading: billingLoading, scope } = useBillingConfig(propertyId);
   const { data: referrals } = usePropertyReferrals(propertyId);
 
   const { data: property, isLoading: propLoading } = useQuery({
@@ -223,7 +223,9 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
             </Button>
           </div>
           <CardDescription className="text-xs">
-            Fixed recurring and once-off charges. Excludes commission and per-transaction payment fees.
+            {scope.source === "portfolio"
+              ? `Portfolio-level total — shared across ${scope.siblingPropertyIds.length} propert${scope.siblingPropertyIds.length === 1 ? "y" : "ies"} in ${scope.portfolioName || "this portfolio"}.`
+              : "Fixed recurring and once-off charges. Excludes commission and per-transaction payment fees."}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">

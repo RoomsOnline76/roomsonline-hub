@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, Save, ChevronDown, ExternalLink, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, Save, ChevronDown, ExternalLink, Lock, ShieldCheck, Layers, Building2 } from "lucide-react";
 import { useBillingConfig, BillingConfig } from "@/hooks/useBillingConfig";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { CommissionTab } from "./CommissionTab";
 import { useAuth } from "@/hooks/useAuth";
@@ -91,7 +93,8 @@ function toNum(v: string): number | null {
 }
 
 export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabProps) {
-  const { config, isLoading, upsert } = useBillingConfig(propertyId);
+  const { config, isLoading, upsert, scope } = useBillingConfig(propertyId);
+  const isPortfolioScope = scope.source === "portfolio";
   const { defaults, getDefaultsForStrategy } = useBillingDefaults();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
@@ -112,6 +115,20 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   });
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
   const isRolosPms = !!propertyFlag?.is_rol_property;
+
+  // Sibling property names when this property is a portfolio member.
+  const { data: siblingProps } = useQuery({
+    queryKey: ["billing-config-siblings", scope.portfolioId, scope.siblingPropertyIds.join(",")],
+    queryFn: async () => {
+      if (!isPortfolioScope || scope.siblingPropertyIds.length === 0) return [];
+      const { data } = await supabase
+        .from("properties")
+        .select("id, name, slug")
+        .in("id", scope.siblingPropertyIds);
+      return (data || []) as Array<{ id: string; name: string; slug: string | null }>;
+    },
+    enabled: isPortfolioScope,
+  });
 
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
@@ -194,9 +211,45 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
   return (
     <>
+      {isPortfolioScope && (
+        <Alert className="mb-4 border-primary/40 bg-primary/5">
+          <Layers className="h-4 w-4" />
+          <AlertTitle className="text-sm">
+            Portfolio-level billing — {scope.portfolioName || "portfolio"}
+          </AlertTitle>
+          <AlertDescription className="text-[11px] space-y-2">
+            <p>
+              This property is part of a portfolio. Billing is configured <strong>once for the whole portfolio</strong>
+              {" "}and applies to every member property below. Any change you save here updates all{" "}
+              {scope.siblingPropertyIds.length} member propert{scope.siblingPropertyIds.length === 1 ? "y" : "ies"}.
+            </p>
+            {siblingProps && siblingProps.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {siblingProps.map((s) => (
+                  <Badge key={s.id} variant="secondary" className="gap-1 text-[10px] font-normal">
+                    <Building2 className="h-3 w-3" />
+                    {s.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="pt-1">
+              <Link
+                to="/admin/portfolios"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Open portfolio manager
+              </Link>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {isPortfolioScope ? "Portfolio Billing Configuration" : "Billing Configuration"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {/* ── Preset selector ─────────────────────────────────────── */}
@@ -277,7 +330,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
           {/* Live summary */}
           <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">
-            <strong className="text-foreground">This property will be billed:</strong> {summarizeBuilderValue(builder)}
+            <strong className="text-foreground">
+              {isPortfolioScope
+                ? `Portfolio (${scope.siblingPropertyIds.length} propert${scope.siblingPropertyIds.length === 1 ? "y" : "ies"}) will be billed:`
+                : "This property will be billed:"}
+            </strong>{" "}
+            {summarizeBuilderValue(builder)}
           </div>
 
           {/* Billing start date */}
@@ -293,7 +351,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
           <Button onClick={handleSave} disabled={upsert.isPending} className="w-full">
             {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-            Save Billing Config
+            {isPortfolioScope ? "Save Portfolio Billing Config" : "Save Billing Config"}
           </Button>
         </CardContent>
       </Card>
