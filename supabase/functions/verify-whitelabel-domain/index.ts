@@ -214,7 +214,7 @@ async function cfEnsureWorkerScript(): Promise<{ ok: boolean; error: string | nu
   });
   const uploaded = (await uploadedResponse.json()) as CFResult<unknown>;
   if (!uploaded.success) {
-    return { ok: false, error: `Cloudflare Worker deploy failed: ${cfErrorMessage(uploaded)}` };
+    return { ok: false, error: `Cloudflare Worker deploy failed: ${cfWorkerDeployErrorMessage(uploaded)}` };
   }
   return { ok: true, error: null };
 }
@@ -309,6 +309,14 @@ async function cfFindHostnameByName(hostname: string): Promise<CFHostname | null
 function cfErrorMessage(res: CFResult<unknown>): string {
   if (!res.errors?.length) return "Unknown Cloudflare error";
   return res.errors.map((e) => `[${e.code}] ${e.message}`).join("; ");
+}
+
+function cfWorkerDeployErrorMessage(res: CFResult<unknown>): string {
+  const raw = cfErrorMessage(res);
+  if (raw.includes("[10000]") || raw.toLowerCase().includes("authentication")) {
+    return `${raw}. The Cloudflare API token must include Account → Workers Scripts: Edit for the account that owns this zone, plus Zone → Workers Routes: Edit.`;
+  }
+  return raw;
 }
 
 Deno.serve(async (req) => {
