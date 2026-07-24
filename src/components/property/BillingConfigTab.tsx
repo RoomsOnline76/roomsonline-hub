@@ -24,6 +24,7 @@ import {
 } from "@/components/admin/billing/BillingConfigBuilder";
 import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
+import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
 
 interface BillingConfigTabProps {
   propertyId: string;
