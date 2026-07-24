@@ -402,14 +402,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
             value={
               customProvider ? (
                 <Badge variant="default">Own provider</Badge>
-              ) : (
+              ) : facilitator ? (
                 <Badge variant="secondary">Rooms Online PayFast</Badge>
+              ) : (
+                <Badge variant="outline">Not configured</Badge>
               )
             }
             hint={
               customProvider
                 ? "Owner configures credentials in ROL'OS → Integrations."
-                : "Payment Facilitator fee applied on each transaction."
+                : facilitator
+                ? "Payment Facilitator fee applied on each transaction."
+                : "Enable ROL facilitator surcharge or BYO gateway add-on in Billing."
             }
           />
           <Row
