@@ -95,6 +95,8 @@ interface BuilderProps {
   showPaymentInfo?: boolean;
   /** Add-ons to disable (property-scope gating), keyed by short name. */
   disabledAddons?: { pricelabs?: { disabled: boolean; reason?: string } };
+  /** Optional slot rendered inside the PriceLabs frame (e.g., admin push button). */
+  pricelabsExtras?: React.ReactNode;
 }
 
 function ToggleRow({
