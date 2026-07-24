@@ -95,6 +95,64 @@ const GUARANTEES = [
 
 
 export default function ConnectPricing() {
+  const { data: pricing } = usePublicPricing();
+
+  const rolosTiers = pricing?.rolosTiers ?? [];
+  // Match tiers by property cap first, then by room cap for robustness.
+  const starterTier = rolosTiers.find((t) => t.max_properties === 1)
+    ?? rolosTiers.find((t) => (t.max_rooms ?? 0) <= 10);
+  const proTier = rolosTiers.find((t) => t.max_properties === 3)
+    ?? rolosTiers.find((t) => t.max_rooms !== null && (t.max_rooms ?? 0) > 10 && (t.max_rooms ?? 0) <= 50);
+  const enterpriseTier = rolosTiers.find((t) => t.max_properties === null || t.max_properties === undefined || (t.max_properties ?? 0) > 3)
+    ?? rolosTiers.find((t) => t.max_rooms === null);
+
+  const tierData = [
+    { meta: TIER_META[0], row: starterTier, isEnterprise: false, fallbackCaps: "Up to 10 rooms · 1 property" },
+    { meta: TIER_META[1], row: proTier, isEnterprise: false, fallbackCaps: "Up to 50 rooms · up to 3 properties" },
+    { meta: TIER_META[2], row: enterpriseTier, isEnterprise: true, fallbackCaps: "Unlimited rooms · unlimited properties" },
+  ];
+
+  const widgetPct = pricing?.widgetFlatCommissionRate ?? 2;
+  const widgetPctLabel = Number.isInteger(widgetPct) ? `${widgetPct}%` : `${widgetPct.toFixed(1)}%`;
+
+  const ADD_ONS = [
+    {
+      icon: Palette,
+      name: "Basic Branding",
+      price: `From ${formatZar(pricing?.brandingAddonMonthly)} / month`,
+      desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
+    },
+    {
+      icon: Globe,
+      name: "White-label Branding",
+      price: `From ${formatZar(pricing?.whiteLabelMonthly)} / month`,
+      desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
+    },
+    {
+      icon: TrendingUp,
+      name: "PriceLabs Revenue Management",
+      price: `From ${formatZar(pricing?.pricelabsMonthly)} / month`,
+      desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
+    },
+    {
+      icon: CreditCard,
+      name: "BYO Payment Gateway",
+      price: `From ${formatZar(pricing?.byoGatewayMonthly)} / month`,
+      desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
+    },
+  ];
+
+  const starterPriceLabel = starterTier?.monthly_fee ? formatZar(starterTier.monthly_fee) : "R 1,500";
+  const COMPETITOR_COSTS = [
+    { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: `Included from ${starterPriceLabel}` },
+    { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
+    { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
+    { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
+    { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
+    { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
+    { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: `From ${widgetPctLabel} · negotiable` },
+  ];
+
   return (
     <div>
       {/* Hero */}
