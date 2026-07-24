@@ -3,18 +3,16 @@ import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, CheckCircle2, Shield, Sparkles, Palette, Globe, TrendingUp, CreditCard } from "lucide-react";
+import { usePublicPricing, formatZar, type PublicPricingTier } from "@/hooks/usePublicPricing";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-const TIERS = [
+const TIER_META = [
   {
     name: "Starter",
-    price: "R 1,500",
-    period: "/month",
-    caps: "Up to 10 rooms · 1 property",
     desc: "For individual properties getting started — no PMS experience needed.",
     features: [
       "Booking Engine Widgets",
@@ -32,13 +30,10 @@ const TIERS = [
     cta: "Start 60-Day Free Trial",
     popular: false,
     negotiable: false,
-    savings: null,
+    savings: null as string | null,
   },
   {
     name: "Professional",
-    price: "R 4,500",
-    period: "/month",
-    caps: "Up to 50 rooms · up to 3 properties",
     desc: "For growing properties and small portfolios — enterprise features included.",
     features: [
       "Everything in Starter",
@@ -53,9 +48,6 @@ const TIERS = [
   },
   {
     name: "Enterprise",
-    price: "Let's Talk",
-    period: "",
-    caps: "Unlimited rooms · unlimited properties",
     desc: "For hotel groups and management companies — fully customisable.",
     features: [
       "Everything in Professional",
@@ -72,42 +64,25 @@ const TIERS = [
   },
 ];
 
-const ADD_ONS = [
-  {
-    icon: Palette,
-    name: "Basic Branding",
-    price: "From R 150 / month",
-    desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
-  },
-  {
-    icon: Globe,
-    name: "White-label Branding",
-    price: "From R 450 / month",
-    desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
-  },
-  {
-    icon: TrendingUp,
-    name: "PriceLabs Revenue Management",
-    price: "From R 250 / month",
-    desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
-  },
-  {
-    icon: CreditCard,
-    name: "BYO Payment Gateway",
-    price: "From R 250 / month",
-    desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
-  },
-];
+function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
+  if (!t) return fallback;
+  const roomLabel = t.max_rooms === null || t.max_rooms === undefined
+    ? "Unlimited rooms"
+    : `Up to ${t.max_rooms} rooms`;
+  const propLabel = t.max_properties === null || t.max_properties === undefined
+    ? "unlimited properties"
+    : t.max_properties === 1
+      ? "1 property"
+      : `up to ${t.max_properties} properties`;
+  return `${roomLabel} · ${propLabel}`;
+}
 
-const COMPETITOR_COSTS = [
-  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included from R 1,500" },
-  { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
-  { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
-  { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
-  { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
-  { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
-  { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: "From 2% · negotiable" },
-];
+function tierPrice(t: PublicPricingTier | undefined, isEnterprise: boolean): { price: string; period: string } {
+  if (isEnterprise || !t || t.monthly_fee === null || t.monthly_fee === undefined) {
+    return { price: "Let's Talk", period: "" };
+  }
+  return { price: formatZar(t.monthly_fee), period: "/month" };
+}
 
 const GUARANTEES = [
   "60-day free trial on all plans",
@@ -118,7 +93,66 @@ const GUARANTEES = [
   "Negotiable pricing for multi-property portfolios",
 ];
 
+
 export default function ConnectPricing() {
+  const { data: pricing } = usePublicPricing();
+
+  const rolosTiers = pricing?.rolosTiers ?? [];
+  // Match tiers by property cap first, then by room cap for robustness.
+  const starterTier = rolosTiers.find((t) => t.max_properties === 1)
+    ?? rolosTiers.find((t) => (t.max_rooms ?? 0) <= 10);
+  const proTier = rolosTiers.find((t) => t.max_properties === 3)
+    ?? rolosTiers.find((t) => t.max_rooms !== null && (t.max_rooms ?? 0) > 10 && (t.max_rooms ?? 0) <= 50);
+  const enterpriseTier = rolosTiers.find((t) => t.max_properties === null || t.max_properties === undefined || (t.max_properties ?? 0) > 3)
+    ?? rolosTiers.find((t) => t.max_rooms === null);
+
+  const tierData = [
+    { meta: TIER_META[0], row: starterTier, isEnterprise: false, fallbackCaps: "Up to 10 rooms · 1 property" },
+    { meta: TIER_META[1], row: proTier, isEnterprise: false, fallbackCaps: "Up to 50 rooms · up to 3 properties" },
+    { meta: TIER_META[2], row: enterpriseTier, isEnterprise: true, fallbackCaps: "Unlimited rooms · unlimited properties" },
+  ];
+
+  const widgetPct = pricing?.widgetFlatCommissionRate ?? 2;
+  const widgetPctLabel = Number.isInteger(widgetPct) ? `${widgetPct}%` : `${widgetPct.toFixed(1)}%`;
+
+  const ADD_ONS = [
+    {
+      icon: Palette,
+      name: "Basic Branding",
+      price: `From ${formatZar(pricing?.brandingAddonMonthly)} / month`,
+      desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
+    },
+    {
+      icon: Globe,
+      name: "White-label Branding",
+      price: `From ${formatZar(pricing?.whiteLabelMonthly)} / month`,
+      desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
+    },
+    {
+      icon: TrendingUp,
+      name: "PriceLabs Revenue Management",
+      price: `From ${formatZar(pricing?.pricelabsMonthly)} / month`,
+      desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
+    },
+    {
+      icon: CreditCard,
+      name: "BYO Payment Gateway",
+      price: `From ${formatZar(pricing?.byoGatewayMonthly)} / month`,
+      desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
+    },
+  ];
+
+  const starterPriceLabel = starterTier?.monthly_fee ? formatZar(starterTier.monthly_fee) : "R 1,500";
+  const COMPETITOR_COSTS = [
+    { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: `Included from ${starterPriceLabel}` },
+    { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
+    { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
+    { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
+    { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
+    { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
+    { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: `From ${widgetPctLabel} · negotiable` },
+  ];
+
   return (
     <div>
       {/* Hero */}
@@ -172,7 +206,7 @@ export default function ConnectPricing() {
                 </span>
                 <h3 className="text-2xl font-bold">WBE, Widgets &amp; WordPress</h3>
                 <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-primary">From 2%</span>
+                  <span className="text-3xl font-bold text-primary">From {widgetPctLabel}</span>
                   <span className="text-sm text-muted-foreground">commission per booking</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-3 max-w-xl">
@@ -207,39 +241,42 @@ export default function ConnectPricing() {
             className="grid lg:grid-cols-3 gap-6"
           >
 
-            {TIERS.map((tier) => (
+            {tierData.map(({ meta, row, isEnterprise, fallbackCaps }) => {
+              const { price, period } = tierPrice(row, isEnterprise);
+              const caps = tierCaps(row, fallbackCaps);
+              return (
               <motion.div
-                key={tier.name}
+                key={meta.name}
                 variants={fadeUp}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className={`rounded-2xl border p-8 relative ${tier.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
+                className={`rounded-2xl border p-8 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
               >
-                {tier.popular && (
+                {meta.popular && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-medium">
                     Most Popular
                   </span>
                 )}
-                {tier.negotiable && (
+                {meta.negotiable && (
                   <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
                     <Sparkles className="h-3 w-3" /> Negotiable
                   </span>
                 )}
-                <h3 className="text-lg font-semibold">{tier.name}</h3>
+                <h3 className="text-lg font-semibold">{meta.name}</h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{tier.price}</span>
-                  <span className="text-sm text-muted-foreground">{tier.period}</span>
+                  <span className="text-3xl font-bold">{price}</span>
+                  <span className="text-sm text-muted-foreground">{period}</span>
                 </div>
-                <p className="text-xs font-medium text-primary mt-2">{tier.caps}</p>
-                <p className="text-sm text-muted-foreground mt-2">{tier.desc}</p>
+                <p className="text-xs font-medium text-primary mt-2">{caps}</p>
+                <p className="text-sm text-muted-foreground mt-2">{meta.desc}</p>
 
-                {tier.savings && (
+                {meta.savings && (
                   <div className="mt-3 text-xs bg-primary/10 text-primary rounded-lg px-3 py-2 font-medium">
-                    💡 {tier.savings}
+                    💡 {meta.savings}
                   </div>
                 )}
 
                 <ul className="mt-6 space-y-2.5">
-                  {tier.features.map((f) => (
+                  {meta.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <Check className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                       {f}
@@ -248,12 +285,13 @@ export default function ConnectPricing() {
                 </ul>
 
                 <Link to={connectPath("/connect/get-started")} className="block mt-8">
-                  <Button variant={tier.popular ? "default" : "outline"} className="w-full gap-2">
-                    {tier.cta} <ArrowRight className="h-3.5 w-3.5" />
+                  <Button variant={meta.popular ? "default" : "outline"} className="w-full gap-2">
+                    {meta.cta} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </div>
       </section>
