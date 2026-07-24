@@ -1,13 +1,22 @@
 import { cn } from "@/lib/utils";
+import bookingAsset from "@/assets/channels/booking.png.asset.json";
+import airbnbAsset from "@/assets/channels/airbnb.png.asset.json";
+import vrboAsset from "@/assets/channels/vrbo.png.asset.json";
+import expediaAsset from "@/assets/channels/expedia.jpeg.asset.json";
+import lekkeslaapAsset from "@/assets/channels/lekkeslaap.jpeg.asset.json";
+import googleTravelAsset from "@/assets/channels/google-travel.png.asset.json";
 
-const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: string; parked?: boolean }> = {
-  booking_com: { label: "Booking.com", color: "bg-blue-600", initials: "B" },
-  airbnb: { label: "Airbnb", color: "bg-rose-500", initials: "A" },
-  vrbo: { label: "Vrbo", color: "bg-sky-700", initials: "V" },
-  expedia: { label: "Expedia", color: "bg-yellow-500", initials: "E" },
+const CHANNEL_CONFIG: Record<
+  string,
+  { label: string; color: string; initials: string; parked?: boolean; logoUrl?: string }
+> = {
+  booking_com: { label: "Booking.com", color: "bg-blue-600", initials: "B", logoUrl: bookingAsset.url },
+  airbnb: { label: "Airbnb", color: "bg-rose-500", initials: "A", logoUrl: airbnbAsset.url },
+  vrbo: { label: "Vrbo", color: "bg-sky-700", initials: "V", logoUrl: vrboAsset.url },
+  expedia: { label: "Expedia", color: "bg-yellow-500", initials: "E", logoUrl: expediaAsset.url },
   agoda: { label: "Agoda", color: "bg-red-600", initials: "Ag" },
-  google_hotels: { label: "Google Travel", color: "bg-emerald-500", initials: "G" },
-  lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk" },
+  google_hotels: { label: "Google Travel", color: "bg-emerald-500", initials: "G", logoUrl: googleTravelAsset.url },
+  lekkeslaap: { label: "Lekkeslaap", color: "bg-orange-500", initials: "Lk", logoUrl: lekkeslaapAsset.url },
   nightsbridge: { label: "NightsBridge", color: "bg-teal-600", initials: "NB" },
   rentalsunited: { label: "Rentals United", color: "bg-indigo-600", initials: "RU", parked: true },
   profitroom: { label: "Profitroom", color: "bg-violet-600", initials: "PR" },
@@ -25,7 +34,6 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; initials: s
 export const PARKED_CHANNELS = new Set(
   Object.entries(CHANNEL_CONFIG).filter(([, c]) => c.parked).map(([k]) => k)
 );
-
 
 export function getChannelLabel(channelName: string): string {
   return CHANNEL_CONFIG[channelName]?.label ?? channelName;
@@ -45,6 +53,25 @@ export function ChannelLogo({
     lg: "h-14 w-14 text-lg",
   };
 
+  if (config.logoUrl) {
+    return (
+      <div
+        className={cn(
+          "rounded-lg overflow-hidden bg-white border border-border flex items-center justify-center shrink-0",
+          sizeClasses[size]
+        )}
+        title={config.label}
+      >
+        <img
+          src={config.logoUrl}
+          alt={`${config.label} logo`}
+          className="h-full w-full object-contain"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -62,4 +89,3 @@ export function ChannelLogo({
 export const ALL_CHANNELS = Object.entries(CHANNEL_CONFIG)
   .filter(([k, c]) => k !== "manual" && !c.parked)
   .map(([k]) => k);
-
