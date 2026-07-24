@@ -57,6 +57,7 @@ export function emptyBuilderValue(): BillingConfigValue {
     pms_enabled: false,
     subscription_fee: "",
     channel_per_unit: "",
+    enterprise_custom_fee: "",
     volume_tiers_enabled: false,
     tier_pricing_json: null,
     facilitator_surcharge_enabled: true,
