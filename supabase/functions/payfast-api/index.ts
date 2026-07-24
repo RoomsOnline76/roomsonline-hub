@@ -491,6 +491,53 @@ Deno.serve(async (req) => {
         .single();
       
       if (txError || !transaction) {
+        // Check subscription invoice branch (m_payment_id like "SUB-<invoice_id>")
+        if (typeof mPaymentId === "string" && mPaymentId.startsWith("SUB-")) {
+          const invoiceId = mPaymentId.slice(4);
+          console.log("[PayFast] Subscription ITN for invoice:", invoiceId, "status:", paymentStatus);
+          const subStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
+          const { data: inv } = await supabase
+            .from("subscription_invoices")
+            .select("*")
+            .eq("id", invoiceId)
+            .single();
+          if (inv) {
+            await supabase.from("subscription_invoices").update({
+              status: subStatus,
+              payfast_payment_id: pfPaymentId,
+              paid_at: subStatus === "paid" ? new Date().toISOString() : null,
+              metadata: { ...(inv.metadata ?? {}), itn: itnData },
+            }).eq("id", invoiceId);
+
+            if (subStatus === "paid") {
+              const periodStart = new Date(inv.period_start);
+              const nextEnd = new Date(periodStart);
+              nextEnd.setMonth(nextEnd.getMonth() + 1);
+              const nextEndStr = nextEnd.toISOString().slice(0, 10);
+              const tableName = inv.property_id ? "property_billing_configs" : "portfolio_billing_configs";
+              const keyCol = inv.property_id ? "property_id" : "portfolio_id";
+              const keyVal = inv.property_id || inv.portfolio_id;
+              await supabase.from(tableName).update({
+                subscription_status: "active",
+                current_period_end: nextEndStr,
+                last_invoice_id: invoiceId,
+                cancelled_at: null,
+              }).eq(keyCol, keyVal);
+
+              await supabase.from("billing_transactions").insert({
+                property_id: inv.property_id,
+                portfolio_id: inv.portfolio_id,
+                amount: inv.amount,
+                currency: inv.currency,
+                status: "paid",
+                transaction_type: "subscription",
+                payment_provider: "payfast",
+                gateway_response: itnData,
+              }).select().maybeSingle().then(() => null).catch(() => null);
+            }
+          }
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
         console.error("[PayFast] Transaction not found for m_payment_id:", mPaymentId);
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
