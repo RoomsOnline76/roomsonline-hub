@@ -78,6 +78,12 @@
     if (config.hidePoweredBy || config.whiteLabel) params.set('hide_powered_by', '1');
     if (config.whiteLabel) params.set('wl', '1');
     if (config.lang) params.set('lang', config.lang);
+    if (config.checkin) params.set('check_in', config.checkin);
+    if (config.checkout) params.set('check_out', config.checkout);
+    if (config.adults) params.set('adults', config.adults);
+    if (config.children) params.set('children', config.children);
+    if (config.currency) params.set('currency', config.currency);
+    if (config.theme) params.set('theme', config.theme);
     params.set('embed_version', VERSION);
     return resolveBase(config) + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
   }
@@ -99,6 +105,12 @@
       whiteLabel: getAttr(container, 'data-white-label') === 'true' || getAttr(container, 'data-wl') === '1',
       wlHost: getAttr(container, 'data-wl-host'),
       lang: getAttr(container, 'data-lang'),
+      checkin: getAttr(container, 'data-checkin'),
+      checkout: getAttr(container, 'data-checkout'),
+      adults: getAttr(container, 'data-adults'),
+      children: getAttr(container, 'data-children'),
+      currency: getAttr(container, 'data-currency'),
+      theme: getAttr(container, 'data-theme'),
     };
 
     var iframe = document.createElement('iframe');
@@ -195,6 +207,13 @@
       height: getAttr(container, 'data-height', '700'),
       whiteLabel: getAttr(container, 'data-white-label') === 'true' || getAttr(container, 'data-wl') === '1',
       wlHost: getAttr(container, 'data-wl-host'),
+      refPortfolio: getAttr(container, 'data-ref-portfolio'),
+      checkin: getAttr(container, 'data-checkin'),
+      checkout: getAttr(container, 'data-checkout'),
+      adults: getAttr(container, 'data-adults'),
+      children: getAttr(container, 'data-children'),
+      currency: getAttr(container, 'data-currency'),
+      theme: getAttr(container, 'data-theme'),
     };
 
     var params = new URLSearchParams();
@@ -202,6 +221,13 @@
     if (config.brandLogo) params.set('brand_logo', config.brandLogo);
     if (config.layout) params.set('layout', config.layout);
     if (config.whiteLabel) { params.set('wl', '1'); params.set('hide_powered_by', '1'); }
+    if (config.refPortfolio) params.set('ref_portfolio', config.refPortfolio);
+    if (config.checkin) params.set('check_in', config.checkin);
+    if (config.checkout) params.set('check_out', config.checkout);
+    if (config.adults) params.set('adults', config.adults);
+    if (config.children) params.set('children', config.children);
+    if (config.currency) params.set('currency', config.currency);
+    if (config.theme) params.set('theme', config.theme);
     params.set('embed_version', VERSION);
     var src = resolveBase(config) + '/embed/portfolio/' + encodeURIComponent(slug) + '?' + params.toString();
 
