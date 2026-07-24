@@ -2648,7 +2648,7 @@ export default function AdminKeys() {
     const isBensonActive = bensonStagingCredentials?.is_active || bensonProductionCredentials?.is_active;
 
     return (
-      <AccordionItem value="benson" className={`border rounded-lg px-4 ${!isBensonActive ? "opacity-60" : ""}`}>
+      <AccordionItem value="benson" className={`border rounded-lg px-4 ${!isBensonActive ? "opacity-60" : ""} ${parkedCls('benson')}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
