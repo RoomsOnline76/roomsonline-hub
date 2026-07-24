@@ -42,9 +42,15 @@ export interface BillingConfigValue {
   white_label_monthly_fee: string;
   white_label_setup_fee: string;
   white_label_billing_mode: "monthly" | "annual";
+  // Branding pack (standalone — when off, branding is auto-included free with white-label)
+  branding_addon_enabled: boolean;
+  branding_addon_monthly_fee: string;
+  branding_addon_setup_fee: string;
+  branding_addon_billing_mode: "monthly" | "annual";
   // PriceLabs add-on (property-level)
   pricelabs_enabled: boolean;
   pricelabs_monthly_fee: string;
+  pricelabs_setup_fee: string;
 }
 
 export function emptyBuilderValue(): BillingConfigValue {
@@ -68,8 +74,13 @@ export function emptyBuilderValue(): BillingConfigValue {
     white_label_monthly_fee: "",
     white_label_setup_fee: "",
     white_label_billing_mode: "monthly",
+    branding_addon_enabled: false,
+    branding_addon_monthly_fee: "",
+    branding_addon_setup_fee: "",
+    branding_addon_billing_mode: "monthly",
     pricelabs_enabled: false,
     pricelabs_monthly_fee: "",
+    pricelabs_setup_fee: "",
   };
 }
 
