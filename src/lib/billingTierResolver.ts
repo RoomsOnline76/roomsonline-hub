@@ -80,44 +80,31 @@ export function normalizeTiers(input: unknown): PricingTier[] {
 
 /** Total sellable units for one property, using whichever room-inventory source is populated. */
 export async function getPropertyRoomCount(propertyId: string): Promise<number> {
-  const [hostfully, pmsCache, rolos] = await Promise.all([
+  // Prefer ROLOS physical rooms (one row per sellable unit); fall back to
+  // Hostfully unit-types (summed by total_units), then generic PMS cache row count.
+  const [rolosRooms, hostfully, pmsCache] = await Promise.all([
+    supabase
+      .from("rolos_rooms")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId),
     supabase
       .from("hostfully_room_types")
-      .select("number_of_units")
+      .select("total_units")
       .eq("property_id", propertyId),
     supabase
       .from("pms_room_types_cache")
-      .select("total_units, max_occupancy_units")
-      .eq("property_id", propertyId),
-    supabase
-      .from("rolos_room_types")
-      .select("total_units")
+      .select("id", { count: "exact", head: true })
       .eq("property_id", propertyId),
   ]);
 
-  const sum = (rows: Array<Record<string, unknown>> | null, keys: string[]): number => {
-    if (!rows?.length) return 0;
-    let total = 0;
-    for (const row of rows) {
-      for (const k of keys) {
-        const v = Number(row[k]);
-        if (Number.isFinite(v) && v > 0) {
-          total += v;
-          break;
-        }
-      }
-    }
-    return total;
-  };
+  const rolosCount = rolosRooms.count ?? 0;
+  if (rolosCount > 0) return rolosCount;
 
-  const hostfullyTotal = sum(hostfully.data as any, ["number_of_units"]);
+  const hostfullyTotal = (hostfully.data as Array<{ total_units: number | null }> | null)
+    ?.reduce((sum, row) => sum + (Number(row.total_units) || 0), 0) ?? 0;
   if (hostfullyTotal > 0) return hostfullyTotal;
 
-  const pmsTotal = sum(pmsCache.data as any, ["total_units", "max_occupancy_units"]);
-  if (pmsTotal > 0) return pmsTotal;
-
-  const rolosTotal = sum(rolos.data as any, ["total_units"]);
-  return rolosTotal;
+  return pmsCache.count ?? 0;
 }
 
 /** Aggregate room count across all properties in the same portfolio (or single property). */
