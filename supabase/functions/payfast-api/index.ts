@@ -526,14 +526,14 @@ Deno.serve(async (req) => {
 
               await supabase.from("billing_transactions").insert({
                 property_id: inv.property_id,
-                portfolio_id: inv.portfolio_id,
+                owner_id: inv.owner_id,
+                type: "subscription",
                 amount: inv.amount,
                 currency: inv.currency,
-                status: "paid",
-                transaction_type: "subscription",
-                payment_provider: "payfast",
-                gateway_response: itnData,
-              }).select().maybeSingle().then(() => null).catch(() => null);
+                reference_id: invoiceId,
+                calculated_by: "payfast_itn",
+                metadata: { portfolio_id: inv.portfolio_id, pf_payment_id: pfPaymentId, period_start: inv.period_start, period_end: inv.period_end },
+              });
             }
           }
           return new Response("OK", { status: 200, headers: corsHeaders });
