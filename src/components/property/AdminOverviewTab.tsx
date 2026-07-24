@@ -159,11 +159,15 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "White-Label setup", amount: Number(wlDomain.white_label_setup_fee), once: true });
   }
 
-  if (wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_monthly_fee ?? 0) > 0) {
+  // Branding add-on is included free with White-label — only bill separately when WL is off.
+  if (!wlAllowed && wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_monthly_fee ?? 0) > 0) {
     costLines.push({ label: "Branding add-on", amount: Number(wlDomain.branding_addon_monthly_fee) });
   }
-  if (wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_setup_fee ?? 0) > 0) {
+  if (!wlAllowed && wlDomain?.branding_addon_enabled && Number(wlDomain?.branding_addon_setup_fee ?? 0) > 0) {
     costLines.push({ label: "Branding add-on setup", amount: Number(wlDomain.branding_addon_setup_fee), once: true });
+  }
+  if (wlAllowed) {
+    costLines.push({ label: "Basic Branding add-on (included with White-label)", amount: 0 });
   }
 
   const isRolos = (property?.pms_system ?? "").toLowerCase() === "rolos";
