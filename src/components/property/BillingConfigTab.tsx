@@ -211,9 +211,45 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
   return (
     <>
+      {isPortfolioScope && (
+        <Alert className="mb-4 border-primary/40 bg-primary/5">
+          <Layers className="h-4 w-4" />
+          <AlertTitle className="text-sm">
+            Portfolio-level billing — {scope.portfolioName || "portfolio"}
+          </AlertTitle>
+          <AlertDescription className="text-[11px] space-y-2">
+            <p>
+              This property is part of a portfolio. Billing is configured <strong>once for the whole portfolio</strong>
+              {" "}and applies to every member property below. Any change you save here updates all{" "}
+              {scope.siblingPropertyIds.length} member propert{scope.siblingPropertyIds.length === 1 ? "y" : "ies"}.
+            </p>
+            {siblingProps && siblingProps.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {siblingProps.map((s) => (
+                  <Badge key={s.id} variant="secondary" className="gap-1 text-[10px] font-normal">
+                    <Building2 className="h-3 w-3" />
+                    {s.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="pt-1">
+              <Link
+                to="/admin/portfolios"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Open portfolio manager
+              </Link>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium">Billing Configuration</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            {isPortfolioScope ? "Portfolio Billing Configuration" : "Billing Configuration"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {/* ── Preset selector ─────────────────────────────────────── */}
