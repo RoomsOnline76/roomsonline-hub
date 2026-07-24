@@ -145,8 +145,8 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
     <div className="space-y-3">
       {/* ── Commission ─────────────────────────────────────────────── */}
       <ToggleRow
-        title="Listing commission"
-        description="Flat % ROL earns per booking on the standard listing."
+        title="OTA listing commission"
+        description="Flat % ROL earns on bookings made through ROL's own OTA (e.g. book.sleepinafrica.roomsonline.co.za). Does not apply to widget/WBE, WordPress or channel-sourced bookings — those use their own commission/fee models below."
         enabled={value.commission_enabled}
         onToggle={(v) => set("commission_enabled", v)}
       >
