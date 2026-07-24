@@ -298,6 +298,15 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         </CardContent>
       </Card>
 
+      {/* PriceLabs admin activation + push (ROLOS properties only) */}
+      {builder.pricelabs_enabled && (
+        <PriceLabsAdminPushCard
+          propertyId={propertyId}
+          pricelabsAllowed={!!config?.pricelabs_allowed}
+          isRolosPms={isRolosPms}
+        />
+      )}
+
       {/* Commission Section (collapsed by default) */}
       <Collapsible open={commissionOpen} onOpenChange={setCommissionOpen} className="mt-4">
         <Card>
