@@ -2805,7 +2805,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="nightsbridge"
-        className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('nightsbridge')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
