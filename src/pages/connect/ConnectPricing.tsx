@@ -106,6 +106,7 @@ const COMPETITOR_COSTS = [
   { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
   { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
+  { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: "From 2% · negotiable" },
 ];
 
 const GUARANTEES = [
