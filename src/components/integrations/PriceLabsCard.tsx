@@ -206,7 +206,25 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="border-t pt-4">
+            <Label htmlFor="pl-user-token">Customer user_token (per-property)</Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                id="pl-user-token"
+                value={userToken}
+                onChange={(e) => setUserToken(e.target.value)}
+                placeholder="Paste PriceLabs user_token issued to this customer"
+              />
+              <Button onClick={saveUserToken} disabled={loading || !propertyId} variant="outline" size="sm">
+                Save
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Required for <code>get_sync_status</code>. Found in the customer's PriceLabs account under API access.
+              {!propertyId && " Open a property to persist this token."}
+            </p>
+          </div>
+
             <Button onClick={runHealth} disabled={loading} variant="outline" size="sm">
               {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Test connection
