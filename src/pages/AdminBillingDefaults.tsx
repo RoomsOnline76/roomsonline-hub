@@ -55,7 +55,7 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.enterprise_custom_fee = toStr((row as any).enterprise_custom_fee ?? null);
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
-  v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
+  v.facilitator_surcharge_enabled = row.default_transaction_fee != null;
   v.transaction_fee = toStr(row.default_transaction_fee);
   v.byo_gateway_enabled = ((row as any).byo_gateway_monthly_fee ?? 0) > 0;
   v.byo_gateway_fee = toStr((row as any).byo_gateway_monthly_fee ?? null);
