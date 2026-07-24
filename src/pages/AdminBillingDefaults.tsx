@@ -76,7 +76,7 @@ function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
     channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
     enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
     tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
-    default_transaction_fee: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
+    default_transaction_fee: v.facilitator_surcharge_enabled ? (toNum(v.transaction_fee) ?? 0) : null,
     byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
     white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
     white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
