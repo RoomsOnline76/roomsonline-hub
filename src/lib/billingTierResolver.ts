@@ -263,8 +263,7 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     rawCustom != null && Number.isFinite(Number(rawCustom)) ? Number(rawCustom) : null;
 
   const tierFee = tier?.monthly_fee ?? null;
-  const effectiveMonthlyFee =
-    tierFee != null ? tierFee : tierLabel === "enterprise" ? enterpriseCustomFee : null;
+  const effectiveMonthlyFee = tierFee != null ? tierFee : enterpriseCustomFee;
   const requiresCustomFee = tierFee == null && effectiveMonthlyFee == null;
 
   return {
