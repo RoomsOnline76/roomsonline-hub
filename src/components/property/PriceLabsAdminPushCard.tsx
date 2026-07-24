@@ -113,6 +113,14 @@ export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, pricelabs
           </div>
         ) : (
           <>
+            {!isSaved && (
+              <Alert>
+                <AlertTitle>Save billing config to enable</AlertTitle>
+                <AlertDescription className="text-xs">
+                  PriceLabs is toggled on but not yet saved. Click "Save Billing Config" above, then activate and push here.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="flex items-start justify-between gap-3 rounded-md border p-3">
               <div className="space-y-0.5">
                 <p className="text-xs font-medium">Activate PriceLabs for this property</p>
@@ -122,7 +130,7 @@ export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, pricelabs
               </div>
               <Switch
                 checked={!!cfg.enabled}
-                disabled={setEnabled.isPending}
+                disabled={setEnabled.isPending || !isSaved}
                 onCheckedChange={(v) => setEnabled.mutate(v)}
               />
             </div>
