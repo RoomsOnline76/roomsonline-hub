@@ -160,6 +160,17 @@ export interface ResolvedTierInfo {
   usedGlobalTiers: boolean;
   /** True when the resolved tier's max_properties cap is exceeded. */
   bumpedByPropertyCount: boolean;
+  /** Convenience label for the resolved tier. */
+  tierLabel: TierLabel | null;
+  /** Custom monthly fee set by admin (used when tier requires one, e.g. Enterprise). */
+  enterpriseCustomFee: number | null;
+  /**
+   * Fee that should actually be charged this month. `null` when the resolved
+   * tier requires a custom amount and no override has been set yet.
+   */
+  effectiveMonthlyFee: number | null;
+  /** True when the resolved tier has no fixed fee AND no custom override was found. */
+  requiresCustomFee: boolean;
 }
 
 /** Count active properties in the same portfolio as `propertyId` (or 1 if standalone). */
@@ -186,17 +197,25 @@ export async function getPortfolioPropertyCount(propertyId: string): Promise<{ c
   return { count: active?.length ?? ids.length, scope: "portfolio" };
 }
 
+function inferLabel(tier: PricingTier | null): TierLabel | null {
+  if (!tier) return null;
+  if (tier.label) return tier.label;
+  if (tier.max_properties == null) return "enterprise";
+  if (tier.max_properties <= 1) return "starter";
+  return "professional";
+}
+
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
 export async function resolvePropertyTier(propertyId: string): Promise<ResolvedTierInfo> {
   const [configRes, globalsRes] = await Promise.all([
     supabase
       .from("property_billing_configs")
-      .select("billing_strategy, tier_pricing_json, tier_scope, room_count_override")
+      .select("billing_strategy, tier_pricing_json, tier_scope, room_count_override, enterprise_custom_fee")
       .eq("property_id", propertyId)
       .maybeSingle(),
     supabase
       .from("billing_global_defaults")
-      .select("strategy, tier_pricing_json")
+      .select("strategy, tier_pricing_json, enterprise_custom_fee")
       .in("strategy", [...TIER_STRATEGIES]),
   ]);
 
@@ -231,6 +250,16 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
 
   const tier = resolveTier(rooms, tiers, properties);
   const bumpedByPropertyCount = !!tier && tier.max_properties != null && properties > tier.max_properties;
+  const tierLabel = inferLabel(tier);
+
+  const rawCustom = config?.enterprise_custom_fee ?? global?.enterprise_custom_fee ?? null;
+  const enterpriseCustomFee =
+    rawCustom != null && Number.isFinite(Number(rawCustom)) ? Number(rawCustom) : null;
+
+  const tierFee = tier?.monthly_fee ?? null;
+  const effectiveMonthlyFee =
+    tierFee != null ? tierFee : tierLabel === "enterprise" ? enterpriseCustomFee : null;
+  const requiresCustomFee = tierFee == null && effectiveMonthlyFee == null;
 
   return {
     tier,
@@ -240,5 +269,10 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     usedOverride: overrideTiers.length > 0,
     usedGlobalTiers: overrideTiers.length === 0 && globalTiers.length > 0,
     bumpedByPropertyCount,
+    tierLabel,
+    enterpriseCustomFee,
+    effectiveMonthlyFee,
+    requiresCustomFee,
   };
 }
+
