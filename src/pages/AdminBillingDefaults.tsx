@@ -55,7 +55,7 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.enterprise_custom_fee = toStr((row as any).enterprise_custom_fee ?? null);
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
-  v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
+  v.facilitator_surcharge_enabled = row.default_transaction_fee != null;
   v.transaction_fee = toStr(row.default_transaction_fee);
   v.byo_gateway_enabled = ((row as any).byo_gateway_monthly_fee ?? 0) > 0;
   v.byo_gateway_fee = toStr((row as any).byo_gateway_monthly_fee ?? null);
@@ -76,7 +76,7 @@ function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
     channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
     enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
     tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
-    default_transaction_fee: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
+    default_transaction_fee: v.facilitator_surcharge_enabled ? (toNum(v.transaction_fee) ?? 0) : null,
     byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
     white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
     white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
