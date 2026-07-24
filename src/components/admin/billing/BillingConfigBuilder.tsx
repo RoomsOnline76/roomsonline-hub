@@ -556,6 +556,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           </div>
         </div>
         <p className="text-[10px] text-muted-foreground">Charged only once the property activates PriceLabs in ROL'OS.</p>
+        {pricelabsExtras ? <div className="pt-2 border-t mt-2">{pricelabsExtras}</div> : null}
       </ToggleRow>
     </div>
   );
