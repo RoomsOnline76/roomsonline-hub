@@ -3616,15 +3616,18 @@ export type Database = {
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
           byo_gateway_monthly_fee: number | null
+          cancelled_at: string | null
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
           commission_rate: number | null
           created_at: string
+          current_period_end: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
           enterprise_custom_fee: number | null
           id: string
+          last_invoice_id: string | null
           linked_contract_id: string | null
           payment_facilitator_enabled: boolean | null
           portfolio_id: string
@@ -3633,6 +3636,7 @@ export type Database = {
           pricelabs_setup_fee: number | null
           room_count_override: number | null
           subscription_fee_monthly: number | null
+          subscription_status: string
           tier_pricing_json: Json | null
           transaction_fee_percentage: number | null
           updated_at: string
@@ -3655,15 +3659,18 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string
+          current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           enterprise_custom_fee?: number | null
           id?: string
+          last_invoice_id?: string | null
           linked_contract_id?: string | null
           payment_facilitator_enabled?: boolean | null
           portfolio_id: string
@@ -3672,6 +3679,7 @@ export type Database = {
           pricelabs_setup_fee?: number | null
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_status?: string
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
           updated_at?: string
@@ -3694,15 +3702,18 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string
+          current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           enterprise_custom_fee?: number | null
           id?: string
+          last_invoice_id?: string | null
           linked_contract_id?: string | null
           payment_facilitator_enabled?: boolean | null
           portfolio_id?: string
@@ -3711,6 +3722,7 @@ export type Database = {
           pricelabs_setup_fee?: number | null
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_status?: string
           tier_pricing_json?: Json | null
           transaction_fee_percentage?: number | null
           updated_at?: string
@@ -4696,15 +4708,18 @@ export type Database = {
           branding_addon_monthly_fee: number | null
           branding_addon_setup_fee: number | null
           byo_gateway_monthly_fee: number | null
+          cancelled_at: string | null
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
           commission_rate: number | null
           created_at: string | null
+          current_period_end: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
           enterprise_custom_fee: number | null
           id: string
+          last_invoice_id: string | null
           linked_contract_id: string | null
           owner_id: string | null
           payment_facilitator_enabled: boolean | null
@@ -4714,6 +4729,7 @@ export type Database = {
           property_id: string
           room_count_override: number | null
           subscription_fee_monthly: number | null
+          subscription_status: string
           tier_pricing_json: Json | null
           tier_scope: string | null
           transaction_fee_percentage: number | null
@@ -4737,15 +4753,18 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
+          current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           enterprise_custom_fee?: number | null
           id?: string
+          last_invoice_id?: string | null
           linked_contract_id?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
@@ -4755,6 +4774,7 @@ export type Database = {
           property_id: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_status?: string
           tier_pricing_json?: Json | null
           tier_scope?: string | null
           transaction_fee_percentage?: number | null
@@ -4778,15 +4798,18 @@ export type Database = {
           branding_addon_monthly_fee?: number | null
           branding_addon_setup_fee?: number | null
           byo_gateway_monthly_fee?: number | null
+          cancelled_at?: string | null
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
           commission_rate?: number | null
           created_at?: string | null
+          current_period_end?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
           enterprise_custom_fee?: number | null
           id?: string
+          last_invoice_id?: string | null
           linked_contract_id?: string | null
           owner_id?: string | null
           payment_facilitator_enabled?: boolean | null
@@ -4796,6 +4819,7 @@ export type Database = {
           property_id?: string
           room_count_override?: number | null
           subscription_fee_monthly?: number | null
+          subscription_status?: string
           tier_pricing_json?: Json | null
           tier_scope?: string | null
           transaction_fee_percentage?: number | null
@@ -10474,6 +10498,105 @@ export type Database = {
           },
         ]
       }
+      subscription_invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          email_sent_at: string | null
+          id: string
+          invoice_kind: string
+          metadata: Json
+          owner_id: string | null
+          paid_at: string | null
+          payfast_payment_id: string | null
+          payfast_token: string
+          period_end: string
+          period_start: string
+          portfolio_id: string | null
+          property_id: string | null
+          reminder_count: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          email_sent_at?: string | null
+          id?: string
+          invoice_kind?: string
+          metadata?: Json
+          owner_id?: string | null
+          paid_at?: string | null
+          payfast_payment_id?: string | null
+          payfast_token?: string
+          period_end: string
+          period_start: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          reminder_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          email_sent_at?: string | null
+          id?: string
+          invoice_kind?: string
+          metadata?: Json
+          owner_id?: string | null
+          paid_at?: string | null
+          payfast_payment_id?: string | null
+          payfast_token?: string
+          period_end?: string
+          period_start?: string
+          portfolio_id?: string | null
+          property_id?: string | null
+          reminder_count?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_invoices_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_invoices_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supporting_systems: {
         Row: {
           account_owner: string | null
@@ -11514,6 +11637,10 @@ export type Database = {
         Returns: boolean
       }
       can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
+      cancel_subscription_by_token: {
+        Args: { _token: string }
+        Returns: boolean
+      }
       decrypt_sensitive_text: {
         Args: { encrypted_data: string }
         Returns: string
@@ -11542,6 +11669,21 @@ export type Database = {
         Returns: {
           external_system: string
           latest_fetched_at: string
+        }[]
+      }
+      get_subscription_invoice_by_token: {
+        Args: { _token: string }
+        Returns: {
+          amount: number
+          currency: string
+          entity_name: string
+          id: string
+          invoice_kind: string
+          period_end: string
+          period_start: string
+          portfolio_id: string
+          property_id: string
+          status: string
         }[]
       }
       get_user_audit_role: {
