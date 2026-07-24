@@ -204,13 +204,14 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     const monthly = annual ? Number(c.white_label_monthly_fee) / 12 : Number(c.white_label_monthly_fee);
     push(`White-Label licence${annual ? " (annual/12)" : ""}`, monthly);
   }
-  if (wlAllowed) push("White-Label setup", c.white_label_setup_fee, true);
+  // Setup fees are once-off — always include when configured, regardless of activation state
+  push("White-Label setup", c.white_label_setup_fee, true);
 
   // Branding add-on — free when bundled with White-label, otherwise billed
   if (!wlAllowed && c.branding_addon_enabled) {
     push("Branding add-on", c.branding_addon_monthly_fee);
-    push("Branding add-on setup", c.branding_addon_setup_fee, true);
   }
+  push("Branding add-on setup", c.branding_addon_setup_fee, true);
   if (wlAllowed) {
     costLines.push({ label: "Basic Branding add-on (included with White-label)", amount: 0 });
   }
@@ -225,8 +226,8 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
         amount: monthly,
       });
     }
-    push("PriceLabs setup", c.pricelabs_setup_fee, true);
   }
+  push("PriceLabs setup", c.pricelabs_setup_fee, true);
 
   // BYO payment gateway monthly add-on (only when owner uses their own provider)
   if (customProvider) push("BYO payment gateway add-on", c.byo_gateway_monthly_fee);
