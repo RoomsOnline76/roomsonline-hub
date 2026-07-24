@@ -3607,6 +3607,141 @@ export type Database = {
         }
         Relationships: []
       }
+      portfolio_billing_configs: {
+        Row: {
+          billing_start_date: string | null
+          billing_strategy: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode: string | null
+          branding_addon_enabled: boolean | null
+          branding_addon_monthly_fee: number | null
+          branding_addon_setup_fee: number | null
+          byo_gateway_monthly_fee: number | null
+          channel_manager_enabled: boolean | null
+          channel_manager_per_unit_fee: number | null
+          cloudflare_custom_hostname_id: string | null
+          commission_rate: number | null
+          created_at: string
+          custom_domain_error: string | null
+          custom_overrides: Json | null
+          enterprise_custom_fee: number | null
+          id: string
+          linked_contract_id: string | null
+          payment_facilitator_enabled: boolean | null
+          portfolio_id: string
+          pricelabs_allowed: boolean
+          pricelabs_monthly_fee: number | null
+          pricelabs_setup_fee: number | null
+          room_count_override: number | null
+          subscription_fee_monthly: number | null
+          tier_pricing_json: Json | null
+          transaction_fee_percentage: number | null
+          updated_at: string
+          volume_tier_json: Json | null
+          white_label_allowed: boolean | null
+          white_label_billing_mode: string | null
+          white_label_domain: string | null
+          white_label_domain_last_error: string | null
+          white_label_domain_status: string
+          white_label_domain_verified_at: string | null
+          white_label_monthly_fee: number | null
+          white_label_setup_fee: number | null
+          widget_flat_commission_rate: number | null
+        }
+        Insert: {
+          billing_start_date?: string | null
+          billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode?: string | null
+          branding_addon_enabled?: boolean | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
+          channel_manager_enabled?: boolean | null
+          channel_manager_per_unit_fee?: number | null
+          cloudflare_custom_hostname_id?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          custom_domain_error?: string | null
+          custom_overrides?: Json | null
+          enterprise_custom_fee?: number | null
+          id?: string
+          linked_contract_id?: string | null
+          payment_facilitator_enabled?: boolean | null
+          portfolio_id: string
+          pricelabs_allowed?: boolean
+          pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
+          room_count_override?: number | null
+          subscription_fee_monthly?: number | null
+          tier_pricing_json?: Json | null
+          transaction_fee_percentage?: number | null
+          updated_at?: string
+          volume_tier_json?: Json | null
+          white_label_allowed?: boolean | null
+          white_label_billing_mode?: string | null
+          white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
+          white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
+        }
+        Update: {
+          billing_start_date?: string | null
+          billing_strategy?: Database["public"]["Enums"]["billing_strategy"]
+          branding_addon_billing_mode?: string | null
+          branding_addon_enabled?: boolean | null
+          branding_addon_monthly_fee?: number | null
+          branding_addon_setup_fee?: number | null
+          byo_gateway_monthly_fee?: number | null
+          channel_manager_enabled?: boolean | null
+          channel_manager_per_unit_fee?: number | null
+          cloudflare_custom_hostname_id?: string | null
+          commission_rate?: number | null
+          created_at?: string
+          custom_domain_error?: string | null
+          custom_overrides?: Json | null
+          enterprise_custom_fee?: number | null
+          id?: string
+          linked_contract_id?: string | null
+          payment_facilitator_enabled?: boolean | null
+          portfolio_id?: string
+          pricelabs_allowed?: boolean
+          pricelabs_monthly_fee?: number | null
+          pricelabs_setup_fee?: number | null
+          room_count_override?: number | null
+          subscription_fee_monthly?: number | null
+          tier_pricing_json?: Json | null
+          transaction_fee_percentage?: number | null
+          updated_at?: string
+          volume_tier_json?: Json | null
+          white_label_allowed?: boolean | null
+          white_label_billing_mode?: string | null
+          white_label_domain?: string | null
+          white_label_domain_last_error?: string | null
+          white_label_domain_status?: string
+          white_label_domain_verified_at?: string | null
+          white_label_monthly_fee?: number | null
+          white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_billing_configs_linked_contract_id_fkey"
+            columns: ["linked_contract_id"]
+            isOneToOne: false
+            referencedRelation: "contract_template_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portfolio_billing_configs_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: true
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       portfolio_revenue_share_config: {
         Row: {
           created_at: string
