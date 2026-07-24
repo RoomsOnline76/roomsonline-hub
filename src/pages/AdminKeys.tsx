@@ -3897,7 +3897,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="rentalsunited"
-        className={`border rounded-lg px-4 ${!rentalsunitedCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!rentalsunitedCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('rentalsunited')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
