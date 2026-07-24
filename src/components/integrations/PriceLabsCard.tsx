@@ -44,7 +44,7 @@ async function callPL(action: string, extra: Record<string, unknown> = {}): Prom
   return data as ActionResult;
 }
 
-export function PriceLabsCard() {
+export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
@@ -53,6 +53,7 @@ export function PriceLabsCard() {
   const [calendarTriggerUrl, setCalendarTriggerUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
   const [regenerate, setRegenerate] = useState(false);
+  const [userToken, setUserToken] = useState("");
 
   // Goals + metrics (persisted locally — these are dev/admin tracking aids)
   const [goals, setGoals] = useState<Goals>(() => {
