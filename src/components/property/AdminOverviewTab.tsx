@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import { usePropertyReferrals } from "@/hooks/useRepCommissions";
+import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
 import {
   Loader2,
   Receipt,
