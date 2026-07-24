@@ -6,11 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 
+type LineItem = { kind?: string; description: string; amount: number };
 type Invoice = {
   id: string;
   property_id: string | null;
   portfolio_id: string | null;
   amount: number;
+  subscription_amount?: number | null;
+  once_off_amount?: number | null;
+  line_items?: LineItem[] | null;
+  invoice_number?: string | null;
   currency: string;
   period_start: string;
   period_end: string;
