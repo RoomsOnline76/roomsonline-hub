@@ -4334,7 +4334,7 @@ export default function AdminKeys() {
     const Icon = getPMSIcon(systemType);
     const tracker = trackerData[systemType];
     return (
-      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4 opacity-60">
+      <AccordionItem key={systemType} value={systemType} className={`border rounded-lg px-4 opacity-60 ${parkedCls(systemType)}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
