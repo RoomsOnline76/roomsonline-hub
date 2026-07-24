@@ -3043,7 +3043,7 @@ export default function AdminKeys() {
     const isConfigured = isTokenConfigured || isOAuthConfigured;
 
     return (
-      <AccordionItem value="checkfront" className={!checkfrontCredentials?.is_active ? "opacity-60" : ""}>
+      <AccordionItem value="checkfront" className={`${!checkfrontCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('checkfront')}`}>
         <AccordionTrigger className="hover:no-underline px-4 py-3 bg-card rounded-lg border">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
