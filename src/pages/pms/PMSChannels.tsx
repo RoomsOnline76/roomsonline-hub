@@ -125,8 +125,11 @@ export default function PMSChannels() {
                 );
               })}
             </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              Don't see your channel manager? Let's talk — we'll bring it on board.
+            </p>
             {isLoading && (
-              <p className="text-sm text-muted-foreground mt-4">Loading channel connections…</p>
+              <p className="text-sm text-muted-foreground mt-2">Loading channel connections…</p>
             )}
           </TabsContent>
 
