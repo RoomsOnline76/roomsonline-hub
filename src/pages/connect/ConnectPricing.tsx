@@ -181,16 +181,13 @@ export default function ConnectPricing() {
             </span>
             <div className="grid md:grid-cols-[1.4fr_1fr] gap-6 items-center">
               <div>
-                <span className="inline-block px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-primary/10 text-primary mb-3">
-                  No subscription · Commission-only
-                </span>
                 <h3 className="text-2xl font-bold">WBE, Widgets &amp; WordPress</h3>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-primary">From {widgetPctLabel}</span>
                   <span className="text-sm text-muted-foreground">commission per booking</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-3 max-w-xl">
-                  No monthly fee. Pay only when you get a booking. Perfect for properties that already
+                  Pay only when you get a booking. Perfect for properties that already
                   have a website and just want a booking engine that converts.
                 </p>
                 <Link to={connectPath("/connect/get-started")} className="inline-block mt-5">
