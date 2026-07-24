@@ -2379,7 +2379,7 @@ export default function AdminKeys() {
       <AccordionItem
         key={apiKey.id}
         value={apiKey.id}
-        className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""} ${parkedCls(apiKey.system_type)}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
