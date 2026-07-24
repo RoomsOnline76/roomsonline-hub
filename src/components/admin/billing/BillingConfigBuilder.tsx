@@ -19,6 +19,9 @@ export interface BillingConfigValue {
   commission_rate: string;
   // Widget / WBE tiered commission (uses global widget tiers)
   widget_tiers_enabled: boolean;
+  // Widget / WBE flat commission — mutually exclusive with tiered widget
+  widget_flat_enabled: boolean;
+  widget_flat_rate: string;
   // PMS subscription (monthly base + per-unit channel manager fee)
   pms_enabled: boolean;
   subscription_fee: string;
