@@ -35,7 +35,7 @@ interface PropertyLite {
   id: string;
   name: string;
   slug: string | null;
-  current_pms: string | null;
+  external_system: string | null;
   ru_push_enabled: boolean | null;
 }
 
@@ -63,7 +63,7 @@ export default function AdminRentalsUnited() {
         .limit(500),
       supabase
         .from("properties")
-        .select("id, name, slug, current_pms, ru_push_enabled")
+        .select("id, name, slug, external_system, ru_push_enabled")
         .eq("is_active", true)
         .order("name"),
     ]);
@@ -208,11 +208,11 @@ export default function AdminRentalsUnited() {
               </TableHeader>
               <TableBody>
                 {properties
-                  .filter((p) => p.current_pms === "rolos" || p.ru_push_enabled)
+                  .filter((p) => p.external_system === "rolos" || p.ru_push_enabled)
                   .map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell><Badge variant="outline">{p.current_pms ?? "—"}</Badge></TableCell>
+                      <TableCell><Badge variant="outline">{p.external_system ?? "—"}</Badge></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Switch
@@ -226,7 +226,7 @@ export default function AdminRentalsUnited() {
                       </TableCell>
                     </TableRow>
                   ))}
-                {properties.filter((p) => p.current_pms === "rolos" || p.ru_push_enabled).length === 0 && (
+                {properties.filter((p) => p.external_system === "rolos" || p.ru_push_enabled).length === 0 && (
                   <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No ROLOS PMS properties yet.</TableCell></TableRow>
                 )}
               </TableBody>
