@@ -330,6 +330,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
                 reason: "Available only when this property's PMS is ROL'OS.",
               },
             }}
+            pricelabsExtras={
+              builder.pricelabs_enabled && isRolosPms ? (
+                <PriceLabsAdminPushCard
+                  propertyId={propertyId}
+                  pricelabsAllowed={!!builder.pricelabs_enabled}
+                  pricelabsSaved={!!config?.pricelabs_allowed}
+                  isRolosPms={isRolosPms}
+                />
+              ) : null
+            }
           />
 
           {/* Live summary */}
