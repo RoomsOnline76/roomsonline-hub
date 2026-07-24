@@ -159,12 +159,45 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         </div>
       </ToggleRow>
 
+      {/* ── Widget flat commission ─────────────────────────────────── */}
+      <ToggleRow
+        title="Widget — flat commission (WBE)"
+        description="Property uses ROL's booking engine (WBE) with a single flat commission %. Mutually exclusive with tiered."
+        enabled={value.widget_flat_enabled}
+        onToggle={(v) =>
+          onChange({
+            ...value,
+            widget_flat_enabled: v,
+            // Turning flat ON disables tiered
+            widget_tiers_enabled: v ? false : value.widget_tiers_enabled,
+          })
+        }
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="0.5" min="0" max="100"
+            value={value.widget_flat_rate}
+            onChange={(e) => set("widget_flat_rate", e.target.value)}
+            placeholder="8"
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+        </div>
+      </ToggleRow>
+
       {/* ── Widget tiered commission ───────────────────────────────── */}
       <ToggleRow
         title="Widget — tiered commission"
         description="Property uses ROL's booking engine (WBE) on their own site. Commission % follows the monthly volume tiers."
         enabled={value.widget_tiers_enabled}
-        onToggle={(v) => set("widget_tiers_enabled", v)}
+        onToggle={(v) =>
+          onChange({
+            ...value,
+            widget_tiers_enabled: v,
+            // Turning tiered ON disables flat
+            widget_flat_enabled: v ? false : value.widget_flat_enabled,
+          })
+        }
       >
         {scope === "preset" ? (
           <WidgetTierEditor />
@@ -175,6 +208,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           </div>
         )}
       </ToggleRow>
+
 
       {/* ── PMS subscription ───────────────────────────────────────── */}
       <ToggleRow
