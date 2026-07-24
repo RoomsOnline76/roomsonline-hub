@@ -1949,7 +1949,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="cloudbeds"
-        className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('cloudbeds')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
