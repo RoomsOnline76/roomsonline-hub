@@ -1,60 +1,80 @@
+## Goal
 
-## Why items 7–10 don't work today
+When a property/portfolio's billing start date is due, automatically email the owner a "start your subscription" reminder with a payment link. Owner clicks → pays their first month via ROL PayFast → dashboards flip to **Active** and next-due date rolls forward one month. Cancel-anytime messaging included.
 
-I parsed `rolos-integrations-cookbook-jongensfontein-v2.docx` and compared every snippet against the deployed assets (`public/rol-embed.js`, `public/rol-sdk.js`) and the running `book.sleepinafrica.roomsonline.co.za` origin. Three problems:
+## Flow
 
-1. **Wrong attribute names.** The docx uses `data-rol-embed="property|portfolio"` + `data-property` / `data-portfolio`. The real `rol-embed.js` looks for `data-rolos-property` and `data-rolos-portfolio`. Any container using the docx attributes is silently ignored — the widget never mounts.
-2. **Wrong script host.** The docx points `<script src>` at `sleepinafrica.roomsonline.co.za/rol-embed.js`. That host does not serve the file (only `book.sleepinafrica.roomsonline.co.za/rol-embed.js` and the verified white-label host do).
-3. **`rol-smart-btn.js` does not exist.** Items 9, 10, and portfolio 6 load `rol-smart-btn.js` and rely on `class="rol-smart-btn"` + `data-mode="combo|portfolio"`. There is no such asset — the anchor renders as plain text with no click behaviour.
+```text
+billing_start_date reached
+   ↓ cron (daily)
+send reminder email → subscription_invoices row (status=pending)
+   ↓ owner clicks link
+/subscribe/pay/:token  → initiate PayFast payment
+   ↓ PayFast ITN webhook
+mark paid, set current_period_end = now + 1 month, status=active
+   ↓
+dashboards (admin + ROLOS owner) show Active until <date>
+   ↓ 5 days before current_period_end
+send renewal reminder (same flow)
+```
 
-Item 8's `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme` are also not read by the current `rol-embed.js`, so even after fixing 1 & 2 the "Advanced (Preselected + Currency)" snippet would ignore the presets.
+## Data model (new migration)
 
-## What I'll change
+New table `public.subscription_invoices`:
+- `id uuid pk`, `property_id`, `portfolio_id` (one required), `owner_id`
+- `amount numeric`, `currency text default 'ZAR'`
+- `period_start date`, `period_end date`
+- `status text` — `pending | paid | failed | cancelled`
+- `payfast_payment_id text`, `payfast_token text` (secure link token)
+- `email_sent_at`, `paid_at`, `reminder_count int default 0`
+- `created_at`, `updated_at`
+- RLS: owners select own; admins manage; anon SELECT by token (for pay page).
+- GRANTs for `authenticated`, `service_role`; `anon` limited SELECT via SECURITY DEFINER RPC `get_subscription_invoice_by_token(token)`.
 
-### 1. Small enhancement to `public/rol-embed.js`
-Forward the extra data attributes as URL params to the embed page so item 8 (property) and portfolio item 5 actually preselect dates/guests/currency:
+Extend `property_billing_configs` + `portfolio_billing_configs`:
+- `subscription_status text default 'pending'` — `pending | active | past_due | cancelled`
+- `current_period_end date`
+- `last_invoice_id uuid`
+- `cancelled_at timestamptz`
 
-- New attrs read on both property and portfolio containers: `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme`.
-- Mapped 1:1 to query params on the iframe `src` (`check_in`, `check_out`, `adults`, `children`, `currency`, `theme`). `EmbedProperty.tsx` and the portfolio embed already read these on load.
+## Edge functions
 
-No other runtime behaviour changes; existing snippets keep working.
+1. **`billing-subscription-cron`** (scheduled daily via pg_cron)
+   - Finds configs where `billing_start_date <= today AND subscription_status='pending' AND no pending invoice today` → create invoice + email.
+   - Finds `subscription_status='active' AND current_period_end - 5 days = today` → create renewal invoice + email.
+   - Marks `past_due` after `current_period_end` passes without payment.
 
-### 2. Regenerate cookbook as v3
-Publish `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v3.docx` with items 7–10 (property) and 4–6 (portfolio) rewritten to match the deployed contract. Everything else (1–6 property, 1–3 & 7–9 portfolio) is already correct in v2 and will be copied over unchanged.
+2. **`subscription-invoice-pay`** — POST `{token}` → generates PayFast signed form (reusing existing `payfast-api` helpers), returns redirect URL. Merchant ref = invoice id.
 
-Rewrites:
+3. **`subscription-payfast-itn`** — public ITN webhook. Verifies signature, marks invoice paid, updates config `subscription_status='active'`, sets `current_period_end = period_start + 1 month`, writes `billing_transactions` row.
 
-- **7. rol-embed.js — One-Liner Widget**
-  - Attribute: `data-rolos-property="fonteinhutte-self-catering-chalets"` (+ `data-brand-color="#E91E8C"`).
-  - Script src: `https://book.sleepinafrica.roomsonline.co.za/rol-embed.js` (canonical) / `https://book.rolos.co.za/rol-embed.js` (white-label, plus `data-white-label="true"`).
+4. **`send-subscription-reminder`** — used by cron; calls existing `send-transactional-email`.
 
-- **8. rol-embed.js — Advanced (Preselected + Currency)**
-  - Same as 7 plus `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme` (now supported after enhancement 1).
+## Email template
 
-- **9. Smart Button — Basic (Reserve your stay)**
-  - Replace `rol-smart-btn.js` with a plain styled `<a>` linking to `/embed/property/<slug>?integration=smart_button&...` (matches what the in-app Smart Button generator emits today). Canonical + white-label variants.
+New app-email template `subscription-reminder` in `supabase/functions/_shared/transactional-email-templates/`:
+- Subject: "Activate your Rooms Online subscription"
+- Body: amount, period, "Cancel anytime — no lock-in", CTA button → `https://<host>/subscribe/pay/<token>`.
+- Second variant `subscription-renewal` for renewals.
 
-- **10. Smart Button — Combo (Calendar + Guests)**
-  - Replace with the anchor + hidden iframe pattern already produced by `SmartBookButtonGenerator` (`button_dates` recipe): a small booking bar with `<input type="date">` × 2 + guest select, and an on-click handler that opens `/embed/property/<slug>?check_in=…&check_out=…&adults=…` in a new tab (canonical) or same-domain iframe (white-label).
+## Frontend
 
-- **Portfolio 4. rol-embed.js — Portfolio Widget** and **5. Preselected**
-  - Attribute: `data-rolos-portfolio="jongensfontein"` (+ `data-ref-portfolio="<uuid>"` forwarded as `ref_portfolio` query param). Preselect attrs same as property.
+- **New public route** `src/pages/SubscriptionPay.tsx` at `/subscribe/pay/:token`
+  - Loads invoice via RPC, shows amount + period + Cancel-anytime note, button → calls `subscription-invoice-pay` → redirects to PayFast, plus "Cancel subscription" link that POSTs to a `subscription-cancel` edge fn (sets `cancelled_at`, status `cancelled`).
+- **`BillingConfigTab.tsx`** — add a "Subscription status" panel: shows status badge, `current_period_end`, last invoice, "Send reminder now" (admin) and "Cancel subscription" buttons.
+- **ROLOS owner dashboard** (`src/pages/pms/PMSDashboard.tsx` or the billing widget) — small card: "Subscription: Active until DD MMM YYYY" or "Payment due — Pay now" linking to pay page.
+- **Admin overview** (`AdminOverviewTab.tsx`) — add status/next-due line under the cost estimator.
 
-- **Portfolio 6. Smart Button — Portfolio Modal**
-  - Replace `rol-smart-btn.js` with anchor + hidden iframe that loads `/embed/portfolio/<slug>?ref_portfolio=…` (matches the in-app portfolio Smart Button pattern).
+## PayFast reuse
 
-WordPress shortcode items (property 11, portfolio 7) are already correct — the plugin ≥ 2.1 supports the `host` attribute — no changes there.
+Reuse existing `payfast-api` merchant credentials (ROL facilitator account). No new secrets needed unless a separate merchant ID is wanted for subscription revenue (leave as follow-up).
 
-### 3. QA
-- After writing v3, convert to PDF and eyeball each page image for layout regressions.
-- Manually verify items 7 and 4 in a headless browser against `book.sleepinafrica.roomsonline.co.za` to confirm the iframe mounts and shows the property/portfolio.
+## Cron
 
-## Deliverables
+Schedule `billing-subscription-cron` daily 06:00 UTC via `cron.schedule` in a migration.
 
-- Updated `public/rol-embed.js` with the new attribute pass-through.
-- `rolos-integrations-cookbook-jongensfontein-v3.docx` in `/mnt/documents/` linked as an artifact.
+## Out of scope (this pass)
 
-### Technical notes
-- `rol-embed.js` change is additive; existing containers without the new attrs behave exactly as before.
-- No DB, edge-function, or Cloudflare Worker changes.
-- The new attribute names in the docx (`data-rolos-property` / `data-rolos-portfolio`) already match what `PMSIntegrations → Widget` and the Smart Button generator emit inside the app, so the cookbook and in-app generators stay consistent.
+- Recurring auto-debit tokenisation (owner clicks link each month; simplest and matches "cancel anytime"). Adding PayFast recurring tokens can follow if desired.
+- SMS reminders.
+- Portfolio-level split billing beyond a single invoice.
