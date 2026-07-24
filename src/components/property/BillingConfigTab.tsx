@@ -364,7 +364,8 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       {builder.pricelabs_enabled && (
         <PriceLabsAdminPushCard
           propertyId={propertyId}
-          pricelabsAllowed={!!config?.pricelabs_allowed}
+          pricelabsAllowed={!!builder.pricelabs_enabled}
+          pricelabsSaved={!!config?.pricelabs_allowed}
           isRolosPms={isRolosPms}
         />
       )}
