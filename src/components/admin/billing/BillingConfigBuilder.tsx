@@ -416,7 +416,9 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 export function summarizeBuilderValue(v: BillingConfigValue): string {
   const parts: string[] = [];
   if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% commission`);
+  if (v.widget_flat_enabled && v.widget_flat_rate) parts.push(`${v.widget_flat_rate}% widget flat commission`);
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
+
   if (v.pms_enabled) {
     const sub = v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription";
     const cm = v.channel_per_unit ? ` + R${v.channel_per_unit}/unit` : "";
