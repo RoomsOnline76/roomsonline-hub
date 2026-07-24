@@ -427,11 +427,13 @@ async function calcRolosPms(
   amount: number, config: any, globals: any, resolve: ResolveFn, eventType: string
 ): Promise<BillingResult> {
   if (eventType === 'subscription') {
-    const fee = resolve(config?.subscription_fee_monthly, globals?.default_subscription_fee, 0);
+    const baseFee = resolve(config?.subscription_fee_monthly, globals?.default_subscription_fee, null);
+    const custom = resolve(config?.enterprise_custom_fee, globals?.enterprise_custom_fee, null);
+    const fee = baseFee != null && baseFee > 0 ? baseFee : (custom ?? 0);
     return {
       amount: fee,
       type: 'subscription',
-      metadata: { period: 'monthly' },
+      metadata: { period: 'monthly', source: baseFee != null && baseFee > 0 ? 'tier_or_override' : (custom != null ? 'enterprise_custom' : 'unset') },
     };
   }
 
