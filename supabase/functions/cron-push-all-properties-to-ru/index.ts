@@ -82,30 +82,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[cron-push-all] Pushing ${properties.length} properties to RU...`);
+    const batchId = crypto.randomUUID();
+    console.log(`[cron-push-all] Pushing ${properties.length} properties to RU... (batch ${batchId})`);
 
     const results: { property_id: string; name: string; success: boolean; error?: string }[] = [];
 
     // Push sequentially to avoid rate limiting
     for (const prop of properties) {
+      const startedAt = Date.now();
+      let success = false;
+      let errMsg: string | null = null;
       try {
         const { data, error: pushErr } = await supabase.functions.invoke('push-property-to-ru', {
           body: { property_id: prop.id },
         });
 
         if (pushErr) {
-          results.push({ property_id: prop.id, name: prop.name, success: false, error: pushErr.message });
-          console.warn(`[cron-push-all] Failed: ${prop.name} — ${pushErr.message}`);
+          errMsg = pushErr.message;
+          console.warn(`[cron-push-all] Failed: ${prop.name} — ${errMsg}`);
         } else if (!data?.success) {
-          results.push({ property_id: prop.id, name: prop.name, success: false, error: data?.error?.message || 'Unknown' });
-          console.warn(`[cron-push-all] Failed: ${prop.name} — ${data?.error?.message}`);
+          errMsg = data?.error?.message || 'Unknown';
+          console.warn(`[cron-push-all] Failed: ${prop.name} — ${errMsg}`);
         } else {
-          results.push({ property_id: prop.id, name: prop.name, success: true });
+          success = true;
           console.log(`[cron-push-all] OK: ${prop.name}`);
         }
       } catch (err) {
-        results.push({ property_id: prop.id, name: prop.name, success: false, error: err instanceof Error ? err.message : 'Unknown' });
+        errMsg = err instanceof Error ? err.message : 'Unknown';
       }
+
+      results.push({ property_id: prop.id, name: prop.name, success, error: errMsg || undefined });
+
+      // Observability log (non-blocking)
+      await supabase.from('ru_sync_runs').insert({
+        batch_id: batchId,
+        action: 'weekly_content_refresh',
+        property_id: prop.id,
+        success,
+        error_message: errMsg,
+        elapsed_ms: Date.now() - startedAt,
+        details: { rlnm: rlnmStatus },
+      }).then(() => {}, (e) => console.warn('[cron-push-all] log insert failed', e));
 
       // Small delay between pushes
       await new Promise(r => setTimeout(r, 1000));
