@@ -278,6 +278,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </AlertDescription>
         </Alert>
       )}
+      <SubscriptionStatusPanel
+        scope={isPortfolioScope ? "portfolio" : "property"}
+        entityId={isPortfolioScope ? (scope.portfolioId as string) : propertyId}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
