@@ -63,7 +63,7 @@ export default function AdminRentalsUnited() {
         .limit(500),
       supabase
         .from("properties")
-        .select("id, name, slug, pms_system, ru_push_enabled")
+        .select("id, name, slug, current_pms, ru_push_enabled")
         .eq("is_active", true)
         .order("name"),
     ]);
@@ -132,7 +132,7 @@ export default function AdminRentalsUnited() {
     <AppLayout>
       <PageHeader
         title="Rentals United — White-Label Sync"
-        description="Observability for auto-managed ROLOS PMS properties pushing to Rentals United."
+        subtitle="Observability for auto-managed ROLOS PMS sync"
       />
 
       <div className="px-6 pb-10 space-y-6">
@@ -208,11 +208,11 @@ export default function AdminRentalsUnited() {
               </TableHeader>
               <TableBody>
                 {properties
-                  .filter((p) => p.pms_system === "rolos" || p.ru_push_enabled)
+                  .filter((p) => p.current_pms === "rolos" || p.ru_push_enabled)
                   .map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell><Badge variant="outline">{p.pms_system ?? "—"}</Badge></TableCell>
+                      <TableCell><Badge variant="outline">{p.current_pms ?? "—"}</Badge></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Switch
@@ -226,7 +226,7 @@ export default function AdminRentalsUnited() {
                       </TableCell>
                     </TableRow>
                   ))}
-                {properties.filter((p) => p.pms_system === "rolos" || p.ru_push_enabled).length === 0 && (
+                {properties.filter((p) => p.current_pms === "rolos" || p.ru_push_enabled).length === 0 && (
                   <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No ROLOS PMS properties yet.</TableCell></TableRow>
                 )}
               </TableBody>
