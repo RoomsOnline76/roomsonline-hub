@@ -4087,7 +4087,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="profitroom"
-        className={`border rounded-lg px-4 ${!profitroomCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!profitroomCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('profitroom')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
