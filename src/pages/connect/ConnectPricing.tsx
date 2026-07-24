@@ -145,8 +145,10 @@ export default function ConnectPricing() {
             className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             You'll think we made a mistake on the price. No per-API-call fees.
-            No hidden charges. Every plan includes what others charge extra for.
+            No hidden charges. Every plan includes what others charge extra for —
+            or skip the subscription entirely with our commission-only widget option.
           </motion.p>
+
         </div>
       </section>
 
