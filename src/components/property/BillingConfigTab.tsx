@@ -330,7 +330,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
 
           {/* Live summary */}
           <div className="rounded-md bg-muted/30 border border-dashed p-2 text-[11px] text-muted-foreground">
-            <strong className="text-foreground">This property will be billed:</strong> {summarizeBuilderValue(builder)}
+            <strong className="text-foreground">
+              {isPortfolioScope
+                ? `Portfolio (${scope.siblingPropertyIds.length} propert${scope.siblingPropertyIds.length === 1 ? "y" : "ies"}) will be billed:`
+                : "This property will be billed:"}
+            </strong>{" "}
+            {summarizeBuilderValue(builder)}
           </div>
 
           {/* Billing start date */}
