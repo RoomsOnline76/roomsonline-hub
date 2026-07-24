@@ -203,9 +203,12 @@ export async function getPortfolioPropertyCount(propertyId: string): Promise<{ c
 function inferLabel(tier: PricingTier | null): TierLabel | null {
   if (!tier) return null;
   if (tier.label) return tier.label;
-  if (tier.max_properties == null) return "enterprise";
-  if (tier.max_properties <= 1) return "starter";
-  return "professional";
+  const max = tier.max_rooms;
+  if (max == null) return "l";
+  if (max <= 9) return "xs";
+  if (max <= 19) return "s";
+  if (max <= 50) return "m";
+  return "l";
 }
 
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
