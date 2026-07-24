@@ -336,6 +336,7 @@ export type Database = {
           default_commission_rate: number | null
           default_subscription_fee: number | null
           default_transaction_fee: number | null
+          enterprise_custom_fee: number | null
           id: string
           is_preset: boolean
           notes: string | null
@@ -371,6 +372,7 @@ export type Database = {
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
+          enterprise_custom_fee?: number | null
           id?: string
           is_preset?: boolean
           notes?: string | null
@@ -406,6 +408,7 @@ export type Database = {
           default_commission_rate?: number | null
           default_subscription_fee?: number | null
           default_transaction_fee?: number | null
+          enterprise_custom_fee?: number | null
           id?: string
           is_preset?: boolean
           notes?: string | null
@@ -4562,6 +4565,7 @@ export type Database = {
           created_at: string | null
           custom_domain_error: string | null
           custom_overrides: Json | null
+          enterprise_custom_fee: number | null
           id: string
           linked_contract_id: string | null
           owner_id: string | null
@@ -4602,6 +4606,7 @@ export type Database = {
           created_at?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          enterprise_custom_fee?: number | null
           id?: string
           linked_contract_id?: string | null
           owner_id?: string | null
@@ -4642,6 +4647,7 @@ export type Database = {
           created_at?: string | null
           custom_domain_error?: string | null
           custom_overrides?: Json | null
+          enterprise_custom_fee?: number | null
           id?: string
           linked_contract_id?: string | null
           owner_id?: string | null
