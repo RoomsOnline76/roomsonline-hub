@@ -98,15 +98,36 @@ export default function PMSChannels() {
 
           {/* Tab 1: Connections */}
           <TabsContent value="connections">
-            {/* Channel cards hidden — each will be restored individually as it becomes connectable & configurable. */}
-            <div className="flex flex-col items-center justify-center py-16 px-6 border border-dashed rounded-lg text-center">
-              <Radio className="h-10 w-10 text-muted-foreground mb-3" />
-              <h3 className="text-lg font-semibold text-foreground">Channel connections coming soon</h3>
-              <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                Channel integrations are being prepared. Each OTA will appear here once it is fully connectable
-                and configurable from ROL'OS.
-              </p>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {["booking_com", "expedia", "lekkeslaap", "airbnb", "google_hotels"].map((ch) => {
+                const conn = connectionMap.get(ch) as any;
+                const isConnected = !!conn && conn.status !== "disconnected";
+                const enriched = conn
+                  ? {
+                      ...conn,
+                      room_mapping_count: roomCountByConn.get(conn.id) ?? 0,
+                      rate_mapping_count: rateCountByConn.get(conn.id) ?? 0,
+                    }
+                  : undefined;
+                return (
+                  <ChannelCard
+                    key={ch}
+                    channelName={ch}
+                    connection={enriched}
+                    isConnected={isConnected}
+                    readOnly={readOnly}
+                    onConnect={() => setConnectDialog(ch)}
+                    onPause={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "paused" }) : undefined}
+                    onResume={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "active" }) : undefined}
+                    onDisconnect={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "disconnected" }) : undefined}
+                    onSync={conn ? () => triggerSync.mutate({ connectionId: conn.id }) : undefined}
+                  />
+                );
+              })}
             </div>
+            {isLoading && (
+              <p className="text-sm text-muted-foreground mt-4">Loading channel connections…</p>
+            )}
           </TabsContent>
 
           {/* Tab 2: Mappings */}
