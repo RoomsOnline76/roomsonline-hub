@@ -30,6 +30,9 @@ const CHANNEL_FIELDS: Record<string, { key: string; label: string; type?: string
   expedia: [
     { key: "property_id", label: "Property ID" },
   ],
+  vrbo: [
+    { key: "listing_id", label: "Vrbo Listing ID", help: "Your Vrbo listing/property ID. Distributed via Expedia Partner Central for Vrbo inventory." },
+  ],
   agoda: [
     { key: "hotel_id", label: "Hotel ID" },
   ],
