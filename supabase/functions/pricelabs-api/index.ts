@@ -77,6 +77,9 @@ function stringifyBody(b: unknown): string {
 }
 
 function plError(prefix: string, r: { status: number; body: unknown }): string {
+  if (r.status === 404) {
+    return `${prefix}: PriceLabs Integration API (IAPI) endpoint not found at ${BASE}. This API is invite-only and marked "Coming Soon" on developers.pricelabs.co — email support@pricelabs.co to be onboarded, then set the PRICELABS_IAPI_BASE secret to the host they provide.`;
+  }
   const bodyStr = stringifyBody(r.body);
   return `${prefix} (PriceLabs ${r.status})${bodyStr ? `: ${bodyStr.slice(0, 500)}` : ""}`;
 }
