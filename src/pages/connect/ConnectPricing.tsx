@@ -258,6 +258,52 @@ export default function ConnectPricing() {
         </div>
       </section>
 
+      {/* Standard — included in every monthly plan */}
+      <section className="py-16 border-t">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp} transition={{ duration: 0.6 }}
+            className="text-center mb-10"
+          >
+            <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-3">
+              Standard · Included in your monthly fee
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold">What you get.</h2>
+            <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
+              Every ROL'OS subscription — Starter, Professional and Enterprise — ships with the full
+              operating stack. No feature paywalls on the essentials.
+            </p>
+          </motion.div>
+
+          <motion.ul
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.15 }}
+            variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
+            className="grid sm:grid-cols-2 gap-x-8 gap-y-3 max-w-3xl mx-auto"
+          >
+            {[
+              "Front-desk booking system",
+              "Property Management System (PMS) integration",
+              "Direct booking button on your website",
+              "Channel management",
+              "Phone app for iPhone & Android",
+              "Pay Lite (SA only — conditions apply)",
+              "Free training and local support",
+            ].map((item) => (
+              <motion.li
+                key={item}
+                variants={fadeUp}
+                transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="flex items-start gap-2.5 text-sm"
+              >
+                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                <span>{item}</span>
+              </motion.li>
+            ))}
+          </motion.ul>
+        </div>
+      </section>
+
       {/* Optional Add-Ons */}
       <section className="py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
