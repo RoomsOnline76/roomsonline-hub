@@ -256,9 +256,13 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
           )}
           <p className="text-[11px] text-muted-foreground mt-2">
             Strategy: <span className="font-medium">{strategyLabel}</span>
-            {strategy === "widget"
+            {strategy === "widget" && c.widget_flat_commission_rate != null
+              ? ` · widget flat commission ${c.widget_flat_commission_rate}% (variable, not included)`
+              : strategy === "widget"
               ? " · commission tiered by monthly volume (variable, not included)"
-              : config?.commission_rate != null && ` · commission ${config.commission_rate}% (variable, not included)`}
+              : c.commission_rate != null && ` · commission ${c.commission_rate}% (variable, not included)`}
+            {Number(c.transaction_fee_percentage ?? 0) > 0 &&
+              ` · facilitator surcharge ${c.transaction_fee_percentage}% per booking (variable, not included)`}
           </p>
         </CardContent>
       </Card>
