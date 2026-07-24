@@ -491,6 +491,53 @@ Deno.serve(async (req) => {
         .single();
       
       if (txError || !transaction) {
+        // Check subscription invoice branch (m_payment_id like "SUB-<invoice_id>")
+        if (typeof mPaymentId === "string" && mPaymentId.startsWith("SUB-")) {
+          const invoiceId = mPaymentId.slice(4);
+          console.log("[PayFast] Subscription ITN for invoice:", invoiceId, "status:", paymentStatus);
+          const subStatus = paymentStatus === "COMPLETE" ? "paid" : paymentStatus === "FAILED" ? "failed" : "cancelled";
+          const { data: inv } = await supabase
+            .from("subscription_invoices")
+            .select("*")
+            .eq("id", invoiceId)
+            .single();
+          if (inv) {
+            await supabase.from("subscription_invoices").update({
+              status: subStatus,
+              payfast_payment_id: pfPaymentId,
+              paid_at: subStatus === "paid" ? new Date().toISOString() : null,
+              metadata: { ...(inv.metadata ?? {}), itn: itnData },
+            }).eq("id", invoiceId);
+
+            if (subStatus === "paid") {
+              const periodStart = new Date(inv.period_start);
+              const nextEnd = new Date(periodStart);
+              nextEnd.setMonth(nextEnd.getMonth() + 1);
+              const nextEndStr = nextEnd.toISOString().slice(0, 10);
+              const tableName = inv.property_id ? "property_billing_configs" : "portfolio_billing_configs";
+              const keyCol = inv.property_id ? "property_id" : "portfolio_id";
+              const keyVal = inv.property_id || inv.portfolio_id;
+              await supabase.from(tableName).update({
+                subscription_status: "active",
+                current_period_end: nextEndStr,
+                last_invoice_id: invoiceId,
+                cancelled_at: null,
+              }).eq(keyCol, keyVal);
+
+              await supabase.from("billing_transactions").insert({
+                property_id: inv.property_id,
+                owner_id: inv.owner_id,
+                type: "subscription",
+                amount: inv.amount,
+                currency: inv.currency,
+                reference_id: invoiceId,
+                calculated_by: "payfast_itn",
+                metadata: { portfolio_id: inv.portfolio_id, pf_payment_id: pfPaymentId, period_start: inv.period_start, period_end: inv.period_end },
+              });
+            }
+          }
+          return new Response("OK", { status: 200, headers: corsHeaders });
+        }
         console.error("[PayFast] Transaction not found for m_payment_id:", mPaymentId);
         return new Response("OK", { status: 200, headers: corsHeaders });
       }
@@ -742,6 +789,69 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // INITIATE SUBSCRIPTION PAYMENT — for property/portfolio monthly subscription
+    if (action === "initiate_subscription_payment") {
+      const token = (body?.token || "").toString();
+      if (!token) {
+        return new Response(JSON.stringify({ success: false, error: "Missing token" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { data: inv, error: invErr } = await supabase
+        .from("subscription_invoices")
+        .select("*, properties(name, slug), property_portfolios(name)")
+        .eq("payfast_token", token)
+        .single();
+      if (invErr || !inv) {
+        return new Response(JSON.stringify({ success: false, error: "Invoice not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (inv.status !== "pending") {
+        return new Response(JSON.stringify({ success: false, error: `Invoice ${inv.status}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      let ownerEmail = "";
+      let ownerFirst = "";
+      let ownerLast = "";
+      if (inv.owner_id) {
+        const { data: prof } = await supabase.from("profiles").select("email, first_name, last_name, full_name").eq("id", inv.owner_id).single();
+        if (prof) {
+          ownerEmail = prof.email || "";
+          ownerFirst = (prof as any).first_name || (prof.full_name || "").split(" ")[0] || "Owner";
+          ownerLast = (prof as any).last_name || (prof.full_name || "").split(" ").slice(1).join(" ") || "";
+        }
+      }
+      const entityName = (inv.properties as any)?.name || (inv.property_portfolios as any)?.name || "Subscription";
+      const siteUrl = Deno.env.get("SITE_URL") || "https://sleepinafrica.roomsonline.co.za";
+      const returnUrl = `${siteUrl}/subscribe/pay/${token}?status=success`;
+      const cancelUrl = `${siteUrl}/subscribe/pay/${token}?status=cancelled`;
+      const notifyUrl = `${supabaseUrl}/functions/v1/payfast-api`;
+      const mPaymentId = `SUB-${inv.id}`;
+      const formFields: Record<string, string> = {
+        merchant_id: merchantId!,
+        merchant_key: merchantKey!,
+        return_url: returnUrl,
+        cancel_url: cancelUrl,
+        notify_url: notifyUrl,
+        m_payment_id: mPaymentId,
+        amount: Number(inv.amount).toFixed(2),
+        item_name: `Rooms Online — ${entityName}`.substring(0, 100),
+        item_description: `Subscription ${inv.period_start} to ${inv.period_end}`.substring(0, 255),
+        ...(ownerEmail ? { email_address: ownerEmail } : {}),
+        ...(ownerFirst ? { name_first: ownerFirst } : {}),
+        ...(ownerLast ? { name_last: ownerLast } : {}),
+      };
+      formFields.signature = generateSignature(formFields, passphrase);
+      const payfastUrl = isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL;
+      return new Response(JSON.stringify({
+        success: true,
+        checkout_url: payfastUrl,
+        form_fields: formFields,
+        is_sandbox: isSandbox,
+        invoice_id: inv.id,
+      }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     
     // INITIATE ONSITE PAYMENT (Modal-based, stays in ROL UI)
     if (action === "initiate_onsite_payment") {

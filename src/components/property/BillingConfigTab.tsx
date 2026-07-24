@@ -23,6 +23,7 @@ import {
   summarizeBuilderValue,
 } from "@/components/admin/billing/BillingConfigBuilder";
 import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
+import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 
 interface BillingConfigTabProps {
   propertyId: string;
@@ -277,6 +278,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
           </AlertDescription>
         </Alert>
       )}
+      <SubscriptionStatusPanel
+        scope={isPortfolioScope ? "portfolio" : "property"}
+        entityId={isPortfolioScope ? (scope.portfolioId as string) : propertyId}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
