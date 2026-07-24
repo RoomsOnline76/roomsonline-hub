@@ -158,6 +158,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       subscription_fee_monthly: builder.pms_enabled ? toNum(builder.subscription_fee) : null,
       channel_manager_enabled: builder.pms_enabled,
       channel_manager_per_unit_fee: builder.pms_enabled ? toNum(builder.channel_per_unit) : null,
+      enterprise_custom_fee: builder.pms_enabled ? toNum(builder.enterprise_custom_fee) : null,
       transaction_fee_percentage: builder.facilitator_surcharge_enabled ? toNum(builder.transaction_fee) : null,
       payment_facilitator_enabled: !customProviderEnabled,
       byo_gateway_monthly_fee: builder.byo_gateway_enabled ? toNum(builder.byo_gateway_fee) : null,
