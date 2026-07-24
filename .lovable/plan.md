@@ -1,57 +1,60 @@
-## Goal
 
-If a property belongs to a portfolio, billing is configured **once at the portfolio level** and inherited by every member property. The property-level Billing tab becomes read-only with a pointer to the portfolio; ROLOS shows the owner either single-property billing or a consolidated portfolio view.
+## Why items 7–10 don't work today
 
-## Current state (verified)
+I parsed `rolos-integrations-cookbook-jongensfontein-v2.docx` and compared every snippet against the deployed assets (`public/rol-embed.js`, `public/rol-sdk.js`) and the running `book.sleepinafrica.roomsonline.co.za` origin. Three problems:
 
-- `property_portfolios` (portfolio) and `property_portfolio_members` (join) exist. A property can belong to one portfolio.
-- Billing lives in `property_billing_configs` per-property (39 columns: PMS tiers, WL, branding, PriceLabs, channel manager, gateway fees, WBE flat, enterprise custom, etc.).
-- Admin edits at `src/components/property/BillingConfigTab.tsx` via `BillingConfigBuilder.tsx`. Estimator lives in `AdminOverviewTab.tsx`. ROLOS-side reads via `src/hooks/useBillingConfig.ts` / `PMSRevenue.tsx`.
-- `property_portfolios` already has a few billing-ish columns (aggregator/PriceLabs) but no full config; there is no `portfolio_billing_configs` table.
+1. **Wrong attribute names.** The docx uses `data-rol-embed="property|portfolio"` + `data-property` / `data-portfolio`. The real `rol-embed.js` looks for `data-rolos-property` and `data-rolos-portfolio`. Any container using the docx attributes is silently ignored — the widget never mounts.
+2. **Wrong script host.** The docx points `<script src>` at `sleepinafrica.roomsonline.co.za/rol-embed.js`. That host does not serve the file (only `book.sleepinafrica.roomsonline.co.za/rol-embed.js` and the verified white-label host do).
+3. **`rol-smart-btn.js` does not exist.** Items 9, 10, and portfolio 6 load `rol-smart-btn.js` and rely on `class="rol-smart-btn"` + `data-mode="combo|portfolio"`. There is no such asset — the anchor renders as plain text with no click behaviour.
 
-## Design
+Item 8's `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme` are also not read by the current `rol-embed.js`, so even after fixing 1 & 2 the "Advanced (Preselected + Currency)" snippet would ignore the presets.
 
-### 1. Data model — new `portfolio_billing_configs`
+## What I'll change
 
-Mirror the shape of `property_billing_configs` (same 30+ economic columns, minus `property_id`/`owner_id`) keyed by `portfolio_id`. One row per portfolio. Full GRANTs + RLS: admins/devs manage; portfolio owner + linked property owners can `SELECT`.
+### 1. Small enhancement to `public/rol-embed.js`
+Forward the extra data attributes as URL params to the embed page so item 8 (property) and portfolio item 5 actually preselect dates/guests/currency:
 
-Keep `property_billing_configs` intact for standalone properties. Resolution rule: **if a property has a portfolio member row, portfolio config wins and property config is ignored**. A single `useResolvedBillingConfig(propertyId)` hook returns `{ source: 'property' | 'portfolio', config, portfolio? }`.
+- New attrs read on both property and portfolio containers: `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme`.
+- Mapped 1:1 to query params on the iframe `src` (`check_in`, `check_out`, `adults`, `children`, `currency`, `theme`). `EmbedProperty.tsx` and the portfolio embed already read these on load.
 
-### 2. Admin — portfolio billing page
+No other runtime behaviour changes; existing snippets keep working.
 
-- New tab/section on `src/pages/admin/AdminPortfolios.tsx` (or a dedicated `AdminPortfolioBilling` route) that reuses `BillingConfigBuilder` bound to the portfolio row. Same presets, same tier logic (`billingTierResolver` already scales on property count — portfolios naturally use the total member count for tier selection).
-- Enterprise custom fee, WL, branding, PriceLabs, PMS subscription, WBE flat, BYO gateway, etc. all set once here.
+### 2. Regenerate cookbook as v3
+Publish `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v3.docx` with items 7–10 (property) and 4–6 (portfolio) rewritten to match the deployed contract. Everything else (1–6 property, 1–3 & 7–9 portfolio) is already correct in v2 and will be copied over unchanged.
 
-### 3. Admin — property Billing tab when portfolio-linked
+Rewrites:
 
-`BillingConfigTab.tsx` detects portfolio membership:
-- Hides the builder.
-- Shows an info card: "This property is part of portfolio **{name}**. Billing is configured at the portfolio and applies to all {N} member properties." with a button "Open portfolio billing".
-- Shows a compact read-only summary of the resolved config (strategy, monthly fee, add-ons).
-- `AdminOverviewTab` "Estimated Client Cost" switches to a portfolio-wide estimate (sum PMS tier for total rooms across portfolio, single WL/branding/PriceLabs/enterprise fees, per-unit channel fees across all units) with a note "Portfolio-level total — shared across N properties".
+- **7. rol-embed.js — One-Liner Widget**
+  - Attribute: `data-rolos-property="fonteinhutte-self-catering-chalets"` (+ `data-brand-color="#E91E8C"`).
+  - Script src: `https://book.sleepinafrica.roomsonline.co.za/rol-embed.js` (canonical) / `https://book.rolos.co.za/rol-embed.js` (white-label, plus `data-white-label="true"`).
 
-### 4. ROLOS — owner-facing view
+- **8. rol-embed.js — Advanced (Preselected + Currency)**
+  - Same as 7 plus `data-checkin`, `data-checkout`, `data-adults`, `data-children`, `data-currency`, `data-theme` (now supported after enhancement 1).
 
-`PMSRevenue.tsx` (and any billing summary widget) via `useBillingConfig` -> `useResolvedBillingConfig`:
-- Standalone property: unchanged single-property panel.
-- Portfolio member: renders a **Portfolio Billing** panel — one consolidated card showing the portfolio's monthly fees, add-ons, and a table of member properties with room counts contributing to tier. No per-property duplication.
+- **9. Smart Button — Basic (Reserve your stay)**
+  - Replace `rol-smart-btn.js` with a plain styled `<a>` linking to `/embed/property/<slug>?integration=smart_button&...` (matches what the in-app Smart Button generator emits today). Canonical + white-label variants.
 
-### 5. Migration & backfill
+- **10. Smart Button — Combo (Calendar + Guests)**
+  - Replace with the anchor + hidden iframe pattern already produced by `SmartBookButtonGenerator` (`button_dates` recipe): a small booking bar with `<input type="date">` × 2 + guest select, and an on-click handler that opens `/embed/property/<slug>?check_in=…&check_out=…&adults=…` in a new tab (canonical) or same-domain iframe (white-label).
 
-- Create `portfolio_billing_configs` with GRANTs + RLS.
-- For each portfolio, if all member properties share an identical `property_billing_configs` row (or the portfolio owner has one), seed a portfolio config from the most representative property; otherwise seed defaults and flag the portfolio in an admin "needs review" list. No destructive changes to `property_billing_configs`.
+- **Portfolio 4. rol-embed.js — Portfolio Widget** and **5. Preselected**
+  - Attribute: `data-rolos-portfolio="jongensfontein"` (+ `data-ref-portfolio="<uuid>"` forwarded as `ref_portfolio` query param). Preselect attrs same as property.
 
-### 6. Guardrails
+- **Portfolio 6. Smart Button — Portfolio Modal**
+  - Replace `rol-smart-btn.js` with anchor + hidden iframe that loads `/embed/portfolio/<slug>?ref_portfolio=…` (matches the in-app portfolio Smart Button pattern).
 
-- `PriceLabsAdminPushCard`, WL domain panel, contract billing variables (`contractBillingVariables.ts`), `calculate-billing` edge function all consume the resolved config via the new hook / a shared server-side resolver so contracts and invoices stay consistent.
-- Portfolio-level toggles for WL/branding automatically propagate to all member properties (existing "WL on ⇒ branding free" rule preserved).
+WordPress shortcode items (property 11, portfolio 7) are already correct — the plugin ≥ 2.1 supports the `host` attribute — no changes there.
 
-## Files touched
+### 3. QA
+- After writing v3, convert to PDF and eyeball each page image for layout regressions.
+- Manually verify items 7 and 4 in a headless browser against `book.sleepinafrica.roomsonline.co.za` to confirm the iframe mounts and shows the property/portfolio.
 
-- New: `supabase/migrations/<ts>_portfolio_billing_configs.sql`, `src/hooks/useResolvedBillingConfig.ts`, `src/pages/admin/AdminPortfolioBilling.tsx` (or tab within `AdminPortfolios.tsx`), `src/components/property/PortfolioBillingNotice.tsx`.
-- Updated: `BillingConfigTab.tsx`, `AdminOverviewTab.tsx` (estimator + PriceLabs push scope), `BillingConfigBuilder.tsx` (accept `scope: 'property' | 'portfolio'`), `useBillingConfig.ts`, `PMSRevenue.tsx`, `calculate-billing/index.ts`, `contractBillingVariables.ts`.
+## Deliverables
 
-## Out of scope
+- Updated `public/rol-embed.js` with the new attribute pass-through.
+- `rolos-integrations-cookbook-jongensfontein-v3.docx` in `/mnt/documents/` linked as an artifact.
 
-- Splitting billing across multiple portfolios for one property (still 1:1).
-- Changing how tiered pricing math works (only the input scope changes).
+### Technical notes
+- `rol-embed.js` change is additive; existing containers without the new attrs behave exactly as before.
+- No DB, edge-function, or Cloudflare Worker changes.
+- The new attribute names in the docx (`data-rolos-property` / `data-rolos-portfolio`) already match what `PMSIntegrations → Widget` and the Smart Button generator emit inside the app, so the cookbook and in-app generators stay consistent.
