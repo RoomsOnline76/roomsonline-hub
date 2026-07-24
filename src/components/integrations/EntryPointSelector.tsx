@@ -77,7 +77,18 @@ export function buildEntryUrl(
 }
 
 export function EntryPointSelector({ propertyId, value, onChange }: EntryPointSelectorProps) {
-  const { data: roomTypes = [] } = usePropertyRoomTypes(propertyId);
+  const { data: roomTypesRaw = [] } = usePropertyRoomTypes(propertyId);
+  // Dedupe by normalized name — multi-unit rooms are stored as separate active rows
+  // (e.g. GALJOEN x3), but for an integration entry point we only need one selectable per room type.
+  const roomTypes = (() => {
+    const seen = new Map<string, RoomTypeInfo>();
+    for (const rt of roomTypesRaw) {
+      const key = (rt.name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.set(key, rt);
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
   const needsRoom = value.entryPoint === "specific_room" || value.entryPoint === "checkout";
   const needsDates = value.entryPoint === "checkout";
 
