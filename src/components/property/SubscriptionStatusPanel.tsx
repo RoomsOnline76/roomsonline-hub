@@ -29,12 +29,16 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
         .select("subscription_status, current_period_end, billing_start_date, last_invoice_id, cancelled_at")
         .eq(keyCol, entityId).maybeSingle();
       const { data: latest } = await (supabase as any).from("subscription_invoices")
-        .select("id, amount, currency, status, period_start, period_end, payfast_token, invoice_kind, created_at")
+        .select("id, amount, subscription_amount, once_off_amount, line_items, invoice_number, pdf_url, currency, status, period_start, period_end, payfast_token, invoice_kind, created_at, paid_at")
         .eq(keyCol, entityId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      return { cfg, latest };
+      const { data: pendingCharges } = await (supabase as any).from("subscription_charge_items")
+        .select("id, kind, description, amount, currency, invoiced_on_invoice_id")
+        .eq(keyCol, entityId)
+        .is("invoiced_at", null);
+      return { cfg, latest, pendingCharges: pendingCharges || [] };
     },
     enabled: !!entityId,
   });
@@ -43,6 +47,9 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
   const meta = STATUS_META[status] || STATUS_META.pending;
   const Icon = meta.icon;
   const latest = data?.latest;
+  const pendingCharges = data?.pendingCharges || [];
+  const unbilledCharges = pendingCharges.filter((c: any) => !c.invoiced_on_invoice_id);
+  const unbilledTotal = unbilledCharges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
   const payUrl = latest?.payfast_token ? `${window.location.origin}/subscribe/pay/${latest.payfast_token}` : null;
 
   const copyLink = () => {
@@ -72,28 +79,57 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
             <div className="font-medium">{data?.cfg?.current_period_end || "—"}</div>
           </div>
         </div>
+        {unbilledTotal > 0 && (
+          <div className="rounded border border-amber-400/50 bg-amber-50/40 p-2">
+            <div className="text-[11px] font-medium text-amber-800">
+              Pending one-off charges — added to next invoice
+            </div>
+            <ul className="mt-1 space-y-0.5">
+              {unbilledCharges.map((c: any) => (
+                <li key={c.id} className="flex justify-between">
+                  <span className="text-muted-foreground">{c.description}</span>
+                  <span className="font-medium">{c.currency} {Number(c.amount).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {latest && (
           <div className="rounded border bg-muted/30 p-2 flex items-center justify-between gap-2">
             <div>
               <div className="text-[11px] text-muted-foreground capitalize">
-                Latest {latest.invoice_kind} invoice · {latest.status}
+                {latest.invoice_number ? `${latest.invoice_number} · ` : ""}Latest {latest.invoice_kind} invoice · {latest.status}
               </div>
               <div className="font-medium">
                 {latest.currency} {Number(latest.amount).toFixed(2)} · {latest.period_start} → {latest.period_end}
               </div>
+              {Number(latest.once_off_amount || 0) > 0 && (
+                <div className="text-[10px] text-muted-foreground">
+                  Includes {latest.currency} {Number(latest.once_off_amount).toFixed(2)} one-off setup fees
+                </div>
+              )}
             </div>
-            {latest.status === "pending" && payUrl && (
-              <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={copyLink} className="h-7 px-2">
-                  <Copy className="h-3 w-3" />
-                </Button>
+            <div className="flex gap-1">
+              {latest.status === "pending" && payUrl && (
+                <>
+                  <Button size="sm" variant="ghost" onClick={copyLink} className="h-7 px-2">
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="outline" asChild className="h-7 px-2">
+                    <a href={payUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-3 w-3 mr-1" />Open
+                    </a>
+                  </Button>
+                </>
+              )}
+              {latest.status === "paid" && latest.pdf_url && (
                 <Button size="sm" variant="outline" asChild className="h-7 px-2">
-                  <a href={payUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="h-3 w-3 mr-1" />Open
+                  <a href={latest.pdf_url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3 w-3 mr-1" />PDF
                   </a>
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
         <p className="text-[10px] text-muted-foreground">
