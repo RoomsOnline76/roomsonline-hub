@@ -92,7 +92,7 @@ import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck } from "lucide-react";
 import { BillingConfigTab } from "@/components/property/BillingConfigTab";
-import { PaymentProvidersTab } from "@/components/property/PaymentProvidersTab";
+
 import { ReferralSection } from "@/components/property/ReferralSection";
 import { AdminOverviewTab } from "@/components/property/AdminOverviewTab";
 import { ROLSpecTab } from "@/components/property/ROLSpecTab";
