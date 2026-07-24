@@ -93,7 +93,8 @@ function toNum(v: string): number | null {
 }
 
 export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabProps) {
-  const { config, isLoading, upsert } = useBillingConfig(propertyId);
+  const { config, isLoading, upsert, scope } = useBillingConfig(propertyId);
+  const isPortfolioScope = scope.source === "portfolio";
   const { defaults, getDefaultsForStrategy } = useBillingDefaults();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "dev" || profile?.role === "fearless_leader";
