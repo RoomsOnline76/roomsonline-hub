@@ -20,6 +20,7 @@ import {
   emptyBuilderValue,
   summarizeBuilderValue,
 } from "@/components/admin/billing/BillingConfigBuilder";
+import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 
 interface BillingConfigTabProps {
   propertyId: string;
