@@ -1,17 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type TierLabel = "starter" | "professional" | "enterprise";
+
 export interface PricingTier {
   min_rooms: number;
   max_rooms: number | null;
   /** Maximum number of properties this tier covers. null = unlimited. */
   max_properties: number | null;
-  monthly_fee: number;
+  /** Base monthly fee. `null` = custom (must be set per client, e.g. Enterprise). */
+  monthly_fee: number | null;
+  /** Optional label used to identify Starter / Professional / Enterprise rows. */
+  label?: TierLabel;
 }
 
+/**
+ * PMS subscription tiers are driven primarily by property count.
+ *   Starter       — 1 property, up to 10 rooms  · R1,500/mo
+ *   Professional  — up to 3 properties, up to 50 rooms · R4,500/mo
+ *   Enterprise    — 3+ properties · custom monthly fee (set per client by admin)
+ * Room caps stay as an informational cap; property count is the primary gate.
+ */
 export const DEFAULT_TIERS: PricingTier[] = [
-  { min_rooms: 0, max_rooms: 10, max_properties: 1, monthly_fee: 1500 },
-  { min_rooms: 11, max_rooms: 50, max_properties: 3, monthly_fee: 4500 },
-  { min_rooms: 51, max_rooms: null, max_properties: null, monthly_fee: 0 },
+  { min_rooms: 0, max_rooms: 10, max_properties: 1, monthly_fee: 1500, label: "starter" },
+  { min_rooms: 0, max_rooms: 50, max_properties: 3, monthly_fee: 4500, label: "professional" },
+  { min_rooms: 0, max_rooms: null, max_properties: null, monthly_fee: null, label: "enterprise" },
 ];
 
 export const TIER_STRATEGIES = ["rolos_pms", "volume_tiered"] as const;
@@ -22,17 +34,19 @@ export function isTierStrategy(strategy: string | null | undefined): strategy is
 }
 
 /**
- * Resolve the applicable tier. A tier matches when the current room count fits
- * its [min_rooms, max_rooms] range AND the current property count fits its
- * `max_properties` cap. If property count exceeds every candidate tier's cap,
- * the highest tier is returned (caller can flag as "bumped by property count").
+ * Resolve the applicable tier — property count is the primary gate. A tier
+ * matches when the property count fits its `max_properties` cap. The first
+ * matching tier (sorted by cap size ascending) is returned; unlimited
+ * (null cap) falls through as the final Enterprise row.
  */
 export function resolveTier(rooms: number, tiers: PricingTier[], properties: number = 1): PricingTier | null {
-  const sorted = [...tiers].sort((a, b) => a.min_rooms - b.min_rooms);
+  const sorted = [...tiers].sort((a, b) => {
+    const ap = a.max_properties ?? Number.POSITIVE_INFINITY;
+    const bp = b.max_properties ?? Number.POSITIVE_INFINITY;
+    return ap - bp;
+  });
   for (const t of sorted) {
-    const withinRooms = rooms >= t.min_rooms && (t.max_rooms == null || rooms <= t.max_rooms);
-    const withinProps = t.max_properties == null || properties <= t.max_properties;
-    if (withinRooms && withinProps) return t;
+    if (t.max_properties == null || properties <= t.max_properties) return t;
   }
   return sorted[sorted.length - 1] ?? null;
 }
@@ -44,13 +58,19 @@ export function normalizeTiers(input: unknown): PricingTier[] {
       if (!raw || typeof raw !== "object") return null;
       const r = raw as Record<string, unknown>;
       const min = Number(r.min_rooms);
-      const fee = Number(r.monthly_fee);
       const max = r.max_rooms == null || r.max_rooms === "" ? null : Number(r.max_rooms);
       const maxProps = r.max_properties == null || r.max_properties === "" ? null : Number(r.max_properties);
-      if (!Number.isFinite(min) || !Number.isFinite(fee)) return null;
+      // Accept null / "" / undefined monthly_fee (Enterprise = custom)
+      const rawFee = r.monthly_fee;
+      const fee = rawFee == null || rawFee === "" ? null : Number(rawFee);
+      const label = typeof r.label === "string" ? (r.label as TierLabel) : undefined;
+      if (!Number.isFinite(min)) return null;
+      if (fee !== null && !Number.isFinite(fee)) return null;
       if (max !== null && !Number.isFinite(max)) return null;
       if (maxProps !== null && !Number.isFinite(maxProps)) return null;
-      return { min_rooms: min, max_rooms: max, max_properties: maxProps, monthly_fee: fee };
+      // Enterprise heuristic: unlimited properties → fee treated as custom (null) even if 0/legacy stored
+      const normalizedFee = maxProps == null && (fee === 0 || fee == null) ? null : fee;
+      return { min_rooms: min, max_rooms: max, max_properties: maxProps, monthly_fee: normalizedFee, label };
     })
     .filter((t): t is PricingTier => t !== null);
 }
