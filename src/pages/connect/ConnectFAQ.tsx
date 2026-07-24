@@ -145,14 +145,14 @@ export default function ConnectFAQ() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial="hidden"
             animate="visible"
             variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl font-bold tracking-tight"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
             Frequently Asked Questions
           </motion.h1>
@@ -161,7 +161,7 @@ export default function ConnectFAQ() {
             animate="visible"
             variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
+            className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             Everything you need to know about ROL'OS. Can't find an answer? Ask TOBI or contact our team.
           </motion.p>
@@ -195,7 +195,7 @@ export default function ConnectFAQ() {
       </section>
 
       {/* CTA */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Still Have Questions?</h2>
           <p className="text-muted-foreground mb-6">Ask TOBI using the chat widget, or get in touch with our team.</p>

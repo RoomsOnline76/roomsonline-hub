@@ -80,19 +80,19 @@ export default function ConnectGetStarted() {
 
   return (
     <div>
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl font-bold tracking-tight"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
             Get Started with ROL'OS
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
+            className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             Start your 60-day free trial. No contracts. No setup fees. Cancel anytime.
           </motion.p>

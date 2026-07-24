@@ -84,12 +84,12 @@ export default function ConnectFeatures() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl font-bold tracking-tight"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
             Everything Your Property Needs.{" "}
             <span className="text-primary">Nothing It Doesn't.</span>
@@ -97,7 +97,7 @@ export default function ConnectFeatures() {
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
+            className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             ROL'OS covers every aspect of property operations — from front desk to finance,
             housekeeping to distribution. No PMS experience needed.
@@ -106,7 +106,7 @@ export default function ConnectFeatures() {
       </section>
 
       {/* Day in the Life */}
-      <section className="py-20 bg-muted/20">
+      <section className="py-12 sm:py-16 lg:py-20 bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -120,7 +120,7 @@ export default function ConnectFeatures() {
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.1 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
           >
             {DAY_IN_LIFE.map((step) => (
               <motion.div
@@ -177,7 +177,7 @@ export default function ConnectFeatures() {
       ))}
 
       {/* Demo Screens */}
-      <section className="py-20 border-t">
+      <section className="py-12 sm:py-16 lg:py-20 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
@@ -191,7 +191,7 @@ export default function ConnectFeatures() {
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
           >
             {DEMO_SCREENS.map((screen) => (
               <motion.div
@@ -220,7 +220,7 @@ export default function ConnectFeatures() {
       </section>
 
       {/* CTA */}
-      <section className="py-16 border-t bg-muted/20">
+      <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Ready to Modernise Your Property?</h2>
           <p className="text-muted-foreground mb-6">60-day free trial. No credit card. Negotiable pricing.</p>

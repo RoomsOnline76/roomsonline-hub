@@ -53,7 +53,7 @@ export default function ConnectJournal() {
     <div className="min-h-[60vh]">
       {/* Hero */}
       <section className="border-b bg-muted/20">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10 sm:py-16 lg:py-20">
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mb-3">
             Journal
           </h1>

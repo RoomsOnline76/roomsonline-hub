@@ -111,7 +111,7 @@ export default function ConnectQuickstart() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial="hidden" animate="visible" variants={fadeUp}
@@ -157,7 +157,7 @@ export default function ConnectQuickstart() {
       </section>
 
       {/* Next steps */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">You're Ready to Build</h2>
           <p className="text-muted-foreground mb-6">

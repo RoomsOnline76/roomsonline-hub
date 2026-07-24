@@ -64,7 +64,7 @@ export default function ConnectAbout() {
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-b from-muted/60 to-background border-b">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28">
           <div className="max-w-3xl">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -75,10 +75,10 @@ export default function ConnectAbout() {
                 <Globe className="h-3.5 w-3.5" />
                 Our Story
               </div>
-              <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-6 leading-[1.08]">
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight text-foreground mb-6 leading-[1.1]">
                 Hospitality infrastructure for a connected continent
               </h1>
-              <p className="text-muted-foreground text-lg sm:text-xl leading-relaxed max-w-2xl">
+              <p className="text-muted-foreground text-base sm:text-lg lg:text-xl leading-relaxed max-w-2xl">
                 ROL'OS is the technology layer that connects property managers,
                 booking engines, and guest experiences across Africa — one API
                 call at a time.
@@ -89,8 +89,8 @@ export default function ConnectAbout() {
       </section>
 
       {/* Mission */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
-        <div className="grid lg:grid-cols-2 gap-16 items-start">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -139,7 +139,7 @@ export default function ConnectAbout() {
       {/* Stats */}
       <section className="border-y bg-muted/30">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
             {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
@@ -161,7 +161,7 @@ export default function ConnectAbout() {
       </section>
 
       {/* Values */}
-      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28">
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -178,7 +178,7 @@ export default function ConnectAbout() {
           </p>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 gap-8">
+        <div className="grid sm:grid-cols-2 gap-6 sm:gap-8">
           {values.map((v, i) => {
             const Icon = v.icon;
             return (
@@ -208,7 +208,7 @@ export default function ConnectAbout() {
 
       {/* Timeline */}
       <section className="border-t bg-muted/20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28">
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -254,8 +254,8 @@ export default function ConnectAbout() {
 
       {/* Where We Are */}
       <section className="border-t">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 sm:py-28">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20 lg:py-28">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             <motion.div
               initial="hidden"
               whileInView="visible"

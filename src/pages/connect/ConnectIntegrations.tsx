@@ -85,19 +85,19 @@ export default function ConnectIntegrations() {
   return (
     <div>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-primary/5 to-background pt-16 pb-12">
+      <section className="bg-gradient-to-b from-primary/5 to-background pt-10 pb-8 sm:pt-16 sm:pb-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <motion.h1
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl font-bold tracking-tight"
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
             One API. Every PMS.
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
+            className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             ROL'OS uses an adapter pattern that normalises data from any PMS into a unified API.
             One integration, consistent output — regardless of the system behind it.
@@ -106,13 +106,13 @@ export default function ConnectIntegrations() {
       </section>
 
       {/* How it works */}
-      <section className="py-16 border-b">
+      <section className="py-10 sm:py-12 lg:py-16 border-b">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-bold text-center mb-10">How the Adapter Pattern Works</h2>
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
           >
             {ADAPTER_STEPS.map((s) => (
               <motion.div
@@ -133,7 +133,7 @@ export default function ConnectIntegrations() {
       </section>
 
       {/* Native PMS Integrations */}
-      <section className="py-20 border-b">
+      <section className="py-12 sm:py-16 lg:py-20 border-b">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold">Native PMS Integrations</h2>
@@ -182,7 +182,7 @@ export default function ConnectIntegrations() {
       </section>
 
       {/* What You Get */}
-      <section className="py-20 border-b bg-accent/20">
+      <section className="py-12 sm:py-16 lg:py-20 border-b bg-accent/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold">What You Get Through The Unified API</h2>
@@ -215,7 +215,7 @@ export default function ConnectIntegrations() {
       </section>
 
       {/* CTA */}
-      <section className="py-16 border-t">
+      <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Don't See Your PMS?</h2>
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
