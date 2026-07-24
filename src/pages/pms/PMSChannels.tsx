@@ -120,7 +120,7 @@ export default function PMSChannels() {
                     onPause={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "paused" }) : undefined}
                     onResume={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "active" }) : undefined}
                     onDisconnect={conn ? () => updateStatus.mutate({ connectionId: conn.id, status: "disconnected" }) : undefined}
-                    onSync={conn ? () => triggerSync.mutate({ connectionId: conn.id, syncType: "full" }) : undefined}
+                    onSync={conn ? () => triggerSync.mutate({ connectionId: conn.id }) : undefined}
                   />
                 );
               })}
