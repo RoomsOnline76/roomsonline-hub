@@ -133,7 +133,7 @@ function ToggleRow({
   );
 }
 
-export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons }: BuilderProps) {
+export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}, showPaymentInfo = true, disabledAddons, pricelabsExtras }: BuilderProps) {
   const set = <K extends keyof BillingConfigValue>(key: K, v: BillingConfigValue[K]) =>
     onChange({ ...value, [key]: v });
   const pricelabsDisabled = !!disabledAddons?.pricelabs?.disabled;
