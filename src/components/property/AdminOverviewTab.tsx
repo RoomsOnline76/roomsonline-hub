@@ -124,6 +124,13 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     enabled: !!propertyId,
   });
 
+  const { data: resolvedTier } = useQuery({
+    queryKey: ["admin-overview-resolved-tier", propertyId],
+    queryFn: () => resolvePropertyTier(propertyId),
+    enabled: !!propertyId,
+  });
+
+
   if (billingLoading || propLoading) {
     return (
       <div className="flex items-center justify-center p-8">
