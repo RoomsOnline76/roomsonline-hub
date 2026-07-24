@@ -79,7 +79,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
       const { data, error } = await supabase
         .from("properties")
         .select(
-          "id,name,is_rol_property,is_test_property,allow_custom_payment_provider,brand_override_enabled,show_on_website,status,pms_system,pricelabs_config"
+          "id,name,is_rol_property,is_test_property,allow_custom_payment_provider,brand_override_enabled,show_on_website,pricelabs_config"
         )
         .eq("id", propertyId)
         .maybeSingle();
