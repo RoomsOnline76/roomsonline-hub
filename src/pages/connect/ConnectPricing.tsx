@@ -241,39 +241,42 @@ export default function ConnectPricing() {
             className="grid lg:grid-cols-3 gap-6"
           >
 
-            {TIERS.map((tier) => (
+            {tierData.map(({ meta, row, isEnterprise, fallbackCaps }) => {
+              const { price, period } = tierPrice(row, isEnterprise);
+              const caps = tierCaps(row, fallbackCaps);
+              return (
               <motion.div
-                key={tier.name}
+                key={meta.name}
                 variants={fadeUp}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className={`rounded-2xl border p-8 relative ${tier.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
+                className={`rounded-2xl border p-8 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
               >
-                {tier.popular && (
+                {meta.popular && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-medium">
                     Most Popular
                   </span>
                 )}
-                {tier.negotiable && (
+                {meta.negotiable && (
                   <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
                     <Sparkles className="h-3 w-3" /> Negotiable
                   </span>
                 )}
-                <h3 className="text-lg font-semibold">{tier.name}</h3>
+                <h3 className="text-lg font-semibold">{meta.name}</h3>
                 <div className="mt-3 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold">{tier.price}</span>
-                  <span className="text-sm text-muted-foreground">{tier.period}</span>
+                  <span className="text-3xl font-bold">{price}</span>
+                  <span className="text-sm text-muted-foreground">{period}</span>
                 </div>
-                <p className="text-xs font-medium text-primary mt-2">{tier.caps}</p>
-                <p className="text-sm text-muted-foreground mt-2">{tier.desc}</p>
+                <p className="text-xs font-medium text-primary mt-2">{caps}</p>
+                <p className="text-sm text-muted-foreground mt-2">{meta.desc}</p>
 
-                {tier.savings && (
+                {meta.savings && (
                   <div className="mt-3 text-xs bg-primary/10 text-primary rounded-lg px-3 py-2 font-medium">
-                    💡 {tier.savings}
+                    💡 {meta.savings}
                   </div>
                 )}
 
                 <ul className="mt-6 space-y-2.5">
-                  {tier.features.map((f) => (
+                  {meta.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <Check className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
                       {f}
@@ -282,12 +285,13 @@ export default function ConnectPricing() {
                 </ul>
 
                 <Link to={connectPath("/connect/get-started")} className="block mt-8">
-                  <Button variant={tier.popular ? "default" : "outline"} className="w-full gap-2">
-                    {tier.cta} <ArrowRight className="h-3.5 w-3.5" />
+                  <Button variant={meta.popular ? "default" : "outline"} className="w-full gap-2">
+                    {meta.cta} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
               </motion.div>
-            ))}
+              );
+            })}
           </motion.div>
         </div>
       </section>
