@@ -283,6 +283,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
         scope={isPortfolioScope ? "portfolio" : "property"}
         entityId={isPortfolioScope ? (scope.portfolioId as string) : propertyId}
       />
+      <SubscriptionInvoiceDownloadCenter
+        scope={isPortfolioScope ? "portfolio" : "property"}
+        entityId={isPortfolioScope ? (scope.portfolioId as string) : propertyId}
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium">
