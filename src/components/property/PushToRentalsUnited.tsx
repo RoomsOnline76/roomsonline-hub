@@ -112,17 +112,21 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
   const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
+  const [autoManaged, setAutoManaged] = useState(false);
 
   useEffect(() => {
     // Load property RU IDs and owner email
     supabase
       .from("properties")
-      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email")
+      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email, ru_push_enabled, external_system, is_rol_property")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
         setRuPropertyId(data?.rentalsunited_property_id ?? null);
         setBuildingId(data?.rentalsunited_building_id ?? null);
+        // Auto-managed when the property runs on ROLOS PMS and RU push is enabled
+        const isRolos = (data as any)?.external_system === 'rolos' || (data as any)?.is_rol_property === true;
+        setAutoManaged(!!(isRolos && (data as any)?.ru_push_enabled !== false));
 
         // Load RU owner account if owner_email exists
         if (data?.owner_email) {
@@ -298,6 +302,12 @@ export function PushToRentalsUnited({ propertyId }: PushToRentalsUnitedProps) {
           <div className="flex items-center gap-2">
             <Upload className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Push to Rentals United</CardTitle>
+            {autoManaged && (
+              <Badge variant="secondary" className="text-[10px] h-5 gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Auto-managed (ROLOS PMS)
+              </Badge>
+            )}
             {isMultiUnit && (
               editingBuildingId ? (
                 <div className="flex items-center gap-1">

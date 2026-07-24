@@ -4138,6 +4138,7 @@ export type Database = {
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
           review_sentiment: Json | null
+          ru_push_enabled: boolean
           short_description: string | null
           show_on_website: boolean | null
           siteminder_property_code: string | null
@@ -4230,6 +4231,7 @@ export type Database = {
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
+          ru_push_enabled?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
@@ -4322,6 +4324,7 @@ export type Database = {
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
           review_sentiment?: Json | null
+          ru_push_enabled?: boolean
           short_description?: string | null
           show_on_website?: boolean | null
           siteminder_property_code?: string | null
@@ -10153,6 +10156,76 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ru_sync_runs: {
+        Row: {
+          action: string
+          batch_id: string
+          created_at: string
+          details: Json | null
+          elapsed_ms: number | null
+          error_code: string | null
+          error_message: string | null
+          http_status: number | null
+          id: string
+          property_id: string | null
+          ru_property_id: string | null
+          success: boolean
+          unit_id: string | null
+        }
+        Insert: {
+          action: string
+          batch_id: string
+          created_at?: string
+          details?: Json | null
+          elapsed_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          property_id?: string | null
+          ru_property_id?: string | null
+          success: boolean
+          unit_id?: string | null
+        }
+        Update: {
+          action?: string
+          batch_id?: string
+          created_at?: string
+          details?: Json | null
+          elapsed_ms?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          property_id?: string | null
+          ru_property_id?: string | null
+          success?: boolean
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_sync_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_sync_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_sync_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales_rep_bank_details: {
         Row: {
