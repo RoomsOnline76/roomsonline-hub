@@ -4428,6 +4428,19 @@ export default function AdminKeys() {
             <Button
               variant="outline"
               size="sm"
+              onClick={() => setShowParked((v) => !v)}
+              className="gap-1"
+              title="Show or hide integrations marked as Parked"
+            >
+              {showParked ? "Hide" : "Show"} parked
+              {(() => {
+                const n = Object.values(trackerData).filter((t) => t?.integration_status === 'parked').length;
+                return n > 0 ? <span className="ml-1 text-xs text-muted-foreground">({n})</span> : null;
+              })()}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={sendStatusReport}
               disabled={sendingStatusReport}
               className="gap-1"
