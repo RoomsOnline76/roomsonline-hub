@@ -44,7 +44,7 @@ async function callPL(action: string, extra: Record<string, unknown> = {}): Prom
   return data as ActionResult;
 }
 
-export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
+export function PriceLabsCard() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
@@ -53,7 +53,6 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
   const [calendarTriggerUrl, setCalendarTriggerUrl] = useState("");
   const [hookUrl, setHookUrl] = useState("");
   const [regenerate, setRegenerate] = useState(false);
-  const [userToken, setUserToken] = useState("");
 
   // Goals + metrics (persisted locally — these are dev/admin tracking aids)
   const [goals, setGoals] = useState<Goals>(() => {
@@ -126,33 +125,10 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
 
   const fetchSyncStatus = async () => {
     setLoading(true);
-    const r = await callPL("get_sync_status", {
-      ...(propertyId ? { property_id: propertyId } : {}),
-      ...(userToken ? { user_token: userToken } : {}),
-    });
+    const r = await callPL("get_sync_status");
     setLastResponse(r);
     setLoading(false);
     if (r.success) setMetrics(m => ({ ...m, lastSyncAt: new Date().toISOString() }));
-  };
-
-  const saveUserToken = async () => {
-    if (!propertyId) {
-      toast({ title: "Property required", description: "Open a property to save its PriceLabs user_token.", variant: "destructive" });
-      return;
-    }
-    if (!userToken.trim()) {
-      toast({ title: "Enter user_token", description: "Paste the customer's PriceLabs user_token first.", variant: "destructive" });
-      return;
-    }
-    setLoading(true);
-    const r = await callPL("save_user_token", { property_id: propertyId, user_token: userToken.trim() });
-    setLastResponse(r);
-    setLoading(false);
-    toast({
-      title: r.success ? "user_token saved" : "Save failed",
-      description: r.success ? "Stored on this property." : (r.error || `HTTP ${r.status}`),
-      variant: r.success ? "default" : "destructive",
-    });
   };
 
   return (
@@ -204,25 +180,6 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
                 Rotate integration token on save (new token will be stored automatically)
               </Label>
             </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <Label htmlFor="pl-user-token">Customer user_token (per-property)</Label>
-            <div className="flex gap-2 mt-1">
-              <Input
-                id="pl-user-token"
-                value={userToken}
-                onChange={(e) => setUserToken(e.target.value)}
-                placeholder="Paste PriceLabs user_token issued to this customer"
-              />
-              <Button onClick={saveUserToken} disabled={loading || !propertyId} variant="outline" size="sm">
-                Save
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Required for <code>get_sync_status</code>. Found in the customer's PriceLabs account under API access.
-              {!propertyId && " Open a property to persist this token."}
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
