@@ -323,11 +323,20 @@ export default function ConnectPricing() {
               "Front-desk booking system",
               "Property Management System (PMS) integration",
               "Direct booking button on your website",
-              "Channel management",
+              "Booking Engine Widgets & WordPress plugin",
+              "Guest CRM",
+              "Rate & season management",
+              "Revenue management & analytics",
+              "Folio & billing system",
+              "Housekeeping board",
+              "Night audit automation",
+              "TOBI AI assistant",
+              "Portfolio analytics dashboard",
               "Phone app for iPhone & Android",
-              "Pay Lite (SA only — conditions apply)",
-              "Free training and local support",
+              "Payfast (SA only — conditions apply)",
+              "Free training and email support",
             ].map((item) => (
+
               <motion.li
                 key={item}
                 variants={fadeUp}
