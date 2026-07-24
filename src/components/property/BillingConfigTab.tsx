@@ -38,6 +38,7 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
   v.subscription_fee = row.default_subscription_fee != null ? String(row.default_subscription_fee) : "";
   v.channel_per_unit = row.channel_manager_per_unit_fee != null ? String(row.channel_manager_per_unit_fee) : "";
+  v.enterprise_custom_fee = (row as any).enterprise_custom_fee != null ? String((row as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
   v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
@@ -66,6 +67,7 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
+  v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
   v.facilitator_surcharge_enabled = (config.transaction_fee_percentage ?? 0) > 0 && !!config.payment_facilitator_enabled;
@@ -156,6 +158,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       subscription_fee_monthly: builder.pms_enabled ? toNum(builder.subscription_fee) : null,
       channel_manager_enabled: builder.pms_enabled,
       channel_manager_per_unit_fee: builder.pms_enabled ? toNum(builder.channel_per_unit) : null,
+      enterprise_custom_fee: builder.pms_enabled ? toNum(builder.enterprise_custom_fee) : null,
       transaction_fee_percentage: builder.facilitator_surcharge_enabled ? toNum(builder.transaction_fee) : null,
       payment_facilitator_enabled: !customProviderEnabled,
       byo_gateway_monthly_fee: builder.byo_gateway_enabled ? toNum(builder.byo_gateway_fee) : null,

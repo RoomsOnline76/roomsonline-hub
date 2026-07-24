@@ -49,9 +49,10 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = toStr((row as any).widget_flat_commission_rate ?? null);
-  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
+  v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0 || ((row as any).enterprise_custom_fee ?? 0) > 0;
   v.subscription_fee = toStr(row.default_subscription_fee);
   v.channel_per_unit = toStr(row.channel_manager_per_unit_fee);
+  v.enterprise_custom_fee = toStr((row as any).enterprise_custom_fee ?? null);
   v.volume_tiers_enabled = tiers.length > 0 && row.strategy !== "widget";
   v.tier_pricing_json = tiers.length ? tiers : null;
   v.facilitator_surcharge_enabled = (row.default_transaction_fee ?? 0) > 0;
@@ -73,6 +74,7 @@ function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
     widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
     default_subscription_fee: v.pms_enabled ? toNum(v.subscription_fee) : null,
     channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
+    enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
     tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
     default_transaction_fee: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
     byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
