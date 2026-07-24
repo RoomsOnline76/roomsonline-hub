@@ -126,7 +126,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
 
   const strategy = config?.billing_strategy || "default";
   const strategyLabel = STRATEGY_LABELS[strategy] || strategy;
-  const facilitator = config?.payment_facilitator_enabled ?? true;
+  const facilitator = config?.payment_facilitator_enabled ?? false;
   const customProvider = !!property?.allow_custom_payment_provider;
   const wlAllowed = !!config?.white_label_allowed;
   const wlStatus = (wlDomain?.white_label_domain_status || "unconfigured") as keyof typeof DOMAIN_STATUS_META;
