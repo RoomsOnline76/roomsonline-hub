@@ -1,47 +1,48 @@
-## Root cause
+## Goal
 
-Two independent failures behind the cookbook links:
+In the billing config, the "Widget — tiered commission" section becomes two mutually-exclusive options:
 
-### 1. `book.sleepinafrica.roomsonline.co.za/embed/property/...` — `DEPLOYMENT_NOT_FOUND`
-`curl -I` returns Vercel `x-vercel-error: DEPLOYMENT_NOT_FOUND`. The `book.` subdomain of `sleepinafrica.roomsonline.co.za` was never attached to the Vercel deployment / Cloudflare-for-SaaS fallback, so the "canonical" host in the cookbook doesn't actually resolve. The real canonical host that serves the app today is `sleepinafrica.roomsonline.co.za` (no `book.` prefix).
+- **Widget — flat commission** (new): single % applied to every WBE booking, regardless of volume.
+- **Widget — tiered commission** (existing): monthly-volume tiers from the global WidgetTierEditor.
 
-### 2. `book.rolos.co.za/embed/property/...` — "Property not found"
-The SPA loads (Vercel 200), so routing works. The lookup fails at the DB. Testing the exact query anon runs:
+Rules:
+- At most one can be enabled at a time.
+- Both can be off (no WBE-specific commission — the standard Listing commission still applies if enabled).
+- Enabling one auto-disables the other; turning one off leaves both off.
 
-```
-GET /rest/v1/properties?slug=eq.fonteinhutte-self-catering-chalets&is_active=eq.true
-→ {"code":"42501","message":"permission denied for function has_role"}
-```
+## Changes
 
-`public.properties` has permissive policies for admin/dev that call `public.has_role(...)`. `anon` doesn't have `EXECUTE` on `has_role`, so any anon `SELECT` on `properties` errors out — even though the separate "Anyone can view active properties" policy would otherwise allow it. Result: every anonymous embed page (property + portfolio) collapses to "not found". This is the same class of issue as the earlier `SUPA_anon_security_definer_function_executable` finding but on `properties`.
+### 1. `src/components/admin/billing/BillingConfigBuilder.tsx`
+- Add fields to `BillingConfigValue`:
+  - `widget_flat_enabled: boolean`
+  - `widget_flat_rate: string`
+- Default them off / empty in `emptyBuilderValue()`.
+- Insert a new **"Widget — flat commission"** `ToggleRow` immediately above the existing tiered row.
+  - Numeric % input, placeholder e.g. `10`.
+  - `onToggle`: when turning on, also set `widget_tiers_enabled: false`.
+- Update the tiered row's `onToggle`: when turning on, also set `widget_flat_enabled: false`.
+- Update `summarizeBuilderValue` to emit `X% widget commission (flat)` when flat is on.
 
-## Fix
+### 2. Persistence layer (preset + property scope)
+- Read/write the new fields wherever `BillingConfigValue` is (de)serialised for `billing_global_defaults` and `property_billing_configs`. Reuse existing columns where possible:
+  - Map `widget_flat_enabled` + `widget_flat_rate` to a dedicated pair. Preferred: add `widget_flat_commission_rate numeric` to both `billing_global_defaults` and `property_billing_configs` via a single migration (nullable = disabled). Include the required `GRANT` statements for both tables.
+- Update `useBillingDefaults` / `useBillingConfig` types and the loaders/savers in `AdminBillingDefaults.tsx` and the property Admin tab to round-trip the new field.
 
-**A. Restore anon access to `properties` (and any peer table with the same pattern)**
+### 3. Summaries & downstream
+- `StrategySummaryLine.tsx`: when a defaults row has widget flat set, print `X% widget commission (flat)` instead of / in addition to the tiered line, mirroring the mutual-exclusion rule.
+- `calculate-billing` / `calculate-commission` edge functions and `billingTierResolver`: when computing WBE commission, prefer `widget_flat_commission_rate` if present; otherwise fall through to widget tiers; otherwise no WBE commission. No change to sales-rep / facilitator logic.
 
-Migration:
-1. Scope the admin/dev/owner policies on `public.properties` to `TO authenticated` (they currently target `public`, which forces anon to also evaluate `has_role`).
-2. Keep "Anyone can view active properties" as-is (public, `is_active AND permanently_deleted_at IS NULL`).
-3. Sweep sibling tables the embed reads anonymously (`hostfully_room_types`, `property_specials`, `property_packages`, `property_addons`, `property_announcements`, `rolos_rate_prices`, `rolos_seasons`, `property_billing_configs` where used for white-label host lookup) and apply the same `TO authenticated` scoping wherever an admin/owner policy references `has_role` at the top level.
-4. Re-verify with an anon `curl` against `/rest/v1/properties?slug=eq...` before closing.
-
-**B. Fix the cookbook canonical host**
-
-`book.sleepinafrica.roomsonline.co.za` isn't provisioned. Two options — pick one:
-- **Preferred:** update the cookbook + all snippet generators (`WidgetSetupWizard.tsx`, `EntryPointSelector.tsx`, `ElementorTab.tsx`, `PMSIntegrations.tsx`, `rolos-api-actions.ts`, WP blocks) so the canonical host is `https://sleepinafrica.roomsonline.co.za` (the host that is actually deployed and matches the project memory Core rule).
-- **Alternative:** keep `book.sleepinafrica.roomsonline.co.za` in copy and add that hostname as a Vercel domain + Cloudflare-for-SaaS custom hostname pointing at the fallback. Requires DNS/Vercel work outside the code.
-
-Recommend option 1 — it matches the existing "all links must use `sleepinafrica.roomsonline.co.za`" project memory rule and removes an unverified subdomain from public docs.
-
-**C. Regenerate the Integrations Code Cookbook v2** with corrected canonical URLs for Fonteinhutte + Jongensfontein once A and B land, and verify both `/embed/property/fonteinhutte-self-catering-chalets` and `/embed/portfolio/jongensfontein` return real content anonymously.
-
-## Verification
-
-- `curl` the anon REST endpoint for `properties?slug=eq.fonteinhutte-self-catering-chalets&is_active=eq.true` → expect JSON row, not 42501.
-- Load `https://sleepinafrica.roomsonline.co.za/embed/property/fonteinhutte-self-catering-chalets` in a private window → property renders.
-- Load same path on `book.rolos.co.za` (white-label) → property renders.
-- Run `supabase--linter` after the migration.
+### 4. UX polish
+- Small helper text under both widget rows: "Flat or tiered — pick one, or leave both off."
+- The two rows share a light visual grouping (thin left border or subtle heading) so it's obvious they're paired.
 
 ## Out of scope
+- Global "Listing commission" (unchanged; can coexist with either widget option — that's how it already behaves).
+- Sales rep commission rules (unchanged — still excludes facilitator surcharge).
+- No UI wording change to the connect/pricing marketing page.
 
-No changes to booking logic, pricing, or PMS adapters. RLS wording stays functionally identical for admins/devs/owners — only the target role list is tightened so anon skips those policy quals.
+## Verification
+- Toggle flat on → tiered auto-disables; save; reload; state persists.
+- Toggle tiered on → flat auto-disables; save; reload.
+- Turn both off → save; loader returns both disabled.
+- Admin summary line and property Admin tab reflect the correct one-liner in each state.

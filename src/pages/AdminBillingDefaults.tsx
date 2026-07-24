@@ -46,7 +46,9 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   const v = emptyBuilderValue();
   v.commission_enabled = row.default_commission_rate != null && row.default_commission_rate > 0 && row.strategy !== "widget";
   v.commission_rate = toStr(row.default_commission_rate);
-  v.widget_tiers_enabled = row.strategy === "widget";
+  v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
+  v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
+  v.widget_flat_rate = toStr((row as any).widget_flat_commission_rate ?? null);
   v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
   v.subscription_fee = toStr(row.default_subscription_fee);
   v.channel_per_unit = toStr(row.channel_manager_per_unit_fee);
@@ -68,6 +70,7 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
 function builderToPatch(v: BillingConfigValue): Partial<BillingDefault> {
   return {
     default_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
+    widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
     default_subscription_fee: v.pms_enabled ? toNum(v.subscription_fee) : null,
     channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
     tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,

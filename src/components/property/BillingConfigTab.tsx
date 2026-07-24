@@ -32,7 +32,9 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   const v = emptyBuilderValue();
   v.commission_enabled = row.default_commission_rate != null && row.default_commission_rate > 0 && row.strategy !== "widget";
   v.commission_rate = row.default_commission_rate != null ? String(row.default_commission_rate) : "";
-  v.widget_tiers_enabled = row.strategy === "widget";
+  v.widget_tiers_enabled = row.strategy === "widget" && (row as any).widget_flat_commission_rate == null;
+  v.widget_flat_enabled = (row as any).widget_flat_commission_rate != null;
+  v.widget_flat_rate = (row as any).widget_flat_commission_rate != null ? String((row as any).widget_flat_commission_rate) : "";
   v.pms_enabled = (row.default_subscription_fee ?? 0) > 0 || (row.channel_manager_per_unit_fee ?? 0) > 0;
   v.subscription_fee = row.default_subscription_fee != null ? String(row.default_subscription_fee) : "";
   v.channel_per_unit = row.channel_manager_per_unit_fee != null ? String(row.channel_manager_per_unit_fee) : "";
@@ -58,7 +60,9 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   const v = emptyBuilderValue();
   v.commission_enabled = config.commission_rate != null && !isWidget;
   v.commission_rate = config.commission_rate != null ? String(config.commission_rate) : "";
-  v.widget_tiers_enabled = isWidget;
+  v.widget_tiers_enabled = isWidget && (config as any).widget_flat_commission_rate == null;
+  v.widget_flat_enabled = (config as any).widget_flat_commission_rate != null;
+  v.widget_flat_rate = (config as any).widget_flat_commission_rate != null ? String((config as any).widget_flat_commission_rate) : "";
   v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
@@ -148,6 +152,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       property_id: propertyId,
       billing_strategy: strategy as BillingConfig["billing_strategy"],
       commission_rate: builder.commission_enabled ? toNum(builder.commission_rate) : null,
+      widget_flat_commission_rate: builder.widget_flat_enabled ? toNum(builder.widget_flat_rate) : null,
       subscription_fee_monthly: builder.pms_enabled ? toNum(builder.subscription_fee) : null,
       channel_manager_enabled: builder.pms_enabled,
       channel_manager_per_unit_fee: builder.pms_enabled ? toNum(builder.channel_per_unit) : null,

@@ -1,0 +1,2 @@
+ALTER TABLE public.billing_global_defaults ADD COLUMN IF NOT EXISTS widget_flat_commission_rate numeric(5,2);
+ALTER TABLE public.property_billing_configs ADD COLUMN IF NOT EXISTS widget_flat_commission_rate numeric(5,2);

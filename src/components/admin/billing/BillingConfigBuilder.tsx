@@ -19,6 +19,9 @@ export interface BillingConfigValue {
   commission_rate: string;
   // Widget / WBE tiered commission (uses global widget tiers)
   widget_tiers_enabled: boolean;
+  // Widget / WBE flat commission — mutually exclusive with tiered widget
+  widget_flat_enabled: boolean;
+  widget_flat_rate: string;
   // PMS subscription (monthly base + per-unit channel manager fee)
   pms_enabled: boolean;
   subscription_fee: string;
@@ -47,6 +50,8 @@ export function emptyBuilderValue(): BillingConfigValue {
     commission_enabled: false,
     commission_rate: "",
     widget_tiers_enabled: false,
+    widget_flat_enabled: false,
+    widget_flat_rate: "",
     pms_enabled: false,
     subscription_fee: "",
     channel_per_unit: "",
@@ -154,12 +159,45 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
         </div>
       </ToggleRow>
 
+      {/* ── Widget flat commission ─────────────────────────────────── */}
+      <ToggleRow
+        title="Widget — flat commission (WBE)"
+        description="Property uses ROL's booking engine (WBE) with a single flat commission %. Mutually exclusive with tiered."
+        enabled={value.widget_flat_enabled}
+        onToggle={(v) =>
+          onChange({
+            ...value,
+            widget_flat_enabled: v,
+            // Turning flat ON disables tiered
+            widget_tiers_enabled: v ? false : value.widget_tiers_enabled,
+          })
+        }
+      >
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+          <Input
+            type="number" step="0.5" min="0" max="100"
+            value={value.widget_flat_rate}
+            onChange={(e) => set("widget_flat_rate", e.target.value)}
+            placeholder="8"
+            className="h-8 text-xs"
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+        </div>
+      </ToggleRow>
+
       {/* ── Widget tiered commission ───────────────────────────────── */}
       <ToggleRow
         title="Widget — tiered commission"
         description="Property uses ROL's booking engine (WBE) on their own site. Commission % follows the monthly volume tiers."
         enabled={value.widget_tiers_enabled}
-        onToggle={(v) => set("widget_tiers_enabled", v)}
+        onToggle={(v) =>
+          onChange({
+            ...value,
+            widget_tiers_enabled: v,
+            // Turning tiered ON disables flat
+            widget_flat_enabled: v ? false : value.widget_flat_enabled,
+          })
+        }
       >
         {scope === "preset" ? (
           <WidgetTierEditor />
@@ -170,6 +208,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           </div>
         )}
       </ToggleRow>
+
 
       {/* ── PMS subscription ───────────────────────────────────────── */}
       <ToggleRow
@@ -377,7 +416,9 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 export function summarizeBuilderValue(v: BillingConfigValue): string {
   const parts: string[] = [];
   if (v.commission_enabled && v.commission_rate) parts.push(`${v.commission_rate}% commission`);
+  if (v.widget_flat_enabled && v.widget_flat_rate) parts.push(`${v.widget_flat_rate}% widget flat commission`);
   if (v.widget_tiers_enabled) parts.push("widget tiered commission");
+
   if (v.pms_enabled) {
     const sub = v.subscription_fee ? `R${v.subscription_fee}/mo` : "PMS subscription";
     const cm = v.channel_per_unit ? ` + R${v.channel_per_unit}/unit` : "";
