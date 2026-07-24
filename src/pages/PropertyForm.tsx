@@ -7860,7 +7860,6 @@ export default function PropertyForm({
                   <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="billing">Billing Config</TabsTrigger>
-                    <TabsTrigger value="payment-providers">Payment Providers</TabsTrigger>
                   </TabsList>
                   <TabsContent value="overview" className="mt-3">
                     <AdminOverviewTab
@@ -7871,14 +7870,6 @@ export default function PropertyForm({
                   <TabsContent value="billing" className="mt-3">
                     <BillingConfigTab propertyId={propertyId} />
                     <div className="mt-4"><ReferralSection propertyId={propertyId} /></div>
-                  </TabsContent>
-                  <TabsContent value="payment-providers" className="mt-3 p-0">
-                    <PaymentProvidersTab
-                      propertyId={propertyId}
-                      isAdmin={!!isAdmin}
-                      isDev={!!isDev}
-                      isFearlessLeader={!!isFearlessLeader}
-                    />
                   </TabsContent>
                 </Tabs>
               </TabsContent>
