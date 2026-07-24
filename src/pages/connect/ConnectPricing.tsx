@@ -44,10 +44,10 @@ const TIER_FEATURES_L = [
 
 function tierMeta(index: number) {
   const list = [
-    { name: "0–9 rooms", desc: "For individual properties getting started.", features: TIER_FEATURES_XS, popular: false },
-    { name: "10–19 rooms", desc: "For growing properties adding OTAs.", features: TIER_FEATURES_S, popular: true },
-    { name: "20–50 rooms", desc: "For established properties and small portfolios.", features: TIER_FEATURES_M, popular: false },
-    { name: "51+ rooms", desc: "For hotel groups and larger operations.", features: TIER_FEATURES_L, popular: false },
+    { name: "Starter", desc: "0–9 rooms · for individual properties getting started.", features: TIER_FEATURES_XS, popular: false },
+    { name: "Medium", desc: "10–19 rooms · for growing properties adding OTAs.", features: TIER_FEATURES_S, popular: true },
+    { name: "Large", desc: "20–50 rooms · for established properties and small portfolios.", features: TIER_FEATURES_M, popular: false },
+    { name: "Enterprise", desc: "51+ rooms · for hotel groups and larger operations.", features: TIER_FEATURES_L, popular: false },
   ];
   return list[index];
 }
