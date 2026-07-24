@@ -42,6 +42,7 @@ const StaffLogin = lazy(() => import("./pages/StaffLogin"));
 const ContractSign = lazy(() => import("./pages/ContractSign"));
 const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
+const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
 
 // ─── Lazy — admin pages ──────────────────────────────────────────
 const PropertyOverview = lazy(() => import("./pages/PropertyOverview"));
