@@ -308,6 +308,9 @@ export default function AdminKeys() {
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
   const [sendingStatusReport, setSendingStatusReport] = useState(false);
+  const [showParked, setShowParked] = useState(false);
+  const isParked = (key: string) => trackerData[key]?.integration_status === 'parked';
+  const parkedCls = (key: string) => (!showParked && isParked(key) ? 'hidden' : '');
 
   useEffect(() => {
     fetchApiKeys();
