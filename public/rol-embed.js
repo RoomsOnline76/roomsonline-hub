@@ -105,6 +105,12 @@
       whiteLabel: getAttr(container, 'data-white-label') === 'true' || getAttr(container, 'data-wl') === '1',
       wlHost: getAttr(container, 'data-wl-host'),
       lang: getAttr(container, 'data-lang'),
+      checkin: getAttr(container, 'data-checkin'),
+      checkout: getAttr(container, 'data-checkout'),
+      adults: getAttr(container, 'data-adults'),
+      children: getAttr(container, 'data-children'),
+      currency: getAttr(container, 'data-currency'),
+      theme: getAttr(container, 'data-theme'),
     };
 
     var iframe = document.createElement('iframe');
