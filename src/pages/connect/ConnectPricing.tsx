@@ -3,18 +3,16 @@ import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { ArrowRight, Check, CheckCircle2, Shield, Sparkles, Palette, Globe, TrendingUp, CreditCard } from "lucide-react";
+import { usePublicPricing, formatZar, type PublicPricingTier } from "@/hooks/usePublicPricing";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-const TIERS = [
+const TIER_META = [
   {
     name: "Starter",
-    price: "R 1,500",
-    period: "/month",
-    caps: "Up to 10 rooms · 1 property",
     desc: "For individual properties getting started — no PMS experience needed.",
     features: [
       "Booking Engine Widgets",
@@ -32,13 +30,10 @@ const TIERS = [
     cta: "Start 60-Day Free Trial",
     popular: false,
     negotiable: false,
-    savings: null,
+    savings: null as string | null,
   },
   {
     name: "Professional",
-    price: "R 4,500",
-    period: "/month",
-    caps: "Up to 50 rooms · up to 3 properties",
     desc: "For growing properties and small portfolios — enterprise features included.",
     features: [
       "Everything in Starter",
@@ -53,9 +48,6 @@ const TIERS = [
   },
   {
     name: "Enterprise",
-    price: "Let's Talk",
-    period: "",
-    caps: "Unlimited rooms · unlimited properties",
     desc: "For hotel groups and management companies — fully customisable.",
     features: [
       "Everything in Professional",
@@ -72,42 +64,25 @@ const TIERS = [
   },
 ];
 
-const ADD_ONS = [
-  {
-    icon: Palette,
-    name: "Basic Branding",
-    price: "From R 150 / month",
-    desc: "Logo, colour palette and typography applied to the hosted booking flow so it matches your website.",
-  },
-  {
-    icon: Globe,
-    name: "White-label Branding",
-    price: "From R 450 / month",
-    desc: "Your own booking subdomain (e.g. book.yourdomain.com) with a full brand takeover of the guest experience.",
-  },
-  {
-    icon: TrendingUp,
-    name: "PriceLabs Revenue Management",
-    price: "From R 250 / month",
-    desc: "Automated dynamic pricing pushed straight into ROL'OS. Available on ROL'OS PMS properties only.",
-  },
-  {
-    icon: CreditCard,
-    name: "BYO Payment Gateway",
-    price: "From R 250 / month",
-    desc: "Connect your own payment provider — funds settle directly to you, ROL does not touch the money.",
-  },
-];
+function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
+  if (!t) return fallback;
+  const roomLabel = t.max_rooms === null || t.max_rooms === undefined
+    ? "Unlimited rooms"
+    : `Up to ${t.max_rooms} rooms`;
+  const propLabel = t.max_properties === null || t.max_properties === undefined
+    ? "unlimited properties"
+    : t.max_properties === 1
+      ? "1 property"
+      : `up to ${t.max_properties} properties`;
+  return `${roomLabel} · ${propLabel}`;
+}
 
-const COMPETITOR_COSTS = [
-  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included from R 1,500" },
-  { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
-  { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
-  { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
-  { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
-  { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
-  { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: "From 2% · negotiable" },
-];
+function tierPrice(t: PublicPricingTier | undefined, isEnterprise: boolean): { price: string; period: string } {
+  if (isEnterprise || !t || t.monthly_fee === null || t.monthly_fee === undefined) {
+    return { price: "Let's Talk", period: "" };
+  }
+  return { price: formatZar(t.monthly_fee), period: "/month" };
+}
 
 const GUARANTEES = [
   "60-day free trial on all plans",
@@ -117,6 +92,7 @@ const GUARANTEES = [
   "Full data export included",
   "Negotiable pricing for multi-property portfolios",
 ];
+
 
 export default function ConnectPricing() {
   return (
