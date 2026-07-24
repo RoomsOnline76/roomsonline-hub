@@ -4718,7 +4718,7 @@ export default function AdminKeys() {
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
             value="hotelbeds"
-            className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""}`}
+            className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('hotelbeds')}`}
           >
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center justify-between w-full pr-4">
