@@ -68,7 +68,7 @@ export function ConnectLayout() {
 
         {/* Mobile nav */}
         {mobileOpen && (
-          <div className="md:hidden border-t bg-background px-4 pb-4 pt-2">
+          <div className="md:hidden border-t bg-background px-4 pb-4 pt-2 max-h-[calc(100vh-4rem)] overflow-y-auto">
             <nav className="flex flex-col gap-1">
               {NAV_LINKS.map((link) => (
                 <Link
@@ -76,7 +76,7 @@ export function ConnectLayout() {
                   to={link.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "px-3 py-2.5 text-sm font-medium rounded-md transition-colors",
+                    "px-3 py-3 text-base font-medium rounded-md transition-colors",
                     location.pathname === link.href
                       ? "text-primary bg-primary/5"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
@@ -85,8 +85,8 @@ export function ConnectLayout() {
                   {link.label}
                 </Link>
               ))}
-              <Link to={connectPath("/connect/get-started")} onClick={() => setMobileOpen(false)}>
-                <Button size="sm" className="w-full mt-2 font-medium">Get Started</Button>
+              <Link to={connectPath("/connect/get-started")} onClick={() => setMobileOpen(false)} className="mt-3">
+                <Button className="w-full h-11 font-medium">Get Started</Button>
               </Link>
             </nav>
           </div>

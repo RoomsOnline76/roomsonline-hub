@@ -159,10 +159,10 @@ export function ConnectTobiWidget() {
     <>
       {/* Floating button with strobe */}
       {!open && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 pb-[env(safe-area-inset-bottom)]">
           {/* Label that fades */}
           {showLabel && (
-            <div className="bg-card border rounded-lg shadow-lg px-3 py-2 text-sm font-medium animate-fade-in whitespace-nowrap">
+            <div className="bg-card border rounded-lg shadow-lg px-3 py-2 text-sm font-medium animate-fade-in whitespace-nowrap hidden sm:block">
               Chat with TOBI 🐱
             </div>
           )}
@@ -181,7 +181,7 @@ export function ConnectTobiWidget() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)] h-[520px] max-h-[calc(100vh-3rem)] rounded-2xl border bg-background shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed inset-x-3 bottom-3 sm:inset-x-auto sm:right-6 sm:bottom-6 z-50 sm:w-[380px] max-w-[calc(100vw-1.5rem)] h-[min(70svh,520px)] sm:h-[520px] sm:max-h-[calc(100vh-3rem)] rounded-2xl border bg-background shadow-2xl flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b bg-primary/5">
             <div className="flex items-center gap-2">
