@@ -493,7 +493,7 @@ Deno.serve(async (req) => {
           hook_url: payload.hook_url,
         };
         if (payload.regenerate_token) body.regenerate_token = true;
-        const r = await pl("POST", "/set_integration", name, token, body);
+        const r = await pl("POST", "/integration", name, token, body);
 
         // Persist returned token to property override if provided
         const resBody = asJson(r.body);
