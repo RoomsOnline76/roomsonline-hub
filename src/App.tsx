@@ -77,6 +77,7 @@ const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
 const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
 const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
+const AdminRentalsUnited = lazy(() => import("./pages/AdminRentalsUnited"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const ApiDocsViewer = lazy(() => import("./pages/ApiDocsViewer"));
 const HyperGuestCertificationPortal = lazy(() => import("./pages/HyperGuestCertificationPortal"));
