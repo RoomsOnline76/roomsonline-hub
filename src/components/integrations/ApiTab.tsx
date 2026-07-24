@@ -87,6 +87,13 @@ export function ApiTab({ property }: ApiTabProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
+          <h4 className="text-sm font-medium mb-2">API Endpoint</h4>
+          <code className="block bg-muted px-3 py-2 rounded text-sm font-mono break-all">
+            {baseUrl}/wordpress-plugin-api
+          </code>
+        </div>
+
+        <div>
           <h4 className="text-sm font-medium mb-2">API Key</h4>
           <div className="flex items-center gap-2">
             {apiKey ? (
