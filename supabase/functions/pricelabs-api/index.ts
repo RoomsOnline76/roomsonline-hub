@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
     switch (action) {
       case "health_check":
       case "get_integration": {
-        const r = await pl("GET", "/integration", name, token);
+        const r = await pl("GET", "/get_integration", name, token);
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
