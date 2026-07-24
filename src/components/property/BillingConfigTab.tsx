@@ -86,8 +86,13 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.white_label_monthly_fee = config.white_label_monthly_fee != null ? String(config.white_label_monthly_fee) : "";
   v.white_label_setup_fee = config.white_label_setup_fee != null ? String(config.white_label_setup_fee) : "";
   v.white_label_billing_mode = (config.white_label_billing_mode as "monthly" | "annual") || "monthly";
+  v.branding_addon_enabled = !!(config as any).branding_addon_enabled && !config.white_label_allowed;
+  v.branding_addon_monthly_fee = (config as any).branding_addon_monthly_fee != null ? String((config as any).branding_addon_monthly_fee) : "";
+  v.branding_addon_setup_fee = (config as any).branding_addon_setup_fee != null ? String((config as any).branding_addon_setup_fee) : "";
+  v.branding_addon_billing_mode = ((config as any).branding_addon_billing_mode as "monthly" | "annual") || "monthly";
   v.pricelabs_enabled = !!config.pricelabs_allowed;
   v.pricelabs_monthly_fee = config.pricelabs_monthly_fee != null ? String(config.pricelabs_monthly_fee) : "";
+  v.pricelabs_setup_fee = (config as any).pricelabs_setup_fee != null ? String((config as any).pricelabs_setup_fee) : "";
   return v;
 }
 
