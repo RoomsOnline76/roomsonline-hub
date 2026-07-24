@@ -134,7 +134,7 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
     const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
     const last = base[base.length - 1];
     const nextMin = last ? (last.max_rooms ?? last.min_rooms) + 1 : 0;
-    set("tier_pricing_json", [...base, { min_rooms: nextMin, max_rooms: null, max_properties: null, monthly_fee: 0 }]);
+    set("tier_pricing_json", [...base, { min_rooms: nextMin, max_rooms: null, max_properties: null, monthly_fee: null }]);
   };
   const removeTier = (idx: number) => {
     const base = value.tier_pricing_json ?? [...DEFAULT_TIERS];
