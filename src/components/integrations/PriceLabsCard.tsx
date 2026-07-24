@@ -225,6 +225,7 @@ export function PriceLabsCard({ propertyId }: { propertyId?: string } = {}) {
             </p>
           </div>
 
+          <div className="flex flex-wrap gap-2">
             <Button onClick={runHealth} disabled={loading} variant="outline" size="sm">
               {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Test connection
