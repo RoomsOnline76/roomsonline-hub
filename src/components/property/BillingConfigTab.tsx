@@ -67,6 +67,7 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config.channel_manager_per_unit_fee ?? 0) > 0 || !!config.channel_manager_enabled;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
+  v.enterprise_custom_fee = (config as any).enterprise_custom_fee != null ? String((config as any).enterprise_custom_fee) : "";
   v.volume_tiers_enabled = tiers.length > 0 && !isWidget;
   v.tier_pricing_json = tiers.length ? tiers : null;
   v.facilitator_surcharge_enabled = (config.transaction_fee_percentage ?? 0) > 0 && !!config.payment_facilitator_enabled;
