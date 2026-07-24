@@ -69,10 +69,8 @@ function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
 const GUARANTEES = [
   "60-day free trial on all plans",
   "Month-to-month billing — no annual lock-in",
-  "R 0 setup fees",
   "Cancel anytime, keep your data",
   "Full data export included",
-  "Billed by total room count — property count doesn't affect the fee",
 ];
 
 
