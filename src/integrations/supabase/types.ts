@@ -10498,6 +10498,131 @@ export type Database = {
           },
         ]
       }
+      subscription_charge_items: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          description: string
+          id: string
+          invoiced_at: string | null
+          invoiced_on_invoice_id: string | null
+          kind: string
+          owner_id: string | null
+          portfolio_id: string | null
+          property_id: string | null
+          status: string
+          updated_at: string
+          waived_at: string | null
+          waived_by: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          description: string
+          id?: string
+          invoiced_at?: string | null
+          invoiced_on_invoice_id?: string | null
+          kind: string
+          owner_id?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          status?: string
+          updated_at?: string
+          waived_at?: string | null
+          waived_by?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string
+          id?: string
+          invoiced_at?: string | null
+          invoiced_on_invoice_id?: string | null
+          kind?: string
+          owner_id?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          status?: string
+          updated_at?: string
+          waived_at?: string | null
+          waived_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_charge_items_invoiced_on_invoice_id_fkey"
+            columns: ["invoiced_on_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_charge_items_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_charge_items_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "subscription_charge_items_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_charge_items_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_invoice_events: {
+        Row: {
+          created_at: string
+          detail: string | null
+          event_type: string
+          id: string
+          invoice_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          event_type: string
+          id?: string
+          invoice_id?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          event_type?: string
+          id?: string
+          invoice_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_invoice_events_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_invoices: {
         Row: {
           amount: number
@@ -10506,17 +10631,22 @@ export type Database = {
           email_sent_at: string | null
           id: string
           invoice_kind: string
+          invoice_number: string | null
+          line_items: Json
           metadata: Json
+          once_off_amount: number
           owner_id: string | null
           paid_at: string | null
           payfast_payment_id: string | null
           payfast_token: string
+          pdf_url: string | null
           period_end: string
           period_start: string
           portfolio_id: string | null
           property_id: string | null
           reminder_count: number
           status: string
+          subscription_amount: number
           updated_at: string
         }
         Insert: {
@@ -10526,17 +10656,22 @@ export type Database = {
           email_sent_at?: string | null
           id?: string
           invoice_kind?: string
+          invoice_number?: string | null
+          line_items?: Json
           metadata?: Json
+          once_off_amount?: number
           owner_id?: string | null
           paid_at?: string | null
           payfast_payment_id?: string | null
           payfast_token?: string
+          pdf_url?: string | null
           period_end: string
           period_start: string
           portfolio_id?: string | null
           property_id?: string | null
           reminder_count?: number
           status?: string
+          subscription_amount?: number
           updated_at?: string
         }
         Update: {
@@ -10546,17 +10681,22 @@ export type Database = {
           email_sent_at?: string | null
           id?: string
           invoice_kind?: string
+          invoice_number?: string | null
+          line_items?: Json
           metadata?: Json
+          once_off_amount?: number
           owner_id?: string | null
           paid_at?: string | null
           payfast_payment_id?: string | null
           payfast_token?: string
+          pdf_url?: string | null
           period_end?: string
           period_start?: string
           portfolio_id?: string | null
           property_id?: string | null
           reminder_count?: number
           status?: string
+          subscription_amount?: number
           updated_at?: string
         }
         Relationships: [
@@ -11624,6 +11764,15 @@ export type Database = {
       }
     }
     Functions: {
+      add_subscription_adjustment: {
+        Args: {
+          _amount: number
+          _description: string
+          _portfolio_id: string
+          _property_id: string
+        }
+        Returns: string
+      }
       attribute_portfolio_share: {
         Args: { _booking_id: string }
         Returns: undefined
@@ -11679,11 +11828,14 @@ export type Database = {
           entity_name: string
           id: string
           invoice_kind: string
+          line_items: Json
+          once_off_amount: number
           period_end: string
           period_start: string
           portfolio_id: string
           property_id: string
           status: string
+          subscription_amount: number
         }[]
       }
       get_user_audit_role: {
@@ -11718,6 +11870,7 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      nextval_subscription_invoice_number: { Args: never; Returns: number }
       search_audit_logs: {
         Args: {
           date_from?: string
@@ -11762,6 +11915,10 @@ export type Database = {
       }
       user_can_access_property_via_portfolio: {
         Args: { _property_id: string }
+        Returns: boolean
+      }
+      waive_subscription_charge: {
+        Args: { _charge_id: string; _note?: string }
         Returns: boolean
       }
     }

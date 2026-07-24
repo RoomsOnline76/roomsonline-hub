@@ -524,6 +524,25 @@ Deno.serve(async (req) => {
                 cancelled_at: null,
               }).eq(keyCol, keyVal);
 
+              // Mark any charge items invoiced on this invoice as billed
+              await supabase.from("subscription_charge_items")
+                .update({ invoiced_at: new Date().toISOString() })
+                .eq("invoiced_on_invoice_id", invoiceId)
+                .is("invoiced_at", null);
+
+              // Assign human-readable invoice number if missing
+              if (!inv.invoice_number) {
+                const { data: seq } = await supabase.rpc("nextval_subscription_invoice_number").catch(() => ({ data: null } as any));
+                let number = seq;
+                if (!number) {
+                  const { data: s } = await supabase.from("subscription_invoices").select("id").order("created_at", { ascending: false }).limit(1);
+                  number = 1000 + (s?.length || 0);
+                }
+                const year = new Date().getFullYear();
+                const invoiceNumber = `RO-${year}-${String(number).padStart(6, "0")}`;
+                await supabase.from("subscription_invoices").update({ invoice_number: invoiceNumber }).eq("id", invoiceId);
+              }
+
               await supabase.from("billing_transactions").insert({
                 property_id: inv.property_id,
                 owner_id: inv.owner_id,
@@ -534,6 +553,16 @@ Deno.serve(async (req) => {
                 calculated_by: "payfast_itn",
                 metadata: { portfolio_id: inv.portfolio_id, pf_payment_id: pfPaymentId, period_start: inv.period_start, period_end: inv.period_end },
               });
+
+              // Fire-and-log: PDF + email
+              try {
+                await supabase.functions.invoke("generate-subscription-invoice-pdf", { body: { invoice_id: invoiceId } });
+              } catch (e) {
+                console.error("[PayFast] Failed to trigger invoice PDF:", e);
+                await supabase.from("subscription_invoice_events").insert({
+                  invoice_id: invoiceId, event_type: "pdf_dispatch", status: "error", detail: String(e),
+                });
+              }
             }
           }
           return new Response("OK", { status: 200, headers: corsHeaders });

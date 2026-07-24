@@ -1,80 +1,70 @@
+
 ## Goal
 
-When a property/portfolio's billing start date is due, automatically email the owner a "start your subscription" reminder with a payment link. Owner clicks → pays their first month via ROL PayFast → dashboards flip to **Active** and next-due date rolls forward one month. Cancel-anytime messaging included.
+Make subscription invoices reflect what's actually due:
+- **First invoice** = monthly fee + all applicable once-off fees (white-label setup, branding setup, PriceLabs setup, enterprise setup).
+- **Subsequent invoices** = monthly fee + any once-off charges added since the last paid invoice (running balance).
+- **Monthly amount** on renewals only carries the recurring fee.
+- **After payment**, generate a branded PDF invoice and email it to the owner as an attachment.
 
-## Flow
+## Data model
 
-```text
-billing_start_date reached
-   ↓ cron (daily)
-send reminder email → subscription_invoices row (status=pending)
-   ↓ owner clicks link
-/subscribe/pay/:token  → initiate PayFast payment
-   ↓ PayFast ITN webhook
-mark paid, set current_period_end = now + 1 month, status=active
-   ↓
-dashboards (admin + ROLOS owner) show Active until <date>
-   ↓ 5 days before current_period_end
-send renewal reminder (same flow)
-```
+**New table `subscription_charge_items`** (pending charges ledger per property/portfolio):
+- `kind` (setup_whitelabel, setup_branding, setup_pricelabs, setup_enterprise, adjustment, note)
+- `description`, `amount`, `currency`
+- `status` (pending, invoiced, waived)
+- `invoiced_on_invoice_id` (nullable FK)
+- `created_at`, `invoiced_at`
 
-## Data model (new migration)
+**Extend `subscription_invoices`**:
+- `subscription_amount` (monthly portion)
+- `once_off_amount` (sum of once-off items on this invoice)
+- `line_items JSONB` (rendered snapshot for the PDF/email)
+- `pdf_url` (nullable — stored in the `invoices` storage bucket after payment)
+- `invoice_number` (human-readable, e.g. `RO-2026-000123`)
 
-New table `public.subscription_invoices`:
-- `id uuid pk`, `property_id`, `portfolio_id` (one required), `owner_id`
-- `amount numeric`, `currency text default 'ZAR'`
-- `period_start date`, `period_end date`
-- `status text` — `pending | paid | failed | cancelled`
-- `payfast_payment_id text`, `payfast_token text` (secure link token)
-- `email_sent_at`, `paid_at`, `reminder_count int default 0`
-- `created_at`, `updated_at`
-- RLS: owners select own; admins manage; anon SELECT by token (for pay page).
-- GRANTs for `authenticated`, `service_role`; `anon` limited SELECT via SECURITY DEFINER RPC `get_subscription_invoice_by_token(token)`.
+**Trigger `detect_once_off_activations`** on `property_billing_configs` and `portfolio_billing_configs`:
+When a fee toggles from 0/off to > 0, enqueue a matching row in `subscription_charge_items` (dedup by `kind` + entity while status=pending).
 
-Extend `property_billing_configs` + `portfolio_billing_configs`:
-- `subscription_status text default 'pending'` — `pending | active | past_due | cancelled`
-- `current_period_end date`
-- `last_invoice_id uuid`
-- `cancelled_at timestamptz`
+## Cron changes (`billing-subscription-cron`)
 
-## Edge functions
+When building an invoice:
+1. Compute `subscription_amount` from tier resolver.
+2. Sum all `pending` `subscription_charge_items` for the entity → `once_off_amount`, capture snapshot in `line_items`.
+3. `amount = subscription_amount + once_off_amount`.
+4. Insert invoice, then mark those charge items `invoiced` and set `invoiced_on_invoice_id`.
+5. Renewals with zero pending once-offs simply pass the monthly fee.
 
-1. **`billing-subscription-cron`** (scheduled daily via pg_cron)
-   - Finds configs where `billing_start_date <= today AND subscription_status='pending' AND no pending invoice today` → create invoice + email.
-   - Finds `subscription_status='active' AND current_period_end - 5 days = today` → create renewal invoice + email.
-   - Marks `past_due` after `current_period_end` passes without payment.
+## Payment completion (`payfast-api` ITN handler)
 
-2. **`subscription-invoice-pay`** — POST `{token}` → generates PayFast signed form (reusing existing `payfast-api` helpers), returns redirect URL. Merchant ref = invoice id.
+After marking `subscription_invoices.status = 'paid'`:
+1. Assign next `invoice_number` from a Postgres sequence.
+2. Invoke new edge function `generate-subscription-invoice-pdf` with `invoice_id`.
+3. That function:
+   - Loads the invoice, entity name, owner details, line items.
+   - Renders a PDF using `pdf-lib` (Deno-compatible) with Rooms Online branding (pink #E91E8C headings, ivory body).
+   - Uploads to `invoices` storage bucket at `subscriptions/<owner_id>/<invoice_number>.pdf`.
+   - Signs a 30-day URL and stores it in `subscription_invoices.pdf_url`.
+   - Emails the owner via Resend with the PDF attached, using the same brand tokens as the reminder email.
+4. If the PDF/email step fails, the payment is still recorded — a `subscription_invoice_events` log row captures the error for admin retry.
 
-3. **`subscription-payfast-itn`** — public ITN webhook. Verifies signature, marks invoice paid, updates config `subscription_status='active'`, sets `current_period_end = period_start + 1 month`, writes `billing_transactions` row.
+## UI touch-ups
 
-4. **`send-subscription-reminder`** — used by cron; calls existing `send-transactional-email`.
+- **`SubscriptionStatusPanel`**: split the latest-invoice row into "Monthly" + "Once-off", show a link to the stored PDF once available.
+- **`SubscriptionPay` page**: show the same breakdown (monthly vs once-off) with a per-line list so the owner sees exactly what they're paying for.
+- **`BillingConfigTab` (admin)**: small "Pending once-off charges" list with a "Waive" action for admins, so mistakes can be reversed before invoicing.
 
-## Email template
+## Non-goals / assumptions
 
-New app-email template `subscription-reminder` in `supabase/functions/_shared/transactional-email-templates/`:
-- Subject: "Activate your Rooms Online subscription"
-- Body: amount, period, "Cancel anytime — no lock-in", CTA button → `https://<host>/subscribe/pay/<token>`.
-- Second variant `subscription-renewal` for renewals.
+- Currency stays ZAR (matches existing config).
+- Invoice numbering is a shared sequence across property + portfolio subscriptions.
+- Only the four defined once-off fees are auto-tracked; free-form adjustments go through the admin "Add adjustment" action on the pending list.
+- No changes to WBE / commission logic — this only touches subscription billing.
 
-## Frontend
+## Technical details
 
-- **New public route** `src/pages/SubscriptionPay.tsx` at `/subscribe/pay/:token`
-  - Loads invoice via RPC, shows amount + period + Cancel-anytime note, button → calls `subscription-invoice-pay` → redirects to PayFast, plus "Cancel subscription" link that POSTs to a `subscription-cancel` edge fn (sets `cancelled_at`, status `cancelled`).
-- **`BillingConfigTab.tsx`** — add a "Subscription status" panel: shows status badge, `current_period_end`, last invoice, "Send reminder now" (admin) and "Cancel subscription" buttons.
-- **ROLOS owner dashboard** (`src/pages/pms/PMSDashboard.tsx` or the billing widget) — small card: "Subscription: Active until DD MMM YYYY" or "Payment due — Pay now" linking to pay page.
-- **Admin overview** (`AdminOverviewTab.tsx`) — add status/next-due line under the cost estimator.
-
-## PayFast reuse
-
-Reuse existing `payfast-api` merchant credentials (ROL facilitator account). No new secrets needed unless a separate merchant ID is wanted for subscription revenue (leave as follow-up).
-
-## Cron
-
-Schedule `billing-subscription-cron` daily 06:00 UTC via `cron.schedule` in a migration.
-
-## Out of scope (this pass)
-
-- Recurring auto-debit tokenisation (owner clicks link each month; simplest and matches "cancel anytime"). Adding PayFast recurring tokens can follow if desired.
-- SMS reminders.
-- Portfolio-level split billing beyond a single invoice.
+- Use `pdf-lib` (`npm:pdf-lib@1.17.1`) in the new edge function; embed the Rooms Online logo via a base64 asset stored in the function.
+- Storage: reuse existing `invoices` bucket (already hardened per prior security fix). Signed URLs only, no public listing.
+- Email: existing Resend setup, `billing@notify.sleepinafrica.roomsonline.co.za` sender, brand-consistent HTML with PDF attachment (base64).
+- Trigger safety: `detect_once_off_activations` is `SECURITY DEFINER`, `search_path=public`, and skips inserts when a pending row of the same `kind` already exists.
+- Cron reuses the existing 06:00 UTC schedule — no new job needed.

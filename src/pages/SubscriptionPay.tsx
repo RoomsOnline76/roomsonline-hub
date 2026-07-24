@@ -6,11 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 
+type LineItem = { kind?: string; description: string; amount: number };
 type Invoice = {
   id: string;
   property_id: string | null;
   portfolio_id: string | null;
   amount: number;
+  subscription_amount?: number | null;
+  once_off_amount?: number | null;
+  line_items?: LineItem[] | null;
+  invoice_number?: string | null;
   currency: string;
   period_start: string;
   period_end: string;
@@ -122,6 +127,21 @@ export default function SubscriptionPay() {
               <div className="rounded-lg border p-4 space-y-2">
                 <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="font-medium capitalize">{invoice?.invoice_kind}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Period</span><span>{invoice?.period_start} → {invoice?.period_end}</span></div>
+                {invoice?.line_items && invoice.line_items.length > 0 && (
+                  <div className="pt-2 border-t space-y-1">
+                    {invoice.line_items.map((li, i) => (
+                      <div key={i} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground pr-3">{li.description}</span>
+                        <span>{invoice.currency} {Number(li.amount).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {Number(invoice?.once_off_amount || 0) > 0 && (
+                  <div className="pt-2 border-t text-xs text-muted-foreground">
+                    Includes {invoice?.currency} {Number(invoice?.once_off_amount || 0).toFixed(2)} in one-off setup fees added since your last payment.
+                  </div>
+                )}
                 <div className="flex justify-between text-lg pt-2 border-t"><span className="font-semibold">Amount due</span><span className="font-bold text-primary">{amountFmt}</span></div>
               </div>
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
