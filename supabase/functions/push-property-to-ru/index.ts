@@ -1823,6 +1823,8 @@ Deno.serve(async (req) => {
       if (dry_run) {
         const units = activeRoomTypes.map(rt => {
           const payload = buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId);
+          const totalBeds = (payload.rooms || []).reduce((sum: number, r: any) =>
+            sum + (r.amenities || []).filter((a: any) => a.id >= 97 && a.id <= 101).reduce((s: number, a: any) => s + (a.count || 1), 0), 0);
           return {
             room_type_id: rt.id,
             name: rt.name,
@@ -1830,14 +1832,35 @@ Deno.serve(async (req) => {
             validation: {
               images_count: payload.images.length,
               amenities_count: payload.amenities.length,
-              rooms_count: 1,
+              rooms_count: (payload.rooms || []).length,
               has_coordinates: payload.latitude !== 0 && payload.longitude !== 0,
               meets_minimum_images: payload.images.length >= 10,
               meets_minimum_amenities: payload.amenities.length >= 10,
               max_guests: payload.can_sleep_max,
+              // Extended RU White-Label requirements
+              has_zip_code: !!(payload.zip_code && payload.zip_code !== '0000'),
+              has_space: (payload.space || 0) > 0,
+              has_floor: typeof payload.floor === 'number',
+              has_detailed_location_id: (payload.detailed_location_id || 0) > 1,
+              has_payment_methods: (payload.payment_methods || []).length >= 1,
+              has_cancellation_policies: (payload.cancellation_policies || []).length >= 1,
+              beds_meet_max_guests: totalBeds >= (payload.can_sleep_max || 1),
+              total_beds: totalBeds,
             },
           };
         });
+
+        const allReady = units.every(u =>
+          u.validation.meets_minimum_images
+          && u.validation.meets_minimum_amenities
+          && u.validation.has_coordinates
+          && u.validation.has_zip_code
+          && u.validation.has_space
+          && u.validation.has_detailed_location_id
+          && u.validation.has_payment_methods
+          && u.validation.has_cancellation_policies
+          && u.validation.beds_meet_max_guests
+        );
 
         return new Response(
           JSON.stringify({
@@ -1849,13 +1872,19 @@ Deno.serve(async (req) => {
             units,
             validation: {
               total_units: units.length,
-              all_ready: units.every(u => u.validation.meets_minimum_images && u.validation.meets_minimum_amenities && u.validation.has_coordinates),
+              all_ready: allReady,
               images_count: units.reduce((s, u) => s + u.validation.images_count, 0),
               amenities_count: units[0]?.validation.amenities_count || 0,
               rooms_count: units.length,
               has_coordinates: units.every(u => u.validation.has_coordinates),
               meets_minimum_images: units.every(u => u.validation.meets_minimum_images),
               meets_minimum_amenities: units.every(u => u.validation.meets_minimum_amenities),
+              has_zip_code: units.every(u => u.validation.has_zip_code),
+              has_space: units.every(u => u.validation.has_space),
+              has_detailed_location_id: units.every(u => u.validation.has_detailed_location_id),
+              has_payment_methods: units.every(u => u.validation.has_payment_methods),
+              has_cancellation_policies: units.every(u => u.validation.has_cancellation_policies),
+              beds_meet_max_guests: units.every(u => u.validation.beds_meet_max_guests),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
