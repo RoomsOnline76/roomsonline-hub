@@ -22,12 +22,14 @@ interface PriceLabsConfig {
 interface Props {
   propertyId: string;
   pricelabsAllowed: boolean;
+  pricelabsSaved?: boolean;
   isRolosPms: boolean;
 }
 
-export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, isRolosPms }: Props) {
+export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, pricelabsSaved, isRolosPms }: Props) {
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const canManage = isAdmin || isDev || isFearlessLeader;
+  const isSaved = pricelabsSaved ?? pricelabsAllowed;
   const qc = useQueryClient();
 
   const { data: property, isLoading } = useQuery({
