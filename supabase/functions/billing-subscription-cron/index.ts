@@ -130,13 +130,40 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
 
   let invoice = existing;
   if (!invoice) {
-    const amount = await computeSubscriptionAmount(supabase, cfg, scope, entityId);
-    if (!amount || amount <= 0) {
-      console.log(`[cron] Skip ${scope} ${entityId}: amount is zero`);
+    const subscriptionAmount = await computeSubscriptionAmount(supabase, cfg, scope, entityId);
+
+    // Pull pending once-off charges for this entity
+    const chargeCol = scope === "property" ? "property_id" : "portfolio_id";
+    const { data: pendingCharges } = await supabase
+      .from("subscription_charge_items")
+      .select("id, kind, description, amount, currency")
+      .eq(chargeCol, entityId)
+      .is("invoiced_at", null);
+    const onceOffAmount = (pendingCharges ?? []).reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0);
+    const total = subscriptionAmount + onceOffAmount;
+
+    if (!total || total <= 0) {
+      console.log(`[cron] Skip ${scope} ${entityId}: total is zero`);
       return { skipped: true, reason: "zero_amount" };
     }
+
+    const lineItems: any[] = [];
+    if (subscriptionAmount > 0) {
+      lineItems.push({
+        kind: "monthly_subscription",
+        description: `Monthly subscription (${psStr} → ${peStr})`,
+        amount: subscriptionAmount,
+      });
+    }
+    for (const c of pendingCharges ?? []) {
+      lineItems.push({ kind: c.kind, description: c.description, amount: Number(c.amount) || 0, charge_item_id: c.id });
+    }
+
     const insert: any = {
-      amount, currency: "ZAR",
+      amount: total, currency: "ZAR",
+      subscription_amount: subscriptionAmount,
+      once_off_amount: onceOffAmount,
+      line_items: lineItems,
       period_start: psStr, period_end: peStr,
       status: "pending",
       invoice_kind: isRenewal ? "renewal" : "activation",
@@ -146,6 +173,13 @@ async function ensureInvoiceAndEmail(supabase: any, resend: Resend, opts: {
     const { data: created, error: crErr } = await supabase.from("subscription_invoices").insert(insert).select("id, payfast_token, reminder_count, email_sent_at").single();
     if (crErr) { console.error("[cron] insert error:", crErr); return { error: crErr }; }
     invoice = created;
+
+    // Reserve the charge items against this invoice (invoiced_at set on payment)
+    if (pendingCharges && pendingCharges.length > 0) {
+      await supabase.from("subscription_charge_items")
+        .update({ invoiced_on_invoice_id: created.id })
+        .in("id", pendingCharges.map((c: any) => c.id));
+    }
   } else {
     // Throttle: only re-send every 3 days, max 5 reminders
     if (invoice.reminder_count >= 5) return { skipped: true, reason: "max_reminders" };
