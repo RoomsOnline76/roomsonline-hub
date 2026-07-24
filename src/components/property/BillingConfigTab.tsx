@@ -116,6 +116,20 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const customProviderEnabled = !!propertyFlag?.allow_custom_payment_provider;
   const isRolosPms = !!propertyFlag?.is_rol_property;
 
+  // Sibling property names when this property is a portfolio member.
+  const { data: siblingProps } = useQuery({
+    queryKey: ["billing-config-siblings", scope.portfolioId, scope.siblingPropertyIds.join(",")],
+    queryFn: async () => {
+      if (!isPortfolioScope || scope.siblingPropertyIds.length === 0) return [];
+      const { data } = await supabase
+        .from("properties")
+        .select("id, name, slug")
+        .in("id", scope.siblingPropertyIds);
+      return (data || []) as Array<{ id: string; name: string; slug: string | null }>;
+    },
+    enabled: isPortfolioScope,
+  });
+
   const [strategy, setStrategy] = useState<string>("default");
   const [builder, setBuilder] = useState<BillingConfigValue>(emptyBuilderValue());
   const [billingStartDate, setBillingStartDate] = useState("");
