@@ -170,11 +170,15 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "Basic Branding add-on (included with White-label)", amount: 0 });
   }
 
-  const isRolos = !!property?.is_rol_property;
-  const pricelabsActivated = !!property?.pricelabs_config?.enabled;
-  const pricelabsBillable = !!wlDomain?.pricelabs_allowed && isRolos && pricelabsActivated;
+  // PriceLabs is a billable Revenue Add-on the moment admin enables it in billing;
+  // activation in the ROL'OS UI is optional and doesn't gate the recurring charge.
+  const pricelabsBillable = !!wlDomain?.pricelabs_allowed;
   if (pricelabsBillable && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
-    costLines.push({ label: "PriceLabs add-on", amount: Number(wlDomain.pricelabs_monthly_fee) });
+    const activated = !!property?.pricelabs_config?.enabled;
+    costLines.push({
+      label: `PriceLabs add-on${activated ? "" : " (enabled — awaiting activation)"}`,
+      amount: Number(wlDomain.pricelabs_monthly_fee),
+    });
   }
   if (pricelabsBillable && Number(wlDomain?.pricelabs_setup_fee ?? 0) > 0) {
     costLines.push({ label: "PriceLabs setup", amount: Number(wlDomain.pricelabs_setup_fee), once: true });
