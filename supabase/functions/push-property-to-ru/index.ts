@@ -2161,6 +2161,13 @@ Deno.serve(async (req) => {
             has_coordinates: ruPayload.latitude !== 0 && ruPayload.longitude !== 0,
             meets_minimum_images: ruPayload.images.length >= 10,
             meets_minimum_amenities: ruPayload.amenities.length >= 10,
+            has_zip_code: !!(ruPayload.zip_code && ruPayload.zip_code !== '0000'),
+            has_space: (ruPayload.space || 0) > 0,
+            has_floor: typeof ruPayload.floor === 'number',
+            has_detailed_location_id: (ruPayload.detailed_location_id || 0) > 1,
+            has_payment_methods: (ruPayload.payment_methods || []).length >= 1,
+            has_cancellation_policies: (ruPayload.cancellation_policies || []).length >= 1,
+            max_guests: ruPayload.can_sleep_max,
           },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
