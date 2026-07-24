@@ -22,12 +22,14 @@ interface PriceLabsConfig {
 interface Props {
   propertyId: string;
   pricelabsAllowed: boolean;
+  pricelabsSaved?: boolean;
   isRolosPms: boolean;
 }
 
-export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, isRolosPms }: Props) {
+export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, pricelabsSaved, isRolosPms }: Props) {
   const { isAdmin, isDev, isFearlessLeader } = useAuth();
   const canManage = isAdmin || isDev || isFearlessLeader;
+  const isSaved = pricelabsSaved ?? pricelabsAllowed;
   const qc = useQueryClient();
 
   const { data: property, isLoading } = useQuery({
@@ -111,6 +113,14 @@ export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, isRolosPm
           </div>
         ) : (
           <>
+            {!isSaved && (
+              <Alert>
+                <AlertTitle>Save billing config to enable</AlertTitle>
+                <AlertDescription className="text-xs">
+                  PriceLabs is toggled on but not yet saved. Click "Save Billing Config" above, then activate and push here.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="flex items-start justify-between gap-3 rounded-md border p-3">
               <div className="space-y-0.5">
                 <p className="text-xs font-medium">Activate PriceLabs for this property</p>
@@ -120,7 +130,7 @@ export function PriceLabsAdminPushCard({ propertyId, pricelabsAllowed, isRolosPm
               </div>
               <Switch
                 checked={!!cfg.enabled}
-                disabled={setEnabled.isPending}
+                disabled={setEnabled.isPending || !isSaved}
                 onCheckedChange={(v) => setEnabled.mutate(v)}
               />
             </div>
