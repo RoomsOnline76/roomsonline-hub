@@ -6,7 +6,8 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const BASE = "https://api.pricelabs.co/v2/integration/api";
+// IAPI base — PriceLabs provisions this per partner. Override via env when they share the real host.
+const BASE = Deno.env.get("PRICELABS_IAPI_BASE") ?? "https://api.pricelabs.co/v2/integration/api";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
