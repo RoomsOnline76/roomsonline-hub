@@ -349,6 +349,8 @@ const App = () => (
                         <Route path="/admin/promotion" element={<ProtectedRoute><Promotion /></ProtectedRoute>} />
                         <Route path="/admin/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
                         <Route path="/admin/integrations" element={<ProtectedRoute><AdminIntegrations /></ProtectedRoute>} />
+                        <Route path="/admin/integrations/rentals-united" element={<ProtectedRoute requireAdmin><AdminRentalsUnited /></ProtectedRoute>} />
+
 
                         {/* Admin routes requiring dev/fearless */}
                         <Route path="/admin-keys" element={<ProtectedRoute requireDevOrFearless><AdminKeys /></ProtectedRoute>} />
