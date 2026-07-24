@@ -1,29 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type TierLabel = "starter" | "professional" | "enterprise";
+export type TierLabel = "xs" | "s" | "m" | "l";
 
 export interface PricingTier {
   min_rooms: number;
   max_rooms: number | null;
-  /** Maximum number of properties this tier covers. null = unlimited. */
+  /** Deprecated — retained for backwards compatibility. Always null in the new model. */
   max_properties: number | null;
-  /** Base monthly fee. `null` = custom (must be set per client, e.g. Enterprise). */
+  /** Base monthly fee. Always a fixed number in the new room-count model. */
   monthly_fee: number | null;
-  /** Optional label used to identify Starter / Professional / Enterprise rows. */
+  /** Optional label used to identify tier rows. */
   label?: TierLabel;
 }
 
 /**
- * PMS subscription tiers are driven primarily by property count.
- *   Starter       — 1 property, up to 10 rooms  · R1,500/mo
- *   Professional  — up to 3 properties, up to 50 rooms · R4,500/mo
- *   Enterprise    — 3+ properties · custom monthly fee (set per client by admin)
- * Room caps stay as an informational cap; property count is the primary gate.
+ * PMS subscription tiers are driven purely by TOTAL ROOM COUNT (across the
+ * property or its portfolio). Property count is no longer a gating factor.
+ *
+ *   0 – 9 rooms   · R450 / month
+ *   10 – 19 rooms · R600 / month
+ *   20 – 50 rooms · R750 / month
+ *   51+ rooms     · R925 / month
  */
 export const DEFAULT_TIERS: PricingTier[] = [
-  { min_rooms: 0, max_rooms: 10, max_properties: 1, monthly_fee: 1500, label: "starter" },
-  { min_rooms: 0, max_rooms: 50, max_properties: 3, monthly_fee: 4500, label: "professional" },
-  { min_rooms: 0, max_rooms: null, max_properties: null, monthly_fee: null, label: "enterprise" },
+  { min_rooms: 0, max_rooms: 9, max_properties: null, monthly_fee: 450, label: "xs" },
+  { min_rooms: 10, max_rooms: 19, max_properties: null, monthly_fee: 600, label: "s" },
+  { min_rooms: 20, max_rooms: 50, max_properties: null, monthly_fee: 750, label: "m" },
+  { min_rooms: 51, max_rooms: null, max_properties: null, monthly_fee: 925, label: "l" },
 ];
 
 export const TIER_STRATEGIES = ["rolos_pms", "volume_tiered"] as const;
@@ -34,19 +37,19 @@ export function isTierStrategy(strategy: string | null | undefined): strategy is
 }
 
 /**
- * Resolve the applicable tier — property count is the primary gate. A tier
- * matches when the property count fits its `max_properties` cap. The first
- * matching tier (sorted by cap size ascending) is returned; unlimited
- * (null cap) falls through as the final Enterprise row.
+ * Resolve the applicable tier from total room count. Property count is
+ * ignored under the new pricing model.
  */
-export function resolveTier(rooms: number, tiers: PricingTier[], properties: number = 1): PricingTier | null {
+export function resolveTier(rooms: number, tiers: PricingTier[], _properties: number = 1): PricingTier | null {
   const sorted = [...tiers].sort((a, b) => {
-    const ap = a.max_properties ?? Number.POSITIVE_INFINITY;
-    const bp = b.max_properties ?? Number.POSITIVE_INFINITY;
-    return ap - bp;
+    const ar = a.max_rooms ?? Number.POSITIVE_INFINITY;
+    const br = b.max_rooms ?? Number.POSITIVE_INFINITY;
+    return ar - br;
   });
   for (const t of sorted) {
-    if (t.max_properties == null || properties <= t.max_properties) return t;
+    const min = t.min_rooms ?? 0;
+    const max = t.max_rooms ?? Number.POSITIVE_INFINITY;
+    if (rooms >= min && rooms <= max) return t;
   }
   return sorted[sorted.length - 1] ?? null;
 }
@@ -200,9 +203,12 @@ export async function getPortfolioPropertyCount(propertyId: string): Promise<{ c
 function inferLabel(tier: PricingTier | null): TierLabel | null {
   if (!tier) return null;
   if (tier.label) return tier.label;
-  if (tier.max_properties == null) return "enterprise";
-  if (tier.max_properties <= 1) return "starter";
-  return "professional";
+  const max = tier.max_rooms;
+  if (max == null) return "l";
+  if (max <= 9) return "xs";
+  if (max <= 19) return "s";
+  if (max <= 50) return "m";
+  return "l";
 }
 
 /** Full resolution: reads override tiers → global tiers, override room count → live count. */
@@ -257,8 +263,7 @@ export async function resolvePropertyTier(propertyId: string): Promise<ResolvedT
     rawCustom != null && Number.isFinite(Number(rawCustom)) ? Number(rawCustom) : null;
 
   const tierFee = tier?.monthly_fee ?? null;
-  const effectiveMonthlyFee =
-    tierFee != null ? tierFee : tierLabel === "enterprise" ? enterpriseCustomFee : null;
+  const effectiveMonthlyFee = tierFee != null ? tierFee : enterpriseCustomFee;
   const requiresCustomFee = tierFee == null && effectiveMonthlyFee == null;
 
   return {

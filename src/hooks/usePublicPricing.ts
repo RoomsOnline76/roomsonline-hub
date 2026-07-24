@@ -21,9 +21,10 @@ export interface PublicPricingData {
 
 const FALLBACK: PublicPricingData = {
   rolosTiers: [
-    { min_rooms: 0, max_rooms: 10, max_properties: 1, monthly_fee: 1500, label: "Starter" },
-    { min_rooms: 11, max_rooms: 50, max_properties: 3, monthly_fee: 4500, label: "Professional" },
-    { min_rooms: 51, max_rooms: null, max_properties: null, monthly_fee: null, label: "Enterprise" },
+    { min_rooms: 0, max_rooms: 9, max_properties: null, monthly_fee: 450, label: "0–9 rooms" },
+    { min_rooms: 10, max_rooms: 19, max_properties: null, monthly_fee: 600, label: "10–19 rooms" },
+    { min_rooms: 20, max_rooms: 50, max_properties: null, monthly_fee: 750, label: "20–50 rooms" },
+    { min_rooms: 51, max_rooms: null, max_properties: null, monthly_fee: 925, label: "51+ rooms" },
   ],
   brandingAddonMonthly: 150,
   whiteLabelMonthly: 450,

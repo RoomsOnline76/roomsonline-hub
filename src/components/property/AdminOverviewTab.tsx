@@ -155,8 +155,8 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // PMS subscription
   push(`Subscription (${STRATEGY_LABELS[strategy] ?? strategy})`, c.subscription_fee_monthly);
 
-  // Enterprise custom PMS fee (>3 properties tier)
-  push("Enterprise PMS fee (custom)", c.enterprise_custom_fee);
+  // (Legacy enterprise custom PMS fee removed — subscription is now driven purely by room count.)
+
 
   // Volume-tiered per-property monthly fee (only when explicitly enabled)
   if (c.volume_tiers_enabled && Array.isArray(c.tier_pricing_json) && c.tier_pricing_json.length > 0) {

@@ -10,78 +10,60 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-const TIER_META = [
-  {
-    name: "Starter",
-    desc: "For individual properties getting started — no PMS experience needed.",
-    features: [
-      "Booking Engine Widgets",
-      "WordPress plugin",
-      "Guest CRM",
-      "Rate season management",
-      "Revenue management & analytics",
-      "Folio & billing system",
-      "Housekeeping board",
-      "TOBI AI assistant",
-      "Night audit automation",
-      "Portfolio analytics dashboard",
-      "Email support",
-    ],
-    cta: "Start 60-Day Free Trial",
-    popular: false,
-    negotiable: false,
-    savings: null as string | null,
-  },
-  {
-    name: "Professional",
-    desc: "For growing properties and small portfolios — enterprise features included.",
-    features: [
-      "Everything in Starter",
-      "Portfolio aggregator",
-      "Channel manager (1 OTA included)",
-      "Priority support",
-    ],
-    cta: "Start 60-Day Free Trial",
-    popular: true,
-    negotiable: true,
-    savings: "Channel manager alone can cost R 2,000+/mo elsewhere",
-  },
-  {
-    name: "Enterprise",
-    desc: "For hotel groups and management companies — fully customisable.",
-    features: [
-      "Everything in Professional",
-      "Unlimited OTA channels",
-      "Full API access (55+ actions)",
-      "Custom API integrations",
-      "Dedicated account manager",
-      "SLA guarantee",
-    ],
-    cta: "Get Custom Quote",
-    popular: false,
-    negotiable: true,
-    savings: "Typically 40–60% less than comparable enterprise PMS",
-  },
+const TIER_FEATURES_XS = [
+  "Booking Engine Widgets",
+  "WordPress plugin",
+  "Guest CRM",
+  "Rate season management",
+  "Revenue management & analytics",
+  "Folio & billing system",
+  "Housekeeping board",
+  "TOBI AI assistant",
+  "Night audit automation",
+  "Email support",
 ];
 
-function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
-  if (!t) return fallback;
-  const roomLabel = t.max_rooms === null || t.max_rooms === undefined
-    ? "Unlimited rooms"
-    : `Up to ${t.max_rooms} rooms`;
-  const propLabel = t.max_properties === null || t.max_properties === undefined
-    ? "unlimited properties"
-    : t.max_properties === 1
-      ? "1 property"
-      : `up to ${t.max_properties} properties`;
-  return `${roomLabel} · ${propLabel}`;
+const TIER_FEATURES_S = [
+  "Everything in the smaller tier",
+  "Portfolio analytics dashboard",
+  "Channel manager (1 OTA included)",
+];
+
+const TIER_FEATURES_M = [
+  "Everything in the smaller tier",
+  "Additional OTA channels",
+  "Priority support",
+];
+
+const TIER_FEATURES_L = [
+  "Everything in the smaller tier",
+  "Unlimited OTA channels",
+  "Full API access (55+ actions)",
+  "Dedicated account manager",
+];
+
+function tierMeta(index: number) {
+  const list = [
+    { name: "0–9 rooms", desc: "For individual properties getting started.", features: TIER_FEATURES_XS, popular: false },
+    { name: "10–19 rooms", desc: "For growing properties adding OTAs.", features: TIER_FEATURES_S, popular: true },
+    { name: "20–50 rooms", desc: "For established properties and small portfolios.", features: TIER_FEATURES_M, popular: false },
+    { name: "51+ rooms", desc: "For hotel groups and larger operations.", features: TIER_FEATURES_L, popular: false },
+  ];
+  return list[index];
 }
 
-function tierPrice(t: PublicPricingTier | undefined, isEnterprise: boolean): { price: string; period: string } {
-  if (isEnterprise || !t || t.monthly_fee === null || t.monthly_fee === undefined) {
+function tierPrice(t: PublicPricingTier | undefined): { price: string; period: string } {
+  if (!t || t.monthly_fee === null || t.monthly_fee === undefined) {
     return { price: "Let's Talk", period: "" };
   }
   return { price: formatZar(t.monthly_fee), period: "/month" };
+}
+
+function tierCaps(t: PublicPricingTier | undefined, fallback: string): string {
+  if (!t) return fallback;
+  const min = t.min_rooms ?? 0;
+  if (t.max_rooms === null || t.max_rooms === undefined) return `${min}+ rooms`;
+  return `${min}–${t.max_rooms} rooms`;
 }
 
 const GUARANTEES = [
@@ -90,27 +72,24 @@ const GUARANTEES = [
   "R 0 setup fees",
   "Cancel anytime, keep your data",
   "Full data export included",
-  "Negotiable pricing for multi-property portfolios",
+  "Billed by total room count — property count doesn't affect the fee",
 ];
 
 
 export default function ConnectPricing() {
   const { data: pricing } = usePublicPricing();
 
-  const rolosTiers = pricing?.rolosTiers ?? [];
-  // Match tiers by property cap first, then by room cap for robustness.
-  const starterTier = rolosTiers.find((t) => t.max_properties === 1)
-    ?? rolosTiers.find((t) => (t.max_rooms ?? 0) <= 10);
-  const proTier = rolosTiers.find((t) => t.max_properties === 3)
-    ?? rolosTiers.find((t) => t.max_rooms !== null && (t.max_rooms ?? 0) > 10 && (t.max_rooms ?? 0) <= 50);
-  const enterpriseTier = rolosTiers.find((t) => t.max_properties === null || t.max_properties === undefined || (t.max_properties ?? 0) > 3)
-    ?? rolosTiers.find((t) => t.max_rooms === null);
+  const rolosTiers = [...(pricing?.rolosTiers ?? [])].sort((a, b) => {
+    const ar = a.max_rooms ?? Number.POSITIVE_INFINITY;
+    const br = b.max_rooms ?? Number.POSITIVE_INFINITY;
+    return ar - br;
+  });
 
-  const tierData = [
-    { meta: TIER_META[0], row: starterTier, isEnterprise: false, fallbackCaps: "Up to 10 rooms · 1 property" },
-    { meta: TIER_META[1], row: proTier, isEnterprise: false, fallbackCaps: "Up to 50 rooms · up to 3 properties" },
-    { meta: TIER_META[2], row: enterpriseTier, isEnterprise: true, fallbackCaps: "Unlimited rooms · unlimited properties" },
-  ];
+  const tierData = [0, 1, 2, 3].map((i) => ({
+    meta: tierMeta(i),
+    row: rolosTiers[i],
+    fallbackCaps: ["0–9 rooms", "10–19 rooms", "20–50 rooms", "51+ rooms"][i],
+  }));
 
   const widgetPct = pricing?.widgetFlatCommissionRate ?? 2;
   const widgetPctLabel = Number.isInteger(widgetPct) ? `${widgetPct}%` : `${widgetPct.toFixed(1)}%`;
@@ -142,16 +121,17 @@ export default function ConnectPricing() {
     },
   ];
 
-  const starterPriceLabel = starterTier?.monthly_fee ? formatZar(starterTier.monthly_fee) : "R 1,500";
+  const starterPriceLabel = rolosTiers[0]?.monthly_fee ? formatZar(rolosTiers[0].monthly_fee) : "R 450";
   const COMPETITOR_COSTS = [
     { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: `Included from ${starterPriceLabel}` },
-    { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included (Professional+)" },
-    { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included (Enterprise)" },
-    { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
+    { item: "Channel Manager add-on", typical: "R 2,000 – R 4,000/mo", rolos: "Included from 10+ rooms" },
+    { item: "API access", typical: "R 1,500 – R 3,000/mo", rolos: "Included on 51+ rooms tier" },
+    { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included on every tier" },
     { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
     { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
     { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: `From ${widgetPctLabel} · negotiable` },
   ];
+
 
   return (
     <div>
@@ -238,27 +218,22 @@ export default function ConnectPricing() {
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid lg:grid-cols-3 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
 
-            {tierData.map(({ meta, row, isEnterprise, fallbackCaps }) => {
-              const { price, period } = tierPrice(row, isEnterprise);
+            {tierData.map(({ meta, row, fallbackCaps }) => {
+              const { price, period } = tierPrice(row);
               const caps = tierCaps(row, fallbackCaps);
               return (
               <motion.div
                 key={meta.name}
                 variants={fadeUp}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className={`rounded-2xl border p-8 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
+                className={`rounded-2xl border p-6 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
               >
                 {meta.popular && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-medium">
                     Most Popular
-                  </span>
-                )}
-                {meta.negotiable && (
-                  <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Negotiable
                   </span>
                 )}
                 <h3 className="text-lg font-semibold">{meta.name}</h3>
@@ -268,12 +243,6 @@ export default function ConnectPricing() {
                 </div>
                 <p className="text-xs font-medium text-primary mt-2">{caps}</p>
                 <p className="text-sm text-muted-foreground mt-2">{meta.desc}</p>
-
-                {meta.savings && (
-                  <div className="mt-3 text-xs bg-primary/10 text-primary rounded-lg px-3 py-2 font-medium">
-                    💡 {meta.savings}
-                  </div>
-                )}
 
                 <ul className="mt-6 space-y-2.5">
                   {meta.features.map((f) => (
@@ -286,7 +255,7 @@ export default function ConnectPricing() {
 
                 <Link to={connectPath("/connect/get-started")} className="block mt-8">
                   <Button variant={meta.popular ? "default" : "outline"} className="w-full gap-2">
-                    {meta.cta} <ArrowRight className="h-3.5 w-3.5" />
+                    Start 60-Day Free Trial <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
               </motion.div>
@@ -309,7 +278,7 @@ export default function ConnectPricing() {
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold">What you get.</h2>
             <p className="text-muted-foreground mt-2 max-w-xl mx-auto">
-              Every ROL'OS subscription — Starter, Professional and Enterprise — ships with the full
+              Every ROL'OS subscription — from the smallest tier upwards — ships with the full
               operating stack. No feature paywalls on the essentials.
             </p>
           </motion.div>

@@ -213,25 +213,25 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       </ToggleRow>
 
 
-      {/* ── PMS subscription (base + optional per-unit volume tiers) ─── */}
+      {/* ── PMS subscription (billed by total room count) ────────────── */}
       <ToggleRow
         title="PMS subscription (ROL'OS)"
-        description="Monthly PMS fee. Set a flat base and/or enable per-unit volume tiers that scale with property count (Starter / Professional / Enterprise). Optional per-unit channel-manager fee."
+        description="Monthly PMS fee. Billed by total room count only (across the property or portfolio) — property count doesn't affect the tier. Tiers: 0–9 rooms R450 · 10–19 R600 · 20–50 R750 · 51+ R925. Optional per-unit channel-manager fee."
         enabled={value.pms_enabled}
         onToggle={(v) => set("pms_enabled", v)}
       >
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base (ZAR)</Label>
+            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base override (ZAR)</Label>
             <Input
               type="number" step="50" min="0"
               value={value.subscription_fee}
               onChange={(e) => set("subscription_fee", e.target.value)}
-              placeholder={String(placeholders.subscription_fee ?? "1500")}
+              placeholder={String(placeholders.subscription_fee ?? "450")}
               className="h-8 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Auto-resolves from the tier when left blank. Override to force a fixed fee.
+              Auto-resolves from the room-count tier when left blank. Override to force a fixed fee.
             </p>
           </div>
           <div>
@@ -245,24 +245,6 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
             />
           </div>
         </div>
-        {scope === "property" && (
-          <div className="pt-1">
-            <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Enterprise custom monthly fee (ZAR)
-            </Label>
-            <Input
-              type="number" step="50" min="0"
-              value={value.enterprise_custom_fee}
-              onChange={(e) => set("enterprise_custom_fee", e.target.value)}
-              placeholder="Set when this client has more than 3 properties"
-              className="h-8 text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              Applied only when this property (or its portfolio) has &gt; 3 active properties.
-              Billing will skip the base subscription line until this value is set.
-            </p>
-          </div>
-        )}
 
       </ToggleRow>
 
