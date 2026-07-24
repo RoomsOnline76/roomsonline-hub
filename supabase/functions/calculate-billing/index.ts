@@ -390,8 +390,14 @@ async function calcWidget(
 
   const monthlyVolume = count || 0;
   let rate = resolve(config?.commission_rate, globals?.default_commission_rate, 8);
+  let source = 'widget_default';
 
-  if (mappings && mappings.length > 0) {
+  // Flat widget commission takes precedence over tiered when set.
+  const flat = config?.widget_flat_commission_rate ?? globals?.widget_flat_commission_rate ?? null;
+  if (flat != null) {
+    rate = Number(flat);
+    source = 'widget_flat';
+  } else if (mappings && mappings.length > 0) {
     for (const m of mappings) {
       if (m.field === 'tier_threshold') {
         try {
@@ -399,6 +405,7 @@ async function calcWidget(
           for (const [threshold, tierRate] of Object.entries(tiers).sort(([a], [b]) => Number(b) - Number(a))) {
             if (monthlyVolume >= Number(threshold)) {
               rate = Number(tierRate);
+              source = 'widget_tier';
               break;
             }
           }
@@ -407,10 +414,12 @@ async function calcWidget(
     }
   }
 
+
   return {
     amount: amount * (rate / 100),
     type: 'commission',
-    metadata: { rate, monthly_volume: monthlyVolume, source: 'widget_tier' },
+    metadata: { rate, monthly_volume: monthlyVolume, source },
+
   };
 }
 

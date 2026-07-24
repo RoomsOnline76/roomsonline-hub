@@ -14,7 +14,11 @@ export function summarizeStrategy(d: BillingDefault): string {
   const name = STRATEGY_INTRO[d.strategy] ?? d.strategy;
   const parts: string[] = [];
   if (d.strategy === "widget") {
-    parts.push("tiered commission by monthly booking volume");
+    if ((d as any).widget_flat_commission_rate != null) {
+      parts.push(`${(d as any).widget_flat_commission_rate}% flat widget commission`);
+    } else {
+      parts.push("tiered commission by monthly booking volume");
+    }
   } else if (d.default_commission_rate != null) {
     parts.push(`${d.default_commission_rate}% commission`);
   }
