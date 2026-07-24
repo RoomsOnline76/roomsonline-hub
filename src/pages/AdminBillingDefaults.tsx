@@ -63,8 +63,13 @@ function presetToBuilder(row: BillingDefault): BillingConfigValue {
   v.white_label_monthly_fee = toStr(row.white_label_monthly_fee);
   v.white_label_setup_fee = toStr(row.white_label_setup_fee ?? null);
   v.white_label_billing_mode = (row.white_label_billing_mode as "monthly" | "annual") || "monthly";
-  v.pricelabs_enabled = (row.pricelabs_monthly_fee ?? 0) > 0;
+  v.branding_addon_enabled = !!(row as any).branding_addon_allowed;
+  v.branding_addon_monthly_fee = toStr((row as any).branding_addon_monthly_fee ?? null);
+  v.branding_addon_setup_fee = toStr((row as any).branding_addon_setup_fee ?? null);
+  v.branding_addon_billing_mode = ((row as any).branding_addon_billing_mode as "monthly" | "annual") || "monthly";
+  v.pricelabs_enabled = (row.pricelabs_monthly_fee ?? 0) > 0 || ((row as any).pricelabs_setup_fee ?? 0) > 0;
   v.pricelabs_monthly_fee = toStr(row.pricelabs_monthly_fee ?? null);
+  v.pricelabs_setup_fee = toStr((row as any).pricelabs_setup_fee ?? null);
   return v;
 }
 
