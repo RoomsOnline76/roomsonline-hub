@@ -426,8 +426,45 @@ Deno.serve(async (req) => {
       }
 
       case "get_sync_status": {
-        const r = await pl("GET", "/sync_status", name, token);
+        // Connector API requires user_token (per-customer PriceLabs API key) as query param.
+        let userToken = typeof payload.user_token === "string" ? payload.user_token as string : "";
+        if (!userToken && propertyId) {
+          const { data: prop } = await supabase
+            .from("properties")
+            .select("pricelabs_config")
+            .eq("id", propertyId)
+            .maybeSingle();
+          const cfg = (prop?.pricelabs_config ?? {}) as Json;
+          const creds = (cfg.credentials ?? {}) as Json;
+          if (typeof creds.user_token === "string") userToken = creds.user_token as string;
+        }
+        if (!userToken) {
+          return json({
+            success: false,
+            status: 400,
+            error: "Missing user_token. Paste the customer's PriceLabs user_token (from their PriceLabs account → API) and click Save first.",
+          }, 400);
+        }
+        const r = await pl("GET", `/sync_status?user_token=${encodeURIComponent(userToken)}`, name, token);
         return json({ success: r.ok, status: r.status, data: r.body });
+      }
+
+      case "save_user_token": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+        const userToken = typeof payload.user_token === "string" ? (payload.user_token as string).trim() : "";
+        if (!userToken) return json({ error: "user_token required" }, 400);
+        const { data: prop } = await supabase
+          .from("properties")
+          .select("pricelabs_config")
+          .eq("id", propertyId)
+          .maybeSingle();
+        const cfg = (prop?.pricelabs_config ?? {}) as Json;
+        const creds = ((cfg.credentials as Json) ?? {}) as Json;
+        creds.user_token = userToken;
+        cfg.credentials = creds;
+        const { error } = await supabase.from("properties").update({ pricelabs_config: cfg }).eq("id", propertyId);
+        if (error) return json({ success: false, error: error.message }, 500);
+        return json({ success: true });
       }
 
       case "debug_pricelabs": {
