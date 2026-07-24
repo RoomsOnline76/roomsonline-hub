@@ -1,48 +1,26 @@
+
 ## Goal
+Surface a lightweight, commission-only option on `/connect/pricing`: **WBE / Widgets / WordPress** — commission from **2%** (negotiable).
 
-In the billing config, the "Widget — tiered commission" section becomes two mutually-exclusive options:
+## Change
+Edit `src/pages/connect/ConnectPricing.tsx`:
 
-- **Widget — flat commission** (new): single % applied to every WBE booking, regardless of volume.
-- **Widget — tiered commission** (existing): monthly-volume tiers from the global WidgetTierEditor.
+1. Add a new callout card **above the three subscription tiers** (Starter / Professional / Enterprise) so it reads as a distinct, no-subscription option rather than a fourth column that breaks the existing 3-card grid.
+   - Title: **WBE, Widgets & WordPress**
+   - Headline price: **From 2% commission** · badge "Negotiable"
+   - Sub: "No monthly fee. Pay only when you get a booking."
+   - Bullets:
+     - Embed the ROL booking engine (WBE) on any site
+     - WordPress plugin + shortcodes
+     - Availability & booking widgets
+     - Commission negotiable for volume / portfolios
+   - CTA: "Talk to us" → `/connect/get-started`
 
-Rules:
-- At most one can be enabled at a time.
-- Both can be off (no WBE-specific commission — the standard Listing commission still applies if enabled).
-- Enabling one auto-disables the other; turning one off leaves both off.
+2. Add a matching row to the **"What Others Charge"** comparison table:
+   - Feature: "Booking widget / WBE (commission-only)"
+   - Typical: "5–15% + setup fees"
+   - ROL'OS: "From 2% · negotiable"
 
-## Changes
+3. Update the hero sub-copy to hint that a commission-only option exists alongside the subscription plans (one short sentence).
 
-### 1. `src/components/admin/billing/BillingConfigBuilder.tsx`
-- Add fields to `BillingConfigValue`:
-  - `widget_flat_enabled: boolean`
-  - `widget_flat_rate: string`
-- Default them off / empty in `emptyBuilderValue()`.
-- Insert a new **"Widget — flat commission"** `ToggleRow` immediately above the existing tiered row.
-  - Numeric % input, placeholder e.g. `10`.
-  - `onToggle`: when turning on, also set `widget_tiers_enabled: false`.
-- Update the tiered row's `onToggle`: when turning on, also set `widget_flat_enabled: false`.
-- Update `summarizeBuilderValue` to emit `X% widget commission (flat)` when flat is on.
-
-### 2. Persistence layer (preset + property scope)
-- Read/write the new fields wherever `BillingConfigValue` is (de)serialised for `billing_global_defaults` and `property_billing_configs`. Reuse existing columns where possible:
-  - Map `widget_flat_enabled` + `widget_flat_rate` to a dedicated pair. Preferred: add `widget_flat_commission_rate numeric` to both `billing_global_defaults` and `property_billing_configs` via a single migration (nullable = disabled). Include the required `GRANT` statements for both tables.
-- Update `useBillingDefaults` / `useBillingConfig` types and the loaders/savers in `AdminBillingDefaults.tsx` and the property Admin tab to round-trip the new field.
-
-### 3. Summaries & downstream
-- `StrategySummaryLine.tsx`: when a defaults row has widget flat set, print `X% widget commission (flat)` instead of / in addition to the tiered line, mirroring the mutual-exclusion rule.
-- `calculate-billing` / `calculate-commission` edge functions and `billingTierResolver`: when computing WBE commission, prefer `widget_flat_commission_rate` if present; otherwise fall through to widget tiers; otherwise no WBE commission. No change to sales-rep / facilitator logic.
-
-### 4. UX polish
-- Small helper text under both widget rows: "Flat or tiered — pick one, or leave both off."
-- The two rows share a light visual grouping (thin left border or subtle heading) so it's obvious they're paired.
-
-## Out of scope
-- Global "Listing commission" (unchanged; can coexist with either widget option — that's how it already behaves).
-- Sales rep commission rules (unchanged — still excludes facilitator surcharge).
-- No UI wording change to the connect/pricing marketing page.
-
-## Verification
-- Toggle flat on → tiered auto-disables; save; reload; state persists.
-- Toggle tiered on → flat auto-disables; save; reload.
-- Turn both off → save; loader returns both disabled.
-- Admin summary line and property Admin tab reflect the correct one-liner in each state.
+No changes to billing config, backend, or subscription tiers — this is pricing-page presentation only.

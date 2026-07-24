@@ -106,6 +106,7 @@ const COMPETITOR_COSTS = [
   { item: "Revenue management", typical: "R 1,000 – R 2,500/mo", rolos: "Included from Starter" },
   { item: "AI assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "White-label branding", typical: "Enterprise tier only", rolos: "Available as an add-on" },
+  { item: "Booking widget / WBE (commission-only)", typical: "5–15% + setup fees", rolos: "From 2% · negotiable" },
 ];
 
 const GUARANTEES = [
@@ -145,19 +146,67 @@ export default function ConnectPricing() {
             className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             You'll think we made a mistake on the price. No per-API-call fees.
-            No hidden charges. Every plan includes what others charge extra for.
+            No hidden charges. Every plan includes what others charge extra for —
+            or skip the subscription entirely with our commission-only widget option.
           </motion.p>
+
         </div>
       </section>
 
       {/* Pricing cards */}
       <section className="py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          {/* Commission-only callout — WBE / Widgets / WordPress */}
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="mb-10 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/5 via-background to-background p-6 sm:p-8 relative"
+          >
+            <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Negotiable
+            </span>
+            <div className="grid md:grid-cols-[1.4fr_1fr] gap-6 items-center">
+              <div>
+                <span className="inline-block px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded-full bg-primary/10 text-primary mb-3">
+                  No subscription · Commission-only
+                </span>
+                <h3 className="text-2xl font-bold">WBE, Widgets &amp; WordPress</h3>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-primary">From 2%</span>
+                  <span className="text-sm text-muted-foreground">commission per booking</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-3 max-w-xl">
+                  No monthly fee. Pay only when you get a booking. Perfect for properties that already
+                  have a website and just want a booking engine that converts.
+                </p>
+                <Link to={connectPath("/connect/get-started")} className="inline-block mt-5">
+                  <Button className="gap-2">
+                    Talk to us <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                </Link>
+              </div>
+              <ul className="space-y-2.5">
+                {[
+                  "Embed the ROL booking engine (WBE) on any site",
+                  "WordPress plugin + shortcodes",
+                  "Availability & booking widgets",
+                  "Commission negotiable for volume / portfolios",
+                ].map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm">
+                    <Check className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </motion.div>
+
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
             className="grid lg:grid-cols-3 gap-6"
           >
+
             {TIERS.map((tier) => (
               <motion.div
                 key={tier.name}
