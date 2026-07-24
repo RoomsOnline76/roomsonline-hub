@@ -140,45 +140,47 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     } as any;
   }, [selectedPreset]);
 
+  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string) => {
+    upsert.mutate({
+      property_id: propertyId,
+      billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
+      commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
+      widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
+      subscription_fee_monthly: v.pms_enabled ? toNum(v.subscription_fee) : null,
+      channel_manager_enabled: v.pms_enabled,
+      channel_manager_per_unit_fee: v.pms_enabled ? toNum(v.channel_per_unit) : null,
+      enterprise_custom_fee: v.pms_enabled ? toNum(v.enterprise_custom_fee) : null,
+      transaction_fee_percentage: v.facilitator_surcharge_enabled ? toNum(v.transaction_fee) : null,
+      payment_facilitator_enabled: !customProviderEnabled,
+      byo_gateway_monthly_fee: v.byo_gateway_enabled ? toNum(v.byo_gateway_fee) : null,
+      white_label_allowed: v.white_label_enabled,
+      white_label_monthly_fee: v.white_label_enabled ? toNum(v.white_label_monthly_fee) : null,
+      white_label_setup_fee: v.white_label_enabled ? toNum(v.white_label_setup_fee) : null,
+      white_label_billing_mode: v.white_label_enabled ? v.white_label_billing_mode : null,
+      ...(v.white_label_enabled
+        ? { branding_addon_enabled: true, branding_addon_monthly_fee: 0, branding_addon_setup_fee: 0 }
+        : {}),
+      pricelabs_allowed: isRolosPms ? v.pricelabs_enabled : false,
+      pricelabs_monthly_fee: isRolosPms && v.pricelabs_enabled ? toNum(v.pricelabs_monthly_fee) : null,
+      tier_pricing_json: v.volume_tiers_enabled ? (v.tier_pricing_json as any) : null,
+      billing_start_date: startDate || null,
+    } as any);
+  };
+
   const applyPreset = (slug: string) => {
     setStrategy(slug);
     const preset = defaults.find((d) => d.strategy === slug);
     if (preset) {
-      setBuilder(presetToBuilder(preset));
+      const next = presetToBuilder(preset);
+      setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
+      // Immediately persist preset values to this property.
+      persistBuilder(slug, next, billingStartDate);
     }
   };
 
   const handleSave = () => {
-    upsert.mutate({
-      property_id: propertyId,
-      billing_strategy: strategy as BillingConfig["billing_strategy"],
-      commission_rate: builder.commission_enabled ? toNum(builder.commission_rate) : null,
-      widget_flat_commission_rate: builder.widget_flat_enabled ? toNum(builder.widget_flat_rate) : null,
-      subscription_fee_monthly: builder.pms_enabled ? toNum(builder.subscription_fee) : null,
-      channel_manager_enabled: builder.pms_enabled,
-      channel_manager_per_unit_fee: builder.pms_enabled ? toNum(builder.channel_per_unit) : null,
-      enterprise_custom_fee: builder.pms_enabled ? toNum(builder.enterprise_custom_fee) : null,
-      transaction_fee_percentage: builder.facilitator_surcharge_enabled ? toNum(builder.transaction_fee) : null,
-      payment_facilitator_enabled: !customProviderEnabled,
-      byo_gateway_monthly_fee: builder.byo_gateway_enabled ? toNum(builder.byo_gateway_fee) : null,
-      white_label_allowed: builder.white_label_enabled,
-      white_label_monthly_fee: builder.white_label_enabled ? toNum(builder.white_label_monthly_fee) : null,
-      white_label_setup_fee: builder.white_label_enabled ? toNum(builder.white_label_setup_fee) : null,
-      white_label_billing_mode: builder.white_label_enabled ? builder.white_label_billing_mode : null,
-      // White-label always includes the Basic Branding add-on at zero cost.
-      ...(builder.white_label_enabled
-        ? {
-            branding_addon_enabled: true,
-            branding_addon_monthly_fee: 0,
-            branding_addon_setup_fee: 0,
-          }
-        : {}),
-      pricelabs_allowed: isRolosPms ? builder.pricelabs_enabled : false,
-      pricelabs_monthly_fee: isRolosPms && builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
-      tier_pricing_json: builder.volume_tiers_enabled ? (builder.tier_pricing_json as any) : null,
-      billing_start_date: billingStartDate || null,
-    } as any);
+    persistBuilder(strategy, builder, billingStartDate);
   };
 
   if (isLoading) {
