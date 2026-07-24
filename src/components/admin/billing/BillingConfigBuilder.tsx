@@ -14,7 +14,7 @@ import { DEFAULT_TIERS, PricingTier } from "@/lib/billingTierResolver";
  * independent toggle.
  */
 export interface BillingConfigValue {
-  // Listing commission (flat %)
+  // OTA listing commission (flat %) — bookings made through ROL's own OTA
   commission_enabled: boolean;
   commission_rate: string;
   // Widget / WBE tiered commission (uses global widget tiers)
