@@ -73,8 +73,19 @@ export const Navbar = () => {
     const issues: HealthIssue[] = [];
     const totalMilestones = getTotalMilestoneCount();
 
-    // Check milestone completion for all PMS systems
+    // Load parked integrations — these are excluded from milestone tracking
+    const { data: trackerRows } = await supabase
+      .from("pms_tracker_status")
+      .select("system_type, integration_status");
+    const parkedSet = new Set(
+      (trackerRows || [])
+        .filter((r: any) => r.integration_status === "parked")
+        .map((r: any) => r.system_type)
+    );
+
+    // Check milestone completion for all PMS systems (skip parked)
     Object.keys(pmsIntegrationStatus).forEach((systemType) => {
+      if (parkedSet.has(systemType)) return;
       const completed = getCompletedMilestoneCount(systemType);
       if (completed === totalMilestones) {
         // Milestone complete - will check data freshness next
