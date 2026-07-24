@@ -6,7 +6,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const BASE = "https://api.pricelabs.co/v2/integration/api";
+const BASE = "https://api.pricelabs.co/v1";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
     switch (action) {
       case "health_check":
       case "get_integration": {
-        const r = await pl("GET", "/integration", name, token);
+        const r = await pl("GET", "/get_integration", name, token);
         return json({ success: r.ok, status: r.status, data: r.body });
       }
 
@@ -426,8 +426,45 @@ Deno.serve(async (req) => {
       }
 
       case "get_sync_status": {
-        const r = await pl("GET", "/sync_status", name, token);
+        // Connector API requires user_token (per-customer PriceLabs API key) as query param.
+        let userToken = typeof payload.user_token === "string" ? payload.user_token as string : "";
+        if (!userToken && propertyId) {
+          const { data: prop } = await supabase
+            .from("properties")
+            .select("pricelabs_config")
+            .eq("id", propertyId)
+            .maybeSingle();
+          const cfg = (prop?.pricelabs_config ?? {}) as Json;
+          const creds = (cfg.credentials ?? {}) as Json;
+          if (typeof creds.user_token === "string") userToken = creds.user_token as string;
+        }
+        if (!userToken) {
+          return json({
+            success: false,
+            status: 400,
+            error: "Missing user_token. Paste the customer's PriceLabs user_token (from their PriceLabs account → API) and click Save first.",
+          }, 400);
+        }
+        const r = await pl("GET", `/sync_status?user_token=${encodeURIComponent(userToken)}`, name, token);
         return json({ success: r.ok, status: r.status, data: r.body });
+      }
+
+      case "save_user_token": {
+        if (!propertyId) return json({ error: "property_id required" }, 400);
+        const userToken = typeof payload.user_token === "string" ? (payload.user_token as string).trim() : "";
+        if (!userToken) return json({ error: "user_token required" }, 400);
+        const { data: prop } = await supabase
+          .from("properties")
+          .select("pricelabs_config")
+          .eq("id", propertyId)
+          .maybeSingle();
+        const cfg = (prop?.pricelabs_config ?? {}) as Json;
+        const creds = ((cfg.credentials as Json) ?? {}) as Json;
+        creds.user_token = userToken;
+        cfg.credentials = creds;
+        const { error } = await supabase.from("properties").update({ pricelabs_config: cfg }).eq("id", propertyId);
+        if (error) return json({ success: false, error: error.message }, 500);
+        return json({ success: true });
       }
 
       case "debug_pricelabs": {
@@ -488,12 +525,13 @@ Deno.serve(async (req) => {
       case "set_integration": {
         // Register / update webhook URLs with PriceLabs, optionally regenerate token.
         const body: Json = {
+          integration_name: name,
           sync_url: payload.sync_url,
           calendar_trigger_url: payload.calendar_trigger_url,
           hook_url: payload.hook_url,
         };
         if (payload.regenerate_token) body.regenerate_token = true;
-        const r = await pl("POST", "/integration", name, token, body);
+        const r = await pl("POST", "/set_integration", name, token, body);
 
         // Persist returned token to property override if provided
         const resBody = asJson(r.body);
