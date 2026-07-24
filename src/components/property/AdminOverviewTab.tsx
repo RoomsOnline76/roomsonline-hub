@@ -70,7 +70,7 @@ function Empty() {
 }
 
 export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabProps) {
-  const { config, isLoading: billingLoading } = useBillingConfig(propertyId);
+  const { config, isLoading: billingLoading, scope } = useBillingConfig(propertyId);
   const { data: referrals } = usePropertyReferrals(propertyId);
 
   const { data: property, isLoading: propLoading } = useQuery({
