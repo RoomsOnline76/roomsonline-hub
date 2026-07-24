@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 const CHANNEL_DESCRIPTIONS: Record<string, string> = {
   booking_com: "World's largest OTA — sync availability, rates & reservations.",
   airbnb: "Vacation rental marketplace — manage listings & guest comms.",
+  vrbo: "Expedia Group vacation rental brand — reach whole-home travellers worldwide.",
   expedia: "Global travel platform — distribute inventory across Expedia Group brands.",
   agoda: "Asia-focused OTA — reach travellers across APAC markets.",
   google_hotels: "Surface rates on Google Search, Maps & Google Travel via Hotel Ads.",

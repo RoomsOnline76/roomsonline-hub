@@ -99,7 +99,7 @@ export default function PMSChannels() {
           {/* Tab 1: Connections */}
           <TabsContent value="connections">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {["booking_com", "expedia", "lekkeslaap", "airbnb", "google_hotels"].map((ch) => {
+              {["booking_com", "expedia", "lekkeslaap", "airbnb", "vrbo", "google_hotels"].map((ch) => {
                 const conn = connectionMap.get(ch) as any;
                 const isConnected = !!conn && conn.status !== "disconnected";
                 const enriched = conn
