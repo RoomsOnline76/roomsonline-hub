@@ -359,6 +359,7 @@ export type Database = {
           white_label_billing_mode: string | null
           white_label_monthly_fee: number | null
           white_label_setup_fee: number | null
+          widget_flat_commission_rate: number | null
         }
         Insert: {
           branding_addon_allowed?: boolean | null
@@ -393,6 +394,7 @@ export type Database = {
           white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
         }
         Update: {
           branding_addon_allowed?: boolean | null
@@ -427,6 +429,7 @@ export type Database = {
           white_label_billing_mode?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
         }
         Relationships: [
           {
@@ -4582,6 +4585,7 @@ export type Database = {
           white_label_domain_verified_at: string | null
           white_label_monthly_fee: number | null
           white_label_setup_fee: number | null
+          widget_flat_commission_rate: number | null
         }
         Insert: {
           billing_start_date?: string | null
@@ -4621,6 +4625,7 @@ export type Database = {
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
         }
         Update: {
           billing_start_date?: string | null
@@ -4660,6 +4665,7 @@ export type Database = {
           white_label_domain_verified_at?: string | null
           white_label_monthly_fee?: number | null
           white_label_setup_fee?: number | null
+          widget_flat_commission_rate?: number | null
         }
         Relationships: [
           {
