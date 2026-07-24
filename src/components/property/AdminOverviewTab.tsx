@@ -170,7 +170,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     costLines.push({ label: "Basic Branding add-on (included with White-label)", amount: 0 });
   }
 
-  const isRolos = (property?.pms_system ?? "").toLowerCase() === "rolos";
+  const isRolos = !!property?.is_rol_property;
   const pricelabsActivated = !!property?.pricelabs_config?.enabled;
   const pricelabsBillable = !!wlDomain?.pricelabs_allowed && isRolos && pricelabsActivated;
   if (pricelabsBillable && Number(wlDomain?.pricelabs_monthly_fee ?? 0) > 0) {
