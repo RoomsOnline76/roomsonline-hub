@@ -218,27 +218,22 @@ export default function ConnectPricing() {
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
-            className="grid lg:grid-cols-3 gap-6"
+            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6"
           >
 
-            {tierData.map(({ meta, row, isEnterprise, fallbackCaps }) => {
-              const { price, period } = tierPrice(row, isEnterprise);
+            {tierData.map(({ meta, row, fallbackCaps }) => {
+              const { price, period } = tierPrice(row);
               const caps = tierCaps(row, fallbackCaps);
               return (
               <motion.div
                 key={meta.name}
                 variants={fadeUp}
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                className={`rounded-2xl border p-8 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
+                className={`rounded-2xl border p-6 relative ${meta.popular ? "border-primary shadow-lg ring-1 ring-primary/20" : "bg-card"}`}
               >
                 {meta.popular && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-3 py-1 rounded-full bg-primary text-primary-foreground font-medium">
                     Most Popular
-                  </span>
-                )}
-                {meta.negotiable && (
-                  <span className="absolute top-4 right-4 text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Negotiable
                   </span>
                 )}
                 <h3 className="text-lg font-semibold">{meta.name}</h3>
@@ -248,12 +243,6 @@ export default function ConnectPricing() {
                 </div>
                 <p className="text-xs font-medium text-primary mt-2">{caps}</p>
                 <p className="text-sm text-muted-foreground mt-2">{meta.desc}</p>
-
-                {meta.savings && (
-                  <div className="mt-3 text-xs bg-primary/10 text-primary rounded-lg px-3 py-2 font-medium">
-                    💡 {meta.savings}
-                  </div>
-                )}
 
                 <ul className="mt-6 space-y-2.5">
                   {meta.features.map((f) => (
@@ -266,7 +255,7 @@ export default function ConnectPricing() {
 
                 <Link to={connectPath("/connect/get-started")} className="block mt-8">
                   <Button variant={meta.popular ? "default" : "outline"} className="w-full gap-2">
-                    {meta.cta} <ArrowRight className="h-3.5 w-3.5" />
+                    Start 60-Day Free Trial <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                 </Link>
               </motion.div>
