@@ -308,6 +308,9 @@ export default function AdminKeys() {
   // PMS Tracker status state
   const [trackerData, setTrackerData] = useState<Record<string, PMSTrackerStatus>>({});
   const [sendingStatusReport, setSendingStatusReport] = useState(false);
+  const [showParked, setShowParked] = useState(false);
+  const isParked = (key: string) => trackerData[key]?.integration_status === 'parked';
+  const parkedCls = (key: string) => (!showParked && isParked(key) ? 'hidden' : '');
 
   useEffect(() => {
     fetchApiKeys();
@@ -1946,7 +1949,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="cloudbeds"
-        className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!cloudbedsCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('cloudbeds')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -2376,7 +2379,7 @@ export default function AdminKeys() {
       <AccordionItem
         key={apiKey.id}
         value={apiKey.id}
-        className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!isConfigured ? "opacity-60" : ""} ${parkedCls(apiKey.system_type)}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -2645,7 +2648,7 @@ export default function AdminKeys() {
     const isBensonActive = bensonStagingCredentials?.is_active || bensonProductionCredentials?.is_active;
 
     return (
-      <AccordionItem value="benson" className={`border rounded-lg px-4 ${!isBensonActive ? "opacity-60" : ""}`}>
+      <AccordionItem value="benson" className={`border rounded-lg px-4 ${!isBensonActive ? "opacity-60" : ""} ${parkedCls('benson')}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
@@ -2802,7 +2805,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="nightsbridge"
-        className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!nightsbridgeCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('nightsbridge')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -3040,7 +3043,7 @@ export default function AdminKeys() {
     const isConfigured = isTokenConfigured || isOAuthConfigured;
 
     return (
-      <AccordionItem value="checkfront" className={!checkfrontCredentials?.is_active ? "opacity-60" : ""}>
+      <AccordionItem value="checkfront" className={`${!checkfrontCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('checkfront')}`}>
         <AccordionTrigger className="hover:no-underline px-4 py-3 bg-card rounded-lg border">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
@@ -3318,7 +3321,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="littlehotelier"
-        className={`border rounded-lg px-4 ${!littlehotelierCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!littlehotelierCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('littlehotelier')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -3483,7 +3486,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="hostfully"
-        className={`border rounded-lg px-4 ${!hostfullyCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!hostfullyCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('hostfully')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -3894,7 +3897,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="rentalsunited"
-        className={`border rounded-lg px-4 ${!rentalsunitedCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!rentalsunitedCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('rentalsunited')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -4084,7 +4087,7 @@ export default function AdminKeys() {
     return (
       <AccordionItem
         value="profitroom"
-        className={`border rounded-lg px-4 ${!profitroomCredentials?.is_active ? "opacity-60" : ""}`}
+        className={`border rounded-lg px-4 ${!profitroomCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('profitroom')}`}
       >
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
@@ -4236,7 +4239,7 @@ export default function AdminKeys() {
     const demoId = (tracker?.additional_info as any)?.demo_property_id || "19912";
     const env = tracker?.active_environment || "sandbox";
     return (
-      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4">
+      <AccordionItem key={systemType} value={systemType} className={`border rounded-lg px-4 ${parkedCls(systemType)}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
@@ -4331,7 +4334,7 @@ export default function AdminKeys() {
     const Icon = getPMSIcon(systemType);
     const tracker = trackerData[systemType];
     return (
-      <AccordionItem key={systemType} value={systemType} className="border rounded-lg px-4 opacity-60">
+      <AccordionItem key={systemType} value={systemType} className={`border rounded-lg px-4 opacity-60 ${parkedCls(systemType)}`}>
         <AccordionTrigger className="hover:no-underline">
           <div className="flex items-center justify-between w-full pr-4">
             <div className="flex items-center gap-3">
@@ -4422,6 +4425,19 @@ export default function AdminKeys() {
                 {Math.round((progressStats.completedFlags / progressStats.totalFlags) * 100)}%
               </span>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowParked((v) => !v)}
+              className="gap-1"
+              title="Show or hide integrations marked as Parked"
+            >
+              {showParked ? "Hide" : "Show"} parked
+              {(() => {
+                const n = Object.values(trackerData).filter((t) => t?.integration_status === 'parked').length;
+                return n > 0 ? <span className="ml-1 text-xs text-muted-foreground">({n})</span> : null;
+              })()}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -4715,7 +4731,7 @@ export default function AdminKeys() {
           {/* HotelBeds - Custom card with API key/secret */}
           <AccordionItem
             value="hotelbeds"
-            className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""}`}
+            className={`border rounded-lg px-4 ${!hotelbedsCredentials?.is_active ? "opacity-60" : ""} ${parkedCls('hotelbeds')}`}
           >
             <AccordionTrigger className="hover:no-underline">
               <div className="flex items-center justify-between w-full pr-4">
