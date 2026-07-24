@@ -216,27 +216,117 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── PMS subscription (billed by total room count) ────────────── */}
       <ToggleRow
         title="PMS subscription (ROL'OS)"
-        description="Monthly PMS fee. Auto-billed from the room-count tier below (total rooms across the property or portfolio). Property count is not a factor."
+        description={
+          scope === "preset"
+            ? "Monthly PMS fee. Bills from the room-count tier table below — property count is not a factor. Edit tiers to change platform-wide pricing."
+            : "Monthly PMS fee. Bills from the platform's room-count tiers. You may override tiers for this property below."
+        }
         enabled={value.pms_enabled}
         onToggle={(v) => set("pms_enabled", v)}
       >
-        <div className="rounded-md border bg-muted/30 overflow-hidden text-xs">
-          <div className="grid grid-cols-2 px-2 py-1 bg-muted/60 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-            <span>Rooms</span>
-            <span className="text-right">Fee / month</span>
-          </div>
-          {[
-            { r: "0 – 9 rooms", f: "R 450" },
-            { r: "10 – 19 rooms", f: "R 600" },
-            { r: "20 – 50 rooms", f: "R 750" },
-            { r: "51+ rooms", f: "R 925" },
-          ].map((t) => (
-            <div key={t.r} className="grid grid-cols-2 px-2 py-1 border-t">
-              <span>{t.r}</span>
-              <span className="text-right font-mono">{t.f}</span>
+        {/* Tier table — editable in preset scope; read-only until override in property scope */}
+        {(() => {
+          const usingOverride = Array.isArray(value.tier_pricing_json) && value.tier_pricing_json.length > 0;
+          const displayTiers = usingOverride ? (value.tier_pricing_json as PricingTier[]) : DEFAULT_TIERS;
+          const editable = scope === "preset" || usingOverride;
+
+          const commitTiers = (next: PricingTier[]) =>
+            onChange({ ...value, tier_pricing_json: next, volume_tiers_enabled: true });
+
+          return (
+            <div className="rounded-md border bg-muted/20 overflow-hidden">
+              <div className="flex items-center justify-between px-2 py-1 bg-muted/60">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                  Room-count tiers {usingOverride ? "(override)" : scope === "property" ? "(platform default)" : ""}
+                </span>
+                {scope === "property" && (
+                  <div className="flex gap-1">
+                    {!usingOverride ? (
+                      <Button
+                        type="button" size="sm" variant="ghost"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => commitTiers([...DEFAULT_TIERS])}
+                      >
+                        Override for this property
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button" size="sm" variant="ghost"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => onChange({ ...value, tier_pricing_json: null, volume_tiers_enabled: false })}
+                      >
+                        Reset to platform tiers
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                <span>Min rooms</span><span>Max rooms</span><span>Fee / mo (ZAR)</span><span />
+              </div>
+              <div className="px-2 pb-2 space-y-1">
+                {displayTiers.map((t, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                    <Input
+                      type="number" min="0" value={t.min_rooms ?? 0} disabled={!editable}
+                      onChange={(e) => {
+                        const next = [...displayTiers];
+                        next[i] = { ...t, min_rooms: parseInt(e.target.value) || 0 };
+                        commitTiers(next);
+                      }}
+                      className="h-7 text-xs"
+                    />
+                    <Input
+                      type="number" min="0"
+                      value={t.max_rooms == null ? "" : t.max_rooms}
+                      placeholder="∞"
+                      disabled={!editable}
+                      onChange={(e) => {
+                        const next = [...displayTiers];
+                        next[i] = { ...t, max_rooms: e.target.value === "" ? null : parseInt(e.target.value) };
+                        commitTiers(next);
+                      }}
+                      className="h-7 text-xs"
+                    />
+                    <Input
+                      type="number" min="0" step="10"
+                      value={t.monthly_fee == null ? "" : t.monthly_fee}
+                      disabled={!editable}
+                      onChange={(e) => {
+                        const next = [...displayTiers];
+                        next[i] = { ...t, monthly_fee: e.target.value === "" ? null : parseFloat(e.target.value) };
+                        commitTiers(next);
+                      }}
+                      className="h-7 text-xs"
+                    />
+                    {editable ? (
+                      <Button
+                        type="button" variant="ghost" size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => commitTiers(displayTiers.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    ) : <span />}
+                  </div>
+                ))}
+                {editable && (
+                  <Button
+                    type="button" size="sm" variant="outline"
+                    className="h-7 w-full text-[11px] mt-1"
+                    onClick={() => {
+                      const last = displayTiers[displayTiers.length - 1];
+                      const nextMin = last ? ((last.max_rooms ?? last.min_rooms ?? 0) + 1) : 0;
+                      commitTiers([...displayTiers, { min_rooms: nextMin, max_rooms: null, max_properties: null, monthly_fee: null }]);
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Add tier
+                  </Button>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         <div className="grid grid-cols-2 gap-2 mt-2">
           <div>
