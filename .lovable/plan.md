@@ -1,56 +1,26 @@
-## Problem
+## Goal
+When an admin enables **White-label** on a property (or in global defaults), the **Basic Branding** add-on should automatically switch on and its fee should be forced to **R 0** (branding is included free with white-label).
 
-On `/admin/billing-defaults`, opening the **ROL'OS PMS — Subscription** preset, enabling **Listing commission**, entering a %, and clicking Save does not persist. Additionally, the current label/description is too generic — this specific commission is what ROL earns when a booking comes through our own OTA (`book.sleepinafrica.roomsonline.co.za`), not a generic "listing".
+## Behaviour rules
+- `white_label_allowed = true` → force `branding_addon_enabled = true`, `branding_addon_monthly_fee = 0`, `branding_addon_setup_fee = 0`.
+- While white-label is on:
+  - Branding toggle is shown as **On (included)** and disabled so it can't be turned off or re-priced.
+  - Fee inputs for branding are disabled and display `R 0`.
+- Turning white-label **off** restores branding to whatever the admin sets (falls back to the global default fee). It does not silently keep the R 0 override.
+- Billing calculation must not double-charge: when white-label is active, the branding line item is R 0 (or omitted) in the estimated client cost and in `calculate-billing`.
 
-## Root cause (confirmed via `pg_policy` on `billing_global_defaults`)
+## Where to change
 
-Two policies exist:
+Frontend (UI + state):
+- `src/components/admin/BillingConfigBuilder.tsx` — coerce branding fields whenever `white_label_allowed` flips on; disable the branding controls; show an "Included with White-label" hint.
+- `src/components/property/AdminOverviewTab.tsx` (estimated client cost) — treat branding as R 0 when white-label is on.
+- `src/pages/AdminBillingDefaults.tsx` — same coercion for global defaults tab.
 
-- `Admins and devs can view billing defaults` — SELECT only, granted to admin/dev/fearless_leader.
-- `Admins can manage billing defaults` — ALL, but the `USING` / `WITH CHECK` clauses only allow `dev` and `fearless_leader` (admin is excluded despite the policy name).
+Backend:
+- `supabase/functions/calculate-billing/index.ts` — if `white_label_allowed`, zero out the branding add-on line before summing.
 
-So an `admin` user can open the preset and edit the form, but the UPDATE is blocked by RLS and the row keeps its `default_commission_rate = NULL`. That matches what we see in the DB for `strategy='rolos_pms'`.
-
-## Changes
-
-### 1. Fix RLS so admins can actually save presets
-
-New migration that rewrites the manage policy to include `admin` alongside `dev` and `fearless_leader`, matching the intent of its name:
-
-```sql
-DROP POLICY "Admins can manage billing defaults" ON public.billing_global_defaults;
-CREATE POLICY "Admins can manage billing defaults"
-  ON public.billing_global_defaults
-  FOR ALL
-  TO authenticated
-  USING (
-    public.has_role(auth.uid(), 'admin')
-    OR public.has_role(auth.uid(), 'dev')
-    OR public.has_role(auth.uid(), 'fearless_leader')
-  )
-  WITH CHECK (
-    public.has_role(auth.uid(), 'admin')
-    OR public.has_role(auth.uid(), 'dev')
-    OR public.has_role(auth.uid(), 'fearless_leader')
-  );
-```
-
-### 2. Reword the field in `BillingConfigBuilder.tsx`
-
-In `src/components/admin/billing/BillingConfigBuilder.tsx` (the row at ~line 148):
-
-- Title: **"OTA listing commission"**
-- Description: **"Flat % ROL earns on bookings made through ROL's own OTA (e.g. `book.sleepinafrica.roomsonline.co.za`). Does not apply to widget/WBE, WordPress or channel-sourced bookings — those use their own commission/fee models below."**
-
-Also update the matching in-code comment (`// Listing commission (flat %)` → `// OTA listing commission (flat %)`) so future readers aren't misled.
-
-### 3. Verify
-
-After the migration + edit:
-
-- Query `billing_global_defaults` for `strategy='rolos_pms'` after saving via the UI and confirm `default_commission_rate` now stores the value.
-- Confirm the new copy renders on `/admin/billing-defaults` and on the property-level Billing tab (same component, same wording).
+No schema change needed — we're only constraining existing fields.
 
 ## Out of scope
-
-No changes to the property-level `property_billing_configs` policies (those already allow admin writes), no changes to how the value is consumed by `calculate-billing` (it already reads `commission_rate` correctly), and no changes to the widget flat/tiered rows.
+- No change to white-label pricing, PriceLabs, BYO gateway, or tier logic.
+- No change to the `/connect/pricing` public page (branding add-on there stays as-is; it's shown independently of white-label bundling).

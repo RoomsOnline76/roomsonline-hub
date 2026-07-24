@@ -166,6 +166,14 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       white_label_monthly_fee: builder.white_label_enabled ? toNum(builder.white_label_monthly_fee) : null,
       white_label_setup_fee: builder.white_label_enabled ? toNum(builder.white_label_setup_fee) : null,
       white_label_billing_mode: builder.white_label_enabled ? builder.white_label_billing_mode : null,
+      // White-label always includes the Basic Branding add-on at zero cost.
+      ...(builder.white_label_enabled
+        ? {
+            branding_addon_enabled: true,
+            branding_addon_monthly_fee: 0,
+            branding_addon_setup_fee: 0,
+          }
+        : {}),
       pricelabs_allowed: isRolosPms ? builder.pricelabs_enabled : false,
       pricelabs_monthly_fee: isRolosPms && builder.pricelabs_enabled ? toNum(builder.pricelabs_monthly_fee) : null,
       tier_pricing_json: builder.volume_tiers_enabled ? (builder.tier_pricing_json as any) : null,

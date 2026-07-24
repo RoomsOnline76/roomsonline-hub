@@ -426,6 +426,11 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
             </select>
           </div>
         </div>
+        {value.white_label_enabled && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            ✓ Basic Branding add-on is automatically included at no extra charge while White-label is on.
+          </p>
+        )}
       </ToggleRow>
 
       {/* ── PriceLabs add-on ───────────────────────────────────────── */}
