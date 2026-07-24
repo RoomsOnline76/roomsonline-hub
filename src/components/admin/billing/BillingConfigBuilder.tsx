@@ -216,22 +216,40 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
       {/* ── PMS subscription (billed by total room count) ────────────── */}
       <ToggleRow
         title="PMS subscription (ROL'OS)"
-        description="Monthly PMS fee. Billed by total room count only (across the property or portfolio) — property count doesn't affect the tier. Tiers: 0–9 rooms R450 · 10–19 R600 · 20–50 R750 · 51+ R925. Optional per-unit channel-manager fee."
+        description="Monthly PMS fee. Auto-billed from the room-count tier below (total rooms across the property or portfolio). Property count is not a factor."
         enabled={value.pms_enabled}
         onToggle={(v) => set("pms_enabled", v)}
       >
-        <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-md border bg-muted/30 overflow-hidden text-xs">
+          <div className="grid grid-cols-2 px-2 py-1 bg-muted/60 text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+            <span>Rooms</span>
+            <span className="text-right">Fee / month</span>
+          </div>
+          {[
+            { r: "0 – 9 rooms", f: "R 450" },
+            { r: "10 – 19 rooms", f: "R 600" },
+            { r: "20 – 50 rooms", f: "R 750" },
+            { r: "51+ rooms", f: "R 925" },
+          ].map((t) => (
+            <div key={t.r} className="grid grid-cols-2 px-2 py-1 border-t">
+              <span>{t.r}</span>
+              <span className="text-right font-mono">{t.f}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mt-2">
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Monthly base override (ZAR)</Label>
             <Input
               type="number" step="50" min="0"
               value={value.subscription_fee}
               onChange={(e) => set("subscription_fee", e.target.value)}
-              placeholder={String(placeholders.subscription_fee ?? "450")}
+              placeholder="Auto from tier"
               className="h-8 text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-0.5">
-              Auto-resolves from the room-count tier when left blank. Override to force a fixed fee.
+              Leave blank to auto-resolve from the tier above. Fill only to force a custom fixed fee.
             </p>
           </div>
           <div>
@@ -245,7 +263,6 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
             />
           </div>
         </div>
-
       </ToggleRow>
 
 
