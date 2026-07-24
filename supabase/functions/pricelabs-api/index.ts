@@ -525,12 +525,13 @@ Deno.serve(async (req) => {
       case "set_integration": {
         // Register / update webhook URLs with PriceLabs, optionally regenerate token.
         const body: Json = {
+          integration_name: name,
           sync_url: payload.sync_url,
           calendar_trigger_url: payload.calendar_trigger_url,
           hook_url: payload.hook_url,
         };
         if (payload.regenerate_token) body.regenerate_token = true;
-        const r = await pl("POST", "/integration", name, token, body);
+        const r = await pl("POST", "/set_integration", name, token, body);
 
         // Persist returned token to property override if provided
         const resBody = asJson(r.body);
