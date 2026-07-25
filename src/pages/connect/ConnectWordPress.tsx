@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Blocks, Download, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CodeSnippetBlock } from "@/components/integrations/CodeSnippetBlock";
+import { WordPressVisualWalkthrough } from "@/components/integrations/WordPressVisualWalkthrough";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
