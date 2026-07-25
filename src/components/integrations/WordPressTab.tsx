@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 import { useState } from "react";
 import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { WordPressVisualWalkthrough } from "./WordPressVisualWalkthrough";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
