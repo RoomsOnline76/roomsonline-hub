@@ -23,6 +23,29 @@ export const isConnectDomain = typeof window !== 'undefined' && (
   window.location.hostname === 'connect.roomsonline.co.za'
 );
 
+/**
+ * Canonical ROL host detection.
+ *
+ * Canonical hosts are ROL-owned domains (rolos.co.za, roomsonline.co.za and
+ * their subdomains, lovable preview domains, localhost). On these hosts the
+ * app MUST render in the default ROL pink theme with full ROL branding —
+ * property brand overrides are ignored so that the canonical URL always looks
+ * like ROL, not the property.
+ *
+ * White-label hosts are anything else — typically the property's custom
+ * `white_label_domain`. On those hosts we apply the property brand and hide
+ * ROL chrome via `WhiteLabelLayout` / `?wl=1`.
+ */
+export function isCanonicalRolHost(): boolean {
+  if (typeof window === 'undefined') return true;
+  const h = window.location.hostname.toLowerCase();
+  if (h === 'localhost' || h === '127.0.0.1') return true;
+  if (/\.lovable\.(app|dev)$/.test(h)) return true;
+  if (h === 'rolos.co.za' || h.endsWith('.rolos.co.za')) return true;
+  if (h === 'roomsonline.co.za' || h.endsWith('.roomsonline.co.za')) return true;
+  return false;
+}
+
 // Path helper: on connect domain, strip /connect prefix; on main domain, keep it
 export const connectPath = (path: string) =>
   isConnectDomain ? (path === "/connect" ? "/" : path.replace(/^\/connect/, "")) : path;

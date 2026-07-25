@@ -21,7 +21,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays, addDays } from "date-fns";
-import { getPropertyUrl } from "@/lib/config";
+import { getPropertyUrl, isCanonicalRolHost } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -2132,7 +2132,7 @@ const Booking = () => {
 
   // Layout wrapper — white-label for integration flows or brand-override properties
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
-  const isWhiteLabel = isIntegration || Boolean(property?.brand_override_enabled);
+  const isWhiteLabel = !isCanonicalRolHost() && (isIntegration || Boolean(property?.brand_override_enabled));
   const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback((children: React.ReactNode) =>
     isWhiteLabel ? (

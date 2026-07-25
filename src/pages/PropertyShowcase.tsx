@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom"
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { format, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { getNightsBridgeBookingUrl } from "@/lib/config";
+import { getNightsBridgeBookingUrl, isCanonicalRolHost } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/contexts/CurrencyContext";
@@ -665,13 +665,15 @@ export default function PropertyShowcase() {
   // Apply brand override to document root (affects ALL portals: calendar drawers, modals, etc.)
   const brandCleanupRef = useRef<(() => void) | null>(null);
   const brandedMode = searchParams.get("branded") === "true";
+  const canonicalHost = isCanonicalRolHost();
 
   useEffect(() => {
     brandCleanupRef.current?.();
     brandCleanupRef.current = null;
 
-    // Force brand in branded mode even if property-level toggle is off
-    const shouldApplyBrand = Boolean(
+    // Canonical ROL hosts always render in default ROL pink theme — never
+    // apply the property brand even when `brand_override_enabled` is on.
+    const shouldApplyBrand = !canonicalHost && Boolean(
       (property?.brand_override_enabled || brandedMode) && property?.brand_primary_color
     );
 
@@ -694,7 +696,7 @@ export default function PropertyShowcase() {
       brandCleanupRef.current?.();
       clearBrandFromSession();
     };
-  }, [brandedMode, property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color, property?.brand_logo_url]);
+  }, [brandedMode, canonicalHost, property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color, property?.brand_logo_url]);
 
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
@@ -916,7 +918,7 @@ export default function PropertyShowcase() {
 
   // Loading state
   // Determine if this property should use white-label layout
-  const isWhiteLabel = Boolean(property?.brand_override_enabled && property?.brand_primary_color);
+  const isWhiteLabel = !canonicalHost && Boolean(property?.brand_override_enabled && property?.brand_primary_color);
   const propertyLogoUrl = property?.brand_logo_url || null;
 
   // Brand is "ready" once property is loaded (brand vars are applied synchronously in the effect above)
