@@ -46,6 +46,7 @@ import { AgeVerificationUpload } from "@/components/booking/AgeVerificationUploa
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
+import { formatCancellationPolicy, type CancellationRule } from "@/lib/policyFormatter";
 import {
   Collapsible,
   CollapsibleContent,
@@ -244,6 +245,22 @@ const Booking = () => {
 
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
+
+  // Cancellation policy (canonical rolos_policies row) — used to render actual terms on checkout
+  const { data: cancellationPolicyRule } = useQuery({
+    queryKey: ["booking-cancellation-policy", property?.id],
+    enabled: !!property?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rolos_policies" as any)
+        .select("rule")
+        .eq("property_id", property!.id)
+        .eq("policy_type", "cancellation")
+        .maybeSingle();
+      return (data as any)?.rule ?? null;
+    },
+  });
 
   // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
@@ -2842,9 +2859,19 @@ const Booking = () => {
                 </svg>
                 <div>
                   <p className="text-xs font-medium">Cancellation Policy</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {(property as any)?.amenities?.cancellation_policy || "Contact property for cancellation terms"}
-                  </p>
+                  {(() => {
+                    const amenityText = ((property as any)?.amenities?.cancellation_policy || "").toString().trim();
+                    const rule = cancellationPolicyRule as CancellationRule | null | undefined;
+                    const hasRule = !!(rule && (rule.non_refundable || (rule.tiers && rule.tiers.length > 0) || rule.days_before !== undefined));
+                    const policyText = hasRule
+                      ? formatCancellationPolicy(rule!, checkIn || undefined, totalCost || undefined).summaryText
+                      : amenityText;
+                    return (
+                      <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
+                        {policyText || "Contact property for cancellation terms"}
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
