@@ -37,6 +37,14 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
   });
 
   useEffect(() => {
+    // Canonical ROL hosts never apply property brand — force default ROL theme
+    // and purge any stale cache so subsequent navigations stay pink.
+    if (canonical) {
+      clearBrandFromSession();
+      setBrandReady(true);
+      return;
+    }
+
     // Try session first (synchronous path)
     const cached = loadBrandFromSession();
     if (cached?.enabled) {
