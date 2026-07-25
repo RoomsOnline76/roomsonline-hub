@@ -106,7 +106,7 @@ const BookingConfirmation = () => {
 
   const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
   const propertyLogoUrl = booking?.properties ? (booking.properties as any).brand_logo_url : null;
-  const isWhiteLabel = isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled);
+  const isWhiteLabel = !isCanonicalRolHost() && (isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled));
   const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback(
     (children: React.ReactNode) =>
