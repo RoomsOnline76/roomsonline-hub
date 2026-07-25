@@ -119,7 +119,7 @@ export function useBrandOverride(propertyIdentifier?: string | null): { brandRea
       cancelled = true;
       cleanupRef.current?.();
     };
-  }, [propertyIdentifier]);
+  }, [propertyIdentifier, canonical]);
 
   return { brandReady };
 }
