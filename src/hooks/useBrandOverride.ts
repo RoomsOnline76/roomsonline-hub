@@ -4,18 +4,26 @@ import {
   loadBrandFromSession,
   saveBrandToSession,
   applyBrandToDocument,
-  applyCachedBrandSync,
+  clearBrandFromSession,
   type PropertyBrand,
 } from '@/lib/brandOverride';
+import { isCanonicalRolHost } from '@/lib/config';
 
 /**
  * Hook that applies stored property brand overrides to the document root.
  * Returns { brandReady } — true once branding is resolved (cached, fetched, or not applicable).
+ *
+ * On canonical ROL hosts (rolos.co.za, *.roomsonline.co.za, lovable, localhost)
+ * brand overrides are DISABLED — the canonical URL always renders in default
+ * ROL pink. Only white-label hosts (property's custom domain) apply the
+ * property brand.
  */
 export function useBrandOverride(propertyIdentifier?: string | null): { brandReady: boolean } {
+  const canonical = isCanonicalRolHost();
   const cleanupRef = useRef<(() => void) | null>(null);
   const fetchedRef = useRef<string | null>(null);
   const [brandReady, setBrandReady] = useState(() => {
+    if (canonical) return true;
     // Synchronous check: if cached brand exists, apply immediately and mark ready
     const cached = loadBrandFromSession();
     if (cached?.enabled && cached.primaryColor) {
