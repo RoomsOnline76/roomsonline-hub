@@ -1,53 +1,60 @@
-## Goal
-Make the WordPress plugin integration docs visually concrete — replace generic "Installation Steps" and shortcode blocks with a step-by-step walkthrough that shows exactly what the user will see in `wp-admin`, plus copy/paste-ready examples with visual annotations.
+# Fix brand-color leakage between canonical and white-label embeds
 
-## Scope
-Two doc surfaces to enrich (docs/UI only — no business logic changes):
+## Problem confirmed
 
-1. **`src/components/integrations/WordPressTab.tsx`** — the per-property Integrations → WordPress panel that owners actually use to install the plugin.
-2. **`src/pages/connect/ConnectWordPress.tsx`** — the public marketing/docs page at `/connect/wordpress`.
+Visiting `https://rolos.co.za/jongensfontein-com/` (WordPress plugin page) shows a mix: some white-label areas render in ROL pink and some canonical areas render in the property's blue. Two independent leaks cause this:
 
-## What changes
+1. **`src/pages/EmbedProperty.tsx` line 222-224** — the renderer *always* falls back to `property.brand_primary_color` / `brand_font_color` / `brand_logo_url` when no query param is present. So a canonical URL (no `wl=1`, no `brand_color`) still paints itself in the property's blue.
 
-### A. New reusable component: `WordPressVisualWalkthrough.tsx`
-A single component both surfaces embed. Contains:
+2. **Cookbook snippet generators** — `WidgetTab.tsx`, `PortfolioWidgetTab.tsx`, `DirectLinkTab.tsx`, `WidgetSetupWizard.tsx`, and `SmartBookButtonGenerator.tsx` all inject `brand_color=<property blue>` (and often `brand_logo`) into the URL *regardless* of whether white-label is enabled. So even the "canonical" copy-paste snippet ships blue chrome to third-party sites.
 
-- **Step cards** (numbered, illustrated) for the 6-step install:
-  1. Download ZIP (screenshot-style mock of the download button state)
-  2. Upload in `Plugins → Add New → Upload Plugin` — mock of WP screen with the "Choose File" and "Install Now" buttons highlighted
-  3. Activate — mock of "Plugin activated" success banner (matches the screenshot the user just uploaded)
-  4. Open `Settings → ROL'OS` — mock of the sidebar with ROL'OS menu item circled
-  5. Paste API Endpoint + API Key — annotated form mock with arrows pointing to the two fields, and a callout "copy these from the API tab"
-  6. Click **Sync Now** — mock of the sync status pill going from grey → green
-- Each step: left = mini SVG/HTML mock of the WP screen, right = plain-language instruction + the exact values to paste (endpoint URL + `x-api-key` header name).
-- Built with pure Tailwind + shadcn primitives (Card, Badge). No external images — SVG/HTML "browser chrome" mockups so it renders in every theme, mobile-first.
+Combined, the WordPress plugin page ends up with canonical URLs that carry blue query params, plus white-label frames that sometimes inherit ROL pink defaults where the property brand isn't explicitly forwarded.
 
-### B. Shortcode & block usage — visual examples
-Replace the current bare `CodeSnippetBlock` list with a tabbed section:
-- **Tab: Gutenberg** — mock of the block inserter showing "ROL'OS" search results, then a preview of the rendered booking widget.
-- **Tab: Elementor** — mock of the Elementor widget panel with the 3 ROL'OS widgets, then a mini rendered example.
-- **Tab: Shortcode (Classic)** — the existing shortcodes with a "Result preview" panel next to each showing what the frontend renders.
-- **Tab: PHP (theme)** — `do_shortcode()` example for developers.
+## Contract we want
 
-### C. "What good looks like" configuration checklist
-A compact card at the top of the WordPress tab with green/amber checks pulled from existing state:
-- Plugin downloaded & version detected (from `integration_configs.config.plugin_version`)
-- API test passed (existing `handleTestConnection`)
-- Webhook active (existing `webhookSub`)
-- White-label host wired (existing `useWhitelabel`)
+- **Canonical** (no `wl=1`): ROL pink (`#E91E8C`), ROL logo/chrome, no property brand color/logo/font. This is the public marketing surface on `rolos.co.za`, `book.roomsonline.co.za`, etc.
+- **White-label** (`wl=1` or on a verified WL host): full property brand — `brand_primary_color`, `brand_font_color`, `brand_logo_url` — with "Powered by ROL'OS" hidden.
 
-Uses data already fetched — no new queries.
+## Changes
 
-### D. Public `/connect/wordpress` page
-Reuse `WordPressVisualWalkthrough` on `ConnectWordPress.tsx`, replacing the current text-only "Installation" ordered list. Keep hero, features, and CTA sections untouched.
+### 1. `src/pages/EmbedProperty.tsx`
+- Compute `isWhiteLabelContext = isFullWhiteLabel || !!brandColorParam || !isCanonicalHost(window.location.host)` (canonical hosts = `rolos.co.za`, `roomsonline.co.za`, `book.roomsonline.co.za`, `*.lovable.app`).
+- Only fall back to `property.brand_primary_color / brand_font_color / brand_logo_url` when `isWhiteLabelContext` is true. In canonical mode, force `brandColor = "#E91E8C"`, `fontColor = "#FFFFFF"`, `logoUrl = null`.
+- Apply the same rule to the two downstream places that re-forward `brand_color` into checkout URLs (lines ~654 and ~942).
+
+### 2. Cookbook snippet generators — snippets must match the mode
+Update each so that when `wl.enabled === false`:
+- Drop `brand_color`, `brand_logo`, `brand_secondary_color`, `brand_font_color` from the generated URL/attributes.
+- Drop the `data-brand-color` / `data-brand-logo` attributes from `<div class="rol-booking-widget">` markup.
+- Keep only the property/portfolio slug + `integration=` tag.
+
+And when `wl.enabled === true`:
+- Include all brand params + `wl=1&hide_powered_by=1` (already done, keep as-is).
+- Include `data-white-label="true"` and, when a verified WL host exists, `data-wl-host`.
+
+Files:
+- `src/components/integrations/WidgetTab.tsx`
+- `src/components/integrations/WidgetSetupWizard.tsx`
+- `src/components/integrations/PortfolioWidgetTab.tsx` (line 85 embedUrl + line 95 previewUrl + snippet builder)
+- `src/components/integrations/DirectLinkTab.tsx`
+- `src/components/integrations/SmartBookButtonGenerator.tsx`
+
+### 3. `public/rol-embed.js` / `public/rol-sdk.js`
+- When the host script sees no `data-white-label` and no explicit `data-brand-color`, do not forward a brand color at all — let the embed page apply the canonical ROL pink.
+- When `data-white-label="true"` and no `data-brand-color` is provided, fetch the property's brand from the API response (the embed already does this) — do not force any color on the URL from the parent script.
+
+### 4. Cookbook copy — `src/components/integrations/IntegrationDocumentation.tsx`
+- Add an explicit "Canonical vs White-label" callout above the snippet blocks explaining: canonical snippets render ROL pink; white-label snippets require WL to be enabled on the property (and, when applicable, a verified WL domain) to render the property's brand.
+- Refresh the example URLs (`/embed/property/...`, `/embed/portfolio/...`, `?wl=1&hide_powered_by=1`) so the visible example strings match what the generators now emit.
+- Update the WordPress plugin section to note that `[rolos_booking]` / `[rolos_portfolio_booking]` inherit the property's WL configuration automatically — no manual `brand_color=` needed in the shortcode.
+
+### 5. Verification against `https://rolos.co.za/jongensfontein-com/`
+After the fix, drive Playwright to:
+1. Open the canonical embed URL for `jongensfontein` with no params → assert computed background/CTA color starts with `#e91e8c` (ROL pink) and `Powered by ROL'OS` is visible.
+2. Open the WL URL (`?wl=1&brand_color=<property blue>`) → assert CTA renders the property blue and `Powered by ROL'OS` is hidden.
+3. Screenshot both for the user.
 
 ## Out of scope
-- No changes to the plugin ZIP builder (`wordpress-plugin-update` edge function).
-- No changes to the WordPress plugin PHP itself.
-- No new database tables or edge functions.
-- No changes to webhook/API logic.
-
-## Files
-- New: `src/components/integrations/WordPressVisualWalkthrough.tsx`
-- Edit: `src/components/integrations/WordPressTab.tsx` — swap the plain "Installation Steps" block for `<WordPressVisualWalkthrough />` and add the config checklist card.
-- Edit: `src/pages/connect/ConnectWordPress.tsx` — replace the text-only install list with `<WordPressVisualWalkthrough compact />`.
+- No DB schema changes.
+- No changes to `property_billing_configs` / white-label domain verification flow.
+- No visual redesign — only color/logo source-of-truth fixes and cookbook copy refresh.

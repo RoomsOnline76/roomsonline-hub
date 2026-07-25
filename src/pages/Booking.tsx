@@ -107,10 +107,12 @@ interface CostLineItem {
 const Booking = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
-  // If brand_color is passed via URL (from portfolio/embed flow), skip DB brand fetch
-  // to preserve the forwarded brand colors
+  // Brand rules:
+  //  • Canonical checkout (no wl=1, no brand_color) → ROL pink, no DB brand fetch.
+  //  • White-label (wl=1) or explicit brand_color passed → apply property brand.
   const urlHasBrand = !!searchParams.get("brand_color");
-  const { brandReady } = useBrandOverride(urlHasBrand ? null : id);
+  const isWlCheckout = urlHasBrand || searchParams.get("wl") === "1";
+  const { brandReady } = useBrandOverride(isWlCheckout && !urlHasBrand ? id : null);
   const { gateways: activeGateways } = useActivePaymentGateways(id);
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
   const effectiveGateway = selectedGateway || activeGateways[0] || "payfast";

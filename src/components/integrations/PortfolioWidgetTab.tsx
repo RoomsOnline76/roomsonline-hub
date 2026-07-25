@@ -28,7 +28,8 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
-  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#2563eb");
+  const ROL_PINK = "#E91E8C";
+  const [brandColor, setBrandColor] = useState(property.brand_primary_color || ROL_PINK);
   const [brandLogo, setBrandLogo] = useState("");
   const [layout, setLayout] = useState<"grid" | "list">("grid");
   const [copied, setCopied] = useState(false);
@@ -81,23 +82,33 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   const wlHost = portfolioWl.domainStatus === "active" ? portfolioWl.host : wl.host;
   const wlDomain = portfolioWl.domainStatus === "active" ? portfolioWl.domain : (wl.domainStatus === "active" ? wl.domain : null);
   const BASE = wlHost || PUBLIC_DOMAIN;
-  const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
-  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}${wlParam}`;
+  // Canonical portfolio embeds must render ROL pink; only WL snippets forward
+  // brand params so the property's blue doesn't leak into the non-WL surface.
+  const wlActive = wl.enabled;
+  const brandParams = wlActive
+    ? `&brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}`
+    : "";
+  const wlParam = wlActive ? "&wl=1&hide_powered_by=1" : "";
+  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
   // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
   // social bios and "Book Now" buttons. Attributes bookings to the portfolio.
   const directPortfolioUrl = selectedPortfolio
-    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
+    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}${wlActive ? wlParam : ""}`
     : "";
 
   // Preview always renders from the canonical published host so it doesn't
   // depend on the customer's white-label SSL/proxy. The copyable snippets
   // below keep the WL host so end-user URLs stay branded.
-  const previewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}&layout=${layout}`;
+  const previewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
 
-  const wlAttrs = wl.enabled
+  const wlAttrs = wlActive
     ? `\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}`
     : "";
-  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== "#2563eb" ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
+  // Only emit brand data-attributes in WL snippets. Canonical snippets stay clean.
+  const brandDivAttrs = wlActive
+    ? `${brandColor !== ROL_PINK ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}`
+    : "";
+  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandDivAttrs}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
 
   const snippetScript = `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`;
 

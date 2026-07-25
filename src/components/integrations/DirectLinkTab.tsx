@@ -34,18 +34,25 @@ function buildBtnCss(color: string, style: BtnStyle, size: BtnSize) {
 }
 
 export function DirectLinkTab({ property }: DirectLinkTabProps) {
-  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e8c");
+  const ROL_PINK = "#E91E8C";
+  const wl = useWhitelabel(property.id);
+  const wlDomainActive = wl.enabled && wl.domainStatus === "active" && !!wl.domain;
+  // Button colour (customer-side CSS) can be anything the user picks. We
+  // default it to the property's brand only when WL is enabled — otherwise
+  // ROL pink so canonical buttons match the canonical booking page.
+  const defaultBtnColor = wl.enabled ? (property.brand_primary_color || ROL_PINK) : ROL_PINK;
+  const [brandColor, setBrandColor] = useState(defaultBtnColor);
   const [btnStyle, setBtnStyle] = useState<BtnStyle>("solid");
   const [btnSize, setBtnSize] = useState<BtnSize>("md");
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
-  const wl = useWhitelabel(property.id);
-  const wlDomainActive = wl.enabled && wl.domainStatus === "active" && !!wl.domain;
 
   const bookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "direct",
     property_id: property.id,
-    brand_color: brandColor,
+    // Only forward brand_color to the embed page when in WL mode. Canonical
+    // links must let the embed render in ROL pink.
+    ...(wl.enabled ? { brand_color: brandColor } : {}),
   }, wl.enabled ? { enabled: true, host: wl.host } : undefined);
 
   const btnCss = buildBtnCss(brandColor, btnStyle, btnSize);

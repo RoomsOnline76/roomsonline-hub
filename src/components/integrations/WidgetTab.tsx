@@ -14,31 +14,34 @@ interface WidgetTabProps {
 }
 
 export function WidgetTab({ property }: WidgetTabProps) {
-  const brandColor = property.brand_primary_color || "#e91e63";
+  const ROL_PINK = "#E91E8C";
   const [showPreview, setShowPreview] = useState(false);
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
   const wl = useWhitelabel(property.id);
   const wlActive = wl.enabled;
+  // Canonical snippets ship ROL pink and no property brand. Only white-label
+  // snippets forward the property's brand — so a canonical embed on rolos.co.za
+  // never leaks the property's blue chrome.
+  const brandColor = wlActive ? (property.brand_primary_color || ROL_PINK) : ROL_PINK;
 
   const embedUrl = buildEntryUrl(property, entryOpts, {
     integration: "widget",
     property_id: property.id,
-    brand_color: brandColor,
+    ...(wlActive ? { brand_color: brandColor } : {}),
   }, wlActive ? { enabled: true, host: wl.host } : undefined);
 
   const wlAttrs = wlActive
     ? `\n     data-white-label="true"${wl.domainStatus === "active" && wl.domain ? `\n     data-wl-host="https://${wl.domain}"` : ""}`
     : "";
+  const brandAttr = wlActive ? `\n     data-brand-color="${brandColor}"` : "";
 
-  const rolEmbedSnippet = `<!-- ROL'OS Booking Widget${wlActive ? " (white-label)" : ""} -->
+  const rolEmbedSnippet = `<!-- ROL'OS Booking Widget${wlActive ? " (white-label)" : " (canonical)"} -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
-<div data-rolos-property="${property.slug}"
-     data-brand-color="${brandColor}"${wlAttrs}></div>`;
+<div data-rolos-property="${property.slug}"${brandAttr}${wlAttrs}></div>`;
 
   const rolEmbedAdvancedSnippet = `<!-- ROL'OS Booking Widget (Advanced) -->
 <script src="https://widget.roomsonline.co.za/rol-embed.js"></script>
-<div data-rolos-property="${property.slug}"
-     data-brand-color="${brandColor}"${wlAttrs}
+<div data-rolos-property="${property.slug}"${brandAttr}${wlAttrs}
      data-layout="standard"
      data-height="600"></div>
 
@@ -78,11 +81,16 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </div>
         <CardDescription>
           Embed a full booking engine with <strong>availability calendar, room types, nightly rates, and checkout</strong> —
-          all inside the iframe. Renders in your brand colour{" "}
+          all inside the iframe. {wlActive ? "Renders in your property's brand colour" : "Renders in ROL'OS pink (canonical)"}{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
           </span>
+          {!wlActive && (
+            <span className="block mt-1 text-xs text-muted-foreground">
+              Enable White-label on this property to have the snippet ship your brand colour instead.
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

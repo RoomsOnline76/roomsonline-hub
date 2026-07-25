@@ -219,9 +219,20 @@ export default function EmbedProperty() {
     }
   }, [propertyId, integration]);
 
-  const brandColor = brandColorParam ? decodeURIComponent(brandColorParam) : property?.brand_primary_color || "#e91e63";
-  const fontColor = brandFontParam ? decodeURIComponent(brandFontParam) : property?.brand_font_color || "#ffffff";
-  const logoUrl = brandLogoParam ? decodeURIComponent(brandLogoParam) : property?.brand_logo_url;
+  // Canonical (non-WL) embed must always render ROL pink, never inherit the
+  // property's brand from the DB. Only fall back to the property's brand when
+  // an explicit brand_color is passed OR the frame is in full white-label mode.
+  const ROL_PINK = "#E91E8C";
+  const isWhiteLabelContext = isFullWhiteLabel || !!brandColorParam;
+  const brandColor = brandColorParam
+    ? decodeURIComponent(brandColorParam)
+    : (isWhiteLabelContext ? (property?.brand_primary_color || ROL_PINK) : ROL_PINK);
+  const fontColor = brandFontParam
+    ? decodeURIComponent(brandFontParam)
+    : (isWhiteLabelContext ? (property?.brand_font_color || "#ffffff") : "#ffffff");
+  const logoUrl = brandLogoParam
+    ? decodeURIComponent(brandLogoParam)
+    : (isWhiteLabelContext ? property?.brand_logo_url : null);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
@@ -650,7 +661,9 @@ export default function EmbedProperty() {
       params.set("brand_color", decodeURIComponent(brandColorParam));
       if (brandSecondaryParam) params.set("brand_secondary_color", decodeURIComponent(brandSecondaryParam));
       if (brandFontParam) params.set("brand_font_color", decodeURIComponent(brandFontParam));
-    } else {
+    } else if (isWhiteLabelContext) {
+      // Only forward the property's brand into checkout when the embed is in
+      // white-label mode. Canonical (pink) embeds must not paint the checkout blue.
       if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
       if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
       if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
@@ -939,7 +952,8 @@ export default function EmbedProperty() {
                 integration,
                 property_id: property.id,
               });
-              if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+              if (isWhiteLabelContext && property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+              if (isFullWhiteLabel) { params.set("wl", "1"); params.set("hide_powered_by", "1"); }
               window.location.href = `/booking/${property.slug}?${params.toString()}`;
             }}
           />
