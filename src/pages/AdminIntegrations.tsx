@@ -4,7 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2 } from "lucide-react";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -138,8 +139,25 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
-            {/* HyperGuest Certification Portal (admin-only, global) */}
-            {isInternalUser && <HyperGuestPortalAdminCard />}
+            {/* HyperGuest Certification Portal (admin-only, global) — collapsed by default */}
+            {isInternalUser && (
+              <Collapsible>
+                <Card>
+                  <CollapsibleTrigger className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-muted/40 transition-colors [&[data-state=open]>svg]:rotate-180">
+                    <div>
+                      <div className="text-sm font-semibold">HyperGuest Certification Portal</div>
+                      <div className="text-xs text-muted-foreground">Admin-only certification tooling — click to expand</div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="border-t px-6 py-4">
+                      <HyperGuestPortalAdminCard />
+                    </div>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
 
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
