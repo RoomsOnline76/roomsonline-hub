@@ -918,7 +918,7 @@ export default function PropertyShowcase() {
 
   // Loading state
   // Determine if this property should use white-label layout
-  const isWhiteLabel = Boolean(property?.brand_override_enabled && property?.brand_primary_color);
+  const isWhiteLabel = !canonicalHost && Boolean(property?.brand_override_enabled && property?.brand_primary_color);
   const propertyLogoUrl = property?.brand_logo_url || null;
 
   // Brand is "ready" once property is loaded (brand vars are applied synchronously in the effect above)
