@@ -143,7 +143,10 @@ export default function RoomShowcase() {
   const { brandReady } = useBrandOverride(propertySlug);
   
   // Pre-detect branding from sessionStorage to avoid FOUC
+  // Pre-detect branding from sessionStorage to avoid FOUC — but on canonical
+  // ROL hosts branding is always disabled so keep the default layout.
   const [earlyWhiteLabel] = useState(() => {
+    if (isCanonicalRolHost()) return false;
     try {
       const cached = sessionStorage.getItem('rol_property_brand');
       if (cached) {
