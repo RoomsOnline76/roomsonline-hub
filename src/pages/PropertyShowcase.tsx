@@ -665,13 +665,15 @@ export default function PropertyShowcase() {
   // Apply brand override to document root (affects ALL portals: calendar drawers, modals, etc.)
   const brandCleanupRef = useRef<(() => void) | null>(null);
   const brandedMode = searchParams.get("branded") === "true";
+  const canonicalHost = isCanonicalRolHost();
 
   useEffect(() => {
     brandCleanupRef.current?.();
     brandCleanupRef.current = null;
 
-    // Force brand in branded mode even if property-level toggle is off
-    const shouldApplyBrand = Boolean(
+    // Canonical ROL hosts always render in default ROL pink theme — never
+    // apply the property brand even when `brand_override_enabled` is on.
+    const shouldApplyBrand = !canonicalHost && Boolean(
       (property?.brand_override_enabled || brandedMode) && property?.brand_primary_color
     );
 
