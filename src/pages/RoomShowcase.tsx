@@ -630,7 +630,7 @@ export default function RoomShowcase() {
     return `Max ${maxPeople} guests`;
   };
 
-  const isWhiteLabel = Boolean(property.brand_override_enabled && property.brand_primary_color);
+  const isWhiteLabel = !isCanonicalRolHost() && Boolean(property.brand_override_enabled && property.brand_primary_color);
 
   const wrapLayout = (content: React.ReactNode) => {
     if (isWhiteLabel) {
