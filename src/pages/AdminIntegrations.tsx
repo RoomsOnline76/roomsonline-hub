@@ -4,7 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2 } from "lucide-react";
+import { Link2, Code2, LayoutTemplate, Globe, Puzzle, Terminal, BarChart3, Sparkles, Blocks, Building2, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
