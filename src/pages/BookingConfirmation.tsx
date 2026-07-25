@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
-import { isCanonicalRolHost } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle, CalendarDays, Users, Share2, Home, MapPin } from "lucide-react";
@@ -106,7 +105,7 @@ const BookingConfirmation = () => {
 
   const propertyName = booking?.properties ? (booking.properties as any).name : undefined;
   const propertyLogoUrl = booking?.properties ? (booking.properties as any).brand_logo_url : null;
-  const isWhiteLabel = !isCanonicalRolHost() && (isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled));
+  const isWhiteLabel = isIntegration || Boolean(booking?.properties && (booking.properties as any).brand_override_enabled);
   const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback(
     (children: React.ReactNode) =>

@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
-import { getPropertyUrl, getNightsBridgeBookingUrl, isCanonicalRolHost } from "@/lib/config";
+import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
 import { useItinerary } from "@/contexts/ItineraryContext";
@@ -143,10 +143,7 @@ export default function RoomShowcase() {
   const { brandReady } = useBrandOverride(propertySlug);
   
   // Pre-detect branding from sessionStorage to avoid FOUC
-  // Pre-detect branding from sessionStorage to avoid FOUC — but on canonical
-  // ROL hosts branding is always disabled so keep the default layout.
   const [earlyWhiteLabel] = useState(() => {
-    if (isCanonicalRolHost()) return false;
     try {
       const cached = sessionStorage.getItem('rol_property_brand');
       if (cached) {
@@ -630,7 +627,7 @@ export default function RoomShowcase() {
     return `Max ${maxPeople} guests`;
   };
 
-  const isWhiteLabel = !isCanonicalRolHost() && Boolean(property.brand_override_enabled && property.brand_primary_color);
+  const isWhiteLabel = Boolean(property.brand_override_enabled && property.brand_primary_color);
 
   const wrapLayout = (content: React.ReactNode) => {
     if (isWhiteLabel) {
