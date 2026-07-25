@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom"
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { format, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { getNightsBridgeBookingUrl } from "@/lib/config";
+import { getNightsBridgeBookingUrl, isCanonicalRolHost } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/contexts/CurrencyContext";
