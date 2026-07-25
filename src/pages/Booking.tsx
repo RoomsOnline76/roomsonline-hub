@@ -2859,9 +2859,19 @@ const Booking = () => {
                 </svg>
                 <div>
                   <p className="text-xs font-medium">Cancellation Policy</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {(property as any)?.amenities?.cancellation_policy || "Contact property for cancellation terms"}
-                  </p>
+                  {(() => {
+                    const amenityText = ((property as any)?.amenities?.cancellation_policy || "").toString().trim();
+                    const rule = cancellationPolicyRule as CancellationRule | null | undefined;
+                    const hasRule = !!(rule && (rule.non_refundable || (rule.tiers && rule.tiers.length > 0) || rule.days_before !== undefined));
+                    const policyText = hasRule
+                      ? formatCancellationPolicy(rule!, checkIn || undefined, totalCost || undefined).summaryText
+                      : amenityText;
+                    return (
+                      <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
+                        {policyText || "Contact property for cancellation terms"}
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
