@@ -138,8 +138,25 @@ export default function AdminIntegrations() {
           </Card>
         ) : selectedProperty && currentProperty ? (
           <div className="space-y-6">
-            {/* HyperGuest Certification Portal (admin-only, global) */}
-            {isInternalUser && <HyperGuestPortalAdminCard />}
+            {/* HyperGuest Certification Portal (admin-only, global) — collapsed by default */}
+            {isInternalUser && (
+              <Collapsible>
+                <Card>
+                  <CollapsibleTrigger className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-muted/40 transition-colors [&[data-state=open]>svg]:rotate-180">
+                    <div>
+                      <div className="text-sm font-semibold">HyperGuest Certification Portal</div>
+                      <div className="text-xs text-muted-foreground">Admin-only certification tooling — click to expand</div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="border-t px-6 py-4">
+                      <HyperGuestPortalAdminCard />
+                    </div>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
 
             {/* PayFast Environment Toggle */}
             <PayFastEnvironmentToggle />
