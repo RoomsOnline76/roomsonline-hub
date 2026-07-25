@@ -245,6 +245,22 @@ const Booking = () => {
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
+  // Cancellation policy (canonical rolos_policies row) — used to render actual terms on checkout
+  const { data: cancellationPolicyRule } = useQuery({
+    queryKey: ["booking-cancellation-policy", property?.id],
+    enabled: !!property?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("rolos_policies" as any)
+        .select("rule")
+        .eq("property_id", property!.id)
+        .eq("policy_type", "cancellation")
+        .maybeSingle();
+      return (data as any)?.rule ?? null;
+    },
+  });
+
   // Fetch VAT config from brand config, with amenities fallback
   useEffect(() => {
     if (!property?.id) return;
