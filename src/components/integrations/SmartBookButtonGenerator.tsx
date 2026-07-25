@@ -56,12 +56,12 @@ const STYLE_MAP: Record<ButtonStyle, string> = {
 };
 
 export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorProps) {
-  const defaultColor = property.brand_primary_color || "#e91e8c";
+  const ROL_PINK = "#E91E8C";
 
   const [solutionType, setSolutionType] = useState<SolutionType>("button");
   const [platform, setPlatform] = useState<Platform>("html");
   const [buttonText, setButtonText] = useState("Book Now");
-  const [buttonColor, setButtonColor] = useState(defaultColor);
+  const [buttonColor, setButtonColor] = useState(ROL_PINK);
   const [buttonSize, setButtonSize] = useState<ButtonSize>("medium");
   const [buttonStyle, setButtonStyle] = useState<ButtonStyle>("solid");
   const [openNewTab, setOpenNewTab] = useState(true);
@@ -69,15 +69,19 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const [target, setTarget] = useState<"property" | "portfolio">("property");
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("");
 
-  // Sync color when property data loads/changes
-  useEffect(() => {
-    if (property.brand_primary_color) {
-      setButtonColor(property.brand_primary_color);
-    }
-  }, [property.brand_primary_color]);
-
   const wl = useWhitelabel(property.id);
   const wlOpts = wl.enabled ? { enabled: true, host: wl.host } : undefined;
+
+  // Only pre-fill the button colour with the property's brand when WL is on.
+  // Canonical buttons default to ROL pink so a copy-paste snippet doesn't ship
+  // the property's blue onto rolos.co.za or other non-WL surfaces.
+  useEffect(() => {
+    if (wl.enabled && property.brand_primary_color) {
+      setButtonColor(property.brand_primary_color);
+    } else {
+      setButtonColor(ROL_PINK);
+    }
+  }, [wl.enabled, property.brand_primary_color]);
 
   // Portfolios this property is a member of
   const { data: memberOf = [] } = useQuery({
@@ -111,24 +115,27 @@ export function SmartBookButtonGenerator({ property }: SmartBookButtonGeneratorP
   const portfolioBase = portfolioWl.domainStatus === "active" ? portfolioWl.host : (wl.host || PUBLIC_DOMAIN);
   const BASE = wl.host || PUBLIC_DOMAIN;
   const wlParam = wl.enabled ? "&wl=1&hide_powered_by=1" : "";
+  // Only forward brand_color into the embed URL when WL is enabled. Canonical
+  // snippets omit it so the embed page renders in ROL pink.
+  const brandColorParam = wl.enabled ? `&brand_color=${encodeURIComponent(buttonColor)}` : "";
 
   const propertyBookingUrl = buildEntryUrl(property, entryOpts, {
     source: "website",
     integration: "smart_button",
     property_id: property.id,
-    brand_color: buttonColor,
+    ...(wl.enabled ? { brand_color: buttonColor } : {}),
   }, wlOpts);
   const propertyEmbedUrl = buildEntryUrl(property, { entryPoint: "rooms" }, {
     integration: "smart_widget",
     property_id: property.id,
-    brand_color: buttonColor,
+    ...(wl.enabled ? { brand_color: buttonColor } : {}),
   }, wlOpts);
 
   const portfolioBookingUrl = selectedPortfolio
-    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_button${brandColorParam}${wlParam}`
     : propertyBookingUrl;
   const portfolioEmbedUrl = selectedPortfolio
-    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget&brand_color=${encodeURIComponent(buttonColor)}${wlParam}`
+    ? `${portfolioBase}/embed/portfolio/${selectedPortfolio.slug}?ref_portfolio=${selectedPortfolio.id}&integration=smart_widget${brandColorParam}${wlParam}`
     : propertyEmbedUrl;
 
   const isPortfolio = target === "portfolio" && !!selectedPortfolio;

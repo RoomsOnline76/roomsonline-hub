@@ -22,8 +22,11 @@ type LayoutOption = "compact" | "standard" | "full";
 type PlatformGuide = "html" | "wordpress" | "wix" | "squarespace";
 
 export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
-  const [brandColor, setBrandColor] = useState(property.brand_primary_color || "#e91e63");
-  const [brandLogo, setBrandLogo] = useState(property.brand_logo_url || "");
+  // Wizard defaults to ROL pink (canonical). Users can override to their
+  // property's brand — the generated snippet then reflects that choice.
+  const ROL_PINK = "#E91E8C";
+  const [brandColor, setBrandColor] = useState(ROL_PINK);
+  const [brandLogo, setBrandLogo] = useState("");
   const [layout, setLayout] = useState<LayoutOption>("standard");
   const [height, setHeight] = useState("600");
   const [hidePoweredBy, setHidePoweredBy] = useState(false);
@@ -31,9 +34,11 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
   const [platform, setPlatform] = useState<PlatformGuide>("html");
   const [entryOpts, setEntryOpts] = useState<EntryPointOptions>({ entryPoint: "rooms" });
 
+  const isCustomBrand = brandColor.toLowerCase() !== ROL_PINK.toLowerCase();
+
   const snippet = useMemo(() => {
     const attrs: string[] = [`data-rolos-property="${property.slug}"`];
-    if (brandColor && brandColor !== "#e91e63") attrs.push(`data-brand-color="${brandColor}"`);
+    if (isCustomBrand) attrs.push(`data-brand-color="${brandColor}"`);
     if (brandLogo) attrs.push(`data-brand-logo="${brandLogo}"`);
     if (layout !== "standard") attrs.push(`data-layout="${layout}"`);
     if (height !== "600") attrs.push(`data-height="${height}"`);
@@ -44,19 +49,19 @@ export function WidgetSetupWizard({ property }: WidgetSetupWizardProps) {
       : attrs[0];
 
     return `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>\n<div ${divAttrs}></div>`;
-  }, [property.slug, brandColor, brandLogo, layout, height, hidePoweredBy]);
+  }, [property.slug, isCustomBrand, brandColor, brandLogo, layout, height, hidePoweredBy]);
 
   const previewUrl = useMemo(() => {
     const params = new URLSearchParams({
       integration: "rol_embed",
       mode: "embedded",
-      brand_color: brandColor,
       layout,
     });
+    if (isCustomBrand) params.set("brand_color", brandColor);
     if (brandLogo) params.set("brand_logo", brandLogo);
     if (hidePoweredBy) params.set("hide_powered_by", "1");
     return `https://sleepinafrica.roomsonline.co.za/embed/property/${property.slug}?${params}`;
-  }, [property.slug, brandColor, brandLogo, layout, hidePoweredBy]);
+  }, [property.slug, isCustomBrand, brandColor, brandLogo, layout, hidePoweredBy]);
 
   const platformGuides: Record<PlatformGuide, string> = {
     html: "Paste the snippet into your HTML file where you want the widget to appear. That's it!",

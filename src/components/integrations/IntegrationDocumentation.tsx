@@ -486,18 +486,29 @@ export function IntegrationDocumentation({ type }: IntegrationDocumentationProps
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* White-label mode callout — behaviour is identical for every integration type */}
+        {/* Canonical vs white-label rendering — one clear rule for every snippet on this page */}
         <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
           <div className="flex items-start gap-2">
             <Shield className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <p className="font-semibold text-foreground">White-label mode</p>
-              <p className="text-muted-foreground">
-                When your property has white-label enabled, snippets on this page automatically hide the
-                "Powered by ROL'OS" chrome (adds <code className="bg-muted px-1 rounded">wl=1</code>).
-                Once you connect your own booking subdomain (see the panel at the top of the Integrations tab),
-                every generated URL and embed uses that domain — guests never see the ROL'OS URL.
-              </p>
+            <div className="space-y-1.5">
+              <p className="font-semibold text-foreground">Canonical vs White-label</p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                <li>
+                  <strong>Canonical</strong> snippets (no <code className="bg-muted px-1 rounded">wl=1</code>,
+                  no <code className="bg-muted px-1 rounded">brand_color</code>) render in <span className="font-medium text-foreground">ROL'OS pink</span>
+                  {" "}(<code className="bg-muted px-1 rounded">#E91E8C</code>) with the ROL'OS chrome visible.
+                  Use these on <em>rolos.co.za</em>, <em>book.roomsonline.co.za</em> and other non-WL surfaces.
+                </li>
+                <li>
+                  <strong>White-label</strong> snippets add <code className="bg-muted px-1 rounded">wl=1&amp;hide_powered_by=1</code>
+                  {" "}and forward the property's brand colour. Enable White-label on this property (panel at the top of
+                  Integrations), then re-copy — the snippets on this page switch automatically.
+                </li>
+                <li>
+                  Once you attach your own booking subdomain, every generated URL points at it — guests never see the
+                  ROL'OS URL.
+                </li>
+              </ul>
             </div>
           </div>
         </div>
