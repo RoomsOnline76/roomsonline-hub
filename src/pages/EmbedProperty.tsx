@@ -952,7 +952,8 @@ export default function EmbedProperty() {
                 integration,
                 property_id: property.id,
               });
-              if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+              if (isWhiteLabelContext && property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
+              if (isFullWhiteLabel) { params.set("wl", "1"); params.set("hide_powered_by", "1"); }
               window.location.href = `/booking/${property.slug}?${params.toString()}`;
             }}
           />
