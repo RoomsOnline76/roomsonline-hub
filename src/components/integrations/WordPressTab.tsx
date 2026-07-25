@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import JSZip from "jszip";
 import { useState } from "react";
 import { useWhitelabel } from "@/hooks/useWhitelabel";
+import { WordPressVisualWalkthrough } from "./WordPressVisualWalkthrough";
 
 interface WordPressTabProps {
   property: { id: string; name: string; slug: string; brand_primary_color: string | null };
@@ -306,38 +307,41 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             </div>
           </details>
 
-          {/* Shortcodes */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Shortcodes</h4>
-            <CodeSnippetBlock code={shortcode} language="text" title="Booking Widget" />
-            <CodeSnippetBlock code={gridShortcode} language="text" title="Property Grid" />
-            {portfolioShortcode && (
-              <CodeSnippetBlock
-                code={portfolioShortcode}
-                language="text"
-                title={`Portfolio Booking — ${portfolio?.name ?? "Portfolio"}`}
-              />
-            )}
-          </div>
+          {/* Visual walkthrough — install steps + usage tabs */}
+          <WordPressVisualWalkthrough
+            apiEndpoint={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-api`}
+            shortcode={shortcode}
+            gridShortcode={gridShortcode}
+            portfolioShortcode={portfolioShortcode}
+            brandColor={brandColor}
+            compact
+          />
 
-          {/* Installation Steps */}
-          <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-            <h5 className="font-medium text-foreground mb-1">Installation Steps</h5>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Click <strong>Download Full Plugin</strong> above</li>
-              <li>In WordPress Admin → <strong>Plugins → Add New → Upload Plugin</strong></li>
-              <li>Select <code className="bg-muted px-1 rounded">rolos-plugin.zip</code> and install</li>
-              <li>Activate — the <strong>Connection Wizard</strong> opens automatically</li>
-              <li>Enter your API endpoint and anon key (from the API tab)</li>
-              <li>Click <strong>Connect & Start Sync</strong> — properties appear as custom posts</li>
-              <li>Add shortcodes to any page, or use the Gutenberg block editor</li>
-            </ol>
+          {/* Configuration checklist */}
+          <div className="rounded-lg border p-3 space-y-1.5">
+            <h5 className="text-sm font-medium mb-1">Configuration checklist</h5>
+            {[
+              { ok: !!integrationConfig, label: "Plugin downloaded & version registered" },
+              { ok: connectionStatus === "ok", label: "API health check passed" },
+              { ok: !!webhookSub, label: "Webhook subscription active (optional)" },
+              { ok: wl.enabled && wl.domainStatus === "active", label: "White-label host verified (optional)" },
+            ].map((c) => (
+              <div key={c.label} className="flex items-center gap-2 text-xs">
+                {c.ok ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <span className="h-3.5 w-3.5 rounded-full border border-muted-foreground/40 inline-block" />
+                )}
+                <span className={c.ok ? "" : "text-muted-foreground"}>{c.label}</span>
+              </div>
+            ))}
             {showPushUpdate && (
-              <p className="mt-3 text-xs">
-                <strong>Auto-Updates:</strong> The plugin checks for updates every 12 hours. <strong>Push Update</strong> bumps the version globally.
+              <p className="text-xs text-muted-foreground pt-2">
+                <strong>Auto-Updates:</strong> plugin checks every 12 hours. <strong>Push Update</strong> bumps version globally.
               </p>
             )}
           </div>
+
         </CardContent>
       </Card>
 
