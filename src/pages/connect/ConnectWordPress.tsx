@@ -80,42 +80,12 @@ export default function ConnectWordPress() {
           </ul>
         </motion.div>
 
-        {/* Installation */}
+        {/* Visual installation walkthrough */}
         <motion.div
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
           variants={fadeUp} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2 className="text-xl font-semibold mb-4">Installation</h2>
-          <ol className="space-y-4 text-sm">
-            <li className="flex gap-3">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">1</span>
-              <div>
-                <p className="font-medium">Download the plugin</p>
-                <p className="text-muted-foreground mt-1">Download <code className="bg-muted px-1 rounded text-xs">rolos-plugin.zip</code> from your ROL'OS admin panel at <strong>Integrations → WordPress Plugin</strong>.</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">2</span>
-              <div>
-                <p className="font-medium">Upload to WordPress</p>
-                <p className="text-muted-foreground mt-1">Go to <strong>Plugins → Add New → Upload Plugin</strong> in your WordPress admin. Select the ZIP file and activate.</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">3</span>
-              <div>
-                <p className="font-medium">Configure API credentials</p>
-                <p className="text-muted-foreground mt-1">Navigate to <strong>Settings → ROL'OS</strong>. Enter your API URL and API key. The plugin will verify the connection automatically.</p>
-              </div>
-            </li>
-            <li className="flex gap-3">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">4</span>
-              <div>
-                <p className="font-medium">Sync your property</p>
-                <p className="text-muted-foreground mt-1">Click <strong>Sync Now</strong> to pull room types, rates, and availability. A daily cron job keeps data fresh automatically.</p>
-              </div>
-            </li>
-          </ol>
+          <WordPressVisualWalkthrough compact />
         </motion.div>
 
         {/* Elementor Widgets */}
