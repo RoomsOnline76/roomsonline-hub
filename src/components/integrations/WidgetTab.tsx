@@ -81,11 +81,16 @@ export function WidgetTab({ property }: WidgetTabProps) {
         </div>
         <CardDescription>
           Embed a full booking engine with <strong>availability calendar, room types, nightly rates, and checkout</strong> —
-          all inside the iframe. Renders in your brand colour{" "}
+          all inside the iframe. {wlActive ? "Renders in your property's brand colour" : "Renders in ROL'OS pink (canonical)"}{" "}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded-full border" style={{ backgroundColor: brandColor }} />
             <code className="bg-muted px-1 rounded text-xs">{brandColor}</code>
           </span>
+          {!wlActive && (
+            <span className="block mt-1 text-xs text-muted-foreground">
+              Enable White-label on this property to have the snippet ship your brand colour instead.
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
