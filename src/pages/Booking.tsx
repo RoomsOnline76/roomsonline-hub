@@ -46,6 +46,7 @@ import { AgeVerificationUpload } from "@/components/booking/AgeVerificationUploa
 import { useChargesForBooking } from "@/hooks/usePropertyCharges";
 import { calculateCharges, getChargeTotals } from "@/components/charges/ChargeCalculator";
 import type { ChargeCalculationContext } from "@/components/charges/ChargeCalculator";
+import { formatCancellationPolicy, type CancellationRule } from "@/lib/policyFormatter";
 import {
   Collapsible,
   CollapsibleContent,
