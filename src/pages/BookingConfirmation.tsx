@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { WhiteLabelLayout } from "@/components/layout/WhiteLabelLayout";
+import { isCanonicalRolHost } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle, CalendarDays, Users, Share2, Home, MapPin } from "lucide-react";
