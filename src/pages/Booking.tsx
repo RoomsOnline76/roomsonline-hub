@@ -2132,7 +2132,7 @@ const Booking = () => {
 
   // Layout wrapper — white-label for integration flows or brand-override properties
   const propertyLogoUrl = property?.brand_logo_url || (property?.amenities as any)?.brand_logo_url || null;
-  const isWhiteLabel = isIntegration || Boolean(property?.brand_override_enabled);
+  const isWhiteLabel = !isCanonicalRolHost() && (isIntegration || Boolean(property?.brand_override_enabled));
   const hideRolBranding = searchParams.get("wl") === "1";
   const wrapLayout = useCallback((children: React.ReactNode) =>
     isWhiteLabel ? (
