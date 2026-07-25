@@ -21,7 +21,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, parseISO, differenceInDays, addDays } from "date-fns";
-import { getPropertyUrl } from "@/lib/config";
+import { getPropertyUrl, isCanonicalRolHost } from "@/lib/config";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
 import { cn } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
