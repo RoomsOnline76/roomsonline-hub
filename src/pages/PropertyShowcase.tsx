@@ -696,7 +696,7 @@ export default function PropertyShowcase() {
       brandCleanupRef.current?.();
       clearBrandFromSession();
     };
-  }, [brandedMode, property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color, property?.brand_logo_url]);
+  }, [brandedMode, canonicalHost, property?.id, property?.brand_override_enabled, property?.brand_primary_color, property?.brand_secondary_color, property?.brand_font_color, property?.brand_logo_url]);
 
   const scrollToRooms = () => {
     document.getElementById("rooms-section")?.scrollIntoView({ behavior: "smooth" });
