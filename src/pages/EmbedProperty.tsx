@@ -219,9 +219,20 @@ export default function EmbedProperty() {
     }
   }, [propertyId, integration]);
 
-  const brandColor = brandColorParam ? decodeURIComponent(brandColorParam) : property?.brand_primary_color || "#e91e63";
-  const fontColor = brandFontParam ? decodeURIComponent(brandFontParam) : property?.brand_font_color || "#ffffff";
-  const logoUrl = brandLogoParam ? decodeURIComponent(brandLogoParam) : property?.brand_logo_url;
+  // Canonical (non-WL) embed must always render ROL pink, never inherit the
+  // property's brand from the DB. Only fall back to the property's brand when
+  // an explicit brand_color is passed OR the frame is in full white-label mode.
+  const ROL_PINK = "#E91E8C";
+  const isWhiteLabelContext = isFullWhiteLabel || !!brandColorParam;
+  const brandColor = brandColorParam
+    ? decodeURIComponent(brandColorParam)
+    : (isWhiteLabelContext ? (property?.brand_primary_color || ROL_PINK) : ROL_PINK);
+  const fontColor = brandFontParam
+    ? decodeURIComponent(brandFontParam)
+    : (isWhiteLabelContext ? (property?.brand_font_color || "#ffffff") : "#ffffff");
+  const logoUrl = brandLogoParam
+    ? decodeURIComponent(brandLogoParam)
+    : (isWhiteLabelContext ? property?.brand_logo_url : null);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0;
