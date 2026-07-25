@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useBrandOverride } from "@/hooks/useBrandOverride";
 import { supabase } from "@/integrations/supabase/client";
 import { getAccommodationLabel } from "@/lib/accommodationLabels";
-import { getPropertyUrl, getNightsBridgeBookingUrl } from "@/lib/config";
+import { getPropertyUrl, getNightsBridgeBookingUrl, isCanonicalRolHost } from "@/lib/config";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { formatBedConfiguration, hasBedConfiguration } from "@/lib/bedConfig";
 import { useItinerary } from "@/contexts/ItineraryContext";
