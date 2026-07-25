@@ -661,7 +661,9 @@ export default function EmbedProperty() {
       params.set("brand_color", decodeURIComponent(brandColorParam));
       if (brandSecondaryParam) params.set("brand_secondary_color", decodeURIComponent(brandSecondaryParam));
       if (brandFontParam) params.set("brand_font_color", decodeURIComponent(brandFontParam));
-    } else {
+    } else if (isWhiteLabelContext) {
+      // Only forward the property's brand into checkout when the embed is in
+      // white-label mode. Canonical (pink) embeds must not paint the checkout blue.
       if (property.brand_primary_color) params.set("brand_color", property.brand_primary_color);
       if (property.brand_secondary_color) params.set("brand_secondary_color", property.brand_secondary_color);
       if (property.brand_font_color) params.set("brand_font_color", property.brand_font_color);
