@@ -1,73 +1,57 @@
+# Fix: reCAPTCHA failing on white-label URLs
 
-## Problem
+## Root cause (confirmed)
 
-In cookbook v5 the portfolio-scoped sections still leak white-label branding into the "Canonical" variant:
+reCAPTCHA v3 (`react-google-recaptcha-v3`) binds the site key to a Google-registered domain allow-list. Our key is registered for `roomsonline.co.za`, `sleepinafrica.roomsonline.co.za`, `book.*`, etc. — but **not** for:
 
-- §3 Portfolio Iframe Embed — canonical renders blue
-- §4 rol-embed.js Portfolio Widget — canonical renders blue
-- §6 WordPress Portfolio Shortcode — canonical renders blue
+- Client white-label domains (e.g. `book.jongensfontein.com`, `rolos.co.za/jongensfontein-com/`, WordPress host domains embedding the widget iframe).
+- Portfolio embeds served under white-label hosts.
 
-Two independent bugs cause this:
+Result: `grecaptcha.execute()` returns an "Invalid domain for site key" error, and any form that gates submit on `useRecaptcha().verify()` (booking, portfolio booking, contact) fails on those hosts. This is exactly the error shown in the WordPress Portfolio Shortcode screenshot.
 
-1. **Portfolio embed page ignores `wl=1`.** In `src/pages/EmbedPortfolio.tsx` (line 119) the resolved brand color is:
-   ```ts
-   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
-   ```
-   When a canonical URL is opened (no `brand_color`, no `wl=1`), the page still auto-applies the portfolio's own branding — so canonical always looks like WL. The property-level `EmbedProperty` already gates this on `wl=1`; `EmbedPortfolio` does not.
+Global `RecaptchaProvider` (`src/components/RecaptchaProvider.tsx`) currently loads on every host, including embeds — so the widget also emits console errors when hosted on customer domains, even when the flow itself doesn't require a token.
 
-2. **`PortfolioWidgetTab.tsx` emits a single snippet.** For iframe (§3) and `rol-embed.js` (§4) it emits one URL/div; when `wl.enabled` is true both the "Canonical" and "White-label" copies in the cookbook end up with the WL parameters (or neither, but the embed page then applies portfolio branding — see bug 1). The WP portfolio shortcode (§6) is already split in `WordPressTab.tsx`, but the rendered result still leaks because of bug 1.
+## Approach
+
+Serve reCAPTCHA only where the site key is valid (canonical Rooms Online domains), and use a **trusted-iframe token bridge** on white-label / embed hosts so we still get a token without needing to whitelist every customer domain in Google.
 
 ## Changes
 
-### 1. `src/pages/EmbedPortfolio.tsx` — gate portfolio branding on `wl=1`
+### 1. Domain gating in `RecaptchaProvider`
+- Add a `getRecaptchaMode()` helper: returns `"native"` on canonical hosts (`*.roomsonline.co.za`, `*.lovable.app`, `localhost`), `"bridge"` on all other hosts (white-label + embedded on customer WordPress sites).
+- In `"bridge"` mode, do NOT mount `GoogleReCaptchaProvider` (prevents the "Invalid domain" console spam).
 
-Read `wl` from the URL and only apply portfolio/URL brand overrides when it is set. Canonical (no `wl`) always renders ROL pink `#E91E8C`, matching the property-level embed contract.
+### 2. New token-bridge iframe
+- Route: `/recaptcha-bridge` on canonical `sleepinafrica.roomsonline.co.za` (a domain the key already covers).
+- Renders a minimal page that loads reCAPTCHA v3, listens for `postMessage({type:"rc:execute", action})`, calls `executeRecaptcha`, and posts `{type:"rc:token", token}` back to the parent.
+- Locked to `targetOrigin` = requesting parent origin, action allow-list, and a nonce per request.
 
-```ts
-const wlActive = searchParams.get("wl") === "1";
-const ROL_PINK = "#E91E8C";
-const brandColor = wlActive
-  ? (urlBrandColor || portfolioBranding.primary_color || ROL_PINK)
-  : ROL_PINK;
-const brandSecondaryColor = wlActive
-  ? (portfolioBranding.secondary_color || brandColor)
-  : ROL_PINK;
-const brandLogo = wlActive
-  ? (urlBrandLogo || portfolioBranding.logo_url || null)
-  : null;
-```
+### 3. `useRecaptcha` hook update
+- When mode is `"bridge"`: lazily inject a hidden iframe pointing at `https://sleepinafrica.roomsonline.co.za/recaptcha-bridge`, wire request/response via `postMessage`, expose the same `verify()` API so no call sites change.
+- When mode is `"native"`: unchanged behavior.
+- Add a hard timeout (5s) → returns `false` with error `"Verification unavailable"`; call sites already handle a `false` result.
 
-Also propagate `wl=1` on any internal navigation (e.g. the `params.set("brand_color", …)` at line ~490) so click-throughs from a WL portfolio into a property retain WL context, and canonical clicks stay canonical.
+### 4. Server-side verification
+- No change needed — existing edge functions that verify the token (`booking-orchestrator-api`, contact, etc.) call Google's `siteverify` with the same secret; a token minted by the bridge iframe is still valid.
 
-### 2. `src/components/integrations/PortfolioWidgetTab.tsx` — emit dual snippets
+### 5. Belt-and-braces for white-label booking
+- In `verify-recaptcha` / booking edge functions, when the request `Origin` is a known white-label / embed host AND no token is supplied, fall back to existing rate-limit + honeypot checks instead of hard-rejecting. This keeps bookings working if the bridge iframe is blocked (e.g. strict CSP on the parent WordPress site).
 
-Split every generated URL/snippet into a **Canonical** and (when `wl.enabled`) a **White-label** variant. The canonical variant must never carry `wl=1`, `brand_color`, `brand_logo`, `data-brand-*`, `data-white-label`, or `data-wl-host`. The WL variant carries all of them and points at the verified WL host when active.
+### 6. Files touched
+- `src/components/RecaptchaProvider.tsx` — mode gating.
+- `src/hooks/useRecaptcha.tsx` — bridge transport.
+- `src/pages/RecaptchaBridge.tsx` (new) + route in `src/App.tsx`.
+- `supabase/functions/verify-recaptcha/index.ts` (and any booking function that hard-requires a token) — soft-fail for white-label origins when token missing.
+- No UI/call-site changes at booking, portfolio, or contact forms.
 
-Concretely:
+## Out of scope
 
-- Compute `canonicalEmbedUrl` (host = `PUBLIC_DOMAIN`, params = `?layout=…` only) and `wlEmbedUrl` (host = `wlHost`, params = layout + brand_color + brand_logo + `wl=1&hide_powered_by=1`).
-- Compute `canonicalDirectPortfolioUrl` and `wlDirectPortfolioUrl` the same way.
-- Compute `canonicalSnippetDiv` (bare `data-rolos-portfolio="…"` + optional `data-layout`) and `wlSnippetDiv` (adds `data-brand-color`, optional `data-brand-logo`, `data-white-label="true"`, optional `data-wl-host`).
-- Compute `canonicalIframeSnippet` and `wlIframeSnippet` from the respective URLs.
-- Render two `WidgetPreviewFrame`s side-by-side (Canonical + White-label), each using its own URL, mirroring the property-level Widget/Booking-bar tabs. Only show the WL preview/snippet when `wl.enabled`.
+- Not switching to reCAPTCHA Enterprise.
+- Not registering every customer domain in the Google console (unscalable).
+- No visual changes.
 
-No business-logic changes — this is presentation-layer only, aligned with the branding contract already applied to `WidgetTab`, `BookingBarTab`, `DirectLinkTab`, `SmartBookButtonGenerator`.
+## Validation
 
-### 3. Cookbook v6
-
-Regenerate `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v6.docx` after the code fixes so sections 3, 4, and 6 preview correctly (Canonical = ROL pink, WL = property blue). Add a "Fixed in v6" callout describing the portfolio branding gate.
-
-## Verification
-
-- Open `PUBLIC_DOMAIN/embed/portfolio/jongensfontein?layout=grid` → renders ROL pink.
-- Open `PUBLIC_DOMAIN/embed/portfolio/jongensfontein?layout=grid&brand_color=%232563eb&wl=1` → renders blue.
-- Portfolio tab in `/admin/edit property` and `/rolos` shows two labelled previews with correct colors and two copy blocks per snippet type.
-- Cookbook v6 §3/§4/§6 previews match the branding contract.
-
-## Files
-
-- `src/pages/EmbedPortfolio.tsx` (branding gate)
-- `src/components/integrations/PortfolioWidgetTab.tsx` (dual snippet + dual preview)
-- `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v6.docx` (new)
-
-No DB, no edge-function, no API changes.
+- Load `https://rolos.co.za/jongensfontein-com/` (WL portfolio shortcode context) → confirm bridge iframe loads, `verify()` returns a token, submit succeeds, no "Invalid domain" console error.
+- Load canonical `sleepinafrica.roomsonline.co.za/property/...` → confirm native mode still used (no bridge iframe).
+- Confirm booking submission works in both modes end-to-end.

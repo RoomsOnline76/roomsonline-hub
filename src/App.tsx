@@ -43,6 +43,7 @@ const ContractSign = lazy(() => import("./pages/ContractSign"));
 const PropertyOnboarding = lazy(() => import("./pages/PropertyOnboarding"));
 const GuestPortal = lazy(() => import("./pages/GuestPortal"));
 const SubscriptionPay = lazy(() => import("./pages/SubscriptionPay"));
+const RecaptchaBridge = lazy(() => import("./pages/RecaptchaBridge"));
 
 // ─── Lazy — admin pages ──────────────────────────────────────────
 const PropertyOverview = lazy(() => import("./pages/PropertyOverview"));
@@ -299,6 +300,7 @@ const App = () => (
                         {/* ═══ Embed routes (public) ═════════════════════ */}
                         <Route path="/embed/property/:slug" element={<EmbedProperty />} />
                         <Route path="/embed/portfolio/:portfolioSlug" element={<EmbedPortfolio />} />
+                        <Route path="/recaptcha-bridge" element={<RecaptchaBridge />} />
                         <Route path="/subscribe/pay/:token" element={<SubscriptionPay />} />
 
                         {/* ═══ Journey routes (public) ═══════════════════ */}
