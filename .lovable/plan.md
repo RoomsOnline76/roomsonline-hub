@@ -1,65 +1,73 @@
-# Fix v4 cookbook branding leaks — 3 sections
 
-Confirmed by reading the live page at `https://rolos.co.za/jongensfontein-com/`, the v4 docx, and the source generators. Three snippet families still leak branding across the canonical / white-label boundary:
+## Problem
 
-## 1. Calendar Popover / "Check availability" button (page §4 + §10, v4 docx §8)
+In cookbook v5 the portfolio-scoped sections still leak white-label branding into the "Canonical" variant:
 
-**Symptom:** WL "Check availability" button renders in ROL pink instead of the property blue.
+- §3 Portfolio Iframe Embed — canonical renders blue
+- §4 rol-embed.js Portfolio Widget — canonical renders blue
+- §6 WordPress Portfolio Shortcode — canonical renders blue
 
-**Root cause:** `SmartBookButtonGenerator.tsx` builds the popover / combo variants using a single `buttonBg` value driven by `brandColor` on both the canonical and the WL preview. In canonical mode `brandColor` is intentionally forced to `#E91E8C`, so the WL preview ends up sharing the pink swatch instead of the property brand.
+Two independent bugs cause this:
 
-**Fix:** In `SmartBookButtonGenerator.tsx`
-- Split the "button background" resolution: canonical variant → always `#E91E8C`; WL variant → `property.brand_primary_color` (fallback pink only when brand color is empty).
-- Ensure the WL popover/combo snippet also injects `wl=1&hide_powered_by=1&brand_color=<propertyBrand>` into the click-through URL query string (already done for `basic`; missing on the popover/combo templates).
-- Update the two rendered preview `<button>` chips so the docx thumbnails and the Cookbook preview match the emitted snippet colour.
+1. **Portfolio embed page ignores `wl=1`.** In `src/pages/EmbedPortfolio.tsx` (line 119) the resolved brand color is:
+   ```ts
+   const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
+   ```
+   When a canonical URL is opened (no `brand_color`, no `wl=1`), the page still auto-applies the portfolio's own branding — so canonical always looks like WL. The property-level `EmbedProperty` already gates this on `wl=1`; `EmbedPortfolio` does not.
 
-## 2. rol-embed.js — One-Liner Widget (page §7, v4 docx §5)
+2. **`PortfolioWidgetTab.tsx` emits a single snippet.** For iframe (§3) and `rol-embed.js` (§4) it emits one URL/div; when `wl.enabled` is true both the "Canonical" and "White-label" copies in the cookbook end up with the WL parameters (or neither, but the embed page then applies portfolio branding — see bug 1). The WP portfolio shortcode (§6) is already split in `WordPressTab.tsx`, but the rendered result still leaks because of bug 1.
 
-**Symptom:** WL widget preview still renders in ROL pink chrome even though the snippet carries `data-white-label="true"` + `data-brand-color="#1E4E8C"`.
+## Changes
 
-**Root cause:** `WidgetTab.tsx` / `WidgetSetupWizard.tsx` emit the WL snippet with `data-wl-host="https://book.rolos.co.za"` but the ROLOS-hosted preview iframe (`WidgetPreviewFrame.tsx`) points at the canonical host and never appends `brand_color` to its `src` — so the embed page resolves as canonical (pink). `public/rol-embed.js` `buildEmbedUrl` also does not emit `brand_color` when `whiteLabel=true` but no `brandColor` attribute is supplied by the host page; the embed page then falls back to canonical pink instead of fetching the property brand.
+### 1. `src/pages/EmbedPortfolio.tsx` — gate portfolio branding on `wl=1`
 
-**Fix:**
-- `WidgetPreviewFrame.tsx`: when previewing the WL variant, append `wl=1&hide_powered_by=1&brand_color=<propertyBrand>` to the iframe `src` so the preview matches the copied snippet.
-- `public/rol-embed.js`: when `config.whiteLabel === true` and no explicit `data-brand-color` is provided, still forward `wl=1` and let the embed page resolve the property brand from the API (do not silently drop the WL flag). Keep the current canonical behaviour unchanged.
-- `WidgetTab.tsx` + `WidgetSetupWizard.tsx`: guarantee the emitted WL snippet always carries a non-empty `data-brand-color` (fall back to `property.brand_primary_color` when the wizard's colour picker is left blank).
+Read `wl` from the URL and only apply portfolio/URL brand overrides when it is set. Canonical (no `wl`) always renders ROL pink `#E91E8C`, matching the property-level embed contract.
 
-## 3. WordPress Shortcode (page §11, v4 docx §9)
-
-**Symptom:** Both canonical and white-label WordPress shortcode previews render in property blue.
-
-**Root cause:** `WordPressTab.tsx` line 87 unconditionally embeds `color="${brandColor}"` in every generated `[rolos_booking]` shortcode:
+```ts
+const wlActive = searchParams.get("wl") === "1";
+const ROL_PINK = "#E91E8C";
+const brandColor = wlActive
+  ? (urlBrandColor || portfolioBranding.primary_color || ROL_PINK)
+  : ROL_PINK;
+const brandSecondaryColor = wlActive
+  ? (portfolioBranding.secondary_color || brandColor)
+  : ROL_PINK;
+const brandLogo = wlActive
+  ? (urlBrandLogo || portfolioBranding.logo_url || null)
+  : null;
 ```
-[rolos_booking property="..." property_id="..." color="#1E4E8C"${wlAttrs}]
-```
-Even the "canonical" copy of that shortcode ships the property brand, so the plugin renders it as WL. There is no separate canonical variant.
 
-**Fix:** In `WordPressTab.tsx`
-- Emit **two** shortcodes side-by-side, mirroring the pattern used elsewhere:
-  - **Canonical:** `[rolos_booking property="<slug>"]` — no `color`, no `whitelabel`, no `host`.
-  - **White-label** (only when `wl.enabled === true`): `[rolos_booking property="<slug>" whitelabel="1"${verifiedHost ? ` host="https://<domain>"` : ""}]` — brand is inherited from the property config server-side by the WordPress plugin; `color=` is not needed.
-- Remove the always-on `color="${brandColor}"` injection and drop `property_id` from the canonical variant (the plugin resolves it from the slug).
-- Update the surrounding copy block to explain the two variants (canonical = ROL pink, WL = property brand, inherited automatically).
-- Apply the same split to the portfolio shortcode block if present.
+Also propagate `wl=1` on any internal navigation (e.g. the `params.set("brand_color", …)` at line ~490) so click-throughs from a WL portfolio into a property retain WL context, and canonical clicks stay canonical.
 
-## 4. Regenerate the docx — `rolos-integrations-cookbook-jongensfontein-v5.docx`
+### 2. `src/components/integrations/PortfolioWidgetTab.tsx` — emit dual snippets
 
-Author a fresh version of the cookbook at `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v5.docx` that:
-- Uses the corrected snippets from #1–#3 above.
-- Adds a short "Fixed in v5" callout at the top listing the three corrections (Calendar Popover WL colour, rol-embed.js WL preview, WordPress Shortcode canonical/WL split).
-- Leaves every other section byte-identical to v4 (no gratuitous renumbering).
-- Emits a `<presentation-artifact>` tag for the new file so the user can download it.
+Split every generated URL/snippet into a **Canonical** and (when `wl.enabled`) a **White-label** variant. The canonical variant must never carry `wl=1`, `brand_color`, `brand_logo`, `data-brand-*`, `data-white-label`, or `data-wl-host`. The WL variant carries all of them and points at the verified WL host when active.
 
-## Out of scope
+Concretely:
 
-- No changes to `EmbedProperty.tsx` branding resolution (already correct — the leaks are all in the snippet emitters / previews).
-- No changes to WL domain verification, billing config, or `useWhitelabel`.
-- The live Elementor page on `rolos.co.za/jongensfontein-com/` is authored in WordPress and will need to be re-pasted from ROLOS → Integrations after the fix — noted in the cookbook callout, not modified from code.
+- Compute `canonicalEmbedUrl` (host = `PUBLIC_DOMAIN`, params = `?layout=…` only) and `wlEmbedUrl` (host = `wlHost`, params = layout + brand_color + brand_logo + `wl=1&hide_powered_by=1`).
+- Compute `canonicalDirectPortfolioUrl` and `wlDirectPortfolioUrl` the same way.
+- Compute `canonicalSnippetDiv` (bare `data-rolos-portfolio="…"` + optional `data-layout`) and `wlSnippetDiv` (adds `data-brand-color`, optional `data-brand-logo`, `data-white-label="true"`, optional `data-wl-host`).
+- Compute `canonicalIframeSnippet` and `wlIframeSnippet` from the respective URLs.
+- Render two `WidgetPreviewFrame`s side-by-side (Canonical + White-label), each using its own URL, mirroring the property-level Widget/Booking-bar tabs. Only show the WL preview/snippet when `wl.enabled`.
+
+No business-logic changes — this is presentation-layer only, aligned with the branding contract already applied to `WidgetTab`, `BookingBarTab`, `DirectLinkTab`, `SmartBookButtonGenerator`.
+
+### 3. Cookbook v6
+
+Regenerate `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v6.docx` after the code fixes so sections 3, 4, and 6 preview correctly (Canonical = ROL pink, WL = property blue). Add a "Fixed in v6" callout describing the portfolio branding gate.
 
 ## Verification
 
-After the code edits and docx regeneration:
-1. Open ROLOS → Integrations → Widget for Fonteinhutte and confirm the WL preview iframe renders the property blue chrome.
-2. Copy the WordPress shortcode canonical variant and paste into a scratch WP page — confirm the widget renders pink.
-3. Copy the Calendar Popover WL variant into a WordPress HTML block — confirm the button renders blue and the click-through URL includes `wl=1&brand_color=%231E4E8C`.
-4. Re-download v5 docx and visually diff §5, §8, §9 against v4 to confirm the corrections landed.
+- Open `PUBLIC_DOMAIN/embed/portfolio/jongensfontein?layout=grid` → renders ROL pink.
+- Open `PUBLIC_DOMAIN/embed/portfolio/jongensfontein?layout=grid&brand_color=%232563eb&wl=1` → renders blue.
+- Portfolio tab in `/admin/edit property` and `/rolos` shows two labelled previews with correct colors and two copy blocks per snippet type.
+- Cookbook v6 §3/§4/§6 previews match the branding contract.
+
+## Files
+
+- `src/pages/EmbedPortfolio.tsx` (branding gate)
+- `src/components/integrations/PortfolioWidgetTab.tsx` (dual snippet + dual preview)
+- `/mnt/documents/rolos-integrations-cookbook-jongensfontein-v6.docx` (new)
+
+No DB, no edge-function, no API changes.

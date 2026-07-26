@@ -114,11 +114,18 @@ export default function EmbedPortfolio() {
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
   const [heroVideoMuted, setHeroVideoMuted] = useState(true);
-  // Resolve branding: URL params override portfolio metadata
+  // Resolve branding — canonical (no `wl=1`) always renders ROL pink; only
+  // white-label embeds forward portfolio/URL branding. Mirrors EmbedProperty.
+  const wlActive = searchParams.get("wl") === "1";
+  const ROL_PINK = "#E91E8C";
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
-  const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
-  const brandSecondaryColor = portfolioBranding.secondary_color || brandColor;
-  const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
+  const brandColor = wlActive
+    ? (urlBrandColor || portfolioBranding.primary_color || ROL_PINK)
+    : ROL_PINK;
+  const brandSecondaryColor = wlActive
+    ? (portfolioBranding.secondary_color || brandColor)
+    : ROL_PINK;
+  const brandLogo = wlActive ? (urlBrandLogo || portfolioBranding.logo_url || null) : null;
 
   // Resize observer for iframe
   useEffect(() => {
@@ -487,12 +494,15 @@ export default function EmbedPortfolio() {
       ? (prop?.brand_secondary_color || brandSecondaryColor)
       : brandSecondaryColor;
     const params = new URLSearchParams();
-    if (propColor) params.set("brand_color", propColor);
-    if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
+    if (wlActive) {
+      params.set("wl", "1");
+      if (propColor) params.set("brand_color", propColor);
+      if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
+      if (!allowOverride) params.set("portfolio_brand", "1");
+    }
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
-    if (!allowOverride) params.set("portfolio_brand", "1");
     // Forward journey_mode so EmbedProperty knows to route back to journey review
     if (journeyMode) params.set("journey_mode", "true");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");

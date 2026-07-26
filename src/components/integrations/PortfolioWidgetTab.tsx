@@ -81,40 +81,38 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   // portfolio widget — otherwise fall back to the property's inherited host.
   const wlHost = portfolioWl.domainStatus === "active" ? portfolioWl.host : wl.host;
   const wlDomain = portfolioWl.domainStatus === "active" ? portfolioWl.domain : (wl.domainStatus === "active" ? wl.domain : null);
-  const BASE = wlHost || PUBLIC_DOMAIN;
-  // Canonical portfolio embeds must render ROL pink; only WL snippets forward
-  // brand params so the property's blue doesn't leak into the non-WL surface.
-  const wlActive = wl.enabled;
-  const brandParams = wlActive
-    ? `&brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}`
-    : "";
-  const wlParam = wlActive ? "&wl=1&hide_powered_by=1" : "";
-  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
-  // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
-  // social bios and "Book Now" buttons. Attributes bookings to the portfolio.
-  const directPortfolioUrl = selectedPortfolio
-    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}${wlActive ? wlParam : ""}`
-    : "";
+  const wlEligible = wl.enabled;
 
-  // Preview always renders from the canonical published host so it doesn't
-  // depend on the customer's white-label SSL/proxy. The copyable snippets
-  // below keep the WL host so end-user URLs stay branded.
-  const previewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
+  // ---- Canonical: no brand params, no wl=1, always PUBLIC_DOMAIN ----
+  const canonicalEmbedUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}`;
+  const canonicalDirectPortfolioUrl = selectedPortfolio
+    ? `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
+    : "";
+  const canonicalSnippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}></div>`;
 
-  const wlAttrs = wlActive
-    ? `\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}`
+  // ---- White-label: brand params + wl=1, WL host when active ----
+  const wlBrandParams = `&brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}`;
+  const wlBase = wlHost || PUBLIC_DOMAIN;
+  const wlEmbedUrl = `${wlBase}/embed/portfolio/${portfolioSlug}?layout=${layout}${wlBrandParams}&wl=1&hide_powered_by=1`;
+  const wlDirectPortfolioUrl = selectedPortfolio
+    ? `${wlBase}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}&wl=1&hide_powered_by=1${wlBrandParams}`
     : "";
-  // Only emit brand data-attributes in WL snippets. Canonical snippets stay clean.
-  const brandDivAttrs = wlActive
-    ? `${brandColor !== ROL_PINK ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}`
-    : "";
-  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandDivAttrs}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
+  const wlSnippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== ROL_PINK ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}></div>`;
 
   const snippetScript = `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`;
+  const canonicalFullSnippet = `<!-- ROL'OS Portfolio Widget (canonical) -->\n${canonicalSnippetDiv}\n${snippetScript}`;
+  const wlFullSnippet = `<!-- ROL'OS Portfolio Widget (white-label) -->\n${wlSnippetDiv}\n${snippetScript}`;
+  const canonicalIframeSnippet = `<iframe src="${canonicalEmbedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
+  const wlIframeSnippet = `<iframe src="${wlEmbedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
 
-  const fullSnippet = `<!-- ROL'OS Portfolio Widget${wl.enabled ? " (white-label)" : ""} -->\n${snippetDiv}\n${snippetScript}`;
+  // Preview uses PUBLIC_DOMAIN host so we don't depend on the customer's SSL/proxy;
+  // the WL preview forwards WL params so the preview iframe renders in brand color.
+  const canonicalPreviewUrl = canonicalEmbedUrl;
+  const wlPreviewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}${wlBrandParams}&wl=1&hide_powered_by=1`;
 
-  const iframeSnippet = `<iframe src="${embedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
+  // For the "Direct Portfolio Link" panel above the previews, default to canonical.
+  const directPortfolioUrl = canonicalDirectPortfolioUrl;
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -329,71 +327,111 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Preview — Canonical + (optional) White-label side-by-side */}
           {selectedPortfolioId && (
-            <WidgetPreviewFrame
-              title="Portfolio Widget Preview"
-              url={`yoursite.com/properties`}
-              height={360}
-            >
-              <iframe
-                src={previewUrl}
-                className="w-full h-full border-none"
-                title="Portfolio preview"
-              />
-            </WidgetPreviewFrame>
-          )}
-
-          {/* Code snippets */}
-          {selectedPortfolioId && (
-            <div className="space-y-3">
+            <div className={`grid gap-3 ${wlEligible ? "md:grid-cols-2" : "grid-cols-1"}`}>
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">One-Line Snippet</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs gap-1"
-                    onClick={() => copyToClipboard(fullSnippet)}
-                  >
-                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                    Copy
-                  </Button>
-                </div>
-                <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
-                  {fullSnippet}
-                </pre>
+                <Label className="text-xs font-medium">Canonical preview (ROL pink)</Label>
+                <WidgetPreviewFrame title="Canonical" url="yoursite.com/properties" height={360}>
+                  <iframe src={canonicalPreviewUrl} className="w-full h-full border-none" title="Canonical portfolio preview" />
+                </WidgetPreviewFrame>
               </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">Iframe Fallback</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs gap-1"
-                    onClick={() => copyToClipboard(iframeSnippet)}
-                  >
-                    <Copy className="h-3 w-3" />
-                    Copy
-                  </Button>
+              {wlEligible && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">White-label preview (property brand)</Label>
+                  <WidgetPreviewFrame title="White-label" url={wlDomain || "yoursite.com/properties"} height={360}>
+                    <iframe src={wlPreviewUrl} className="w-full h-full border-none" title="White-label portfolio preview" />
+                  </WidgetPreviewFrame>
                 </div>
-                <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
-                  {iframeSnippet}
-                </pre>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => window.open(embedUrl, "_blank")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Test in New Tab
-              </Button>
+              )}
             </div>
           )}
+
+          {/* Code snippets — Canonical always; White-label only when eligible */}
+          {selectedPortfolioId && (
+            <div className="space-y-4">
+              {/* Canonical snippets */}
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">Canonical</Badge>
+                  <span className="text-[11px] text-muted-foreground">
+                    Uses <code className="font-mono">rolos.co.za</code> and ROL pink. Safe default for any site.
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">One-Line Snippet</Label>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(canonicalFullSnippet)}>
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                    {canonicalFullSnippet}
+                  </pre>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Iframe Fallback</Label>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(canonicalIframeSnippet)}>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                    {canonicalIframeSnippet}
+                  </pre>
+                </div>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open(canonicalEmbedUrl, "_blank")}>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Test canonical in new tab
+                </Button>
+              </div>
+
+              {/* White-label snippets */}
+              {wlEligible && (
+                <div className="space-y-3 rounded-lg border p-3 bg-primary/[0.03]">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="gap-1 text-[10px]">
+                      <ShieldCheck className="h-3 w-3" /> White-label
+                    </Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      Uses {wlDomain ? <code className="font-mono">{wlDomain}</code> : "the property brand host"} with brand color and logo.
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">One-Line Snippet</Label>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(wlFullSnippet)}>
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {wlFullSnippet}
+                    </pre>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Iframe Fallback</Label>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(wlIframeSnippet)}>
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {wlIframeSnippet}
+                    </pre>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open(wlEmbedUrl, "_blank")}>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Test white-label in new tab
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {!selectedPortfolioId && (
             <div className="text-center py-8 text-xs text-muted-foreground">
@@ -432,7 +470,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
           ) : (
             relevantPortfolios.map((p: any) => {
               const scriptTag = `<!-- ROL'OS Portfolio Origin Tag -->\n<script>\n  (function () {\n    try {\n      sessionStorage.setItem('rol_origin_portfolio_id', '${p.id}');\n      sessionStorage.setItem('rol_origin_url', window.location.href);\n    } catch (e) {}\n  })();\n</script>`;
-              const linkDecorator = `${BASE}/embed/portfolio/${p.slug}?ref_portfolio=${p.id}`;
+              const linkDecorator = `${PUBLIC_DOMAIN}/embed/portfolio/${p.slug}?ref_portfolio=${p.id}`;
               const moduleCall = `import { setOriginPortfolio } from '@rolos/origin';\nsetOriginPortfolio('${p.id}');`;
 
               return (
