@@ -114,11 +114,18 @@ export default function EmbedPortfolio() {
   const [portfolioReviews, setPortfolioReviews] = useState<any[]>([]);
   const [tobiBlurbs, setTobiBlurbs] = useState<{ property_name: string; blurb: string }[]>([]);
   const [heroVideoMuted, setHeroVideoMuted] = useState(true);
-  // Resolve branding: URL params override portfolio metadata
+  // Resolve branding — canonical (no `wl=1`) always renders ROL pink; only
+  // white-label embeds forward portfolio/URL branding. Mirrors EmbedProperty.
+  const wlActive = searchParams.get("wl") === "1";
+  const ROL_PINK = "#E91E8C";
   const portfolioBranding = portfolio?.metadata?.branding || portfolio?.branding || {};
-  const brandColor = urlBrandColor || portfolioBranding.primary_color || "#2563eb";
-  const brandSecondaryColor = portfolioBranding.secondary_color || brandColor;
-  const brandLogo = urlBrandLogo || portfolioBranding.logo_url || null;
+  const brandColor = wlActive
+    ? (urlBrandColor || portfolioBranding.primary_color || ROL_PINK)
+    : ROL_PINK;
+  const brandSecondaryColor = wlActive
+    ? (portfolioBranding.secondary_color || brandColor)
+    : ROL_PINK;
+  const brandLogo = wlActive ? (urlBrandLogo || portfolioBranding.logo_url || null) : null;
 
   // Resize observer for iframe
   useEffect(() => {
