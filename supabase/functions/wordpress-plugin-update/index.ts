@@ -595,13 +595,14 @@ class Rolos_Shortcodes {
     }
 
     /**
-     * [rolos_portfolio_booking portfolio="slug" portfolio_id="uuid" height="720px"
+     * [rolos_portfolio_booking portfolio="slug" portfolio_id="uuid" color="#e91e63" height="720px"
      *   whitelabel="1" host="https://book.mylodge.com"]
      */
     public function portfolio_booking_shortcode(\$atts) {
         \$atts = shortcode_atts(array(
             'portfolio' => '',
             'portfolio_id' => '',
+            'color' => ROLOS_DEFAULT_BRAND_COLOR,
             'height' => '720px',
             'whitelabel' => '',
             'host' => '',
@@ -620,6 +621,7 @@ class Rolos_Shortcodes {
         if (\$wl) {
             \$query_parts[] = 'wl=1';
             \$query_parts[] = 'hide_chrome=1';
+            \$query_parts[] = 'brand_color=' . rawurlencode(\$atts['color']);
         }
         \$src = esc_url(\$base_url . '/embed/portfolio/' . rawurlencode(\$atts['portfolio']) . '?' . implode('&', \$query_parts));
 

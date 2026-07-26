@@ -121,7 +121,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     ? `[rolos_portfolio_booking portfolio="${portfolio.slug}"]`
     : null;
   const portfolioWlShortcode = portfolio?.slug && wl.enabled
-    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}" whitelabel="1"${verifiedWlHost}]`
+    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}" whitelabel="1" color="${brandColor}"${verifiedWlHost}]`
     : null;
 
   // White-label-aware webhook URL suggestion
@@ -342,7 +342,7 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             </div>
             <p className="text-xs text-muted-foreground">
               <strong>Canonical</strong> ships no brand params — renders in ROL'OS pink (<code>#E91E8C</code>).{" "}
-              <strong>White-label</strong> tells the plugin to inherit the property's brand automatically — no <code>color=</code> attribute needed.
+              <strong>White-label</strong> tells the plugin to render in the property's brand colour.
             </p>
             <div>
               <div className="text-xs font-medium mb-1 text-muted-foreground">A. Canonical — ROL'OS pink</div>
