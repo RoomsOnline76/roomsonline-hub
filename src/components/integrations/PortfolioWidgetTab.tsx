@@ -327,71 +327,111 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Preview — Canonical + (optional) White-label side-by-side */}
           {selectedPortfolioId && (
-            <WidgetPreviewFrame
-              title="Portfolio Widget Preview"
-              url={`yoursite.com/properties`}
-              height={360}
-            >
-              <iframe
-                src={previewUrl}
-                className="w-full h-full border-none"
-                title="Portfolio preview"
-              />
-            </WidgetPreviewFrame>
-          )}
-
-          {/* Code snippets */}
-          {selectedPortfolioId && (
-            <div className="space-y-3">
+            <div className={`grid gap-3 ${wlEligible ? "md:grid-cols-2" : "grid-cols-1"}`}>
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">One-Line Snippet</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs gap-1"
-                    onClick={() => copyToClipboard(fullSnippet)}
-                  >
-                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                    Copy
-                  </Button>
-                </div>
-                <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
-                  {fullSnippet}
-                </pre>
+                <Label className="text-xs font-medium">Canonical preview (ROL pink)</Label>
+                <WidgetPreviewFrame title="Canonical" url="yoursite.com/properties" height={360}>
+                  <iframe src={canonicalPreviewUrl} className="w-full h-full border-none" title="Canonical portfolio preview" />
+                </WidgetPreviewFrame>
               </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium">Iframe Fallback</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs gap-1"
-                    onClick={() => copyToClipboard(iframeSnippet)}
-                  >
-                    <Copy className="h-3 w-3" />
-                    Copy
-                  </Button>
+              {wlEligible && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">White-label preview (property brand)</Label>
+                  <WidgetPreviewFrame title="White-label" url={wlDomain || "yoursite.com/properties"} height={360}>
+                    <iframe src={wlPreviewUrl} className="w-full h-full border-none" title="White-label portfolio preview" />
+                  </WidgetPreviewFrame>
                 </div>
-                <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
-                  {iframeSnippet}
-                </pre>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => window.open(embedUrl, "_blank")}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Test in New Tab
-              </Button>
+              )}
             </div>
           )}
+
+          {/* Code snippets — Canonical always; White-label only when eligible */}
+          {selectedPortfolioId && (
+            <div className="space-y-4">
+              {/* Canonical snippets */}
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px]">Canonical</Badge>
+                  <span className="text-[11px] text-muted-foreground">
+                    Uses <code className="font-mono">rolos.co.za</code> and ROL pink. Safe default for any site.
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">One-Line Snippet</Label>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(canonicalFullSnippet)}>
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                    {canonicalFullSnippet}
+                  </pre>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Iframe Fallback</Label>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(canonicalIframeSnippet)}>
+                      <Copy className="h-3 w-3" />
+                      Copy
+                    </Button>
+                  </div>
+                  <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                    {canonicalIframeSnippet}
+                  </pre>
+                </div>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open(canonicalEmbedUrl, "_blank")}>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Test canonical in new tab
+                </Button>
+              </div>
+
+              {/* White-label snippets */}
+              {wlEligible && (
+                <div className="space-y-3 rounded-lg border p-3 bg-primary/[0.03]">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="gap-1 text-[10px]">
+                      <ShieldCheck className="h-3 w-3" /> White-label
+                    </Badge>
+                    <span className="text-[11px] text-muted-foreground">
+                      Uses {wlDomain ? <code className="font-mono">{wlDomain}</code> : "the property brand host"} with brand color and logo.
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">One-Line Snippet</Label>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(wlFullSnippet)}>
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {wlFullSnippet}
+                    </pre>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Iframe Fallback</Label>
+                      <Button variant="ghost" size="sm" className="h-6 text-xs gap-1" onClick={() => copyToClipboard(wlIframeSnippet)}>
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                    </div>
+                    <pre className="bg-muted/50 border rounded-md p-3 text-[11px] font-mono overflow-x-auto whitespace-pre-wrap">
+                      {wlIframeSnippet}
+                    </pre>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.open(wlEmbedUrl, "_blank")}>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Test white-label in new tab
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {!selectedPortfolioId && (
             <div className="text-center py-8 text-xs text-muted-foreground">
