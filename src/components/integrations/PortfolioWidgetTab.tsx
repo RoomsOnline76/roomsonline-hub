@@ -470,7 +470,7 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
           ) : (
             relevantPortfolios.map((p: any) => {
               const scriptTag = `<!-- ROL'OS Portfolio Origin Tag -->\n<script>\n  (function () {\n    try {\n      sessionStorage.setItem('rol_origin_portfolio_id', '${p.id}');\n      sessionStorage.setItem('rol_origin_url', window.location.href);\n    } catch (e) {}\n  })();\n</script>`;
-              const linkDecorator = `${BASE}/embed/portfolio/${p.slug}?ref_portfolio=${p.id}`;
+              const linkDecorator = `${PUBLIC_DOMAIN}/embed/portfolio/${p.slug}?ref_portfolio=${p.id}`;
               const moduleCall = `import { setOriginPortfolio } from '@rolos/origin';\nsetOriginPortfolio('${p.id}');`;
 
               return (
