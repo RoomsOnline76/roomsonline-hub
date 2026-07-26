@@ -81,40 +81,38 @@ export function PortfolioWidgetTab({ property }: PortfolioWidgetTabProps) {
   // portfolio widget — otherwise fall back to the property's inherited host.
   const wlHost = portfolioWl.domainStatus === "active" ? portfolioWl.host : wl.host;
   const wlDomain = portfolioWl.domainStatus === "active" ? portfolioWl.domain : (wl.domainStatus === "active" ? wl.domain : null);
-  const BASE = wlHost || PUBLIC_DOMAIN;
-  // Canonical portfolio embeds must render ROL pink; only WL snippets forward
-  // brand params so the property's blue doesn't leak into the non-WL surface.
-  const wlActive = wl.enabled;
-  const brandParams = wlActive
-    ? `&brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}`
-    : "";
-  const wlParam = wlActive ? "&wl=1&hide_powered_by=1" : "";
-  const embedUrl = `${BASE}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
-  // Direct (non-embed styled) portfolio view URL — safe to share as-is in emails,
-  // social bios and "Book Now" buttons. Attributes bookings to the portfolio.
-  const directPortfolioUrl = selectedPortfolio
-    ? `${BASE}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}${wlActive ? wlParam : ""}`
-    : "";
+  const wlEligible = wl.enabled;
 
-  // Preview always renders from the canonical published host so it doesn't
-  // depend on the customer's white-label SSL/proxy. The copyable snippets
-  // below keep the WL host so end-user URLs stay branded.
-  const previewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}${brandParams}${wlParam}`;
+  // ---- Canonical: no brand params, no wl=1, always PUBLIC_DOMAIN ----
+  const canonicalEmbedUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}`;
+  const canonicalDirectPortfolioUrl = selectedPortfolio
+    ? `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}`
+    : "";
+  const canonicalSnippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}></div>`;
 
-  const wlAttrs = wlActive
-    ? `\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}`
+  // ---- White-label: brand params + wl=1, WL host when active ----
+  const wlBrandParams = `&brand_color=${encodeURIComponent(brandColor)}${brandLogo ? `&brand_logo=${encodeURIComponent(brandLogo)}` : ""}`;
+  const wlBase = wlHost || PUBLIC_DOMAIN;
+  const wlEmbedUrl = `${wlBase}/embed/portfolio/${portfolioSlug}?layout=${layout}${wlBrandParams}&wl=1&hide_powered_by=1`;
+  const wlDirectPortfolioUrl = selectedPortfolio
+    ? `${wlBase}/embed/portfolio/${portfolioSlug}?ref_portfolio=${selectedPortfolio.id}&wl=1&hide_powered_by=1${wlBrandParams}`
     : "";
-  // Only emit brand data-attributes in WL snippets. Canonical snippets stay clean.
-  const brandDivAttrs = wlActive
-    ? `${brandColor !== ROL_PINK ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}`
-    : "";
-  const snippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandDivAttrs}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}${wlAttrs}></div>`;
+  const wlSnippetDiv = `<div data-rolos-portfolio="${portfolioSlug}"${brandColor !== ROL_PINK ? `\n     data-brand-color="${brandColor}"` : ""}${brandLogo ? `\n     data-brand-logo="${brandLogo}"` : ""}${layout !== "grid" ? `\n     data-layout="${layout}"` : ""}\n     data-white-label="true"${wlDomain ? `\n     data-wl-host="https://${wlDomain}"` : ""}></div>`;
 
   const snippetScript = `<script src="https://widget.roomsonline.co.za/rol-embed.js"></script>`;
+  const canonicalFullSnippet = `<!-- ROL'OS Portfolio Widget (canonical) -->\n${canonicalSnippetDiv}\n${snippetScript}`;
+  const wlFullSnippet = `<!-- ROL'OS Portfolio Widget (white-label) -->\n${wlSnippetDiv}\n${snippetScript}`;
+  const canonicalIframeSnippet = `<iframe src="${canonicalEmbedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
+  const wlIframeSnippet = `<iframe src="${wlEmbedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
 
-  const fullSnippet = `<!-- ROL'OS Portfolio Widget${wl.enabled ? " (white-label)" : ""} -->\n${snippetDiv}\n${snippetScript}`;
+  // Preview uses PUBLIC_DOMAIN host so we don't depend on the customer's SSL/proxy;
+  // the WL preview forwards WL params so the preview iframe renders in brand color.
+  const canonicalPreviewUrl = canonicalEmbedUrl;
+  const wlPreviewUrl = `${PUBLIC_DOMAIN}/embed/portfolio/${portfolioSlug}?layout=${layout}${wlBrandParams}&wl=1&hide_powered_by=1`;
 
-  const iframeSnippet = `<iframe src="${embedUrl}" style="width:100%;min-height:600px;border:none;border-radius:8px;" loading="lazy" allow="payment" title="Book with ROL'OS"></iframe>`;
+  // For the "Direct Portfolio Link" panel above the previews, default to canonical.
+  const directPortfolioUrl = canonicalDirectPortfolioUrl;
+
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
