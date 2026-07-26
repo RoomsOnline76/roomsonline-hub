@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { useRecaptchaSiteKey as useRecaptchaSiteKeyFromFlags } from "@/hooks/useFeatureFlags";
+import { getRecaptchaMode, RECAPTCHA_BRIDGE_URL } from "@/lib/recaptchaMode";
 
 interface RecaptchaState {
   isVerified: boolean;
@@ -18,8 +19,102 @@ export function useRecaptchaSiteKey() {
   };
 }
 
+// ── Bridge-mode singleton iframe ─────────────────────────────────────────────
+// On white-label / embed hosts the site key is not valid for the current
+// domain, so we mint tokens through a hidden iframe pointed at a canonical
+// Rooms Online host. A single iframe is reused for the lifetime of the page.
+
+interface PendingRequest {
+  resolve: (token: string | null) => void;
+}
+
+let bridgeIframe: HTMLIFrameElement | null = null;
+let bridgeReady = false;
+let bridgeReadyWaiters: Array<() => void> = [];
+const pending = new Map<string, PendingRequest>();
+
+function ensureBridge(): HTMLIFrameElement | null {
+  if (typeof window === "undefined") return null;
+  if (bridgeIframe) return bridgeIframe;
+
+  const iframe = document.createElement("iframe");
+  iframe.src = RECAPTCHA_BRIDGE_URL;
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute("tabindex", "-1");
+  iframe.style.position = "absolute";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.left = "-9999px";
+  iframe.style.top = "-9999px";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  document.body.appendChild(iframe);
+  bridgeIframe = iframe;
+
+  window.addEventListener("message", (ev) => {
+    const data = ev.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type === "rc:ready") {
+      bridgeReady = true;
+      const waiters = bridgeReadyWaiters;
+      bridgeReadyWaiters = [];
+      waiters.forEach((w) => w());
+      return;
+    }
+    if (data.type === "rc:token" && typeof data.nonce === "string") {
+      const req = pending.get(data.nonce);
+      if (req) {
+        pending.delete(data.nonce);
+        req.resolve(typeof data.token === "string" ? data.token : null);
+      }
+    }
+  });
+
+  return iframe;
+}
+
+function waitForBridgeReady(timeoutMs = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (bridgeReady) return resolve(true);
+    const t = setTimeout(() => {
+      bridgeReadyWaiters = bridgeReadyWaiters.filter((w) => w !== onReady);
+      resolve(false);
+    }, timeoutMs);
+    const onReady = () => {
+      clearTimeout(t);
+      resolve(true);
+    };
+    bridgeReadyWaiters.push(onReady);
+  });
+}
+
+async function requestBridgeToken(action: string, timeoutMs = 5000): Promise<string | null> {
+  const iframe = ensureBridge();
+  if (!iframe || !iframe.contentWindow) return null;
+  const ok = await waitForBridgeReady(timeoutMs);
+  if (!ok) return null;
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve) => {
+    const t = setTimeout(() => {
+      pending.delete(nonce);
+      resolve(null);
+    }, timeoutMs);
+    pending.set(nonce, {
+      resolve: (token) => {
+        clearTimeout(t);
+        resolve(token);
+      },
+    });
+    iframe.contentWindow?.postMessage({ type: "rc:execute", action, nonce }, "*");
+  });
+}
+
+// ── Public hook ──────────────────────────────────────────────────────────────
+
 export function useRecaptcha(action: string = "submit", scoreThreshold: number = 0.5) {
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const mode = getRecaptchaMode();
   const [state, setState] = useState<RecaptchaState>({
     isVerified: false,
     isVerifying: false,
@@ -27,59 +122,54 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     error: null,
   });
 
-  const verify = useCallback(async () => {
-    if (!executeRecaptcha) {
-      console.warn("reCAPTCHA not yet available");
-      setState(prev => ({ ...prev, error: "reCAPTCHA not ready" }));
-      return false;
-    }
+  // Prime the bridge iframe on mount so the first `verify()` is snappy.
+  useEffect(() => {
+    if (mode === "bridge") ensureBridge();
+  }, [mode]);
 
-    setState(prev => ({ ...prev, isVerifying: true, error: null }));
+  const verify = useCallback(async () => {
+    setState((prev) => ({ ...prev, isVerifying: true, error: null }));
 
     try {
-      const token = await executeRecaptcha(action);
-      
-      if (token) {
-        setState({
-          isVerified: true,
-          isVerifying: false,
-          token,
-          error: null,
-        });
-        return true;
+      let token: string | null = null;
+
+      if (mode === "bridge") {
+        token = await requestBridgeToken(action);
       } else {
-        setState(prev => ({
-          ...prev,
-          isVerifying: false,
-          error: "Failed to get verification token",
-        }));
-        return false;
+        if (!executeRecaptcha) {
+          console.warn("reCAPTCHA not yet available");
+          setState((prev) => ({ ...prev, isVerifying: false, error: "reCAPTCHA not ready" }));
+          return false;
+        }
+        token = await executeRecaptcha(action);
       }
-    } catch (error) {
-      console.error("reCAPTCHA verification error:", error);
-      setState(prev => ({
+
+      if (token) {
+        setState({ isVerified: true, isVerifying: false, token, error: null });
+        return true;
+      }
+      setState((prev) => ({
         ...prev,
         isVerifying: false,
-        error: "Verification failed",
+        error: "Failed to get verification token",
       }));
       return false;
+    } catch (error) {
+      console.error("reCAPTCHA verification error:", error);
+      setState((prev) => ({ ...prev, isVerifying: false, error: "Verification failed" }));
+      return false;
     }
-  }, [executeRecaptcha, action]);
+  }, [executeRecaptcha, action, mode]);
 
   const reset = useCallback(() => {
-    setState({
-      isVerified: false,
-      isVerifying: false,
-      token: null,
-      error: null,
-    });
+    setState({ isVerified: false, isVerifying: false, token: null, error: null });
   }, []);
 
   return {
     ...state,
     verify,
     reset,
-    isReady: !!executeRecaptcha,
+    isReady: mode === "bridge" ? true : !!executeRecaptcha,
   };
 }
 
