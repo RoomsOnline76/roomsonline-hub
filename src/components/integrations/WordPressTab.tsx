@@ -83,8 +83,18 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
   const updateUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wordpress-plugin-update`;
 
   const wl = useWhitelabel(property.id);
-  const wlAttrs = wl.enabled ? ` whitelabel="1"${wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : ""}` : "";
-  const shortcode = `[rolos_booking property="${property.slug}" property_id="${property.id}" color="${brandColor}"${wlAttrs}]`;
+  const verifiedWlHost = wl.enabled && wl.domainStatus === "active" && wl.domain ? ` host="https://${wl.domain}"` : "";
+  // Canonical shortcode — no brand params. Plugin renders in ROL'OS pink.
+  const canonicalShortcode = `[rolos_booking property="${property.slug}"]`;
+  // White-label shortcode — plugin inherits the property's brand server-side.
+  // We deliberately omit `color=`; the plugin resolves brand from the property
+  // config, which prevents stale colours in old shortcodes.
+  const wlShortcode = wl.enabled
+    ? `[rolos_booking property="${property.slug}" whitelabel="1"${verifiedWlHost}]`
+    : null;
+  // Legacy variable kept for downstream consumers (walkthrough preview) — always
+  // show the canonical form there; WL callers should surface `wlShortcode` too.
+  const shortcode = canonicalShortcode;
   const gridShortcode = `[rolos_property_grid limit="12" columns="3"]`;
 
   // Portfolio membership → surface a portfolio-level shortcode when applicable
@@ -108,7 +118,10 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
     staleTime: 5 * 60 * 1000,
   });
   const portfolioShortcode = portfolio?.slug
-    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}" portfolio_id="${portfolio.id}"${wlAttrs}]`
+    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}"]`
+    : null;
+  const portfolioWlShortcode = portfolio?.slug && wl.enabled
+    ? `[rolos_portfolio_booking portfolio="${portfolio.slug}" whitelabel="1"${verifiedWlHost}]`
     : null;
 
   // White-label-aware webhook URL suggestion
@@ -316,6 +329,48 @@ export function WordPressTab({ property, showPushUpdate = false }: WordPressTabP
             brandColor={brandColor}
             compact
           />
+
+          {/* Canonical vs White-label shortcode split */}
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <h5 className="text-sm font-medium">Shortcodes — Canonical vs White-label</h5>
+              {wl.enabled && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <ShieldCheck className="h-3 w-3" /> WL enabled
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <strong>Canonical</strong> ships no brand params — renders in ROL'OS pink (<code>#E91E8C</code>).{" "}
+              <strong>White-label</strong> tells the plugin to inherit the property's brand automatically — no <code>color=</code> attribute needed.
+            </p>
+            <div>
+              <div className="text-xs font-medium mb-1 text-muted-foreground">A. Canonical — ROL'OS pink</div>
+              <CodeSnippetBlock code={canonicalShortcode} language="html" title="Canonical shortcode" />
+            </div>
+            {wlShortcode ? (
+              <div>
+                <div className="text-xs font-medium mb-1 text-muted-foreground">B. White-label — property brand (auto-inherited)</div>
+                <CodeSnippetBlock code={wlShortcode} language="html" title="White-label shortcode" />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Enable White-label on this property to reveal the branded shortcode variant.
+              </p>
+            )}
+            {portfolioShortcode && (
+              <div className="pt-2 border-t">
+                <div className="text-xs font-medium mb-1 text-muted-foreground">Portfolio — Canonical</div>
+                <CodeSnippetBlock code={portfolioShortcode} language="html" title="Portfolio canonical shortcode" />
+                {portfolioWlShortcode && (
+                  <div className="mt-2">
+                    <div className="text-xs font-medium mb-1 text-muted-foreground">Portfolio — White-label</div>
+                    <CodeSnippetBlock code={portfolioWlShortcode} language="html" title="Portfolio white-label shortcode" />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Configuration checklist */}
           <div className="rounded-lg border p-3 space-y-1.5">
