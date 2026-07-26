@@ -494,12 +494,15 @@ export default function EmbedPortfolio() {
       ? (prop?.brand_secondary_color || brandSecondaryColor)
       : brandSecondaryColor;
     const params = new URLSearchParams();
-    if (propColor) params.set("brand_color", propColor);
-    if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
+    if (wlActive) {
+      params.set("wl", "1");
+      if (propColor) params.set("brand_color", propColor);
+      if (propSecondary && propSecondary !== propColor) params.set("brand_secondary_color", propSecondary);
+      if (!allowOverride) params.set("portfolio_brand", "1");
+    }
     params.set("integration", "portfolio_embed");
     params.set("mode", "embedded");
     if (portfolioSlug) params.set("portfolio_slug", portfolioSlug);
-    if (!allowOverride) params.set("portfolio_brand", "1");
     // Forward journey_mode so EmbedProperty knows to route back to journey review
     if (journeyMode) params.set("journey_mode", "true");
     const forwardedCheckIn = searchParams.get("checkIn") || searchParams.get("checkin");
