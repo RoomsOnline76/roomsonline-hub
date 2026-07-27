@@ -978,41 +978,12 @@ Deno.serve(async (req) => {
       
       if (!uuid) {
         console.error("[PayFast] No UUID received from onsite API. PayFast error:", payfastError);
-        console.warn("[PayFast] Falling back to redirect checkout flow.");
-
-        // Build redirect fallback: reuse the same signed formFields for the standard /eng/process endpoint.
-        // Strip signature and re-sign (same fields; PayFast redirect accepts identical signature).
-        const redirectFields = { ...formFields };
-        delete redirectFields.signature;
-        redirectFields.signature = generateSignature(redirectFields, passphrase);
-
-        const payfastRedirectUrl = isSandbox ? PAYFAST_SANDBOX_URL : PAYFAST_PRODUCTION_URL;
-
-        // Persist a pending transaction so ITN can reconcile
-        await supabase.from("payment_transactions").insert({
-          booking_id,
-          amount: booking.total_price,
-          currency: "ZAR",
-          status: "pending",
-          payment_provider: "payfast",
-          m_payment_id: transRef,
-          gateway_response: { trans_ref: transRef, fallback_redirect: true, payfast_error: payfastError },
-        });
-        await supabase.from("bookings").update({
-          payment_reference: transRef,
-          payment_status: "pending",
-          payment_method: "payfast",
-        }).eq("id", booking_id);
-
+        // Return 200 with success:false so supabase.functions.invoke passes the body to the client
         return new Response(
-          JSON.stringify({
-            success: true,
-            fallback_redirect: true,
-            checkout_url: payfastRedirectUrl,
-            form_fields: redirectFields,
-            trans_ref: transRef,
-            is_sandbox: isSandbox,
-            payfast_error: payfastError,
+          JSON.stringify({ 
+            success: false, 
+            error: payfastError || "Failed to initiate onsite payment",
+            details: payfastError ? `PayFast: ${payfastError}` : undefined
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );

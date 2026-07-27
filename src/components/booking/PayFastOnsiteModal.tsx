@@ -149,25 +149,6 @@ export const PayFastOnsiteModal = ({
           throw new Error(apiError.message || "Failed to initiate payment");
         }
 
-        // Fallback: onsite failed server-side, redirect to standard PayFast checkout
-        if (data?.success && data?.fallback_redirect && data?.checkout_url && data?.form_fields) {
-          console.warn("[PayFast Onsite] Server returned fallback redirect. Posting to:", data.checkout_url);
-          const form = document.createElement("form");
-          form.method = "POST";
-          form.action = data.checkout_url;
-          form.style.display = "none";
-          for (const [k, v] of Object.entries(data.form_fields as Record<string, string>)) {
-            const input = document.createElement("input");
-            input.type = "hidden";
-            input.name = k;
-            input.value = String(v);
-            form.appendChild(input);
-          }
-          document.body.appendChild(form);
-          form.submit();
-          return;
-        }
-
         if (!data?.success || !data?.uuid) {
           const errorMessage = data?.details || data?.error || "Failed to get payment identifier";
           throw new Error(errorMessage);
