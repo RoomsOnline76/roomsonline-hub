@@ -134,7 +134,9 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate("/auth");
+    // Hard replace so React Query caches and other providers cannot
+    // re-hydrate a stale user on the /auth screen.
+    window.location.replace("/auth");
   };
 
   // Get badge for a nav item (special case: access requests)
