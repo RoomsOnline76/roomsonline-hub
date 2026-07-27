@@ -13,6 +13,7 @@ import { Send, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, KeyRound, Home } f
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { RecaptchaOverlay } from "@/components/RecaptchaOverlay";
 import { useAutoRecaptcha, useRecaptcha, useRecaptchaSiteKey } from "@/hooks/useRecaptcha";
+import { getRecaptchaMode } from "@/lib/recaptchaMode";
 import rolLogo from "@/assets/rol-logo.png";
 
 function AuthContent() {
@@ -47,6 +48,7 @@ function AuthContent() {
   
   // reCAPTCHA for login
   const loginRecaptcha = useAutoRecaptcha("login");
+  const isRecaptchaBypass = getRecaptchaMode() === "bypass";
   
   // reCAPTCHA for request access
   const requestRecaptcha = useRecaptcha("request_access");
@@ -179,7 +181,7 @@ function AuthContent() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!loginRecaptcha.isVerified) {
+    if (!isRecaptchaBypass && !loginRecaptcha.isVerified) {
       toast({
         title: "Verification required",
         description: "Please wait for human verification to complete",
@@ -561,7 +563,7 @@ function AuthContent() {
 
   // Show reCAPTCHA overlay for login tab - only show after initial attempt and only on error
   // Never show during recovery mode (password reset flow)
-  const showLoginOverlay = !isRecoveryMode && 
+  const showLoginOverlay = !isRecaptchaBypass && !isRecoveryMode && 
     activeTab === "login" && 
     loginRecaptcha.hasAttempted && 
     !loginRecaptcha.isVerified && 
@@ -624,7 +626,7 @@ function AuthContent() {
                   <Button 
                     type="submit" 
                     className="w-full" 
-                    disabled={loading || !loginRecaptcha.isVerified}
+                    disabled={loading || (!isRecaptchaBypass && !loginRecaptcha.isVerified)}
                   >
                     {loading ? "Logging in..." : "Log In"}
                   </Button>
