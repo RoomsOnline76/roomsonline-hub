@@ -1339,6 +1339,43 @@ export default function PMSDashboard() {
           </div>
         )}
 
+        {/* Recent bookings — always shows the newest reservations, even if outside the calendar window */}
+        {!isPortfolioMode && recentBookings.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CalendarCheck className="h-4 w-4 text-primary" />
+                Recent Reservations
+              </CardTitle>
+              <Badge variant="secondary" className="text-[10px]">{recentBookings.length}</Badge>
+            </CardHeader>
+            <CardContent className="pt-0 max-h-72 overflow-y-auto">
+              {recentBookings.map((b: BookingRow) => {
+                const roomNames = getBookingRoomNames(b);
+                return (
+                  <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                    <button
+                      className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                      onClick={() => setSelectedBooking(b)}
+                    >
+                      <span className="block truncate">{b.guest_name}</span>
+                      <span className="block text-[10px] text-muted-foreground truncate">
+                        {format(parseISO(b.check_in_date), "d MMM")} – {format(parseISO(b.check_out_date), "d MMM yyyy")}
+                        {roomNames.length > 0 && <> · {roomNames.join(", ")}</>}
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {b.payment_status === "paid" && (
+                        <Badge variant="secondary" className="text-[10px]">Paid</Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
 
         {/* Urgent housekeeping alert */}
