@@ -374,19 +374,36 @@ const Bookings = () => {
         if (internalResult.error) throw internalResult.error;
         if (pmsResult.error) throw pmsResult.error;
 
+        // Build a property-id → name map. Start with already-loaded (active) properties,
+        // then look up any missing IDs so we don't mislabel real properties as deleted.
+        const propertyNameMap = new Map<string, string>();
+        for (const p of properties) propertyNameMap.set(p.id, p.name);
+
+        const referencedIds = new Set<string>();
+        (internalResult.data || []).forEach((b: any) => b.property_id && referencedIds.add(b.property_id));
+        (pmsResult.data || []).forEach((b: any) => b.property_id && referencedIds.add(b.property_id));
+        const missingIds = Array.from(referencedIds).filter(id => !propertyNameMap.has(id));
+
+        if (missingIds.length > 0) {
+          const { data: extraProps } = await supabase
+            .from("properties")
+            .select("id, name, permanently_deleted_at")
+            .in("id", missingIds)
+            .is("permanently_deleted_at", null);
+          (extraProps || []).forEach((p: any) => propertyNameMap.set(p.id, p.name));
+        }
+
         // Transform internal bookings
         const internalBookings: Booking[] = (internalResult.data || []).map(booking => {
-          const property = properties.find(p => p.id === booking.property_id);
           return {
             ...booking,
-            property_name: property?.name || "(Deleted Property)",
+            property_name: propertyNameMap.get(booking.property_id) || "(Deleted Property)",
             source: "internal" as const
           };
         });
 
         // Transform PMS reservations to match Booking interface
         const pmsBookings: Booking[] = (pmsResult.data || []).map(res => {
-          const property = properties.find(p => p.id === res.property_id);
           // Calculate guest counts from rooms or guests array
           let adults = 0, teens = 0, children = 0, infants = 0;
           if (res.rooms && Array.isArray(res.rooms)) {
@@ -401,7 +418,7 @@ const Bookings = () => {
           return {
             id: res.id,
             property_id: res.property_id,
-            property_name: property?.name || "(Deleted Property)",
+            property_name: propertyNameMap.get(res.property_id) || "(Deleted Property)",
             check_in_date: res.arrival_date,
             check_out_date: res.departure_date,
             guest_name: res.contact_name || "Unknown Guest",
@@ -422,9 +439,11 @@ const Bookings = () => {
             voucher: res.reservation_voucher,
             external_reservation_id: res.external_reservation_id,
             created_at: res.created_at,
+            payment_status: res.payment_status ?? null,
             source: "pms" as const
           };
         });
+
 
         // Combine and deduplicate by external_reservation_id AND itinerary_id
         const seenExternalIds = new Set<string>();
