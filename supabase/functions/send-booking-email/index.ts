@@ -1231,20 +1231,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch configured from email (same as access request notifications)
-    const { data: emailConfig } = await supabaseClient
-      .from("api_keys")
-      .select("key_name, key_value")
-      .eq("key_name", "RESEND_FROM_EMAIL")
-      .maybeSingle();
-
-    const defaultFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
-    
-    // Use property name as sender when branding is active (ROL'OS auto, others via toggle)
+    // Resolve property-scoped sender identity (friendly-from + reply-to).
+    const identity = await resolvePropertySender(supabaseClient, property.id);
     const brand = resolveBranding(property);
-    const fromEmail = brand.isBranded
-      ? `${property.name} <noreply@notify.roomsonline.co.za>`
-      : defaultFromEmail;
+    const fromEmail = identity.from || platformSender();
 
     // ─── Experience Engine template resolution (priority 1) ───
     let experienceEngineTemplate: string | null = null;
