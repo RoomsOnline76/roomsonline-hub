@@ -171,7 +171,7 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     ...state,
     verify,
     reset,
-    isReady: mode === "bridge" ? true : !!executeRecaptcha,
+    isReady: mode === "bypass" ? true : mode === "bridge" ? true : !!executeRecaptcha,
   };
 }
 
