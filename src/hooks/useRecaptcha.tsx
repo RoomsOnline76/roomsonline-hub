@@ -178,16 +178,18 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
 // Auto-verify hook for login page
 export function useAutoRecaptcha(action: string = "login") {
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const mode = getRecaptchaMode();
+  const bypass = mode === "bypass";
   const [state, setState] = useState<RecaptchaState & { hasAttempted: boolean }>({
-    isVerified: false,
-    isVerifying: true,
-    token: null,
+    isVerified: bypass,
+    isVerifying: !bypass,
+    token: bypass ? RECAPTCHA_BYPASS_TOKEN : null,
     error: null,
-    hasAttempted: false,
+    hasAttempted: bypass,
   });
 
   useEffect(() => {
-    if (!executeRecaptcha || state.hasAttempted) return;
+    if (bypass || !executeRecaptcha || state.hasAttempted) return;
 
     const runVerification = async () => {
       try {
