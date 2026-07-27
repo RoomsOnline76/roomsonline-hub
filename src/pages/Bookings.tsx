@@ -700,14 +700,14 @@ const Bookings = () => {
       />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-5 gap-2 mb-3">
+        <div className="grid grid-cols-4 gap-2 mb-3">
           <Card>
             <CardContent className="p-2">
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-3 w-3 text-primary" />
                 <div className="flex items-baseline gap-1">
                   <p className="text-lg font-bold">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="text-xs text-muted-foreground">Paid</p>
                 </div>
               </div>
             </CardContent>
@@ -719,17 +719,6 @@ const Bookings = () => {
                 <div className="flex items-baseline gap-1">
                   <p className="text-lg font-bold">{stats.confirmed}</p>
                   <p className="text-xs text-muted-foreground">Confirmed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-2">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-3 w-3 text-amber-600" />
-                <div className="flex items-baseline gap-1">
-                  <p className="text-lg font-bold">{stats.pending}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
                 </div>
               </div>
             </CardContent>
@@ -757,6 +746,7 @@ const Bookings = () => {
             </CardContent>
           </Card>
         </div>
+
 
         {/* Filters */}
         <Card className="mb-3">
