@@ -1172,18 +1172,13 @@ Deno.serve(async (req) => {
     if (status === "property_notification") {
       console.log(`[Property Notification] Sending owner notification for booking ${booking_id}`);
       
-      const { data: emailConfig } = await supabaseClient
-        .from("api_keys")
-        .select("key_name, key_value")
-        .eq("key_name", "RESEND_FROM_EMAIL")
-        .maybeSingle();
-
-      const notifyFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const identity = await resolvePropertySender(supabaseClient, property.id);
+      const notifyFromEmail = identity.from || platformSender();
       const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
-      
+
       // Use recipient_email from request body, or fall back to property owner_email
       const ownerEmail = recipient_email || property.owner_email;
-      
+
       if (!ownerEmail) {
         console.warn(`[Property Notification] No owner email found for property ${property.id}`);
         return new Response(
@@ -1194,12 +1189,16 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      
-      const ownerEmailHtml = generatePropertyNotificationEmail(booking, property);
-      
+
+      const ownerEmailHtml = appendContactFooterHtml(
+        generatePropertyNotificationEmail(booking, property),
+        identity,
+      );
+
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: notifyFromEmail,
         to: [ownerEmail],
+        reply_to: identity.replyTo,
         subject: `🎉 New Booking Received - ${booking.guest_name} - ${formatDate(booking.check_in_date)} to ${formatDate(booking.check_out_date)}`,
         html: ownerEmailHtml,
       });
