@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { useRecaptchaSiteKey as useRecaptchaSiteKeyFromFlags } from "@/hooks/useFeatureFlags";
-import { getRecaptchaMode, RECAPTCHA_BRIDGE_URL, RECAPTCHA_BYPASS_TOKEN } from "@/lib/recaptchaMode";
+import { getRecaptchaMode, isRecaptchaBypassHost, RECAPTCHA_BRIDGE_URL, RECAPTCHA_BYPASS_TOKEN } from "@/lib/recaptchaMode";
 
 interface RecaptchaState {
   isVerified: boolean;
@@ -189,6 +189,17 @@ export function useAutoRecaptcha(action: string = "login") {
   });
 
   useEffect(() => {
+    if (!bypass) return;
+    setState({
+      isVerified: true,
+      isVerifying: false,
+      token: RECAPTCHA_BYPASS_TOKEN,
+      error: null,
+      hasAttempted: true,
+    });
+  }, [bypass]);
+
+  useEffect(() => {
     if (bypass || !executeRecaptcha || state.hasAttempted) return;
 
     const runVerification = async () => {
@@ -226,7 +237,7 @@ export function useAutoRecaptcha(action: string = "login") {
   }, [executeRecaptcha, action, state.hasAttempted, bypass]);
 
   const retry = useCallback(async () => {
-    if (bypass) {
+    if (bypass || isRecaptchaBypassHost()) {
       setState({ isVerified: true, isVerifying: false, token: RECAPTCHA_BYPASS_TOKEN, error: null, hasAttempted: true });
       return true;
     }
@@ -263,7 +274,7 @@ export function useAutoRecaptcha(action: string = "login") {
       }));
       return false;
     }
-  }, [executeRecaptcha, action]);
+  }, [executeRecaptcha, action, bypass]);
 
   return {
     ...state,

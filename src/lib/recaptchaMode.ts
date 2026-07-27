@@ -24,20 +24,27 @@ const CANONICAL_HOSTS_EXACT = new Set([
 // Lovable preview / sandbox / local dev — reCAPTCHA site key is not registered
 // for these hosts, so we bypass verification client-side to unblock login and
 // forms. Server-side verify is intentionally skipped on these hosts too.
-const BYPASS_HOST_SUFFIXES = [".lovable.app", ".lovable.dev"];
+const BYPASS_HOST_SUFFIXES = [
+  ".lovable.app",
+  ".lovable.dev",
+  ".lovableproject.com",
+  ".lovableproject.app",
+];
 const BYPASS_HOSTS_EXACT = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 export function isRecaptchaBypassHost(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): boolean {
-  if (!hostname) return false;
-  if (BYPASS_HOSTS_EXACT.has(hostname)) return true;
-  return BYPASS_HOST_SUFFIXES.some((s) => hostname.endsWith(s));
+  const normalizedHostname = hostname.toLowerCase().split(":")[0] ?? "";
+  if (!normalizedHostname) return false;
+  if (BYPASS_HOSTS_EXACT.has(normalizedHostname)) return true;
+  return BYPASS_HOST_SUFFIXES.some((suffix) => normalizedHostname.endsWith(suffix));
 }
 
 export function getRecaptchaMode(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): RecaptchaMode {
   if (isRecaptchaBypassHost(hostname)) return "bypass";
-  if (!hostname) return "native";
-  if (CANONICAL_HOSTS_EXACT.has(hostname)) return "native";
-  if (CANONICAL_HOST_SUFFIXES.some((s) => hostname.endsWith(s))) return "native";
+  const normalizedHostname = hostname.toLowerCase().split(":")[0] ?? "";
+  if (!normalizedHostname) return "native";
+  if (CANONICAL_HOSTS_EXACT.has(normalizedHostname)) return "native";
+  if (CANONICAL_HOST_SUFFIXES.some((suffix) => normalizedHostname.endsWith(suffix))) return "native";
   return "bridge";
 }
 

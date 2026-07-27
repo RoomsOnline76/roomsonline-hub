@@ -11,10 +11,9 @@ export function RecaptchaProvider({ children }: RecaptchaProviderProps) {
   const { data: siteKey, isLoading } = useRecaptchaSiteKey();
   const mode = getRecaptchaMode();
 
-  // On white-label / embedded hosts the site key is not valid for the current
-  // domain; mounting the provider would emit "Invalid domain for site key"
-  // errors. Skip native mount — `useRecaptcha` falls back to the bridge iframe.
-  if (mode === "bridge" || isLoading || !siteKey) {
+  // Only mount Google reCAPTCHA on canonical production hosts. Preview/local
+  // bypass and white-label bridge modes must not load Google's domain-bound script.
+  if (mode !== "native" || isLoading || !siteKey) {
     return <>{children}</>;
   }
 
