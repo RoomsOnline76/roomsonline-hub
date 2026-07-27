@@ -307,15 +307,27 @@ const BookingConfirmation = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => {
-              if (isIntegration) {
-                // Try postMessage to parent (for embeds/iframes)
+              const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
+              const canonicalUrl = slug
+                ? `https://sleepinafrica.roomsonline.co.za/p/${slug}`
+                : "https://sleepinafrica.roomsonline.co.za";
+              if (isIntegration || inIframe) {
+                // Tell parent host to close/redirect, then try to close the popup window.
                 try { window.parent.postMessage({ type: 'roomsonline:close' }, '*'); } catch {}
-                // Try closing window (works if opened via JS)
+                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: canonicalUrl }, '*'); } catch {}
                 try { window.close(); } catch {}
-                // Fallback: navigate to property page
-                const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
-                if (slug) navigate(`/p/${slug}`);
-                else navigate("/");
+                // Fallback: navigate the top-level page (not this iframe) to the canonical property page.
+                // Never route to `/p/<slug>` on the current host — white-label hosts don't serve that route.
+                try {
+                  if (window.top && window.top !== window.self) {
+                    window.top.location.assign(canonicalUrl);
+                    return;
+                  }
+                } catch {}
+                if (isWhitelabelHost) {
+                  window.location.assign(canonicalUrl);
+                }
+                // Otherwise stay on the confirmation page.
               } else {
                 navigate("/");
               }
@@ -330,6 +342,7 @@ const BookingConfirmation = () => {
             <Share2 className="h-4 w-4" />
             Share
           </Button>
+
         </div>
       </div>
     </div>
