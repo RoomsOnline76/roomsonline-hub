@@ -730,7 +730,7 @@ Deno.serve(async (req) => {
       // Fetch booking details
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
-        .select("*, properties(name, slug)")
+        .select("*, properties!bookings_property_id_fkey(name, slug)")
         .eq("id", booking_id)
         .single();
       
@@ -898,7 +898,7 @@ Deno.serve(async (req) => {
       // Fetch booking details
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
-        .select("*, properties(name, slug)")
+        .select("*, properties!bookings_property_id_fkey(name, slug)")
         .eq("id", booking_id)
         .single();
       
