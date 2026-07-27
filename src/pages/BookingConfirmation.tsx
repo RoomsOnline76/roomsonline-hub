@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle, CalendarDays, Users, Share2, Home, MapPin } from "lucide-react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 
 declare global {
