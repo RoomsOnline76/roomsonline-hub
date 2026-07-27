@@ -84,6 +84,8 @@
     if (config.children) params.set('children', config.children);
     if (config.currency) params.set('currency', config.currency);
     if (config.theme) params.set('theme', config.theme);
+    // Give the confirmation page a way back to the host site when Close is clicked.
+    try { if (typeof window !== 'undefined' && window.location && window.location.href) params.set('return_url', window.location.href); } catch (e) {}
     params.set('embed_version', VERSION);
     return resolveBase(config) + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
   }
