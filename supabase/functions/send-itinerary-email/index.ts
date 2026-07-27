@@ -427,13 +427,13 @@ Deno.serve(async (req) => {
     }
 
     // --- Step 3: Send email with brochure attachment if available ---
+    const identity = await resolvePropertySender(supabase, stays[0]?.propertyId ?? null);
     const emailPayload: any = {
-      from: brand.isBranded
-        ? `${brand.senderName} <noreply@notify.roomsonline.co.za>`
-        : "RoomsOnline <hello@notify.roomsonline.co.za>",
+      from: identity.from || platformSender(),
       to: [itinerary.guest_email],
+      reply_to: identity.replyTo,
       subject: `Your Journey is Confirmed! | ${propertyNames}`,
-      html: emailHtml,
+      html: appendContactFooterHtml(emailHtml, identity),
     };
 
     if (brochureHtml) {
