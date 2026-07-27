@@ -2097,7 +2097,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   getPricingSuffix: (roomTypeId: string) => string;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
   getMonthAvail: (date: Date) => { booked: number; avail: number };
-  onSelectBooking: (b: BookingRow) => void;
+  onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
 }) {
   const isSingleRoom = typeRooms.length <= 1;
   const singleRoom = typeRooms.length === 1 ? typeRooms[0] : null;
@@ -2229,7 +2229,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
-  onSelectBooking: (b: BookingRow) => void;
+  onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
 }) {
   const isOOS = room.status === "out_of_service";
 
@@ -2287,7 +2287,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   getRateForDate: (roomTypeId: string, date: Date) => number | null;
   getPricingSuffix: (roomTypeId: string) => string;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
-  onSelectBooking: (b: BookingRow) => void;
+  onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
   cellW: string;
   labelW: string;
 }) {
@@ -2397,7 +2397,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
   room: Room;
   dates: Date[];
   bookings: BookingRow[];
-  onSelectBooking: (b: BookingRow) => void;
+  onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
 }) {
   const isOOS = room.status === "out_of_service";
 
