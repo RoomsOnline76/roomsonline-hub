@@ -45,6 +45,9 @@ const BookingConfirmation = () => {
   const integrationParam = searchParams.get("integration");
   const isIntegration = !!integrationParam;
 
+  // Capture referrer once — later in-page navigation would overwrite it.
+  const initialReferrerRef = useRef<string>(typeof document !== "undefined" ? document.referrer : "");
+
   const { data: booking, isLoading, error, refetch } = useQuery({
     queryKey: ["booking-confirmation", bookingId],
     queryFn: async () => {
