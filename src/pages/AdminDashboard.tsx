@@ -55,17 +55,15 @@ export default function AdminDashboard() {
       
       // Parallel queries for dashboard data
       const [
-        bookingsResult,
-        pendingBookingsResult,
+        paidBookingsResult,
         confirmedBookingsResult,
         propertiesResult,
         activePropertiesResult,
         accessRequestsResult,
         recentBookingsResult,
       ] = await Promise.all([
-        supabase.from('bookings').select('*', { count: 'exact', head: true }),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').eq('status', 'confirmed'),
         supabase.from('properties').select('*', { count: 'exact', head: true }),
         supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('access_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -85,8 +83,7 @@ export default function AdminDashboard() {
       ]);
 
       setStats({
-        totalBookings: bookingsResult.count || 0,
-        pendingBookings: pendingBookingsResult.count || 0,
+        paidBookings: paidBookingsResult.count || 0,
         confirmedBookings: confirmedBookingsResult.count || 0,
         totalProperties: propertiesResult.count || 0,
         activeProperties: activePropertiesResult.count || 0,
@@ -100,8 +97,9 @@ export default function AdminDashboard() {
           status: b.status,
           total_price: b.total_price,
         })),
-        issuesCount: (pendingBookingsResult.count || 0) + (accessRequestsResult.count || 0),
+        issuesCount: accessRequestsResult.count || 0,
       });
+
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     } finally {
