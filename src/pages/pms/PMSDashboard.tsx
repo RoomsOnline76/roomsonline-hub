@@ -102,6 +102,7 @@ function isWeekendDay(date: Date): boolean {
 }
 
 type ViewMode = "week" | "month";
+type BookingDetailTab = "details" | "folio" | "invoice" | "notes";
 
 interface BookingRow {
   id: string;
@@ -231,6 +232,12 @@ function getStatusColor(status: string) {
   return STATUS_COLORS[status] || STATUS_COLORS.pending;
 }
 
+function bookingTouchesDate(booking: Pick<BookingRow, "check_in_date" | "check_out_date" | "status">, dateStr: string): boolean {
+  return dateStr >= booking.check_in_date
+    && dateStr < booking.check_out_date
+    && !["cancelled", "no_show"].includes(booking.status);
+}
+
 export default function PMSDashboard() {
   const { propertyId, properties, portfolioProperties, portfolioName, loading: propLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   // If selected property is in a portfolio, scope dropdown to portfolio members
@@ -240,6 +247,7 @@ export default function PMSDashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [anchorDate, setAnchorDate] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<BookingRow | null>(null);
+  const [bookingSheetTab, setBookingSheetTab] = useState<BookingDetailTab>("details");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Restriction dialogs
@@ -250,6 +258,8 @@ export default function PMSDashboard() {
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
+  const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(() => new Set());
+  const [hidePortfolioEmptyDays, setHidePortfolioEmptyDays] = useState(false);
   const [autoDefaultedView, setAutoDefaultedView] = useState(false);
   const [quickAction, setQuickAction] = useState<{ bookingId: string; action: "check_in" | "check_out" } | null>(null);
   // Default to portfolio view when a portfolio (>1 properties) exists
@@ -439,6 +449,16 @@ export default function PMSDashboard() {
     () => autoAssignBookings(bookingsRaw, rooms, roomTypes) as BookingRow[],
     [bookingsRaw, rooms, roomTypes]
   );
+
+  const openBookingSheet = useCallback((booking: BookingRow, tab: BookingDetailTab = "details") => {
+    setBookingSheetTab(tab);
+    setSelectedBooking(booking);
+  }, []);
+
+  const closeBookingSheet = useCallback(() => {
+    setSelectedBooking(null);
+    setBookingSheetTab("details");
+  }, []);
 
   // Fetch today's arrivals & departures
   const today = format(new Date(), "yyyy-MM-dd");
@@ -984,6 +1004,56 @@ export default function PMSDashboard() {
   const effectiveArrivals: BookingRow[] = portfolioAggregate ? portfolioAggregate.arrivals : (todayArrivals as BookingRow[]);
   const effectiveDepartures: BookingRow[] = portfolioAggregate ? portfolioAggregate.departures : (todayDepartures as BookingRow[]);
 
+  const hasPortfolioBookingOnDate = useCallback((date: Date): boolean => {
+    if (!isPortfolioMode) return false;
+    const dateStr = format(date, "yyyy-MM-dd");
+    for (const [, propertyDataForDate] of portfolioDataByProperty) {
+      if (propertyDataForDate.bookings.some((booking) => bookingTouchesDate(booking, dateStr))) return true;
+    }
+    return false;
+  }, [isPortfolioMode, portfolioDataByProperty]);
+
+  const getPortfolioBookingCountForDates = useCallback((targetDates: Date[]): number => {
+    if (!isPortfolioMode || targetDates.length === 0) return 0;
+    const dateKeys = targetDates.map((date) => format(date, "yyyy-MM-dd"));
+    const bookingIds = new Set<string>();
+    for (const [, propertyDataForWeek] of portfolioDataByProperty) {
+      propertyDataForWeek.bookings.forEach((booking) => {
+        if (dateKeys.some((dateKey) => bookingTouchesDate(booking, dateKey))) {
+          bookingIds.add(booking.id);
+        }
+      });
+    }
+    return bookingIds.size;
+  }, [isPortfolioMode, portfolioDataByProperty]);
+
+  const getWeekKey = useCallback((weekDates: Date[]) => {
+    const firstDate = weekDates[0];
+    const lastDate = weekDates[weekDates.length - 1];
+    if (!firstDate || !lastDate) return "empty-week";
+    return `${format(firstDate, "yyyy-MM-dd")}:${format(lastDate, "yyyy-MM-dd")}`;
+  }, []);
+
+  const toggleWeekCollapsed = useCallback((weekKey: string) => {
+    setCollapsedWeeks((previous) => {
+      const next = new Set(previous);
+      if (next.has(weekKey)) {
+        next.delete(weekKey);
+      } else {
+        next.add(weekKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectedBookingPropertyId = selectedBooking?.property_id || propertyId || "";
+  const selectedBookingRooms = useMemo(() => {
+    if (selectedBooking?.property_id && isPortfolioMode) {
+      return portfolioDataByProperty.get(selectedBooking.property_id)?.rooms || [];
+    }
+    return rooms;
+  }, [isPortfolioMode, portfolioDataByProperty, rooms, selectedBooking?.property_id]);
+
   // Urgent rooms: dirty/maintenance rooms with same-day arrivals
   const urgentRooms = useMemo(() => {
     if (!todayArrivals.length || !rooms.length) return [];
@@ -1253,7 +1323,7 @@ export default function PMSDashboard() {
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
                         className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
-                        onClick={() => setSelectedBooking(b)}
+                        onClick={() => openBookingSheet(b)}
                       >
                         <span className="block truncate">{b.guest_name}</span>
                         <span className="block text-[10px] text-muted-foreground truncate">
@@ -1305,7 +1375,7 @@ export default function PMSDashboard() {
                     <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                       <button
                         className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
-                        onClick={() => setSelectedBooking(b)}
+                        onClick={() => openBookingSheet(b)}
                       >
                         <span className="block truncate">{b.guest_name}</span>
                         <span className="block text-[10px] text-muted-foreground truncate">
@@ -1323,7 +1393,7 @@ export default function PMSDashboard() {
                             variant="default"
                             className="h-6 text-[10px] px-2 py-0"
                             title="Review charges, confirm payment, then check out"
-                            onClick={() => setSelectedBooking(b)}
+                            onClick={() => openBookingSheet(b)}
                           >
                             <LogOut className="h-3 w-3 mr-1" />
                             Review &amp; Check Out
@@ -1356,7 +1426,7 @@ export default function PMSDashboard() {
                   <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
                     <button
                       className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
-                      onClick={() => setSelectedBooking(b)}
+                      onClick={() => openBookingSheet(b)}
                     >
                       <span className="block truncate">{b.guest_name}</span>
                       <span className="block text-[10px] text-muted-foreground truncate">
@@ -1466,6 +1536,15 @@ export default function PMSDashboard() {
                     className="h-7 text-xs px-2"
                   >Month</Button>
                 </div>
+                {isPortfolioMode && (
+                  <Button
+                    variant={hidePortfolioEmptyDays ? "default" : "outline"}
+                    onClick={() => setHidePortfolioEmptyDays((value) => !value)}
+                    className="h-7 text-xs px-2"
+                  >
+                    <EyeOff className="h-3 w-3 mr-1" />Booked days
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1492,9 +1571,16 @@ export default function PMSDashboard() {
             {isPortfolioMode ? (
               viewMode === "week" ? (
                 <div className="space-y-6">
+                  {hidePortfolioEmptyDays && dates.filter(hasPortfolioBookingOnDate).length === 0 && (
+                    <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
+                      No booked days in this week.
+                    </div>
+                  )}
                   {(portfolioProperties || []).map(prop => {
                     const propData = portfolioDataByProperty.get(prop.id);
                     if (!propData || propData.roomTypes.length === 0) return null;
+                    const portfolioWeekDates = hidePortfolioEmptyDays ? dates.filter(hasPortfolioBookingOnDate) : dates;
+                    if (portfolioWeekDates.length === 0) return null;
                     const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
                     const propGetSuffix = () => '';
                     const propGetRestriction = (rtName: string, date: Date) =>
@@ -1512,7 +1598,7 @@ export default function PMSDashboard() {
                           </Badge>
                         </div>
                         <WeekCalendarGrid
-                          dates={dates}
+                          dates={portfolioWeekDates}
                           roomTypes={propData.roomTypes}
                           roomsByType={propData.roomsByType}
                           bookings={propData.bookings}
@@ -1522,7 +1608,7 @@ export default function PMSDashboard() {
                           getPricingSuffix={propGetSuffix}
                           getSeasonForDate={getSeasonForDate}
                           getRestriction={propGetRestriction}
-                          onSelectBooking={setSelectedBooking}
+                          onSelectBooking={openBookingSheet}
                           bookingsLoading={false}
                         />
                       </div>
@@ -1532,17 +1618,37 @@ export default function PMSDashboard() {
               ) : (
                 // Portfolio + month view: group by WEEK across all properties
                 <div className="space-y-8">
-                  {weekChunks.map((weekDates, weekIdx) => (
-                    <div key={weekIdx} className="space-y-3">
-                      <div className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1.5 bg-primary/10 border-l-4 border-primary rounded-r-md">
+                  {weekChunks.map((weekDates, weekIdx) => {
+                    const visibleWeekDates = hidePortfolioEmptyDays ? weekDates.filter(hasPortfolioBookingOnDate) : weekDates;
+                    if (visibleWeekDates.length === 0) return null;
+                    const firstVisibleDate = visibleWeekDates[0];
+                    const lastVisibleDate = visibleWeekDates[visibleWeekDates.length - 1];
+                    if (!firstVisibleDate || !lastVisibleDate) return null;
+                    const weekKey = getWeekKey(weekDates);
+                    const isWeekCollapsed = collapsedWeeks.has(weekKey);
+                    const bookingCount = getPortfolioBookingCountForDates(visibleWeekDates);
+
+                    return (
+                    <div key={weekKey} className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleWeekCollapsed(weekKey)}
+                        className="sticky top-0 z-10 flex w-full items-center gap-2 px-2 py-1.5 bg-primary/10 border-l-4 border-primary rounded-r-md text-left hover:bg-primary/15 transition-colors"
+                        aria-expanded={!isWeekCollapsed}
+                      >
+                        <ChevronRight className={cn("h-4 w-4 text-primary shrink-0 transition-transform", !isWeekCollapsed && "rotate-90")} />
                         <CalendarDays className="h-4 w-4 text-primary shrink-0" />
                         <h2 className="text-sm font-bold text-foreground">
-                          Week {weekIdx + 1} · {format(weekDates[0], "MMM d")} – {format(weekDates[weekDates.length - 1], "MMM d, yyyy")}
+                          Week {weekIdx + 1} · {format(firstVisibleDate, "MMM d")} – {format(lastVisibleDate, "MMM d, yyyy")}
                         </h2>
                         <Badge variant="outline" className="text-[10px] ml-auto">
+                          {bookingCount} booking{bookingCount === 1 ? "" : "s"}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px]">
                           {(portfolioProperties || []).length} properties
                         </Badge>
-                      </div>
+                      </button>
+                      {!isWeekCollapsed && (
                       <div className="space-y-4 pl-2">
                         {(portfolioProperties || []).map(prop => {
                           const propData = portfolioDataByProperty.get(prop.id);
@@ -1564,7 +1670,7 @@ export default function PMSDashboard() {
                                 </Badge>
                               </div>
                               <WeekCalendarGrid
-                                dates={weekDates}
+                                dates={visibleWeekDates}
                                 roomTypes={propData.roomTypes}
                                 roomsByType={propData.roomsByType}
                                 bookings={propData.bookings}
@@ -1574,15 +1680,17 @@ export default function PMSDashboard() {
                                 getPricingSuffix={propGetSuffix}
                                 getSeasonForDate={getSeasonForDate}
                                 getRestriction={propGetRestriction}
-                                onSelectBooking={setSelectedBooking}
+                                onSelectBooking={openBookingSheet}
                                 bookingsLoading={false}
                               />
                             </div>
                           );
                         })}
                       </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             ) : viewMode === "week" ? (
@@ -1599,7 +1707,7 @@ export default function PMSDashboard() {
                 getPricingSuffix={getPricingSuffix}
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
-                onSelectBooking={setSelectedBooking}
+                onSelectBooking={openBookingSheet}
                 bookingsLoading={bookingsLoading}
               />
             ) : (
@@ -1614,7 +1722,7 @@ export default function PMSDashboard() {
                 getPricingSuffix={getPricingSuffix}
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
-                onSelectBooking={setSelectedBooking}
+                onSelectBooking={openBookingSheet}
                 bookingsLoading={bookingsLoading}
               />
             )}
@@ -1624,9 +1732,9 @@ export default function PMSDashboard() {
       </div>
 
       {/* Booking Detail Sheet */}
-      <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && setSelectedBooking(null)}>
+      <Sheet open={!!selectedBooking} onOpenChange={(open) => !open && closeBookingSheet()}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
-          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={rooms} propertyId={propertyId || ""} onSaved={() => { setSelectedBooking(null); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
+          {selectedBooking && <BookingDetail booking={selectedBooking} rooms={selectedBookingRooms} propertyId={selectedBookingPropertyId} activeTab={bookingSheetTab} onTabChange={setBookingSheetTab} onSaved={() => { closeBookingSheet(); queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] }); queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] }); queryClient.invalidateQueries({ queryKey: ["pms-departures"] }); queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] }); }} />}
         </SheetContent>
       </Sheet>
 
