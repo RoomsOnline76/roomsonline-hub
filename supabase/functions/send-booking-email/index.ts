@@ -1123,20 +1123,19 @@ Deno.serve(async (req) => {
     if (status === "admin_alert") {
       console.log(`[Admin Alert] Sending sync failure notification for booking ${booking_id}`);
       
-      const { data: emailConfig } = await supabaseClient
-        .from("api_keys")
-        .select("key_name, key_value")
-        .eq("key_name", "RESEND_FROM_EMAIL")
-        .maybeSingle();
-
-      const adminFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const identity = await resolvePropertySender(supabaseClient, property.id);
+      const adminFromEmail = identity.from || platformSender();
       const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
-      
-      const adminEmailHtml = generateAdminAlertEmail(booking, property, error_message);
-      
+
+      const adminEmailHtml = appendContactFooterHtml(
+        generateAdminAlertEmail(booking, property, error_message),
+        identity,
+      );
+
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: adminFromEmail,
         to: ["admin@roomsonline.co.za"],
+        reply_to: identity.replyTo,
         subject: `⚠️ ACTION REQUIRED: Paid booking sync failed - ${property.name} - ${booking.guest_name}`,
         html: adminEmailHtml,
       });
