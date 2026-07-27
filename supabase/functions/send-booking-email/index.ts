@@ -59,18 +59,27 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
   const paymentMethod = booking.payment_method || "N/A";
   const paidAt = booking.paid_at ? formatDate(booking.paid_at) : "N/A";
   
+  const guestFirstName = (booking.guest_name || "").trim().split(/\s+/)[0] || "Guest";
+  const totalAmountFormatted = formatCurrency(booking.total_price);
+  const totalAmountNumber = totalAmountFormatted.replace(/^R\s*/, "");
+
   const replacements: Record<string, string> = {
     // Reservation
     "{{reservation_reference}}": bookingRef,
-    "{{total_amount}}": formatCurrency(booking.total_price),
-    "{{total_price}}": formatCurrency(booking.total_price),  // Alias for total_amount
+    "{{confirmation_number}}": bookingRef, // alias used by ROL'OS Experience Engine templates
+    "{{total_amount}}": totalAmountFormatted,
+    "{{total_price}}": totalAmountFormatted,  // Alias for total_amount
+    "{{total_amount_num}}": totalAmountNumber, // bare number, no currency symbol
     "{{check_in_date}}": formatDate(booking.check_in_date),
     "{{check_out_date}}": formatDate(booking.check_out_date),
+    "{{check_in}}": formatDate(booking.check_in_date),   // alias
+    "{{check_out}}": formatDate(booking.check_out_date), // alias
     "{{nights}}": `${nights} night${nights > 1 ? "s" : ""}`,
     "{{total_guests}}": `${totalGuests} guest${totalGuests > 1 ? "s" : ""}`,
     
     // Guest Details
     "{{guest_name}}": booking.guest_name || "",
+    "{{guest_first_name}}": guestFirstName,
     "{{guest_email}}": booking.guest_email || "",
     "{{guest_phone}}": booking.guest_phone || "",
     "{{special_requests}}": booking.special_requests || "",
@@ -80,6 +89,8 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
     "{{property_city}}": property.city || "",
     "{{property_country}}": property.country || "",
     "{{property_address}}": property.address || "",
+    "{{property_email}}": property.email || "",
+    "{{property_phone}}": property.phone || "",
     "{{property_location}}": propertyLocation,  // City, Country format
     
     // Room Details
