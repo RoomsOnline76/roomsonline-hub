@@ -223,10 +223,15 @@ export function useAutoRecaptcha(action: string = "login") {
     };
 
     runVerification();
-  }, [executeRecaptcha, action, state.hasAttempted]);
+  }, [executeRecaptcha, action, state.hasAttempted, bypass]);
 
   const retry = useCallback(async () => {
+    if (bypass) {
+      setState({ isVerified: true, isVerifying: false, token: RECAPTCHA_BYPASS_TOKEN, error: null, hasAttempted: true });
+      return true;
+    }
     if (!executeRecaptcha) return false;
+    
     
     setState(prev => ({ ...prev, isVerifying: true, error: null }));
     
