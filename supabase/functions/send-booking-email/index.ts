@@ -1404,11 +1404,13 @@ Deno.serve(async (req) => {
     }
 
     // Send email with optional attachments
+    const htmlWithContact = appendContactFooterHtml(html, identity);
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,
       to: [booking.guest_email],
+      reply_to: identity.replyTo,
       subject,
-      html,
+      html: htmlWithContact,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
 
