@@ -22,8 +22,7 @@ import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
 import { SystemAlertsPanel } from "@/components/dashboard/SystemAlertsPanel";
 
 interface DashboardStats {
-  totalBookings: number;
-  pendingBookings: number;
+  paidBookings: number;
   confirmedBookings: number;
   totalProperties: number;
   activeProperties: number;
@@ -39,6 +38,7 @@ interface DashboardStats {
   }>;
   issuesCount: number;
 }
+
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
