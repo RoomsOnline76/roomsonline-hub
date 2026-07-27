@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolvePropertySender, platformSender } from "../_shared/email-sender.ts";
+import { renderContactFooterHtml } from "../_shared/email-footer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,6 +76,8 @@ serve(async (req) => {
     const onboardingUrl = `${baseUrl}/onboarding/${token}`;
 
     // Send email via Resend
+    const identity = await resolvePropertySender(supabase, propertyId);
+    const contactFooter = renderContactFooterHtml(identity);
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -81,8 +85,9 @@ serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+        from: identity.from || platformSender(),
         to: [ownerEmail],
+        reply_to: identity.replyTo,
         subject: `Complete Your Property Profile - ${propertyName || "Your Property"}`,
         html: `
 <!DOCTYPE html>
@@ -96,31 +101,31 @@ serve(async (req) => {
   <div style="text-align: center; margin-bottom: 30px;">
     <img src="https://book.sleepinafrica.roomsonline.co.za/images/rol-logo-email.png" alt="RoomsOnline" style="height: 50px;">
   </div>
-  
+
   <h1 style="color: #E1306C; font-size: 24px; margin-bottom: 20px;">
     Welcome to RoomsOnline${ownerName ? `, ${ownerName}` : ""}!
   </h1>
-  
+
   <p>
     We're excited to have <strong>${propertyName || "your property"}</strong> join the RoomsOnline collection.
   </p>
-  
+
   <p>
-    To get your property live and start receiving bookings, please complete your property profile. 
+    To get your property live and start receiving bookings, please complete your property profile.
     Our onboarding wizard will guide you through providing all the essential information we need.
   </p>
-  
+
   <div style="text-align: center; margin: 40px 0;">
-    <a href="${onboardingUrl}" 
+    <a href="${onboardingUrl}"
        style="background-color: #E1306C; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">
       Complete Your Profile
     </a>
   </div>
-  
+
   <p style="color: #666; font-size: 14px;">
     This link is valid for 30 days and is specific to your property. The wizard will take approximately 30-45 minutes to complete.
   </p>
-  
+
   <h3 style="margin-top: 30px; font-size: 16px;">What you'll need:</h3>
   <ul style="color: #666;">
     <li>Property details and description</li>
@@ -129,18 +134,19 @@ serve(async (req) => {
     <li>Banking details for payments</li>
     <li>Check-in/check-out policies</li>
   </ul>
-  
+
   <p style="margin-top: 30px; color: #666; font-size: 14px;">
-    If you have any questions, reply to this email or contact us at 
+    If you have any questions, reply to this email or contact us at
     <a href="mailto:sleepinafrica@roomsonline.co.za" style="color: #E1306C;">sleepinafrica@roomsonline.co.za</a>
   </p>
-  
+
   <hr style="border: none; border-top: 1px solid #eee; margin: 40px 0 20px;">
-  
+
   <p style="color: #999; font-size: 12px; text-align: center;">
     RoomsOnline • Strategic Hospitality Solutions<br>
     <a href="https://roomsonline.co.za" style="color: #999;">roomsonline.co.za</a>
   </p>
+  ${contactFooter}
 </body>
 </html>
         `,

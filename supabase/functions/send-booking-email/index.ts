@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { resolvePropertySender, platformSender } from "../_shared/email-sender.ts";
+import { appendContactFooterHtml } from "../_shared/email-footer.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1121,20 +1123,19 @@ Deno.serve(async (req) => {
     if (status === "admin_alert") {
       console.log(`[Admin Alert] Sending sync failure notification for booking ${booking_id}`);
       
-      const { data: emailConfig } = await supabaseClient
-        .from("api_keys")
-        .select("key_name, key_value")
-        .eq("key_name", "RESEND_FROM_EMAIL")
-        .maybeSingle();
-
-      const adminFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const identity = await resolvePropertySender(supabaseClient, property.id);
+      const adminFromEmail = identity.from || platformSender();
       const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
-      
-      const adminEmailHtml = generateAdminAlertEmail(booking, property, error_message);
-      
+
+      const adminEmailHtml = appendContactFooterHtml(
+        generateAdminAlertEmail(booking, property, error_message),
+        identity,
+      );
+
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: adminFromEmail,
         to: ["admin@roomsonline.co.za"],
+        reply_to: identity.replyTo,
         subject: `⚠️ ACTION REQUIRED: Paid booking sync failed - ${property.name} - ${booking.guest_name}`,
         html: adminEmailHtml,
       });
@@ -1171,18 +1172,13 @@ Deno.serve(async (req) => {
     if (status === "property_notification") {
       console.log(`[Property Notification] Sending owner notification for booking ${booking_id}`);
       
-      const { data: emailConfig } = await supabaseClient
-        .from("api_keys")
-        .select("key_name, key_value")
-        .eq("key_name", "RESEND_FROM_EMAIL")
-        .maybeSingle();
-
-      const notifyFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
+      const identity = await resolvePropertySender(supabaseClient, property.id);
+      const notifyFromEmail = identity.from || platformSender();
       const bookingRef = booking.external_reservation_id || booking.id.substring(0, 8).toUpperCase();
-      
+
       // Use recipient_email from request body, or fall back to property owner_email
       const ownerEmail = recipient_email || property.owner_email;
-      
+
       if (!ownerEmail) {
         console.warn(`[Property Notification] No owner email found for property ${property.id}`);
         return new Response(
@@ -1193,12 +1189,16 @@ Deno.serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      
-      const ownerEmailHtml = generatePropertyNotificationEmail(booking, property);
-      
+
+      const ownerEmailHtml = appendContactFooterHtml(
+        generatePropertyNotificationEmail(booking, property),
+        identity,
+      );
+
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: notifyFromEmail,
         to: [ownerEmail],
+        reply_to: identity.replyTo,
         subject: `🎉 New Booking Received - ${booking.guest_name} - ${formatDate(booking.check_in_date)} to ${formatDate(booking.check_out_date)}`,
         html: ownerEmailHtml,
       });
@@ -1231,20 +1231,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch configured from email (same as access request notifications)
-    const { data: emailConfig } = await supabaseClient
-      .from("api_keys")
-      .select("key_name, key_value")
-      .eq("key_name", "RESEND_FROM_EMAIL")
-      .maybeSingle();
-
-    const defaultFromEmail = emailConfig?.key_value || "RoomsOnline <hello@notify.roomsonline.co.za>";
-    
-    // Use property name as sender when branding is active (ROL'OS auto, others via toggle)
+    // Resolve property-scoped sender identity (friendly-from + reply-to).
+    const identity = await resolvePropertySender(supabaseClient, property.id);
     const brand = resolveBranding(property);
-    const fromEmail = brand.isBranded
-      ? `${property.name} <noreply@notify.roomsonline.co.za>`
-      : defaultFromEmail;
+    const fromEmail = identity.from || platformSender();
 
     // ─── Experience Engine template resolution (priority 1) ───
     let experienceEngineTemplate: string | null = null;
@@ -1414,11 +1404,13 @@ Deno.serve(async (req) => {
     }
 
     // Send email with optional attachments
+    const htmlWithContact = appendContactFooterHtml(html, identity);
     const { data: emailData, error: emailError } = await resend.emails.send({
       from: fromEmail,
       to: [booking.guest_email],
+      reply_to: identity.replyTo,
       subject,
-      html,
+      html: htmlWithContact,
       attachments: attachments.length > 0 ? attachments : undefined,
     });
 
