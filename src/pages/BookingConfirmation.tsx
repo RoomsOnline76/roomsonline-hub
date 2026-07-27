@@ -162,24 +162,33 @@ const BookingConfirmation = () => {
   const isPaid = booking.payment_status === "paid";
   const paymentCancelled = paymentStatus === "cancelled";
 
+  const canonicalPropertyUrl = property?.slug
+    ? `https://sleepinafrica.roomsonline.co.za/p/${property.slug}`
+    : "https://sleepinafrica.roomsonline.co.za";
+
+  const inIframe = typeof window !== "undefined" && window.parent !== window;
+  const isWhitelabelHost =
+    typeof window !== "undefined" && !/roomsonline\.co\.za$|lovable\.(app|dev)$|localhost/.test(window.location.hostname);
+
   const handleShare = async () => {
-    const shareUrl = window.location.href;
-    try {
-      if (navigator.share) {
+    const shareUrl = canonicalPropertyUrl;
+    // navigator.share is unreliable inside cross-origin iframes and on white-label hosts — go straight to clipboard.
+    if (!inIframe && !isWhitelabelHost && navigator.share) {
+      try {
         await navigator.share({ title: `Booking at ${property?.name}`, url: shareUrl });
         return;
+      } catch {
+        // fall through to clipboard
       }
-    } catch (e) {
-      // Share API can fail in iframes/embeds — fall through to clipboard
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Link copied to clipboard!");
     } catch {
-      // Clipboard API may also fail in iframes — show the URL for manual copy
       toast.info("Copy this link to share: " + shareUrl);
     }
   };
+
 
   return wrapLayout(
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-12 sm:py-20">
@@ -298,15 +307,27 @@ const BookingConfirmation = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => {
-              if (isIntegration) {
-                // Try postMessage to parent (for embeds/iframes)
+              const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
+              const canonicalUrl = slug
+                ? `https://sleepinafrica.roomsonline.co.za/p/${slug}`
+                : "https://sleepinafrica.roomsonline.co.za";
+              if (isIntegration || inIframe) {
+                // Tell parent host to close/redirect, then try to close the popup window.
                 try { window.parent.postMessage({ type: 'roomsonline:close' }, '*'); } catch {}
-                // Try closing window (works if opened via JS)
+                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: canonicalUrl }, '*'); } catch {}
                 try { window.close(); } catch {}
-                // Fallback: navigate to property page
-                const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
-                if (slug) navigate(`/p/${slug}`);
-                else navigate("/");
+                // Fallback: navigate the top-level page (not this iframe) to the canonical property page.
+                // Never route to `/p/<slug>` on the current host — white-label hosts don't serve that route.
+                try {
+                  if (window.top && window.top !== window.self) {
+                    window.top.location.assign(canonicalUrl);
+                    return;
+                  }
+                } catch {}
+                if (isWhitelabelHost) {
+                  window.location.assign(canonicalUrl);
+                }
+                // Otherwise stay on the confirmation page.
               } else {
                 navigate("/");
               }
@@ -321,6 +342,7 @@ const BookingConfirmation = () => {
             <Share2 className="h-4 w-4" />
             Share
           </Button>
+
         </div>
       </div>
     </div>

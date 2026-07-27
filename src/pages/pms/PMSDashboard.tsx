@@ -474,7 +474,26 @@ export default function PMSDashboard() {
     enabled: !!propertyId,
   });
 
-  // Fetch rate seasons & prices & rate plan base rates
+  // Recent bookings — surfaces newly created reservations regardless of calendar window
+  const { data: recentBookings = [] } = useQuery({
+    queryKey: ["pms-recent-bookings", propertyId],
+    queryFn: async () => {
+      if (!propertyId) return [] as BookingRow[];
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, guest_name, guest_email, check_in_date, check_out_date, status, payment_status, total_price, created_at, booking_channel, room_type_id, rolos_room_ids, adults, children, infants, teens")
+        .eq("property_id", propertyId)
+        .neq("status", "cancelled")
+        .gte("check_out_date", format(new Date(), "yyyy-MM-dd"))
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return (data || []) as unknown as BookingRow[];
+    },
+    enabled: !!propertyId,
+    refetchInterval: 60_000,
+  });
+
+
   const { data: ratePlansWithRate = [] } = useQuery({
     queryKey: ["pms-cal-rate-plans", propertyId],
     queryFn: async () => {
@@ -1320,6 +1339,43 @@ export default function PMSDashboard() {
           </div>
         )}
 
+        {/* Recent bookings — always shows the newest reservations, even if outside the calendar window */}
+        {!isPortfolioMode && recentBookings.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <CalendarCheck className="h-4 w-4 text-primary" />
+                Recent Reservations
+              </CardTitle>
+              <Badge variant="secondary" className="text-[10px]">{recentBookings.length}</Badge>
+            </CardHeader>
+            <CardContent className="pt-0 max-h-72 overflow-y-auto">
+              {recentBookings.map((b: BookingRow) => {
+                const roomNames = getBookingRoomNames(b);
+                return (
+                  <div key={b.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border/50 last:border-0">
+                    <button
+                      className="text-sm font-medium text-left hover:underline truncate flex-1 min-w-0"
+                      onClick={() => setSelectedBooking(b)}
+                    >
+                      <span className="block truncate">{b.guest_name}</span>
+                      <span className="block text-[10px] text-muted-foreground truncate">
+                        {format(parseISO(b.check_in_date), "d MMM")} – {format(parseISO(b.check_out_date), "d MMM yyyy")}
+                        {roomNames.length > 0 && <> · {roomNames.join(", ")}</>}
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {b.payment_status === "paid" && (
+                        <Badge variant="secondary" className="text-[10px]">Paid</Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
 
         {/* Urgent housekeeping alert */}

@@ -1,57 +1,39 @@
-# Fix: reCAPTCHA failing on white-label URLs
+## Post-checkout issues on white-label / embedded booking flow
 
-## Root cause (confirmed)
+Three regressions after a successful PayFast payment on `book.rolos.co.za` (white-label embed for Fonteinhutte via Jongensfontein portfolio):
 
-reCAPTCHA v3 (`react-google-recaptcha-v3`) binds the site key to a Google-registered domain allow-list. Our key is registered for `roomsonline.co.za`, `sleepinafrica.roomsonline.co.za`, `book.*`, etc. — but **not** for:
+### 1. Share button shows "Try that again" error
 
-- Client white-label domains (e.g. `book.jongensfontein.com`, `rolos.co.za/jongensfontein-com/`, WordPress host domains embedding the widget iframe).
-- Portfolio embeds served under white-label hosts.
+In `src/pages/BookingConfirmation.tsx`, `handleShare` calls `navigator.share(...)`. Inside a cross-origin iframe (which is what `book.rolos.co.za` renders when embedded), Chrome refuses Web Share and surfaces the "We couldn't show you all the ways you could share" sheet before our `catch` runs — the promise resolves to a hidden failure and the fallback clipboard path is never reached.
 
-Result: `grecaptcha.execute()` returns an "Invalid domain for site key" error, and any form that gates submit on `useRecaptcha().verify()` (booking, portfolio booking, contact) fails on those hosts. This is exactly the error shown in the WordPress Portfolio Shortcode screenshot.
+**Fix:** skip `navigator.share` entirely when the page is inside an iframe or when `isIntegration` is true, and go straight to `navigator.clipboard.writeText` with the toast fallback. Also prefer sharing the canonical public URL (`https://sleepinafrica.roomsonline.co.za/p/<slug>` or a booking-status URL) instead of `window.location.href`, since `book.rolos.co.za/booking-confirmation/...` is not a shareable page.
 
-Global `RecaptchaProvider` (`src/components/RecaptchaProvider.tsx`) currently loads on every host, including embeds — so the widget also emits console errors when hosted on customer domains, even when the flow itself doesn't require a token.
+### 2. "Close" button 404s to `https://book.rolos.co.za/p/<slug>`
 
-## Approach
+The close handler (`BookingConfirmation.tsx` around line 300) falls back to `navigate('/p/' + slug)` when `window.close()` and the parent `postMessage` don't take effect. `book.rolos.co.za` is a white-label host that only serves the booking widget routes — it has no `/p/:slug` route, hence the 404.
 
-Serve reCAPTCHA only where the site key is valid (canonical Rooms Online domains), and use a **trusted-iframe token bridge** on white-label / embed hosts so we still get a token without needing to whitelist every customer domain in Google.
+**Fix:** when in integration/iframe mode and the parent doesn't respond:
+- Send `postMessage({ type: 'roomsonline:close' }, '*')` (already done) AND a `roomsonline:navigate` message with the canonical property URL so hosts that embed us can redirect their own page.
+- Do NOT `navigate('/p/<slug>')` on the current host. Instead, if we detect we are on a book./white-label host, `window.top.location.assign('https://sleepinafrica.roomsonline.co.za/p/<slug>')` (or the property's configured white-label domain if we have one), otherwise just close/stay put.
+- If neither closing nor top-level navigation is available, stay on the confirmation page rather than routing to a non-existent path.
 
-## Changes
+### 3. Confirmed booking not visible in ROLOS Dashboard for Fonteinhutte
 
-### 1. Domain gating in `RecaptchaProvider`
-- Add a `getRecaptchaMode()` helper: returns `"native"` on canonical hosts (`*.roomsonline.co.za`, `*.lovable.app`, `localhost`), `"bridge"` on all other hosts (white-label + embedded on customer WordPress sites).
-- In `"bridge"` mode, do NOT mount `GoogleReCaptchaProvider` (prevents the "Invalid domain" console spam).
+Verified against the database:
+- Booking `790f0e89…` exists with `status=confirmed`, `payment_status=paid`, `property_id=00015d06…` (Fonteinhutte), dates 10–14 Aug 2026.
+- The row is fine — the issue is display. `PMSDashboard.tsx` defaults to **week view** anchored on today (27 Jul 2026), and the pagination query filters `check_in_date <= dateRange.end` / `check_out_date >= dateRange.start`. A booking two weeks in the future never falls into the default week window, so nothing renders and the owner assumes it's missing.
+- Today's Arrivals/Departures panels also only show today's date, so they wouldn't surface it either.
 
-### 2. New token-bridge iframe
-- Route: `/recaptcha-bridge` on canonical `sleepinafrica.roomsonline.co.za` (a domain the key already covers).
-- Renders a minimal page that loads reCAPTCHA v3, listens for `postMessage({type:"rc:execute", action})`, calls `executeRecaptcha`, and posts `{type:"rc:token", token}` back to the parent.
-- Locked to `targetOrigin` = requesting parent origin, action allow-list, and a nonce per request.
+**Fix:**
+- Add a small **"Recent bookings"** / **"Upcoming reservations"** panel on `PMSDashboard.tsx` that runs an independent query (last 20 bookings by `created_at desc` for `property_id`, regardless of date range) so newly received confirmations are always visible even when they're outside the current calendar window.
+- Also verify PMSGuests / PMSCommandCentre don't have the same date-window blindspot for very recent confirmations; if they do, add the same "recently created" surface.
+- No schema changes required.
 
-### 3. `useRecaptcha` hook update
-- When mode is `"bridge"`: lazily inject a hidden iframe pointing at `https://sleepinafrica.roomsonline.co.za/recaptcha-bridge`, wire request/response via `postMessage`, expose the same `verify()` API so no call sites change.
-- When mode is `"native"`: unchanged behavior.
-- Add a hard timeout (5s) → returns `false` with error `"Verification unavailable"`; call sites already handle a `false` result.
+## Technical details
 
-### 4. Server-side verification
-- No change needed — existing edge functions that verify the token (`booking-orchestrator-api`, contact, etc.) call Google's `siteverify` with the same secret; a token minted by the bridge iframe is still valid.
+Files to edit:
+- `src/pages/BookingConfirmation.tsx` — share + close logic (iframe-safe, canonical URLs, no `/p/<slug>` navigation on white-label host).
+- `src/pages/pms/PMSDashboard.tsx` — add "Recent bookings" panel keyed on `created_at`, not the calendar range.
+- Optional: `src/pages/pms/PMSCommandCentre.tsx` / `PMSGuests.tsx` — same panel or ensure default filter includes future dates.
 
-### 5. Belt-and-braces for white-label booking
-- In `verify-recaptcha` / booking edge functions, when the request `Origin` is a known white-label / embed host AND no token is supplied, fall back to existing rate-limit + honeypot checks instead of hard-rejecting. This keeps bookings working if the bridge iframe is blocked (e.g. strict CSP on the parent WordPress site).
-
-### 6. Files touched
-- `src/components/RecaptchaProvider.tsx` — mode gating.
-- `src/hooks/useRecaptcha.tsx` — bridge transport.
-- `src/pages/RecaptchaBridge.tsx` (new) + route in `src/App.tsx`.
-- `supabase/functions/verify-recaptcha/index.ts` (and any booking function that hard-requires a token) — soft-fail for white-label origins when token missing.
-- No UI/call-site changes at booking, portfolio, or contact forms.
-
-## Out of scope
-
-- Not switching to reCAPTCHA Enterprise.
-- Not registering every customer domain in the Google console (unscalable).
-- No visual changes.
-
-## Validation
-
-- Load `https://rolos.co.za/jongensfontein-com/` (WL portfolio shortcode context) → confirm bridge iframe loads, `verify()` returns a token, submit succeeds, no "Invalid domain" console error.
-- Load canonical `sleepinafrica.roomsonline.co.za/property/...` → confirm native mode still used (no bridge iframe).
-- Confirm booking submission works in both modes end-to-end.
+No DB migrations, no edge function redeploys, no changes to the payment flow itself.
