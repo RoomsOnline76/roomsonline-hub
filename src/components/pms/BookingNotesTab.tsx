@@ -3,16 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { MessageSquare, AlertCircle, Plus } from "lucide-react";
+import { MessageSquare, AlertCircle } from "lucide-react";
 
 interface BookingNotesTabProps {
   bookingId: string;
   guestId: string | null;
   specialRequests: string | null;
-  modificationNotes: any;
+  modificationNotes: unknown;
 }
 
 interface Complaint {
@@ -52,7 +51,7 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
         .maybeSingle();
 
       setCurrentSpecialRequests(data?.special_requests || specialRequests || "");
-      setCurrentModificationNotes(Array.isArray(data?.modification_notes) ? data.modification_notes as ModificationNote[] : Array.isArray(modificationNotes) ? modificationNotes as ModificationNote[] : []);
+      setCurrentModificationNotes(Array.isArray(data?.modification_notes) ? data.modification_notes as unknown as ModificationNote[] : Array.isArray(modificationNotes) ? modificationNotes as ModificationNote[] : []);
     };
 
     loadBookingNotes();
