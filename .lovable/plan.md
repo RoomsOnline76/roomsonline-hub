@@ -1,38 +1,60 @@
-## Problem
+## Root cause
 
-The Close button on the booking confirmation currently redirects the top-level window to the canonical property page on `sleepinafrica.roomsonline.co.za`, even when the guest started their booking on a white-label site (e.g. `book.rolos.co.za`, `book.sleepinafrica.roomsonline.co.za`, or a partner's own domain). We should return them to the white-label host they came from.
+The confirmation email is rendered by `supabase/functions/send-booking-email/index.ts` → `replaceTemplateVariables()`. When a ROL'OS property has an Experience Engine template active, `send-booking-email` fetches the template body from `rolos_message_templates` (`trigger_event='booking_confirmed'`) and runs it through the same substitution map.
 
-## Return-target priority (highest → lowest)
+That map only knows these keys:
+- `{{guest_name}}`, `{{check_in_date}}`, `{{check_out_date}}`, `{{reservation_reference}}`, `{{nights}}`, `{{total_amount}}`, `{{property_name}}`, …
 
-1. **`return_url` query param** — if the embed script or Book button set it, honour it (whitelist to `http(s)://` only, no `javascript:` etc.).
-2. **`document.referrer`** — when it points at any non-canonical host, treat it as the WL origin and send the user back there. Prefer the referrer verbatim so we land on the exact WL property page they came from.
-3. **Current confirmation host** — if the confirmation itself is loading on a WL host (not canonical), close inside the iframe and top-redirect to `/` on that same host.
-4. **Canonical fallback** — only when nothing above resolves, redirect to `sleepinafrica.roomsonline.co.za/p/<slug>` (current behaviour).
+But the seeded template body (migration `20260308194342…sql`, lines 16 and 20/28/32/36) uses:
+- `{{guest_first_name}}`, `{{confirmation_number}}`, `{{check_in}}`, `{{check_out}}`
 
-Canonical hosts (never treated as WL): `sleepinafrica.roomsonline.co.za`, `*.lovable.app`, `*.lovable.dev`, `localhost`. Everything else is WL.
+Those never get substituted, so the guest sees `Dear {{guest_first_name}}`, etc. (rendered `{guest_first_name}` in most mail clients that collapse doubled braces visually). Separately, the seed body writes `Total:</strong> R {{total_amount}}` while `formatCurrency` already prepends `R`, producing `R R 4,660.00`.
 
-## Changes
+## Fix
 
-### `src/pages/BookingConfirmation.tsx` — Close handler
+### 1. `supabase/functions/send-booking-email/index.ts`
 
-- Capture `document.referrer` **once at mount** into a ref (in-page navigation later would overwrite it).
-- Read `return_url` from `searchParams` and sanitise (must start with `http://` or `https://`).
-- Build a `resolveCloseTarget()` helper implementing the priority above; it returns `{ url, sameHostAsCanonical }`.
-- Rewrite the Close `onClick`:
-  - Always `postMessage` `roomsonline:close` and `roomsonline:navigate` (with the resolved URL) to the parent — the WL host's embed script can intercept and close its own modal/iframe cleanly.
-  - Attempt `window.close()`.
-  - If we're inside an iframe (`window.top !== window.self`), assign `window.top.location` to the resolved URL.
-  - Otherwise, if the current host is WL, `window.location.assign` to the resolved URL.
-  - If neither the referrer nor the current host give a WL target, keep the existing canonical fallback.
-- Keep Share unchanged (already uses the canonical property URL — that's correct for social sharing).
+Extend the `replacements` map in `replaceTemplateVariables` (around line 62) with aliases so both naming conventions work — no template rewrite required for the customer-visible fields:
 
-### `public/rol-embed.js` — pass `return_url`
+```ts
+const firstName = (booking.guest_name || "").split(" ")[0] || "Guest";
 
-- When opening the checkout iframe/popup, append `return_url=<current top-level URL>` so that even if the browser strips the referrer (cross-origin, `no-referrer` policies) the confirmation still knows where to send the user back.
-- Also listen for `roomsonline:navigate` messages from the confirmation iframe: when received, close the modal/iframe and (optionally) update the parent URL to the payload — this lets the WL site restore its own state instead of a hard reload.
+"{{guest_first_name}}": firstName,
+"{{confirmation_number}}": bookingRef,
+"{{check_in}}": formatDate(booking.check_in_date),
+"{{check_out}}": formatDate(booking.check_out_date),
+```
+
+Also add these harmless aliases already used elsewhere in the codebase:
+- `{{property_email}}` → `property.email || ""`
+- `{{property_phone}}` → `property.phone || ""`
+- `{{total_amount_num}}` → `formatCurrency(booking.total_price).replace(/^R\s*/, "")` (a bare number for future templates)
+
+Then `deploy_edge_functions(["send-booking-email"])`.
+
+### 2. Fix the double-`R` on Total
+
+Two small edits in the seeded ROL'OS templates so the currency prefix isn't duplicated. The safest place is a new migration that updates existing rows created by the earlier seed (matched by `trigger_event` + a `LIKE '%R {{total_amount}}%'` guard so we only touch the rows we shipped):
+
+```sql
+UPDATE public.rolos_message_templates
+SET body = REPLACE(body, '</strong> R {{total_amount}}', '</strong> {{total_amount}}')
+WHERE body LIKE '%</strong> R {{total_amount}}%';
+```
+
+This leaves `formatCurrency`'s `R` prefix as the single source of the currency symbol and matches how new templates will read.
+
+### 3. Same aliases in `pms-message-dispatcher`
+
+`supabase/functions/pms-message-dispatcher/index.ts` `buildPlaceholderMap` already covers `guest_first_name` / `check_in` / `check_out` / `confirmation_number`, so no change is needed there — but that path is also broken for a separate reason worth noting only (not fixing this turn unless asked): the trigger `auto_queue_booking_message` writes `reservation_id = bookings.id`, and the dispatcher tries to look that up in `rolos_reservations`. Out of scope for this fix; today's confirmation email is the `send-booking-email` path.
+
+## Verification
+
+- Redeploy `send-booking-email`, then in ROL'OS create a test confirmed booking (or use the existing 3291893 record) and re-issue the confirmation email; verify the mail shows `Dear Dawie,`, real dates, real confirmation number, and `Total: R 4,660.00` (single R).
+- Grep the templates table for any remaining `R {{total_amount}}` after the migration to confirm the UPDATE hit every row.
 
 ## Out of scope
 
-- No changes to Share, PDF, or booking-data logic.
-- No new query strings on the canonical widget snippets — the cookbook stays as-is; the embed script fills `return_url` automatically at runtime.
-- Custom domains beyond current WL hosts continue to work because detection is by "not-in-canonical-list", not an allow-list.
+- The `auto_queue_booking_message` / `pms-message-dispatcher` reservation-id mismatch (separate delivery pipeline).
+- Any template editor UI changes — placeholders continue to be authored as `{{...}}`.
+- Default (non-custom) email path — that one already renders correctly.
