@@ -11,21 +11,30 @@
  * tokens via a hidden iframe hosted on the canonical domain.
  */
 
-export type RecaptchaMode = "native" | "bridge";
+export type RecaptchaMode = "native" | "bridge" | "bypass";
 
 const CANONICAL_HOST_SUFFIXES = [
   ".roomsonline.co.za",
-  ".lovable.app",
-  ".lovable.dev",
 ];
 
 const CANONICAL_HOSTS_EXACT = new Set([
   "roomsonline.co.za",
-  "localhost",
-  "127.0.0.1",
 ]);
 
+// Lovable preview / sandbox / local dev — reCAPTCHA site key is not registered
+// for these hosts, so we bypass verification client-side to unblock login and
+// forms. Server-side verify is intentionally skipped on these hosts too.
+const BYPASS_HOST_SUFFIXES = [".lovable.app", ".lovable.dev"];
+const BYPASS_HOSTS_EXACT = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
+export function isRecaptchaBypassHost(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): boolean {
+  if (!hostname) return false;
+  if (BYPASS_HOSTS_EXACT.has(hostname)) return true;
+  return BYPASS_HOST_SUFFIXES.some((s) => hostname.endsWith(s));
+}
+
 export function getRecaptchaMode(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): RecaptchaMode {
+  if (isRecaptchaBypassHost(hostname)) return "bypass";
   if (!hostname) return "native";
   if (CANONICAL_HOSTS_EXACT.has(hostname)) return "native";
   if (CANONICAL_HOST_SUFFIXES.some((s) => hostname.endsWith(s))) return "native";
@@ -38,3 +47,6 @@ export function getRecaptchaMode(hostname: string = typeof window !== "undefined
  */
 export const RECAPTCHA_BRIDGE_URL =
   "https://sleepinafrica.roomsonline.co.za/recaptcha-bridge";
+
+export const RECAPTCHA_BYPASS_TOKEN = "dev-bypass-token";
+

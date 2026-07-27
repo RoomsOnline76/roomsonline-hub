@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { useRecaptchaSiteKey as useRecaptchaSiteKeyFromFlags } from "@/hooks/useFeatureFlags";
-import { getRecaptchaMode, RECAPTCHA_BRIDGE_URL } from "@/lib/recaptchaMode";
+import { getRecaptchaMode, RECAPTCHA_BRIDGE_URL, RECAPTCHA_BYPASS_TOKEN } from "@/lib/recaptchaMode";
 
 interface RecaptchaState {
   isVerified: boolean;
@@ -133,7 +133,9 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     try {
       let token: string | null = null;
 
-      if (mode === "bridge") {
+      if (mode === "bypass") {
+        token = RECAPTCHA_BYPASS_TOKEN;
+      } else if (mode === "bridge") {
         token = await requestBridgeToken(action);
       } else {
         if (!executeRecaptcha) {
@@ -169,23 +171,25 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     ...state,
     verify,
     reset,
-    isReady: mode === "bridge" ? true : !!executeRecaptcha,
+    isReady: mode === "bypass" ? true : mode === "bridge" ? true : !!executeRecaptcha,
   };
 }
 
 // Auto-verify hook for login page
 export function useAutoRecaptcha(action: string = "login") {
   const { executeRecaptcha } = useGoogleReCaptcha();
+  const mode = getRecaptchaMode();
+  const bypass = mode === "bypass";
   const [state, setState] = useState<RecaptchaState & { hasAttempted: boolean }>({
-    isVerified: false,
-    isVerifying: true,
-    token: null,
+    isVerified: bypass,
+    isVerifying: !bypass,
+    token: bypass ? RECAPTCHA_BYPASS_TOKEN : null,
     error: null,
-    hasAttempted: false,
+    hasAttempted: bypass,
   });
 
   useEffect(() => {
-    if (!executeRecaptcha || state.hasAttempted) return;
+    if (bypass || !executeRecaptcha || state.hasAttempted) return;
 
     const runVerification = async () => {
       try {
@@ -219,10 +223,15 @@ export function useAutoRecaptcha(action: string = "login") {
     };
 
     runVerification();
-  }, [executeRecaptcha, action, state.hasAttempted]);
+  }, [executeRecaptcha, action, state.hasAttempted, bypass]);
 
   const retry = useCallback(async () => {
+    if (bypass) {
+      setState({ isVerified: true, isVerifying: false, token: RECAPTCHA_BYPASS_TOKEN, error: null, hasAttempted: true });
+      return true;
+    }
     if (!executeRecaptcha) return false;
+    
     
     setState(prev => ({ ...prev, isVerifying: true, error: null }));
     
@@ -259,6 +268,6 @@ export function useAutoRecaptcha(action: string = "login") {
   return {
     ...state,
     retry,
-    isReady: !!executeRecaptcha,
+    isReady: bypass ? true : !!executeRecaptcha,
   };
 }
