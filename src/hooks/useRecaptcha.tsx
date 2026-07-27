@@ -133,7 +133,9 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     try {
       let token: string | null = null;
 
-      if (mode === "bridge") {
+      if (mode === "bypass") {
+        token = RECAPTCHA_BYPASS_TOKEN;
+      } else if (mode === "bridge") {
         token = await requestBridgeToken(action);
       } else {
         if (!executeRecaptcha) {
