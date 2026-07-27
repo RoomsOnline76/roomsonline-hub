@@ -339,29 +339,30 @@ const BookingConfirmation = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => {
-              const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
-              const canonicalUrl = slug
-                ? `https://sleepinafrica.roomsonline.co.za/p/${slug}`
-                : "https://sleepinafrica.roomsonline.co.za";
+              const target = resolveCloseTarget();
               if (isIntegration || inIframe) {
-                // Tell parent host to close/redirect, then try to close the popup window.
+                // Tell the parent host to close/navigate — its embed script can restore its own UI cleanly.
                 try { window.parent.postMessage({ type: 'roomsonline:close' }, '*'); } catch {}
-                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: canonicalUrl }, '*'); } catch {}
+                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: target }, '*'); } catch {}
                 try { window.close(); } catch {}
-                // Fallback: navigate the top-level page (not this iframe) to the canonical property page.
-                // Never route to `/p/<slug>` on the current host — white-label hosts don't serve that route.
+                // Fallback: navigate the top-level page (not this iframe) to the resolved WL/canonical target.
                 try {
                   if (window.top && window.top !== window.self) {
-                    window.top.location.assign(canonicalUrl);
+                    window.top.location.assign(target);
                     return;
                   }
                 } catch {}
                 if (isWhitelabelHost) {
-                  window.location.assign(canonicalUrl);
+                  window.location.assign(target);
                 }
                 // Otherwise stay on the confirmation page.
               } else {
-                navigate("/");
+                // Not embedded: if we ended up on a WL host somehow, go back there; else go home.
+                if (isWhitelabelHost) {
+                  window.location.assign(target);
+                } else {
+                  navigate("/");
+                }
               }
             }}
             className="flex-1 gap-2"
