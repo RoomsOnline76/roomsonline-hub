@@ -154,20 +154,21 @@ export default function AdminDashboard() {
       <NarrativeSummary stats={stats} loading={loading} />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:gap-6 mb-8">
         <StatCard
-          title="Total Bookings"
-          value={stats?.totalBookings || 0}
+          title="Paid Bookings"
+          value={stats?.paidBookings || 0}
           icon={BookOpen}
-          description="All time bookings"
+          description="All time — paid only"
           onClick={() => navigate('/admin/all-bookings')}
         />
         <StatCard
-          title="Pending Bookings"
-          value={stats?.pendingBookings || 0}
+          title="Confirmed Bookings"
+          value={stats?.confirmedBookings || 0}
           icon={Clock}
-          description="Awaiting confirmation"
-          variant={stats?.pendingBookings ? 'warning' : 'default'}
-          onClick={() => navigate('/admin/all-bookings?status=pending')}
+          description="Paid and confirmed"
+          variant="success"
+          onClick={() => navigate('/admin/all-bookings?status=confirmed')}
         />
+
         <StatCard
           title="Active Properties"
           value={`${stats?.activeProperties || 0} / ${stats?.totalProperties || 0}`}
