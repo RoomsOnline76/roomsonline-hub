@@ -73,7 +73,9 @@ interface Booking {
   ai_metadata?: any;
   booking_channel?: string | null;
   rolos_rate_plan_id?: string | null;
+  payment_status?: string | null;
 }
+
 
 const Bookings = () => {
   const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
@@ -372,19 +374,36 @@ const Bookings = () => {
         if (internalResult.error) throw internalResult.error;
         if (pmsResult.error) throw pmsResult.error;
 
+        // Build a property-id → name map. Start with already-loaded (active) properties,
+        // then look up any missing IDs so we don't mislabel real properties as deleted.
+        const propertyNameMap = new Map<string, string>();
+        for (const p of properties) propertyNameMap.set(p.id, p.name);
+
+        const referencedIds = new Set<string>();
+        (internalResult.data || []).forEach((b: any) => b.property_id && referencedIds.add(b.property_id));
+        (pmsResult.data || []).forEach((b: any) => b.property_id && referencedIds.add(b.property_id));
+        const missingIds = Array.from(referencedIds).filter(id => !propertyNameMap.has(id));
+
+        if (missingIds.length > 0) {
+          const { data: extraProps } = await supabase
+            .from("properties")
+            .select("id, name, permanently_deleted_at")
+            .in("id", missingIds)
+            .is("permanently_deleted_at", null);
+          (extraProps || []).forEach((p: any) => propertyNameMap.set(p.id, p.name));
+        }
+
         // Transform internal bookings
         const internalBookings: Booking[] = (internalResult.data || []).map(booking => {
-          const property = properties.find(p => p.id === booking.property_id);
           return {
             ...booking,
-            property_name: property?.name || "(Deleted Property)",
+            property_name: propertyNameMap.get(booking.property_id) || "(Deleted Property)",
             source: "internal" as const
           };
         });
 
         // Transform PMS reservations to match Booking interface
         const pmsBookings: Booking[] = (pmsResult.data || []).map(res => {
-          const property = properties.find(p => p.id === res.property_id);
           // Calculate guest counts from rooms or guests array
           let adults = 0, teens = 0, children = 0, infants = 0;
           if (res.rooms && Array.isArray(res.rooms)) {
@@ -399,7 +418,7 @@ const Bookings = () => {
           return {
             id: res.id,
             property_id: res.property_id,
-            property_name: property?.name || "(Deleted Property)",
+            property_name: propertyNameMap.get(res.property_id) || "(Deleted Property)",
             check_in_date: res.arrival_date,
             check_out_date: res.departure_date,
             guest_name: res.contact_name || "Unknown Guest",
@@ -420,9 +439,11 @@ const Bookings = () => {
             voucher: res.reservation_voucher,
             external_reservation_id: res.external_reservation_id,
             created_at: res.created_at,
+            payment_status: (res as any).payment_status ?? null,
             source: "pms" as const
           };
         });
+
 
         // Combine and deduplicate by external_reservation_id AND itinerary_id
         const seenExternalIds = new Set<string>();
@@ -529,38 +550,42 @@ const Bookings = () => {
     return result;
   }, [bookings, searchTerm, showCancelled]);
 
-  // Stats - calculated from all bookings (not filtered by cancelled toggle) so counts are always accurate
+  // Stats — only count paid bookings. Pending checkouts are excluded from all totals.
   const stats = useMemo(() => {
     const normalizeStatus = (s: string) => s?.toLowerCase() || "";
-    
+
     // Apply only search filter for stats (not the cancelled toggle)
     let statsBookings = bookings;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      statsBookings = bookings.filter(booking => 
+      statsBookings = bookings.filter(booking =>
         booking.guest_name.toLowerCase().includes(term) ||
         booking.guest_email.toLowerCase().includes(term) ||
         booking.property_name?.toLowerCase().includes(term) ||
         booking.external_reservation_id?.toLowerCase().includes(term)
       );
     }
-    
-    const total = statsBookings.length;
-    const confirmed = statsBookings.filter(b => 
-      ["confirmed", "guaranteed", "checked-in"].includes(normalizeStatus(b.status))
-    ).length;
-    const pending = statsBookings.filter(b => 
-      ["pending", "provisional"].includes(normalizeStatus(b.status))
-    ).length;
-    const cancelled = statsBookings.filter(b => 
-      normalizeStatus(b.status) === "cancelled"
-    ).length;
-    const totalRevenue = statsBookings
-      .filter(b => normalizeStatus(b.status) !== "cancelled")
-      .reduce((sum, b) => sum + Number(b.total_price), 0);
 
-    return { total, confirmed, pending, cancelled, totalRevenue };
+    const CONFIRMED_STATUSES = ["confirmed", "guaranteed", "checked-in", "checked_in"];
+    const isPaid = (b: Booking) => {
+      const status = normalizeStatus(b.status);
+      if (status === "cancelled") return false;
+      // Internal bookings carry an explicit payment_status; treat 'paid' as paid.
+      if ((b.payment_status || "").toLowerCase() === "paid") return true;
+      // PMS reservations don't expose payment_status but reach confirmed/guaranteed/checked-in only after payment.
+      if (b.source === "pms" && CONFIRMED_STATUSES.includes(status)) return true;
+      return false;
+    };
+
+    const paid = statsBookings.filter(isPaid);
+    const total = paid.length;
+    const confirmed = paid.filter(b => CONFIRMED_STATUSES.includes(normalizeStatus(b.status))).length;
+    const cancelled = statsBookings.filter(b => normalizeStatus(b.status) === "cancelled").length;
+    const totalRevenue = paid.reduce((sum, b) => sum + Number(b.total_price), 0);
+
+    return { total, confirmed, cancelled, totalRevenue };
   }, [bookings, searchTerm]);
+
 
   const getStatusIndicator = (status: string) => {
     const normalized = status?.toLowerCase() || "";
@@ -675,14 +700,14 @@ const Bookings = () => {
       />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-5 gap-2 mb-3">
+        <div className="grid grid-cols-4 gap-2 mb-3">
           <Card>
             <CardContent className="p-2">
               <div className="flex items-center gap-2">
                 <CalendarDays className="h-3 w-3 text-primary" />
                 <div className="flex items-baseline gap-1">
                   <p className="text-lg font-bold">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="text-xs text-muted-foreground">Paid</p>
                 </div>
               </div>
             </CardContent>
@@ -694,17 +719,6 @@ const Bookings = () => {
                 <div className="flex items-baseline gap-1">
                   <p className="text-lg font-bold">{stats.confirmed}</p>
                   <p className="text-xs text-muted-foreground">Confirmed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-2">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="h-3 w-3 text-amber-600" />
-                <div className="flex items-baseline gap-1">
-                  <p className="text-lg font-bold">{stats.pending}</p>
-                  <p className="text-xs text-muted-foreground">Pending</p>
                 </div>
               </div>
             </CardContent>
@@ -732,6 +746,7 @@ const Bookings = () => {
             </CardContent>
           </Card>
         </div>
+
 
         {/* Filters */}
         <Card className="mb-3">

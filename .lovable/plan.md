@@ -1,39 +1,40 @@
-## Post-checkout issues on white-label / embedded booking flow
+## Problem
 
-Three regressions after a successful PayFast payment on `book.rolos.co.za` (white-label embed for Fonteinhutte via Jongensfontein portfolio):
+On `/admin/bookings`:
+1. Bookings show **"(Deleted Property)"** for properties that aren't actually deleted. The property lookup only loads properties where `is_active = true`, so any booking against an inactive-but-existing property falls through to the "Deleted Property" label.
+2. Header counters (**Total / Confirmed / Pending / Cancelled / Revenue**) include `pending` reservations. Same on `/admin/dashboard`, where the `Total Bookings` and `Pending Bookings` tiles count unpaid rows.
 
-### 1. Share button shows "Try that again" error
+The user wants only **paid** bookings counted, and the property name resolved correctly whenever the property still exists (only truly-deleted rows should read "Deleted Property").
 
-In `src/pages/BookingConfirmation.tsx`, `handleShare` calls `navigator.share(...)`. Inside a cross-origin iframe (which is what `book.rolos.co.za` renders when embedded), Chrome refuses Web Share and surfaces the "We couldn't show you all the ways you could share" sheet before our `catch` runs — the promise resolves to a hidden failure and the fallback clipboard path is never reached.
+## Changes
 
-**Fix:** skip `navigator.share` entirely when the page is inside an iframe or when `isIntegration` is true, and go straight to `navigator.clipboard.writeText` with the toast fallback. Also prefer sharing the canonical public URL (`https://sleepinafrica.roomsonline.co.za/p/<slug>` or a booking-status URL) instead of `window.location.href`, since `book.rolos.co.za/booking-confirmation/...` is not a shareable page.
+### 1. `src/pages/Bookings.tsx` — resolve real property names
 
-### 2. "Close" button 404s to `https://book.rolos.co.za/p/<slug>`
+- After fetching bookings, collect any `property_id` that isn't in the already-loaded `properties` array.
+- Run a second lightweight query against `properties` for those IDs **without** the `is_active` filter (keep `permanently_deleted_at IS NULL` — only truly-purged rows should read "(Deleted Property)").
+- Merge the results into an ID→name map and use that map when building `internalBookings` / `pmsBookings`.
+- Only fall back to `"(Deleted Property)"` when a row is truly missing or has `permanently_deleted_at` set.
 
-The close handler (`BookingConfirmation.tsx` around line 300) falls back to `navigate('/p/' + slug)` when `window.close()` and the parent `postMessage` don't take effect. `book.rolos.co.za` is a white-label host that only serves the booking widget routes — it has no `/p/:slug` route, hence the 404.
+### 2. `src/pages/Bookings.tsx` — counters count paid only
 
-**Fix:** when in integration/iframe mode and the parent doesn't respond:
-- Send `postMessage({ type: 'roomsonline:close' }, '*')` (already done) AND a `roomsonline:navigate` message with the canonical property URL so hosts that embed us can redirect their own page.
-- Do NOT `navigate('/p/<slug>')` on the current host. Instead, if we detect we are on a book./white-label host, `window.top.location.assign('https://sleepinafrica.roomsonline.co.za/p/<slug>')` (or the property's configured white-label domain if we have one), otherwise just close/stay put.
-- If neither closing nor top-level navigation is available, stay on the confirmation page rather than routing to a non-existent path.
+- Add a `isPaid(b)` helper: `b.payment_status === 'paid'` (PMS reservations that come back without a payment_status but with status `confirmed`/`guaranteed`/`checked-in` are treated as paid, matching how the PMS side records post-payment reservations).
+- Redefine `stats`:
+  - **Total** = count of paid bookings
+  - **Confirmed** = paid AND status in (`confirmed`, `guaranteed`, `checked-in`)
+  - **Cancelled** = status `cancelled` (unchanged, still useful)
+  - **Revenue** = sum of `total_price` for paid, non-cancelled bookings
+- Drop the **Pending** stat card (grid becomes 4 columns). Pending bookings still appear in the table with their existing badge; they just aren't tallied at the top.
 
-### 3. Confirmed booking not visible in ROLOS Dashboard for Fonteinhutte
+### 3. `src/pages/AdminDashboard.tsx` — dashboard tiles count paid only
 
-Verified against the database:
-- Booking `790f0e89…` exists with `status=confirmed`, `payment_status=paid`, `property_id=00015d06…` (Fonteinhutte), dates 10–14 Aug 2026.
-- The row is fine — the issue is display. `PMSDashboard.tsx` defaults to **week view** anchored on today (27 Jul 2026), and the pagination query filters `check_in_date <= dateRange.end` / `check_out_date >= dateRange.start`. A booking two weeks in the future never falls into the default week window, so nothing renders and the owner assumes it's missing.
-- Today's Arrivals/Departures panels also only show today's date, so they wouldn't surface it either.
+- Replace the "Total Bookings" and "Pending Bookings" tiles with:
+  - **Paid Bookings** = `bookings` where `payment_status = 'paid'` (all time)
+  - **Confirmed Bookings** = `bookings` where `payment_status = 'paid'` AND `status = 'confirmed'`
+- Update the `DashboardStats` shape accordingly (`paidBookings`, `confirmedBookings`); keep the Access Requests and Active Properties tiles as-is.
+- `issuesCount` no longer includes pending-booking count (it was misleading here — pending isn't an issue, it's an unfinished checkout). Base it on `pendingAccessRequests` only.
 
-**Fix:**
-- Add a small **"Recent bookings"** / **"Upcoming reservations"** panel on `PMSDashboard.tsx` that runs an independent query (last 20 bookings by `created_at desc` for `property_id`, regardless of date range) so newly received confirmations are always visible even when they're outside the current calendar window.
-- Also verify PMSGuests / PMSCommandCentre don't have the same date-window blindspot for very recent confirmations; if they do, add the same "recently created" surface.
-- No schema changes required.
+## Out of scope
 
-## Technical details
-
-Files to edit:
-- `src/pages/BookingConfirmation.tsx` — share + close logic (iframe-safe, canonical URLs, no `/p/<slug>` navigation on white-label host).
-- `src/pages/pms/PMSDashboard.tsx` — add "Recent bookings" panel keyed on `created_at`, not the calendar range.
-- Optional: `src/pages/pms/PMSCommandCentre.tsx` / `PMSGuests.tsx` — same panel or ensure default filter includes future dates.
-
-No DB migrations, no edge function redeploys, no changes to the payment flow itself.
+- No schema changes.
+- No changes to how bookings are created or how `payment_status` is set.
+- The `Pending` status filter dropdown in the toolbar stays available for browsing; only the top-line counters change.

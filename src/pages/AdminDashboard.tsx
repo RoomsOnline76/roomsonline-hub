@@ -22,8 +22,7 @@ import { NarrativeSummary } from "@/components/dashboard/NarrativeSummary";
 import { SystemAlertsPanel } from "@/components/dashboard/SystemAlertsPanel";
 
 interface DashboardStats {
-  totalBookings: number;
-  pendingBookings: number;
+  paidBookings: number;
   confirmedBookings: number;
   totalProperties: number;
   activeProperties: number;
@@ -40,6 +39,7 @@ interface DashboardStats {
   issuesCount: number;
 }
 
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -55,17 +55,15 @@ export default function AdminDashboard() {
       
       // Parallel queries for dashboard data
       const [
-        bookingsResult,
-        pendingBookingsResult,
+        paidBookingsResult,
         confirmedBookingsResult,
         propertiesResult,
         activePropertiesResult,
         accessRequestsResult,
         recentBookingsResult,
       ] = await Promise.all([
-        supabase.from('bookings').select('*', { count: 'exact', head: true }),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('payment_status', 'paid').eq('status', 'confirmed'),
         supabase.from('properties').select('*', { count: 'exact', head: true }),
         supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('access_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -85,8 +83,7 @@ export default function AdminDashboard() {
       ]);
 
       setStats({
-        totalBookings: bookingsResult.count || 0,
-        pendingBookings: pendingBookingsResult.count || 0,
+        paidBookings: paidBookingsResult.count || 0,
         confirmedBookings: confirmedBookingsResult.count || 0,
         totalProperties: propertiesResult.count || 0,
         activeProperties: activePropertiesResult.count || 0,
@@ -100,8 +97,9 @@ export default function AdminDashboard() {
           status: b.status,
           total_price: b.total_price,
         })),
-        issuesCount: (pendingBookingsResult.count || 0) + (accessRequestsResult.count || 0),
+        issuesCount: accessRequestsResult.count || 0,
       });
+
     } catch (error) {
       console.error('Error loading dashboard stats:', error);
     } finally {
@@ -156,20 +154,21 @@ export default function AdminDashboard() {
       <NarrativeSummary stats={stats} loading={loading} />
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:gap-6 mb-8">
         <StatCard
-          title="Total Bookings"
-          value={stats?.totalBookings || 0}
+          title="Paid Bookings"
+          value={stats?.paidBookings || 0}
           icon={BookOpen}
-          description="All time bookings"
+          description="All time — paid only"
           onClick={() => navigate('/admin/all-bookings')}
         />
         <StatCard
-          title="Pending Bookings"
-          value={stats?.pendingBookings || 0}
+          title="Confirmed Bookings"
+          value={stats?.confirmedBookings || 0}
           icon={Clock}
-          description="Awaiting confirmation"
-          variant={stats?.pendingBookings ? 'warning' : 'default'}
-          onClick={() => navigate('/admin/all-bookings?status=pending')}
+          description="Paid and confirmed"
+          variant="success"
+          onClick={() => navigate('/admin/all-bookings?status=confirmed')}
         />
+
         <StatCard
           title="Active Properties"
           value={`${stats?.activeProperties || 0} / ${stats?.totalProperties || 0}`}
