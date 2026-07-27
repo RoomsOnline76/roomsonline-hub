@@ -268,6 +268,6 @@ export function useAutoRecaptcha(action: string = "login") {
   return {
     ...state,
     retry,
-    isReady: !!executeRecaptcha,
+    isReady: bypass ? true : !!executeRecaptcha,
   };
 }
