@@ -439,7 +439,7 @@ const Bookings = () => {
             voucher: res.reservation_voucher,
             external_reservation_id: res.external_reservation_id,
             created_at: res.created_at,
-            payment_status: res.payment_status ?? null,
+            payment_status: (res as any).payment_status ?? null,
             source: "pms" as const
           };
         });
