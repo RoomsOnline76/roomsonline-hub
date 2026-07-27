@@ -550,38 +550,42 @@ const Bookings = () => {
     return result;
   }, [bookings, searchTerm, showCancelled]);
 
-  // Stats - calculated from all bookings (not filtered by cancelled toggle) so counts are always accurate
+  // Stats — only count paid bookings. Pending checkouts are excluded from all totals.
   const stats = useMemo(() => {
     const normalizeStatus = (s: string) => s?.toLowerCase() || "";
-    
+
     // Apply only search filter for stats (not the cancelled toggle)
     let statsBookings = bookings;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      statsBookings = bookings.filter(booking => 
+      statsBookings = bookings.filter(booking =>
         booking.guest_name.toLowerCase().includes(term) ||
         booking.guest_email.toLowerCase().includes(term) ||
         booking.property_name?.toLowerCase().includes(term) ||
         booking.external_reservation_id?.toLowerCase().includes(term)
       );
     }
-    
-    const total = statsBookings.length;
-    const confirmed = statsBookings.filter(b => 
-      ["confirmed", "guaranteed", "checked-in"].includes(normalizeStatus(b.status))
-    ).length;
-    const pending = statsBookings.filter(b => 
-      ["pending", "provisional"].includes(normalizeStatus(b.status))
-    ).length;
-    const cancelled = statsBookings.filter(b => 
-      normalizeStatus(b.status) === "cancelled"
-    ).length;
-    const totalRevenue = statsBookings
-      .filter(b => normalizeStatus(b.status) !== "cancelled")
-      .reduce((sum, b) => sum + Number(b.total_price), 0);
 
-    return { total, confirmed, pending, cancelled, totalRevenue };
+    const CONFIRMED_STATUSES = ["confirmed", "guaranteed", "checked-in", "checked_in"];
+    const isPaid = (b: Booking) => {
+      const status = normalizeStatus(b.status);
+      if (status === "cancelled") return false;
+      // Internal bookings carry an explicit payment_status; treat 'paid' as paid.
+      if ((b.payment_status || "").toLowerCase() === "paid") return true;
+      // PMS reservations don't expose payment_status but reach confirmed/guaranteed/checked-in only after payment.
+      if (b.source === "pms" && CONFIRMED_STATUSES.includes(status)) return true;
+      return false;
+    };
+
+    const paid = statsBookings.filter(isPaid);
+    const total = paid.length;
+    const confirmed = paid.filter(b => CONFIRMED_STATUSES.includes(normalizeStatus(b.status))).length;
+    const cancelled = statsBookings.filter(b => normalizeStatus(b.status) === "cancelled").length;
+    const totalRevenue = paid.reduce((sum, b) => sum + Number(b.total_price), 0);
+
+    return { total, confirmed, cancelled, totalRevenue };
   }, [bookings, searchTerm]);
+
 
   const getStatusIndicator = (status: string) => {
     const normalized = status?.toLowerCase() || "";
