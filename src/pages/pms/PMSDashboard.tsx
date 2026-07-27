@@ -2157,7 +2157,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2209,7 +2209,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const colors = getStatusColor(b.status);
                     const isStart = b.check_in_date === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
+                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}>
                         {isStart && <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>}
                       </button>
                     );
@@ -2255,7 +2255,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2361,7 +2361,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     return (
-                      <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                      <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-0.5 rounded-l-sm" : "left-0",
@@ -2423,7 +2423,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               return (
-                <button key={b.id} onClick={() => onSelectBooking(b)} className={cn(
+                <button key={b.id} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-0.5 rounded-l-sm" : "left-0",
