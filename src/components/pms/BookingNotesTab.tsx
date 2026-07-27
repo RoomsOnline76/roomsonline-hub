@@ -24,8 +24,18 @@ interface Complaint {
   resolved_at?: string;
 }
 
+interface ModificationNote {
+  action?: string;
+  timestamp?: string;
+  changes?: Record<string, unknown>;
+}
+
 export function BookingNotesTab({ bookingId, guestId, specialRequests, modificationNotes }: BookingNotesTabProps) {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [currentSpecialRequests, setCurrentSpecialRequests] = useState(specialRequests || "");
+  const [currentModificationNotes, setCurrentModificationNotes] = useState<ModificationNote[]>(
+    Array.isArray(modificationNotes) ? modificationNotes as ModificationNote[] : []
+  );
   const [loading, setLoading] = useState(false);
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [showComplaintForm, setShowComplaintForm] = useState(false);
@@ -34,7 +44,25 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!guestId) return;
+    const loadBookingNotes = async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("special_requests, modification_notes")
+        .eq("id", bookingId)
+        .maybeSingle();
+
+      setCurrentSpecialRequests(data?.special_requests || specialRequests || "");
+      setCurrentModificationNotes(Array.isArray(data?.modification_notes) ? data.modification_notes as ModificationNote[] : Array.isArray(modificationNotes) ? modificationNotes as ModificationNote[] : []);
+    };
+
+    loadBookingNotes();
+  }, [bookingId, specialRequests, modificationNotes]);
+
+  useEffect(() => {
+    if (!guestId) {
+      setComplaints([]);
+      return;
+    }
     const load = async () => {
       setLoading(true);
       const { data } = await supabase.from("rolos_guest_profiles").select("complaints").eq("id", guestId).single();
@@ -55,6 +83,7 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
     const { error } = await supabase.from("bookings").update({ special_requests: updated }).eq("id", bookingId);
     setSaving(false);
     if (error) { toast.error("Failed to save comment"); return; }
+    setCurrentSpecialRequests(updated);
     toast.success("Comment added");
     setComment("");
     setShowCommentForm(false);
@@ -122,22 +151,22 @@ export function BookingNotesTab({ bookingId, guestId, specialRequests, modificat
       )}
 
       {/* Special Requests */}
-      {specialRequests && (
+      {currentSpecialRequests && (
         <div className="space-y-1">
           <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Special Requests / Comments</h5>
-          <p className="text-sm bg-muted/50 p-3 rounded-md whitespace-pre-wrap">{specialRequests}</p>
+          <p className="text-sm bg-muted/50 p-3 rounded-md whitespace-pre-wrap">{currentSpecialRequests}</p>
         </div>
       )}
 
       {/* Modification History */}
-      {modificationNotes && Array.isArray(modificationNotes) && modificationNotes.length > 0 && (
+      {currentModificationNotes.length > 0 && (
         <div className="space-y-1">
           <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Modification History</h5>
           <div className="space-y-1.5">
-            {(modificationNotes as any[]).slice(-5).reverse().map((note: any, i: number) => (
+            {currentModificationNotes.slice(-5).reverse().map((note, i) => (
               <div key={i} className="text-xs bg-muted/30 p-2 rounded">
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[10px] capitalize">{note.action}</Badge>
+                  <Badge variant="outline" className="text-[10px] capitalize">{note.action || "update"}</Badge>
                   <span className="text-muted-foreground">{note.timestamp ? new Date(note.timestamp).toLocaleString() : ""}</span>
                 </div>
                 {note.changes && Object.entries(note.changes).map(([k, v]) => (

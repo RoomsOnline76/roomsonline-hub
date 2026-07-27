@@ -1813,7 +1813,7 @@ interface CalendarGridProps {
   getPricingSuffix: (roomTypeId: string) => string;
   getSeasonForDate: (date: Date) => RateSeason | null;
   getRestriction: (roomTypeName: string, date: Date) => AvailabilityOverride | undefined;
-  onSelectBooking: (b: BookingRow) => void;
+  onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
   bookingsLoading: boolean;
 }
 
@@ -2448,7 +2448,21 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
 
 // ──────────── Booking Detail Component (Tabbed Lifecycle) ────────────
 
-function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: BookingRow; rooms: Room[]; propertyId: string; onSaved: () => void }) {
+function BookingDetail({
+  booking,
+  rooms,
+  propertyId,
+  activeTab,
+  onTabChange,
+  onSaved,
+}: {
+  booking: BookingRow;
+  rooms: Room[];
+  propertyId: string;
+  activeTab: BookingDetailTab;
+  onTabChange: (tab: BookingDetailTab) => void;
+  onSaved: () => void;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -2724,7 +2738,7 @@ function BookingDetail({ booking, rooms, propertyId, onSaved }: { booking: Booki
       {renderLifecycleActions()}
       {renderRoomReassignDialog()}
 
-      <Tabs defaultValue="details" className="mt-4">
+      <Tabs value={activeTab} onValueChange={(value) => onTabChange(value as BookingDetailTab)} className="mt-4">
         <TabsList className="grid w-full grid-cols-4 h-8">
           <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
           <TabsTrigger value="folio" className="text-xs"><Receipt className="h-3 w-3 mr-1" />Folio</TabsTrigger>
