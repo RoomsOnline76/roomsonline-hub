@@ -73,7 +73,9 @@ interface Booking {
   ai_metadata?: any;
   booking_channel?: string | null;
   rolos_rate_plan_id?: string | null;
+  payment_status?: string | null;
 }
+
 
 const Bookings = () => {
   const { user, isAdmin, isDev, isFearlessLeader } = useAuth();
