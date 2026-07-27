@@ -828,7 +828,7 @@ Deno.serve(async (req) => {
       }
       const { data: inv, error: invErr } = await supabase
         .from("subscription_invoices")
-        .select("*, properties!bookings_property_id_fkey(name, slug), property_portfolios(name)")
+        .select("*, properties(name, slug), property_portfolios(name)")
         .eq("payfast_token", token)
         .single();
       if (invErr || !inv) {
