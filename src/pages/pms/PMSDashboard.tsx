@@ -1618,6 +1618,11 @@ export default function PMSDashboard() {
               ) : (
                 // Portfolio + month view: group by WEEK across all properties
                 <div className="space-y-8">
+                  {hidePortfolioEmptyDays && !weekChunks.some((weekDates) => weekDates.some(hasPortfolioBookingOnDate)) && (
+                    <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
+                      No booked days in this month.
+                    </div>
+                  )}
                   {weekChunks.map((weekDates, weekIdx) => {
                     const visibleWeekDates = hidePortfolioEmptyDays ? weekDates.filter(hasPortfolioBookingOnDate) : weekDates;
                     if (visibleWeekDates.length === 0) return null;
