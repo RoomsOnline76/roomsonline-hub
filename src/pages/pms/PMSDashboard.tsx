@@ -487,7 +487,7 @@ export default function PMSDashboard() {
         .gte("check_out_date", format(new Date(), "yyyy-MM-dd"))
         .order("created_at", { ascending: false })
         .limit(10);
-      return (data || []) as BookingRow[];
+      return (data || []) as unknown as BookingRow[];
     },
     enabled: !!propertyId,
     refetchInterval: 60_000,
