@@ -84,6 +84,8 @@
     if (config.children) params.set('children', config.children);
     if (config.currency) params.set('currency', config.currency);
     if (config.theme) params.set('theme', config.theme);
+    // Give the confirmation page a way back to the host site when Close is clicked.
+    try { if (typeof window !== 'undefined' && window.location && window.location.href) params.set('return_url', window.location.href); } catch (e) {}
     params.set('embed_version', VERSION);
     return resolveBase(config) + '/embed/property/' + encodeURIComponent(slug) + '?' + params.toString();
   }
@@ -139,9 +141,44 @@
     widgets[slug] = { container: container, iframe: iframe, config: config };
   }
 
+  // Find the widget (property or portfolio) whose iframe sent this message.
+  function findWidgetBySource(source) {
+    var keys = Object.keys(widgets);
+    for (var i = 0; i < keys.length; i++) {
+      if (widgets[keys[i]].iframe && widgets[keys[i]].iframe.contentWindow === source) return widgets[keys[i]];
+    }
+    var pkeys = Object.keys(portfolioWidgets);
+    for (var j = 0; j < pkeys.length; j++) {
+      if (portfolioWidgets[pkeys[j]].iframe && portfolioWidgets[pkeys[j]].iframe.contentWindow === source) return portfolioWidgets[pkeys[j]];
+    }
+    return null;
+  }
+
   // Listen for postMessage from iframe
   function handleMessage(e) {
     if (!e.data || typeof e.data.type !== 'string') return;
+
+    // Handle 'roomsonline:*' close/navigate messages emitted by the confirmation page
+    if (e.data.type === 'roomsonline:close' || e.data.type === 'roomsonline:navigate') {
+      var w = findWidgetBySource(e.source);
+      if (w && w.container) {
+        // Remove the embed iframe so the host page is visible again.
+        try { if (w.iframe && w.iframe.parentNode) w.iframe.parentNode.removeChild(w.iframe); } catch (err) {}
+        w.container.removeAttribute(INIT_ATTR);
+        emitEvent(w.container, 'rolos:close', { url: e.data.url || null });
+      }
+      // If the confirmation asked us to navigate the host page and it targets THIS origin, honour it.
+      if (e.data.type === 'roomsonline:navigate' && e.data.url) {
+        try {
+          var target = new URL(e.data.url, window.location.href);
+          if (target.origin === window.location.origin) {
+            window.location.assign(target.toString());
+          }
+        } catch (err) {}
+      }
+      return;
+    }
+
     if (e.data.type.indexOf('rolos:') !== 0) return;
 
     var slug = e.data.slug;
@@ -228,6 +265,7 @@
     if (config.children) params.set('children', config.children);
     if (config.currency) params.set('currency', config.currency);
     if (config.theme) params.set('theme', config.theme);
+    try { if (typeof window !== 'undefined' && window.location && window.location.href) params.set('return_url', window.location.href); } catch (e) {}
     params.set('embed_version', VERSION);
     var src = resolveBase(config) + '/embed/portfolio/' + encodeURIComponent(slug) + '?' + params.toString();
 

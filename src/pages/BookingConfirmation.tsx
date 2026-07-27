@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle, AlertCircle, CreditCard, XCircle, CalendarDays, Users, Share2, Home, MapPin } from "lucide-react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 
 declare global {
@@ -44,6 +44,9 @@ const BookingConfirmation = () => {
   const paymentStatus = searchParams.get("payment");
   const integrationParam = searchParams.get("integration");
   const isIntegration = !!integrationParam;
+
+  // Capture referrer once — later in-page navigation would overwrite it.
+  const initialReferrerRef = useRef<string>(typeof document !== "undefined" ? document.referrer : "");
 
   const { data: booking, isLoading, error, refetch } = useQuery({
     queryKey: ["booking-confirmation", bookingId],
@@ -166,9 +169,38 @@ const BookingConfirmation = () => {
     ? `https://sleepinafrica.roomsonline.co.za/p/${property.slug}`
     : "https://sleepinafrica.roomsonline.co.za";
 
+  const CANONICAL_HOST_RE = /(^|\.)roomsonline\.co\.za$|\.lovable\.(app|dev)$|^localhost$/i;
+  const isCanonicalHost = (host: string) => CANONICAL_HOST_RE.test(host);
+
   const inIframe = typeof window !== "undefined" && window.parent !== window;
   const isWhitelabelHost =
-    typeof window !== "undefined" && !/roomsonline\.co\.za$|lovable\.(app|dev)$|localhost/.test(window.location.hostname);
+    typeof window !== "undefined" && !isCanonicalHost(window.location.hostname);
+
+  // Resolve where "Close" should send the user back to. Priority:
+  //   1. ?return_url= (http/https only)
+  //   2. document.referrer if it's a WL (non-canonical) origin
+  //   3. Current host root if we're on a WL host
+  //   4. Canonical property page
+  const resolveCloseTarget = (): string => {
+    const rawReturn = searchParams.get("return_url") || searchParams.get("returnUrl");
+    if (rawReturn) {
+      try {
+        const u = new URL(rawReturn);
+        if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+      } catch { /* ignore */ }
+    }
+    const ref = initialReferrerRef.current;
+    if (ref) {
+      try {
+        const u = new URL(ref);
+        if (!isCanonicalHost(u.hostname)) return u.toString();
+      } catch { /* ignore */ }
+    }
+    if (typeof window !== "undefined" && isWhitelabelHost) {
+      return window.location.origin + "/";
+    }
+    return canonicalPropertyUrl;
+  };
 
   const handleShare = async () => {
     const shareUrl = canonicalPropertyUrl;
@@ -307,29 +339,30 @@ const BookingConfirmation = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={() => {
-              const slug = (booking?.properties as any)?.slug || searchParams.get('property') || searchParams.get('slug');
-              const canonicalUrl = slug
-                ? `https://sleepinafrica.roomsonline.co.za/p/${slug}`
-                : "https://sleepinafrica.roomsonline.co.za";
+              const target = resolveCloseTarget();
               if (isIntegration || inIframe) {
-                // Tell parent host to close/redirect, then try to close the popup window.
+                // Tell the parent host to close/navigate — its embed script can restore its own UI cleanly.
                 try { window.parent.postMessage({ type: 'roomsonline:close' }, '*'); } catch {}
-                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: canonicalUrl }, '*'); } catch {}
+                try { window.parent.postMessage({ type: 'roomsonline:navigate', url: target }, '*'); } catch {}
                 try { window.close(); } catch {}
-                // Fallback: navigate the top-level page (not this iframe) to the canonical property page.
-                // Never route to `/p/<slug>` on the current host — white-label hosts don't serve that route.
+                // Fallback: navigate the top-level page (not this iframe) to the resolved WL/canonical target.
                 try {
                   if (window.top && window.top !== window.self) {
-                    window.top.location.assign(canonicalUrl);
+                    window.top.location.assign(target);
                     return;
                   }
                 } catch {}
                 if (isWhitelabelHost) {
-                  window.location.assign(canonicalUrl);
+                  window.location.assign(target);
                 }
                 // Otherwise stay on the confirmation page.
               } else {
-                navigate("/");
+                // Not embedded: if we ended up on a WL host somehow, go back there; else go home.
+                if (isWhitelabelHost) {
+                  window.location.assign(target);
+                } else {
+                  navigate("/");
+                }
               }
             }}
             className="flex-1 gap-2"
